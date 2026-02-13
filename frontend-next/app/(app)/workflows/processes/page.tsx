@@ -48,6 +48,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
@@ -131,6 +141,35 @@ interface InstanceDetail extends WorkflowInstance {
   variables: Record<string, unknown>;
 }
 
+interface BpmnTrigger {
+  id: number;
+  trigger_type: string;
+  name: string;
+  is_active: boolean;
+  config: {
+    entity_type?: string;
+    [key: string]: unknown;
+  };
+}
+
+interface TriggersApiResponse {
+  success: boolean;
+  triggers: BpmnTrigger[];
+}
+
+interface CreateInstanceResponse {
+  success: boolean;
+  instance?: { id: number };
+  first_task_id?: number;
+  errors?: string[];
+}
+
+const ENTITY_ENDPOINTS: Record<string, { url: string; labelKey: string; searchParam: string; label: string }> = {
+  Corporate: { url: "/api/v1/companies", labelKey: "name", searchParam: "search", label: "Company" },
+  Job: { url: "/api/v1/foundations/jobs/records", labelKey: "display_name", searchParam: "search", label: "Job" },
+  Contact: { url: "/api/v1/foundations/contacts/records", labelKey: "display_name", searchParam: "search", label: "Contact" },
+};
+
 export default function BpmnProcessesPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -165,6 +204,17 @@ export default function BpmnProcessesPage() {
   const [instanceDetail, setInstanceDetail] = useState<InstanceDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Start Process Dialog state
+  const [startDialogOpen, setStartDialogOpen] = useState(false);
+  const [startingProcess, setStartingProcess] = useState<BpmnProcessSummary | null>(null);
+  const [startEntityType, setStartEntityType] = useState<string>("");
+  const [startTriggerId, setStartTriggerId] = useState<number | null>(null);
+  const [entityOptions, setEntityOptions] = useState<ComboboxItem[]>([]);
+  const [entitySearchLoading, setEntitySearchLoading] = useState(false);
+  const [selectedEntity, setSelectedEntity] = useState<ComboboxItem | undefined>(undefined);
+  const [startingInstance, setStartingInstance] = useState(false);
+  const [fallbackEntityId, setFallbackEntityId] = useState("");
 
   const fetchProcesses = useCallback(async () => {
     try {
@@ -403,6 +453,131 @@ export default function BpmnProcessesPage() {
     }
   };
 
+  const handleStartProcess = async (process: BpmnProcessSummary) => {
+    try {
+      const response = await api.get<TriggersApiResponse>(
+        `/api/v1/bpmn_processes/${process.id}/bpmn_triggers`
+      );
+      if (!response?.success) {
+        toast({ title: "Error", description: "Failed to load triggers", variant: "destructive" });
+        return;
+      }
+      const manualTriggers = (response.triggers || []).filter(
+        (t) => t.trigger_type === "manual" && t.is_active
+      );
+      if (manualTriggers.length === 0) {
+        toast({ title: "No manual triggers", description: "This workflow has no active manual triggers configured", variant: "destructive" });
+        return;
+      }
+      const trigger = manualTriggers[0];
+      const entityType = trigger.config?.entity_type || "";
+      setStartingProcess(process);
+      setStartEntityType(entityType);
+      setStartTriggerId(trigger.id);
+      setSelectedEntity(undefined);
+      setFallbackEntityId("");
+      setEntityOptions([]);
+      setStartDialogOpen(true);
+
+      // Pre-fetch entities if we know the type
+      if (entityType && ENTITY_ENDPOINTS[entityType]) {
+        fetchEntities(entityType, "");
+      }
+    } catch (error) {
+      console.error("Failed to fetch triggers:", error);
+      toast({ title: "Error", description: "Failed to load workflow triggers", variant: "destructive" });
+    }
+  };
+
+  const fetchEntities = async (entityType: string, search: string) => {
+    const config = ENTITY_ENDPOINTS[entityType];
+    if (!config) return;
+
+    setEntitySearchLoading(true);
+    try {
+      const separator = config.url.includes("?") ? "&" : "?";
+      const url = search
+        ? `${config.url}${separator}${config.searchParam}=${encodeURIComponent(search)}&limit=50`
+        : `${config.url}${separator}limit=50`;
+      const response = await api.get<Record<string, unknown>>(url);
+      if (!response) return;
+
+      // Handle different response shapes
+      let items: Array<Record<string, unknown>> = [];
+      if (entityType === "Corporate" && Array.isArray((response as Record<string, unknown>).companies)) {
+        items = (response as Record<string, unknown>).companies as Array<Record<string, unknown>>;
+      } else if (Array.isArray((response as Record<string, unknown>).records)) {
+        items = (response as Record<string, unknown>).records as Array<Record<string, unknown>>;
+      } else if (Array.isArray((response as Record<string, unknown>).data)) {
+        items = (response as Record<string, unknown>).data as Array<Record<string, unknown>>;
+      }
+
+      setEntityOptions(
+        items.map((item) => ({
+          id: String(item.id),
+          label: String(item[config.labelKey] || item.name || item.display_name || `#${item.id}`),
+        }))
+      );
+    } catch (error) {
+      console.error("Failed to fetch entities:", error);
+    } finally {
+      setEntitySearchLoading(false);
+    }
+  };
+
+  const handleEntitySearch = useCallback(
+    (value: string) => {
+      if (startEntityType && ENTITY_ENDPOINTS[startEntityType]) {
+        fetchEntities(startEntityType, value);
+      }
+    },
+    [startEntityType]
+  );
+
+  const handleStartInstance = async () => {
+    if (!startingProcess || !startTriggerId) return;
+
+    const subjectId = selectedEntity?.id || fallbackEntityId;
+    if (!subjectId) {
+      toast({ title: "Error", description: "Please select an entity", variant: "destructive" });
+      return;
+    }
+
+    setStartingInstance(true);
+    try {
+      const response = await api.post<CreateInstanceResponse>(
+        `/api/v1/bpmn_process_instances`,
+        {
+          bpmn_process_id: startingProcess.id,
+          subject_type: startEntityType,
+          subject_id: Number(subjectId),
+        }
+      );
+      if (response?.success) {
+        toast({ title: "Success", description: "Workflow started" });
+        setStartDialogOpen(false);
+        fetchProcesses();
+        // Redirect to first task if available, otherwise to instances tab
+        if (response.first_task_id) {
+          router.push(`/workflows/tasks/${response.first_task_id}`);
+        } else {
+          router.push("/workflows/processes/instances");
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: response?.errors?.join(", ") || "Failed to start workflow",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to start instance:", error);
+      toast({ title: "Error", description: "Failed to start workflow", variant: "destructive" });
+    } finally {
+      setStartingInstance(false);
+    }
+  };
+
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -544,6 +719,14 @@ export default function BpmnProcessesPage() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {process.isPublished && process.triggerCount > 0 && (
+                        <DropdownMenuItem
+                          onClick={() => handleStartProcess(process)}
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Start
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem
                         onClick={() =>
                           router.push(`/workflows/designer/${process.id}`)
@@ -871,6 +1054,80 @@ export default function BpmnProcessesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Start Process Dialog */}
+      <Dialog open={startDialogOpen} onOpenChange={setStartDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Start {startingProcess?.name}</DialogTitle>
+            <DialogDescription>
+              {startEntityType && ENTITY_ENDPOINTS[startEntityType]
+                ? `Select a ${ENTITY_ENDPOINTS[startEntityType].label} to run this workflow on.`
+                : startEntityType
+                  ? `Enter the ${startEntityType} ID to run this workflow on.`
+                  : "Configure the workflow subject."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {startEntityType && ENTITY_ENDPOINTS[startEntityType] ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {ENTITY_ENDPOINTS[startEntityType].label}
+                </label>
+                <ComboboxDropdown
+                  items={entityOptions}
+                  selectedItem={selectedEntity}
+                  onSelect={setSelectedEntity}
+                  placeholder={`Search ${ENTITY_ENDPOINTS[startEntityType].label.toLowerCase()}...`}
+                  searchPlaceholder={`Type to search...`}
+                  isLoading={entitySearchLoading}
+                  onInputChange={handleEntitySearch}
+                  disableInternalFilter
+                  clearable
+                  onClear={() => setSelectedEntity(undefined)}
+                />
+              </div>
+            ) : startEntityType ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {startEntityType} ID
+                </label>
+                <Input
+                  type="number"
+                  placeholder={`Enter ${startEntityType} ID...`}
+                  value={fallbackEntityId}
+                  onChange={(e) => setFallbackEntityId(e.target.value)}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This trigger has no entity type configured. Please configure the trigger in the workflow designer.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStartDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleStartInstance}
+              disabled={startingInstance || (!selectedEntity && !fallbackEntityId) || !startEntityType}
+            >
+              {startingInstance ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Start Workflow
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

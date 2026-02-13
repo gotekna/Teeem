@@ -136,7 +136,8 @@ module Api
               status_on_create: "draft"
             )
 
-            po.line_items.order(:line_number).each do |li|
+            # Assign sequential line_numbers (source may have duplicates which breaks Config Sync matching)
+            po.line_items.order(:line_number, :id).each_with_index do |li, line_idx|
               item.po_template_line_items.create!(
                 description: li.description,
                 quantity: li.quantity,
@@ -144,7 +145,7 @@ module Api
                 gst_code: li.gst_code,
                 pricebook_item_id: li.pricebook_item_id,
                 pricebook_item_code: li.pricebook_item&.item_code,
-                line_number: li.line_number
+                line_number: line_idx + 1
               )
             end
           end

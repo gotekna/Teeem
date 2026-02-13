@@ -782,7 +782,12 @@ module Api
         non_self_ref_fks.each do |fk_field, remap_config|
           fk_model = remap_config[:model].constantize
           match_field = remap_config[:match_field]
-          source_fk_ids = source_records.map { |r| r.send(fk_field) }.compact.uniq
+          if remap_config[:array]
+            # Array FK: collect all IDs from all array values
+            source_fk_ids = source_records.flat_map { |r| Array(r.send(fk_field)) }.compact.uniq
+          else
+            source_fk_ids = source_records.map { |r| r.send(fk_field) }.compact.uniq
+          end
           source_fk_values[fk_field] = ActsAsTenant.with_tenant(source_tenant) do
             fk_model.where(id: source_fk_ids).pluck(:id, match_field).to_h
           end
@@ -790,14 +795,22 @@ module Api
 
         # Filter: keep only records where ALL non-self-ref FKs have a matching target
         kept_ids = source_records.select do |record|
-          non_self_ref_fks.all? do |fk_field, _config|
-            fk_id = record.send(fk_field)
-            next true if fk_id.blank? # Optional FK, allow nil
+          non_self_ref_fks.all? do |fk_field, remap_config|
+            fk_value = record.send(fk_field)
+            next true if fk_value.blank? # Optional FK, allow nil
 
-            source_value = source_fk_values[fk_field][fk_id]
-            next false unless source_value
-
-            target_values[fk_field].include?(source_value.to_s.downcase.strip)
+            if remap_config[:array] && fk_value.is_a?(Array)
+              # Array FK: keep record if at least one element has a match
+              next true if fk_value.empty?
+              fk_value.any? do |id|
+                sv = source_fk_values[fk_field][id]
+                sv && target_values[fk_field].include?(sv.to_s.downcase.strip)
+              end
+            else
+              source_value = source_fk_values[fk_field][fk_value]
+              next false unless source_value
+              target_values[fk_field].include?(source_value.to_s.downcase.strip)
+            end
           end
         end.map(&:id)
 

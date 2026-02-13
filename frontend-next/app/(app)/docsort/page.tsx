@@ -1328,15 +1328,25 @@ export default function DocsortPage() {
                       </Button>
                     )}
 
-                    <Button variant="outline" asChild>
-                      <a
-                        href={`${getApiBaseUrl()}/api/v1/document_inboxes/${selectedItem.id}/download?url_only=false`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <DocumentIcon className="h-4 w-4 mr-2" />
-                        Download
-                      </a>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const response = await api.get<{ url: string }>(
+                            `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
+                          );
+                          if (response?.url) {
+                            window.open(response.url, "_blank");
+                          } else {
+                            toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
+                          }
+                        } catch {
+                          toast({ title: "Download failed", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <DocumentIcon className="h-4 w-4 mr-2" />
+                      Download
                     </Button>
 
                     {/* Open in Takeoff - for any PDF document */}

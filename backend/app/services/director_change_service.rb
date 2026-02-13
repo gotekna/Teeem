@@ -482,6 +482,9 @@ class DirectorChangeService
     # Add signers from input data (no need to regenerate PDFs for signer metadata)
     add_signers_to_request(request)
 
+    # Create positioned signature fields by detecting blue badges in the PDF
+    ESignatureBadgeDetector.create_fields_from_pdf!(request, package[:pdf_content])
+
     request
   end
 
@@ -500,6 +503,9 @@ class DirectorChangeService
     request.save!
 
     add_signers_to_request(request)
+
+    # Create positioned signature fields by detecting blue badges in the PDF
+    ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
 
     request
   end

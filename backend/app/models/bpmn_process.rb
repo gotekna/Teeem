@@ -128,6 +128,132 @@ class BpmnProcess < ApplicationRecord
     validate_structure.empty?
   end
 
+  # Generate BPMN XML from database nodes and edges
+  # Use when nodes exist but bpmn_xml is missing (e.g., programmatically created workflows)
+  def generate_xml_from_nodes!
+    return if bpmn_nodes.empty?
+
+    nodes = bpmn_nodes.order(:id)
+    edges = bpmn_edges.includes(:source_node, :target_node)
+
+    # Layout constants - generous spacing for readability
+    x_start = 180
+    y_midline = 260  # Vertical center for all elements
+    x_spacing = 200  # Between node centers
+
+    # Map node_type to BPMN element type and dimensions
+    type_map = {
+      "start_event" => { element: "bpmn:startEvent", width: 36, height: 36 },
+      "end_event" => { element: "bpmn:endEvent", width: 36, height: 36 },
+      "service_task" => { element: "bpmn:serviceTask", width: 100, height: 80 },
+      "user_task" => { element: "bpmn:userTask", width: 100, height: 80 },
+      "exclusive_gateway" => { element: "bpmn:exclusiveGateway", width: 50, height: 50 },
+      "parallel_gateway" => { element: "bpmn:parallelGateway", width: 50, height: 50 },
+      "inclusive_gateway" => { element: "bpmn:inclusiveGateway", width: 50, height: 50 },
+      "timer_event" => { element: "bpmn:intermediateCatchEvent", width: 36, height: 36 },
+      "message_event" => { element: "bpmn:intermediateThrowEvent", width: 36, height: 36 }
+    }
+
+    # Compute positions: center each element on the midline
+    # Store computed bounds for edge waypoints
+    node_bounds = {}
+
+    nodes.each_with_index do |node, idx|
+      info = type_map[node.node_type] || { element: "bpmn:task", width: 100, height: 80 }
+      # Place center of each node at (x_start + idx * x_spacing, y_midline)
+      cx = x_start + idx * x_spacing
+      cy = y_midline
+      x = cx - info[:width] / 2.0
+      y = cy - info[:height] / 2.0
+      node_bounds[node.node_key] = { x: x, y: y, w: info[:width], h: info[:height], cx: cx, cy: cy }
+    end
+
+    # Build process elements XML
+    process_elements = ""
+    shape_elements = ""
+    edge_elements = ""
+
+    nodes.each do |node|
+      info = type_map[node.node_type] || { element: "bpmn:task", width: 100, height: 80 }
+      b = node_bounds[node.node_key]
+
+      # Escape XML special chars in names
+      escaped_name = node.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
+      name_attr = node.name.present? ? " name=\"#{escaped_name}\"" : ""
+
+      # Add documentation with config JSON if config exists
+      doc_content = ""
+      if node.config.present? && node.config.keys.any?
+        escaped_json = node.config.to_json.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+        doc_content = "\n      <bpmn:documentation>#{escaped_json}</bpmn:documentation>"
+      end
+
+      process_elements += "    <#{info[:element]} id=\"#{node.node_key}\"#{name_attr}>#{doc_content}\n    </#{info[:element]}>\n"
+
+      # Build the shape - no explicit label (bpmn-js auto-positions labels inside tasks)
+      shape_elements += <<~SHAPE
+            <bpmndi:BPMNShape id="#{node.node_key}_di" bpmnElement="#{node.node_key}">
+              <dc:Bounds x="#{b[:x].round}" y="#{b[:y].round}" width="#{b[:w]}" height="#{b[:h]}" />
+            </bpmndi:BPMNShape>
+      SHAPE
+    end
+
+    # Add sequence flows with waypoints
+    edges.each do |edge|
+      escaped_edge_name = edge.name.to_s.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;").gsub("\"", "&quot;")
+      name_attr = edge.name.present? ? " name=\"#{escaped_edge_name}\"" : ""
+      condition = ""
+      if edge.condition_expression.present?
+        escaped_cond = edge.condition_expression.gsub("&", "&amp;").gsub("<", "&lt;").gsub(">", "&gt;")
+        condition = "\n      <bpmn:conditionExpression>#{escaped_cond}</bpmn:conditionExpression>"
+      end
+
+      process_elements += "    <bpmn:sequenceFlow id=\"#{edge.edge_key}\" sourceRef=\"#{edge.source_node.node_key}\" targetRef=\"#{edge.target_node.node_key}\"#{name_attr}>#{condition}\n    </bpmn:sequenceFlow>\n"
+
+      # Compute edge waypoints: right side of source → left side of target
+      src = node_bounds[edge.source_node.node_key]
+      tgt = node_bounds[edge.target_node.node_key]
+      if src && tgt
+        src_x = src[:x] + src[:w]  # Right edge of source
+        src_y = src[:cy]            # Vertical center
+        tgt_x = tgt[:x]            # Left edge of target
+        tgt_y = tgt[:cy]           # Vertical center
+
+        edge_elements += <<~EDGE
+              <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
+                <di:waypoint x="#{src_x.round}" y="#{src_y.round}" />
+                <di:waypoint x="#{tgt_x.round}" y="#{tgt_y.round}" />
+              </bpmndi:BPMNEdge>
+        EDGE
+      else
+        edge_elements += <<~EDGE
+              <bpmndi:BPMNEdge id="#{edge.edge_key}_di" bpmnElement="#{edge.edge_key}">
+              </bpmndi:BPMNEdge>
+        EDGE
+      end
+    end
+
+    xml = <<~XML
+      <?xml version="1.0" encoding="UTF-8"?>
+      <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                        xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                        xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                        xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                        id="Definitions_1"
+                        targetNamespace="http://bpmn.io/schema/bpmn">
+        <bpmn:process id="Process_1" isExecutable="true">
+      #{process_elements}  </bpmn:process>
+        <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+          <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="Process_1">
+      #{shape_elements}#{edge_elements}    </bpmndi:BPMNPlane>
+        </bpmndi:BPMNDiagram>
+      </bpmn:definitions>
+    XML
+
+    update!(bpmn_xml: xml)
+    xml
+  end
+
   # Sync nodes and edges from BPMN XML
   # Call this before test run if nodes are empty but XML exists
   def sync_nodes_from_xml!

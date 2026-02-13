@@ -13,6 +13,9 @@ class PriceHistory < ApplicationRecord
   after_commit :refresh_supplier_cached_flag, on: [:create, :destroy]
   after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
 
+  # SSoT: Keep PricebookItem.current_price in sync with default supplier's latest price
+  after_commit :sync_current_price_to_item, on: [:create, :update]
+
   # Validations
   validates :pricebook_item_id, presence: true
   validates :new_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
@@ -119,6 +122,28 @@ class PriceHistory < ApplicationRecord
     supplier&.refresh_supplier_flag!
   rescue StandardError => e
     Rails.logger.error("PriceHistory##{id}: Failed to refresh supplier flag - #{e.message}")
+  end
+
+  # SSoT: When a price history is created/updated for the default supplier,
+  # keep PricebookItem.current_price in sync with the latest price.
+  # This enforces the invariant: current_price == default supplier's latest history price.
+  def sync_current_price_to_item
+    item = pricebook_item
+    return unless item
+    return unless item.default_supplier_id == supplier_id
+
+    latest = PriceHistory.where(
+      pricebook_item_id: item.id,
+      supplier_id: supplier_id
+    ).order(date_effective: :desc, created_at: :desc).first
+
+    return unless latest
+    return if item.current_price == latest.new_price
+
+    item.skip_price_history_callback = true
+    item.update!(current_price: latest.new_price)
+  rescue StandardError => e
+    Rails.logger.error("PriceHistory##{id}: Failed to sync current_price to item - #{e.message}")
   end
 
   # SSoT: Handle supplier_id change - refresh both old and new supplier

@@ -436,7 +436,8 @@ export default function BpmnJsDesigner({
         console.log(`[${myInitId}] XML imported successfully`);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const canvas = (modeler as any).get("canvas");
-        canvas.zoom("fit-viewport");
+        // Center diagram with padding so it doesn't hug the top-left
+        canvas.zoom("fit-viewport", "auto");
 
         // Mark as fully initialized AFTER successful setup
         initializedRef.current = true;
@@ -558,7 +559,7 @@ export default function BpmnJsDesigner({
         try {
           await modelerRef.current?.importXML(xml);
           const canvas = modelerRef.current?.get("canvas");
-          canvas.zoom("fit-viewport");
+          canvas.zoom("fit-viewport", "auto");
           setIsDirty(true);
           toast({
             title: "Imported",
@@ -596,7 +597,7 @@ export default function BpmnJsDesigner({
   const handleFitView = useCallback(() => {
     if (!modelerRef.current) return;
     const canvas = modelerRef.current.get("canvas");
-    canvas.zoom("fit-viewport");
+    canvas.zoom("fit-viewport", "auto");
   }, []);
 
   // Update element name

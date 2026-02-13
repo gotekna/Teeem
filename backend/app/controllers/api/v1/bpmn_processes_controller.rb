@@ -1,7 +1,7 @@
 module Api
   module V1
     class BpmnProcessesController < ApplicationController
-      before_action :set_process, only: [ :show, :update, :destroy, :publish, :unpublish, :duplicate, :validate, :test_run ]
+      before_action :set_process, only: [ :show, :update, :destroy, :publish, :unpublish, :duplicate, :validate, :test_run, :regenerate_xml ]
 
       def index
         @processes = BpmnProcess.includes(:bpmn_nodes, :bpmn_edges, :bpmn_triggers)
@@ -18,6 +18,12 @@ module Api
       end
 
       def show
+        # Auto-generate BPMN XML if missing but nodes exist
+        if @process.bpmn_xml.blank? && @process.bpmn_nodes.any?
+          @process.generate_xml_from_nodes!
+          @process.reload
+        end
+
         render json: {
           success: true,
           bpmn_process: serialize_process_full(@process)
@@ -85,6 +91,24 @@ module Api
           valid: errors.empty?,
           errors: errors
         }
+      end
+
+      # POST /api/v1/bpmn_processes/:id/regenerate_xml
+      # Regenerate BPMN XML from database nodes (for processes created programmatically)
+      def regenerate_xml
+        if @process.bpmn_nodes.empty?
+          render json: { success: false, error: "No nodes found for this process" }, status: :unprocessable_entity
+          return
+        end
+
+        xml = @process.generate_xml_from_nodes!
+        render json: {
+          success: true,
+          bpmn_process: serialize_process_full(@process.reload),
+          message: "BPMN XML regenerated from #{@process.bpmn_nodes.count} nodes"
+        }
+      rescue StandardError => e
+        render json: { success: false, error: "Failed to regenerate XML: #{e.message}" }, status: :unprocessable_entity
       end
 
       # POST /api/v1/bpmn_processes/:id/test_run

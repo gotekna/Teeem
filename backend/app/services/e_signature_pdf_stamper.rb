@@ -25,15 +25,17 @@ class ESignaturePdfStamper
     # Parse the PDF
     document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
 
-    # Check if we have positioned fields
+    # Stamp positioned fields at their defined locations (badge replacement)
     if @request.fields.any?
-      # Stamp positioned fields at their defined locations
       stamp_positioned_fields(document)
+
+      # Any signed signers WITHOUT completed fields get legacy stamps
+      signers_with_fields = @request.fields.completed.pluck(:e_signature_signer_id).uniq
+      remaining_signers = @request.signers.signed.where.not(id: signers_with_fields).order(:signing_order).to_a
+      stamp_legacy_signatures_for(document, remaining_signers) if remaining_signers.any?
     else
-      # Legacy: Add signature footer to each page
-      document.pages.each_with_index do |page, index|
-        add_signature_footer(page, index + 1, document.pages.count)
-      end
+      # No positioned fields: stamp all signatures on the last page
+      stamp_legacy_signatures(document)
     end
 
     # Add completion certificate as final page
@@ -53,7 +55,7 @@ class ESignaturePdfStamper
     document = HexaPDF::Document.new(io: StringIO.new(pdf_content))
 
     # Find the last page for signature placement
-    last_page = document.pages.last
+    last_page = document.pages[document.pages.count - 1]
     box = last_page.box
 
     # Calculate signature position (bottom of page, based on signer order)
@@ -119,33 +121,93 @@ class ESignaturePdfStamper
     nil
   end
 
-  def add_signature_footer(page, page_number, total_pages)
-    canvas = page.canvas(type: :overlay)
-    box = page.box
+  # Stamp signatures at the bottom of the last page (DocuSign-style).
+  # Used for requests without positioned fields.
+  # Each signer gets: signature image (or typed name) + "Signed by" + timestamp.
+  def stamp_legacy_signatures(document)
+    signed_signers = @request.signers.signed.order(:signing_order).to_a
+    stamp_legacy_signatures_for(document, signed_signers)
+  end
 
-    # Draw footer background
-    canvas.fill_color("f5f5f5")
-    canvas.rectangle(0, 0, box.width, FOOTER_HEIGHT)
+  # Stamp a specific list of signers at the bottom of the last page.
+  # Used as fallback for signers whose badge positions weren't detected.
+  def stamp_legacy_signatures_for(document, signers)
+    return if signers.empty?
+
+    last_page = document.pages[document.pages.count - 1]
+    box = last_page.box
+    canvas = last_page.canvas(type: :overlay)
+
+    block_height = 65
+    total_height = (signers.size * block_height) + 30
+    x_start = MARGIN
+    y_start = MARGIN
+
+    # White background behind entire signature area
+    canvas.fill_color("ffffff")
+    canvas.rectangle(x_start - 5, y_start - 5, box.width - (MARGIN * 2) + 10, total_height + 10)
     canvas.fill
 
-    # Draw separator line
+    # Divider line
     canvas.stroke_color("cccccc")
-    canvas.line(MARGIN, FOOTER_HEIGHT, box.width - MARGIN, FOOTER_HEIGHT)
+    canvas.line(x_start, y_start + total_height - 5, box.width - MARGIN, y_start + total_height - 5)
     canvas.stroke
 
-    # Add request info
-    canvas.font("Helvetica", size: 8)
+    # "Signatures" header
+    canvas.font("Helvetica", variant: :bold, size: 10)
+    canvas.fill_color("333333")
+    canvas.text("Signatures", at: [ x_start, y_start + total_height - 20 ])
+
+    # Stamp each signer
+    signers.each_with_index do |signer, index|
+      y = y_start + total_height - 35 - (index * block_height)
+      stamp_docusign_style(document, canvas, signer, x_start, y, 200, 50)
+    end
+  end
+
+  # DocuSign-style signature stamp: signature image/text + green "Signed" label + timestamp
+  def stamp_docusign_style(document, canvas, signer, x, y, width, height)
+    sig_data = signer.signature_data
+
+    # Draw signature image if available
+    if sig_data.present? && sig_data.start_with?("data:image")
+      begin
+        image_data = sig_data.split(",")[1]
+        image_bytes = Base64.decode64(image_data)
+
+        Tempfile.create([ "sig", ".png" ]) do |temp|
+          temp.binmode
+          temp.write(image_bytes)
+          temp.rewind
+
+          image = document.images.add(temp.path)
+          canvas.image(
+            image,
+            at: [ x, y + 15 ],
+            width: [ width, 170 ].min,
+            height: [ height - 20, 35 ].min
+          )
+        end
+      rescue StandardError => e
+        Rails.logger.error("ESignaturePdfStamper: Failed to stamp legacy signature image: #{e.message}")
+        # Fall back to typed name
+        canvas.font("Helvetica", variant: :bold, size: 11)
+        canvas.fill_color("000000")
+        canvas.text(signer.name, at: [ x, y + height - 18 ])
+      end
+    else
+      # Typed signature
+      canvas.font("Helvetica", variant: :bold, size: 11)
+      canvas.fill_color("000000")
+      canvas.text(signer.name, at: [ x, y + height - 18 ])
+    end
+
+    # Signed by line with timestamp (DocuSign style)
+    canvas.font("Helvetica", size: 7)
     canvas.fill_color("666666")
-
-    y = FOOTER_HEIGHT - 15
-    canvas.text("Document: #{@request.title}", at: [ MARGIN, y ])
-    canvas.text("Request: #{@request.request_number}", at: [ MARGIN, y - 12 ])
-    canvas.text("Page #{page_number} of #{total_pages}", at: [ box.width - MARGIN - 60, y ])
-
-    # Add status indicator
-    status_color = @request.status == "completed" ? "22c55e" : "f59e0b"
-    canvas.fill_color(status_color)
-    canvas.text(@request.status.upcase, at: [ box.width - MARGIN - 60, y - 12 ])
+    signed_time = signer.signed_at&.strftime("%d/%m/%Y %H:%M AEST")
+    canvas.text("Signed by: #{signer.name}", at: [ x, y + 8 ])
+    canvas.text("Date: #{signed_time}", at: [ x, y ])
   end
 
   # Stamp all positioned fields onto the document
@@ -188,23 +250,26 @@ class ESignaturePdfStamper
     end
   end
 
-  # Stamp a signature or initials field
+  # Stamp a signature or initials field.
+  # Draws a white background first to cover any existing badge/content underneath,
+  # then overlays the signature image (or typed name) with metadata.
   def stamp_signature_field(document, page, field, x, y, width, height)
     canvas = page.canvas(type: :overlay)
     signer = field.e_signature_signer
 
-    # Draw field border (light gray dashed)
-    canvas.stroke_color("cccccc")
-    canvas.line_dash_pattern([ 2, 2 ])
-    canvas.rectangle(x, y, width, height)
-    canvas.stroke
-    canvas.line_dash_pattern(0)
+    # Draw solid white background to cover any existing badge/content
+    canvas.fill_color("ffffff")
+    canvas.rectangle(x - 2, y - 2, width + 4, height + 4)
+    canvas.fill
+
+    # Use field value if available, fall back to signer's signature data
+    sig_data = field.value.presence || signer&.signature_data
 
     # Add signature image
-    if field.value.present? && field.value.start_with?("data:image")
+    if sig_data.present? && sig_data.start_with?("data:image")
       begin
         # Decode base64 image
-        image_data = field.value.split(",")[1]
+        image_data = sig_data.split(",")[1]
         image_bytes = Base64.decode64(image_data)
 
         # Create temp file and add to PDF
@@ -214,18 +279,16 @@ class ESignaturePdfStamper
           temp.rewind
 
           image = document.images.add(temp.path)
-          # Add some padding inside the field
-          padding = 2
+          padding = 4
           canvas.image(
             image,
-            at: [ x + padding, y + padding ],
-            width: width - (padding * 2),
-            height: height - 10 # Leave room for metadata
+            at: [ x + padding, y + 12 ],
+            width: [ width - (padding * 2), 200 ].min,
+            height: [ height - 18, 40 ].min
           )
         end
       rescue StandardError => e
         Rails.logger.error("ESignaturePdfStamper: Failed to stamp signature image: #{e.message}")
-        # Fall back to signer name
         stamp_fallback_text(canvas, signer.name, x, y, width, height)
       end
     else
@@ -233,10 +296,11 @@ class ESignaturePdfStamper
     end
 
     # Add signature metadata below the signature
-    canvas.font("Helvetica", size: 5)
-    canvas.fill_color("888888")
-    metadata = "#{signer.name} | #{field.completed_at&.strftime('%d/%m/%Y %H:%M')}"
-    canvas.text(metadata, at: [ x + 2, y + 2 ])
+    timestamp = field.completed_at || signer&.signed_at
+    canvas.font("Helvetica", size: 6)
+    canvas.fill_color("666666")
+    canvas.text("Signed by: #{signer.name}", at: [ x + 4, y + 8 ])
+    canvas.text("Date: #{timestamp&.strftime('%d/%m/%Y %H:%M AEST')}", at: [ x + 4, y + 1 ])
   end
 
   # Stamp a date field
@@ -428,12 +492,12 @@ class ESignaturePdfStamper
     )
     y -= 10
     canvas.text(
-      "under the Electronic Signatures in Global and National Commerce Act (E-SIGN), the Uniform Electronic",
+      "under the Electronic Transactions Act 1999 (Cth), equivalent State and Territory legislation, the Electronic",
       at: [ MARGIN, y ]
     )
     y -= 10
     canvas.text(
-      "Transactions Act (UETA), and equivalent legislation in applicable jurisdictions.",
+      "Signatures in Global and National Commerce Act (E-SIGN), and the Uniform Electronic Transactions Act (UETA).",
       at: [ MARGIN, y ]
     )
 
@@ -442,7 +506,7 @@ class ESignaturePdfStamper
     canvas.font("Helvetica", size: 9)
     canvas.fill_color("0066cc")
     canvas.text(
-      "Verify this document at: #{Rails.application.routes.url_helpers.root_url}verify/#{cert&.certificate_number}",
+      "Verify this document at: https://teeem.vercel.app/verify/#{cert&.certificate_number}",
       at: [ MARGIN, y ]
     )
   end
