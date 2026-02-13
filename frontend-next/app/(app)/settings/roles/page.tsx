@@ -1001,12 +1001,12 @@ function GroupsSubTab() {
 
 export default function RolesSettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/roles to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     "/settings/roles",
     DEFAULT_TAB,
-    ROLES_TABS.map(t => t.id)
+    ROLES_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   return (

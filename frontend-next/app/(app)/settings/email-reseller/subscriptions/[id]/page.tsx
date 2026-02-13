@@ -98,10 +98,12 @@ export default function SubscriptionDetailPage() {
   const [subscription, setSubscription] = React.useState<SubscriptionDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
   // URL is SSoT for tab state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     `/settings/email-reseller/subscriptions/${subscriptionId}`,
     "mailboxes",
-    ["mailboxes", "migrations", "billing", "dns", "settings"]
+    ["mailboxes", "migrations", "billing", "dns", "settings"],
+    { redirectToDefault: true }
   );
   const [showAddMailbox, setShowAddMailbox] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);

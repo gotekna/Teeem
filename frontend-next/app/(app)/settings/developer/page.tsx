@@ -35,12 +35,12 @@ const DEFAULT_TAB = "components";
 
 export default function DeveloperSettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/developer to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab, subtab] = usePathTabs(
     "/settings/developer",
     DEFAULT_TAB,
-    DEVELOPER_TABS.map(t => t.id)
+    DEVELOPER_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   return (

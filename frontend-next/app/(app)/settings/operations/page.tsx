@@ -41,12 +41,12 @@ export default function OperationsSettingsPage() {
   useSetLayoutMode("full-height");
 
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/operations to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     "/settings/operations",
     DEFAULT_TAB,
-    OPERATIONS_TABS.map(t => t.id)
+    OPERATIONS_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   return (

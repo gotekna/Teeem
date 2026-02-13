@@ -34,13 +34,17 @@ export default function ConnectionsSettingsPage() {
     return { subTab: parts[0] || "provider", deepTab: parts[1] || undefined };
   }, [pathname]);
 
-  // Redirect to default sub-tab when on email-accounts without a deep tab
-  // This ensures the URL always reflects the active tab for breadcrumbs
+  // Redirect to include default tab/sub-tab in URL for breadcrumb visibility
   useEffect(() => {
-    if (subTab === "email-accounts" && !deepTab) {
+    const parts = (pathname ?? "").replace("/settings/connections", "").split("/").filter(Boolean);
+    if (parts.length === 0) {
+      // No tab specified - redirect to default
+      router.replace("/settings/connections/provider", { scroll: false });
+    } else if (subTab === "email-accounts" && !deepTab) {
+      // email-accounts has deep tabs - redirect to default deep tab
       router.replace("/settings/connections/email-accounts/configuration", { scroll: false });
     }
-  }, [subTab, deepTab, router]);
+  }, [pathname, subTab, deepTab, router]);
 
   return (
     <div className="space-y-6">

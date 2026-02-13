@@ -62,10 +62,12 @@ export default function MigrationsPage() {
 
   const [refreshing, setRefreshing] = React.useState(false);
   // URL is SSoT for tab state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     "/settings/email-reseller/migrations",
     "active",
-    ["active", "completed"]
+    ["active", "completed"],
+    { redirectToDefault: true }
   );
 
   // Fetch migrations on mount

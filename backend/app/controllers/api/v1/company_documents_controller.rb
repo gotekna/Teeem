@@ -89,6 +89,23 @@ module Api
         render json: { success: false, error: "Document not found" }, status: :not_found
       end
 
+      # GET /api/v1/company_documents/:id/content
+      # Streams the actual file bytes through the backend (bypasses CORS for PDF.js)
+      def content
+        doc = WarehouseDocument.find(params[:id])
+
+        unless doc.storage_blob
+          return render json: { success: false, error: "No file content available" }, status: :not_found
+        end
+
+        send_data doc.storage_blob.download,
+                  filename: doc.download_filename || doc.ui_name || "document",
+                  type: doc.storage_blob.content_type || "application/octet-stream",
+                  disposition: "inline"
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Document not found" }, status: :not_found
+      end
+
       # GET /api/v1/company_documents/:id/download
       # Redirects to a presigned download URL
       def download

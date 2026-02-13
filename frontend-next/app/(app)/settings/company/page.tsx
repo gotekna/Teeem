@@ -57,13 +57,13 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/company to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   // SSoT (Jan 2026): Connections moved to top-level /settings/connections
   const [activeTab, setActiveTab, subTab] = usePathTabs(
     "/settings/company",
     DEFAULT_TAB,
-    COMPANY_TABS.map(t => t.id)
+    COMPANY_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   // Parse deepTab from URL for warehouse-config (third level)

@@ -444,22 +444,6 @@ export function isSameRoute(path1: string, path2: string): boolean {
 }
 
 /**
- * Settings sections that have path-based tabs
- * These are recognized for sibling tab detection
- */
-const SETTINGS_TABBED_SECTIONS = [
-  "company",
-  "connections",
-  "corporate",
-  "roles",
-  "integrations",
-  "documents",
-  "operations",
-  "system",
-  "developer",
-];
-
-/**
  * Settings tabs that have nested sub-tabs
  * e.g., /settings/company/warehouse-config has sub-tabs: warehouse_folders, document_types, etc.
  */
@@ -484,52 +468,16 @@ export function isSiblingTab(path1: string, path2: string): boolean {
   const segments1 = path1.split('/').filter(Boolean);
   const segments2 = path2.split('/').filter(Boolean);
 
-  // Check for top-level Settings tabs: /settings/{tab}
-  // e.g., /settings/users and /settings/profile are siblings
-  if (segments1.length === 2 && segments2.length === 2 &&
-      segments1[0] === "settings" && segments2[0] === "settings") {
-    return true;
-  }
+  // SSoT (Feb 2026): Breadcrumb trail accumulates ALL tab navigation.
+  // Previously, Settings and warehouse tabs were detected as "siblings"
+  // and REPLACED the last breadcrumb instead of accumulating. This created
+  // an SSoT violation where Dashboard showed a trail but Settings didn't.
+  // Now ALL pages use the same accumulating trail behavior (like Dashboard).
 
-  // Check for warehouse view tabs: /warehouse/{view}
-  // e.g., /warehouse/tree and /warehouse/doc-tree are siblings
-  if (segments1.length === 2 && segments2.length === 2 &&
-      segments1[0] === "warehouse" && segments2[0] === "warehouse") {
-    return true;
-  }
-
-  // Both need at least 3 segments for deeper checks
+  // Only detect entity/id/tab patterns as siblings
+  // e.g., /jobs/123/overview and /jobs/123/schedule are the same entity
+  // These replace because they're different views of the SAME record
   if (segments1.length < 3 || segments2.length < 3) return false;
-
-  // Check for Settings nested sub-tab pattern: /settings/{section}/{tab}/{subtab}
-  // e.g., /settings/company/connections/provider and /settings/company/connections/migration
-  if (segments1.length === 4 && segments2.length === 4 &&
-      segments1[0] === "settings" && segments2[0] === "settings") {
-    const tab1 = segments1[2];
-    const tab2 = segments2[2];
-    const nestedTabs = SETTINGS_NESTED_TABS[tab1] || SETTINGS_NESTED_TABS[tab2];
-
-    if (nestedTabs && tab1 === tab2) {
-      // Compare parent paths (settings/section/tab)
-      const parent1 = segments1.slice(0, 3).join('/');
-      const parent2 = segments2.slice(0, 3).join('/');
-      return parent1 === parent2;
-    }
-  }
-
-  // Check for Settings section/tab pattern: /settings/{section}/{tab}
-  // Both must be exactly 3 segments to be siblings at this level
-  if (segments1.length === 3 && segments2.length === 3) {
-    const isSettingsTabs1 = segments1[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments1[1]);
-    const isSettingsTabs2 = segments2[0] === "settings" && SETTINGS_TABBED_SECTIONS.includes(segments2[1]);
-
-    if (isSettingsTabs1 && isSettingsTabs2) {
-      // Compare parent paths (settings/section)
-      const parent1 = segments1.slice(0, 2).join('/');
-      const parent2 = segments2.slice(0, 2).join('/');
-      return parent1 === parent2;
-    }
-  }
 
   // Check for entity/id/tab pattern (second-to-last is numeric)
   const hasNumericId1 = /^\d+$/.test(segments1[segments1.length - 2]);

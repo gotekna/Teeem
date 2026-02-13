@@ -40,10 +40,12 @@ export default function PortalSettings() {
   const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
   // URL is SSoT for section state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeSection, setActiveSection] = usePathTabs(
     "/portal/settings",
     "profile",
-    ["profile", "company", "security", "accounting"]
+    ["profile", "company", "security", "accounting"],
+    { redirectToDefault: true }
   );
   const [accountingIntegrations, setAccountingIntegrations] = useState<
     AccountingIntegration[]

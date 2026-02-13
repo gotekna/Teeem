@@ -533,6 +533,7 @@ Rails.application.routes.draw do
         end
         member do
           get :preview
+          get :content
           get :download
         end
       end
