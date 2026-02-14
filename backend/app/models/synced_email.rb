@@ -998,15 +998,15 @@ class SyncedEmail < ApplicationRecord
   # Called automatically for new emails with attachments via OrgEmailSyncJob
   # FRC (Jan 2026): Microsoft reports has_attachments=false for inline images only.
   # Check body for cid: references to catch inline images that need syncing.
+  # SSoT: Wasabi is THE ONE storage for attachments. No fallbacks.
+  # Per-attachment dedup (line-by-line) ensures missing ones get synced
+  # even if some already exist.
   def sync_attachments!(force: false)
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
-    # FRC (Jan 2026): Only skip if ALL attachments have blobs
-    existing_docs = attachment_documents.where.not(storage_blob_id: nil)
-    return if !force && existing_docs.any?
 
     # SSoT: Try linking existing attachments first (don't re-download)
-    return if link_existing_attachments!
+    link_existing_attachments!
 
     unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
       Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
@@ -1029,11 +1029,12 @@ class SyncedEmail < ApplicationRecord
       content_type = att["contentType"]
       byte_size = att["size"].to_i
       content_id = att["contentId"]  # For matching cid: references in HTML
+      graph_attachment_id = att["id"]  # Microsoft Graph attachment ID
 
       # Skip small inline images (likely signatures)
       next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
 
-      # Check if already have this attachment (by filename)
+      # Per-attachment dedup: skip only if THIS attachment already has a blob
       existing_doc = attachment_documents.find { |d| d.original_filename == filename }
       next if existing_doc&.storage_blob_id.present?
 
@@ -1052,7 +1053,11 @@ class SyncedEmail < ApplicationRecord
         storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
         content_type: content_type || blob.content_type,
-        metadata: { "synced_email_id" => id.to_s, "content_id" => content_id }.compact
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "content_id" => content_id,
+          "outlook_attachment_id" => graph_attachment_id
+        }.compact
       )
 
       blob.increment!(:reference_count)

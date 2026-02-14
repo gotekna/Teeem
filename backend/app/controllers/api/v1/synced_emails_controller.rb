@@ -1268,161 +1268,64 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Download an attachment - tries local storage first (SSoT via WarehouseDocument), then Outlook
   # attachment_id is WarehouseDocument ID
   # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # SSoT: Wasabi is THE ONE storage. No Outlook API fallback.
+  # If attachment isn't in Wasabi, that's a sync bug - fail fast.
   def download_attachment
     attachment_id = params[:attachment_id]
-    filename_param = params[:filename]  # SSoT: Frontend sends filename for local file matching
+    filename_param = params[:filename]
 
-    # Try to find WarehouseDocument attachment first
-    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
-    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.ui_name
-    content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
+    doc = find_attachment_doc(attachment_id, filename_param)
 
-    # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
-    # Priority 1: Use attachment found by ID if it has a storage blob
-    if attachment_doc&.storage_blob.present?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.ui_name})"
-      content = attachment_doc.storage_blob.download
-      # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-      content = content&.b
-      if content.present?
-        return send_data(
-          content,
-          filename: attachment_doc.original_filename || attachment_doc.ui_name,
-          type: content_type_hint || "application/octet-stream",
-          disposition: "attachment"
-        )
-      end
+    unless doc&.storage_blob.present?
+      Rails.logger.error "[SyncedEmail] Attachment not in storage: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
+      return render json: { error: "Attachment not in storage - sync may have failed for this email" }, status: :not_found
     end
 
-    # Priority 2: Search by filename if ID lookup didn't work
-    if @email.attachment_documents.any? && filename_hint.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_hint }
-      if doc&.storage_blob.present?
-        Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
-        content = doc.storage_blob.download
-        # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-        content = content&.b
-        if content.present?
-          return send_data(
-            content,
-            filename: filename_hint,
-            type: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
-            disposition: "attachment"
-          )
-        end
-      end
+    content = doc.storage_blob.download&.b
+    unless content.present?
+      return render json: { error: "Attachment blob is empty" }, status: :not_found
     end
 
-    # Fallback: Download from Outlook API
-    # Read-only operation: try tenant-scoped first, fall back to direct lookup for shared tenants
-    credential = if @email.microsoft_credential_id.present?
-                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                     .find_by(id: @email.microsoft_credential_id) ||
-                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
-                 else
-                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                     .refreshable_app.first
-                 end
-
-    unless credential&.valid_credential?
-      return render json: { error: "No valid Microsoft credentials configured" }, status: :unprocessable_entity
-    end
-
-    # Get mailbox email
-    mailbox = @email.mailbox_owner_email
-    unless mailbox.present?
-      return render json: { error: "Mailbox information not available" }, status: :unprocessable_entity
-    end
-
-    # Fetch attachment from Microsoft Graph (Outlook)
-    # FRC (Feb 2026): outlook_attachment_id was never defined - NameError crash.
-    # When local storage lookup fails, params[:attachment_id] IS the Outlook attachment ID
-    # (frontend sends attachment.id || attachment.outlook_attachment_id)
-    outlook_attachment_id = attachment_id
-    Rails.logger.info "[SyncedEmail] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
-    client = MicrosoftAppGraphClient.new(credential)
-    attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
-    # Force binary encoding immediately after download to prevent UTF-8 errors
-    attachment_data[:content] = attachment_data[:content]&.b if attachment_data
-
-    if attachment_data && attachment_data[:content]
-      filename = filename_hint || attachment_data[:filename] || "attachment"
-      content_type = attachment_data[:content_type] || "application/octet-stream"
-
-      send_data(
-        attachment_data[:content],
-        filename: filename,
-        type: content_type,
-        disposition: "attachment"
-      )
-    else
-      # Attachment not found or unsupported type
-      Rails.logger.warn "[SyncedEmail] Attachment not available: email_id=#{@email.id}, attachment_id=#{attachment_id}, outlook_attachment_id=#{outlook_attachment_id}"
-      render json: { error: "Attachment not available - it may have been deleted from email server" }, status: :not_found
-    end
+    send_data(
+      content,
+      filename: doc.original_filename || doc.ui_name || filename_param || "attachment",
+      type: doc.content_type || doc.storage_blob.content_type || "application/octet-stream",
+      disposition: "attachment"
+    )
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(10).join("\n")}"
-    render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
+    render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
-  # GET /api/v1/synced_emails/:id/attachments/:attachment_id/presigned_url
-  # Returns a presigned URL for direct download (no Rails streaming)
-  # SSoT: Same pattern as document_storage_controller#presigned_url
-  # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
-  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # SSoT: Wasabi is THE ONE storage. Presigned URL = direct S3 download.
+  # If not in storage, fail fast - no fallback to Outlook proxy.
   def attachment_presigned_url
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]
 
-    # Try to find WarehouseDocument attachment first
-    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
+    doc = find_attachment_doc(attachment_id, filename_param)
 
-    # Priority 1: Use attachment found by ID if it has storage_blob
-    if attachment_doc&.storage_blob.present?
-      filename = attachment_doc.original_filename || attachment_doc.ui_name
-      url = attachment_doc.storage_blob.presigned_url(
-        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,  # 15 minutes
-        filename: filename
-      )
-
-      return render json: {
-        success: true,
-        url: url,
-        filename: filename,
-        content_type: attachment_doc.content_type || attachment_doc.storage_blob.content_type,
-        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
-      }
+    unless doc&.storage_blob.present?
+      Rails.logger.error "[SyncedEmail] Presigned URL: attachment not in storage: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
+      return render json: { success: false, error: "Attachment not in storage" }
     end
 
-    # Priority 2: Search by filename if ID lookup didn't find a blob
-    if @email.attachment_documents.any? && filename_param.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_param && d.storage_blob.present? }
-      if doc&.storage_blob.present?
-        url = doc.storage_blob.presigned_url(
-          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
-          filename: filename_param
-        )
+    filename = doc.original_filename || doc.ui_name
+    url = doc.storage_blob.presigned_url(
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+      filename: filename
+    )
 
-        return render json: {
-          success: true,
-          url: url,
-          filename: filename_param,
-          content_type: doc.content_type || doc.storage_blob.content_type,
-          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
-        }
-      end
-    end
-
-    # No local storage - fall back to proxy download (SharePoint/Outlook)
-    # Return 200 (not 404) to avoid red console errors - frontend checks success: false
     render json: {
-      success: false,
-      fallback_to_proxy: true
+      success: true,
+      url: url,
+      filename: filename,
+      content_type: doc.content_type || doc.storage_blob.content_type,
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
     }
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    render_error("Failed to get presigned URL: #{e.message}", status: :internal_server_error)
+    render json: { success: false, error: "Failed to get presigned URL" }
   end
 
   # GET /api/v1/synced_email/:id/download_eml
@@ -1736,6 +1639,28 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   private
 
+  # SSoT: Single lookup for attachment WarehouseDocument
+  # Tries: DB ID → Graph attachment ID (metadata) → filename match
+  def find_attachment_doc(attachment_id, filename = nil)
+    docs = @email.attachment_documents.includes(:storage_blob)
+
+    # 1. By numeric DB ID
+    doc = docs.find_by(id: attachment_id) if attachment_id.to_s.match?(/\A\d+\z/)
+    return doc if doc&.storage_blob.present?
+
+    # 2. By Microsoft Graph attachment ID (stored in metadata during sync)
+    doc = docs.find { |d| d.metadata&.dig("outlook_attachment_id") == attachment_id }
+    return doc if doc&.storage_blob.present?
+
+    # 3. By filename
+    if filename.present?
+      doc = docs.find { |d| (d.original_filename || d.ui_name) == filename }
+      return doc if doc&.storage_blob.present?
+    end
+
+    nil
+  end
+
   def set_email
     @email = SyncedEmail.includes(:job).find(params[:id])
   rescue ActiveRecord::RecordNotFound
@@ -1933,7 +1858,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         name: filename,
         content_type: content_type,
         size: file_size,
-        outlook_attachment_id: nil,
+        outlook_attachment_id: doc.metadata&.dig("outlook_attachment_id"),
         content_id: content_id,
         inline_url: inline_url,
         is_inline: is_inline_signature  # Flag for frontend to hide from attachment list
