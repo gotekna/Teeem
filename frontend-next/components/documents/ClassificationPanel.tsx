@@ -627,7 +627,7 @@ export default function ClassificationPanel({
       </div>
 
       {/* ═══ COLUMN 2: OCR (amber) ═══ */}
-      <div className="w-1/3 overflow-y-auto border-r p-2 bg-amber-50/30 dark:bg-amber-900/5">
+      <div className="w-1/3 overflow-y-auto border-r p-2 flex flex-col bg-amber-50/30 dark:bg-amber-900/5">
         <div className="flex items-center gap-1.5 mb-2">
           <ScanSearch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
           <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">OCR</span>

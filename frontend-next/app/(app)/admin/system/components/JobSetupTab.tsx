@@ -482,7 +482,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={Briefcase}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("type")}
                 onEdit={(item) => handleOpenEditDialog(item, "type")}
                 onDelete={(item) => handleDelete(item.id, "type")}
@@ -495,7 +495,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={ListChecks}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("status")}
                 onEdit={(item) => handleOpenEditDialog(item, "status")}
                 onDelete={(item) => handleDelete(item.id, "status")}
@@ -508,7 +508,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={Layers}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("stage")}
                 onEdit={(item) => handleOpenEditDialog(item, "stage")}
                 onDelete={(item) => handleDelete(item.id, "stage")}

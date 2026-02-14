@@ -34,7 +34,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Company, CompanyGroup } from "@/lib/types";
+import type { CompanyGroup } from "@/lib/types";
+
+// Local interface for ASIC-specific fields
+interface AsicCompany {
+  id: number;
+  name: string;
+  company_group_name?: string;
+  formatted_acn?: string;
+  corporate_key?: string;
+  asic_username?: string;
+  asic_password?: string;
+  recovery_question?: string;
+  recovery_answer?: string;
+  has_credentials?: boolean;
+}
 
 export default function AsicLoginsPage() {
   const router = useRouter();
