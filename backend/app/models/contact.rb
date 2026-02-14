@@ -1575,7 +1575,7 @@ class Contact < ApplicationRecord
     RecomputeDocumentPathsJob.perform_later("Contact", id)
   end
 
-  # Enqueue background job: Sync primary_company_id → employee_of relationship
+  # Sync primary_company_id → employee_of relationship (service object, runs synchronously)
   def enqueue_relationship_sync
     ContactRelationshipSyncService.call(self)
   end
@@ -1663,34 +1663,6 @@ class Contact < ApplicationRecord
     return false unless %w[person sole_trader].include?(entity_type)
     # Only sync if primary_company_id was changed
     saved_change_to_primary_company_id?
-  end
-
-  # SSoT: Create/update employee_of relationship when primary_company_id is set directly
-  # This is the reverse of ContactRelationship#sync_primary_company_id
-  def sync_primary_company_to_relationship
-    # Prevent infinite loop with ContactRelationship callback
-    return if Thread.current[:syncing_primary_company_relationship]
-    Thread.current[:syncing_primary_company_relationship] = true
-
-    if primary_company_id.present?
-      # Create or activate employee_of relationship
-      relationship = outgoing_relationships.find_or_initialize_by(
-        related_contact_id: primary_company_id,
-        relationship_type: "employee_of"
-      )
-      relationship.is_active = true
-      relationship.start_date ||= Date.today
-      relationship.save!
-    else
-      # Deactivate any existing employee_of relationships (primary company was cleared)
-      outgoing_relationships
-        .where(relationship_type: "employee_of", is_active: true)
-        .update_all(is_active: false, end_date: Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: SSoT sync primary_company_to_relationship failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_primary_company_relationship] = false
   end
 
   def roles_must_be_valid
@@ -1972,7 +1944,7 @@ class Contact < ApplicationRecord
     end.join(" ")
   end
 
-  # SSoT: Check if this contact should sync to Corporate
+  # SSoT: Guard method for syncing to Corporate
   def should_sync_to_corporate?
     # Only sync if this is a company/trust with a linked Corporate record
     # Don't sync if we're already syncing from Corporate to Contact (prevent loop)
@@ -1982,54 +1954,10 @@ class Contact < ApplicationRecord
       !Thread.current[:syncing_company_to_contact]
   end
 
-  # SSoT: Sync Contact → Corporate for standard contact fields
-  def sync_to_corporate
-    # Prevent infinite loops
-    return if Thread.current[:syncing_contact_to_company]
-
-    Thread.current[:syncing_contact_to_company] = true
-
-    company_record.update!(
-      name: display_name,
-      abn: abn  # SelfHealing will format with spaces
-    )
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: Sync to Corporate failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_contact_to_company] = false
-  end
-
-  # SSoT: Check if this contact should auto-link unlinked invoices
+  # SSoT: Guard method for auto-linking unlinked invoices
   def should_auto_link_invoices?
     # Only run if display_name or company_name_or_trust changed (or new record)
     display_name.present? || company_name_or_trust.present?
-  end
-
-  # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
-  # This ensures that when a user creates a TEEEM contact, existing Xero invoices
-  # with matching names are automatically linked (no manual intervention needed)
-  def auto_link_unlinked_invoices
-    names_to_match = [
-      display_name&.strip&.squish&.downcase,
-      company_name_or_trust&.strip&.squish&.downcase
-    ].compact.reject(&:blank?).uniq
-
-    return if names_to_match.empty?
-
-    # Find unlinked invoices with matching contact_name (case-insensitive, trimmed)
-    linked_count = 0
-    names_to_match.each do |name|
-      count = ExternalInvoice.where(contact_id: nil)
-        .where("LOWER(TRIM(contact_name)) = ?", name)
-        .update_all(contact_id: id)
-      linked_count += count
-    end
-
-    if linked_count > 0
-      Rails.logger.info("Contact##{id} (#{display_name}): Auto-linked #{linked_count} unlinked Xero invoices")
-    end
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
   end
 
   # Phase 3: Prevent deletion if Contact has a linked User
