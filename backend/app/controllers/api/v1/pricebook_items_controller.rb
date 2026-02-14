@@ -737,7 +737,7 @@ module Api
         end
 
         if blob.present?
-          url = blob.presigned_url(expires_in: 3600, disposition: :inline)
+          url = blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline)
           redirect_to url, allow_other_host: true
           return
         end
@@ -956,7 +956,7 @@ module Api
           supplier_reliability: item.supplier_reliability_score,
           price_volatility: item.price_volatility,
           image_url: item.image_url,
-          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: 3600, disposition: :inline),
+          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline),
           qr_code_url: item.qr_code_url,
           image_fetch_status: item.image_fetch_status
         )
@@ -972,7 +972,7 @@ module Api
 
         item_json.merge(
           image_url: item.image_url,
-          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: 3600, disposition: :inline),
+          image_presigned_url: item.image_storage_blob&.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline),
           qr_code_url: item.qr_code_url,
           image_source: item.image_source,
           image_fetched_at: item.image_fetched_at,

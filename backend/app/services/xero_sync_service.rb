@@ -2,7 +2,7 @@ require "httparty"
 
 class XeroSyncService
   include HTTParty
-  base_uri "https://api.xero.com/api.xro/2.0"
+  base_uri XeroConstants::XERO_API_BASE_URL
 
   class SyncError < StandardError; end
 

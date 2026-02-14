@@ -1273,7 +1273,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     if attachment_doc&.storage_blob.present?
       filename = attachment_doc.original_filename || attachment_doc.ui_name
       url = attachment_doc.storage_blob.presigned_url(
-        expires_in: 900,  # 15 minutes
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,  # 15 minutes
         filename: filename
       )
 
@@ -1282,7 +1282,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         url: url,
         filename: filename,
         content_type: attachment_doc.content_type || attachment_doc.storage_blob.content_type,
-        expires_in: 900
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
       }
     end
 
@@ -1291,7 +1291,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_param && d.storage_blob.present? }
       if doc&.storage_blob.present?
         url = doc.storage_blob.presigned_url(
-          expires_in: 900,
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
           filename: filename_param
         )
 
@@ -1300,7 +1300,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
           url: url,
           filename: filename_param,
           content_type: doc.content_type || doc.storage_blob.content_type,
-          expires_in: 900
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
         }
       end
     end
@@ -1763,7 +1763,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
       # Generate presigned URL for inline images (to replace cid: references)
       inline_url = if doc.storage_blob.present? && content_id.present?
-                     doc.storage_blob.presigned_url(expires_in: 3600)
+                     doc.storage_blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
                    end
       filename = doc.original_filename || doc.ui_name || "Unknown"
       synced_filenames << filename.downcase

@@ -5,6 +5,7 @@ module Api
     # RENAMED: OrganizationOnedriveController → OrganizationSharepointController → DocumentStorageController
     class DocumentStorageController < ApplicationController
       include DocumentProviderAware
+      include CacheConstants
 
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
       # Skip auth for download previews (thumbnails) - uses browser caching, file IDs are unguessable
@@ -674,7 +675,7 @@ module Api
           }
 
           # Cache for 2 minutes
-          Rails.cache.write(cache_key, result, expires_in: 2.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_SHORT)
 
           render json: result.merge(from_cache: false)
 
@@ -907,7 +908,7 @@ module Api
           }
 
           # Cache for 5 minutes
-          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_MEDIUM)
 
           render json: result.merge(from_cache: false)
 
@@ -1077,7 +1078,7 @@ module Api
           }
 
           # Cache for 5 minutes
-          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_MEDIUM)
 
           render json: result.merge(from_cache: false)
 
@@ -2280,7 +2281,7 @@ module Api
             storage_provider: doc_provider,
             file_name: filename,
             mime_type: document.content_type || blob&.content_type,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
 
         rescue DocumentProviders::NotFoundError => e
@@ -2343,12 +2344,12 @@ module Api
         end
 
         provider = DocumentProviders::S3Compatible.new(credential)
-        url = provider.download_url(s3_key, expires_in: 900)  # 15 minutes
+        url = provider.download_url(s3_key, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT)  # 15 minutes
 
         render json: {
           success: true,
           url: url,
-          expires_in: 900
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
         }
       end
 
@@ -2385,7 +2386,7 @@ module Api
         render json: {
           success: true,
           url: download_url_value,
-          expires_in: 1800  # SharePoint URLs typically valid ~30 min
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_MEDIUM  # SharePoint URLs typically valid ~30 min
         }
       end
 
@@ -2680,7 +2681,7 @@ module Api
           raise DocumentProviders::NotFoundError, "No storage reference for document"
         end
 
-        provider.download_url(storage_ref, expires_in: 3600)
+        provider.download_url(storage_ref, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
       end
 
       # Get SharePoint download URL for a document

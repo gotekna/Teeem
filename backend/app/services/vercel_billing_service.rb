@@ -8,9 +8,11 @@
 #           VERCEL_TEAM_ID env var (team_xxx from Vercel)
 #
 class VercelBillingService
+  include CacheConstants
+
   CACHE_KEY = "vercel_billing_data"
   BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2"
-  CACHE_TTL = 1.hour
+  CACHE_TTL = CACHE_TTL_HOURLY
 
   class << self
     def usage_breakdown(force_refresh: false)
@@ -206,16 +208,16 @@ class VercelBillingService
       # Split billing period into day-sized windows and fetch in parallel.
       # With ~10k deployments, sequential pagination takes >2 min (exceeds Heroku 30s limit).
       # Day-sized parallel fetches: ~18 days * ~1s each in 6 threads = ~3-4 seconds.
-      cycle_start_date = period_start.in_time_zone("Australia/Brisbane").to_date
-      period_end_date = period_end.in_time_zone("Australia/Brisbane").to_date
-      today = Time.current.in_time_zone("Australia/Brisbane").to_date
+      cycle_start_date = period_start.in_time_zone(TenantSetting.timezone).to_date
+      period_end_date = period_end.in_time_zone(TenantSetting.timezone).to_date
+      today = Time.current.in_time_zone(TenantSetting.timezone).to_date
 
       day_ranges = []
       d = cycle_start_date
       max_days = 35  # Safety: billing cycle is ~30 days, cap to prevent runaway
       while d <= today && day_ranges.length < max_days
-        day_start_ms = d.in_time_zone("Australia/Brisbane").beginning_of_day.to_i * 1000
-        day_end_ms = d.in_time_zone("Australia/Brisbane").end_of_day.to_i * 1000
+        day_start_ms = d.in_time_zone(TenantSetting.timezone).beginning_of_day.to_i * 1000
+        day_end_ms = d.in_time_zone(TenantSetting.timezone).end_of_day.to_i * 1000
         day_ranges << { date: d, since: day_start_ms, until_ms: day_end_ms }
         d += 1.day
       end

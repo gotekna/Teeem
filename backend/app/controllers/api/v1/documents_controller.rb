@@ -524,7 +524,7 @@ module Api
             # Generate presigned URL for download
             # SSoT: Method is download_url (not presigned_url) on all document providers
             url = if file_key.present?
-              provider.download_url(file_key, expires_in: 3600) rescue item[:web_url]
+              provider.download_url(file_key, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue item[:web_url]
             else
               item[:web_url]
             end
@@ -1416,7 +1416,7 @@ module Api
         scope.map do |wd|
           blob = wd.storage_blob
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+            provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
           end
 
           {
@@ -2400,7 +2400,7 @@ module Api
         download_url = if blob&.storage_path.present?
           # SSoT (Jan 2026): Use tenant for storage provider
           provider = DocumentProviders.for_tenant(current_tenant)
-          provider&.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+          provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
         end
 
         # Get parent context from WarehouseDocument (SSoT: uses linkable + metadata)

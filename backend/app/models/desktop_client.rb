@@ -92,7 +92,7 @@ class DesktopClient < ApplicationRecord
     {
       access_token: generate_access_token,
       refresh_token: refresh_token,
-      expires_in: 3600,  # 1 hour
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,  # 1 hour
       device_id: device_id
     }
   end
@@ -125,7 +125,7 @@ class DesktopClient < ApplicationRecord
 
     {
       access_token: generate_access_token,
-      expires_in: 3600
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
     }
   end
 

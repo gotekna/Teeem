@@ -3,8 +3,9 @@
 # Service to import Xero tracking categories as Jobs
 # Creates a Job for each tracking option under the "Job" tracking category
 class XeroTrackingImportService
+  include XeroConstants
+
   TRACKING_CATEGORY_NAME = "Job"
-  RATE_LIMIT_SLEEP = 100 # milliseconds between operations
 
   attr_reader :stats
 
@@ -27,7 +28,7 @@ class XeroTrackingImportService
 
     tracking_options.each do |option|
       import_tracking_option(option)
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_BATCH_SLEEP_MS / 1000.0)
     rescue StandardError => e
       error_msg = "Error importing tracking option '#{option['Name']}': #{e.message}"
       Rails.logger.error(error_msg)

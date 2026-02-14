@@ -11,6 +11,7 @@ module Gl
     # - Two-way sync (push changes back to Xero)
     #
     class Xero < Base
+      include XeroConstants  # For XERO_GENERIC_PAUSE_SEC
       # Xero account type mapping
       ACCOUNT_TYPE_MAP = {
         'BANK' => { type: 'asset', class: 'current_asset', is_bank: true },
@@ -429,7 +430,7 @@ module Gl
           retries += 1
           if retries <= max_retries
             log_error("#{operation_name} failed (attempt #{retries}), retrying: #{e.message}")
-            sleep(1) # Brief pause before retry
+            sleep(XERO_GENERIC_PAUSE_SEC) # Brief pause before retry
             retry
           else
             log_error("#{operation_name} failed after #{retries} attempts: #{e.message}")

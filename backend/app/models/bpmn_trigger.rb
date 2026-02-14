@@ -76,7 +76,7 @@ class BpmnTrigger < ApplicationRecord
   end
 
   def timezone
-    config&.dig("timezone") || "Australia/Brisbane"
+    config&.dig("timezone") || TenantSetting.timezone
   end
 
   def webhook_secret

@@ -1,4 +1,5 @@
 class PaymentStatusSyncJob < ApplicationJob
+  include XeroConstants  # For PAYMENT_SYNC_THROTTLE_SEC
   queue_as :default
 
   # Run this job periodically (e.g., every hour) to check payment status of synced invoices
@@ -56,7 +57,7 @@ class PaymentStatusSyncJob < ApplicationJob
         end
 
         # Small delay to avoid rate limiting
-        sleep(0.5) if invoices.count > 10
+        sleep(PAYMENT_SYNC_THROTTLE_SEC) if invoices.count > 10
       rescue => e
         error_count += 1
         Rails.logger.error("Error syncing invoice ##{invoice.id}: #{e.message}")

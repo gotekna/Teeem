@@ -15,6 +15,7 @@
 # until it expires.
 #
 class XeroRateLimitTracker
+  include CacheConstants
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
   CONCURRENT_LIMIT = 5
@@ -169,15 +170,15 @@ class XeroRateLimitTracker
 
       # Increment minute counter
       minute_key = minute_key_for(tenant_id)
-      Rails.cache.increment(minute_key, 1, expires_in: 2.minutes, initial: 0)
+      Rails.cache.increment(minute_key, 1, expires_in: CACHE_TTL_SHORT, initial: 0)
 
       # Increment daily counter
       daily_key = daily_key_for(tenant_id)
-      Rails.cache.increment(daily_key, 1, expires_in: 25.hours, initial: 0)
+      Rails.cache.increment(daily_key, 1, expires_in: CACHE_TTL_DAILY + 1.hour, initial: 0)
 
       # Increment total counter (all time)
       total_key = total_key_for(tenant_id)
-      Rails.cache.increment(total_key, 1, expires_in: 7.days, initial: 0)
+      Rails.cache.increment(total_key, 1, expires_in: CACHE_TTL_WEEKLY, initial: 0)
     end
 
     # Get current usage for a tenant

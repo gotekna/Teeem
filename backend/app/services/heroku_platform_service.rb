@@ -8,8 +8,10 @@ require "stringio"
 # Uses HEROKU_API_KEY (same env var as worker_watchdog.rb).
 # Caches results for 10 minutes. Pass force_refresh: true to bust cache.
 class HerokuPlatformService
+  include CacheConstants
+
   CACHE_KEY = "heroku_platform:infrastructure"
-  CACHE_TTL = 10.minutes
+  CACHE_TTL = CACHE_TTL_LONG
 
   # All TEEEM Heroku apps to query
   APPS = %w[

@@ -13,6 +13,7 @@ module Api
     #   - GET /api/v1/health/pricebook
     #
     class HealthController < ApplicationController
+      include CacheConstants
       # GET /api/v1/health/unified
       # Returns unified health data for the new gamified dashboard
       # Supports caching with optional ?refresh=true parameter to force fresh calculation
@@ -96,7 +97,7 @@ module Api
         }
 
         # Cache the fresh results (24 hour expiry)
-        Rails.cache.write("health_check:system", result, expires_in: 24.hours)
+        Rails.cache.write("health_check:system", result, expires_in: CACHE_TTL_DAILY)
 
         render json: result
       end

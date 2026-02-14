@@ -1,4 +1,6 @@
 class EmailBlacklistItem < ApplicationRecord
+  include CacheConstants
+
   # Pattern types: from_email, subject, domain, sender_name
   PATTERN_TYPES = %w[from_email subject domain sender_name].freeze
 
@@ -56,7 +58,7 @@ class EmailBlacklistItem < ApplicationRecord
     }
 
     # Use Rails cache to avoid DB query on every email (cache for 5 minutes)
-    blacklist_items = Rails.cache.fetch("email_blacklist_items_active", expires_in: 5.minutes) do
+    blacklist_items = Rails.cache.fetch("email_blacklist_items_active", expires_in: CACHE_TTL_MEDIUM) do
       active.to_a
     end
 

@@ -75,7 +75,7 @@ class PolarisMailService
       account_type: ACCOUNT_TYPES[account_type] || 1,
       twofa_allowed: 1,
       user_language: "en",
-      timezone: "Australia/Brisbane",
+      timezone: TenantSetting.timezone,
       dateformat: "dd-mm-yyyy"
     })
 

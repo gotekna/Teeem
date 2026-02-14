@@ -1,6 +1,7 @@
 module Api
   module V1
     class OrganizationController < ApplicationController
+      include CacheConstants
       # Note: authorize_request is already called by ApplicationController
       # Security: Stats endpoints expose org-wide data, require admin
       before_action :require_admin, only: %i[microsoft_org_stats data_stats]
@@ -982,7 +983,7 @@ module Api
         }
 
         # Cache for 10 minutes
-        Rails.cache.write(cache_key, result, expires_in: 10.minutes)
+        Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_LONG)
 
         render json: result.merge(from_cache: false)
       end

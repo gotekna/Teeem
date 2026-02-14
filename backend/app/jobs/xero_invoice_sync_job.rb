@@ -10,6 +10,8 @@
 #
 class XeroInvoiceSyncJob < ApplicationJob
   include XeroJobBase
+  include CacheConstants
+
   queue_as :default
 
   # Perform incremental sync of invoices from Xero
@@ -146,7 +148,7 @@ class XeroInvoiceSyncJob < ApplicationJob
         incremental: incremental,
         tenant_id: tenant_id
       },
-      expires_in: 24.hours
+      expires_in: CACHE_TTL_DAILY
     )
 
     result
@@ -167,7 +169,7 @@ class XeroInvoiceSyncJob < ApplicationJob
         incremental: options[:incremental] != false,
         tenant_id: tenant_id
       },
-      expires_in: 24.hours
+      expires_in: CACHE_TTL_DAILY
     )
 
     raise

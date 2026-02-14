@@ -381,7 +381,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   end
 
   def get_microsoft_user_info(access_token)
-    response = HTTP.auth("Bearer #{access_token}").get("https://graph.microsoft.com/v1.0/me")
+    response = HTTP.auth("Bearer #{access_token}").get("#{MicrosoftGraphBase::GRAPH_API_BASE}/me")
     response.status.success? ? response.parse : nil
   end
 

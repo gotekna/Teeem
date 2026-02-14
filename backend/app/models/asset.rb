@@ -271,8 +271,8 @@ class Asset < ApplicationRecord
       {
         id: blob.id,
         filename: blob.original_filename,
-        url: blob.presigned_url(expires_in: 3600),
-        thumbnail_url: blob.presigned_url(expires_in: 3600), # No thumbnail processing - use full image
+        url: blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT),
+        thumbnail_url: blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT), # No thumbnail processing - use full image
         content_type: blob.content_type,
         byte_size: blob.file_size,
         created_at: blob.created_at
@@ -290,7 +290,7 @@ class Asset < ApplicationRecord
     first_blob = photo_blobs.first
     return nil unless first_blob
 
-    first_blob.presigned_url(expires_in: 3600)
+    first_blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
   rescue StandardError => e
     Rails.logger.warn "Thumbnail URL failed: #{e.message}"
     nil

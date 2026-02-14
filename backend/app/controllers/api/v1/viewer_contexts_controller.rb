@@ -15,6 +15,8 @@ module Api
     #
     # Context stored in Rails.cache with 24-hour expiry (anonymous access, no auth needed)
     class ViewerContextsController < ApplicationController
+      include CacheConstants
+
       # Public endpoint - viewer contexts are anonymous/ephemeral
       skip_before_action :authorize_request, only: [:show, :create]
       skip_before_action :set_tenant, only: [:show, :create]
@@ -33,7 +35,7 @@ module Api
         # FRC (Jan 2026): Use 7-day expiry to match typical presigned URL expiry
         # Note: Can't use WarehouseProvider.instance here - this is a public endpoint without tenant context
         # The viewer context just needs to outlive the presigned URLs it contains, which are typically 7 days
-        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: 7.days)
+        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: CACHE_TTL_WEEKLY)
 
         render json: { success: true, id: id }
       rescue => e

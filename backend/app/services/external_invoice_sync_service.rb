@@ -1,7 +1,7 @@
 class ExternalInvoiceSyncService
-  attr_reader :stats
+  include XeroConstants
 
-  RATE_LIMIT_SLEEP = 1200 # milliseconds between API calls (1.2s)
+  attr_reader :stats
 
   def initialize(source: "xero", tenant_id: nil)
     @source = source
@@ -255,7 +255,7 @@ class ExternalInvoiceSyncService
       break if page > max_pages
 
       # Rate limit protection
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     # If we need full details (line items, payments, tracking), fetch each invoice individually
@@ -292,7 +292,7 @@ class ExternalInvoiceSyncService
     nil
   ensure
     # Rate limit protection
-    sleep(RATE_LIMIT_SLEEP / 1000.0)
+    sleep(XERO_API_SLEEP_MS / 1000.0)
   end
 
   # FRC (Feb 2026): Fixed tenant_id confusion
@@ -800,7 +800,7 @@ class ExternalInvoiceSyncService
       page += 1
       break if page > max_pages
 
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     all_credit_notes
@@ -896,7 +896,7 @@ class ExternalInvoiceSyncService
       page += 1
       break if page > max_pages
 
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     all_quotes

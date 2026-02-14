@@ -4,11 +4,12 @@ require "base64"
 
 class XeroApiClient
   include HTTParty
+  include XeroConstants
 
-  BASE_URL = "https://api.xero.com/api.xro/2.0"
+  BASE_URL = XERO_API_BASE_URL
   AUTH_URL = "https://login.xero.com/identity/connect/authorize"
   TOKEN_URL = "https://identity.xero.com/connect/token"
-  CONNECTIONS_URL = "https://api.xero.com/connections"
+  CONNECTIONS_URL = XERO_CONNECTIONS_URL
 
   # Custom error classes
   class ApiError < StandardError; end

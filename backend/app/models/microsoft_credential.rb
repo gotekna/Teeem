@@ -17,6 +17,8 @@
 # SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
 #
 class MicrosoftCredential < ApplicationRecord
+  include CacheConstants
+
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
   # DEPRECATED: Organization - kept for backwards compatibility during migration
@@ -507,11 +509,11 @@ class MicrosoftCredential < ApplicationRecord
     if app_credential?
       return false unless fetch_app_token!
       # App credentials: test with /organization endpoint (works without user context)
-      test_url = "https://graph.microsoft.com/v1.0/organization"
+      test_url = "#{MicrosoftGraphBase::GRAPH_API_BASE}/organization"
     else
       return false unless valid_access_token
       # Delegated credentials: test with /me endpoint (requires user context)
-      test_url = "https://graph.microsoft.com/v1.0/me"
+      test_url = "#{MicrosoftGraphBase::GRAPH_API_BASE}/me"
     end
 
     response = HTTP.auth("Bearer #{access_token}").get(test_url)
@@ -540,7 +542,7 @@ class MicrosoftCredential < ApplicationRecord
     # This fixes slow navigation requests (was 2-4 seconds due to Graph API latency)
     # P95 was 3.8s when cache expired every 10 min; 1 hour reduces cache miss frequency 6x
     cache_key = "microsoft_credential:#{id}:tenant_users"
-    Rails.cache.fetch(cache_key, expires_in: 1.hour) do
+    Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_HOURLY) do
       fetch_tenant_users_from_api
     end
   end
@@ -557,7 +559,7 @@ class MicrosoftCredential < ApplicationRecord
     return [] if token.blank?
 
     response = HTTP.auth("Bearer #{token}")
-                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses&$top=999")
+                   .get("#{MicrosoftGraphBase::GRAPH_API_BASE}/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses&$top=999")
 
     if response.status.success?
       data = response.parse

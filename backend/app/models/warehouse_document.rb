@@ -174,7 +174,7 @@ class WarehouseDocument < ApplicationRecord
 
   # SSoT: Get presigned download URL - storage_blob is THE ONE source
   # Uses resolved_tenant (from TenantResolvable) for provider - Jan 2026 fix
-  def download_url(expires_in: 3600, disposition: :attachment)
+  def download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :attachment)
     return nil unless storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(resolved_tenant)

@@ -231,7 +231,7 @@ module AccountingAdapters
 
   # Xero adapter
   class XeroAdapter < BaseAdapter
-    XERO_API_URL = "https://api.xero.com/api.xro/2.0".freeze
+    XERO_API_URL = XeroConstants::XERO_API_BASE_URL
 
     def create_invoice(invoice)
       payload = invoice_payload(invoice)

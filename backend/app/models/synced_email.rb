@@ -9,6 +9,7 @@ class SyncedEmail < ApplicationRecord
   acts_as_tenant :tenant
 
   include Searchable
+  include MimeTypes
 
   # Searchable columns for full-text search (GIN index)
   # Note: Uses custom update_searchable_vector callback instead of trigger
@@ -880,7 +881,7 @@ class SyncedEmail < ApplicationRecord
 
     attachment_documents.each do |doc|
       content_type = doc.content_type || doc.storage_blob&.content_type
-      next unless content_type == "application/pdf"
+      next unless content_type == PDF
       next unless doc.storage_blob.present?
 
       begin

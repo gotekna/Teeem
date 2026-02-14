@@ -24,6 +24,7 @@
 # - WarehouseFolder + DocumentType define folder structure (no hardcoding)
 #
 class XeroAttachmentSyncJob < ApplicationJob
+  include XeroConstants  # For XERO_ATTACHMENT_SYNC_DELAY_SEC
   include XeroJobBase
   queue_as :xero_bulk
 
@@ -221,7 +222,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       end
 
       # Small delay to spread requests
-      sleep(1)
+      sleep(XERO_ATTACHMENT_SYNC_DELAY_SEC)
     end
 
     results

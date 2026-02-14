@@ -317,7 +317,7 @@ class PayNowRequest
     invoice_blob_id.present?
   end
 
-  def invoice_file_url(expires_in: 3600)
+  def invoice_file_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless invoice_blob
 
     invoice_blob.presigned_url(expires_in: expires_in)
@@ -346,7 +346,7 @@ class PayNowRequest
     proof_photo_blob_ids.present? && proof_photo_blob_ids.any?
   end
 
-  def proof_photo_urls(expires_in: 3600)
+  def proof_photo_urls(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return [] unless has_proof_photos?
 
     proof_photo_blobs.map do |blob|

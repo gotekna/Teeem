@@ -60,7 +60,7 @@ module Api
           upload_url = provider.presigned_upload_url(
             "",  # folder_path already included in temp_key
             temp_key,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             content_type: content_type
           )
           Rails.logger.info "[UploadsController#presign] Got presigned URL"
@@ -72,7 +72,7 @@ module Api
             filename: filename,
             content_type: content_type,
             scope: scope,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
         rescue DocumentProviders::NotConnectedError => e
           Rails.logger.error "[UploadsController#presign] Not connected: #{e.message}"

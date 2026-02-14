@@ -26,6 +26,13 @@ class TenantSetting < ApplicationRecord
   encrypts :twilio_auth_token
 
   # ========================================
+  # SSoT Defaults (used as fallbacks when tenant has no config)
+  # ========================================
+  DEFAULT_TIMEZONE = "Australia/Brisbane".freeze
+  DEFAULT_LOCALE = "en-AU".freeze
+  DEFAULT_CURRENCY = "AUD".freeze
+
+  # ========================================
   # API Environment Configuration (SSoT)
   # ========================================
   VALID_API_ENVIRONMENTS = %w[production beta staging].freeze
@@ -60,9 +67,9 @@ class TenantSetting < ApplicationRecord
   # Get or create settings for a tenant (THE ONE way to access tenant settings)
   def self.for_tenant(tenant)
     find_or_create_by!(tenant: tenant) do |setting|
-      setting.timezone ||= "Australia/Brisbane"
-      setting.locale ||= "en-AU"
-      setting.currency ||= "AUD"
+      setting.timezone ||= DEFAULT_TIMEZONE
+      setting.locale ||= DEFAULT_LOCALE
+      setting.currency ||= DEFAULT_CURRENCY
       # corporate_group_id is NOT NULL in schema, derive from tenant
       setting.company_group_id ||= tenant.company_groups.first&.id
     end
@@ -81,9 +88,9 @@ class TenantSetting < ApplicationRecord
         setting.tenant_id ||= fallback_tenant&.id
         # company_group_id is NOT NULL in schema
         setting.company_group_id ||= fallback_tenant&.company_groups&.first&.id || CompanyGroup.first&.id
-        setting.timezone ||= "Australia/Brisbane"
-        setting.locale ||= "en-AU"
-        setting.currency ||= "AUD"
+        setting.timezone ||= DEFAULT_TIMEZONE
+        setting.locale ||= DEFAULT_LOCALE
+        setting.currency ||= DEFAULT_CURRENCY
       end
     end
   end
@@ -114,7 +121,7 @@ class TenantSetting < ApplicationRecord
 
   # Get the company timezone string (SSoT)
   def self.timezone
-    instance.timezone || "Australia/Brisbane"
+    instance.timezone || DEFAULT_TIMEZONE
   end
 
   # =============================================================================
@@ -481,7 +488,7 @@ class TenantSetting < ApplicationRecord
 
   # Get the timezone for this tenant (default: Brisbane)
   def effective_timezone
-    timezone.presence || "Australia/Brisbane"
+    timezone.presence || DEFAULT_TIMEZONE
   end
 
   # Get the locale for this tenant (default: en-AU)
@@ -538,8 +545,8 @@ class TenantSetting < ApplicationRecord
   private
 
   def set_defaults
-    self.timezone ||= "Australia/Brisbane"
-    self.locale ||= "en-AU"
-    self.currency ||= "AUD"
+    self.timezone ||= DEFAULT_TIMEZONE
+    self.locale ||= DEFAULT_LOCALE
+    self.currency ||= DEFAULT_CURRENCY
   end
 end

@@ -13,6 +13,8 @@ module Gl
   #
   class AiTransactionCategorizationService
     include AnthropicClient
+    include CacheConstants
+    include XeroConstants  # For GL_AI_CATEGORIZATION_THROTTLE_SEC
 
     # Rate limiting: max 200 categorizations per hour
     # At $0.0003 avg per call, this caps costs at $0.06/hour or $43/month max
@@ -23,7 +25,7 @@ module Gl
     MIN_CONFIDENCE = 0.7
 
     # Cache TTL for account context
-    CONTEXT_CACHE_TTL = 1.hour
+    CONTEXT_CACHE_TTL = CACHE_TTL_HOURLY
 
     attr_reader :company
 
@@ -76,7 +78,7 @@ module Gl
         results << { index: idx, transaction: txn, categorization: result }
 
         # Small delay between calls to be nice to the API
-        sleep(0.1) if idx < transactions.length - 1
+        sleep(GL_AI_CATEGORIZATION_THROTTLE_SEC) if idx < transactions.length - 1
       end
 
       results

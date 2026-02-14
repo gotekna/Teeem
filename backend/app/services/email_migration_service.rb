@@ -14,6 +14,8 @@
 #   service.start_migration(mailbox)   # Migrate a specific mailbox
 #
 class EmailMigrationService
+  include XeroConstants  # For EMAIL_MIGRATION_POLL_INTERVAL_SEC
+
   class MigrationError < StandardError; end
 
   attr_reader :subscription, :polaris_service
@@ -203,7 +205,7 @@ class EmailMigrationService
         break
       else
         # Still in progress, wait and poll again
-        sleep(30)
+        sleep(EMAIL_MIGRATION_POLL_INTERVAL_SEC)
       end
 
       # Safety: don't poll forever

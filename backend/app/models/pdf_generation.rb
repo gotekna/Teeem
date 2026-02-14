@@ -37,7 +37,7 @@ class PdfGeneration < ApplicationRecord
     status.in?(%w[pending processing])
   end
 
-  def download_url(expires_in: 3600)
+  def download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless completed? && storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(tenant)

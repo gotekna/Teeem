@@ -2,6 +2,7 @@
 
 class BillInbox < ApplicationRecord
   include StorageUploadable
+  include MimeTypes
 
   # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
   # FRC: BillInbox was leaking data across tenants - users could see other tenants' bills
@@ -30,11 +31,11 @@ class BillInbox < ApplicationRecord
   has_many :bill_payments, dependent: :destroy
 
   # Allowed content types (used by upload validation in services)
-  ALLOWED_INVOICE_TYPES = %w[application/pdf image/jpeg image/png image/tiff].freeze
-  ALLOWED_SUPPORTING_TYPES = %w[
-    application/pdf image/jpeg image/png image/tiff
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel text/csv
+  ALLOWED_INVOICE_TYPES = [PDF, JPEG, PNG, "image/tiff"].freeze
+  ALLOWED_SUPPORTING_TYPES = [
+    PDF, JPEG, PNG, "image/tiff",
+    XLSX,
+    "application/vnd.ms-excel", CSV
   ].freeze
 
   # Validations
@@ -191,10 +192,10 @@ class BillInbox < ApplicationRecord
     # Return stored mime type or detect from filename
     return nil unless has_invoice_file?
     case invoice_file_filename&.downcase
-    when /\.pdf$/ then "application/pdf"
-    when /\.png$/ then "image/png"
-    when /\.jpe?g$/ then "image/jpeg"
-    else "application/octet-stream"
+    when /\.pdf$/ then PDF
+    when /\.png$/ then PNG
+    when /\.jpe?g$/ then JPEG
+    else OCTET_STREAM
     end
   end
 

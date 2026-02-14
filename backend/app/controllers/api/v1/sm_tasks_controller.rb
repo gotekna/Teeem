@@ -1201,7 +1201,7 @@ module Api
           upload_url = provider.presigned_upload_url(
             "",  # Folder path (temp_key already includes full path)
             temp_key,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             content_type: content_type
           )
 
@@ -1212,7 +1212,7 @@ module Api
             filename: filename,
             content_type: content_type,
             category: category,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
         rescue DocumentProviders::NotConnectedError => e
           render_error("Storage not configured: #{e.message}", status: :service_unavailable)

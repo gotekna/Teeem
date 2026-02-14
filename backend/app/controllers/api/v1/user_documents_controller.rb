@@ -170,7 +170,7 @@ module Api
         begin
           url = provider.download_url(
             @document.storage_blob.storage_path,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             filename: @document.file_name
           )
           render json: { success: true, url: url }
@@ -285,7 +285,7 @@ module Api
 
         if blob&.storage_path.present? && @document_provider
           begin
-            download_url = @document_provider.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name)
+            download_url = @document_provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: doc.file_name)
           rescue => e
             Rails.logger.warn "[UserDocuments] Failed to get download URL for doc #{doc.id}: #{e.message}"
           end

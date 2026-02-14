@@ -281,6 +281,12 @@ interface ClassificationData {
   success: boolean;
   has_classification: boolean;
   winner?: string;
+  // Resolved fields for the document's CURRENT doc type (what's actually saved)
+  current?: {
+    resolved_folder?: string;
+    resolved_ui_name?: string;
+    resolved_dl_name?: string;
+  };
   ocr: ClassificationBreakdown;
   ai: ClassificationBreakdown;
   name_match: ClassificationBreakdown;
@@ -1452,9 +1458,22 @@ export default function DocumentPreviewModal({
                   ) : (
                     <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
                       {document.document_type ? (
-                        <Badge variant="outline" className="font-mono text-[10px]">
-                          {getDocumentTypesForFolder(document.folder).find(t => t.value === document.document_type)?.abbrev || document.document_type}
-                        </Badge>
+                        (() => {
+                          const dt = getDocumentTypeRecord(document.document_type);
+                          return dt ? (
+                            <a
+                              href={`/admin/system/document-types/${dt.id}`}
+                              target="_blank"
+                              className="flex items-center gap-1 hover:underline cursor-pointer truncate"
+                              title={`Open ${dt.name} settings`}
+                            >
+                              <Badge variant="outline" className="font-mono text-[10px] shrink-0">
+                                {dt.abbreviation || document.document_type}
+                              </Badge>
+                              <span className="truncate">{dt.name}</span>
+                            </a>
+                          ) : <span className="truncate">{document.document_type}</span>;
+                        })()
                       ) : <span className="text-muted-foreground">-</span>}
                     </div>
                   )}
@@ -1504,7 +1523,7 @@ export default function DocumentPreviewModal({
                     </Select>
                   ) : (
                     <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
-                      <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
+                      <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || classificationData?.current?.resolved_folder?.toUpperCase() || "GENERAL"}</Badge>
                     </div>
                   )}
                 </div>
@@ -1562,7 +1581,7 @@ export default function DocumentPreviewModal({
                 <div className={cn(getAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">UI Name {getAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && <span className="italic">(auto)</span>}</Label>
                   <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
-                    {document.display_name || "-"}
+                    {document.display_name || classificationData?.current?.resolved_ui_name || "-"}
                   </div>
                 </div>
 
@@ -1570,7 +1589,7 @@ export default function DocumentPreviewModal({
                 <div className={cn(getAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">DL Name {getAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && <span className="italic">(auto)</span>}</Label>
                   <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
-                    {document.download_name || "-"}
+                    {document.download_name || classificationData?.current?.resolved_dl_name || "-"}
                   </div>
                 </div>
 
@@ -1624,24 +1643,44 @@ export default function DocumentPreviewModal({
               ) : (
                 <div className={cn("space-y-1.5", !classificationData?.has_classification && "opacity-40")}>
                   {/* Document Type from OCR - FIRST: keystone field */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
-                    <div className={cn(
-                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
-                      classificationData?.ocr?.document_type
-                        ? (classificationData.ocr.document_type === document.document_type
-                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                        : ""
-                    )}>
-                      {classificationData?.ocr?.document_type?.replace(/_/g, ' ') || "-"}
-                    </div>
-                  </div>
+                  {(() => {
+                    const ocrType = classificationData?.ocr?.document_type;
+                    const ocrDt = ocrType ? getDocumentTypeRecord(ocrType) : null;
+                    return (
+                      <div>
+                        <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                          ocrType
+                            ? (ocrType === document.document_type
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : ""
+                        )}>
+                          {ocrDt ? (
+                            <a href={`/admin/system/document-types/${ocrDt.id}`} target="_blank" className="flex items-center gap-1 hover:underline cursor-pointer truncate" title={`Open ${ocrDt.name} settings`}>
+                              <Badge variant="outline" className="font-mono text-[10px] shrink-0">{ocrDt.abbreviation || ocrType?.substring(0, 3).toUpperCase()}</Badge>
+                              <span className="truncate">{ocrDt.name}</span>
+                            </a>
+                          ) : ocrType ? (
+                            <span>{ocrType.replace(/_/g, ' ')}</span>
+                          ) : "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                  {/* Company - OCR doesn't detect company */}
+                  {/* Company — from document context or template token */}
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Company</Label>
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      !document.company && "text-muted-foreground italic font-mono"
+                    )}>
+                      {document.company ? (
+                        <span className="truncate">{document.company.code ? `[${document.company.code}]` : ''} {document.company.name}</span>
+                      ) : "{Company}"}
+                    </div>
                   </div>
 
                   {/* Folder — resolved from OCR-detected doc type */}
@@ -1799,11 +1838,13 @@ export default function DocumentPreviewModal({
                     )}>
                       {(() => {
                         if (!document.ai_suggested_type) return "-";
-                        const match = documentTypes.find(t =>
-                          t.name?.toLowerCase() === document.ai_suggested_type?.toLowerCase() ||
-                          t.abbreviation?.toLowerCase() === document.ai_suggested_type?.toLowerCase()
-                        );
-                        return match?.name || document.ai_suggested_type;
+                        const aiDt = getDocumentTypeRecord(document.ai_suggested_type);
+                        return aiDt ? (
+                          <a href={`/admin/system/document-types/${aiDt.id}`} target="_blank" className="flex items-center gap-1 hover:underline cursor-pointer truncate" title={`Open ${aiDt.name} settings`}>
+                            <Badge variant="outline" className="font-mono text-[10px] shrink-0">{aiDt.abbreviation || document.ai_suggested_type?.substring(0, 3).toUpperCase()}</Badge>
+                            <span className="truncate">{aiDt.name}</span>
+                          </a>
+                        ) : <span>{document.ai_suggested_type.replace(/_/g, ' ')}</span>;
                       })()}
                     </div>
                   </div>

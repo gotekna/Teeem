@@ -4,7 +4,7 @@ require "httparty"
 # Posts depreciation, purchase, and disposal journals to Xero
 class XeroAssetJournalService
   include HTTParty
-  base_uri "https://api.xero.com/api.xro/2.0"
+  base_uri XeroConstants::XERO_API_BASE_URL
 
   class JournalError < StandardError; end
 

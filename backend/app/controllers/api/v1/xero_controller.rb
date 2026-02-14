@@ -1,6 +1,7 @@
 module Api
   module V1
     class XeroController < ApplicationController
+      include CacheConstants
       # GET /api/v1/xero/auth_url
       # Returns the Xero OAuth authorization URL
       # Uses Origin header to determine redirect_uri for multi-environment support
@@ -620,7 +621,7 @@ module Api
                 total: 0,
                 processed: 0
               },
-              expires_in: 24.hours
+              expires_in: CACHE_TTL_DAILY
             )
           rescue StandardError => cache_error
             Rails.logger.warn("Failed to write job metadata to cache: #{cache_error.message}")
@@ -1884,7 +1885,7 @@ module Api
             # Paginated requests compute fresh stats (don't cache partial results)
             compute_sync_stats(credentials, page: page, per_page: per_page)
           else
-            Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+            Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_MEDIUM) do
               compute_sync_stats(credentials)
             end
           end
@@ -3176,7 +3177,7 @@ module Api
           credential.reload
         end
 
-        url = "https://api.xero.com/api.xro/2.0/#{endpoint}"
+        url = "#{XeroConstants::XERO_API_BASE_URL}/#{endpoint}"
 
         headers = {
           "Authorization" => "Bearer #{credential.access_token}",

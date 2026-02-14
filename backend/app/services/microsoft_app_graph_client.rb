@@ -12,7 +12,7 @@
 #   client.get_user_email('user@tekna.com.au', 'message_id')
 
 class MicrosoftAppGraphClient
-  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+  GRAPH_API_BASE = MicrosoftGraphBase::GRAPH_API_BASE
 
   attr_reader :credential
 

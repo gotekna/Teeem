@@ -12,6 +12,8 @@ module Api
     # - File upload/download URLs
     #
     class SyncController < ApplicationController
+      include CacheConstants
+
       # Skip standard auth - we use our own desktop client authentication
       skip_before_action :authorize_request
       skip_before_action :set_tenant
@@ -46,7 +48,7 @@ module Api
             platform: platform,
             created_at: Time.current
           },
-          expires_in: 15.minutes
+          expires_in: 15.minutes  # Deliberate: OAuth flow timeout (not a generic cache)
         )
 
         render json: {
@@ -54,7 +56,7 @@ module Api
           data: {
             device_code: device_code,
             device_id: device_id,
-            expires_in: 900,  # 15 minutes
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,  # 15 minutes
             interval: 5,      # Poll every 5 seconds
             verification_url: "#{frontend_url}/device"
           }
@@ -96,7 +98,7 @@ module Api
         Rails.cache.write(
           "device_auth:#{device_code}:tokens",
           tokens,
-          expires_in: 5.minutes
+          expires_in: CACHE_TTL_MEDIUM
         )
 
         # Delete pending auth
@@ -461,7 +463,7 @@ module Api
           success: true,
           data: {
             url: url,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             file_name: file_state.file_name,
             file_size: file_state.file_size,
             content_hash: file_state.remote_content_hash
@@ -534,7 +536,7 @@ module Api
             upload_method: upload_info[:method] || "PUT",
             upload_headers: upload_info[:headers] || {},
             file_state_id: file_state.id,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
         }
       end

@@ -146,9 +146,9 @@ class TenantProvisioningService
       email: @params[:email],
       phone: @params[:phone],
       website: @params[:website],
-      timezone: @params[:timezone] || "Australia/Brisbane",
-      locale: @params[:locale] || "en-AU",
-      currency: @params[:currency] || "AUD"
+      timezone: @params[:timezone] || TenantSetting::DEFAULT_TIMEZONE,
+      locale: @params[:locale] || TenantSetting::DEFAULT_LOCALE,
+      currency: @params[:currency] || TenantSetting::DEFAULT_CURRENCY
     )
 
     Rails.logger.info "[TenantProvisioning] Created TenantSetting for #{@tenant.name}"

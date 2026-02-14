@@ -9,6 +9,7 @@
 # - Catches XeroApiClient::RateLimitError and records lockout
 #
 class XeroBankTransactionSyncJob < ApplicationJob
+  include XeroConstants  # For BANK_TRANSACTION_SYNC_DELAY_SEC
   include XeroJobBase
   queue_as :default
 
@@ -142,7 +143,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       page += 1
 
       # Small delay to spread requests
-      sleep(0.5)
+      sleep(BANK_TRANSACTION_SYNC_DELAY_SEC)
     end
 
     tenant_result[:success] = true unless tenant_result[:rate_limited]

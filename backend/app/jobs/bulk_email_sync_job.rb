@@ -28,6 +28,7 @@
 #   }
 
 class BulkEmailSyncJob < ApplicationJob
+  include XeroConstants  # For BULK_EMAIL_SYNC_THROTTLE_SEC
   include DocumentProviderAware
 
   queue_as :low
@@ -349,7 +350,7 @@ class BulkEmailSyncJob < ApplicationJob
         end
 
         # Throttle to avoid rate limits (every 10 emails)
-        sleep(0.1) if processed % 10 == 0
+        sleep(BULK_EMAIL_SYNC_THROTTLE_SEC) if processed % 10 == 0
       rescue StandardError => e
         log_error("email_upload", email.id, e.message)
       end

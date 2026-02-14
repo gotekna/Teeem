@@ -207,7 +207,7 @@ module Api
 
         # Return presigned URL for client-side download
         if params[:url_only] == 'true'
-          url = @item.download_url(expires_in: 3600)
+          url = @item.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
           render json: { url: url }
         else
           # Stream file content

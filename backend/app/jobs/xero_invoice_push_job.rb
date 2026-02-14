@@ -18,6 +18,7 @@
 #   XeroInvoicePushJob.perform_later(batch: true)  # Push all pending invoices
 #
 class XeroInvoicePushJob < ApplicationJob
+  include XeroConstants  # For XERO_INVOICE_PUSH_RETRY_SEC
   include XeroJobBase
 
   queue_as :xero_sync
@@ -130,7 +131,7 @@ class XeroInvoicePushJob < ApplicationJob
           increment_records_updated
 
           # Rate limiting - small delay between pushes
-          sleep(0.5)
+          sleep(XERO_INVOICE_PUSH_RETRY_SEC)
         rescue StandardError => e
           Rails.logger.error("[XeroInvoicePushJob] Failed to push invoice #{invoice.id}: #{e.message}")
           invoice.update(sync_error: e.message.truncate(500))

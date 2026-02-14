@@ -89,7 +89,7 @@ module Api
       def preview
         doc = WarehouseDocument.find(params[:id])
 
-        url = doc.download_url(expires_in: 3600, disposition: :inline)
+        url = doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline)
 
         if url.present?
           render json: { success: true, preview_url: url }
@@ -122,7 +122,7 @@ module Api
       def download
         doc = WarehouseDocument.find(params[:id])
 
-        url = doc.download_url(expires_in: 3600, disposition: :inline)
+        url = doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline)
 
         if url.present?
           redirect_to url, allow_other_host: true
@@ -230,10 +230,19 @@ module Api
           resolved_dl_name: nm_resolved[:dl_name]
         }
 
+        # Also resolve fields for the document's CURRENT doc type (what's actually saved)
+        current_doc_type = doc.metadata&.dig("document_type")
+        current_resolved = resolve_doc_type_fields(current_doc_type, doc)
+
         render json: {
           success: true,
           has_classification: inbox.present? && classification.present?,
           winner: classification["winner"] || classification[:winner],
+          current: {
+            resolved_folder: current_resolved[:folder],
+            resolved_ui_name: current_resolved[:ui_name],
+            resolved_dl_name: current_resolved[:dl_name]
+          },
           ocr: ocr_data,
           ai: ai_data,
           name_match: name_data,
@@ -300,8 +309,7 @@ module Api
         # Resolve folder from doc type's primary warehouse folder
         folder = dt.folder
 
-        # Resolve ui_name and dl_name by temporarily simulating what SendNameResolver would produce
-        # if this document had this doc type
+        # Resolve ui_name and dl_name by expanding templates with the document's context
         resolver = SendNameResolver.new
         context = resolver.send(:build_context, warehouse_doc)
 
@@ -315,7 +323,7 @@ module Api
         dl_template = dt.download_name
         resolved_dl = if dl_template.present?
           expanded = resolver.send(:expand_template, dl_template, context)
-          resolver.send(:sanitize_filename, expanded) if expanded.present?
+          expanded.present? ? resolver.send(:full_sanitize, expanded) : nil
         end
 
         { folder: folder, ui_name: resolved_ui, dl_name: resolved_dl }

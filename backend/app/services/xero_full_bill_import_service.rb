@@ -3,8 +3,9 @@
 # Service to import ALL bills from Xero as Purchase Orders
 # Matches bills to jobs by their tracking category
 class XeroFullBillImportService
+  include XeroConstants
+
   TRACKING_CATEGORY_NAME = "Job"
-  RATE_LIMIT_SLEEP = 100 # milliseconds between operations
 
   attr_reader :stats
 
@@ -39,7 +40,7 @@ class XeroFullBillImportService
 
     bills.each do |bill|
       import_bill(bill)
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_BATCH_SLEEP_MS / 1000.0)
     rescue StandardError => e
       error_msg = "Error importing bill '#{bill['InvoiceNumber']}': #{e.message}"
       Rails.logger.error(error_msg)
@@ -95,7 +96,7 @@ class XeroFullBillImportService
       break if invoices.length < 100
 
       # Rate limit between pages
-      sleep(0.5)
+      sleep(XERO_PAGE_SLEEP_SEC)
     end
 
     Rails.logger.info("Found #{all_bills.length} bills in Xero, fetching full details...")
@@ -106,7 +107,7 @@ class XeroFullBillImportService
       Rails.logger.info("Fetching details for bill #{index + 1}/#{all_bills.length}...") if (index + 1) % 50 == 0
       detail = fetch_invoice_details(bill["InvoiceID"])
       # Rate limit between individual fetches - Xero allows ~60 calls/min
-      sleep(1.1)
+      sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
       detail || bill
     end.compact
   end

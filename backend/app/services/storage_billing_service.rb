@@ -12,8 +12,10 @@
 #   Backblaze:   $6.00/TB/month ($0.005/GB), first 10GB free, egress 3x storage free
 #
 class StorageBillingService
+  include CacheConstants
+
   CACHE_KEY = "storage_billing_data"
-  CACHE_TTL = 1.hour
+  CACHE_TTL = CACHE_TTL_HOURLY
 
   # Wasabi pricing
   WASABI_RATE_PER_TB = 6.99
