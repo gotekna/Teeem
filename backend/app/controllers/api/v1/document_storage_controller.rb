@@ -1214,16 +1214,16 @@ module Api
         if document_id.present?
           document = WarehouseDocument.find_by(id: document_id)
           unless document
-            return render json: { success: false, error: "Document not found" }, status: :not_found
+            return render_error("Document not found", status: :not_found)
           end
 
           # SSoT: Use storage_path from storage_blob
           file_id = document.storage_blob&.storage_path || document.storage_path
           unless file_id.present?
-            return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+            return render_error("Document has no storage reference", status: :unprocessable_entity)
           end
         elsif !file_id.present?
-          return render json: { success: false, error: "No file_id or document_id provided" }, status: :bad_request
+          return render_error("No file_id or document_id provided", status: :bad_request)
         end
 
         begin
@@ -1237,16 +1237,16 @@ module Api
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+          render_error("File not found: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unauthorized
+          render_error("Storage not connected: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to get presigned URL: #{e.message}"
-          render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to get presigned URL: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1256,13 +1256,13 @@ module Api
       def delete_file
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render json: { success: false, error: "No file_id provided" }, status: :bad_request
+          return render_error("No file_id provided", status: :bad_request)
         end
 
         begin
@@ -1272,7 +1272,7 @@ module Api
           # App credentials use different API methods than delegated
           if sharepoint_credential.credential_type == "app"
             unless config&.connected?
-              return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+              return render_error("SharePoint not configured", status: :unprocessable_entity)
             end
 
             client.delete_drive_item(
@@ -1298,12 +1298,12 @@ module Api
           render json: { success: true, message: "File deleted successfully" }
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to delete file: #{e.message}"
-          render json: { success: false, error: "Failed to delete file: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to delete file: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1749,7 +1749,7 @@ module Api
         job = parent_doc.linkable if parent_doc.linkable_type == "Job"
 
         unless job
-          return render json: { success: false, error: "Document not linked to a job" }, status: :unprocessable_entity
+          return render_error("Document not linked to a job", status: :unprocessable_entity)
         end
 
         # Validate the document supports versioning (check metadata)
@@ -1868,7 +1868,7 @@ module Api
           }
 
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue MicrosoftGraphClient::AuthenticationError => e
           render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
@@ -1919,7 +1919,7 @@ module Api
         render_error("Job not found", status: :not_found)
       rescue => e
         Rails.logger.error("[BulkCategorize] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/documents/documents_needing_review
@@ -2228,18 +2228,18 @@ module Api
         document_id = params[:document_id]
 
         unless document_id.present?
-          return render json: { success: false, error: "document_id is required" }, status: :bad_request
+          return render_error("document_id is required", status: :bad_request)
         end
 
         document = WarehouseDocument.find_by(id: document_id)
 
         unless document
-          return render json: { success: false, error: "Document not found" }, status: :not_found
+          return render_error("Document not found", status: :not_found)
         end
 
         blob = document.storage_blob
         unless blob&.storage_path.present?
-          return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+          return render_error("Document has no storage reference", status: :unprocessable_entity)
         end
 
         begin
@@ -2270,7 +2270,7 @@ module Api
           when "sharepoint"
             url = get_sharepoint_download_url_warehouse(document)
           else
-            return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
+            return render_error("Unknown storage provider: #{doc_provider}", status: :bad_request)
           end
 
           filename = document.original_filename || document.ui_name
@@ -2284,12 +2284,12 @@ module Api
           }
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found in storage" }, status: :not_found
+          render_error("File not found in storage", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage provider not connected" }, status: :service_unavailable
+          render_error("Storage provider not connected", status: :service_unavailable)
         rescue StandardError => e
           Rails.logger.error "[WarehouseDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
-          render json: { success: false, error: "Failed to get download URL" }, status: :internal_server_error
+          render_error("Failed to get download URL", status: :internal_server_error)
         end
       end
 

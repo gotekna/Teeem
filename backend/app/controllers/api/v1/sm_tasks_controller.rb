@@ -966,7 +966,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render_error("Attachable not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
@@ -1101,7 +1101,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render_error("Attachment not found", status: :not_found)
       rescue => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
@@ -1350,7 +1350,7 @@ module Api
         if result[:success]
           render json: { success: true, share_url: result[:share_url] }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       rescue ActiveRecord::RecordNotFound
         render_error("Attachment not found", status: :not_found)
@@ -1717,7 +1717,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#bulk_link_emails] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/match_keywords
@@ -1790,7 +1790,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#match_keywords] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/clear_matched_emails
@@ -1810,7 +1810,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#clear_matched_emails] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/link_email_thread
@@ -1850,7 +1850,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#link_email_thread] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # ===== Task Followers =====
@@ -1972,7 +1972,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render_error("User or contact not found", status: :not_found)
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/contacts/:contact_id
@@ -2037,7 +2037,7 @@ module Api
           note: note.as_json_with_user
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/notes/:note_id
@@ -2081,7 +2081,7 @@ module Api
           action_item: action_item_to_json(item)
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/bulk
@@ -2114,7 +2114,7 @@ module Api
           action_items: created_items
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/toggle
@@ -2169,7 +2169,7 @@ module Api
           action_item: action_item_to_json(item)
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/answer
@@ -2216,7 +2216,7 @@ module Api
             delegated_task: task_to_json(result[:task])
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -2300,7 +2300,7 @@ module Api
       rescue ActiveRecord::RecordNotFound => e
         render_error("Item not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # PATCH /api/v1/sm_tasks/:id/privacy

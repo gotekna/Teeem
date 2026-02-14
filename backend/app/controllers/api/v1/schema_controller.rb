@@ -402,7 +402,7 @@ module Api
           }
         rescue => e
           Rails.logger.error "Failed to sync has_ui from production: #{e.message}"
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 

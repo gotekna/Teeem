@@ -39,7 +39,7 @@ module Api
             sms_message: result[:sms].as_json(include: :user)
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 

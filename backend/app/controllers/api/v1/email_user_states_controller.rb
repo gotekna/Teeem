@@ -180,7 +180,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
     Rails.logger.error("[mark_folder_read] Validation error: #{e.message}")
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   rescue StandardError => e
     Rails.logger.error("[mark_folder_read] Error: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))

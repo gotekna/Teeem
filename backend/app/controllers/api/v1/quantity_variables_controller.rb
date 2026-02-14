@@ -40,8 +40,7 @@ module Api
       # PATCH /api/v1/quantity_variables/:id
       def update
         if @variable.is_system_variable? && !current_user&.admin?
-          render json: { success: false, error: 'Cannot modify system variables' },
-                 status: :forbidden
+          render_error('Cannot modify system variables', status: :forbidden)
           return
         end
 
@@ -55,8 +54,7 @@ module Api
       # DELETE /api/v1/quantity_variables/:id
       def destroy
         if @variable.is_system_variable?
-          render json: { success: false, error: 'Cannot delete system variables' },
-                 status: :forbidden
+          render_error('Cannot delete system variables', status: :forbidden)
         else
           @variable.destroy
           render json: { success: true }

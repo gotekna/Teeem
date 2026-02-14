@@ -75,7 +75,7 @@ module Api
                     else
                       "This invite is not valid for payment"
                     end
-          return render json: { success: false, error: message }, status: :unprocessable_entity
+          return render_error(message, status: :unprocessable_entity)
         end
 
         subscription = @invite.email_subscription
@@ -102,7 +102,7 @@ module Api
           }
         }
       rescue StripeSubscriptionService::SubscriptionError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue Stripe::StripeError => e
         Rails.logger.error("[MigratePortal] Stripe error: #{e.message}")
         render_error("Payment service unavailable", status: :service_unavailable)
@@ -151,7 +151,7 @@ module Api
           }
         }
       rescue EmailMigrationService::MigrationError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/migrate/webhook

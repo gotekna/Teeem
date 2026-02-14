@@ -215,16 +215,16 @@ module Api
           measurements_params = params[:measurements] || []
 
           if job_id.blank?
-            return render json: { success: false, error: "job_id is required" }, status: :unprocessable_entity
+            return render_error("job_id is required", status: :unprocessable_entity)
           end
 
           job = Job.find_by(id: job_id)
           unless job
-            return render json: { success: false, error: "Job not found with ID: #{job_id}" }, status: :not_found
+            return render_error("Job not found with ID: #{job_id}", status: :not_found)
           end
 
           if measurements_params.empty?
-            return render json: { success: false, error: "No measurements provided" }, status: :unprocessable_entity
+            return render_error("No measurements provided", status: :unprocessable_entity)
           end
 
           ActiveRecord::Base.transaction do
@@ -369,12 +369,12 @@ module Api
           group_by = params[:group_by] || "supplier"
 
           if job_id.blank?
-            return render json: { success: false, error: "job_id is required" }, status: :unprocessable_entity
+            return render_error("job_id is required", status: :unprocessable_entity)
           end
 
           job = Job.find_by(id: job_id)
           unless job
-            return render json: { success: false, error: "Job not found with ID: #{job_id}" }, status: :not_found
+            return render_error("Job not found with ID: #{job_id}", status: :not_found)
           end
 
           scope = job.takeoff_measurements.includes(:pricebook_item)
@@ -475,7 +475,7 @@ module Api
           session_id = params[:session_id]
 
           if session_id.blank?
-            return render json: { success: false, error: "session_id is required" }, status: :unprocessable_entity
+            return render_error("session_id is required", status: :unprocessable_entity)
           end
 
           deleted_count = TakeoffMeasurement.where(session_id: session_id).destroy_all.count

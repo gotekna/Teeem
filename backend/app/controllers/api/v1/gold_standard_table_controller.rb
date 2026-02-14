@@ -147,7 +147,7 @@ class Api::V1::GoldStandardTableController < ApplicationController
     end
   rescue => e
     Rails.logger.error "Error merging gold standard items: #{e.class} - #{e.message}"
-    render json: { success: false, error: e.message }, status: :internal_server_error
+    render_error(e.message, status: :internal_server_error)
   end
 
   # Public endpoint to sync column types with the columns table

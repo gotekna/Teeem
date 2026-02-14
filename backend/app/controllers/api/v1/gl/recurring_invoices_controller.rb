@@ -178,7 +178,7 @@ module Api
         def set_recurring_invoice
           @recurring_invoice = ::Gl::RecurringInvoice.find(params[:id])
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Recurring invoice not found' }, status: :not_found
+          render_error('Recurring invoice not found', status: :not_found)
         end
 
         def recurring_invoice_params

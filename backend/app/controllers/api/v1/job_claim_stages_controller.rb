@@ -153,7 +153,7 @@ module Api
 
           render json: { success: true, data: stage_json(@stage.reload) }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -165,7 +165,7 @@ module Api
 
           render json: { success: true, data: stage_json(@stage.reload) }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -201,8 +201,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:errors].join(", ") },
-                 status: :unprocessable_entity
+          render_error(result[:errors].join(", "), status: :unprocessable_entity)
         end
       end
 

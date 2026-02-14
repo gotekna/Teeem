@@ -49,7 +49,7 @@ module Api
           data: serialize(pdf_gen)
         }, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/pdf_generations/:id
@@ -114,7 +114,7 @@ module Api
         end
 
         if pdf_gen.failed?
-          render json: { success: false, error: pdf_gen.error_message || "Generation failed" }, status: :unprocessable_entity
+          render_error(pdf_gen.error_message || "Generation failed", status: :unprocessable_entity)
           return
         end
 

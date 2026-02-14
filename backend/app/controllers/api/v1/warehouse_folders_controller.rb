@@ -73,7 +73,7 @@ module Api
       # DELETE /api/v1/warehouse_folders/:id
       def destroy
         unless @warehouse_folder.can_delete?
-          return render json: { success: false, error: @warehouse_folder.deletion_blocked_reason }, status: :unprocessable_entity
+          return render_error(@warehouse_folder.deletion_blocked_reason, status: :unprocessable_entity)
         end
 
         @warehouse_folder.destroy

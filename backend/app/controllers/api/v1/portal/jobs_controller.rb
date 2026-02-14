@@ -54,7 +54,7 @@ module Api
           purchase_order = current_contact.purchase_orders.find(params[:id])
 
           if purchase_order.arrived_at.present?
-            render json: { success: false, error: "Arrival already recorded" }, status: :unprocessable_entity
+            render_error("Arrival already recorded", status: :unprocessable_entity)
             return
           end
 
@@ -82,12 +82,12 @@ module Api
           purchase_order = current_contact.purchase_orders.find(params[:id])
 
           if purchase_order.completed_at.present?
-            render json: { success: false, error: "Completion already recorded" }, status: :unprocessable_entity
+            render_error("Completion already recorded", status: :unprocessable_entity)
             return
           end
 
           unless purchase_order.arrived_at.present?
-            render json: { success: false, error: "Cannot mark complete before arrival" }, status: :unprocessable_entity
+            render_error("Cannot mark complete before arrival", status: :unprocessable_entity)
             return
           end
 

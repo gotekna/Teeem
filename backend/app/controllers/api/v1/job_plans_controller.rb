@@ -217,7 +217,7 @@ module Api
       # SSoT: Uses DocumentProviderAware for provider-agnostic storage
       def upload_plan_set
         unless params[:file].present?
-          return render json: { success: false, error: 'No file provided' }, status: :unprocessable_entity
+          return render_error('No file provided', status: :unprocessable_entity)
         end
 
         # Ensure job has plan tabs
@@ -237,7 +237,7 @@ module Api
 
         # Ensure job folder exists
         unless folder_exists_in_provider?(job_folder_path)
-          return render json: { success: false, error: 'Job folder not found in storage' }, status: :unprocessable_entity
+          return render_error('Job folder not found in storage', status: :unprocessable_entity)
         end
 
         # Create staging filename with timestamp
@@ -274,7 +274,7 @@ module Api
       rescue StandardError => e
         Rails.logger.error("upload_plan_set failed: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:job_id/job_plans/fix_categories

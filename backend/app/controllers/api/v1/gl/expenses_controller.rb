@@ -34,8 +34,7 @@ module Api
           if expense.save
             render json: { success: true, data: expense }, status: :created
           else
-            render json: { success: false, error: expense.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(expense.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -46,8 +45,7 @@ module Api
           if expense.update(expense_params)
             render json: { success: true, data: expense }
           else
-            render json: { success: false, error: expense.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(expense.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -58,7 +56,7 @@ module Api
           if expense.approve!
             render json: { success: true, data: expense }
           else
-            render json: { success: false, error: "Cannot approve expense" }, status: :unprocessable_entity
+            render_error("Cannot approve expense", status: :unprocessable_entity)
           end
         end
 
@@ -78,7 +76,7 @@ module Api
                                        .where(id: params[:expense_ids])
                                        .where(status: "approved")
 
-          return render json: { success: false, error: "No approved expenses" }, status: :unprocessable_entity if expenses.empty?
+          return render_error("No approved expenses", status: :unprocessable_entity) if expenses.empty?
 
           job = expenses.first.job
           contact = job.contact

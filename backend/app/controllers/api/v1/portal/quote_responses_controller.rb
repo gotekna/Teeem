@@ -11,14 +11,14 @@ module Api
 
           # Check if subcontractor is invited to this quote
           unless quote_request.contacts.include?(current_contact)
-            render json: { success: false, error: "Not authorized for this quote request" }, status: :forbidden
+            render_error("Not authorized for this quote request", status: :forbidden)
             return
           end
 
           # Check if already responded
           existing_response = quote_request.quote_responses.find_by(contact: current_contact)
           if existing_response && !existing_response.pending?
-            render json: { success: false, error: "Quote already submitted" }, status: :unprocessable_entity
+            render_error("Quote already submitted", status: :unprocessable_entity)
             return
           end
 
@@ -52,7 +52,7 @@ module Api
           quote_response = current_contact.quote_responses.find(params[:id])
 
           unless quote_response.pending?
-            render json: { success: false, error: "Can only update pending quotes" }, status: :unprocessable_entity
+            render_error("Can only update pending quotes", status: :unprocessable_entity)
             return
           end
 

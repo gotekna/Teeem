@@ -29,7 +29,7 @@ module Api
         if result[:success]
           render json: { success: true, message: "Twilio connection successful", account: result[:account] }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -100,7 +100,7 @@ module Api
         site_info = client.get_site(storage_config.site_id)
         render json: { success: true, message: "SharePoint connected", site: { name: site_info["displayName"], web_url: site_info["webUrl"] } }
       rescue => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/tenant_settings/brand
@@ -134,7 +134,7 @@ module Api
         return render_error("URL required", status: :bad_request) if url.blank?
 
         result = BrandExtractorService.extract(url)
-        return render json: { success: false, error: result[:error] }, status: :unprocessable_entity unless result[:success]
+        return render_error(result[:error], status: :unprocessable_entity) unless result[:success]
 
         hsl_colors = result[:colors].transform_values { |hex| hex.present? ? TenantSetting.hex_to_hsl(hex) : nil }.compact
         render json: {
@@ -155,7 +155,7 @@ module Api
         return render_error("URL required", status: :bad_request) if url.blank?
 
         result = BrandExtractorService.extract(url)
-        return render json: { success: false, error: result[:error] }, status: :unprocessable_entity unless result[:success]
+        return render_error(result[:error], status: :unprocessable_entity) unless result[:success]
 
         settings = TenantSetting.instance
         applied, skipped = [], []

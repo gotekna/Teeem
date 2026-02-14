@@ -86,7 +86,7 @@ module Api
         def set_ticket
           @ticket = customer_tickets.find(params[:id])
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Ticket not found" }, status: :not_found
+          render_error("Ticket not found", status: :not_found)
         end
 
         def customer_tickets

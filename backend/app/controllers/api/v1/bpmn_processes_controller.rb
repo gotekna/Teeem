@@ -225,7 +225,7 @@ module Api
           }, status: :created
         end
       rescue CompozaBpmnImporter::ImportError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue StandardError => e
         Rails.logger.error("BPMN Import failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
         render_error("Import failed: #{e.message}", status: :unprocessable_entity)

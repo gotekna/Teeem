@@ -148,9 +148,9 @@ module Api
             data: payment_json(@payment, include_allocations: true)
           }
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Invoice not found" }, status: :not_found
+          render_error("Invoice not found", status: :not_found)
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # GET /api/v1/gl/payments/unallocated
@@ -201,13 +201,13 @@ module Api
         def set_corporate
           @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Company not found" }, status: :not_found
+          render_error("Company not found", status: :not_found)
         end
 
         def set_payment
           @payment = scoped_payments.find(params[:id])
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Payment not found" }, status: :not_found
+          render_error("Payment not found", status: :not_found)
         end
 
         def scoped_payments

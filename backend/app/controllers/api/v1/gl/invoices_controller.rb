@@ -209,13 +209,13 @@ module Api
         def set_corporate
           @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Company not found" }, status: :not_found
+          render_error("Company not found", status: :not_found)
         end
 
         def set_invoice
           @invoice = scoped_invoices.find(params[:id])
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Invoice not found" }, status: :not_found
+          render_error("Invoice not found", status: :not_found)
         end
 
         def scoped_invoices

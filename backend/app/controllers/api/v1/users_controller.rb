@@ -45,7 +45,7 @@ class Api::V1::UsersController < ApplicationController
     render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Error creating user: #{e.class} - #{e.message}"
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # GET /api/v1/users
@@ -371,7 +371,7 @@ class Api::V1::UsersController < ApplicationController
   rescue ActiveRecord::RecordNotFound
     render_error("User not found", status: :not_found)
   rescue ActiveRecord::RecordInvalid => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/users/:id

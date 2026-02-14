@@ -228,7 +228,7 @@ module Api
           }
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # DELETE /api/v1/system/clear_failed_jobs
@@ -242,7 +242,7 @@ module Api
           data: { cleared: count }
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/system/metrics

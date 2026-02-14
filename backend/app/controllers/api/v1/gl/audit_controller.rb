@@ -57,7 +57,7 @@ module Api
                      when "eofy"
                        ::Gl::AuditSnapshot.eofy_snapshot!(@corporate, user: current_user)
                      else
-                       render json: { success: false, error: "Invalid snapshot type" }, status: :unprocessable_entity
+                       render_error("Invalid snapshot type", status: :unprocessable_entity)
                        return
                      end
 
@@ -128,7 +128,7 @@ module Api
           if release.approve!(current_user)
             render json: { success: true, data: release }
           else
-            render json: { success: false, error: "Cannot approve release" }, status: :unprocessable_entity
+            render_error("Cannot approve release", status: :unprocessable_entity)
           end
         end
 
@@ -140,8 +140,7 @@ module Api
           if invoice
             render json: { success: true, data: { release: release, invoice: invoice } }
           else
-            render json: { success: false, error: "Cannot generate invoice. Release must be approved." },
-                   status: :unprocessable_entity
+            render_error("Cannot generate invoice. Release must be approved.", status: :unprocessable_entity)
           end
         end
 

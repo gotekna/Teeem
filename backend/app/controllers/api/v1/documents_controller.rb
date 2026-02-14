@@ -445,7 +445,7 @@ module Api
       # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
       def create
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         file = params[:file]
@@ -490,7 +490,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[Documents] Upload failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -548,7 +548,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[Documents] User files list failed for '#{s3_path}': #{e.message}"
-          render json: { success: false, error: e.message, files: [], folder: folder, path: s3_path }, status: :ok
+          render_error(e.message, files: [], folder: folder, path: s3_path, status: :ok)
         end
       end
 
@@ -794,12 +794,12 @@ module Api
         scope = params[:scope] || "corporate"
 
         unless folder_id.present?
-          return render json: { success: false, error: "warehouse_folder_id required", files: [] }, status: :bad_request
+          return render_error("warehouse_folder_id required", files: [], status: :bad_request)
         end
 
         warehouse_folder = WarehouseFolder.find_by(id: folder_id)
         unless warehouse_folder
-          return render json: { success: false, error: "WarehouseFolder not found", files: [] }, status: :not_found
+          return render_error("WarehouseFolder not found", files: [], status: :not_found)
         end
 
         files = case scope.to_s.downcase
@@ -902,7 +902,7 @@ module Api
           result = service.download(@document)
 
           unless result[:success]
-            return render json: { success: false, error: result[:error] || "File not available" }, status: result[:status] || :not_found
+            return render_error(result[:error] || "File not available", status: result[:status] || :not_found)
           end
 
           # Determine content type from file extension or stored mime type
@@ -922,7 +922,7 @@ module Api
         url = generate_download_url(@document)
 
         unless url.present?
-          return render json: { success: false, error: "File not available" }, status: :not_found
+          return render_error("File not available", status: :not_found)
         end
 
         redirect_to url, allow_other_host: true
@@ -937,7 +937,7 @@ module Api
         result = service.download(@document)
 
         unless result[:success]
-          return render json: { success: false, error: result[:error] }, status: result[:status] || :not_found
+          return render_error(result[:error], status: result[:status] || :not_found)
         end
 
         file_content = result[:content]
@@ -961,9 +961,9 @@ module Api
             }
           }
         rescue UniversalDocumentReader::UnsupportedFileTypeError => e
-          render json: { success: false, error: e.message, type: "unsupported" }, status: :unprocessable_entity
+          render_error(e.message, type: "unsupported", status: :unprocessable_entity)
         rescue UniversalDocumentReader::ReadError => e
-          render json: { success: false, error: e.message, type: "read_error" }, status: :unprocessable_entity
+          render_error(e.message, type: "read_error", status: :unprocessable_entity)
         ensure
           temp_file&.unlink
         end
@@ -973,7 +973,7 @@ module Api
       # Preview an uploaded file (for email attachments, etc.)
       def preview_upload
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         file = params[:file]
@@ -998,7 +998,7 @@ module Api
           }
         }
       rescue UniversalDocumentReader::ReadError => e
-        render json: { success: false, error: e.message, type: "read_error" }, status: :unprocessable_entity
+        render_error(e.message, type: "read_error", status: :unprocessable_entity)
       end
 
       # POST /api/v1/documents/analyze
@@ -1050,13 +1050,13 @@ module Api
         new_name = params[:new_name]
 
         unless path.present? && new_name.present?
-          return render json: { success: false, error: "Missing path or new_name parameter" }, status: :bad_request
+          return render_error("Missing path or new_name parameter", status: :bad_request)
         end
 
         # Sanitize new filename (remove dangerous characters)
         safe_new_name = new_name.gsub(/[<>:"|?*\\\/]/, "_").strip
         if safe_new_name.blank?
-          return render json: { success: false, error: "Invalid filename" }, status: :bad_request
+          return render_error("Invalid filename", status: :bad_request)
         end
 
         begin
@@ -1082,10 +1082,10 @@ module Api
             file: result
           }
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+          render_error("File not found: #{e.message}", status: :not_found)
         rescue StandardError => e
           Rails.logger.error "[Documents] Rename failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -1096,7 +1096,7 @@ module Api
         new_folder_path = params[:folder_path]
 
         unless new_folder_path.present?
-          return render json: { success: false, error: "Missing folder_path parameter" }, status: :bad_request
+          return render_error("Missing folder_path parameter", status: :bad_request)
         end
 
         begin
@@ -1108,10 +1108,10 @@ module Api
             document: document_to_json(@document)
           }
         rescue ActiveRecord::RecordInvalid => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error "[Documents] Move failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -1130,12 +1130,12 @@ module Api
         category = action_item_id.present? ? "response" : (params[:category] || "info")
 
         unless task_id.present?
-          return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
+          return render_error("Missing task_id parameter", status: :bad_request)
         end
 
         task = SmTask.find_by(id: task_id)
         unless task
-          return render json: { success: false, error: "Task not found" }, status: :not_found
+          return render_error("Task not found", status: :not_found)
         end
 
         # Validate action_item belongs to this task (if provided)
@@ -1143,7 +1143,7 @@ module Api
         if action_item_id.present?
           action_item = TaskActionItem.find_by(id: action_item_id, sm_task_id: task.id)
           unless action_item
-            return render json: { success: false, error: "Question not found on this task" }, status: :not_found
+            return render_error("Question not found on this task", status: :not_found)
           end
         end
 
@@ -1203,10 +1203,10 @@ module Api
             warehouse_document_id: attachment.warehouse_document&.id
           }
         rescue ActiveRecord::RecordInvalid => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error "[Documents] Link to task failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 

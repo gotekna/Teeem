@@ -55,7 +55,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # POST /api/v1/chat_guest_sessions/:token/join
@@ -73,7 +73,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # GET /api/v1/chat_guest_sessions/:token/messages
@@ -104,7 +104,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     end
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # POST /api/v1/chat_guest_sessions/:token/send_message
@@ -136,7 +136,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       end
     end
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # DELETE /api/v1/chat_guest_sessions/:id

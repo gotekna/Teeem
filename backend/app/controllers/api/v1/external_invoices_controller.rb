@@ -507,7 +507,7 @@ module Api
 
         # Xero sync failed or no storage_reference
         error_msg = result[:errors].first || "PDF not available"
-        render json: { success: false, error: error_msg }, status: :not_found
+        render_error(error_msg, status: :not_found)
       rescue ActiveRecord::RecordNotFound
         render_error("Invoice not found", status: :not_found)
       rescue StandardError => e

@@ -89,7 +89,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
       message: "Checked in successfully"
     }
   rescue StandardError => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # POST /api/v1/site_presence_mobile/quick_checkout
@@ -142,7 +142,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
       }
     }
   rescue StandardError => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # GET /api/v1/site_presence_mobile/timer
@@ -299,7 +299,7 @@ class Api::V1::SitePresenceMobileController < ApplicationController
       message: "Time entry created for #{suggestion.suggested_hours} hours"
     }
   rescue StandardError => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   private

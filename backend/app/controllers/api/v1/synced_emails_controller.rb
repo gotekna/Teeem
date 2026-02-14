@@ -1016,7 +1016,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email: email_json(@email)
     }
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Contact not found" }, status: :not_found
+    render_error("Contact not found", status: :not_found)
   end
 
   # POST /api/v1/synced_email/:id/unlink_contact
@@ -1313,7 +1313,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     }, status: :not_found
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+    render_error("Failed to get presigned URL: #{e.message}", status: :internal_server_error)
   end
 
   # GET /api/v1/synced_email/:id/download_eml
@@ -1344,7 +1344,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     Rails.logger.error "[SyncedEmail] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
     Rails.logger.error "[SyncedEmail] Email state: subject=#{@email&.subject.present?}, from=#{@email&.from_email.present?}, body_html=#{@email&.body_html.present?}, body_text=#{@email&.body_text.present?}"
     Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(5).join("\n")}"
-    render json: { success: false, error: "EML reconstruction failed: #{e.message}" }, status: :unprocessable_entity
+    render_error("EML reconstruction failed: #{e.message}", status: :unprocessable_entity)
   end
 
   # POST /api/v1/synced_email/bulk_delete_spam
@@ -1583,14 +1583,14 @@ class Api::V1::SyncedEmailsController < ApplicationController
     email = SyncedEmail.unscoped.includes(:job).find_by(id: params[:id])
 
     if email.nil?
-      render json: { success: false, error: "Email not found" }, status: :not_found
+      render_error("Email not found", status: :not_found)
     elsif email.tenant_id.nil? && current_tenant.present?
       # Auto-fix legacy emails with NULL tenant_id
       Rails.logger.info "[SyncedEmails] Auto-fixing NULL tenant_id on email #{email.id}"
       email.update_column(:tenant_id, current_tenant.id)
       @email = email
     else
-      render json: { success: false, error: "Email not accessible" }, status: :not_found
+      render_error("Email not accessible", status: :not_found)
     end
   end
 

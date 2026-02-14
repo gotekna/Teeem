@@ -133,7 +133,7 @@ module Api
           }
         rescue MicrosoftGraphClient::APIError => e
           Rails.logger.error "[SharePointUploadSession] API error: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue ActiveRecord::RecordNotFound => e
           render_error("Job not found", status: :not_found)
         rescue => e

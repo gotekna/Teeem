@@ -150,7 +150,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error "[RoomTakeoff] Generate PO failed: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private

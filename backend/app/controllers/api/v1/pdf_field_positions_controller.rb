@@ -87,7 +87,7 @@ module Api
                   type: "application/pdf",
                   disposition: "inline"
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/pdf_field_positions/detect_fields
@@ -110,7 +110,7 @@ module Api
             pages: result[:pages]
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -166,7 +166,7 @@ module Api
           job: { id: job.id, name: job.name }
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/pdf_field_positions/template

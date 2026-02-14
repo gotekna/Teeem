@@ -142,7 +142,7 @@ module Api
           job_ids = params[:job_ids]&.split(',')&.map(&:to_i) || []
           jobs = Job.where(id: job_ids)
 
-          return render json: { success: false, error: 'No jobs specified' }, status: :bad_request if jobs.empty?
+          return render_error('No jobs specified', status: :bad_request) if jobs.empty?
 
           as_at = parse_date(params[:as_at_date])
           report = ::Gl::Reports::JobProfitability.new(current_company)

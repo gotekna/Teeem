@@ -86,9 +86,9 @@ module Api
             total_unfiltered: total_unfiltered
           }
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Tenant not found" }, status: :not_found
+          render_error("Tenant not found", status: :not_found)
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :bad_request
+          render_error(e.message, status: :bad_request)
         end
 
         # POST /api/v1/admin/config_sync/import
@@ -131,9 +131,9 @@ module Api
             }, status: :unprocessable_entity
           end
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Tenant not found" }, status: :not_found
+          render_error("Tenant not found", status: :not_found)
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :bad_request
+          render_error(e.message, status: :bad_request)
         end
 
         # GET /api/v1/admin/config_sync/sync_preferences
@@ -144,7 +144,7 @@ module Api
         def sync_preferences
           table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
           unless table_config
-            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+            return render_error("Unknown table", status: :bad_request)
           end
 
           model_name = table_config[:model]
@@ -168,7 +168,7 @@ module Api
         def update_sync_preferences
           table_config = TenantConfigSyncService::CONFIG_TABLES[sync_pref_params[:table]&.to_sym]
           unless table_config
-            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+            return render_error("Unknown table", status: :bad_request)
           end
 
           model = table_config[:model].constantize
@@ -189,7 +189,7 @@ module Api
           end
 
           if records.empty?
-            return render json: { success: false, error: "No records found" }, status: :not_found
+            return render_error("No records found", status: :not_found)
           end
 
           # Update preferences
@@ -208,7 +208,7 @@ module Api
             sync_mode: sync_mode
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # GET /api/v1/admin/config_sync/compare
@@ -228,7 +228,7 @@ module Api
           table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table].to_sym]
 
           unless table_config
-            return render json: { success: false, error: "Unknown table" }, status: :bad_request
+            return render_error("Unknown table", status: :bad_request)
           end
 
           # Build comparison matrix
@@ -262,7 +262,7 @@ module Api
             records: comparison.values.sort_by { |r| r[:name].to_s.downcase }
           }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :bad_request
+          render_error(e.message, status: :bad_request)
         end
 
         private

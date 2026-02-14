@@ -305,7 +305,7 @@ module Api
       # Lock the budget from the current PO total
       def lock_budget
         if @purchase_order.budget_locked?
-          return render json: { success: false, error: "Budget is already locked" }, status: :unprocessable_entity
+          return render_error("Budget is already locked", status: :unprocessable_entity)
         end
 
         if @purchase_order.lock_budget!(current_user)
@@ -315,7 +315,7 @@ module Api
             message: "Budget locked at #{helpers.number_to_currency(@purchase_order.budget)}"
           }
         else
-          render json: { success: false, error: "Failed to lock budget" }, status: :unprocessable_entity
+          render_error("Failed to lock budget", status: :unprocessable_entity)
         end
       end
 
@@ -323,11 +323,11 @@ module Api
       # Unlock the budget (admin only)
       def unlock_budget
         unless current_user&.admin?
-          return render json: { success: false, error: "You don't have permission to unlock budgets" }, status: :forbidden
+          return render_error("You don't have permission to unlock budgets", status: :forbidden)
         end
 
         unless @purchase_order.budget_locked?
-          return render json: { success: false, error: "Budget is not locked" }, status: :unprocessable_entity
+          return render_error("Budget is not locked", status: :unprocessable_entity)
         end
 
         reason = params[:reason]
@@ -338,7 +338,7 @@ module Api
             message: "Budget unlocked"
           }
         else
-          render json: { success: false, error: "Failed to unlock budget" }, status: :unprocessable_entity
+          render_error("Failed to unlock budget", status: :unprocessable_entity)
         end
       end
 
@@ -347,12 +347,12 @@ module Api
       # Unlocking requires admin permission
       def toggle_budget_lock
         ids = params[:ids]
-        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+        return render_error("No PO IDs provided", status: :bad_request) if ids.blank?
 
         purchase_orders = PurchaseOrder.where(id: ids)
 
         if purchase_orders.count != ids.count
-          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+          return render_error("Some PO IDs not found", status: :not_found)
         end
 
         locked_pos = purchase_orders.select(&:budget_locked?)
@@ -373,7 +373,7 @@ module Api
 
         # Admin check for unlock
         if action == :unlock && !current_user&.admin?
-          return render json: { success: false, error: "Only admins can unlock budgets" }, status: :forbidden
+          return render_error("Only admins can unlock budgets", status: :forbidden)
         end
 
         ActiveRecord::Base.transaction do
@@ -393,19 +393,19 @@ module Api
           count: purchase_orders.count
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: "Failed to #{action} budgets: #{e.message}" }, status: :unprocessable_entity
+        render_error("Failed to #{action} budgets: #{e.message}", status: :unprocessable_entity)
       end
 
       # POST /api/v1/purchase_orders/bulk_lock_budget
       # Lock budgets for multiple POs in a single transaction (all or nothing)
       def bulk_lock_budget
         ids = params[:ids]
-        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+        return render_error("No PO IDs provided", status: :bad_request) if ids.blank?
 
         purchase_orders = PurchaseOrder.where(id: ids)
 
         if purchase_orders.count != ids.count
-          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+          return render_error("Some PO IDs not found", status: :not_found)
         end
 
         # Check if any are already locked
@@ -430,24 +430,24 @@ module Api
           count: purchase_orders.count
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: "Failed to lock budgets: #{e.message}" }, status: :unprocessable_entity
+        render_error("Failed to lock budgets: #{e.message}", status: :unprocessable_entity)
       end
 
       # POST /api/v1/purchase_orders/bulk_unlock_budget
       # Unlock budgets for multiple POs in a single transaction (all or nothing, admin only)
       def bulk_unlock_budget
         unless current_user&.admin?
-          return render json: { success: false, error: "You don't have permission to unlock budgets" }, status: :forbidden
+          return render_error("You don't have permission to unlock budgets", status: :forbidden)
         end
 
         ids = params[:ids]
         reason = params[:reason] || "Bulk unlock"
-        return render json: { success: false, error: "No PO IDs provided" }, status: :bad_request if ids.blank?
+        return render_error("No PO IDs provided", status: :bad_request) if ids.blank?
 
         purchase_orders = PurchaseOrder.where(id: ids)
 
         if purchase_orders.count != ids.count
-          return render json: { success: false, error: "Some PO IDs not found" }, status: :not_found
+          return render_error("Some PO IDs not found", status: :not_found)
         end
 
         # Check if any are not locked
@@ -472,7 +472,7 @@ module Api
           count: purchase_orders.count
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: "Failed to unlock budgets: #{e.message}" }, status: :unprocessable_entity
+        render_error("Failed to unlock budgets: #{e.message}", status: :unprocessable_entity)
       end
 
       # POST /api/v1/purchase_orders/smart_lookup
@@ -699,7 +699,7 @@ module Api
         service = PoScheduleSyncService.new(@purchase_order)
         render json: { success: true, data: service.preview }
       rescue => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/purchase_orders/:id/schedule_sync
@@ -710,13 +710,13 @@ module Api
         result = service.execute!
         render json: { success: true, data: result }
       rescue PoScheduleSyncService::SyncBlockedError => e
-        render json: { success: false, error: e.message, blocked: true }, status: :unprocessable_entity
+        render_error(e.message, blocked: true, status: :unprocessable_entity)
       rescue PoScheduleSyncService::NoLinkedTasksError => e
-        render json: { success: false, error: e.message, no_tasks: true }, status: :unprocessable_entity
+        render_error(e.message, no_tasks: true, status: :unprocessable_entity)
       rescue PoScheduleSyncService::NoSyncableTaskError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/purchase_orders/:id/save_pdf
@@ -724,7 +724,7 @@ module Api
       def save_pdf
         # Validate PO has line items
         if @purchase_order.line_items.reject(&:marked_for_destruction?).empty?
-          return render json: { success: false, error: "Purchase order has no line items" }, status: :unprocessable_entity
+          return render_error("Purchase order has no line items", status: :unprocessable_entity)
         end
 
         # Generate PDF
@@ -770,10 +770,10 @@ module Api
           message: "PDF saved to #{job&.job_code || 'Job'}/Purchase Orders"
         }
       rescue TeknaDocumentGenerator::GenerationError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue => e
         Rails.logger.error "[PO SavePDF] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-        render json: { success: false, error: "Failed to save PDF: #{e.message}" }, status: :internal_server_error
+        render_error("Failed to save PDF: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/purchase_orders/:id/send_email
@@ -781,16 +781,16 @@ module Api
       def send_email
         # Validations
         if @purchase_order.line_items.reject(&:marked_for_destruction?).empty?
-          return render json: { success: false, error: "Purchase order has no line items" }, status: :unprocessable_entity
+          return render_error("Purchase order has no line items", status: :unprocessable_entity)
         end
 
         unless @purchase_order.supplier.present?
-          return render json: { success: false, error: "No supplier selected" }, status: :unprocessable_entity
+          return render_error("No supplier selected", status: :unprocessable_entity)
         end
 
         supplier_email = @purchase_order.supplier.email
         unless supplier_email.present?
-          return render json: { success: false, error: "Supplier has no email address" }, status: :unprocessable_entity
+          return render_error("Supplier has no email address", status: :unprocessable_entity)
         end
 
         # Generate PDF
@@ -874,10 +874,10 @@ module Api
           document_id: warehouse_doc.id
         }
       rescue TeknaDocumentGenerator::GenerationError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue => e
         Rails.logger.error "[PO SendEmail] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-        render json: { success: false, error: "Failed to send email: #{e.message}" }, status: :internal_server_error
+        render_error("Failed to send email: #{e.message}", status: :internal_server_error)
       end
 
       private

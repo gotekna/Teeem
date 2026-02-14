@@ -182,34 +182,52 @@ module Api
 
         # Build OCR breakdown from content_match method
         content_match = methods["content_match"] || methods[:content_match] || {}
+        ocr_doc_type = content_match["document_type"] || content_match[:document_type]
+        ocr_resolved = resolve_doc_type_fields(ocr_doc_type, doc)
         ocr_data = {
-          document_type: content_match["document_type"] || content_match[:document_type],
+          document_type: ocr_doc_type,
           confidence: ((content_match["confidence"] || content_match[:confidence] || 0).to_f * 100).round,
           signals: content_match["signals"] || content_match[:signals] || content_match["matched_terms"] || content_match[:matched_terms] || [],
           text_preview: content_match["text_preview"] || content_match[:text_preview],
           status: content_match["status"] || content_match[:status] || "not_available",
-          duration_ms: content_match["duration_ms"] || content_match[:duration_ms]
+          duration_ms: content_match["duration_ms"] || content_match[:duration_ms],
+          # Resolved fields from doc type config
+          resolved_folder: ocr_resolved[:folder],
+          resolved_ui_name: ocr_resolved[:ui_name],
+          resolved_dl_name: ocr_resolved[:dl_name]
         }
 
         # Build AI breakdown from ai_match method
         ai_match = methods["ai_match"] || methods[:ai_match] || {}
+        ai_doc_type = ai_match["document_type"] || ai_match[:document_type]
+        ai_resolved = resolve_doc_type_fields(ai_doc_type, doc)
         ai_data = {
-          document_type: ai_match["document_type"] || ai_match[:document_type],
+          document_type: ai_doc_type,
           confidence: ((ai_match["confidence"] || ai_match[:confidence] || 0).to_f * 100).round,
           signals: ai_match["signals"] || ai_match[:signals] || [],
           status: ai_match["status"] || ai_match[:status] || "not_available",
           duration_ms: ai_match["duration_ms"] || ai_match[:duration_ms],
           suggested_folder: doc.metadata&.dig("ai_suggested_folder"),
-          suggested_name: doc.metadata&.dig("ai_suggested_name")
+          suggested_name: doc.metadata&.dig("ai_suggested_name"),
+          # Resolved fields from doc type config
+          resolved_folder: ai_resolved[:folder],
+          resolved_ui_name: ai_resolved[:ui_name],
+          resolved_dl_name: ai_resolved[:dl_name]
         }
 
         # Name match data
         name_match = methods["name_match"] || methods[:name_match] || {}
+        nm_doc_type = name_match["document_type"] || name_match[:document_type]
+        nm_resolved = resolve_doc_type_fields(nm_doc_type, doc)
         name_data = {
-          document_type: name_match["document_type"] || name_match[:document_type],
+          document_type: nm_doc_type,
           confidence: ((name_match["confidence"] || name_match[:confidence] || 0).to_f * 100).round,
           signals: name_match["signals"] || name_match[:signals] || [],
-          status: name_match["status"] || name_match[:status] || "not_available"
+          status: name_match["status"] || name_match[:status] || "not_available",
+          # Resolved fields from doc type config
+          resolved_folder: nm_resolved[:folder],
+          resolved_ui_name: nm_resolved[:ui_name],
+          resolved_dl_name: nm_resolved[:dl_name]
         }
 
         render json: {
@@ -262,6 +280,48 @@ module Api
         merged_counts = counts.merge(polymorphic_counts) { |_key, v1, v2| v1 + v2 }
 
         render json: { success: true, counts: merged_counts }
+      end
+
+      private
+
+      # Resolve folder, ui_name, and dl_name for a detected document type.
+      # Uses the document's context (company, dates) to expand templates via SendNameResolver.
+      # This ensures OCR/AI columns show the same resolved values as CURRENT.
+      def resolve_doc_type_fields(doc_type_slug, warehouse_doc)
+        return { folder: nil, ui_name: nil, dl_name: nil } if doc_type_slug.blank?
+
+        # Find the DocumentType record by slug or name
+        dt = DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
+          doc_type_slug.tr('_', ' ').downcase,
+          doc_type_slug.downcase
+        )
+        return { folder: nil, ui_name: nil, dl_name: nil } unless dt
+
+        # Resolve folder from doc type's primary warehouse folder
+        folder = dt.folder
+
+        # Resolve ui_name and dl_name by temporarily simulating what SendNameResolver would produce
+        # if this document had this doc type
+        resolver = SendNameResolver.new
+        context = resolver.send(:build_context, warehouse_doc)
+
+        # Resolve UI name from doc type's template
+        ui_template = dt.ui_name
+        resolved_ui = if ui_template.present?
+          resolver.send(:expand_template, ui_template, context)
+        end
+
+        # Resolve DL name from doc type's template
+        dl_template = dt.download_name
+        resolved_dl = if dl_template.present?
+          expanded = resolver.send(:expand_template, dl_template, context)
+          resolver.send(:sanitize_filename, expanded) if expanded.present?
+        end
+
+        { folder: folder, ui_name: resolved_ui, dl_name: resolved_dl }
+      rescue StandardError => e
+        Rails.logger.debug "[CompanyDocuments] resolve_doc_type_fields failed for '#{doc_type_slug}': #{e.message}"
+        { folder: nil, ui_name: nil, dl_name: nil }
       end
     end
   end

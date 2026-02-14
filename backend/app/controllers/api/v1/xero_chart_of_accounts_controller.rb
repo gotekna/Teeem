@@ -339,10 +339,10 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       rescue StandardError => e
         Rails.logger.error("[XeroChartOfAccountsController] with_company_presence error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/xero_chart_of_accounts/company_accounts
@@ -375,7 +375,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       private

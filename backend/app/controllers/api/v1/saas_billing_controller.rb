@@ -104,7 +104,7 @@ module Api
             message: "Monthly billing generated for #{billing_month.strftime('%B %Y')}"
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -127,7 +127,7 @@ module Api
           }
         }
       rescue => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/saas_billing/summary

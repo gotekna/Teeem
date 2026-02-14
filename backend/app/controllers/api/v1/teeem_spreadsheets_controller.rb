@@ -176,7 +176,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[TeeemSpreadsheet] Save to warehouse failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         ensure
           temp_file&.close
           temp_file&.unlink

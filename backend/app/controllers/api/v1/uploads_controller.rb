@@ -119,7 +119,7 @@ module Api
           if result[:success]
             render json: result
           else
-            render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue DocumentProviders::NotFoundError
           render_error("File not found in storage. Upload may have failed.", status: :not_found)

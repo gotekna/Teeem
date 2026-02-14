@@ -20,7 +20,7 @@ module Api
         view_name = params[:id]
 
         unless valid_view?(view_name)
-          render json: { success: false, error: "View '#{view_name}' not found" }, status: :not_found
+          render_error("View '#{view_name}' not found", status: :not_found)
           return
         end
 
@@ -43,7 +43,7 @@ module Api
         view_name = params[:view_name] || :all
 
         if view_name.to_s != "all" && !valid_view?(view_name)
-          render json: { success: false, error: "View '#{view_name}' not found" }, status: :bad_request
+          render_error("View '#{view_name}' not found", status: :bad_request)
           return
         end
 

@@ -202,9 +202,12 @@ interface DocumentTypeOption {
   name: string;
   abbreviation?: string;
   naming_format?: string;
+  uiName?: string;
+  downloadName?: string;
   folder?: string;
   tabs?: string[];
   primary_tab?: string;
+  primary_folder_name?: string;
   category?: string;
 }
 
@@ -268,6 +271,10 @@ interface ClassificationBreakdown {
   duration_ms?: number;
   suggested_folder?: string;
   suggested_name?: string;
+  // Backend-resolved fields from doc type config (folder, ui_name, dl_name expanded with context)
+  resolved_folder?: string;
+  resolved_ui_name?: string;
+  resolved_dl_name?: string;
 }
 
 interface ClassificationData {
@@ -574,6 +581,27 @@ export default function DocumentPreviewModal({
     // Try case-insensitive match
     const docTypeNameLower = docTypeName.toLowerCase();
     return documentTypes.find(dt => dt.name.toLowerCase() === docTypeNameLower);
+  }, [documentTypes]);
+
+  // Determine which fields are auto-derived for a given document type name.
+  // Returns { folder, uiName, dlName } booleans - true means the field is auto-generated.
+  // Different doc types have different templates configured, so this must be dynamic.
+  const getAutoFields = React.useCallback((docTypeName?: string | null): { folder: boolean; uiName: boolean; dlName: boolean } => {
+    if (!docTypeName) return { folder: false, uiName: false, dlName: false };
+
+    // Find the document type record
+    const dt = documentTypes.find(d =>
+      d.name.toLowerCase() === docTypeName.toLowerCase() ||
+      d.name.toLowerCase().replace(/[\s_]/g, '') === docTypeName.toLowerCase().replace(/[\s_]/g, '')
+    );
+
+    if (!dt) return { folder: false, uiName: false, dlName: false };
+
+    return {
+      folder: !!(dt.folder || dt.primary_folder_name),
+      uiName: !!(dt.uiName || dt.naming_format),
+      dlName: !!(dt.downloadName),
+    };
   }, [documentTypes]);
 
   // Get document types for a specific folder - uses database if available, fallback to hardcoded
@@ -1378,56 +1406,7 @@ export default function DocumentPreviewModal({
               </div>
 
               <div className="space-y-1.5 flex-1">
-                {/* Company */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Company</Label>
-                  {isEditing ? (
-                    <ComboboxDropdown
-                      items={companies.map(c => ({
-                        id: String(c.id),
-                        label: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
-                      }))}
-                      selectedItem={editedCompanyId ? {
-                        id: editedCompanyId,
-                        label: (() => {
-                          const c = companies.find(c => String(c.id) === editedCompanyId);
-                          return c ? `${c.code ? `[${c.code}] ` : ''}${c.name}` : '';
-                        })()
-                      } : undefined}
-                      onSelect={(item) => setEditedCompanyId(item.id)}
-                      placeholder="Search..."
-                      searchInTrigger
-                      className="mt-0.5 h-7 text-xs"
-                    />
-                  ) : (
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 truncate">
-                      {currentCompanyName}
-                    </div>
-                  )}
-                </div>
-
-                {/* Folder */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">Folder</Label>
-                  {isEditing ? (
-                    <Select value={editedFolder} onValueChange={setEditedFolder}>
-                      <SelectTrigger className="mt-0.5 h-7 text-xs">
-                        <SelectValue placeholder="Select..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DOCUMENT_FOLDER_OPTIONS.map((folder) => (
-                          <SelectItem key={folder} value={folder}>{folder}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
-                      <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
-                    </div>
-                  )}
-                </div>
-
-                {/* Document Type */}
+                {/* Document Type - FIRST: keystone field, drives folder/name/FY */}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
                   {isEditing ? (
@@ -1481,6 +1460,55 @@ export default function DocumentPreviewModal({
                   )}
                 </div>
 
+                {/* Company */}
+                <div>
+                  <Label className="text-[10px] text-muted-foreground">Company</Label>
+                  {isEditing ? (
+                    <ComboboxDropdown
+                      items={companies.map(c => ({
+                        id: String(c.id),
+                        label: `${c.code ? `[${c.code}] ` : ''}${c.name}`,
+                      }))}
+                      selectedItem={editedCompanyId ? {
+                        id: editedCompanyId,
+                        label: (() => {
+                          const c = companies.find(c => String(c.id) === editedCompanyId);
+                          return c ? `${c.code ? `[${c.code}] ` : ''}${c.name}` : '';
+                        })()
+                      } : undefined}
+                      onSelect={(item) => setEditedCompanyId(item.id)}
+                      placeholder="Search..."
+                      searchInTrigger
+                      className="mt-0.5 h-7 text-xs"
+                    />
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 truncate">
+                      {currentCompanyName}
+                    </div>
+                  )}
+                </div>
+
+                {/* Folder — greyed when auto-derived from doc type */}
+                <div className={cn(getAutoFields(isEditing ? editedDocumentType : document.document_type).folder && !isEditing && "opacity-40")}>
+                  <Label className="text-[10px] text-muted-foreground">Folder {getAutoFields(isEditing ? editedDocumentType : document.document_type).folder && <span className="italic">(auto)</span>}</Label>
+                  {isEditing ? (
+                    <Select value={editedFolder} onValueChange={setEditedFolder}>
+                      <SelectTrigger className="mt-0.5 h-7 text-xs">
+                        <SelectValue placeholder="Select..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DOCUMENT_FOLDER_OPTIONS.map((folder) => (
+                          <SelectItem key={folder} value={folder}>{folder}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
+                      <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>{document.folder || "GENERAL"}</Badge>
+                    </div>
+                  )}
+                </div>
+
                 {/* Description */}
                 <div>
                   <Label className="text-[10px] text-muted-foreground">Description</Label>
@@ -1530,17 +1558,17 @@ export default function DocumentPreviewModal({
                   )}
                 </div>
 
-                {/* UI Name */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">UI Name</Label>
+                {/* UI Name — greyed when auto-derived from doc type template */}
+                <div className={cn(getAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && "opacity-40")}>
+                  <Label className="text-[10px] text-muted-foreground">UI Name {getAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && <span className="italic">(auto)</span>}</Label>
                   <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
                     {document.display_name || "-"}
                   </div>
                 </div>
 
-                {/* Download Name */}
-                <div>
-                  <Label className="text-[10px] text-muted-foreground">DL Name</Label>
+                {/* Download Name — greyed when auto-derived from doc type template */}
+                <div className={cn(getAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && "opacity-40")}>
+                  <Label className="text-[10px] text-muted-foreground">DL Name {getAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && <span className="italic">(auto)</span>}</Label>
                   <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
                     {document.download_name || "-"}
                   </div>
@@ -1595,19 +1623,7 @@ export default function DocumentPreviewModal({
                 </div>
               ) : (
                 <div className={cn("space-y-1.5", !classificationData?.has_classification && "opacity-40")}>
-                  {/* Company - OCR doesn't detect company */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Company</Label>
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
-                  </div>
-
-                  {/* Folder - OCR doesn't detect folder */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Folder</Label>
-                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
-                  </div>
-
-                  {/* Document Type from OCR */}
+                  {/* Document Type from OCR - FIRST: keystone field */}
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
                     <div className={cn(
@@ -1622,37 +1638,121 @@ export default function DocumentPreviewModal({
                     </div>
                   </div>
 
-                  {/* Signals/matched terms */}
+                  {/* Company - OCR doesn't detect company */}
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Signals</Label>
-                    <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-muted/50">
-                      {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
-                        <div className="flex flex-wrap gap-0.5">
-                          {classificationData.ocr.signals.map((s, i) => (
-                            <Badge key={i} variant="secondary" className="text-[9px] px-1 py-0">{s}</Badge>
-                          ))}
+                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+                  </div>
+
+                  {/* Folder — resolved from OCR-detected doc type */}
+                  {(() => {
+                    const ocrFolder = classificationData?.ocr?.resolved_folder;
+                    const autoFields = getAutoFields(classificationData?.ocr?.document_type);
+                    return (
+                      <div className={cn(autoFields.folder && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">Folder {autoFields.folder && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          ocrFolder
+                            ? (ocrFolder.toUpperCase() === (document.folder || "GENERAL").toUpperCase()
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "text-muted-foreground"
+                        )}>
+                          {ocrFolder ? <Badge variant="secondary" className="text-[10px]">{ocrFolder.toUpperCase()}</Badge> : "-"}
                         </div>
-                      ) : "-"}
-                    </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Description - OCR doesn't extract description */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Description</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
                   </div>
 
-                  {/* Text Preview */}
+                  {/* FY - OCR doesn't detect financial year */}
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">Text Preview</Label>
-                    <div className="mt-0.5 text-[10px] border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
-                      {classificationData?.ocr?.text_preview || "-"}
-                    </div>
+                    <Label className="text-[10px] text-muted-foreground">FY</Label>
+                    <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
                   </div>
 
-                  {/* Status */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Status</Label>
-                    <div className="mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center bg-muted/50">
-                      {classificationData?.ocr?.status === "completed" ? (
-                        <Badge variant="outline" className="text-[9px] border-green-500 text-green-600">completed</Badge>
-                      ) : classificationData?.ocr?.status === "not_applicable" ? (
-                        <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-500">n/a</Badge>
-                      ) : classificationData?.ocr?.status || "-"}
+                  {/* UI Name — resolved from OCR-detected doc type template */}
+                  {(() => {
+                    const ocrUiName = classificationData?.ocr?.resolved_ui_name;
+                    const autoFields = getAutoFields(classificationData?.ocr?.document_type);
+                    return (
+                      <div className={cn(autoFields.uiName && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">UI Name {autoFields.uiName && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate",
+                          ocrUiName
+                            ? (ocrUiName === document.display_name
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          {ocrUiName || "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* DL Name — resolved from OCR-detected doc type template */}
+                  {(() => {
+                    const ocrDlName = classificationData?.ocr?.resolved_dl_name;
+                    const autoFields = getAutoFields(classificationData?.ocr?.document_type);
+                    return (
+                      <div className={cn(autoFields.dlName && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">DL Name {autoFields.dlName && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                          ocrDlName
+                            ? (ocrDlName === document.download_name
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          {ocrDlName || "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── OCR-specific extras ── */}
+                  <div className="pt-1 border-t border-amber-200 dark:border-amber-800/50">
+                    {/* Signals/matched terms */}
+                    <div>
+                      <Label className="text-[10px] text-muted-foreground">Signals</Label>
+                      <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-muted/50">
+                        {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
+                          <div className="flex flex-wrap gap-0.5">
+                            {classificationData.ocr.signals.map((s, i) => (
+                              <Badge key={i} variant="secondary" className="text-[9px] px-1 py-0">{s}</Badge>
+                            ))}
+                          </div>
+                        ) : "-"}
+                      </div>
+                    </div>
+
+                    {/* Text Preview */}
+                    <div className="mt-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Text Preview</Label>
+                      <div className="mt-0.5 text-[10px] border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
+                        {classificationData?.ocr?.text_preview || "-"}
+                      </div>
+                    </div>
+
+                    {/* Status */}
+                    <div className="mt-1.5">
+                      <Label className="text-[10px] text-muted-foreground">Status</Label>
+                      <div className="mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center bg-muted/50">
+                        {classificationData?.ocr?.status === "completed" ? (
+                          <Badge variant="outline" className="text-[9px] border-green-500 text-green-600">completed</Badge>
+                        ) : classificationData?.ocr?.status === "not_applicable" ? (
+                          <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-500">n/a</Badge>
+                        ) : classificationData?.ocr?.status || "-"}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1686,39 +1786,7 @@ export default function DocumentPreviewModal({
                 </div>
               ) : (
                 <div className={cn("space-y-1.5", !document.ai_suggested_name && "opacity-40")}>
-                  {/* Company */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Company</Label>
-                    <div className={cn(
-                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
-                      document.ai_suggested_name && document.company
-                        ? (String(document.company_id || document.company?.id) === editedCompanyId
-                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                        : ""
-                    )}>
-                      {document.company ? (
-                        <span className="truncate">{document.company.code ? `[${document.company.code}]` : ''} {document.company.name}</span>
-                      ) : "-"}
-                    </div>
-                  </div>
-
-                  {/* Folder */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Folder</Label>
-                    <div className={cn(
-                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
-                      document.ai_suggested_folder
-                        ? (document.ai_suggested_folder === (document.folder || "GENERAL")
-                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                        : ""
-                    )}>
-                      {document.ai_suggested_folder || "-"}
-                    </div>
-                  </div>
-
-                  {/* Document Type */}
+                  {/* Document Type - FIRST: keystone field */}
                   <div>
                     <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
                     <div className={cn(
@@ -1739,6 +1807,44 @@ export default function DocumentPreviewModal({
                       })()}
                     </div>
                   </div>
+
+                  {/* Company */}
+                  <div>
+                    <Label className="text-[10px] text-muted-foreground">Company</Label>
+                    <div className={cn(
+                      "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                      document.ai_suggested_name && document.company
+                        ? (String(document.company_id || document.company?.id) === editedCompanyId
+                          ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                          : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                        : ""
+                    )}>
+                      {document.company ? (
+                        <span className="truncate">{document.company.code ? `[${document.company.code}]` : ''} {document.company.name}</span>
+                      ) : "-"}
+                    </div>
+                  </div>
+
+                  {/* Folder — resolved from AI-detected doc type */}
+                  {(() => {
+                    const aiFolder = document.ai_suggested_folder || classificationData?.ai?.resolved_folder;
+                    const autoFields = getAutoFields(document.ai_suggested_type);
+                    return (
+                      <div className={cn(autoFields.folder && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">Folder {autoFields.folder && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                          aiFolder
+                            ? (aiFolder.toUpperCase() === (document.folder || "GENERAL").toUpperCase()
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "text-muted-foreground"
+                        )}>
+                          {aiFolder ? <Badge variant="secondary" className="text-[10px]">{aiFolder.toUpperCase()}</Badge> : "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Description */}
                   <div>
@@ -1772,13 +1878,47 @@ export default function DocumentPreviewModal({
                     </div>
                   </div>
 
-                  {/* Suggested Name */}
-                  <div>
-                    <Label className="text-[10px] text-muted-foreground">Sugg. Name</Label>
-                    <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 truncate font-mono">
-                      {document.ai_suggested_name || "-"}
-                    </div>
-                  </div>
+                  {/* UI Name — resolved from AI-detected doc type template */}
+                  {(() => {
+                    const aiUiName = document.ai_suggested_name || classificationData?.ai?.resolved_ui_name;
+                    const autoFields = getAutoFields(document.ai_suggested_type);
+                    return (
+                      <div className={cn(autoFields.uiName && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">UI Name {autoFields.uiName && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                          aiUiName
+                            ? (aiUiName === document.display_name
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          {aiUiName || "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* DL Name — resolved from AI-detected doc type template */}
+                  {(() => {
+                    const aiDlName = classificationData?.ai?.resolved_dl_name;
+                    const autoFields = getAutoFields(document.ai_suggested_type);
+                    return (
+                      <div className={cn(autoFields.dlName && "opacity-40")}>
+                        <Label className="text-[10px] text-muted-foreground">DL Name {autoFields.dlName && <span className="italic">(auto)</span>}</Label>
+                        <div className={cn(
+                          "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                          aiDlName
+                            ? (aiDlName === document.download_name
+                              ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                              : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          {aiDlName || "-"}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Action buttons */}
                   {document.ai_suggested_name ? (

@@ -272,21 +272,21 @@ module Api
           po_id = params[:po_ID]
 
           if item_code.blank?
-            return render json: { success: false, error: "item_code is required" }, status: :unprocessable_entity
+            return render_error("item_code is required", status: :unprocessable_entity)
           end
 
           if po_id.blank?
-            return render json: { success: false, error: "po_ID is required" }, status: :unprocessable_entity
+            return render_error("po_ID is required", status: :unprocessable_entity)
           end
 
           purchase_order = PurchaseOrder.find_by(id: po_id)
           unless purchase_order
-            return render json: { success: false, error: "Purchase order not found with ID: #{po_id}" }, status: :not_found
+            return render_error("Purchase order not found with ID: #{po_id}", status: :not_found)
           end
 
           pricebook_item = PricebookItem.find_by(item_code: item_code)
           unless pricebook_item
-            return render json: { success: false, error: "Pricebook item not found with code: #{item_code}" }, status: :not_found
+            return render_error("Pricebook item not found with code: #{item_code}", status: :not_found)
           end
 
           line_item = purchase_order.line_items.create!(
@@ -325,10 +325,10 @@ module Api
           }, status: :created
 
         rescue ActiveRecord::RecordInvalid => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue => e
           Rails.logger.error "[Unreal Line Item] Error: #{e.message}"
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/external/unreal_jobs/:id

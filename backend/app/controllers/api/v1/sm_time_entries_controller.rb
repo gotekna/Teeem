@@ -300,7 +300,7 @@ module Api
           render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       # GET /api/v1/sm_time_entries/export_payroll

@@ -177,7 +177,7 @@ module Api
         rescue => e
           Rails.logger.error("[BatchOperation] Upload failed: #{e.message}")
           operation.mark_failed!(e.message)
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 

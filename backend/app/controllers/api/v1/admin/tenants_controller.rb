@@ -53,7 +53,7 @@ module Api
           tenant = Tenant.find(params[:id])
 
           unless current_user.teeem_staff? || current_user.tenant_id == tenant.id
-            return render json: { success: false, error: "Access denied" }, status: :forbidden
+            return render_error("Access denied", status: :forbidden)
           end
 
           render json: {
@@ -70,7 +70,7 @@ module Api
           tenant = Tenant.find(params[:id])
 
           unless current_user.can_access_tenant?(tenant)
-            return render json: { success: false, error: "Access denied to this tenant" }, status: :forbidden
+            return render_error("Access denied to this tenant", status: :forbidden)
           end
 
           # Store in signed cookie for tenant override (API doesn't have sessions)
@@ -163,7 +163,7 @@ module Api
           tenant = ActsAsTenant.current_tenant
 
           unless tenant
-            return render json: { success: false, error: "No tenant context" }, status: :bad_request
+            return render_error("No tenant context", status: :bad_request)
           end
 
           # Validate environment value

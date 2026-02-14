@@ -23,7 +23,7 @@ module Api
           view_name = params[:id]
 
           unless ALLOWED_VIEWS.include?(view_name)
-            render json: { success: false, error: "View '#{view_name}' is not available for export" }, status: :bad_request
+            render_error("View '#{view_name}' is not available for export", status: :bad_request)
             return
           end
 
@@ -36,7 +36,7 @@ module Api
           total_count = safe_count(view_name)
 
           if data.empty?
-            render json: { success: false, error: "No data found in #{view_name}" }, status: :not_found
+            render_error("No data found in #{view_name}", status: :not_found)
             return
           end
 

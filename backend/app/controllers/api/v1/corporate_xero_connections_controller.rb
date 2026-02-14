@@ -117,7 +117,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       # GET /api/v1/company_xero_connections/:id

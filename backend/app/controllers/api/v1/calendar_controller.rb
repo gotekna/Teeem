@@ -48,7 +48,7 @@ module Api
 
         render json: { success: true, **result }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # GET /api/v1/calendar/capacity
@@ -69,7 +69,7 @@ module Api
 
         render json: { success: true, **result }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # GET /api/v1/calendar/summary

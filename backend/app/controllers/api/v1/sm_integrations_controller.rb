@@ -32,7 +32,7 @@ module Api
             tasks: result[:tasks]
           }, status: :created
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 

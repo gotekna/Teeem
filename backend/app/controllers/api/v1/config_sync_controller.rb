@@ -51,12 +51,12 @@ module Api
         result = service.diff_with_master(params[:table])
 
         if result[:error]
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         else
           render json: { success: true, **result }
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # POST /api/v1/config_sync/pull
@@ -98,7 +98,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # GET /api/v1/config_sync/master_records/:table
@@ -175,7 +175,7 @@ module Api
           total_in_master: master_records.length
         }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # POST /api/v1/config_sync/auto_sync_compulsory
@@ -678,7 +678,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       private

@@ -49,8 +49,7 @@ module Api
       # DELETE /api/v1/recipe_categories/:id
       def destroy
         if @category.recipes.any?
-          render json: { success: false, error: 'Cannot delete category with recipes' },
-                 status: :unprocessable_entity
+          render_error('Cannot delete category with recipes', status: :unprocessable_entity)
         else
           @category.destroy
           render json: { success: true }

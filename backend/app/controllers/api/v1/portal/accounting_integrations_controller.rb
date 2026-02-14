@@ -46,14 +46,14 @@ module Api
           system_type = params[:system_type]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: "Invalid system type" }, status: :bad_request
+            render_error("Invalid system type", status: :bad_request)
             return
           end
 
           # Check if already connected
           existing = current_contact.accounting_integrations.active.where(system_type: system_type).first
           if existing
-            render json: { success: false, error: "Already connected to this system" }, status: :unprocessable_entity
+            render_error("Already connected to this system", status: :unprocessable_entity)
             return
           end
 
@@ -81,7 +81,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: "OAuth URL generation failed" }, status: :internal_server_error
+            render_error("OAuth URL generation failed", status: :internal_server_error)
           end
         end
 
@@ -93,13 +93,13 @@ module Api
           state = params[:state]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: "Invalid system type" }, status: :bad_request
+            render_error("Invalid system type", status: :bad_request)
             return
           end
 
           # Verify state to prevent CSRF
           unless verify_oauth_state(state, system_type)
-            render json: { success: false, error: "Invalid OAuth state" }, status: :forbidden
+            render_error("Invalid OAuth state", status: :forbidden)
             return
           end
 
@@ -116,7 +116,7 @@ module Api
           end
 
           if token_data[:error]
-            render json: { success: false, error: token_data[:error] }, status: :unprocessable_entity
+            render_error(token_data[:error], status: :unprocessable_entity)
             return
           end
 
@@ -179,7 +179,7 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
+            render_error("Integration is not active", status: :unprocessable_entity)
             return
           end
 
@@ -204,7 +204,7 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
+            render_error("Integration is not active", status: :unprocessable_entity)
             return
           end
 

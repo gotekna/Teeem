@@ -46,8 +46,7 @@ module Api
             @quote.create_version!("Quote created")
             render json: { success: true, data: @quote }, status: :created
           else
-            render json: { success: false, error: @quote.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(@quote.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -58,15 +57,14 @@ module Api
             @quote.save!
             render json: { success: true, data: @quote }
           else
-            render json: { success: false, error: @quote.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(@quote.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
         # DELETE /api/v1/gl/quotes/:id
         def destroy
           if @quote.status == "converted"
-            render json: { success: false, error: "Cannot delete converted quote" }, status: :unprocessable_entity
+            render_error("Cannot delete converted quote", status: :unprocessable_entity)
             return
           end
 
@@ -80,7 +78,7 @@ module Api
             # TODO: Send email notification
             render json: { success: true, data: @quote, message: "Quote sent to customer" }
           else
-            render json: { success: false, error: "Quote must be in draft status" }, status: :unprocessable_entity
+            render_error("Quote must be in draft status", status: :unprocessable_entity)
           end
         end
 
@@ -92,7 +90,7 @@ module Api
           if @quote.accept!(signature: signature, ip: ip)
             render json: { success: true, data: @quote, message: "Quote accepted" }
           else
-            render json: { success: false, error: "Quote cannot be accepted" }, status: :unprocessable_entity
+            render_error("Quote cannot be accepted", status: :unprocessable_entity)
           end
         end
 
@@ -103,7 +101,7 @@ module Api
           if @quote.reject!(reason)
             render json: { success: true, data: @quote, message: "Quote rejected" }
           else
-            render json: { success: false, error: "Quote cannot be rejected" }, status: :unprocessable_entity
+            render_error("Quote cannot be rejected", status: :unprocessable_entity)
           end
         end
 
@@ -118,8 +116,7 @@ module Api
               message: "Quote converted to invoice"
             }
           else
-            render json: { success: false, error: "Quote must be accepted before conversion" },
-                   status: :unprocessable_entity
+            render_error("Quote must be accepted before conversion", status: :unprocessable_entity)
           end
         end
 
@@ -140,8 +137,7 @@ module Api
             @quote.save!
             render json: { success: true, data: line }
           else
-            render json: { success: false, error: line.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(line.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -160,8 +156,7 @@ module Api
             @quote.save!
             render json: { success: true, data: line }
           else
-            render json: { success: false, error: line.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(line.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -173,7 +168,7 @@ module Api
           if line.toggle_selection!
             render json: { success: true, data: { line: line, quote: @quote } }
           else
-            render json: { success: false, error: "Line is not optional" }, status: :unprocessable_entity
+            render_error("Line is not optional", status: :unprocessable_entity)
           end
         end
 

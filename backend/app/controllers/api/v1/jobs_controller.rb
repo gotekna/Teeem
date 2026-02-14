@@ -88,7 +88,7 @@ module Api
           stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub("_", " "))
 
           unless stage
-            return render json: { success: false, error: "Invalid stage: #{stage_name}" }, status: :unprocessable_entity
+            return render_error("Invalid stage: #{stage_name}", status: :unprocessable_entity)
           end
 
           # Ensure job is in Enquiry status
@@ -108,7 +108,7 @@ module Api
         lost_status = JobStatus.find_by(name: "Lost - Pre Contract")
 
         unless lost_status
-          return render json: { success: false, error: "Lost - Pre Contract status not found" }, status: :unprocessable_entity
+          return render_error("Lost - Pre Contract status not found", status: :unprocessable_entity)
         end
 
         if @job.update(job_status_id: lost_status.id, job_stage_id: nil)
@@ -455,12 +455,12 @@ module Api
 
         render json: result
       rescue XeroBillImportService::NotConnectedError => e
-        render json: { success: false, error: e.message }, status: :service_unavailable
+        render_error(e.message, status: :service_unavailable)
       rescue XeroBillImportService::NoTrackingOptionError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue StandardError => e
         Rails.logger.error("Xero bill import error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/link_xero_tracking
@@ -470,7 +470,7 @@ module Api
         tracking_option_name = params[:tracking_option_name]
 
         unless tracking_option_id.present?
-          return render json: { success: false, error: "tracking_option_id is required" }, status: :bad_request
+          return render_error("tracking_option_id is required", status: :bad_request)
         end
 
         if @job.update(
@@ -507,7 +507,7 @@ module Api
           } : nil
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/jobs/:id/activities
@@ -682,14 +682,14 @@ module Api
         secondary_job_ids = params[:secondary_job_ids]
 
         if secondary_job_ids.blank?
-          render json: { success: false, error: "No secondary jobs provided" }, status: :unprocessable_entity
+          render_error("No secondary jobs provided", status: :unprocessable_entity)
           return
         end
 
         secondary_jobs = Job.where(id: secondary_job_ids)
 
         if secondary_jobs.count != secondary_job_ids.length
-          render json: { success: false, error: "Some secondary jobs not found" }, status: :not_found
+          render_error("Some secondary jobs not found", status: :not_found)
           return
         end
 
@@ -750,16 +750,16 @@ module Api
           primary_job: @job
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/upload_plan_set
       # Upload a PDF plan set, split into individual pages named by PDF page labels
       def upload_plan_set
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         service = PlanSetService.new(@job, params[:file])
@@ -775,7 +775,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -786,7 +786,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         # Build job folder path
@@ -835,7 +835,7 @@ module Api
         }
       rescue => e
         Rails.logger.error("plan_set error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/rename_plans
@@ -853,11 +853,11 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       rescue => e
         Rails.logger.error("rename_plans error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/generate_contract
@@ -869,7 +869,7 @@ module Api
         )
       rescue => e
         Rails.logger.error("generate_contract error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/save_contract
@@ -887,7 +887,7 @@ module Api
       rescue => e
         Rails.logger.error("save_contract error: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/send_contract_for_signing
@@ -904,7 +904,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         # Build folder path using SSoT pattern
@@ -917,7 +917,7 @@ module Api
         uploaded = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
 
         unless uploaded
-          return render json: { success: false, error: "Failed to upload to storage" }, status: :internal_server_error
+          return render_error("Failed to upload to storage", status: :internal_server_error)
         end
 
         # Step 3: Get signers from job contacts (clients only)
@@ -929,13 +929,13 @@ module Api
           .compact
 
         if client_contacts.empty?
-          return render json: { success: false, error: "No client contacts found on this job" }, status: :unprocessable_entity
+          return render_error("No client contacts found on this job", status: :unprocessable_entity)
         end
 
         # Validate all contacts have emails
         missing_emails = client_contacts.select { |c| c.email.blank? }.map(&:display_name)
         if missing_emails.any?
-          return render json: { success: false, error: "Missing email for: #{missing_emails.join(', ')}" }, status: :unprocessable_entity
+          return render_error("Missing email for: #{missing_emails.join(', ')}", status: :unprocessable_entity)
         end
 
         # Step 4: Create e-signature request
@@ -968,7 +968,7 @@ module Api
         request.original_document_hash = Digest::SHA256.hexdigest(pdf_content)
 
         unless request.save
-          return render json: { success: false, error: request.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          return render_error(request.errors.full_messages.join(", "), status: :unprocessable_entity)
         end
 
         # Step 5: Send for signing
@@ -988,7 +988,7 @@ module Api
       rescue => e
         Rails.logger.error("send_contract_for_signing error: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/jobs/:id/linked_schedule_template
@@ -1032,7 +1032,7 @@ module Api
           render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       # POST /api/v1/jobs/:id/create_storage_folders
@@ -1046,7 +1046,7 @@ module Api
         @job.create_folders_if_needed!
         render json: { success: true, status: @job.reload.storage_folder_status }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private

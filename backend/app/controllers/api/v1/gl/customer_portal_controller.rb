@@ -16,7 +16,7 @@ module Api
           token = ::Gl::PortalToken.find_by(token: params[:token])
 
           unless token&.valid_token?
-            render json: { success: false, error: "Invalid or expired token" }, status: :unauthorized
+            render_error("Invalid or expired token", status: :unauthorized)
             return
           end
 
@@ -42,7 +42,7 @@ module Api
           invoice = @portal_token.invoice || Gl::Invoice.find_by(id: params[:invoice_id])
 
           unless invoice && (@portal_token.token_type == "portal" || invoice.id == @portal_token.invoice_id)
-            render json: { success: false, error: "Invoice not found" }, status: :not_found
+            render_error("Invoice not found", status: :not_found)
             return
           end
 
@@ -60,7 +60,7 @@ module Api
           invoice = @portal_token.invoice || Gl::Invoice.find_by(id: params[:invoice_id])
 
           unless invoice
-            render json: { success: false, error: "Invoice not found" }, status: :not_found
+            render_error("Invoice not found", status: :not_found)
             return
           end
 
@@ -110,7 +110,7 @@ module Api
 
           render json: { success: true, data: mandate, message: "Direct debit authorized" }
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # ===== ADMIN ENDPOINTS =====
@@ -225,7 +225,7 @@ module Api
           @portal_token = ::Gl::PortalToken.find_by(token: params[:token])
 
           unless @portal_token&.valid_token?
-            render json: { success: false, error: "Invalid or expired token" }, status: :unauthorized
+            render_error("Invalid or expired token", status: :unauthorized)
           end
         end
 

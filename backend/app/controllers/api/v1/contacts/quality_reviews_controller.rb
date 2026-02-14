@@ -40,7 +40,7 @@ module Api
             by_status: ContactQualityReview.group(:status).count
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/quality_reviews/scan
@@ -54,7 +54,7 @@ module Api
             results: scan_results
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/quality_reviews/:id/approve
@@ -79,9 +79,9 @@ module Api
             data: format_quality_review(review.reload)
           }
         rescue ContactQualityActionService::ActionError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/quality_reviews/:id/reject
@@ -103,7 +103,7 @@ module Api
             data: format_quality_review(review)
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/quality_reviews/:id/skip
@@ -125,7 +125,7 @@ module Api
             data: format_quality_review(review)
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/quality_reviews/bulk_approve
@@ -163,7 +163,7 @@ module Api
             results: results
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/quality_reviews/:contact_id/analyze
@@ -178,7 +178,7 @@ module Api
             data: analysis
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         private

@@ -82,7 +82,7 @@ module Api
           }
         }
       rescue StripePaymentService::PaymentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue Stripe::StripeError => e
         Rails.logger.error("Stripe error creating checkout: #{e.message}")
         render_error("Payment service unavailable. Please try again.", status: :service_unavailable)
@@ -207,7 +207,7 @@ module Api
       rescue ActiveRecord::RecordNotFound
         render_error("Invoice not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/payments

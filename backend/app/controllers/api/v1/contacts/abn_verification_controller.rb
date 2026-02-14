@@ -53,9 +53,9 @@ module Api
             }
           }
         rescue AbrApiService::AbrError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/abn/find_missing
@@ -77,7 +77,7 @@ module Api
             message: "ABN search started in background. This may take several minutes."
           }
         rescue => e
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
     end

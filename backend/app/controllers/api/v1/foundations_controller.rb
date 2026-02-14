@@ -173,7 +173,7 @@ module Api
         end
 
         if result[:error]
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         else
           # Clear cache after fix
           Rails.cache.delete("health_check:foundation:#{@foundation.id}")

@@ -10,7 +10,7 @@ module Api
           account = current_subcontractor_account
 
           unless account
-            render json: { success: false, error: "No subcontractor account found" }, status: :not_found
+            render_error("No subcontractor account found", status: :not_found)
             return
           end
 

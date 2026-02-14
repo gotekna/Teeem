@@ -169,13 +169,13 @@ module Api
         def set_corporate
           @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Company not found' }, status: :not_found
+          render_error('Company not found', status: :not_found)
         end
 
         def set_account
           @account = scoped_accounts.find(params[:id])
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Account not found' }, status: :not_found
+          render_error('Account not found', status: :not_found)
         end
 
         def scoped_accounts

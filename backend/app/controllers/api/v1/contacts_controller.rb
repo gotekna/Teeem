@@ -886,7 +886,7 @@ module Api
       rescue StandardError => e
         Rails.logger.error "[ContactCreate] Exception: #{e.class.name} - #{e.message}"
         Rails.logger.error e.backtrace.first(10).join("\n")
-        render json: { success: false, error: "#{e.class.name}: #{e.message}" }, status: :internal_server_error
+        render_error("#{e.class.name}: #{e.message}", status: :internal_server_error)
       end
 
       # PATCH /api/v1/contacts/:id
@@ -1814,7 +1814,7 @@ module Api
           raise ActiveRecord::RecordNotFound, "Contact not found with slug: #{id_or_slug}" unless @contact
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # sync_addresses_from_xero extracted to: concerns/contacts/xero_sync.rb

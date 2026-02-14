@@ -514,7 +514,7 @@ module Api
           result: result
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/companies/health_report

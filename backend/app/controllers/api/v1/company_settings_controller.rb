@@ -59,7 +59,7 @@ module Api
           account = client.api.accounts(settings.twilio_account_sid).fetch
           render json: { success: true, message: "Twilio connected successfully", account_name: account.friendly_name }
         rescue Twilio::REST::RestError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           render_error("Failed to connect to Twilio: #{e.message}", status: :internal_server_error)
         end

@@ -162,7 +162,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
       message: "Entry marked as billed"
     }
   rescue StandardError => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # POST /api/v1/labour_cost_entries/bulk_mark_billed
@@ -202,7 +202,7 @@ class Api::V1::LabourCostEntriesController < ApplicationController
       message: "Entry written off"
     }
   rescue StandardError => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   private
