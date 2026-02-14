@@ -57,6 +57,7 @@ module Microsoft
 
     # Download a specific email attachment
     # Returns { content:, filename:, content_type: } or nil on failure
+    # Handles both fileAttachment (regular files) and itemAttachment (nested emails)
     def download_email_attachment(user_identifier, message_id, attachment_id)
       endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments/#{attachment_id}"
       attachment = get(endpoint)
@@ -70,6 +71,10 @@ module Microsoft
           filename: attachment["name"] || "attachment",
           content_type: attachment["contentType"] || "application/octet-stream"
         }
+      elsif attachment["@odata.type"] == "#microsoft.graph.itemAttachment"
+        # Item attachments are nested messages (emails attached to emails)
+        # Fetch MIME content via /$value endpoint to get downloadable .eml
+        download_item_attachment_mime(user_identifier, message_id, attachment_id, attachment)
       else
         Rails.logger.warn "[Microsoft::EmailClient] Unsupported attachment type: #{attachment['@odata.type']}"
         nil
@@ -186,6 +191,58 @@ module Microsoft
           raise ApiError, "#{response.status.code} - #{error_msg}"
         end
       end
+    end
+
+    # Create a draft email in user's mailbox (saves to Drafts folder, does NOT send)
+    # Returns the created message hash with id, subject, etc.
+    def create_draft(from:, to: [], subject: "", body: "", cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+      message_content = build_message_content(
+        to: to, subject: subject, body: body, cc: cc, bcc: bcc,
+        attachments: attachments, reply_to_message_id: reply_to_message_id
+      )
+
+      endpoint = "/users/#{CGI.escape(from)}/messages"
+      post(endpoint, message_content)
+    end
+
+    # Update an existing draft in user's mailbox
+    # Returns the updated message hash
+    def update_draft(from:, draft_id:, to: [], subject: "", body: "", cc: [], bcc: [], attachments: [])
+      message_content = build_message_content(
+        to: to, subject: subject, body: body, cc: cc, bcc: bcc,
+        attachments: attachments
+      )
+
+      endpoint = "/users/#{CGI.escape(from)}/messages/#{draft_id}"
+      patch(endpoint, message_content)
+    end
+
+    # Send an existing draft (moves from Drafts to Sent Items)
+    # Returns true on success (Graph returns 202 with no body)
+    def send_draft(from:, draft_id:)
+      endpoint = "/users/#{CGI.escape(from)}/messages/#{draft_id}/send"
+      url = "#{GRAPH_API_BASE}#{endpoint}"
+
+      with_retry do
+        response = HTTP.auth("Bearer #{access_token}")
+                       .headers("Content-Type" => "application/json")
+                       .post(url)
+
+        if response.status.success? || response.status.code == 202
+          Rails.logger.info "[Microsoft::EmailClient] Draft #{draft_id} sent successfully from #{from}"
+          true
+        else
+          error_body = JSON.parse(response.body.to_s) rescue { "error" => { "message" => response.body.to_s } }
+          error_msg = error_body.dig("error", "message") || "HTTP #{response.status}"
+          raise ApiError, "#{response.status.code} - #{error_msg}"
+        end
+      end
+    end
+
+    # Delete a draft from user's mailbox
+    # Reuses delete_user_email! pattern (treats 404 as success)
+    def delete_draft(from:, draft_id:)
+      delete_user_email!(from, draft_id)
     end
 
     # Search emails across a user's mailbox
@@ -305,6 +362,77 @@ module Microsoft
     end
 
     private
+
+    # Download item attachment (nested email) as MIME content (.eml)
+    # Microsoft Graph /$value endpoint returns raw MIME for item attachments
+    def download_item_attachment_mime(user_identifier, message_id, attachment_id, attachment_metadata)
+      endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments/#{attachment_id}/$value"
+
+      mime_content = with_retry(max_retries: 3) do
+        response = HTTP.auth("Bearer #{access_token}")
+                       .get("#{GRAPH_API_BASE}#{endpoint}")
+
+        unless response.status.success?
+          Rails.logger.warn "[Microsoft::EmailClient] Failed to get item attachment MIME: #{response.code}"
+          raise ApiError, "Item attachment MIME fetch failed: #{response.code}"
+        end
+
+        response.body.to_s
+      end
+
+      return nil unless mime_content.present?
+
+      filename = attachment_metadata["name"] || "attached_message"
+      filename = "#{filename}.eml" unless filename.downcase.end_with?(".eml")
+
+      {
+        content: mime_content,
+        filename: filename,
+        content_type: "message/rfc822"
+      }
+    rescue StandardError => e
+      Rails.logger.error "[Microsoft::EmailClient] Failed to download item attachment MIME #{attachment_id}: #{e.message}"
+      nil
+    end
+
+    # Build Graph API message content hash (reused by send_email, create_draft, update_draft)
+    def build_message_content(to: [], subject: "", body: "", cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+      to_recipients = Array(to).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+      cc_recipients = Array(cc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+      bcc_recipients = Array(bcc).reject(&:blank?).map { |email| { emailAddress: { address: email } } }
+
+      content = {
+        subject: subject,
+        body: {
+          contentType: "HTML",
+          content: body
+        },
+        toRecipients: to_recipients
+      }
+
+      content[:ccRecipients] = cc_recipients if cc_recipients.any?
+      content[:bccRecipients] = bcc_recipients if bcc_recipients.any?
+
+      if reply_to_message_id.present?
+        content[:internetMessageHeaders] = [
+          { name: "In-Reply-To", value: reply_to_message_id },
+          { name: "References", value: reply_to_message_id }
+        ]
+      end
+
+      if attachments.any?
+        content[:attachments] = attachments.map do |att|
+          {
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            name: att[:name] || att[:filename],
+            contentBytes: att[:content],
+            contentType: att[:content_type] || "application/octet-stream"
+          }
+        end
+      end
+
+      content
+    end
 
     def fetch_folders_recursive(user_identifier, parent_folder_id, parent_path, folders, depth, max_depth)
       return if depth > max_depth

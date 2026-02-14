@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Keyboard shortcuts for table navigation:
+ * useRowKeyboardNav Hook
+ *
+ * Keyboard shortcuts for table row navigation:
  *
  * Navigation:
  * - ArrowUp/k     - Move to previous row
@@ -24,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * - Cmd/Ctrl+A    - Select all visible rows
  */
 
-interface UseTableKeyboardNavigationOptions {
+interface UseRowKeyboardNavOptions {
   /** Total number of rows */
   rowCount: number;
   /** Callback when row is "opened" (Enter pressed) */
@@ -47,7 +49,7 @@ interface UseTableKeyboardNavigationOptions {
   containerRef?: React.RefObject<HTMLElement>;
 }
 
-interface UseTableKeyboardNavigationReturn {
+interface UseRowKeyboardNavReturn {
   /** Currently focused row index (-1 if none) */
   focusedRowIndex: number;
   /** Set focused row index */
@@ -63,7 +65,7 @@ interface UseTableKeyboardNavigationReturn {
   hasFocus: boolean;
 }
 
-export function useTableKeyboardNavigation({
+export function useRowKeyboardNav({
   rowCount,
   onRowOpen,
   onToggleSelection,
@@ -74,7 +76,7 @@ export function useTableKeyboardNavigation({
   onEscape,
   enabled = true,
   containerRef,
-}: UseTableKeyboardNavigationOptions): UseTableKeyboardNavigationReturn {
+}: UseRowKeyboardNavOptions): UseRowKeyboardNavReturn {
   const [focusedRowIndex, setFocusedRowIndex] = useState(-1);
   const [hasFocus, setHasFocus] = useState(false);
   const lastKeyRef = useRef<string>("");
@@ -263,4 +265,4 @@ export function useTableKeyboardNavigation({
   };
 }
 
-export default useTableKeyboardNavigation;
+export default useRowKeyboardNav;

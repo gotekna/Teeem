@@ -204,6 +204,78 @@ class ImapEmailService
     raise
   end
 
+  # Drafts folder name variants (different servers use different names)
+  DRAFT_FOLDERS = ["Drafts", "INBOX.Drafts", "Draft"].freeze
+
+  # Save a draft to the IMAP Drafts folder
+  # Builds a Mail::Message and APPENDs it to the Drafts folder with \Draft flag
+  # @return [Integer, nil] UID of the appended draft, or nil on failure
+  def save_draft(to: [], subject: "", body: "", cc: [], bcc: [], from_address: nil, attachments: [], reply_to_message_id: nil)
+    sender_address = from_address.presence || credential.email_address
+
+    mail = build_draft_message(
+      from: sender_address, to: to, subject: subject, body: body,
+      cc: cc, bcc: bcc, attachments: attachments,
+      reply_to_message_id: reply_to_message_id
+    )
+
+    with_imap_connection do |imap|
+      drafts_folder = find_drafts_folder(imap)
+      response = imap.append(drafts_folder, mail.to_s, [:Draft, :Seen], Time.current)
+
+      # Extract UID from APPENDUID response if available
+      extract_append_uid(response)
+    end
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error saving draft: #{e.message}"
+    nil
+  end
+
+  # Update an existing draft (delete old, append new)
+  # IMAP doesn't support in-place update, so we replace: delete old UID, append new message
+  # @return [Integer, nil] New UID of the updated draft
+  def update_draft(uid:, **draft_params)
+    # Delete the old draft first
+    delete_draft(uid: uid)
+
+    # Append new version
+    save_draft(**draft_params)
+  end
+
+  # Delete a draft by UID from the Drafts folder
+  # @return [Boolean] Success status
+  def delete_draft(uid:)
+    with_imap_connection do |imap|
+      drafts_folder = find_drafts_folder(imap)
+      imap.select(drafts_folder)
+      imap.uid_store(uid, "+FLAGS", [:Deleted])
+      imap.expunge
+    end
+    true
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Error deleting draft (UID: #{uid}): #{e.message}"
+    # Treat as success if draft is already gone (like MS365 404 pattern)
+    true
+  end
+
+  # Send email via SMTP and delete the draft from IMAP Drafts folder
+  # This is the seamless "send draft" flow: user clicks Send, we SMTP send + clean up draft
+  # @return [Mail::Message] The sent message
+  def send_and_delete_draft(uid:, to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil, from_address: nil)
+    # Send via existing SMTP method (handles append to Sent + warehouse log)
+    mail = send_email(
+      to: to, subject: subject, body: body,
+      cc: cc, bcc: bcc, attachments: attachments,
+      reply_to_message_id: reply_to_message_id,
+      from_address: from_address
+    )
+
+    # Delete the draft from Drafts folder (best effort - don't fail if draft already gone)
+    delete_draft(uid: uid)
+
+    mail
+  end
+
   # List available IMAP folders
   # @return [Array<String>] Folder names
   def list_folders
@@ -686,6 +758,83 @@ class ImapEmailService
   rescue => e
     Rails.logger.warn "[ImapEmailService] Error applying rules to email #{email.id}: #{e.message}"
     # Don't raise - rules failing shouldn't stop sync
+  end
+
+  # Build a Mail::Message for a draft (same structure as send_email but without delivery)
+  def build_draft_message(from:, to: [], subject: "", body: "", cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+    mail = Mail.new do |m|
+      m.from    from
+      m.to      Array(to) if to.present?
+      m.cc      Array(cc) if cc.present?
+      m.bcc     Array(bcc) if bcc.present?
+      m.subject subject
+
+      if reply_to_message_id.present?
+        m.in_reply_to = reply_to_message_id
+        m.references = reply_to_message_id
+      end
+
+      if body.include?("<") && body.include?(">")
+        m.html_part do
+          content_type "text/html; charset=UTF-8"
+          body body
+        end
+        m.text_part do
+          body ActionController::Base.helpers.strip_tags(body)
+        end
+      else
+        m.body body
+      end
+    end
+
+    # Add attachments
+    attachments.each do |attachment|
+      mail.add_file(
+        filename: attachment[:filename],
+        content: attachment[:content]
+      )
+    end
+
+    mail
+  end
+
+  # Find the Drafts folder on this IMAP server
+  # Different servers use different names (Drafts, INBOX.Drafts, Draft)
+  def find_drafts_folder(imap)
+    folder = DRAFT_FOLDERS.find do |f|
+      imap.list("", f)&.any?
+    end
+
+    unless folder
+      # Create "Drafts" as fallback
+      folder = "Drafts"
+      imap.create(folder) rescue nil
+    end
+
+    folder
+  end
+
+  # Extract UID from IMAP APPEND response
+  # Response format varies by server; some return APPENDUID, some don't
+  def extract_append_uid(response)
+    return nil unless response
+
+    # Try to extract from APPENDUID response code
+    # Format: [APPENDUID <uidvalidity> <uid>]
+    if response.respond_to?(:data) && response.data.respond_to?(:code)
+      code = response.data.code
+      if code.respond_to?(:name) && code.name == "APPENDUID" && code.respond_to?(:data)
+        # data is "uidvalidity uid"
+        parts = code.data.to_s.split
+        return parts.last.to_i if parts.size >= 2
+      end
+    end
+
+    # Fallback: return nil (draft saved but UID unknown)
+    nil
+  rescue => e
+    Rails.logger.debug "[ImapEmailService] Could not extract APPEND UID: #{e.message}"
+    nil
   end
 
   def append_to_sent_folder(mail)

@@ -23,8 +23,8 @@ const hedvigSerif = Hedvig_Letters_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Teeem",
-  description: "Project management for construction",
+  title: "TEEEM",
+  description: "Project management platform for construction - manage jobs, contacts, documents, and workflows",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  keywords: ["construction management", "project management", "job tracking", "construction software"],
 };
 
 export const viewport: Viewport = {

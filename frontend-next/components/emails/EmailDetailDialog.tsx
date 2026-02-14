@@ -379,12 +379,27 @@ export function EmailDetailDialog({
           replyToMessageId: email.internet_message_id,
           defaultFromEmail: email.mailbox_owner_email,
         };
-      case "forward":
+      case "forward": {
+        // Forward uses body_html when available (preserves original formatting, handles styled emails).
+        // Strip <style>/<head>/<html>/<body> wrappers that don't belong in the editor.
+        let forwardBodyHtml: string;
+        if (email.body_html) {
+          forwardBodyHtml = email.body_html
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<head[\s\S]*?<\/head>/gi, "")
+            .replace(/<\/?(?:html|body|!doctype)[^>]*>/gi, "")
+            .trim();
+        } else {
+          forwardBodyHtml = quotedContentHtml;
+        }
+        const forwardHeader = `---------- Forwarded message -----------<br>From: ${email.display_from || email.from_email}<br>Date: ${format(new Date(email.received_at), "PPpp")}<br>Subject: ${email.subject || ""}<br>To: ${email.to_emails?.join(", ") || ""}`;
+        const forwardQuotedBody = `${attachmentsHtml}<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeader}<br><br>${forwardBodyHtml}</blockquote>`;
         return {
           defaultSubject: forwardSubject,
-          defaultBody: quotedBody,
+          defaultBody: forwardQuotedBody,
           defaultFromEmail: email.mailbox_owner_email,
         };
+      }
       default:
         return {};
     }

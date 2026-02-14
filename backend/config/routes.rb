@@ -1523,7 +1523,11 @@ Rails.application.routes.draw do
       end
 
       # Email Drafts (work-in-progress emails, synced across devices)
+      # Provider sync: drafts are synced to MS365/IMAP Drafts folder in background
       resources :email_drafts, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :send_draft
+        end
         collection do
           delete :destroy_all
         end

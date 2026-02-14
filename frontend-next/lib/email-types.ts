@@ -102,11 +102,12 @@ export interface EmailAccount {
 // =============================================================================
 
 /**
- * Email draft stored in localStorage.
+ * Email draft stored in DB + synced to provider Drafts folder.
  */
 export interface EmailDraft {
   id: string;
   credential_id: string;
+  microsoft_credential_id?: string;
   from_address?: string;
   to: string;
   cc: string;
@@ -116,6 +117,11 @@ export interface EmailDraft {
   reply_to_message_id?: string;
   /** Attachment names only (can't serialize File objects) */
   attachment_names: string[];
+  /** Provider draft sync fields */
+  provider_draft_id?: string;
+  provider_type?: "ms365" | "imap";
+  provider_synced_at?: string;
+  provider_sync_error?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -214,6 +220,7 @@ export interface AutoSaveConfig {
   /** Current form data */
   data: {
     credential_id: string;
+    microsoft_credential_id?: string;
     from_address?: string;
     to: string;
     cc: string;
@@ -223,6 +230,8 @@ export interface AutoSaveConfig {
     reply_to_message_id?: string;
     attachment_names?: string[];
   };
+  /** Account type for provider sync ("ms365" or "imap") */
+  accountType?: "ms365" | "imap" | "outlook";
   /** Existing draft ID to update */
   existingDraftId?: string;
   /** Callback when draft is saved */

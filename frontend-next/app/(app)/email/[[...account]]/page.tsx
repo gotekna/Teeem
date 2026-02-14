@@ -1808,9 +1808,29 @@ export default function EmailPage() {
     setLastClickedEmailId(email.id);
   }, [selection]);
 
+  // Sanitize email HTML for quoting: strip <style>/<head>/<html>/<body> wrappers
+  const sanitizeEmailHtml = useCallback((email: Email) => {
+    if (email.body_html) {
+      return email.body_html
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<head[\s\S]*?<\/head>/gi, "")
+        .replace(/<\/?(?:html|body|!doctype)[^>]*>/gi, "")
+        .trim();
+    }
+    if (email.body_text) {
+      return email.body_text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .map(line => line || "<br>")
+        .join("<br>");
+    }
+    return "";
+  }, []);
+
   const handleReply = useCallback((email: Email) => {
     // Build quoted original message as HTML to preserve formatting
-    const originalBody = email.body_html || email.body_text || "";
+    const originalBody = sanitizeEmailHtml(email);
     // Start with empty paragraph for typing, then quoted content below
     const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
@@ -1834,7 +1854,7 @@ ${originalBody}
       originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
-  }, [selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, selectedAccount, setComposeOpen]);
 
   const handleReplyAll = useCallback((email: Email) => {
     // Get the current user's email from the selected account
@@ -1852,7 +1872,7 @@ ${originalBody}
     const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
 
     // Build quoted original message as HTML to preserve formatting
-    const originalBody = email.body_html || email.body_text || "";
+    const originalBody = sanitizeEmailHtml(email);
     // Start with empty paragraph for typing, then quoted content below
     const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
@@ -1877,7 +1897,7 @@ ${originalBody}
       originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
-  }, [accounts, selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, accounts, selectedAccount, setComposeOpen]);
 
   const handleCompose = () => {
     setReplyTo(null);
@@ -1888,20 +1908,7 @@ ${originalBody}
     // Build forwarded message as HTML to preserve formatting
     const forwardHeaderHtml = `---------- Forwarded message -----------<br>From: ${email.from_email || email.from_address}<br>Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>Subject: ${email.subject}<br>To: ${email.to_emails?.join(", ") || ""}<br><br>`;
 
-    // Convert body_text newlines to <br> for HTML, or use body_html directly
-    let bodyHtml: string;
-    if (email.body_text) {
-      bodyHtml = email.body_text
-        .replace(/\r\n/g, "\n")
-        .replace(/\r/g, "\n")
-        .split("\n")
-        .map(line => line || "<br>")
-        .join("<br>");
-    } else {
-      bodyHtml = email.body_html || "";
-    }
-
-    const forwardBody = `<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeaderHtml}${bodyHtml}</blockquote>`;
+    const forwardBody = `<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeaderHtml}${sanitizeEmailHtml(email)}</blockquote>`;
 
     setReplyTo({
       to: "", // Forward to new recipient
@@ -1912,7 +1919,7 @@ ${originalBody}
       forwardAttachments: email.attachments?.filter(a => !a.content_id && !a.is_inline) || [],
     });
     setComposeOpen(true);
-  }, [selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, selectedAccount, setComposeOpen]);
 
   // Print handler - opens email in new window for printing
   const handlePrint = useCallback((email: Email) => {

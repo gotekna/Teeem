@@ -1,7 +1,7 @@
 /**
- * useTableKeyboardNav Hook
+ * useCellKeyboardNav Hook
  *
- * Handles keyboard navigation for table editing:
+ * Handles keyboard navigation for table cell editing:
  * - Tab / Shift+Tab: Move between cells horizontally
  * - Arrow Up / Down: Move between rows (same column)
  * - Enter: Move down to next row
@@ -21,7 +21,7 @@ import {
 } from '@/lib/table-edit-atoms';
 import type { NavigationDirection, UseTableKeyboardNavReturn } from '@/components/table/editors/types';
 
-export interface UseTableKeyboardNavOptions {
+export interface UseCellKeyboardNavOptions {
   /** All column keys in order */
   columnKeys: string[];
 
@@ -35,11 +35,11 @@ export interface UseTableKeyboardNavOptions {
   onExitTable?: (direction: 'up' | 'down' | 'left' | 'right') => void;
 }
 
-export function useTableKeyboardNav({
+export function useCellKeyboardNav({
   editableColumnKeys,
   rowIds,
   onExitTable,
-}: UseTableKeyboardNavOptions): UseTableKeyboardNavReturn {
+}: UseCellKeyboardNavOptions): UseTableKeyboardNavReturn {
   const isEditMode = useAtomValue(tableEditModeAtom);
   const [focusedCell, setFocusedCell] = useAtom(focusedCellAtom);
   const startEdit = useSetAtom(startCellEditAtom);
@@ -223,4 +223,4 @@ function isTextarea(target: EventTarget | null): boolean {
   return target.tagName.toLowerCase() === 'textarea';
 }
 
-export default useTableKeyboardNav;
+export default useCellKeyboardNav;

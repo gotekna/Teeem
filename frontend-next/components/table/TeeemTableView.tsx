@@ -283,7 +283,7 @@ import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
 import { useTableHandlers } from "./core/hooks/useTableHandlers";
 import { useTableDragSelect } from "./core/hooks/useTableDragSelect";
 import { useGroupCounts } from "@/hooks/useGroupCounts";
-import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation";
+import { useRowKeyboardNav } from "@/hooks/useRowKeyboardNav";
 import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 
 // Phase 8: Extracted hooks
@@ -3653,7 +3653,7 @@ export default function TeeemTableView({
     setFocusedRowIndex,
     tableProps: keyboardProps,
     hasFocus: tableHasFocus,
-  } = useTableKeyboardNavigation({
+  } = useRowKeyboardNav({
     rowCount: filteredAndSortedEntries.length,
     onRowOpen: (index) => {
       const row = filteredAndSortedEntries[index];

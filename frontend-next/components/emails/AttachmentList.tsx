@@ -47,6 +47,12 @@ function isWordDocFile(name: string, contentType?: string): boolean {
   );
 }
 
+function isEmailFile(name: string, contentType?: string): boolean {
+  const ext = name?.split(".").pop()?.toLowerCase() || "";
+  const type = contentType?.toLowerCase() || "";
+  return ext === "eml" || ext === "msg" || type.includes("message/rfc822");
+}
+
 // Cache for presigned URLs (attachment key -> url)
 const presignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
@@ -179,9 +185,10 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
-    // For spreadsheets/word docs, fall through to new window (no inline preview)
+    // For spreadsheets/word docs/emails, fall through to new window (no inline preview)
     if (isSpreadsheetFile(attachment.name, attachment.content_type) ||
-        isWordDocFile(attachment.name, attachment.content_type)) {
+        isWordDocFile(attachment.name, attachment.content_type) ||
+        isEmailFile(attachment.name, attachment.content_type)) {
       handleOpenInNewWindow(attachment);
       return;
     }
@@ -298,6 +305,16 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           }
         };
         reader.readAsDataURL(blob);
+        return;
+      }
+
+      // Email files (.eml): Open in /view page which has an eml parser/renderer
+      if (isEmailFile(attachment.name, attachment.content_type)) {
+        const blob = await fetchAttachmentBlob(attachment);
+        const url = window.URL.createObjectURL(blob);
+        const fileName = encodeURIComponent(attachment.name || "message.eml");
+        window.open(`/view?url=${encodeURIComponent(url)}&name=${fileName}`, "_blank");
+        setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
         return;
       }
 
@@ -453,7 +470,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
       {/* Preview Drawer */}
       <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
-        <SheetContent side="right" className="w-[60vw] max-w-[1200px] min-w-[600px] p-0 flex flex-col">
+        <SheetContent side="right" className="w-[80vw] max-w-[1400px] min-w-[700px] p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b shrink-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-sm font-medium truncate pr-2">

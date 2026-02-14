@@ -145,6 +145,7 @@ export const activeTableModalAtom = atom<TableModalType>(null);
 
 /**
  * @deprecated Use activeTableModalAtom instead
+ * @see activeTableModalAtom
  * Alias for backward compatibility
  */
 export const activeModalAtom = activeTableModalAtom;
@@ -157,6 +158,7 @@ export const tableModalDataAtom = atom<Record<string, unknown>>({});
 
 /**
  * @deprecated Use tableModalDataAtom instead
+ * @see tableModalDataAtom
  */
 export const modalDataAtom = tableModalDataAtom;
 
@@ -174,6 +176,7 @@ export const openTableModalAtom = atom(
 
 /**
  * @deprecated Use openTableModalAtom instead
+ * @see openTableModalAtom
  */
 export const openModalAtom = atom(
   null,
@@ -196,6 +199,7 @@ export const closeTableModalAtom = atom(null, (get, set) => {
 
 /**
  * @deprecated Use closeTableModalAtom instead
+ * @see closeTableModalAtom
  */
 export const closeModalAtom = closeTableModalAtom;
 
@@ -696,7 +700,8 @@ export const filterUIModeAtom = atom<FilterUIMode>('none');
 
 /**
  * @deprecated Use filterUIModeAtom === 'none' instead
- * Legacy atom kept for backward compatibility - was never used
+ * @see filterUIModeAtom
+ * Legacy atom kept for backward compatibility - still used in TeeemTableView
  */
 export const showFiltersAtom = atom<boolean>(false);
 

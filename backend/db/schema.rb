@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_14_300001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_14_400001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2610,7 +2610,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_14_300001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "provider_draft_id"
+    t.string "provider_type"
+    t.bigint "microsoft_credential_id"
+    t.datetime "provider_synced_at"
+    t.string "provider_sync_error"
     t.index ["imap_credential_id"], name: "index_email_drafts_on_imap_credential_id"
+    t.index ["microsoft_credential_id"], name: "index_email_drafts_on_microsoft_credential_id"
+    t.index ["provider_draft_id"], name: "index_email_drafts_on_provider_draft_id"
     t.index ["tenant_id"], name: "index_email_drafts_on_tenant_id"
     t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
     t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
