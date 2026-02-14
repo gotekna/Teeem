@@ -16,12 +16,16 @@ class PerformanceSlo < ApplicationRecord
   # Associations
   has_many :snapshots, class_name: "PerformanceSloSnapshot", dependent: :destroy
 
+  # Constants
+  SLI_TYPES = %w[latency availability error_rate throughput vital].freeze
+  COMPARISONS = %w[lte gte lt gt eq].freeze
+
   # Validations
   validates :name, presence: true
   validates :sli_type, presence: true,
-    inclusion: { in: %w[latency availability error_rate throughput vital] }
+    inclusion: { in: SLI_TYPES }
   validates :target_value, presence: true, numericality: true
-  validates :comparison, inclusion: { in: %w[lte gte lt gt eq] }
+  validates :comparison, inclusion: { in: COMPARISONS }
   validates :error_budget_percent, numericality: { greater_than: 0, less_than_or_equal_to: 100 }
 
   # Scopes

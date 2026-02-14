@@ -10,11 +10,16 @@ class CorporateLoan < ApplicationRecord
   belongs_to :borrower_company, class_name: "Corporate"
   # Note: corporate_documents association REMOVED (Jan 2026) - table dropped, use WarehouseDocument
 
+  # Constants
+  STATUSES = %w[active repaid written_off].freeze
+  INTEREST_TYPES = %w[fixed variable interest-free].freeze
+  SECURITY_TYPES = %w[unsecured mortgage ppsr].freeze
+
   # Validations
   validates :principal_amount, presence: true, numericality: { greater_than: 0 }
-  validates :status, inclusion: { in: %w[active repaid written_off] }
-  validates :interest_type, inclusion: { in: %w[fixed variable interest-free], allow_blank: true }
-  validates :security_type, inclusion: { in: %w[unsecured mortgage ppsr], allow_blank: true }
+  validates :status, inclusion: { in: STATUSES }
+  validates :interest_type, inclusion: { in: INTEREST_TYPES, allow_blank: true }
+  validates :security_type, inclusion: { in: SECURITY_TYPES, allow_blank: true }
   validate :different_companies
 
   # Scopes

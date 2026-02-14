@@ -2,9 +2,12 @@ class MinuteTemplate < ApplicationRecord
   # Associations
   has_many :corporate_minutes, dependent: :nullify
 
+  # Constants
+  TEMPLATE_TYPES = %w[company trust general].freeze
+
   # Validations
   validates :name, presence: true, uniqueness: true
-  validates :template_type, inclusion: { in: %w[company trust general], allow_blank: true }
+  validates :template_type, inclusion: { in: TEMPLATE_TYPES, allow_blank: true }
 
   # Scopes
   scope :active, -> { where(active: true) }

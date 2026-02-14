@@ -17,11 +17,14 @@
 class TableHealthCheck < ApplicationRecord
   belongs_to :foundation, optional: true
 
+  # Constants
+  SEVERITIES = %w[critical warning info].freeze
+
   # Validations
   validates :check_type, presence: true
   validates :name, presence: true
   validates :api_endpoint, presence: true
-  validates :severity, inclusion: { in: %w[critical warning info] }
+  validates :severity, inclusion: { in: SEVERITIES }
 
   validate :foundation_or_table_name_present
 

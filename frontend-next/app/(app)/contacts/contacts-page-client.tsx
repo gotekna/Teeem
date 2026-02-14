@@ -8,6 +8,7 @@ import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { Plus } from "lucide-react";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
@@ -146,7 +147,7 @@ export default function ContactsPageClient({
   return (
     <TablePage data-tour="contacts-table">
       <TeeemTableView
-        foundationId="contacts"
+        foundationId={FOUNDATION_SLUGS.CONTACTS}
         tableName="Contacts"
         enableExport
         enableImport
@@ -187,7 +188,7 @@ export default function ContactsPageClient({
             open={mergeModalOpen}
             onOpenChange={setMergeModalOpen}
             selectedIds={selectedForMerge.map(c => c.id)}
-            foundationId="contacts"
+            foundationId={FOUNDATION_SLUGS.CONTACTS}
             records={selectedForMerge as unknown as Record<string, unknown>[]}
             displayColumn="display_name"
             secondaryColumns={["email", "phone"]}

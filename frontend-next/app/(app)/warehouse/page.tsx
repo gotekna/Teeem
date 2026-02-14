@@ -1079,10 +1079,12 @@ export default function AllDocumentsPage() {
         )} data-tour="warehouse-files">
           {viewMode === "table" ? (
             // Table View renders immediately - no dependency on fetchDocuments counts
+            // autoFetchLimit caps background loading (24K+ records would be ~247 API calls without it)
             <div className="flex flex-col h-full">
               <TeeemTableView
                 foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
                 autoFetchRecords={true}
+                autoFetchLimit={5000}
               />
             </div>
           ) : loading ? (

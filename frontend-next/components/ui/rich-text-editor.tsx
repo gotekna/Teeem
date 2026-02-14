@@ -69,6 +69,7 @@ import { Input } from "@/components/ui/input";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { WritingChecker, useWritingCheckerState, WritingIssue } from "./tiptap-writing-checker";
 import { MAX_INLINE_IMAGE_SIZE } from "@/lib/constants/file-size-limits";
+import { RICH_TEXT_COLORS } from "@/lib/constants/color-constants";
 
 // Custom extension for font size
 declare module "@tiptap/core" {
@@ -389,8 +390,8 @@ export function EditorToolbar({
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [fontSizeInput, setFontSizeInput] = React.useState("");
   const [fontSizeOpen, setFontSizeOpen] = React.useState(false);
-  const [selectedTextColor, setSelectedTextColor] = React.useState("#000000");
-  const [selectedHighlightColor, setSelectedHighlightColor] = React.useState("#fef08a");
+  const [selectedTextColor, setSelectedTextColor] = React.useState(RICH_TEXT_COLORS.defaults.textColor);
+  const [selectedHighlightColor, setSelectedHighlightColor] = React.useState(RICH_TEXT_COLORS.defaults.highlightColor);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
 
@@ -497,7 +498,7 @@ export function EditorToolbar({
   };
 
   const fontSizes = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "24", "28", "36", "48", "72"];
-  const drawColors = ["#000000", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#8b5cf6", "#ec4899"];
+  const drawColors = RICH_TEXT_COLORS.textColors;
 
   return (
     <div
@@ -723,7 +724,7 @@ export function EditorToolbar({
                     <p className="text-xs text-muted-foreground mb-2">Theme Colors</p>
                     <div className="grid grid-cols-10 gap-1">
                       {/* Row 1: Base colors */}
-                      {["#000000", "#424242", "#666666", "#808080", "#999999", "#b3b3b3", "#cccccc", "#e0e0e0", "#f0f0f0", "#ffffff"].map((color) => (
+                      {RICH_TEXT_COLORS.grayscale.map((color) => (
                         <button
                           key={color}
                           type="button"
@@ -739,13 +740,13 @@ export function EditorToolbar({
                       ))}
                       {/* Row 2-6: Color spectrum with intensities */}
                       {[
-                        ["#7f1d1d", "#991b1b", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fecaca", "#fee2e2", "#fef2f2"], // Red
-                        ["#7c2d12", "#9a3412", "#c2410c", "#ea580c", "#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5", "#fff7ed"], // Orange
-                        ["#713f12", "#854d0e", "#a16207", "#ca8a04", "#eab308", "#facc15", "#fde047", "#fef08a", "#fef9c3", "#fefce8"], // Yellow
-                        ["#14532d", "#166534", "#15803d", "#16a34a", "#22c55e", "#4ade80", "#86efac", "#bbf7d0", "#dcfce7", "#f0fdf4"], // Green
-                        ["#1e3a8a", "#1e40af", "#1d4ed8", "#2563eb", "#3b82f6", "#60a5fa", "#93c5fd", "#bfdbfe", "#dbeafe", "#eff6ff"], // Blue
-                        ["#4c1d95", "#5b21b6", "#6d28d9", "#7c3aed", "#8b5cf6", "#a78bfa", "#c4b5fd", "#ddd6fe", "#ede9fe", "#f5f3ff"], // Purple
-                        ["#831843", "#9d174d", "#be185d", "#db2777", "#ec4899", "#f472b6", "#f9a8d4", "#fbcfe8", "#fce7f3", "#fdf2f8"], // Pink
+                        RICH_TEXT_COLORS.fullPalette.red,
+                        RICH_TEXT_COLORS.fullPalette.orange,
+                        RICH_TEXT_COLORS.fullPalette.yellow,
+                        RICH_TEXT_COLORS.fullPalette.green,
+                        RICH_TEXT_COLORS.fullPalette.blue,
+                        RICH_TEXT_COLORS.fullPalette.purple,
+                        RICH_TEXT_COLORS.fullPalette.pink,
                       ].map((row, rowIdx) => (
                         row.map((color) => (
                           <button
@@ -769,7 +770,7 @@ export function EditorToolbar({
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         getTargetEditor()?.chain().focus().unsetColor().run();
-                        setSelectedTextColor("#000000");
+                        setSelectedTextColor(RICH_TEXT_COLORS.defaults.textColor);
                       }}
                       className="w-full mt-2 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded flex items-center gap-1"
                     >
@@ -795,7 +796,7 @@ export function EditorToolbar({
                     <p className="text-xs text-muted-foreground mb-2">Highlight Colors</p>
                     <div className="grid grid-cols-6 gap-1">
                       {/* Light highlights (15% opacity feel) */}
-                      {["#fef2f2", "#fff7ed", "#fefce8", "#f0fdf4", "#eff6ff", "#f5f3ff"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.light.map((color) => (
                         <button
                           key={`light-${color}`}
                           type="button"
@@ -810,7 +811,7 @@ export function EditorToolbar({
                         />
                       ))}
                       {/* Medium-light highlights (30% opacity feel) */}
-                      {["#fee2e2", "#ffedd5", "#fef9c3", "#dcfce7", "#dbeafe", "#ede9fe"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.lighter.map((color) => (
                         <button
                           key={`medlight-${color}`}
                           type="button"
@@ -825,7 +826,7 @@ export function EditorToolbar({
                         />
                       ))}
                       {/* Medium highlights (50% opacity feel) */}
-                      {["#fecaca", "#fed7aa", "#fef08a", "#bbf7d0", "#bfdbfe", "#ddd6fe"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.medium.map((color) => (
                         <button
                           key={`med-${color}`}
                           type="button"
@@ -840,7 +841,7 @@ export function EditorToolbar({
                         />
                       ))}
                       {/* Strong highlights (70% opacity feel) */}
-                      {["#fca5a5", "#fdba74", "#fde047", "#86efac", "#93c5fd", "#c4b5fd"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.mediumDark.map((color) => (
                         <button
                           key={`strong-${color}`}
                           type="button"
@@ -855,7 +856,7 @@ export function EditorToolbar({
                         />
                       ))}
                       {/* Vivid highlights (full saturation) */}
-                      {["#f87171", "#fb923c", "#facc15", "#4ade80", "#60a5fa", "#a78bfa"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.dark.map((color) => (
                         <button
                           key={`vivid-${color}`}
                           type="button"
@@ -872,7 +873,7 @@ export function EditorToolbar({
                     </div>
                     {/* Additional colors: pink, gray, cyan */}
                     <div className="grid grid-cols-6 gap-1 pt-1 border-t border-gray-200 dark:border-gray-700">
-                      {["#fce7f3", "#fbcfe8", "#f9a8d4", "#f472b6", "#e5e5e5", "#d4d4d4"].map((color) => (
+                      {RICH_TEXT_COLORS.highlightPalettes.pink.map((color) => (
                         <button
                           key={`extra-${color}`}
                           type="button"
@@ -892,7 +893,7 @@ export function EditorToolbar({
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         getTargetEditor()?.chain().focus().unsetHighlight().run();
-                        setSelectedHighlightColor("#fef08a");
+                        setSelectedHighlightColor(RICH_TEXT_COLORS.defaults.highlightColor);
                       }}
                       className="w-full mt-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded flex items-center gap-1"
                     >
@@ -1158,13 +1159,7 @@ export function EditorToolbar({
 
             {/* Pens group - preset pen styles */}
             <RibbonGroup label="Pens">
-              {[
-                { color: "#000000", size: 2 },
-                { color: "#ef4444", size: 2 },
-                { color: "#3b82f6", size: 2 },
-                { color: "#22c55e", size: 4 },
-                { color: "#eab308", size: 8, opacity: 0.4 },
-              ].map((pen, i) => (
+              {RICH_TEXT_COLORS.drawingTools.map((pen, i) => (
                 <button
                   key={i}
                   type="button"
@@ -1205,7 +1200,7 @@ export function EditorToolbar({
                   >
                     <div
                       className="w-4 h-4 rounded-sm border"
-                      style={{ backgroundColor: drawColor || "#000000" }}
+                      style={{ backgroundColor: drawColor || RICH_TEXT_COLORS.defaults.textColor }}
                     />
                   </button>
                 </PopoverTrigger>

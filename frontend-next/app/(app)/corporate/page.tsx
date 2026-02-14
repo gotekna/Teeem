@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import {
   Table,

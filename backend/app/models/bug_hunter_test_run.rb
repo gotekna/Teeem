@@ -1,7 +1,10 @@
 class BugHunterTestRun < ApplicationRecord
+  # Constants
+  STATUSES = %w[pass fail error].freeze
+
   # Validations
   validates :test_id, presence: true
-  validates :status, presence: true, inclusion: { in: %w[pass fail error] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   # Scopes
   scope :recent, -> { order(created_at: :desc).limit(100) }

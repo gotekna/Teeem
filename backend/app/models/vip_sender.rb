@@ -7,11 +7,14 @@
 class VipSender < ApplicationRecord
   belongs_to :user
 
+  # Constants
+  CATEGORIES = %w[work personal client vendor team other].freeze
+
   # Validations
   validates :email_address, presence: true
   validates :email_address, uniqueness: { scope: :user_id, case_sensitive: false }
   validates :email_address, format: { with: URI::MailTo::EMAIL_REGEXP, message: "must be a valid email" }
-  validates :category, inclusion: { in: %w[work personal client vendor team other] }, allow_blank: true
+  validates :category, inclusion: { in: CATEGORIES, allow_blank: true }
 
   # Callbacks
   before_save :normalize_email

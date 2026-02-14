@@ -18,6 +18,7 @@ import {
 import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { cn } from "@/lib/utils";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
@@ -290,7 +291,7 @@ export default function DocumentTypesPage() {
 
       {/* Table - document_types Foundation (SSoT: autoFetchRecords) */}
       <TeeemTableView
-        foundationId="document_types"
+        foundationId={FOUNDATION_SLUGS.DOCUMENT_TYPES}
         autoFetchRecords={true}
         refreshTrigger={refreshKey}
         tableName="Document Types"

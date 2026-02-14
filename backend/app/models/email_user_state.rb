@@ -15,9 +15,13 @@ class EmailUserState < ApplicationRecord
   alias_method :synced_email, :email_warehouse
   alias_method :synced_email=, :email_warehouse=
 
+  # Constants (for validation)
+  STAR_COLOR_VALUES = %w[red orange yellow green blue purple].freeze
+  PRIORITY_VALUES = %w[high normal low].freeze
+
   # Validations
-  validates :star_color, inclusion: { in: %w[red orange yellow green blue purple] }, allow_blank: true
-  validates :priority, inclusion: { in: %w[high normal low] }, allow_blank: true
+  validates :star_color, inclusion: { in: STAR_COLOR_VALUES }, allow_blank: true
+  validates :priority, inclusion: { in: PRIORITY_VALUES }, allow_blank: true
 
   # Callbacks - Real-time sync via ActionCable
   after_update_commit :broadcast_state_change

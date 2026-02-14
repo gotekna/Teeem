@@ -162,16 +162,22 @@ class Corporate < ApplicationRecord
     nil
   end
 
+  # Constants
+  STATUSES = %w[active struck_off in_liquidation dormant].freeze
+  GST_REGISTRATION_STATUSES = %w[registered not_registered].freeze
+  ACCOUNTING_METHODS = %w[cash accrual].freeze
+  BAS_FREQUENCIES = %w[quarterly monthly].freeze
+
   # Validations
   validates :name, presence: true
   validates :acn, uniqueness: { allow_blank: true }, format: { with: /\A\d{9}\z/, message: "must be 9 digits", allow_blank: true }
   validates :abn, uniqueness: { allow_blank: true }, format: { with: /\A\d{11}\z/, message: "must be 11 digits", allow_blank: true }
-  validates :status, inclusion: { in: %w[active struck_off in_liquidation dormant] }
+  validates :status, inclusion: { in: STATUSES }
   # Legacy company_group validation - now using company_group_id relation
   # validates :company_group, inclusion: { in: %w[tekna team_harder promise charity other] }, allow_blank: true
-  validates :gst_registration_status, inclusion: { in: %w[registered not_registered] }, allow_blank: true
-  validates :accounting_method, inclusion: { in: %w[cash accrual] }, allow_blank: true
-  validates :bas_frequency, inclusion: { in: %w[quarterly monthly] }, allow_blank: true
+  validates :gst_registration_status, inclusion: { in: GST_REGISTRATION_STATUSES, allow_blank: true }
+  validates :accounting_method, inclusion: { in: ACCOUNTING_METHODS, allow_blank: true }
+  validates :bas_frequency, inclusion: { in: BAS_FREQUENCIES, allow_blank: true }
   validates :code, uniqueness: true, allow_blank: true, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
   validates :slug, uniqueness: true, allow_blank: true
 

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { Corporate } from "@/lib/types/corporate";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -176,7 +177,7 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
       <TeeemTableView
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-        foundationId="bank_accounts"
+        foundationId={FOUNDATION_SLUGS.BANK_ACCOUNTS}
         tableName="Bank Accounts"
         enableExport={true}
         enableImport={false}

@@ -13,7 +13,7 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
+import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS, COLORS } from '@/lib/constants/color-constants';
 import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
 import { copyToClipboard } from '@/utils/formatters';
@@ -11031,9 +11031,9 @@ export class GanttCanvas {
     ctx.font = '13px system-ui';
     shortcuts.forEach((shortcut, i) => {
       const rowY = y + 55 + i * 25;
-      ctx.fillStyle = this.config.darkMode ? '#a0a0a0' : '#666';
+      ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[400] : TAILWIND_COLORS.gray[500];
       ctx.fillText(shortcut.key, x + 20, rowY);
-      ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+      ctx.fillStyle = this.config.darkMode ? COLORS.white : COLORS.black;
       ctx.fillText(shortcut.description, x + 150, rowY);
     });
   }

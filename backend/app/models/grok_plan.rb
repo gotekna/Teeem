@@ -1,9 +1,12 @@
 class GrokPlan < ApplicationRecord
   belongs_to :user
 
+  # Constants
   # Statuses: planning, in_progress, completed, archived
+  STATUSES = %w[planning in_progress completed archived].freeze
+
   validates :title, presence: true
-  validates :status, inclusion: { in: %w[planning in_progress completed archived] }
+  validates :status, inclusion: { in: STATUSES }
 
   # Scopes for easy querying
   scope :active, -> { where(status: [ "planning", "in_progress" ]) }

@@ -2,6 +2,9 @@ class ChatMessage < ApplicationRecord
   include StorageUploadable
   acts_as_tenant :tenant
 
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/Chat".freeze
+
   # Cross-tenant chat: unscope user lookups so messages from Teeem support
   # (different tenant) still load the sender/recipient correctly
   belongs_to :user, -> { unscope(where: :tenant_id) }, optional: true
@@ -20,8 +23,11 @@ class ChatMessage < ApplicationRecord
   # Chat messages with files appear under Warehousing/Chat folder in File Warehouse
   has_one :warehouse_document, as: :documentable, dependent: :destroy
 
+  # Constants
+  MESSAGE_TYPES = %w[text image file].freeze
+
   validates :content, presence: true
-  validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
+  validates :message_type, inclusion: { in: MESSAGE_TYPES }, allow_nil: true
 
   # Ensure tenant_id is set from user before validation
   before_validation :set_tenant_from_user, on: :create
@@ -101,11 +107,11 @@ class ChatMessage < ApplicationRecord
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehouse/Chat/Unknown" unless tenant
+    return FALLBACK_FOLDER_PATH unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:chat)
-    return "Warehouse/Chat/Unknown" unless template
+    return FALLBACK_FOLDER_PATH unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)

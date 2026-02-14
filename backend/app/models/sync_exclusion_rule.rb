@@ -19,10 +19,14 @@ class SyncExclusionRule < ApplicationRecord
   belongs_to :tenant, optional: true
   belongs_to :user, optional: true
 
+  # Constants
+  RULE_TYPES = %w[extension size pattern category folder_scope].freeze
+  ACTIONS = %w[skip include].freeze
+
   # Validations
-  validates :rule_type, presence: true, inclusion: { in: %w[extension size pattern category folder_scope] }
+  validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }
   validates :value, presence: true
-  validates :action, presence: true, inclusion: { in: %w[skip include] }
+  validates :action, presence: true, inclusion: { in: ACTIONS }
   validate :must_have_scope
 
   # Scopes

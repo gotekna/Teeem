@@ -73,6 +73,16 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # ========================================
+  # Performance: Exclude heavy columns from Foundation API list views
+  # metadata is JSONB (TOAST-compressed) - skipping it avoids decompression
+  # and significantly reduces payload for 24K+ record tables.
+  # Detail views (show action) still return all columns.
+  # ========================================
+  def self.list_view_excluded_columns
+    %w[metadata]
+  end
+
+  # ========================================
   # Associations
   # ========================================
 

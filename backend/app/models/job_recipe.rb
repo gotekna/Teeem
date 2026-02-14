@@ -4,11 +4,14 @@ class JobRecipe < ApplicationRecord
   belongs_to :recipe
   belongs_to :applied_by, class_name: "User", optional: true
 
+  # Constants
+  STATUSES = %w[applied po_generated archived].freeze
+
   # Validations
   validates :job_id, presence: true
   validates :recipe_id, presence: true, uniqueness: { scope: :job_id, message: "has already been applied to this job" }
   validates :quantity_multiplier, numericality: { greater_than: 0 }, allow_nil: true
-  validates :status, inclusion: { in: %w[applied po_generated archived] }
+  validates :status, inclusion: { in: STATUSES }
 
   # Scopes
   scope :active, -> { where.not(status: 'archived') }

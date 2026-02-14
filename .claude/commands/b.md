@@ -196,48 +196,32 @@ git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 git remote add staging https://git.heroku.com/teeem-staging.git
 
-echo "📦 Building slug on Staging + deploying workers in PARALLEL..."
+# 1. Push to Staging (builds slug, runs release phase with migrations)
+echo "📦 Building slug on Staging..."
+git push staging HEAD:main --force
+if [ $? -ne 0 ]; then
+  cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+  echo "❌ Staging deploy failed - aborting pipeline"
+  exit 1
+fi
+echo "✅ Staging deployed"
 
-# Add all remotes upfront
-git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
-
-# Push staging (main slug build) and workers in parallel
-git push staging HEAD:main --force &
-PID_STAGING=$!
-
-git push staging-worker HEAD:main --force &
-PID_SW=$!
-
-git push beta-worker HEAD:main --force 2>/dev/null &
-PID_BW=$!
-
-# Wait for staging first (it's the gate)
-wait $PID_STAGING
-STAGING_EXIT=$?
-
-# Wait for workers (non-blocking, report failures)
-wait $PID_SW 2>/dev/null || echo "⚠️ Staging worker push failed"
-wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
+# 2. Push to shared worker (same code, separate dyno)
+git remote add worker https://git.heroku.com/teeem-shared-worker.git
+echo "📦 Deploying shared worker..."
+git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+echo "✅ Shared worker deployed"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-if [ $STAGING_EXIT -ne 0 ]; then
-  echo "❌ Staging deploy failed - aborting pipeline"
-  exit 1
-fi
-echo "✅ Staging backend deployed (slug built)"
-
-# Promote compiled slug to Beta (no rebuild - instant copy)
+# 3. Promote compiled slug to Beta (no rebuild - instant copy)
 echo "📦 Promoting Staging → Beta..."
 heroku pipelines:promote --app teeem-staging --to teeem-beta
-BETA_EXIT=$?
-
-if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend promoted"
+if [ $? -eq 0 ]; then
+  echo "✅ Beta promoted"
 else
-  echo "❌ Beta promotion failed (exit: $BETA_EXIT)"
+  echo "❌ Beta promotion failed"
 fi
 
 echo "✅ All backend deploys complete"

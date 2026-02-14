@@ -18,10 +18,13 @@ class DesktopClient < ApplicationRecord
   # TODO: Enable encryption when AR encryption is configured
   # encrypts :refresh_token
 
+  # Constants
+  PLATFORMS = %w[macos windows].freeze
+
   # Validations
   validates :device_id, presence: true, uniqueness: { scope: :user_id }
   validates :device_name, presence: true
-  validates :platform, inclusion: { in: %w[macos windows], allow_nil: true }
+  validates :platform, inclusion: { in: PLATFORMS, allow_nil: true }
 
   # Scopes
   scope :active, -> { where(is_active: true) }

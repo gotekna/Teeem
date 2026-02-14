@@ -10,9 +10,12 @@ class CorporateDirector < ApplicationRecord
   alias_method :company, :corporate  # Alias for convenience
   belongs_to :contact
 
-  # Validations
+  # Constants
   # Positions: director, secretary, public_officer, corporate_officer, chairman, and combinations
-  validates :position, inclusion: { in: %w[director secretary public_officer corporate_officer director_secretary director_public_officer director_corporate_officer secretary_public_officer secretary_corporate_officer director_secretary_public_officer director_secretary_corporate_officer chairman] }, allow_blank: true
+  POSITIONS = %w[director secretary public_officer corporate_officer director_secretary director_public_officer director_corporate_officer secretary_public_officer secretary_corporate_officer director_secretary_public_officer director_secretary_corporate_officer chairman].freeze
+
+  # Validations
+  validates :position, inclusion: { in: POSITIONS, allow_blank: true }
   validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
                                        message: "is already a current director/officer of this company" }
   validate :resignation_date_after_appointment

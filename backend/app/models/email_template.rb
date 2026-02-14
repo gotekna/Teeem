@@ -11,10 +11,13 @@ class EmailTemplate < ApplicationRecord
 
   belongs_to :user
 
+  # Constants (for validation)
+  CATEGORY_VALUES = %w[quick_reply formal follow_up meeting quote invoice other].freeze
+
   # Validations
   validates :name, presence: true
   validates :name, uniqueness: { scope: [:tenant_id, :user_id], case_sensitive: false }
-  validates :category, inclusion: { in: %w[quick_reply formal follow_up meeting quote invoice other] }, allow_blank: true
+  validates :category, inclusion: { in: CATEGORY_VALUES, allow_blank: true }
 
   # Scopes
   scope :ordered, -> { order(position: :asc, name: :asc) }

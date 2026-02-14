@@ -6,6 +6,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { TableRow } from "@/components/table/types";
 import { API } from "@/lib/constants/api-endpoints";
@@ -103,7 +104,7 @@ export default function UsersSettingsPage() {
     <TablePage>
       <TeeemTableView
         key={refreshKey}
-        foundationId="user-management"
+        foundationId={FOUNDATION_SLUGS.USER_MANAGEMENT}
         autoFetchRecords
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}

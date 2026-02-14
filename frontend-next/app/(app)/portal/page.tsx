@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useFoundationBySlug } from "@/hooks/useFoundationBySlug";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import {
   Plus,
   CheckCircle,
@@ -23,8 +24,6 @@ import {
   CloudOff,
 } from "lucide-react";
 import { OfflineSyncManager } from "@/components/offline";
-
-// Foundation ID for Portal Users table
 
 export default function PortalPage() {
   const pathname = usePathname();
@@ -44,7 +43,7 @@ export default function PortalPage() {
 
   // Fetch records for leaderboard calculations only
   // TeeemTableView uses autoFetchRecords for the table
-  const { records, isLoading: leaderboardLoading } = useFoundationBySlug("portal_users");
+  const { records, isLoading: leaderboardLoading } = useFoundationBySlug(FOUNDATION_SLUGS.PORTAL_USERS);
 
   const topPerformers = useMemo(() =>
     [...records]
@@ -86,7 +85,7 @@ export default function PortalPage() {
 
         <TabsContent value="users" className="flex-1 min-h-0 mt-4">
           <TeeemTableView
-            foundationId="portal_users"
+            foundationId={FOUNDATION_SLUGS.PORTAL_USERS}
             autoFetchRecords={true}
             tableName="Portal Users"
             enableExport={true}

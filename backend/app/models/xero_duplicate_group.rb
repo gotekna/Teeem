@@ -9,11 +9,15 @@ class XeroDuplicateGroup < ApplicationRecord
   has_many :contacts, through: :xero_duplicate_items
   belongs_to :merge_target, class_name: "Contact", optional: true
 
+  # Constants
+  MATCH_TYPES = %w[abn display_name ato_asic].freeze
+  STATUSES = %w[pending approved rejected merged].freeze
+
   # Validations
   validates :group_key, presence: true, uniqueness: true
-  validates :match_type, presence: true, inclusion: { in: %w[abn display_name ato_asic] }
+  validates :match_type, presence: true, inclusion: { in: MATCH_TYPES }
   validates :confidence_score, presence: true, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
-  validates :status, presence: true, inclusion: { in: %w[pending approved rejected merged] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   # Scopes
   scope :pending, -> { where(status: "pending") }

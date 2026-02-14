@@ -17,11 +17,14 @@ class EmailDraft < ApplicationRecord
   belongs_to :imap_credential, optional: true
   belongs_to :microsoft_credential, optional: true
 
+  # Constants
+  STATUSES = %w[draft sending sent].freeze
+
   # Drafts can have empty fields - only validate when sending
   validates :to_addresses, presence: true, unless: :draft?
   validates :subject, presence: true, unless: :draft?
   validates :body, presence: true, unless: :draft?
-  validates :status, presence: true, inclusion: { in: %w[draft sending sent] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   def draft?
     status == "draft"

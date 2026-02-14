@@ -7,9 +7,12 @@ class AssetServiceHistory < ApplicationRecord
   belongs_to :invoice_blob, class_name: "StorageBlob", optional: true
   belongs_to :document_blob, class_name: "StorageBlob", optional: true
 
+  # Constants
+  SERVICE_TYPES = %w[regular_service repair inspection registration warranty_work other].freeze
+
   # Validations
   validates :service_date, presence: true
-  validates :service_type, inclusion: { in: %w[regular_service repair inspection registration warranty_work other] }, allow_blank: true
+  validates :service_type, inclusion: { in: SERVICE_TYPES, allow_blank: true }
   validates :cost, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Scopes

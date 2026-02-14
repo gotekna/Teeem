@@ -1,4 +1,7 @@
 class SmTaskAttachment < ApplicationRecord
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/Tasks".freeze
+
   # Associations
   belongs_to :sm_task
   belongs_to :attachable, polymorphic: true
@@ -272,14 +275,14 @@ class SmTaskAttachment < ApplicationRecord
   # TenantNotFoundError. Always get tenant from sm_task association.
   def compute_task_folder_path
     task = sm_task
-    return "Tasks/Unknown" unless task
+    return FALLBACK_FOLDER_PATH unless task
 
     # FRC: Use for_tenant with explicit tenant from task, not instance
     # (model callbacks don't have ActsAsTenant.current_tenant set)
     config = WarehouseProvider.for_tenant(task.tenant) rescue nil
     unless config
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No WarehouseProvider found for tenant #{task.tenant_id}")
-      return "Tasks/Unknown"
+      return FALLBACK_FOLDER_PATH
     end
 
     # SSoT: task_attachments/task_responses inherit from task parent (WAREHOUSE_TYPE_PARENTS)
@@ -302,7 +305,7 @@ class SmTaskAttachment < ApplicationRecord
 
     if folder.blank?
       Rails.logger.warn("[SmTaskAttachment] ##{id}: resolve_virtual_path returned blank for #{folder_type}")
-      return "Tasks/Unknown"
+      return FALLBACK_FOLDER_PATH
     end
 
     folder

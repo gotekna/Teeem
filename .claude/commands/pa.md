@@ -19,7 +19,7 @@ Commits ALL pending changes and deploys through the entire pipeline: staging →
            Backend    Backend    Backend
            (Heroku)   (Heroku)   (Heroku)
                          └────┬────┘
-                         PARALLEL!
+                      PIPELINE PROMOTE
 ```
 
 ## Optimizations (Feb 2026)
@@ -27,7 +27,7 @@ Commits ALL pending changes and deploys through the entire pipeline: staging →
 | Optimization | Savings |
 |--------------|---------|
 | Pipeline promotion (build once on staging, promote slug to beta+prod) | ~4-5 min |
-| Parallel worker deploys (all 3 workers push simultaneously) | ~6-8 min |
+| Sequential deploy (staging → worker → promote, no fragile background jobs) | reliable |
 | Overlap branch merges with Heroku deploy (concurrent) | ~1-2 min |
 | Conditional post-deploy (curl health check vs full dyno boot) | ~30-60s |
 | Standalone Next.js output (smaller Vercel uploads) | ~1-3 min |
@@ -143,11 +143,7 @@ echo "📦 Starting backend deploy with pipeline promotion..."
 
 cd /Users/robertharder/GitHub/teeem
 
-# Ensure files are flushed to disk
-sync
-sleep 1
-
-# Build ONE temp dir - reused for ALL Heroku pushes (staging + workers)
+# Build temp dir with backend/ only (monorepo → Heroku-compatible layout)
 DEPLOY_DIR=$(mktemp -d)
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
@@ -155,64 +151,43 @@ cd "$DEPLOY_DIR"
 git init
 git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+
+# 1. Push to Staging (builds slug, runs release phase with migrations)
 git remote add staging https://git.heroku.com/teeem-staging.git
-git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
-git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null
+echo "📦 Building slug on Staging..."
+git push staging HEAD:main --force
+if [ $? -ne 0 ]; then
+  cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+  echo "❌ Staging deploy failed - aborting pipeline"
+  exit 1
+fi
+echo "✅ Staging deployed"
 
-echo "📦 Building slug on Staging + deploying workers in PARALLEL..."
-
-# Push staging (main slug build) and ALL workers in parallel
-git push staging HEAD:main --force &
-PID_STAGING=$!
-
-git push staging-worker HEAD:main --force &
-PID_SW=$!
-
-git push beta-worker HEAD:main --force 2>/dev/null &
-PID_BW=$!
-
-git push prod-worker HEAD:main --force 2>/dev/null &
-PID_PW=$!
-
-# Wait for staging first (it's the gate)
-wait $PID_STAGING
-STAGING_EXIT=$?
-
-# Wait for workers (non-blocking, report failures)
-wait $PID_SW 2>/dev/null || echo "⚠️ Staging worker push failed"
-wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
-wait $PID_PW 2>/dev/null || echo "⚠️ Production worker not available"
+# 2. Push to shared worker (same code, separate dyno)
+git remote add worker https://git.heroku.com/teeem-shared-worker.git
+echo "📦 Deploying shared worker..."
+git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+echo "✅ Shared worker deployed"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-if [ $STAGING_EXIT -ne 0 ]; then
-  echo "❌ Staging deploy failed - aborting pipeline"
-  exit 1
-fi
-echo "✅ Staging backend + all workers deployed"
-
-# Promote compiled slug to Beta (no rebuild - instant copy)
+# 3. Promote compiled slug to Beta (no rebuild - instant copy)
 echo "📦 Promoting Staging → Beta..."
 heroku pipelines:promote --app teeem-staging --to teeem-beta
-BETA_EXIT=$?
-
-if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend promoted"
+if [ $? -eq 0 ]; then
+  echo "✅ Beta promoted"
 else
-  echo "❌ Beta promotion failed (exit: $BETA_EXIT)"
+  echo "❌ Beta promotion failed"
 fi
 
-# Promote compiled slug to Production (no rebuild - instant copy)
+# 4. Promote compiled slug to Production (no rebuild - instant copy)
 echo "📦 Promoting Staging → Production..."
 heroku pipelines:promote --app teeem-staging --to teeem-production
-PROD_EXIT=$?
-
-if [ $PROD_EXIT -eq 0 ]; then
-  echo "✅ Production backend promoted"
+if [ $? -eq 0 ]; then
+  echo "✅ Production promoted"
 else
-  echo "❌ Production promotion failed (exit: $PROD_EXIT)"
+  echo "❌ Production promotion failed"
 fi
 
 echo "✅ All backend deploys complete"

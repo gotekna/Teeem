@@ -46,14 +46,16 @@ class CaseRecord < ApplicationRecord
   # VALIDATIONS
   # ============================================
 
+  # Constants
+  STATUSES = %w[open in_progress review closed archived].freeze
+  PRIORITIES = %w[low normal high urgent].freeze
+  CASE_TYPES = %w[ato_audit legal_dispute director_investigation compliance_review due_diligence fraud_investigation insolvency bankruptcy other].freeze
+
   validates :title, presence: true
   validates :case_number, presence: true, uniqueness: true
-  validates :status, inclusion: { in: %w[open in_progress review closed archived] }
-  validates :priority, inclusion: { in: %w[low normal high urgent] }
-  validates :case_type, inclusion: {
-    in: %w[ato_audit legal_dispute director_investigation compliance_review due_diligence fraud_investigation insolvency bankruptcy other],
-    allow_blank: true
-  }
+  validates :status, inclusion: { in: STATUSES }
+  validates :priority, inclusion: { in: PRIORITIES }
+  validates :case_type, inclusion: { in: CASE_TYPES, allow_blank: true }
   validates :risk_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # ============================================

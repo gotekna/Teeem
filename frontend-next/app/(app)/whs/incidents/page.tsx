@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,7 @@ export default function WHSIncidentsPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="whs_incidents"
+        foundationId={FOUNDATION_SLUGS.WHS_INCIDENTS}
         autoFetchRecords
         tableName="Incident Reports"
         enableExport

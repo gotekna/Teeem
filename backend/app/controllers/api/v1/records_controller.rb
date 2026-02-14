@@ -20,14 +20,25 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Performance: Exclude heavy columns (e.g., JSONB metadata) from list queries.
+        # Models opt in via list_view_excluded_columns. Detail views (show) still return all columns.
+        # TOAST-compressed columns are skipped at the PostgreSQL level, avoiding decompression overhead.
+        if model.respond_to?(:list_view_excluded_columns) && model.list_view_excluded_columns.any?
+          columns_to_select = model.column_names - model.list_view_excluded_columns
+          query = query.select(columns_to_select.map { |c| "#{model.table_name}.#{c}" })
+        end
+
         # SSoT: Auto-eager-load ALL associations for ANY table to prevent N+1 queries
         # This works for both system tables and user-created tables
         query = apply_eager_loading(query, model)
 
-        # CRITICAL: Add distinct to prevent duplicates caused by JOINs from eager loading
+        # Add distinct to prevent duplicates caused by JOINs from eager loading
         # When a record has multiple associations (e.g., Contact with multiple external_links),
-        # includes() creates LEFT OUTER JOINs that produce duplicate rows
-        query = query.distinct
+        # includes() creates LEFT OUTER JOINs that produce duplicate rows.
+        # Skip DISTINCT for models using safe_eager_load_associations (belongs_to only = no duplicates)
+        unless model.respond_to?(:safe_eager_load_associations)
+          query = query.distinct
+        end
 
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?("deleted")
@@ -515,12 +526,9 @@ module Api
         # Get count before pagination (skip if using cursor pagination for performance)
         total_count = params[:cursor].present? ? nil : query.count
 
-        # NOTE: We removed the fields=minimal SELECT hack here.
-        # It was breaking features (cascading filters, column selection, associations).
-        # Performance is achieved through:
-        # 1. Eager loading associations (apply_eager_loading - auto-derived from model)
-        # 2. Proper pagination (offset OR cursor-based)
-        # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
+        # Performance: Heavy columns (e.g., JSONB metadata) are excluded at query level
+        # via model.list_view_excluded_columns (applied above). This is model-opt-in,
+        # not a generic fields=minimal hack. Detail views (show) still return all columns.
 
         # Paginate: Use cursor-based for infinite scroll, offset for traditional pagination
         if params[:cursor].present? || params[:limit].present?

@@ -14,10 +14,11 @@ class BasiqCredential < ApplicationRecord
 
   # Allowed polymorphic types for owner (security: prevents arbitrary type injection)
   ALLOWED_OWNER_TYPES = %w[Organization].freeze
+  STATUSES = %w[pending connected error disconnected].freeze
 
   # Validations
   validates :basiq_user_id, presence: true, uniqueness: true
-  validates :status, presence: true, inclusion: { in: %w[pending connected error disconnected] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :owner_type, inclusion: { in: ALLOWED_OWNER_TYPES }
 
   # Scopes

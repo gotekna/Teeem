@@ -34,10 +34,14 @@ class Asset < ApplicationRecord
     "other" => "OTH"
   }.freeze
 
+  # Constants
+  ASSET_TYPES = %w[vehicle equipment property other].freeze
+  STATUSES = %w[active disposed under_repair].freeze
+
   # Validations
   validates :name, presence: true
-  validates :asset_type, inclusion: { in: %w[vehicle equipment property other] }
-  validates :status, inclusion: { in: %w[active disposed under_repair] }
+  validates :asset_type, inclusion: { in: ASSET_TYPES }
+  validates :status, inclusion: { in: STATUSES }
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }

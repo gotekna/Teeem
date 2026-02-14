@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import type { TableRow } from "@/components/table/types";
@@ -31,7 +32,7 @@ export default function QuoteRequestsPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="quote_requests"
+        foundationId={FOUNDATION_SLUGS.QUOTE_REQUESTS}
         autoFetchRecords
         tableName="Quote Requests"
         enableExport

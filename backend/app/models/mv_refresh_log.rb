@@ -1,10 +1,13 @@
 # Tracks materialized view refresh history
 # Used for monitoring, debugging, and data quality tracking
 class MvRefreshLog < ApplicationRecord
+  # Constants
+  STATUSES = %w[in_progress success failed].freeze
+
   # Validations
   validates :view_name, presence: true
   validates :started_at, presence: true
-  validates :status, presence: true, inclusion: { in: %w[in_progress success failed] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   # Scopes
   scope :for_view, ->(name) { where(view_name: name) }

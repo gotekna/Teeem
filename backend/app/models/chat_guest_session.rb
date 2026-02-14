@@ -14,8 +14,11 @@ class ChatGuestSession < ApplicationRecord
   belongs_to :job, optional: true
   has_many :chat_messages, dependent: :nullify
 
+  # Constants
+  STATUSES = %w[pending active expired closed].freeze
+
   validates :token, presence: true, uniqueness: true
-  validates :status, inclusion: { in: %w[pending active expired closed] }
+  validates :status, inclusion: { in: STATUSES }
 
   before_validation :generate_token, on: :create
 

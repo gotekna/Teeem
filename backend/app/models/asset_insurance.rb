@@ -2,9 +2,12 @@ class AssetInsurance < ApplicationRecord
   # Associations
   belongs_to :asset
 
+  # Constants
+  STATUSES = %w[active expired cancelled].freeze
+
   # Validations
   validates :renewal_date, presence: true
-  validates :status, inclusion: { in: %w[active expired cancelled] }
+  validates :status, inclusion: { in: STATUSES }
   validates :premium_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :coverage_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 

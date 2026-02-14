@@ -3,11 +3,15 @@ class Dividend < ApplicationRecord
   belongs_to :corporate, foreign_key: "company_id"
   has_many :dividend_payments, dependent: :destroy
 
+  # Constants
+  STATUSES = %w[declared paid cancelled].freeze
+  DIVIDEND_TYPES = %w[interim final special].freeze
+
   # Validations
   validates :declaration_date, presence: true
   validates :total_amount, presence: true, numericality: { greater_than: 0 }
-  validates :status, inclusion: { in: %w[declared paid cancelled] }
-  validates :dividend_type, inclusion: { in: %w[interim final special], allow_blank: true }
+  validates :status, inclusion: { in: STATUSES }
+  validates :dividend_type, inclusion: { in: DIVIDEND_TYPES, allow_blank: true }
   validates :franking_percentage, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # Scopes

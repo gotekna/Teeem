@@ -27,7 +27,11 @@ class CaseAction < ApplicationRecord
       full_analysis
     ]
   }
-  validates :status, inclusion: { in: %w[pending running completed failed] }
+
+  # Constants
+  STATUSES = %w[pending running completed failed].freeze
+
+  validates :status, inclusion: { in: STATUSES }
 
   # ============================================
   # CALLBACKS

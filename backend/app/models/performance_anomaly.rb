@@ -21,14 +21,19 @@ class PerformanceAnomaly < ApplicationRecord
   # Associations
   belongs_to :acknowledged_by, class_name: "User", optional: true
 
+  # Constants
+  ANOMALY_TYPES = %w[latency_spike error_spike slow_query_surge vital_degradation].freeze
+  SEVERITIES = %w[info warning critical].freeze
+  STATUSES = %w[open acknowledged resolved false_positive].freeze
+
   # Validations
   validates :anomaly_type, presence: true,
-    inclusion: { in: %w[latency_spike error_spike slow_query_surge vital_degradation] }
+    inclusion: { in: ANOMALY_TYPES }
   validates :severity, presence: true,
-    inclusion: { in: %w[info warning critical] }
+    inclusion: { in: SEVERITIES }
   validates :observed_value, presence: true
   validates :detected_at, presence: true
-  validates :status, inclusion: { in: %w[open acknowledged resolved false_positive] }
+  validates :status, inclusion: { in: STATUSES }
 
   # Scopes
   scope :open, -> { where(status: "open") }

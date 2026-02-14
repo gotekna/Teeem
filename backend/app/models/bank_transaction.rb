@@ -10,12 +10,16 @@ class BankTransaction < ApplicationRecord
   belongs_to :corporate, foreign_key: "company_id"
   belongs_to :bank_account, optional: true
 
+  # Constants
+  TRANSACTION_TYPES = %w[SPEND RECEIVE TRANSFER].freeze
+  STATUSES = %w[AUTHORISED DELETED VOIDED].freeze
+
   # Validations
   validates :xero_transaction_id, presence: true, uniqueness: true
   validates :transaction_date, presence: true
   validates :amount, presence: true
-  validates :transaction_type, inclusion: { in: %w[SPEND RECEIVE TRANSFER], allow_blank: true }
-  validates :status, inclusion: { in: %w[AUTHORISED DELETED VOIDED], allow_blank: true }
+  validates :transaction_type, inclusion: { in: TRANSACTION_TYPES, allow_blank: true }
+  validates :status, inclusion: { in: STATUSES, allow_blank: true }
 
   # Scopes
   scope :authorized, -> { where(status: "AUTHORISED") }

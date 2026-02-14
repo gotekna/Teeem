@@ -16,12 +16,16 @@ class ReferralCommission < ApplicationRecord
   belongs_to :customer_contact, class_name: "Contact"  # The paying customer
   belongs_to :saas_billing_record
 
+  # Constants
+  COMMISSION_LEVELS = %w[l1 l2].freeze
+  STATUSES = %w[pending eligible paid forfeited].freeze
+
   # Validations
-  validates :commission_level, presence: true, inclusion: { in: %w[l1 l2] }
+  validates :commission_level, presence: true, inclusion: { in: COMMISSION_LEVELS }
   validates :customer_fee, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :commission_rate, presence: true, numericality: { greater_than: 0, less_than_or_equal_to: 1 }
   validates :commission_amount, presence: true, numericality: { greater_than_or_equal_to: 0 }
-  validates :status, presence: true, inclusion: { in: %w[pending eligible paid forfeited] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   # Scopes
   scope :pending, -> { where(status: "pending") }

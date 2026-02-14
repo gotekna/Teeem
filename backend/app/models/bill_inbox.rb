@@ -4,6 +4,9 @@ class BillInbox < ApplicationRecord
   include StorageUploadable
   include MimeTypes
 
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/BillInbox".freeze
+
   # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
   # FRC: BillInbox was leaking data across tenants - users could see other tenants' bills
   # Root cause: Legacy indirect relationship (bill → corporate_company → corporate_group → tenant)
@@ -154,11 +157,11 @@ class BillInbox < ApplicationRecord
   # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
   # Configure at: /settings/company/warehouse-config → Warehouse Folders
   def virtual_folder_path
-    return "Warehouse/BillInbox/Unknown" unless tenant_id
+    return FALLBACK_FOLDER_PATH unless tenant_id
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:bill_inbox)
-    return "Warehouse/BillInbox/Unknown" unless template
+    return FALLBACK_FOLDER_PATH unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)

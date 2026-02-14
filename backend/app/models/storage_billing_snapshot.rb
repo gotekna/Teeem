@@ -6,7 +6,10 @@
 # Neither Wasabi nor Backblaze has a billing history API, so we track it ourselves.
 #
 class StorageBillingSnapshot < ApplicationRecord
-  validates :provider, presence: true, inclusion: { in: %w[wasabi backblaze] }
+  # Constants
+  PROVIDERS = %w[wasabi backblaze].freeze
+
+  validates :provider, presence: true, inclusion: { in: PROVIDERS }
   validates :period, presence: true, format: { with: /\A\d{4}-\d{2}\z/ }
   validates :provider, uniqueness: { scope: :period }
 

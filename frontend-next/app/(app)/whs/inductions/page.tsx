@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { Plus, Mail } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 
@@ -24,7 +25,7 @@ export default function WHSInductionsPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="whs_inductions"
+        foundationId={FOUNDATION_SLUGS.WHS_INDUCTIONS}
         autoFetchRecords
         tableName="Site Inductions"
         enableExport

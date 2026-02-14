@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
@@ -34,7 +35,7 @@ export default function BillInboxPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="bill-inbox"
+        foundationId={FOUNDATION_SLUGS.BILL_INBOX}
         autoFetchRecords
         tableName="Bill Inbox"
         enableExport

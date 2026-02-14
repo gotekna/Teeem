@@ -164,52 +164,32 @@ if [ $STAGING_EXIT -ne 0 ]; then
 fi
 echo "✅ Staging backend deployed"
 
-# STEP 2: Deploy to Beta AND Production in PARALLEL
-echo "📦 Deploying → Beta + Production (parallel)..."
-git push beta HEAD:main --force &
-BETA_PID=$!
-git push production HEAD:main --force &
-PROD_PID=$!
+# STEP 2: Deploy to Beta
+echo "📦 Deploying → Beta..."
+git push beta HEAD:main --force
+if [ $? -eq 0 ]; then
+  echo "✅ Beta deployed"
+else
+  echo "❌ Beta deploy failed"
+fi
 
-# Wait for both to complete
-wait $BETA_PID
-BETA_EXIT=$?
-wait $PROD_PID
-PROD_EXIT=$?
+# STEP 3: Deploy to Production
+echo "📦 Deploying → Production..."
+git push production HEAD:main --force
+if [ $? -eq 0 ]; then
+  echo "✅ Production deployed"
+else
+  echo "❌ Production deploy failed"
+fi
 
-# STEP 3: Deploy to ALL Worker apps in PARALLEL
-echo "📦 Deploying → Worker apps (parallel)..."
-git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
-git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null
-
-git push staging-worker HEAD:main --force &
-PID_SW=$!
-git push beta-worker HEAD:main --force 2>/dev/null &
-PID_BW=$!
-git push prod-worker HEAD:main --force 2>/dev/null &
-PID_PW=$!
-
-wait $PID_SW 2>/dev/null || echo "⚠️ Staging worker push failed"
-wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
-wait $PID_PW 2>/dev/null || echo "⚠️ Production worker not available"
+# STEP 4: Deploy shared worker
+git remote add worker https://git.heroku.com/teeem-shared-worker.git
+echo "📦 Deploying shared worker..."
+git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
 
 # Cleanup
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
-
-# Report results
-if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend deployed"
-else
-  echo "❌ Beta deploy failed (exit: $BETA_EXIT)"
-fi
-
-if [ $PROD_EXIT -eq 0 ]; then
-  echo "✅ Production backend deployed"
-else
-  echo "❌ Production deploy failed (exit: $PROD_EXIT)"
-fi
 
 echo "✅ All backend deploys complete"
 ```

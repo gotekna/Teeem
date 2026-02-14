@@ -7,12 +7,16 @@ class SmRecurringTaskDefinition < ApplicationRecord
   belongs_to :updated_by, class_name: 'User', optional: true
   has_many :generated_tasks, class_name: 'SmTask', foreign_key: :recurring_task_definition_id, dependent: :nullify
 
+  # Constants
+  FREQUENCY_VALUES = %w[daily weekly fortnightly monthly quarterly annually].freeze
+  ASSIGNMENT_TYPES = %w[user role].freeze
+
   # Validations
   validates :name, presence: true
-  validates :frequency, presence: true, inclusion: { in: %w[daily weekly fortnightly monthly quarterly annually] }
+  validates :frequency, presence: true, inclusion: { in: FREQUENCY_VALUES }
   validates :frequency_interval, numericality: { greater_than: 0 }
   validates :start_date, presence: true
-  validates :assignment_type, inclusion: { in: %w[user role] }
+  validates :assignment_type, inclusion: { in: ASSIGNMENT_TYPES }
   validates :day_of_month, numericality: { greater_than_or_equal_to: -1, less_than_or_equal_to: 28 }, allow_nil: true
   validates :day_of_week, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 6 }, allow_nil: true
   validates :assigned_role, inclusion: { in: ->(_) { Role.active.pluck(:name) } }, allow_blank: true
