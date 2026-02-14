@@ -646,7 +646,7 @@ export default function ClassificationPanel({
             <p className="text-[10px]">Loading...</p>
           </div>
         ) : (
-          <div className={cn("space-y-1.5", !classificationData?.has_classification && "opacity-40")}>
+          <div className={cn("space-y-1.5 flex flex-col flex-1", !classificationData?.has_classification && "opacity-40")}>
             {/* Doc Type */}
             {(() => {
               const ocrType = classificationData?.ocr?.document_type;
@@ -793,25 +793,26 @@ export default function ClassificationPanel({
                 </div>
               </div>
 
-              {/* Re-run OCR */}
-              {onRerunOCR && (
-                <div className="mt-2">
-                  <Button
-                    onClick={onRerunOCR}
-                    disabled={classificationLoading}
-                    variant="outline"
-                    size="sm"
-                    className="h-6 text-[10px] w-full text-amber-600 dark:text-amber-400 border-amber-300 hover:bg-amber-100"
-                  >
-                    {classificationLoading ? (
-                      <><Spinner size={12} className="mr-1" />Re-running</>
-                    ) : (
-                      <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
-                    )}
-                  </Button>
-                </div>
-              )}
             </div>
+
+            {/* Re-run OCR - action button at bottom of column */}
+            {onRerunOCR && (
+              <div className="pt-1.5 border-t mt-auto">
+                <Button
+                  onClick={onRerunOCR}
+                  disabled={classificationLoading}
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-[10px] w-full text-amber-600 dark:text-amber-400 border-amber-300 hover:bg-amber-100"
+                >
+                  {classificationLoading ? (
+                    <><Spinner size={12} className="mr-1" />Re-running</>
+                  ) : (
+                    <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

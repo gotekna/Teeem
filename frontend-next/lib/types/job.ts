@@ -40,6 +40,13 @@ export interface Job {
   name: string;
   title?: string;
   job_code?: string;
+  job_number?: string;
+
+  // Client & Contacts
+  client_name?: string;
+  contacts?: unknown[];
+  employee_names?: string;
+  matched_contact?: unknown;
 
   // Status & Stage
   status?: string;

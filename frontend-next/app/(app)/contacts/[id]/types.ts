@@ -1,7 +1,7 @@
 // Contact Detail Page Types - SSoT for all contact-related interfaces
 
 export interface ContactPerson {
-  id: number;
+  id?: number;
   first_name: string;
   last_name: string;
   email: string | null;
@@ -9,6 +9,7 @@ export interface ContactPerson {
   role: string | null;
   is_primary: boolean;
   include_in_emails: boolean;
+  _destroy?: boolean;
 }
 
 export interface ContactGroup {
