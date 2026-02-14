@@ -34,7 +34,7 @@ class PaymentLink < ApplicationRecord
       invoice: invoice,
       contact: invoice.contact,
       amount: invoice.amount_due,
-      currency: invoice.currency_code || "AUD",
+      currency: invoice.currency_code || TenantSetting::DEFAULT_CURRENCY,
       expires_at: expires_in ? Time.current + expires_in : nil,
       created_by: created_by
     )
@@ -119,6 +119,6 @@ class PaymentLink < ApplicationRecord
 
   def set_defaults
     self.status ||= "active"
-    self.currency ||= "AUD"
+    self.currency ||= TenantSetting::DEFAULT_CURRENCY
   end
 end

@@ -77,6 +77,7 @@ import {
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { formatCurrencyWithFallback, formatDateWithFallback } from "@/utils/formatters";
 
 // Types
 interface PriceHistorySupplier {
@@ -332,23 +333,6 @@ export default function PriceBookItemDetailPage() {
     return item[urlField] as string | null;
   };
 
-  const formatCurrency = (value: number | null | undefined) => {
-    if (value === null || value === undefined) return "-";
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-    }).format(value);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return "Never";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-AU", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
 
   const formatTimeAgo = (days: number | null | undefined) => {
     if (days === null || days === undefined) return "Unknown";
@@ -798,7 +782,7 @@ export default function PriceBookItemDetailPage() {
                     </dt>
                     <dd className="mt-1">
                       <div className="text-2xl font-bold">
-                        {getDisplayPrice() ? formatCurrency(getDisplayPrice()) : "No price set"}
+                        {getDisplayPrice() ? formatCurrencyWithFallback(getDisplayPrice(), "-") : "No price set"}
                       </div>
                       {item.default_supplier && (
                         <div className="mt-1 text-xs text-muted-foreground">
@@ -842,10 +826,11 @@ export default function PriceBookItemDetailPage() {
                       {item.default_supplier ? "Price Effective Date" : "Last Updated"}
                     </dt>
                     <dd className="mt-1 text-sm">
-                      {formatDate(
+                      {formatDateWithFallback(
                         activePriceHistory?.date_effective ||
                           activePriceHistory?.created_at ||
-                          item.price_last_updated_at
+                          item.price_last_updated_at,
+                        "Never"
                       )}
                       {item.price_age_days !== null && (
                         <span className="ml-2 text-muted-foreground">
@@ -999,7 +984,7 @@ export default function PriceBookItemDetailPage() {
                                 className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
-                                {formatDate(history.date_effective || history.created_at)}
+                                {formatDateWithFallback(history.date_effective || history.created_at, "Never")}
                                 {isActive && (
                                   <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                                     Active
@@ -1024,7 +1009,7 @@ export default function PriceBookItemDetailPage() {
                                 className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
-                                {formatCurrency(history.new_price)}
+                                {formatCurrencyWithFallback(history.new_price, "-")}
                               </span>
                             )}
                           </TableCell>
@@ -1582,10 +1567,10 @@ export default function PriceBookItemDetailPage() {
                   {" "}
                   This will permanently remove the price change from{" "}
                   <span className="font-medium">
-                    {historyToDelete.old_price ? formatCurrency(historyToDelete.old_price) : "N/A"}
+                    {historyToDelete.old_price ? formatCurrencyWithFallback(historyToDelete.old_price, "-") : "N/A"}
                   </span>{" "}
                   to{" "}
-                  <span className="font-medium">{formatCurrency(historyToDelete.new_price)}</span>
+                  <span className="font-medium">{formatCurrencyWithFallback(historyToDelete.new_price, "-")}</span>
                   {historyToDelete.supplier && (
                     <>
                       {" "}

@@ -12,7 +12,7 @@ class TenantDatabaseBackupJob < ApplicationJob
   queue_as :low
 
   # Heroku app name for production database
-  HEROKU_APP = "teeem-production"
+  HEROKU_APP = HerokuPlatformService::PRODUCTION_APP
 
   def perform(tenant_id)
     @tenant = Tenant.find(tenant_id)

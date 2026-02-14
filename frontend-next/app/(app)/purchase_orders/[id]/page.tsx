@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateWithFallback } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -525,16 +526,6 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateStr: string | undefined | null): string => {
-    if (!dateStr) return "Not set";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   // Helper to check if a line item is blank (no meaningful data)
   const isBlankLineItem = (item: LineItem) => {
@@ -1374,7 +1365,7 @@ export default function PurchaseOrderDetailPage() {
               {budgetLocked && budgetLockedBy && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Locked by {budgetLockedBy}
-                  {budgetLockedAt && ` on ${formatDate(budgetLockedAt)}`}
+                  {budgetLockedAt && ` on ${formatDateWithFallback(budgetLockedAt, "Not set")}`}
                 </p>
               )}
             </div>
@@ -1855,11 +1846,11 @@ export default function PurchaseOrderDetailPage() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Start Date:</span>{" "}
-                          <span className="font-medium">{formatDate(task.start_date)}</span>
+                          <span className="font-medium">{formatDateWithFallback(task.start_date, "Not set")}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">End Date:</span>{" "}
-                          <span className="font-medium">{formatDate(task.end_date)}</span>
+                          <span className="font-medium">{formatDateWithFallback(task.end_date, "Not set")}</span>
                         </div>
                       </div>
 
@@ -1871,7 +1862,7 @@ export default function PurchaseOrderDetailPage() {
                             {task.predecessors.map((pred) => (
                               <li key={pred.id} className="flex items-center gap-2 text-muted-foreground">
                                 <span>• {pred.name}</span>
-                                <span className="text-xs">(ends {formatDate(pred.end_date)})</span>
+                                <span className="text-xs">(ends {formatDateWithFallback(pred.end_date, "Not set")})</span>
                               </li>
                             ))}
                           </ul>
@@ -1905,8 +1896,8 @@ export default function PurchaseOrderDetailPage() {
                       <TableBody>
                         <TableRow className="border-t">
                           <TableCell className="p-3">Required Date</TableCell>
-                          <TableCell className="p-3">{formatDate(syncPreview.po.required_date)}</TableCell>
-                          <TableCell className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</TableCell>
+                          <TableCell className="p-3">{formatDateWithFallback(syncPreview.po.required_date, "Not set")}</TableCell>
+                          <TableCell className="p-3">{formatDateWithFallback(syncPreview.linked_tasks[0]?.start_date, "Not set")}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.date_matches ? (
                               <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
@@ -1943,7 +1934,7 @@ export default function PurchaseOrderDetailPage() {
                       <ul className="mt-2 space-y-1 text-sm text-blue-700 dark:text-blue-300">
                         {syncPreview.sync_preview.will_update.required_date && (
                           <li>
-                            • Required Date: {formatDate(syncPreview.sync_preview.will_update.required_date.from)} → {formatDate(syncPreview.sync_preview.will_update.required_date.to)}
+                            • Required Date: {formatDateWithFallback(syncPreview.sync_preview.will_update.required_date.from, "Not set")} → {formatDateWithFallback(syncPreview.sync_preview.will_update.required_date.to, "Not set")}
                             {syncPreview.sync_preview.will_update.required_date.diff_days && (
                               <span className="text-xs ml-1">
                                 ({syncPreview.sync_preview.will_update.required_date.diff_days > 0 ? "+" : ""}

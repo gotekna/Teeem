@@ -111,7 +111,7 @@ class InvoicePdfGenerator
       line_items: build_line_items(invoice),
 
       # Currency
-      currency_code: invoice.currency_code || "AUD",
+      currency_code: invoice.currency_code || TenantSetting::DEFAULT_CURRENCY,
       currency_symbol: "$"
     }
   end

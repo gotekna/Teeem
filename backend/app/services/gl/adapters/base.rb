@@ -211,7 +211,7 @@ module Gl
           is_bank_account: external_data[:is_bank_account] || false,
           is_system_account: external_data[:is_system_account] || false,
           active: external_data[:active] != false,
-          currency_code: external_data[:currency_code] || 'AUD',
+          currency_code: external_data[:currency_code] || TenantSetting::DEFAULT_CURRENCY,
           external_synced_at: Time.current
         )
 

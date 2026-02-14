@@ -43,6 +43,7 @@ import {
   type BOQGroup,
   type BOQSavePayload,
 } from "@/components/ui/bill-of-quantities";
+import { formatCurrency } from "@/utils/formatters";
 
 // Types matching backend JSON response
 interface TemplateLineItem {
@@ -91,14 +92,6 @@ interface TemplatePack {
   items: TemplateItem[];
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "$0.00";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
 
 export function PoTemplatesTab() {
   const [packs, setPacks] = useState<TemplatePack[]>([]);

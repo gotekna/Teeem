@@ -165,7 +165,7 @@ module Gl
 
     def set_defaults
       self.status ||= 'draft'
-      self.currency_code ||= 'AUD'
+      self.currency_code ||= TenantSetting::DEFAULT_CURRENCY
       self.exchange_rate ||= 1.0
       generate_entry_number
     end

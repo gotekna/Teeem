@@ -556,24 +556,43 @@ export default function ClassificationPanel({
           </div>
 
           {/* UI Name */}
-          <div className={cn(localGetAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && "opacity-40")}>
-            <Label className="text-[10px] text-muted-foreground">
-              UI Name {localGetAutoFields(isEditing ? editedDocumentType : document.document_type).uiName && <span className="italic">(auto)</span>}
-            </Label>
-            <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
-              {document.display_name || classificationData?.current?.resolved_ui_name || "-"}
-            </div>
-          </div>
+          {(() => {
+            const isAuto = localGetAutoFields(isEditing ? editedDocumentType : document.document_type).uiName;
+            // For auto fields, prefer freshly resolved template value over stale saved value
+            const uiName = isAuto
+              ? (classificationData?.current?.resolved_ui_name || document.display_name)
+              : (document.display_name || classificationData?.current?.resolved_ui_name);
+            return (
+              <div className={cn(isAuto && "opacity-40")}>
+                <Label className="text-[10px] text-muted-foreground">
+                  UI Name {isAuto && <span className="italic">(auto)</span>}
+                </Label>
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
+                  {uiName || "-"}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* DL Name */}
-          <div className={cn(localGetAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && "opacity-40")}>
-            <Label className="text-[10px] text-muted-foreground">
-              DL Name {localGetAutoFields(isEditing ? editedDocumentType : document.document_type).dlName && <span className="italic">(auto)</span>}
-            </Label>
-            <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate font-mono">
-              {document.download_name || classificationData?.current?.resolved_dl_name || "-"}
-            </div>
-          </div>
+          {(() => {
+            const isAuto = localGetAutoFields(isEditing ? editedDocumentType : document.document_type).dlName;
+            // For auto fields, prefer freshly resolved template value over stale saved value
+            const dlName = isAuto
+              ? (classificationData?.current?.resolved_dl_name || document.download_name)
+              : (document.download_name || classificationData?.current?.resolved_dl_name);
+            return (
+              <div className={cn(isAuto && "opacity-40")}>
+                <Label className="text-[10px] text-muted-foreground">
+                  DL Name {isAuto && <span className="italic">(auto)</span>}
+                </Label>
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate font-mono">
+                  {dlName || "-"}
+                </div>
+              </div>
+            );
+          })()}
+
 
           {/* Action buttons */}
           <div className="pt-1.5 border-t mt-auto space-y-1.5">
@@ -700,7 +719,7 @@ export default function ClassificationPanel({
                 <div className={cn(auto.uiName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     ocrUiName
                       ? (ocrUiName === document.display_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -721,7 +740,7 @@ export default function ClassificationPanel({
                 <div className={cn(auto.dlName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate font-mono",
                     ocrDlName
                       ? (ocrDlName === document.download_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -889,7 +908,7 @@ export default function ClassificationPanel({
                 <div className={cn(auto.uiName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     aiUiName
                       ? (aiUiName === document.display_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -910,7 +929,7 @@ export default function ClassificationPanel({
                 <div className={cn(auto.dlName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center truncate font-mono",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate font-mono",
                     aiDlName
                       ? (aiDlName === document.download_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"

@@ -69,7 +69,7 @@ class BankTransaction < ApplicationRecord
       status: xero_transaction["Status"],
       line_amount_types: xero_transaction["LineAmountTypes"],
       is_reconciled: xero_transaction["IsReconciled"] == true,
-      currency_code: xero_transaction["CurrencyCode"] || "AUD",
+      currency_code: xero_transaction["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       metadata: {
         bank_account_id: xero_transaction.dig("BankAccount", "AccountID"),
         bank_account_name: xero_transaction.dig("BankAccount", "Name"),

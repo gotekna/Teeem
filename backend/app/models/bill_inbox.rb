@@ -265,7 +265,7 @@ class BillInbox < ApplicationRecord
     self.source ||= "email"
     self.status ||= "pending"
     self.match_status ||= "unmatched"
-    self.currency ||= "AUD"
+    self.currency ||= TenantSetting::DEFAULT_CURRENCY
   end
 
   def should_upload_to_storage?

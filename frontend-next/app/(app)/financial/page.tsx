@@ -67,7 +67,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { StatCard } from "@/components/ui/stat-card";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
-import { formatDate } from "@/utils/formatters";
+import { formatDate, formatCurrency, formatCurrencyCompact } from "@/utils/formatters";
 
 // ============================================================================
 // Types
@@ -321,22 +321,7 @@ interface JobApiResponse {
 // Utility Functions
 // ============================================================================
 
-function formatCurrency(amount: number, compact = false): string {
-  if (compact && Math.abs(amount) >= 1000000) {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: "AUD",
-      notation: "compact",
-      maximumFractionDigits: 1,
-    }).format(amount);
-  }
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
+// Note: formatCurrency, formatCurrencyCompact, formatDate imported from SSoT
 
 // ============================================================================
 // Sub-Components
@@ -946,7 +931,7 @@ function AgedReportsTab({
                   <div className="grid grid-cols-5 gap-4 mt-4">
                     {receivables.aging.map((bucket) => (
                       <div key={bucket.label} className="text-center">
-                        <p className="text-lg font-bold font-mono">{formatCurrency(bucket.amount, true)}</p>
+                        <p className="text-lg font-bold font-mono">{formatCurrencyCompact(bucket.amount)}</p>
                         <p className="text-xs text-muted-foreground">{bucket.count} invoices</p>
                       </div>
                     ))}
@@ -1067,7 +1052,7 @@ function AgedReportsTab({
                   <div className="grid grid-cols-5 gap-4 mt-4">
                     {payables.aging.map((bucket) => (
                       <div key={bucket.label} className="text-center">
-                        <p className="text-lg font-bold font-mono">{formatCurrency(bucket.amount, true)}</p>
+                        <p className="text-lg font-bold font-mono">{formatCurrencyCompact(bucket.amount)}</p>
                         <p className="text-xs text-muted-foreground">{bucket.count} bills</p>
                       </div>
                     ))}

@@ -210,7 +210,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],
       total: txn["Total"],
-      currency_code: txn["CurrencyCode"] || "AUD",
+      currency_code: txn["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       line_items: line_items,
       has_attachments: txn["HasAttachments"] || false,
       xero_updated_at: parse_xero_date(txn["UpdatedDateUTC"]),

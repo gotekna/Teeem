@@ -22,7 +22,7 @@ class DatabaseBackupJob < ApplicationJob
   BACKUPS_TO_KEEP = 12
 
   # Heroku app name for production database
-  HEROKU_APP = "teeem-production"
+  HEROKU_APP = HerokuPlatformService::PRODUCTION_APP
 
   def perform
     Rails.logger.info "[DatabaseBackup] Starting weekly database backup"

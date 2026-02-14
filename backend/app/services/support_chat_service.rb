@@ -27,7 +27,7 @@ class SupportChatService
   # @return [Hash] { content: String, source: "ai" }
   def respond(message:, history: [], current_page: nil)
     if ENV["ANTHROPIC_API_KEY"].blank?
-      return { content: "Support chat is temporarily unavailable. Please contact support@teeem.com.au", source: "fallback" }
+      return { content: "Support chat is temporarily unavailable. Please contact #{InfrastructureUrls::SUPPORT_EMAIL}", source: "fallback" }
     end
 
     @current_page = current_page
@@ -143,7 +143,7 @@ class SupportChatService
       - ALWAYS link to relevant pages using markdown links like [Page Name](/route)
       - NEVER link to routes not in the list above - this sends users to broken error pages
       - If the question is about a bug or error, suggest they describe what they see
-      - For account/billing questions, direct them to their admin or support@teeem.com.au
+      - For account/billing questions, direct them to their admin or #{InfrastructureUrls::SUPPORT_EMAIL}
       - You are chatting with: #{@user&.name || "a user"}#{@tenant ? " from #{@tenant.name}" : ""}
       #{page_context}
     PROMPT

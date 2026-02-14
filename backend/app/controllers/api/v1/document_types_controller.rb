@@ -114,9 +114,28 @@ module Api
         end
 
         if @document_type.update(update_params)
+          # SSoT: When user explicitly sets templates on the Document Type page,
+          # clear any WFDT-level overrides so the DocumentType values become effective.
+          # WFDT overrides (level 1) take priority over DocumentType (level 2) in the
+          # template resolution chain. Without clearing, the user's changes won't take effect.
+          if @document_type.saved_change_to_ui_name? || @document_type.saved_change_to_download_name?
+            @document_type.warehouse_folder_document_types.where.not(
+              ui_name_template: nil
+            ).or(
+              @document_type.warehouse_folder_document_types.where.not(
+                download_name_template: nil
+              )
+            ).find_each do |wfdt|
+              wfdt.update_columns(
+                ui_name_template: nil,
+                download_name_template: nil
+              )
+            end
+          end
+
           response_data = {
             success: true,
-            data: serialize_document_type(@document_type)
+            data: serialize_document_type(@document_type.reload)
           }
 
           # Include naming format change info if the format was changed
@@ -330,6 +349,7 @@ module Api
         end
 
         primary_tab_data = warehouse_folders_data.find { |f| f[:is_primary] } || warehouse_folders_data.first
+        primary_wfdt = folder_joins.find { |wfdt| wfdt.is_primary } || folder_joins.first
 
         {
           id: document_type.id,
@@ -367,6 +387,11 @@ module Api
           # Frontend compatibility: entity_tab_ids/entity_tabs (frontend uses these names)
           entity_tab_ids: warehouse_folders_data.map { |t| t[:id] },
           entity_tabs: warehouse_folders_data,
+          # SSoT: Effective templates (from WFDT chain: WFDT override → DocumentType → WarehouseFolder)
+          # These may differ from uiName/downloadName when WFDT has folder-specific overrides
+          effectiveUiName: primary_wfdt&.effective_ui_name_template || document_type.ui_name,
+          effectiveDownloadName: primary_wfdt&.effective_download_name_template || document_type.download_name,
+          hasTemplateOverrides: primary_wfdt&.has_template_overrides? || false,
           scope: document_type.scope,
           file_extensions: document_type.file_extensions || [],
           aliases: document_type.aliases || [],

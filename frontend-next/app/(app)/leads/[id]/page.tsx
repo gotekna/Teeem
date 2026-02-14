@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { formatDateWithFallback } from "@/utils/formatters";
 import { LeadForm } from "@/components/leads/lead-form";
 import { GenerateContractModal } from "@/components/contracts/generate-contract-modal";
 import {
@@ -119,14 +120,6 @@ export default function LeadDetailPage() {
     loadLead();
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "Not set";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
@@ -261,7 +254,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Expected Start</span>
             </div>
             <div className="text-lg font-medium mt-1">
-              {formatDate(lead.expected_start_date)}
+              {formatDateWithFallback(lead.expected_start_date, "Not set")}
             </div>
           </CardContent>
         </Card>
@@ -272,7 +265,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Created</span>
             </div>
             <div className="text-lg font-medium mt-1">
-              {formatDate(lead.created_at)}
+              {formatDateWithFallback(lead.created_at, "Not set")}
             </div>
           </CardContent>
         </Card>
@@ -447,7 +440,7 @@ export default function LeadDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Last Updated</p>
-                    <p className="font-medium">{formatDate(lead.updated_at)}</p>
+                    <p className="font-medium">{formatDateWithFallback(lead.updated_at, "Not set")}</p>
                   </div>
                 </CardContent>
               </Card>

@@ -176,7 +176,7 @@ export default function ConsolidationPage() {
   // Use SSoT formatCurrency with Math.abs wrapper for absolute values
   const formatCurrencyAbs = (amount: number) => {
     const absAmount = Math.abs(amount);
-    return formatCurrencyAbs(absAmount);
+    return formatCurrency(absAmount);
   };
 
   const getHealthColor = (score: number) => {

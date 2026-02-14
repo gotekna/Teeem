@@ -332,7 +332,7 @@ class InvoiceParsingService
       subtotal: result[:subtotal],
       tax_amount: result[:tax_amount],
       total_amount: result[:total_amount],
-      currency: result[:currency] || "AUD",
+      currency: result[:currency] || TenantSetting::DEFAULT_CURRENCY,
       line_items: result[:line_items] || [],
       ai_confidence: result[:confidence],
       ai_extraction_result: result,

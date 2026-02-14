@@ -339,7 +339,7 @@ class ExternalInvoiceSyncService
       total: invoice_data["Total"],
       amount_due: invoice_data["AmountDue"],
       amount_paid: invoice_data["AmountPaid"],
-      currency_code: invoice_data["CurrencyCode"] || "AUD",
+      currency_code: invoice_data["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       external_contact_id: external_contact_id,
       contact_name: invoice_data.dig("Contact", "Name"),
       line_items: invoice_data["LineItems"] || [],
@@ -1034,7 +1034,7 @@ class ExternalInvoiceSyncService
       "Type" => invoice.xero_type,
       "Status" => invoice.xero_status,
       "Reference" => invoice.reference,
-      "CurrencyCode" => invoice.currency_code || "AUD"
+      "CurrencyCode" => invoice.currency_code || TenantSetting::DEFAULT_CURRENCY
     }
 
     # Add invoice number if present (for updates)

@@ -75,6 +75,10 @@ module InfrastructureUrls
   # Payment portal (invoices, payment links)
   PAYMENT_PORTAL_URL = "https://pay.teeem.com".freeze
 
+  # Support email addresses (SSoT)
+  SUPPORT_EMAIL = "support@teeem.com.au".freeze
+  HELLO_EMAIL = "hello@teeem.com.au".freeze
+
   # Get subcontractor portal URL (ENV override for dev/staging)
   def self.portal_url
     ENV["PORTAL_URL"] || SUBCONTRACTOR_PORTAL_URL

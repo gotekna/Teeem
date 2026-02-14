@@ -467,7 +467,7 @@ class TenantSetting < ApplicationRecord
       }
     # Dev Heroku apps (teeem-sam-dev, teeem-rob-dev) should not redirect
     # They're for isolated testing and shouldn't route to other environments
-    elsif ENV["HEROKU_APP_NAME"]&.include?("-dev")
+    elsif InfrastructureUrls.dev_instance?
       {
         environment: "dev",
         api_url: nil,

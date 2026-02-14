@@ -98,7 +98,7 @@ class TrialInvitation < ApplicationRecord
 
   # Get the sender's email for email FROM field
   def sender_email
-    effective_sender&.email || ENV['SMTP_USERNAME'] || 'hello@teeem.com.au'
+    effective_sender&.email || ENV['SMTP_USERNAME'] || InfrastructureUrls::HELLO_EMAIL
   end
 
   private

@@ -373,7 +373,7 @@ module Api
           contact_id: params[:contact_id],
           job_id: params[:job_id],
           line_items: params[:line_items] || [],
-          currency_code: params[:currency_code] || "AUD",
+          currency_code: params[:currency_code] || TenantSetting::DEFAULT_CURRENCY,
           subtotal: params[:subtotal],
           total_tax: params[:total_tax],
           total: params[:total]

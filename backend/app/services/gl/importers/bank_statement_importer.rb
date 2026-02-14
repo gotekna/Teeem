@@ -412,7 +412,7 @@ module Gl
           source_number: tx_data[:reference] || "IMP-#{tx_data[:date].strftime('%Y%m%d')}-#{SecureRandom.hex(4)}",
           entry_date: tx_data[:date],
           description: "Import: #{tx_data[:description]}",
-          currency_code: account.currency_code || 'AUD',
+          currency_code: account.currency_code || TenantSetting::DEFAULT_CURRENCY,
           status: 'posted'
         )
 

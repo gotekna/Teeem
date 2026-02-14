@@ -50,7 +50,7 @@ module Gl
           source_number: source.invoice_number,
           entry_date: source.invoice_date,
           description: "Invoice #{source.invoice_number} - #{source.contact_name}",
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0,
           job: source.job
         )
@@ -105,7 +105,7 @@ module Gl
           source_number: source.invoice_number,
           entry_date: source.invoice_date,
           description: "Bill #{source.invoice_number} - #{source.contact_name}",
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0,
           job: source.job
         )
@@ -175,7 +175,7 @@ module Gl
           source_number: source.invoice_number,
           entry_date: source.invoice_date,
           description: "Credit Note #{source.invoice_number} - #{source.contact_name}",
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0,
           job: source.job
         )
@@ -223,7 +223,7 @@ module Gl
           source_number: source.invoice_number,
           entry_date: source.invoice_date,
           description: "Supplier Credit #{source.invoice_number} - #{source.contact_name}",
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0,
           job: source.job
         )

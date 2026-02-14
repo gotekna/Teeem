@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { formatCurrency } from "@/utils/formatters";
 
 // Types
 interface BalanceSheet {
@@ -46,12 +47,6 @@ interface JobProfitability {
   profit_margin: number;
 }
 
-const formatCurrency = (amount: number) => {
-  return `$${(amount || 0).toLocaleString("en-AU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-};
 
 export default function FinancialReportsPage() {
   const { toast } = useToast();

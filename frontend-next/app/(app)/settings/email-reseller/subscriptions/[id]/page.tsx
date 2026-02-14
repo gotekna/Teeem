@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { formatDate } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -141,13 +142,6 @@ export default function SubscriptionDetailPage() {
     await fetchData();
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const formatStorage = (usedGb: number | null | undefined, quotaGb: number) => {
     const used = usedGb ?? 0;

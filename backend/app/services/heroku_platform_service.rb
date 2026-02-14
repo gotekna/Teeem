@@ -24,6 +24,9 @@ class HerokuPlatformService
     teeem-jake-dev
   ].freeze
 
+  # Production app name (SSoT for database backups and production-specific operations)
+  PRODUCTION_APP = "teeem-production".freeze
+
   # Human-readable metadata for each app
   APP_METADATA = {
     "teeem-production"    => { environment: "Production", description: "Production Rails API" },
