@@ -109,6 +109,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewWidth, setPreviewWidth] = useState(800);
+  const [isResizing, setIsResizing] = useState(false);
+  const isResizingRef = useRef(false);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter out signature/embedded images
@@ -468,9 +471,42 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         })}
       </div>
 
-      {/* Preview Drawer */}
+      {/* Preview Drawer - resizable */}
       <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
-        <SheetContent side="right-wide" className="p-0 flex flex-col">
+        <SheetContent
+          side="right"
+          className="p-0 flex flex-col !max-w-none"
+          style={{ width: `${previewWidth}px` }}
+        >
+          {/* Resize drag handle */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 z-10"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              isResizingRef.current = true;
+              setIsResizing(true);
+              const startX = e.clientX;
+              const startWidth = previewWidth;
+              const onMouseMove = (ev: MouseEvent) => {
+                if (!isResizingRef.current) return;
+                const delta = startX - ev.clientX;
+                const newWidth = Math.max(400, Math.min(window.innerWidth - 80, startWidth + delta));
+                setPreviewWidth(newWidth);
+              };
+              const onMouseUp = () => {
+                isResizingRef.current = false;
+                setIsResizing(false);
+                document.removeEventListener("mousemove", onMouseMove);
+                document.removeEventListener("mouseup", onMouseUp);
+                document.body.style.cursor = "";
+                document.body.style.userSelect = "";
+              };
+              document.body.style.cursor = "col-resize";
+              document.body.style.userSelect = "none";
+              document.addEventListener("mousemove", onMouseMove);
+              document.addEventListener("mouseup", onMouseUp);
+            }}
+          />
           <SheetHeader className="px-4 py-3 border-b shrink-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-sm font-medium truncate pr-2">
@@ -504,7 +540,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
               </div>
             </div>
           </SheetHeader>
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto relative">
+            {/* Transparent overlay prevents iframe from capturing mouse during resize */}
+            {isResizing && <div className="absolute inset-0 z-10" />}
             {previewLoading ? (
               <div className="flex items-center justify-center h-full">
                 <Spinner className="h-8 w-8" />
