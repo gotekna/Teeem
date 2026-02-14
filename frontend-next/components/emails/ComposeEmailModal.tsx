@@ -25,6 +25,8 @@ import {
   ChevronUp,
   Clock,
   Save,
+  Eye,
+  Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
@@ -85,6 +87,10 @@ interface ComposeEmailModalProps {
   forwardEmailId?: number;
   /** Forward: attachment metadata from the original email */
   forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>;
+  /** Reply: original email ID (for fetching attachments on demand) */
+  originalEmailId?: number;
+  /** Reply: attachment metadata from the original email (shown as "Attach Original" button) */
+  originalAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>;
   onSent?: () => void;
 }
 
@@ -106,6 +112,8 @@ export function ComposeEmailModal({
   skipSignature = false,
   forwardEmailId,
   forwardAttachments,
+  originalEmailId,
+  originalAttachments,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -128,6 +136,8 @@ export function ComposeEmailModal({
   const { deleteDraft } = useEmailDrafts();
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [originalAttachmentsIncluded, setOriginalAttachmentsIncluded] = useState(false);
+  const [fetchingOriginalAttachments, setFetchingOriginalAttachments] = useState(false);
   // SSoT: Existing storage keys (pass directly to backend, no re-upload)
   const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
   // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
@@ -420,6 +430,8 @@ export function ComposeEmailModal({
       setPreUploadedAttachments(initialPreUploadedAttachments || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
+      setOriginalAttachmentsIncluded(false);
+      setFetchingOriginalAttachments(false);
       // Reset schedule state
       setIsScheduled(false);
       setScheduledDate(undefined);
@@ -488,6 +500,52 @@ export function ComposeEmailModal({
 
     return () => { cancelled = true; };
   }, [open, forwardEmailId, forwardAttachments]);
+
+  // Include original email attachments on demand (reply/reply-all)
+  const handleIncludeOriginalAttachments = useCallback(async () => {
+    if (!originalEmailId || !originalAttachments?.length || fetchingOriginalAttachments) return;
+
+    setFetchingOriginalAttachments(true);
+    const fetchedFiles: File[] = [];
+
+    for (const att of originalAttachments) {
+      try {
+        const attachmentId = att.id || att.outlook_attachment_id;
+        if (!attachmentId) continue;
+
+        let blob: Blob | null = null;
+        try {
+          const presigned = await api.get(
+            `/api/v1/synced_emails/${originalEmailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(att.name)}`
+          ) as { success?: boolean; url?: string };
+          if (presigned?.success && presigned.url) {
+            const response = await fetch(presigned.url);
+            if (response.ok) blob = await response.blob();
+          }
+        } catch {
+          // Fall through to proxy
+        }
+
+        if (!blob) {
+          blob = await api.getBlob(
+            `/api/v1/synced_emails/${originalEmailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(att.name)}`
+          );
+        }
+
+        if (blob) {
+          fetchedFiles.push(new File([blob], att.name, { type: att.content_type || blob.type }));
+        }
+      } catch (err) {
+        console.error(`[Compose] Failed to fetch original attachment: ${att.name}`, err);
+      }
+    }
+
+    if (fetchedFiles.length > 0) {
+      setAttachments(prev => [...prev, ...fetchedFiles]);
+    }
+    setOriginalAttachmentsIncluded(true);
+    setFetchingOriginalAttachments(false);
+  }, [originalEmailId, originalAttachments, fetchingOriginalAttachments]);
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
@@ -891,6 +949,26 @@ export function ComposeEmailModal({
             </Button>
           </label>
 
+          {/* Include original attachments (reply/reply-all only) */}
+          {originalAttachments && originalAttachments.length > 0 && !originalAttachmentsIncluded && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleIncludeOriginalAttachments}
+              disabled={fetchingOriginalAttachments}
+              title={`Attach ${originalAttachments.length} file${originalAttachments.length > 1 ? "s" : ""} from original email`}
+              className="gap-1 text-xs text-muted-foreground"
+            >
+              {fetchingOriginalAttachments ? (
+                <Spinner className="h-3 w-3" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+              {originalAttachments.length}
+            </Button>
+          )}
+
           {/* Templates */}
           <TemplatePicker
             open={templatePickerOpen}
@@ -1089,8 +1167,35 @@ export function ComposeEmailModal({
                     </span>
                     <button
                       type="button"
+                      title="Preview"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file);
+                        window.open(url, "_blank");
+                      }}
+                      className="ml-1 hover:text-blue-500"
+                    >
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Download"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="hover:text-blue-500"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Remove"
                       onClick={() => removeAttachment(index)}
-                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                      className="ml-1 hover:text-red-500 dark:hover:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1112,10 +1217,11 @@ export function ComposeEmailModal({
                     )}
                     <button
                       type="button"
+                      title="Remove"
                       onClick={() => {
                         setPreUploadedAttachments(prev => prev.filter((_, i) => i !== index));
                       }}
-                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                      className="ml-1 hover:text-red-500 dark:hover:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>

@@ -485,7 +485,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
     # Add IMAP accounts (owned + shared)
     # SSoT: accessible_by returns owned OR shared_with_user_ids contains user
-    ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
+    ImapCredential.accessible_by(current_user).active.each do |cred|
       account_id = cred.id.to_s
       is_shared = cred.user_id != current_user.id
       is_cross_tenant = cred.user&.tenant_id != current_user&.tenant_id

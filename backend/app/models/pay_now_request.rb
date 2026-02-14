@@ -82,6 +82,10 @@ class PayNowRequest < ApplicationRecord
     for_week(today.beginning_of_week(:monday))
   }
 
+  # Filter scopes (extracted from controllers)
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id) if contact_id.present? }
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+
   # SSoT: Storage reference for provider-agnostic access
   # SSoT: Prefer storage_item_id, fall back to storage_file_id
   def storage_reference

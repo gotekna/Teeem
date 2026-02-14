@@ -1370,6 +1370,7 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="h-full flex flex-col px-6 pt-8">
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between pb-4 shrink-0">
@@ -2811,5 +2812,6 @@ export default function DocumentTypeDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </ErrorBoundary>
   );
 }

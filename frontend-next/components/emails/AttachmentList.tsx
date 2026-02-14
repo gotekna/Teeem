@@ -453,7 +453,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
       {/* Preview Drawer */}
       <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
-        <SheetContent side="right" className="w-[50vw] max-w-[900px] min-w-[500px] p-0 flex flex-col">
+        <SheetContent side="right" className="w-[60vw] max-w-[1200px] min-w-[600px] p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b shrink-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-sm font-medium truncate pr-2">
@@ -515,7 +515,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                 const isPdf = type.includes("pdf") || ext === "pdf";
                 return (
                   <iframe
-                    src={isPdf ? `${previewUrl}#navpanes=0` : previewUrl}
+                    src={isPdf ? `${previewUrl}#navpanes=0&view=FitH` : previewUrl}
                     className="w-full h-full border-0"
                     title={previewAttachment.name}
                   />

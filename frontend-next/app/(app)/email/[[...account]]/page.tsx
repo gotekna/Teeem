@@ -824,7 +824,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}> } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>; originalEmailId?: number; originalAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}> } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -1821,12 +1821,17 @@ export default function EmailPage() {
 ${originalBody}
 </div>`;
 
+    // Include original attachments metadata so user can optionally attach them
+    const nonInlineAttachments = email.attachments?.filter(a => !a.content_id && !a.is_inline) || [];
+
     setReplyTo({
       to: email.from_email || email.from_address,
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
       body: quotedBody,
       fromAccountId: selectedAccount, // Reply from the same account that received the email
       replyToMessageId: email.internet_message_id, // For email threading
+      originalEmailId: nonInlineAttachments.length > 0 ? email.id : undefined,
+      originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
   }, [selectedAccount, setComposeOpen]);
@@ -1858,6 +1863,9 @@ ${originalBody}
 ${originalBody}
 </div>`;
 
+    // Include original attachments metadata so user can optionally attach them
+    const nonInlineAttachments = email.attachments?.filter(a => !a.content_id && !a.is_inline) || [];
+
     setReplyTo({
       to,
       cc: ccRecipients.join(", "),
@@ -1865,6 +1873,8 @@ ${originalBody}
       body: quotedBody,
       fromAccountId: selectedAccount,
       replyToMessageId: email.internet_message_id, // For email threading
+      originalEmailId: nonInlineAttachments.length > 0 ? email.id : undefined,
+      originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
   }, [accounts, selectedAccount, setComposeOpen]);
@@ -2906,6 +2916,8 @@ To: ${email.to_emails?.join(", ") || ""}
         replyToMessageId={replyTo?.replyToMessageId}
         forwardEmailId={replyTo?.forwardEmailId}
         forwardAttachments={replyTo?.forwardAttachments}
+        originalEmailId={replyTo?.originalEmailId}
+        originalAttachments={replyTo?.originalAttachments}
         draft={resumeDraft || undefined}
         onSent={() => {
           fetchEmails();
