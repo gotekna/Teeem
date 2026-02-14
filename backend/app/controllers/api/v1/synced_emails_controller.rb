@@ -1415,11 +1415,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # No local storage - fall back to proxy download (SharePoint/Outlook)
+    # Return 200 (not 404) to avoid red console errors - frontend checks success: false
     render json: {
       success: false,
-      error: "Attachment not in local storage - use download endpoint",
       fallback_to_proxy: true
-    }, status: :not_found
+    }
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
     render_error("Failed to get presigned URL: #{e.message}", status: :internal_server_error)

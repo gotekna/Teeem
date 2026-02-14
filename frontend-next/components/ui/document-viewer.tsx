@@ -17,7 +17,9 @@ import {
   MessageSquare,
   MessageSquareText,
   FileSpreadsheet,
-  FileIcon as LucideFileIcon
+  FileIcon as LucideFileIcon,
+  Pencil,
+  X
 } from "lucide-react";
 import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
 import { WordDocumentPreview } from "@/components/ui/word-document-preview";
@@ -486,6 +488,7 @@ export function DocumentViewer({
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = useState<number>(0);
+  const [pdfEditMode, setPdfEditMode] = useState(false);
 
   const fileType = getFileType(fileName);
   const hasFiles = files && files.length > 0;
@@ -739,7 +742,7 @@ export function DocumentViewer({
     if (fileType === "pdf" && onSave) {
       return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
             <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
             <PDFEditor
               url={url}
@@ -752,41 +755,59 @@ export function DocumentViewer({
       );
     }
 
-    // PDF without onSave → iframe viewer in dialog
+    // PDF without onSave → iframe viewer (with option to switch to editor)
     if (fileType === "pdf") {
       return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) setPdfEditMode(false); onOpenChange?.(isOpen); }}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
             <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
-            <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between p-3 border-b">
-                <h2 className="text-sm font-medium truncate">{fileName}</h2>
-                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Open in New Tab
-                </Button>
-              </div>
-              <div className="flex-1 min-h-0">
-                {pdfLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-muted-foreground">Loading document...</p>
-                  </div>
-                ) : pdfBlobUrl ? (
-                  <PdfFrame className="w-full h-full">
-                    <iframe key={pdfBlobUrl} src={pdfBlobUrl} className="w-full h-full" />
-                  </PdfFrame>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                    <FileText className="h-16 w-16" />
-                    <p>Unable to preview this PDF.</p>
-                    <Button onClick={() => window.open(url, "_blank")}>
-                      <ExternalLink className="h-4 w-4 mr-2" />
+            {pdfEditMode ? (
+              <PDFEditor
+                url={url}
+                fileName={fileName}
+                onSave={onSave}
+                onClose={() => setPdfEditMode(false)}
+              />
+            ) : (
+              <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => setPdfEditMode(true)}>
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                      <ExternalLink className="h-4 w-4 mr-1" />
                       Open in New Tab
                     </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
-                )}
+                </div>
+                <div className="flex-1 min-h-0">
+                  {pdfLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted-foreground">Loading document...</p>
+                    </div>
+                  ) : pdfBlobUrl ? (
+                    <PdfFrame className="w-full h-full">
+                      <iframe key={pdfBlobUrl} src={pdfBlobUrl} className="w-full h-full" />
+                    </PdfFrame>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                      <FileText className="h-16 w-16" />
+                      <p>Unable to preview this PDF.</p>
+                      <Button onClick={() => window.open(url, "_blank")}>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open in New Tab
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
       );
@@ -796,15 +817,20 @@ export function DocumentViewer({
     if (fileType === "image") {
       return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] p-4">
+          <DialogContent className="max-w-[90vw] max-h-[90vh] p-4" hideClose>
             <DialogTitle className="sr-only">{fileName || "Image Viewer"}</DialogTitle>
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-medium truncate">{fileName}</h2>
-                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Open in New Tab
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="flex-1 flex items-center justify-center overflow-auto">
                 <img src={url} alt={fileName} className="max-w-full max-h-full object-contain" />
@@ -819,15 +845,20 @@ export function DocumentViewer({
     if (fileType === "eml") {
       return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0">
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0" hideClose>
             <DialogTitle className="sr-only">{fileName || "Email Viewer"}</DialogTitle>
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between p-3 border-b">
                 <h2 className="text-sm font-medium truncate">{fileName}</h2>
-                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Open in New Tab
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="flex-1 min-h-0 overflow-auto">
                 {emlLoading ? (
@@ -901,15 +932,20 @@ export function DocumentViewer({
     if (fileType === "excel") {
       return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
             <DialogTitle className="sr-only">{fileName || "Spreadsheet Viewer"}</DialogTitle>
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between p-3 border-b">
                 <h2 className="text-sm font-medium truncate">{fileName}</h2>
-                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Open in New Tab
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="flex-1 min-h-0">
                 <ExcelDocumentPreview url={url} className="h-full" />
@@ -924,15 +960,20 @@ export function DocumentViewer({
     if (fileType === "word") {
       return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0">
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0" hideClose>
             <DialogTitle className="sr-only">{fileName || "Document Viewer"}</DialogTitle>
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between p-3 border-b">
                 <h2 className="text-sm font-medium truncate">{fileName}</h2>
-                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  Open in New Tab
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               <div className="flex-1 min-h-0">
                 <WordDocumentPreview url={url} className="h-full" />
@@ -951,10 +992,15 @@ export function DocumentViewer({
           <div className="flex flex-col items-center gap-4 py-4">
             <FileText className="h-16 w-16 text-muted-foreground" />
             <p className="text-sm font-medium">{fileName}</p>
-            <Button onClick={() => window.open(url, "_blank")}>
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Open in New Tab
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => window.open(url, "_blank")}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </Button>
+              <Button variant="outline" onClick={() => onOpenChange?.(false)}>
+                Close
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
