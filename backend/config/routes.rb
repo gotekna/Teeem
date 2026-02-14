@@ -537,6 +537,7 @@ Rails.application.routes.draw do
           get :download
           get :classification
           post :validate
+          post :reclassify
         end
       end
 

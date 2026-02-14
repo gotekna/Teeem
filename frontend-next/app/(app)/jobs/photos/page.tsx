@@ -10,6 +10,7 @@ import { ImageLightbox } from "@/components/ui/image-lightbox";
 import { type PhotoItem } from "@/components/ui/photo-gallery";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { formatDateShort } from "@/utils/formatters";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Camera, RefreshCw, User, ChevronDown, ChevronRight } from "lucide-react";
 import { api, getApiBaseUrl } from "@/lib/api";
@@ -47,11 +48,6 @@ function PhotoThumbnailWithFallback({
     }
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "Unknown";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-  };
 
   return (
     <div
@@ -83,7 +79,7 @@ function PhotoThumbnailWithFallback({
         "absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center",
         isOld ? "bg-red-500/90 text-white" : "bg-black/60 text-white"
       )}>
-        {formatDate(photo.modified_at)}
+        {formatDateShort(photo.modified_at)}
       </div>
     </div>
   );
@@ -322,17 +318,7 @@ export default function JobPhotosPage() {
     setLightboxOpen(true);
   };
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return "Unknown";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-  };
 
-  const formatShortDate = (dateStr: string | null) => {
-    if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
-  };
 
   const supervisorNames = Object.keys(data);
 
@@ -474,7 +460,7 @@ export default function JobPhotosPage() {
                               {job.job_number ? `${job.job_number} - ` : ""}{job.job_name}
                             </button>
                             <span className="text-[10px] text-muted-foreground">
-                              {job.job_type} · {job.job_status} · {job.deposit ? "Deposit" : "No Dep"} · Start: {formatShortDate(job.start_date)} · PC: {formatShortDate(job.pc_date)}
+                              {job.job_type} · {job.job_status} · {job.deposit ? "Deposit" : "No Dep"} · Start: {formatDateShort(job.start_date)} · PC: {formatDateShort(job.pc_date)}
                             </span>
                           </div>
                           <div className="flex gap-2 overflow-x-auto pb-2">

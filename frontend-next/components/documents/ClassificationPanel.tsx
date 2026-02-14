@@ -174,6 +174,7 @@ interface ClassificationPanelProps {
   }) => Promise<void>;
   onApplyAI?: () => Promise<void>;
   onRerunAI?: () => Promise<void>;
+  onRerunOCR?: () => Promise<void>;
   onEditToggle?: (editing: boolean) => void;
   onRoute?: (companyId?: string) => Promise<void>;
   onReclassify?: () => Promise<void>;
@@ -226,6 +227,7 @@ export default function ClassificationPanel({
   onSave,
   onApplyAI,
   onRerunAI,
+  onRerunOCR,
   onRoute,
   onReclassify,
   onOpenPdfEditor,
@@ -558,9 +560,10 @@ export default function ClassificationPanel({
           {/* UI Name */}
           {(() => {
             const isAuto = localGetAutoFields(isEditing ? editedDocumentType : document.document_type).uiName;
-            // For auto fields, prefer freshly resolved template value over stale saved value
+            // SSoT: For auto fields, ONLY show the resolved template value (not stale saved value).
+            // Show loading placeholder while classification data is being fetched.
             const uiName = isAuto
-              ? (classificationData?.current?.resolved_ui_name || document.display_name)
+              ? (classificationData?.current?.resolved_ui_name || (classificationLoading ? null : document.display_name))
               : (document.display_name || classificationData?.current?.resolved_ui_name);
             return (
               <div className={cn(isAuto && "opacity-40")}>
@@ -568,7 +571,9 @@ export default function ClassificationPanel({
                   UI Name {isAuto && <span className="italic">(auto)</span>}
                 </Label>
                 <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
-                  {uiName || "-"}
+                  {isAuto && classificationLoading && !classificationData?.current?.resolved_ui_name
+                    ? <span className="text-muted-foreground/50 italic">loading...</span>
+                    : (uiName || "-")}
                 </div>
               </div>
             );
@@ -577,9 +582,9 @@ export default function ClassificationPanel({
           {/* DL Name */}
           {(() => {
             const isAuto = localGetAutoFields(isEditing ? editedDocumentType : document.document_type).dlName;
-            // For auto fields, prefer freshly resolved template value over stale saved value
+            // SSoT: For auto fields, ONLY show the resolved template value (not stale saved value).
             const dlName = isAuto
-              ? (classificationData?.current?.resolved_dl_name || document.download_name)
+              ? (classificationData?.current?.resolved_dl_name || (classificationLoading ? null : document.download_name))
               : (document.download_name || classificationData?.current?.resolved_dl_name);
             return (
               <div className={cn(isAuto && "opacity-40")}>
@@ -587,7 +592,9 @@ export default function ClassificationPanel({
                   DL Name {isAuto && <span className="italic">(auto)</span>}
                 </Label>
                 <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate font-mono">
-                  {dlName || "-"}
+                  {isAuto && classificationLoading && !classificationData?.current?.resolved_dl_name
+                    ? <span className="text-muted-foreground/50 italic font-sans">loading...</span>
+                    : (dlName || "-")}
                 </div>
               </div>
             );
@@ -757,11 +764,11 @@ export default function ClassificationPanel({
             <div className="pt-1 border-t border-amber-200 dark:border-amber-800/50">
               <div>
                 <Label className="text-[10px] text-muted-foreground">Signals</Label>
-                <div className="mt-0.5 min-h-[28px] text-[10px] border rounded-md px-2 py-1 bg-muted/50">
+                <div className="mt-0.5 min-h-[28px] text-xs border rounded-md px-2 py-1 bg-muted/50">
                   {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
                     <div className="flex flex-wrap gap-0.5">
                       {classificationData.ocr.signals.map((s, i) => (
-                        <Badge key={i} variant="secondary" className="text-[9px] px-1 py-0">{s}</Badge>
+                        <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0">{s}</Badge>
                       ))}
                     </div>
                   ) : "-"}
@@ -770,21 +777,40 @@ export default function ClassificationPanel({
 
               <div className="mt-1.5">
                 <Label className="text-[10px] text-muted-foreground">Text Preview</Label>
-                <div className="mt-0.5 text-[10px] border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
+                <div className="mt-0.5 text-xs border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
                   {classificationData?.ocr?.text_preview || "-"}
                 </div>
               </div>
 
               <div className="mt-1.5">
                 <Label className="text-[10px] text-muted-foreground">Status</Label>
-                <div className="mt-0.5 h-7 text-[10px] border rounded-md px-2 flex items-center bg-muted/50">
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
                   {classificationData?.ocr?.status === "completed" ? (
-                    <Badge variant="outline" className="text-[9px] border-green-500 text-green-600">completed</Badge>
+                    <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">completed</Badge>
                   ) : classificationData?.ocr?.status === "not_applicable" ? (
-                    <Badge variant="outline" className="text-[9px] border-gray-400 text-gray-500">n/a</Badge>
+                    <Badge variant="outline" className="text-[10px] border-gray-400 text-gray-500">n/a</Badge>
                   ) : classificationData?.ocr?.status || "-"}
                 </div>
               </div>
+
+              {/* Re-run OCR */}
+              {onRerunOCR && (
+                <div className="mt-2">
+                  <Button
+                    onClick={onRerunOCR}
+                    disabled={classificationLoading}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 text-[10px] w-full text-amber-600 dark:text-amber-400 border-amber-300 hover:bg-amber-100"
+                  >
+                    {classificationLoading ? (
+                      <><Spinner size={12} className="mr-1" />Re-running</>
+                    ) : (
+                      <><RefreshCw className="h-3 w-3 mr-1" />Re-run</>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}

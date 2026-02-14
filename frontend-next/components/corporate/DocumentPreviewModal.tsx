@@ -343,6 +343,31 @@ export default function DocumentPreviewModal({
     }
   };
 
+  const handleReclassify = async () => {
+    try {
+      setClassificationLoading(true);
+      const response = await api.post<{ success: boolean; error?: string }>(
+        `/api/v1/company_documents/${document.id}/reclassify`
+      );
+      if (response?.success) {
+        // Re-fetch updated classification data
+        const classResponse = await api.get<ClassificationData>(
+          `/api/v1/company_documents/${document.id}/classification`
+        );
+        if (classResponse?.success) {
+          setClassificationData(classResponse);
+        }
+        toast({ title: "Re-classified", description: "Classification has been re-run successfully" });
+      }
+    } catch (error: unknown) {
+      console.error("Failed to reclassify:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to re-classify document";
+      toast({ title: "Error", description: errorMessage, variant: "destructive" });
+    } finally {
+      setClassificationLoading(false);
+    }
+  };
+
   const handleApplySuggestion = async () => {
     try {
       setApplyingSuggestion(true);
@@ -505,6 +530,7 @@ export default function DocumentPreviewModal({
                 onSave={handleSave}
                 onApplyAI={handleApplySuggestion}
                 onRerunAI={handleAiVerify}
+                onRerunOCR={handleReclassify}
                 onOpenPdfEditor={() => setIsEditingPdf(true)}
               />
             </div>

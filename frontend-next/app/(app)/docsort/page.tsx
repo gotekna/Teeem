@@ -904,6 +904,15 @@ export default function DocsortPage() {
                     if (response?.success) setClassificationData(response);
                   } catch { /* ignore */ }
                 }}
+                onRerunOCR={async () => {
+                  await handleClassify(selectedItem);
+                  try {
+                    const response = await api.get<ClassificationData>(
+                      `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                    );
+                    if (response?.success) setClassificationData(response);
+                  } catch { /* ignore */ }
+                }}
               />
             </div>
 

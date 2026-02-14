@@ -786,7 +786,7 @@ function MS365MailboxAccessConfig() {
                 <Table className="w-full text-sm">
                   <TableHeader>
                     <TableRow className="border-b">
-                      <TableHead className="text-left py-2 pr-4 font-medium text-muted-foreground">
+                      <TableHead className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 z-10 bg-background">
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4" />
                           User
@@ -807,7 +807,7 @@ function MS365MailboxAccessConfig() {
                   <TableBody>
                     {teeemUsers.map(user => (
                       <TableRow key={user.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                        <TableCell className="py-2 pr-4">
+                        <TableCell className="py-2 pr-4 sticky left-0 z-10 bg-background">
                           <div className="font-medium">{user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </TableCell>

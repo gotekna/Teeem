@@ -154,6 +154,38 @@ module Api
         render_error("Document not found", status: :not_found)
       end
 
+      # POST /api/v1/company_documents/:id/reclassify
+      # Re-runs the full 3-method classification (Name Match + OCR + AI) via the linked DocumentInbox.
+      # After re-classification, refreshes the classification endpoint data.
+      def reclassify
+        doc = WarehouseDocument.find(params[:id])
+
+        inbox_id = doc.metadata&.dig("document_inbox_id")
+        unless inbox_id
+          return render json: { success: false, error: "No linked DocSort item found for re-classification" }, status: :unprocessable_entity
+        end
+
+        inbox = DocumentInbox.find_by(id: inbox_id)
+        unless inbox
+          return render json: { success: false, error: "Linked DocSort item no longer exists" }, status: :not_found
+        end
+
+        # Re-run the full classification pipeline (name_match + content_match/OCR + ai_match)
+        result = inbox.classify!
+
+        render json: {
+          success: true,
+          message: "Re-classification complete",
+          winner: result[:winner],
+          document_type: result[:document_type],
+          confidence: result[:confidence]
+        }
+      rescue ActiveRecord::RecordNotFound
+        render_error("Document not found", status: :not_found)
+      rescue StandardError => e
+        render json: { success: false, error: "Re-classification failed: #{e.message}" }, status: :unprocessable_entity
+      end
+
       # GET /api/v1/company_documents/:id/classification
       # Returns OCR and AI classification breakdown for a document
       # Used by the DocumentPreviewModal to show 3-column comparison
