@@ -379,8 +379,7 @@ export function GanttUnified({
             });
             engine.addHolidays(holidays);
           }
-        } catch (err) {
-        }
+        } catch (_) { /* Holiday fetch failure is non-critical */ }
       };
       loadHolidays();
 

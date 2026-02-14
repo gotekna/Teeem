@@ -493,13 +493,6 @@ function SortableQuestionItem({
     const types = e.dataTransfer.types;
 
 
-    // Log each item's kind and type
-    items.forEach((dtItem, i) => {
-      if (dtItem.kind === 'string') {
-        dtItem.getAsString((s) => console.log(`    String data: ${s.substring(0, 200)}...`));
-      }
-    });
-
     if (files.length > 0 && onFileDrop) {
       onFileDrop(files[0], item.id);
     } else if (files.length === 0) {
@@ -3988,17 +3981,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       answer: q.response || undefined
     }));
 
-    // Debug: Log ALL questions to diagnose filtering
-    console.log('[generateResponseBody] ALL questions:', questionItems.map(q => ({
-      id: q.id,
-      text: q.text.substring(0, 50),
-      include_in_response: q.include_in_response,
-      response: q.response ? q.response.substring(0, 30) + '...' : null,
-      hasResponse: !!q.response,
-      attachmentCount: q.attachments?.length || 0,
-      willBeIncluded: q.include_in_response && (!!q.response || (q.attachments && q.attachments.length > 0))
-    })));
-
     if (includedQuestions.length > 0) {
 
       // Group questions by their parent header
@@ -4025,11 +4007,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // First, process headers in order
       let headerNum = 0;
-      console.log('[generateResponseBody] Processing headers:', groupedQuestions.headers.map(h => ({
-        id: h.id,
-        text: h.text.substring(0, 30),
-        childCount: h.children?.length || 0
-      })));
 
       groupedQuestions.headers.forEach(header => {
         headerNum++;

@@ -360,8 +360,6 @@ function parseEmlContent(content: string): {
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
     const httpRefs = allImgSrcs.filter(s => s.includes('http'));
     const dataRefs = allImgSrcs.filter(s => s.includes('data:'));
-    if (cidRefs.length > 0) console.log(`[EML Parser] cid: refs:`, cidRefs.slice(0, 5));
-    if (httpRefs.length > 0) console.log(`[EML Parser] http refs:`, httpRefs.slice(0, 3));
   }
 
   // Replace cid: references with data URLs

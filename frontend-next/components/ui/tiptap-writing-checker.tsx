@@ -791,13 +791,6 @@ export const WritingChecker = Extension.create({
             extension.storage.tooltipRoot = createRoot(tooltipContainer);
 
             const handleFix = () => {
-              console.log('[WritingChecker] handleFix called', {
-                original: issue.original,
-                suggestion: issue.suggestion,
-                from: issue.from,
-                to: issue.to,
-                docLength: view.state.doc.content.size,
-              });
 
               // Cleanup tooltip FIRST to prevent any interference
               cleanupTooltip();
@@ -1001,7 +994,6 @@ export const WritingChecker = Extension.create({
                     response.data.issues,
                     extension.storage.dismissedIssues
                   );
-                  issues.forEach(i => console.log('[WritingChecker] Issue:', i.original, 'at', i.from, '-', i.to));
 
                   const decorations = createDecorations(
                     editorView.state.doc,

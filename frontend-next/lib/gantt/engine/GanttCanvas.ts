@@ -2660,8 +2660,7 @@ export class GanttCanvas {
         baselineEnabled: this.baselineEnabled,
       };
       setStorageItem(this.statePersistenceKey, stateToSave, false);
-    } catch (e) {
-    }
+    } catch (_) { /* Storage save failure is non-critical */ }
   }
 
   /**
@@ -2715,8 +2714,7 @@ export class GanttCanvas {
   clearPersistedState(): void {
     try {
       removeStorageItem(this.statePersistenceKey, false);
-    } catch (e) {
-    }
+    } catch (_) { /* Storage clear failure is non-critical */ }
   }
 
   private startRenderLoop(): void {

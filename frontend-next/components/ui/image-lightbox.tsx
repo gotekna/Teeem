@@ -203,8 +203,7 @@ export function ImageLightbox({
         setPresignedUrls((prev) => ({ ...prev, [photo.id]: response.url as string }));
         return response.url;
       }
-    } catch (err) {
-    }
+    } catch (_) { /* Presigned URL failure - returns null fallback */ }
 
     return null;
   }, [presignedUrls]);

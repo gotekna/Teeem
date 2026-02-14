@@ -78,7 +78,7 @@ interface CompanyDocument {
   }>;
 }
 
-interface DocumentPreviewModalProps {
+interface DocumentEditModalProps {
   document: CompanyDocument;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -108,13 +108,13 @@ function sanitizeFilename(filename: string): string {
 
 // ── Component ──
 
-export default function DocumentPreviewModal({
+export default function DocumentEditModal({
   document: initialDocument,
   open,
   onOpenChange,
   onDocumentUpdate,
   companies = [],
-}: DocumentPreviewModalProps) {
+}: DocumentEditModalProps) {
   const { toast } = useToast();
   const [document, setDocument] = React.useState<CompanyDocument>(initialDocument);
   const [validating, setValidating] = React.useState(false);

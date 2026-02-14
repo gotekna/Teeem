@@ -285,14 +285,7 @@ export function ComposeEmailModal({
     const accountBranding = selectedAccount?.branding_config;
     const useAccountBranding = accountBranding && accountBranding.use_default === false;
 
-    console.log('[ComposeSignature] getUserSignature:', {
-      signatureStyle,
-      userName: currentUser.name,
-      userEmail: currentUser.email,
-      companyName: companySettings?.company_name,
-      useAccountBranding,
-      accountBranding: useAccountBranding ? accountBranding : undefined,
-    });
+
 
     // SSoT (Feb 2026): Use per-account branding if configured, otherwise use company settings
     const brandingData = useAccountBranding ? {
@@ -702,13 +695,7 @@ export function ComposeEmailModal({
   };
 
   const handleSend = async () => {
-    console.log('[ComposeSend] handleSend called:', {
-      credential_id: formData.credential_id,
-      to: formData.to,
-      subject: formData.subject,
-      body_length: formData.body?.length,
-      signatureHtml_length: signatureHtml?.length,
-    });
+
 
     setError(null);
 

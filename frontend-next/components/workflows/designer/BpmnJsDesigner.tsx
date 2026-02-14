@@ -357,13 +357,6 @@ export default function BpmnJsDesigner({
   useEffect(() => {
     const myInitId = ++initCounterRef.current;
 
-    console.log("useEffect running:", {
-      initId: myInitId,
-      hasContainer: !!containerRef.current,
-      initialized: initializedRef.current,
-      processId,
-      initialXmlLength: initialXml?.length
-    });
 
     if (!containerRef.current || typeof window === "undefined") {
       return;

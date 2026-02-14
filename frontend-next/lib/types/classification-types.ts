@@ -1,5 +1,5 @@
 // Shared types for the ClassificationPanel component
-// Used by DocumentPreviewModal (Company Docs) and DocSort page
+// Used by DocumentEditModal (Company Docs) and DocSort page
 
 export interface ClassificationCompany {
   id: number;

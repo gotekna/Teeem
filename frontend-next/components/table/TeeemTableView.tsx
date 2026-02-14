@@ -3096,8 +3096,7 @@ export default function TeeemTableView({
         if (response?.record) {
           row = response.record;
         }
-      } catch (error) {
-      }
+      } catch (_) { /* Fetch failure is non-critical - falls through to use cached row */ }
     }
 
     if (row) {

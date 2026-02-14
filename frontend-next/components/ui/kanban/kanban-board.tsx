@@ -256,15 +256,6 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
           effectiveTargetIndex = targetIndex;
         }
 
-        console.log('[KanbanBoard] Same column reorder:', {
-          activeColumnId,
-          fromIndex,
-          targetIndex,
-          effectiveTargetIndex,
-          activeId: active.id,
-          overId: over.id,
-        });
-
         if (fromIndex !== effectiveTargetIndex && fromIndex !== -1) {
           onCardReorder?.({
             item: activeItemData,
@@ -275,11 +266,6 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
         }
       } else {
         // Different column - move
-        console.log('[KanbanBoard] Cross-column move:', {
-          fromColumnId: activeColumnId,
-          toColumnId: targetColumnId,
-          toIndex: targetIndex,
-        });
         onCardMove?.({
           item: activeItemData,
           fromColumnId: activeColumnId,

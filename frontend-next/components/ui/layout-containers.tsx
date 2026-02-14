@@ -14,7 +14,7 @@ import { Z_STICKY_CLASS } from "@/lib/constants/z-index-constants";
  * - Content panels start below headers (top-11 = 44px)
  * - 30/70 split by default
  *
- * Reference: JobPlansTab.tsx + TeeemDocumentView.tsx
+ * Reference: JobPlansTab.tsx + DocumentListView.tsx
  */
 
 // =============================================================================
@@ -107,7 +107,7 @@ interface SplitPanelProps {
  * Left panel (30% width, list side).
  * Starts at top-11 (44px) to clear header.
  *
- * Pattern from TeeemDocumentView:
+ * Pattern from DocumentListView:
  * `absolute top-11 left-0 bottom-0 w-[30%] bg-card`
  */
 export function SplitLeftPanel({ children, className, hasHeader = true }: SplitPanelProps) {
@@ -126,7 +126,7 @@ export function SplitLeftPanel({ children, className, hasHeader = true }: SplitP
  * Right panel (70% width, preview side).
  * Starts at top-0 by default (preview extends to top).
  *
- * Pattern from TeeemDocumentView:
+ * Pattern from DocumentListView:
  * `absolute top-0 left-[30%] right-0 bottom-0 border-l bg-card`
  */
 export function SplitRightPanel({ children, className, hasHeader = false }: SplitPanelProps) {

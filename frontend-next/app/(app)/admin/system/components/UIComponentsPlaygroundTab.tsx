@@ -123,7 +123,7 @@ import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-brows
 // Note: These require specific data/context to function:
 // - TeeemTableView: needs foundationId and entries
 // - BillsInvoiceViewer: needs invoice data
-// - DocumentPreviewModal: needs document data
+// - DocumentEditModal: needs document data
 
 // Registry
 import {
@@ -1375,7 +1375,7 @@ function BillsInvoiceViewerDemo() {
   );
 }
 
-function DocumentPreviewModalDemo() {
+function DocumentEditModalDemo() {
   const [open, setOpen] = React.useState(false);
   return (
     <div className="space-y-2">
@@ -1471,7 +1471,7 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "sharepoint-folder-browser": SharePointFolderBrowserDemo,
   "teeem-table-view": TeeemTableViewDemo,
   "bills-invoice-viewer": BillsInvoiceViewerDemo,
-  "document-preview-modal": DocumentPreviewModalDemo,
+  "document-edit-modal": DocumentEditModalDemo,
 };
 
 // =============================================================================

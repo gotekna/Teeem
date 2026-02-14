@@ -324,8 +324,7 @@ export class StateManager {
   clearPersistedState(): void {
     try {
       removeStorageItem(this.persistence.key, false);
-    } catch (e) {
-    }
+    } catch (_) { /* Storage clear failure is non-critical */ }
   }
 
   // ============================================================================
@@ -481,8 +480,7 @@ export class StateManager {
       };
 
       setStorageItem(this.persistence.key, stateToSave, false);
-    } catch (e) {
-    }
+    } catch (_) { /* Storage save failure is non-critical */ }
   }
 
   /**

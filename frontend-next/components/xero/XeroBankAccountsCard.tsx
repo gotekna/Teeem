@@ -304,13 +304,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
         }
       });
 
-      console.log(`[XeroBankTransactions] Response:`, {
-        success: response?.success,
-        transactionCount: response?.transactions?.length,
-        meta: response?.meta,
-        balance: response?.balance,
-      });
-
       if (response?.success && response.transactions) {
         setTransactions(response.transactions);
         setFilteredTransactions(response.transactions);

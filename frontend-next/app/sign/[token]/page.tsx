@@ -11,7 +11,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { EmailVerificationStep } from "@/components/signing/email-verification-step";
-import { DocumentViewerStep } from "@/components/signing/document-viewer-step";
+import { SigningReviewStep } from "@/components/signing/signing-review-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
 import { PositionedSigningStep } from "@/components/signing/positioned-signing-step";
 import { CompletionStep } from "@/components/signing/completion-step";
@@ -198,7 +198,7 @@ export default function SigningCeremonyPage() {
 
       case "view_document":
         return (
-          <DocumentViewerStep
+          <SigningReviewStep
             token={token}
             documentTitle={request?.title || "Document"}
             onContinue={handleDocumentViewed}

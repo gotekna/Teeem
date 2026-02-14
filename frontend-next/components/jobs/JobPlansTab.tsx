@@ -52,7 +52,7 @@ import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
-import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
+import { DocumentListView } from "@/components/ui/document-list-view";
 import { Spinner } from "@/components/ui/spinner";
 // Layout mode is handled by parent page wrapper (TabbedDetailPage)
 // This tab uses EdgeToEdgeTabContent for internal padding
@@ -994,9 +994,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       {/* Action bar removed - plan name already shown in sidebar, actions available via right-click */}
 
-      {/* TeeemDocumentView - fills entire container */}
+      {/* DocumentListView - fills entire container */}
       <div className="absolute inset-0">
-        <TeeemDocumentView
+        <DocumentListView
           documents={filteredPlans}
           title=""
           getDocumentId={(p) => p.id}

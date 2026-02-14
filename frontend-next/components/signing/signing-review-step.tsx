@@ -25,19 +25,19 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 
-interface DocumentViewerStepProps {
+interface SigningReviewStepProps {
   token: string;
   documentTitle: string;
   onContinue: () => void;
   onDecline: (reason: string) => void;
 }
 
-export function DocumentViewerStep({
+export function SigningReviewStep({
   token,
   documentTitle,
   onContinue,
   onDecline,
-}: DocumentViewerStepProps) {
+}: SigningReviewStepProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);

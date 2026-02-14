@@ -139,8 +139,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         });
         return response.url;
       }
-    } catch (err) {
-    }
+    } catch (_) { /* Presigned URL failure - returns null fallback */ }
 
     return null;
   }, [emailId]);

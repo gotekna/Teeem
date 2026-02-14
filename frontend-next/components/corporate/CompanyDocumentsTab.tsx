@@ -36,7 +36,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
-import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
+import DocumentEditModal from "@/components/corporate/DocumentEditModal";
 import {
   Sheet,
   SheetContent,
@@ -766,7 +766,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
 
       {/* Document Preview Modal with AI Verification - Double click for editing */}
       {selectedDocument && (
-        <DocumentPreviewModal
+        <DocumentEditModal
           open={isPreviewOpen}
           onOpenChange={(open) => {
             setIsPreviewOpen(open);

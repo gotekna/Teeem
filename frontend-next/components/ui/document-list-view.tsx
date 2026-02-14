@@ -35,7 +35,7 @@ export interface DocumentItem {
   id: number;
 }
 
-export interface TeeemDocumentViewProps<T extends DocumentItem> {
+export interface DocumentListViewProps<T extends DocumentItem> {
   // Required
   documents: T[];
   title: string;
@@ -137,7 +137,7 @@ function AuthenticatedImage({
   return <img src={imageUrl} alt={alt} className={className} />;
 }
 
-export function TeeemDocumentView<T extends DocumentItem>({
+export function DocumentListView<T extends DocumentItem>({
   documents,
   title,
   getDocumentId,
@@ -167,7 +167,7 @@ export function TeeemDocumentView<T extends DocumentItem>({
   onLoadMore,
   hasMore = false,
   loadingMore = false,
-}: TeeemDocumentViewProps<T>) {
+}: DocumentListViewProps<T>) {
   // Merge labels with defaults
   const statusLabels = {
     draft: statusLabelsInput?.draft ?? "Draft",

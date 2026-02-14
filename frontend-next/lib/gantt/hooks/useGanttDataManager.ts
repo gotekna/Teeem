@@ -298,8 +298,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           if (validateResult?.updated && validateResult.updated > 0) {
           }
           dateMap = validateResult?.date_map || null;
-        } catch (err) {
-        }
+        } catch (_) { /* Date validation failure is non-critical - continues without date map */ }
       }
 
       // For jobs: run validate_dates (auto-rollover on load)
@@ -321,8 +320,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
               });
             }
           }
-        } catch (err) {
-        }
+        } catch (_) { /* Roll-forward failure is non-critical */ }
       }
 
       // Fetch holidays for working day calculations
