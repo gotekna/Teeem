@@ -194,7 +194,8 @@ export async function getDocumentFromCache(
     }
 
     return data;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -240,7 +241,8 @@ export async function setDocumentInCache(
     };
 
     await db.put(DOCUMENTS_STORE, data);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -257,7 +259,8 @@ export async function deleteDocumentFromCache(
     const db = await getDatabase();
     const cacheKey = getDocumentCacheKey(jobId, documentId);
     await db.delete(DOCUMENTS_STORE, cacheKey);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -274,7 +277,8 @@ export async function getJobDocumentsFromCache(jobId: number): Promise<CachedDoc
 
     // Filter out expired entries
     return all.filter(entry => now <= entry.expiresAt);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -300,7 +304,8 @@ export async function clearJobDocumentsFromCache(jobId: number): Promise<number>
 
     await tx.done;
     return deletedCount;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -318,7 +323,8 @@ export async function getSyncedJobInfo(jobId: number): Promise<SyncedJobInfo | n
   try {
     const db = await getDatabase();
     return await db.get(JOBS_STORE, jobId) || null;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -332,7 +338,8 @@ export async function updateSyncedJobInfo(info: SyncedJobInfo): Promise<void> {
   try {
     const db = await getDatabase();
     await db.put(JOBS_STORE, info);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -345,7 +352,8 @@ export async function getAllSyncedJobs(): Promise<SyncedJobInfo[]> {
   try {
     const db = await getDatabase();
     return await db.getAll(JOBS_STORE);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -365,7 +373,8 @@ export async function removeSyncedJob(jobId: number): Promise<void> {
     // Delete all documents for this job
     await clearJobDocumentsFromCache(jobId);
 
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -401,7 +410,8 @@ export async function cleanupDocumentCache(): Promise<number> {
     }
 
     return deletedCount;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -416,7 +426,8 @@ export async function clearDocumentCache(): Promise<void> {
     const db = await getDatabase();
     await db.clear(DOCUMENTS_STORE);
     await db.clear(JOBS_STORE);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 

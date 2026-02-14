@@ -48,7 +48,8 @@ export async function getCachedPdf(url: string): Promise<Blob | null> {
       }
     }
     return null;
-  } catch (err) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -68,7 +69,8 @@ export async function cachePdf(url: string, blob: Blob): Promise<void> {
       },
     });
     await cache.put(url, response);
-  } catch (err) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -81,7 +83,8 @@ export async function clearPdfCache(): Promise<void> {
 
   try {
     await caches.delete(PDF_CACHE_NAME);
-  } catch (err) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -95,7 +98,8 @@ export async function removeCachedPdf(url: string): Promise<void> {
   try {
     const cache = await caches.open(PDF_CACHE_NAME);
     await cache.delete(url);
-  } catch (err) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 

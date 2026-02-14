@@ -1573,18 +1573,6 @@ export default function PurchaseOrderDetailPage() {
                     selectedSupplier.supplied_pricebook_item_ids &&
                     !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
 
-                  // Debug logging
-                  if (item.pricebook_item && hasPriceChanged) {
-                    console.log('Price mismatch detected:', {
-                      item_code: item.pricebook_item.item_code,
-                      po_unit_price: item.unit_price,
-                      pricebook_active_price: item.pricebook_item.active_price,
-                      po_as_number: Number(item.unit_price),
-                      pricebook_as_number: Number(item.pricebook_item.active_price),
-                      are_equal: Number(item.unit_price) === Number(item.pricebook_item.active_price)
-                    });
-                  }
-
                   // Determine background color (priority: grey out > not supplied > price changed > normal)
                   // Not supplied = amber, Price changed = orange
                   const rowBgColor = shouldGreyOut

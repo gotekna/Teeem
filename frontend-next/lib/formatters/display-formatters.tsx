@@ -260,7 +260,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
         {value.map((item, idx) => {
           const displayText = extractDisplayText(item);
           return (
-            <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+            <Badge key={`${displayText}-${idx}`} variant="secondary" className="text-[10px] px-1.5 py-0">
               {displayText}
             </Badge>
           );
@@ -426,7 +426,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((item, idx) => (
-          <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+          <Badge key={`${String(item)}-${idx}`} variant="outline" className="text-[10px] px-1.5 py-0">
             {String(item)}
           </Badge>
         ))}

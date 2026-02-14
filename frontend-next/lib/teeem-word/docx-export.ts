@@ -212,7 +212,8 @@ async function convertElementToDocx(
         if (imageRun) {
           return new Paragraph({ children: [imageRun] });
         }
-      } catch (e) {
+      } catch (error) {
+        console.error("Export error:", error);
       }
     }
     return null;
@@ -424,7 +425,8 @@ async function createImageFromDataUrl(dataUrl: string): Promise<ImageRun | null>
         height: 300,
       },
     });
-  } catch (e) {
+  } catch (error) {
+    console.error("Export error:", error);
     return null;
   }
 }

@@ -1102,13 +1102,6 @@ export default function TeeemTableView({
     }
 
     const fetchInitialRecords = async () => {
-      console.log('[TeeemTableView] fetchInitialRecords called:', {
-        hasMore,
-        recordCount: autoFetchedRecords.length,
-        search: searchRef.current,
-        autoFetchRefreshKey,
-      });
-
       // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-01-07)
       // ════════════════════════════════════════════════════════════════════════
       // Why we check URL param directly instead of just searchRef.current:
@@ -1159,13 +1152,6 @@ export default function TeeemTableView({
 
       if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged && !hasActiveSearch) {
         return; // Client-side filtering in filteredAndSortedEntries handles this
-      }
-
-      if (baseFiltersChanged) {
-        console.log('[TeeemTableView] Base filters changed, refetching:', {
-          previous: lastFetchedBaseFiltersKeyRef.current,
-          current: baseFiltersKey,
-        });
       }
 
       // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
@@ -1682,17 +1668,11 @@ export default function TeeemTableView({
         // Clear ALL filters including base - prevents atom pollution between tables sharing the same Jotai store
         // (e.g., PO table's job_id base filter leaking into PO Line Items table)
         // Base filters will be re-set by the initialFilters effect below if needed
-        console.log('[Foundation Change] Clearing filters for:', effectiveFoundationId,
-          isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
         clearAllUserFilters();
         setBaseFilters([]);
 
         // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
         if (initialView) {
-          console.log('[Foundation Change] Applying SSR initialView filters:', {
-            filterCount: initialView.filters?.cascadeFilters?.length || 0,
-          });
-
           if (initialView.filters?.cascadeFilters?.length) {
             setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
           } else {
@@ -1774,11 +1754,6 @@ export default function TeeemTableView({
       const { order, visible, widths } = initialView.columns;
       if (order?.length || (visible && Object.keys(visible).length)) {
         ssrColumnsInitializedRef.current = foundationId;
-        console.log('[SSR] Applying initialView columns:', {
-          order: order?.length || 0,
-          visible: visible ? Object.keys(visible).length : 0,
-          widths: widths ? Object.keys(widths).length : 0
-        });
         if (order?.length) {
           setColumnOrder(order);
         }
@@ -3181,15 +3156,6 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false, silentUrlUpdate = false) => {
-      console.log('[loadViewState] Called with:', {
-        viewId: view.id,
-        viewName: view.name,
-        skipUrlUpdate,
-        isUserAction,
-        silentUrlUpdate,
-        foundationSlug,
-      });
-
       // Mark that user has made a view selection - prevents default view from overriding
       // This fixes race condition where async loadSavedViews completion could override user's selection
       if (isUserAction) {

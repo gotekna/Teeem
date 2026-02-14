@@ -872,14 +872,6 @@ function TreeNode({
         const fullPath = currentPath[currentEditingScopeKey] || node.path;
         const firstSegment = fullPath?.split('/')[0] || fullPath || '';
         const initialTemplate = getInitialFolderTemplate(currentEditingScopeKey);
-        console.log('🟣 [TreeNode useEffect] Initializing edit values:', {
-          fullPath,
-          firstSegment,
-          folderTemplate: initialTemplate,
-          downloadName: downloadNameTemplates[currentEditingScopeKey],
-          uiName: uiNameTemplates[currentEditingScopeKey],
-          configLink: configLinks[currentEditingScopeKey],
-        });
         setEditValue(firstSegment);
         setFolderTemplate(initialTemplate);
         setDownloadNameTemplate(
@@ -2087,18 +2079,8 @@ export function WarehouseProviderTab() {
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
           foldersByScope[wt.code] = wt.warehouse_folders || [];
-
-          // DEBUG: Log base folders from API for each warehouse type
-          if (wt.warehouse_folders && wt.warehouse_folders.length > 0) {
-            console.log(`[loadWarehouseTypes] Scope "${wt.code}" has ${wt.warehouse_folders.length} base_folders from API:`,
-              wt.warehouse_folders.map(bf => ({ id: bf.id, name: bf.name, path: bf.full_path_template })));
-          }
         });
         setWarehouseFoldersByScope(foldersByScope);
-
-        // DEBUG: Summary of all base folders
-        console.log('[loadWarehouseTypes] Total base_folders by scope:',
-          Object.entries(foldersByScope).map(([k, v]) => `${k}: ${v.length}`).join(', '));
       }
     } catch (error) {
       console.error("Failed to load warehouse types:", error);
@@ -2240,13 +2222,8 @@ export function WarehouseProviderTab() {
     const root: FolderTreeNode[] = [];
     const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
 
-    // DEBUG: Track sources of each node
-
     // Build tree directly from base folders
     Object.entries(warehouseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
-      console.log(`[folderTree] Processing scope "${scopeCode}" with ${baseFolders.length} base folders:`,
-        baseFolders.map(bf => `ID:${bf.id} "${bf.name}" path:${bf.full_path_template}`));
-
       baseFolders.forEach((bf) => {
         const path = bf.full_path_template;
         if (!path || isPlaceholder(path.split('/')[0])) return;
@@ -2507,16 +2484,6 @@ export function WarehouseProviderTab() {
     uiNameTemplate: string,
     configLink: string | null
   ) => {
-    // DEBUG: Log all save parameters
-    console.log('🔵 [saveScopeTemplates] Called with:', {
-      scopeKey,
-      baseFolder,
-      folderTemplate,
-      downloadNameTemplate,
-      uiNameTemplate,
-      configLink,
-    });
-
     try {
       // SSoT (Feb 2026): base_folder.full_path_template is the SSoT
       // folderTemplate already contains the complete path - save it directly

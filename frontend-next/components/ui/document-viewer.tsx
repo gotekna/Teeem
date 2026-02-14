@@ -24,6 +24,13 @@ import { WordDocumentPreview } from "@/components/ui/word-document-preview";
 import { cn } from "@/lib/utils";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PDFEditor } from "@/components/ui/pdf-editor";
+import { Button } from "@/components/ui/button";
 
 // =============================================================================
 // TYPES
@@ -89,6 +96,14 @@ export interface DocumentViewerProps {
   theme?: "light" | "dark";
   /** Footer text (default: 'Shared via Teeem') */
   footerText?: string;
+  /** Wrap viewer in a Dialog modal */
+  modal?: boolean;
+  /** Dialog open state (required when modal=true) */
+  open?: boolean;
+  /** Dialog open state change handler (required when modal=true) */
+  onOpenChange?: (open: boolean) => void;
+  /** PDF annotation save handler - when provided, PDFs open in PDFEditor */
+  onSave?: (pdfBytes: Uint8Array, fileName: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -456,6 +471,10 @@ export function DocumentViewer({
   className,
   theme = "dark",
   footerText = "Shared via Teeem",
+  modal,
+  open,
+  onOpenChange,
+  onSave,
 }: DocumentViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [emlData, setEmlData] = useState<ReturnType<typeof parseEmlContent> | null>(null);
@@ -714,6 +733,113 @@ export function DocumentViewer({
 
   const isDark = theme === "dark";
 
+  // =========================================================================
+  // Modal mode: wrap viewer in a Dialog
+  // =========================================================================
+  if (modal) {
+    // PDF with onSave → PDFEditor (annotation tools)
+    if (fileType === "pdf" && onSave) {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+            <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
+            <PDFEditor
+              url={url}
+              fileName={fileName}
+              onSave={onSave}
+              onClose={() => onOpenChange?.(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // PDF without onSave → iframe viewer in dialog
+    if (fileType === "pdf") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+            <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0">
+                {pdfLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">Loading document...</p>
+                  </div>
+                ) : pdfBlobUrl ? (
+                  <PdfFrame className="w-full h-full">
+                    <iframe key={pdfBlobUrl} src={pdfBlobUrl} className="w-full h-full" />
+                  </PdfFrame>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                    <FileText className="h-16 w-16" />
+                    <p>Unable to preview this PDF.</p>
+                    <Button onClick={() => window.open(url, "_blank")}>
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Open in New Tab
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Image → image viewer in dialog
+    if (fileType === "image") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] p-4">
+            <DialogTitle className="sr-only">{fileName || "Image Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+              </div>
+              <div className="flex-1 flex items-center justify-center overflow-auto">
+                <img src={url} alt={fileName} className="max-w-full max-h-full object-contain" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // All other types (eml, excel, word, other) → generic modal
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="sr-only">{fileName || "File Preview"}</DialogTitle>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <p className="text-sm text-muted-foreground text-center">
+              Preview not available for this file type.
+            </p>
+            <p className="text-sm font-medium">{fileName}</p>
+            <Button onClick={() => window.open(url, "_blank")}>
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Open in New Tab
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // =========================================================================
+  // Inline mode (default): full document viewer with header/footer/sidebar
+  // =========================================================================
   return (
     <div className={cn(
       "flex flex-col h-full",
@@ -807,7 +933,7 @@ export function DocumentViewer({
                 isDark ? "border-gray-700" : "border-gray-200"
               )}>
                 {qaContext!.map((qa, index) => (
-                  <div key={index} className="space-y-2">
+                  <div key={`qa-${qa.question}-${index}`} className="space-y-2">
                     {qaContext!.length > 1 && (
                       <div className={cn("text-xs uppercase tracking-wide", isDark ? "text-gray-500" : "text-gray-400")}>
                         Question {index + 1}
@@ -872,7 +998,7 @@ export function DocumentViewer({
                 <div className="space-y-1">
                   {files!.map((file, index) => (
                     <button
-                      key={index}
+                      key={`file-${file.name}-${index}`}
                       onClick={() => goToFile(index)}
                       className={cn(
                         "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",

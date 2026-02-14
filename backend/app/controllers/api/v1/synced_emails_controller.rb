@@ -1985,10 +1985,23 @@ class Api::V1::SyncedEmailsController < ApplicationController
         filename = att["name"] || "attachment"
         next if synced_filenames.include?(filename.downcase)
 
+        # FRC (Feb 2026): Item attachments (nested emails) have contentType=null from Graph API.
+        # Detect by @odata.type and set correct content_type + .eml extension so frontend
+        # can route to the EML viewer instead of a broken iframe preview.
+        is_item_attachment = att["@odata.type"] == "#microsoft.graph.itemAttachment"
+        content_type = if is_item_attachment
+                         "message/rfc822"
+                       else
+                         att["contentType"]
+                       end
+        if is_item_attachment && !filename.downcase.end_with?(".eml")
+          filename = "#{filename}.eml"
+        end
+
         result << {
           id: nil,  # No local ID yet - needs to be fetched on download
           name: filename,
-          content_type: att["contentType"],
+          content_type: content_type,
           size: att["size"],
           outlook_attachment_id: att["id"]
         }

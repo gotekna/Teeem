@@ -174,7 +174,8 @@ export async function getGanttFromCache(
 
     const age = Math.round((now - data.cachedAt) / 1000 / 60);
     return data;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -223,7 +224,8 @@ export async function setGanttInCache(
     if (mode === "job") {
       await updateJobCacheStatus(id, now);
     }
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -237,7 +239,8 @@ export async function deleteGanttFromCache(mode: "job" | "template", id: number)
     const db = await getDatabase();
     const cacheKey = getGanttCacheKey(mode, id);
     await db.delete(STORE_NAME, cacheKey);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -254,7 +257,8 @@ export async function getAllCachedGantt(): Promise<CachedGanttData[]> {
 
     // Filter out expired entries
     return all.filter(entry => now <= entry.expiresAt);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -335,7 +339,8 @@ export async function setJobsListInCache(jobs: CachedJobInfo[]): Promise<void> {
       cachedAt: Date.now(),
     });
 
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -361,7 +366,8 @@ async function updateJobCacheStatus(jobId: number, cachedAt: number): Promise<vo
         jobs: updatedJobs,
       });
     }
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -397,7 +403,8 @@ export async function cleanupGanttCache(): Promise<number> {
     }
 
     return deletedCount;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -412,7 +419,8 @@ export async function clearGanttCache(): Promise<void> {
     const db = await getDatabase();
     await db.clear(STORE_NAME);
     await db.clear("jobsList");
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -461,7 +469,8 @@ export async function getGanttCacheStats(): Promise<{
       oldestAge,
       totalSizeEstimate,
     };
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return {
       ganttEntries: 0,
       totalTasks: 0,

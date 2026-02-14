@@ -544,12 +544,6 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
-        console.log('[ViewManagerSheet] Applying saved view:', {
-          name: savedView.name,
-          filters: savedView.filters,
-          filterCount: Array.isArray(savedView.filters) ? savedView.filters.length : 0,
-          columnOrder: savedView.columnOrder?.length,
-        });
         onApplyView?.(savedView);
 
         // Small delay to ensure atom updates propagate before triggering refresh

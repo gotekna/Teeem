@@ -123,7 +123,8 @@ export async function getFromIDB(foundationId: string | number): Promise<CachedF
     }
 
     return data;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -154,7 +155,8 @@ export async function setInIDB(
     };
 
     await db.put(STORE_NAME, data);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -167,7 +169,8 @@ export async function deleteFromIDB(foundationId: string | number): Promise<void
   try {
     const db = await getDatabase();
     await db.delete(STORE_NAME, String(foundationId));
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -180,7 +183,8 @@ export async function clearAllIDB(): Promise<void> {
   try {
     const db = await getDatabase();
     await db.clear(STORE_NAME);
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -212,7 +216,8 @@ export async function cleanupExpiredIDB(): Promise<number> {
     }
 
     return deletedCount;
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -238,7 +243,8 @@ export async function getIDBStats(): Promise<{ count: number; totalRecords: numb
       totalRecords,
       oldestAge,
     };
-  } catch (error) {
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return { count: 0, totalRecords: 0, oldestAge: null };
   }
 }

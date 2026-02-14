@@ -25,6 +25,10 @@ import {
   Plus,
   Sparkles,
   Layers,
+  ExternalLink,
+  Maximize2,
+  X,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -33,7 +37,11 @@ import { formatFileSize } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentPreviewModal from "@/components/corporate/DocumentPreviewModal";
-import DocumentSidePanel from "@/components/corporate/DocumentSidePanel";
+import {
+  Sheet,
+  SheetContent,
+} from "@/components/ui/sheet";
+import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
 import { Spinner } from "@/components/ui/spinner";
 import type { Corporate } from "@/lib/types/corporate";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
@@ -66,6 +74,10 @@ interface CompanyDocument extends TableRow {
   user_validated_by_id?: number;
   user_validated_by_name?: string;
   company_id?: number;
+  // Confidence scores for side panel badges
+  ocr_confidence?: number;
+  ocr_method?: string;
+  human_confidence?: number;
 }
 
 // SSoT: DOCUMENT_FOLDER_OPTIONS imported from @/lib/constants/document-types
@@ -103,6 +115,9 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
   const [sidePanelDocument, setSidePanelDocument] = React.useState<CompanyDocument | null>(null);
   const [isSidePanelOpen, setIsSidePanelOpen] = React.useState(false);
+  const [sidePanelPreviewUrl, setSidePanelPreviewUrl] = React.useState<string | null>(null);
+  const [sidePanelPreviewLoading, setSidePanelPreviewLoading] = React.useState(false);
+  const [sidePanelPreviewError, setSidePanelPreviewError] = React.useState<string | null>(null);
 
   // Cascade mode - shows documents from folder AND all subfolders
   const [cascadeMode, setCascadeMode] = React.useState(true);
@@ -111,6 +126,42 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
     loadDocuments();
     loadCompanies();
   }, [companyId, category, cascadeMode]);
+
+  // Fetch presigned preview URL when side panel document changes
+  React.useEffect(() => {
+    if (!sidePanelDocument?.id || !isSidePanelOpen) {
+      setSidePanelPreviewUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    setSidePanelPreviewLoading(true);
+    setSidePanelPreviewError(null);
+
+    api.get<{ success: boolean; preview_url?: string; error?: string }>(
+      `/api/v1/company_documents/${sidePanelDocument.id}/preview`
+    ).then(response => {
+      if (cancelled) return;
+      if (response?.success && response.preview_url) {
+        setSidePanelPreviewUrl(response.preview_url);
+      } else {
+        setSidePanelPreviewError(response?.error || "Preview not available");
+        setSidePanelPreviewUrl(null);
+      }
+    }).catch((_error: unknown) => {
+      if (cancelled) return;
+      const errorMessage = _error instanceof Error ? _error.message : String(_error);
+      if (!errorMessage.includes("OneDrive credentials not available")) {
+        console.error("Failed to fetch preview URL:", _error);
+      }
+      setSidePanelPreviewError("Preview not available");
+      setSidePanelPreviewUrl(null);
+    }).finally(() => {
+      if (!cancelled) setSidePanelPreviewLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [sidePanelDocument?.id, isSidePanelOpen]);
 
   const loadCompanies = async () => {
     try {
@@ -545,16 +596,173 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
         )}
       />
 
-      {/* Document Side Panel - Single click preview */}
-      <DocumentSidePanel
-        document={sidePanelDocument}
-        open={isSidePanelOpen}
-        onOpenChange={(open) => {
+      {/* Document Side Panel - Single click preview (inlined from DocumentSidePanel) */}
+      {sidePanelDocument && (
+        <Sheet open={isSidePanelOpen} onOpenChange={(open) => {
           setIsSidePanelOpen(open);
           if (!open) setSidePanelDocument(null);
-        }}
-        onExpandToFullscreen={handleExpandToFullscreen}
-      />
+        }} modal={false}>
+          <SheetContent
+            side="right"
+            className="w-[600px] sm:max-w-[600px] p-0"
+            title={sidePanelDocument.file_name || "Document"}
+            aria-describedby="document-preview-description"
+          >
+            <div className="flex flex-col h-full">
+              {/* Header with confidence badges */}
+              <div className="flex items-center justify-between p-4 border-b bg-background">
+                <div className="flex-1 min-w-0 mr-4">
+                  <h3 className="font-semibold text-sm truncate">{sidePanelDocument.file_name || "Document"}</h3>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    {sidePanelDocument.folder && (
+                      <Badge variant="outline" className="text-xs">{sidePanelDocument.folder}</Badge>
+                    )}
+                    {sidePanelDocument.source && (
+                      <Badge variant="secondary" className="text-xs">{sidePanelDocument.source}</Badge>
+                    )}
+                    {sidePanelDocument.ocr_confidence != null ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs font-medium",
+                          sidePanelDocument.ocr_confidence >= 90
+                            ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-400 border-blue-300 dark:border-blue-700"
+                            : sidePanelDocument.ocr_confidence >= 70
+                            ? "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-600"
+                            : "bg-blue-50/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-500"
+                        )}
+                        title={`OCR text extraction confidence (${sidePanelDocument.ocr_method || 'unknown'})`}
+                      >
+                        OCR {Math.round(sidePanelDocument.ocr_confidence)}%
+                      </Badge>
+                    ) : sidePanelDocument.ocr_method === "vision" ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-300 dark:border-purple-700"
+                        title="Document processed using AI vision (no text extraction)"
+                      >
+                        OCR Vision
+                      </Badge>
+                    ) : null}
+                    {sidePanelDocument.ai_confidence_score != null && (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs font-medium",
+                          sidePanelDocument.ai_confidence_score >= 90
+                            ? "bg-status-success text-status-success-foreground border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700"
+                            : sidePanelDocument.ai_confidence_score >= 70
+                            ? "bg-status-warning text-status-warning-foreground border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700"
+                            : "bg-status-error text-status-error-foreground border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-700"
+                        )}
+                        title="AI classification confidence score"
+                      >
+                        AI {Math.round(sidePanelDocument.ai_confidence_score)}%
+                      </Badge>
+                    )}
+                    {sidePanelDocument.human_confidence != null ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs font-medium",
+                          sidePanelDocument.human_confidence >= 90
+                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700"
+                            : sidePanelDocument.human_confidence >= 70
+                            ? "bg-teal-100 text-teal-800 border-teal-300 dark:bg-teal-900/30 dark:text-teal-400 dark:border-teal-700"
+                            : "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-400 border-cyan-300 dark:border-cyan-700"
+                        )}
+                        title="Human validation confidence score"
+                      >
+                        Human {Math.round(sidePanelDocument.human_confidence)}%
+                      </Badge>
+                    ) : sidePanelDocument.user_validated_at ? (
+                      <Badge
+                        variant="outline"
+                        className="text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700"
+                        title="Validated by human"
+                      >
+                        Human ✓
+                      </Badge>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={handleExpandToFullscreen} title="Open fullscreen">
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                  {sidePanelDocument.file_url && (
+                    <Button variant="ghost" size="icon" asChild title="Open in new tab">
+                      <a href={sidePanelDocument.file_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => { setIsSidePanelOpen(false); setSidePanelDocument(null); }}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Preview Area - uses DocumentViewer for supported types */}
+              <div id="document-preview-description" className="flex-1 bg-muted overflow-hidden">
+                {sidePanelPreviewLoading ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <Spinner size={48} className="mb-4" />
+                    <p className="text-sm">Loading preview...</p>
+                  </div>
+                ) : sidePanelPreviewUrl ? (
+                  (() => {
+                    const ft = getFileType(sidePanelDocument.file_name || "");
+                    if (ft === "image") {
+                      return (
+                        <div className="flex items-center justify-center h-full p-4">
+                          <img src={sidePanelPreviewUrl} alt={sidePanelDocument.file_name || "Document"} className="max-w-full max-h-full object-contain" />
+                        </div>
+                      );
+                    }
+                    if (ft === "pdf") {
+                      return <iframe src={sidePanelPreviewUrl} className="w-full h-full border-0" title="Document Preview" allow="fullscreen" />;
+                    }
+                    // EML, Excel, Word, other - use DocumentViewer inline (no modal)
+                    return (
+                      <DocumentViewer
+                        url={sidePanelPreviewUrl}
+                        fileName={sidePanelDocument.file_name || "Document"}
+                        showHeader={false}
+                        showFooter={false}
+                        theme="light"
+                        className="h-full"
+                      />
+                    );
+                  })()
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
+                    <FileText className="h-16 w-16 mb-4" />
+                    <p className="text-lg font-medium mb-2">{sidePanelPreviewError || "Preview not available"}</p>
+                    <p className="text-sm text-center mb-4">This file type cannot be previewed inline</p>
+                    <div className="flex gap-2">
+                      {sidePanelPreviewUrl && (
+                        <Button asChild size="sm">
+                          <a href={sidePanelPreviewUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            Open in New Tab
+                          </a>
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={handleExpandToFullscreen}>
+                        <Maximize2 className="h-4 w-4 mr-2" />
+                        Edit Details
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer hint */}
+              <div className="p-2 border-t bg-muted/50 text-center">
+                <p className="text-xs text-muted-foreground">Double-click document to edit details</p>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {/* Document Preview Modal with AI Verification - Double click for editing */}
       {selectedDocument && (

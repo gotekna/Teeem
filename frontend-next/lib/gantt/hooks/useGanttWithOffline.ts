@@ -93,7 +93,8 @@ export function useGanttWithOffline(config: UseGanttWithOfflineConfig) {
             // Instead, the page component should handle this case
             setLoadedFromCache(true);
           }
-        } catch (error) {
+        } catch (_) {
+          /* Cache failure is non-critical - app continues without cache */
         } finally {
           setLoadingFromCache(false);
         }

@@ -115,7 +115,7 @@ import { useWorkingDays } from '@/lib/hooks/useWorkingDays';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
-import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
+import { DocumentViewer, getFileType, type FileType } from '@/components/ui/document-viewer';
 import { RichTextEditorModal } from '@/components/ui/rich-text-editor-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
@@ -224,7 +224,7 @@ interface SortableQuestionItemProps {
   setRenamingAttachmentName?: (name: string) => void;
   handleRenameAttachment?: (attachmentId: number, newName: string) => void;
   // Document viewer props
-  onOpenDocument?: (url: string, fileName: string, fileType: 'pdf' | 'image' | 'other') => void;
+  onOpenDocument?: (url: string, fileName: string, fileType: FileType) => void;
   onDownloadAttachment?: (att: TaskAttachment) => void;
 }
 
@@ -725,11 +725,8 @@ function SortableQuestionItem({
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               const isRenaming = renamingAttachmentId === att.id;
 
-              // Determine file type for viewer
-              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
-              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
-                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
-                : 'other';
+              // Determine file type for viewer (uses SSoT getFileType from document-viewer)
+              const fileType = getFileType(att.document?.file_name || '');
 
               return (
                 <div key={att.id} className="flex items-center gap-1 text-xs group relative">
@@ -1227,7 +1224,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [viewerDocument, setViewerDocument] = useState<{
     url: string;
     fileName: string;
-    fileType: 'pdf' | 'image' | 'other';
+    fileType: FileType;
   } | null>(null);
 
   // Column collapse state
@@ -8257,10 +8254,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       {/* Document viewer modal with markup/annotation tools */}
       {viewerDocument && (
-        <DocumentViewerModal
+        <DocumentViewer
+          modal
           url={viewerDocument.url}
           fileName={viewerDocument.fileName}
-          fileType={viewerDocument.fileType}
           open={!!viewerDocument}
           onOpenChange={(open) => !open && setViewerDocument(null)}
           onSave={async (pdfBytes, fileName) => {

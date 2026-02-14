@@ -111,8 +111,8 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                     Quick Tips
                   </div>
                   <ul className="space-y-1">
-                    {pageHelp.tips.map((tip, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                    {pageHelp.tips.map((tip) => (
+                      <li key={tip} className="text-xs text-muted-foreground flex gap-2">
                         <span className="text-amber-500">•</span>
                         {tip}
                       </li>
@@ -129,8 +129,8 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                     What you can do here
                   </div>
                   <ul className="space-y-1">
-                    {pageHelp.tasks.map((task, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                    {pageHelp.tasks.map((task) => (
+                      <li key={task} className="text-xs text-muted-foreground flex gap-2">
                         <span className="text-green-500">•</span>
                         {task}
                       </li>

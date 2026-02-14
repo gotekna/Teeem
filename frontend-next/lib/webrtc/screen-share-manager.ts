@@ -137,7 +137,8 @@ export class ScreenShareManager {
     if (!this.pc) return;
     try {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (err) {
+    } catch (error) {
+      console.error("Screen share error:", error);
     }
   }
 
@@ -225,7 +226,8 @@ export class ScreenShareManager {
         try {
           const controlEvent: RemoteControlEvent = JSON.parse(event.data);
           this.replayControlEvent(controlEvent);
-        } catch (err) {
+        } catch (error) {
+          console.error("Screen share error:", error);
         }
       };
     }

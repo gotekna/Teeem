@@ -11,7 +11,7 @@ import {
   Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DocumentViewerModal, getFileType } from "@/components/ui/document-viewer-modal";
+import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
@@ -173,7 +173,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     };
   }, [previewUrl]);
 
-  // Open preview modal using standard DocumentViewerModal (single-click action)
+  // Open preview modal using DocumentViewer in modal mode (single-click action)
   const handlePreviewModal = async (attachment: Attachment) => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
@@ -466,12 +466,12 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         })}
       </div>
 
-      {/* Preview Modal - standard DocumentViewerModal (SSoT) */}
+      {/* Preview Modal - DocumentViewer in modal mode (SSoT) */}
       {previewUrl && previewAttachment && (
-        <DocumentViewerModal
+        <DocumentViewer
+          modal
           url={previewUrl}
           fileName={previewAttachment.name}
-          fileType={getFileType(previewAttachment.name)}
           open={previewOpen}
           onOpenChange={(open) => { if (!open) closePreview(); }}
         />

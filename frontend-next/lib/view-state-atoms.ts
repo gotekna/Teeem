@@ -423,14 +423,6 @@ export const applyViewAtom = atom(
     // Companies with employees will have those employees grouped under them
     // Companies with 0 employees will still appear in search results
 
-    console.log('[applyViewAtom] Setting view filters:', {
-      viewName: view.name,
-      viewId: view.id,
-      filterCount: sourcedFilters.length,
-      filters: sourcedFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
-      filterGroups: filterGroups.length,
-      interGroupLogic,
-    });
     set(_viewFiltersAtom, sourcedFilters);
     set(_filterGroupsAtom, filterGroups);
     set(_interGroupLogicAtom, interGroupLogic);

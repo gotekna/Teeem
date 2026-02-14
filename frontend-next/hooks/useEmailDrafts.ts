@@ -143,7 +143,8 @@ export function useEmailDrafts() {
           reply_to_message_id: draft.reply_to_message_id,
           attachment_names: draft.attachment_names,
         });
-      } catch (err) {
+      } catch (error) {
+        console.error("Draft migration failed:", error);
       }
     }
 
@@ -219,7 +220,8 @@ export function useEmailDrafts() {
 
         return savedDraft.id;
       }
-    } catch (err) {
+    } catch (error) {
+      console.error("Draft save failed:", error);
     }
 
     // Fallback to localStorage only
@@ -251,7 +253,8 @@ export function useEmailDrafts() {
     if (isServerDraftId(id)) {
       try {
         await api.delete<DeleteApiResponse>(`/api/v1/email_drafts/${id}`);
-      } catch (err) {
+      } catch (error) {
+        console.error("Draft delete failed:", error);
       }
     }
 
@@ -276,7 +279,8 @@ export function useEmailDrafts() {
   const clearAllDrafts = useCallback(async (): Promise<void> => {
     try {
       await api.delete<DeleteApiResponse>("/api/v1/email_drafts/destroy_all");
-    } catch (err) {
+    } catch (error) {
+      console.error("Draft clear all failed:", error);
     }
 
     setDrafts([]);

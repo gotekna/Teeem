@@ -271,8 +271,8 @@ export function HorizontalBarChart({
 
   return (
     <div className="space-y-3">
-      {data.map((item, i) => (
-        <div key={i}>
+      {data.map((item) => (
+        <div key={String(item[labelKey])}>
           <div className="mb-1 flex justify-between text-sm">
             <span>{item[labelKey]}</span>
             <span className="font-medium">{item[valueKey]}</span>
@@ -370,7 +370,7 @@ export function TrendChart({
         {/* Points */}
         {chartData.points.map((p, i) => (
           <circle
-            key={i}
+            key={`point-${p.x}-${p.y}`}
             cx={p.x}
             cy={p.y}
             r="4"
@@ -392,8 +392,8 @@ export function TrendChart({
 
       {/* X-axis labels */}
       <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-        {data.map((d, i) => (
-          <span key={i}>{d[labelKey]}</span>
+        {data.map((d) => (
+          <span key={String(d[labelKey])}>{d[labelKey]}</span>
         ))}
       </div>
     </div>
@@ -415,15 +415,15 @@ export function DonutChart({ data, size = 150, strokeWidth = 20 }: DonutChartPro
     <div className="flex items-center gap-4">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90 transform">
-          {data.map((segment, i) => {
+          {data.map((segment) => {
             const segmentLength = (segment.value / total) * circumference;
             const offset = currentOffset;
-             
+
             currentOffset += segmentLength;
 
             return (
               <circle
-                key={i}
+                key={segment.label}
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
@@ -444,8 +444,8 @@ export function DonutChart({ data, size = 150, strokeWidth = 20 }: DonutChartPro
 
       {/* Legend */}
       <div className="space-y-2">
-        {data.map((d, i) => (
-          <div key={i} className="flex items-center gap-2">
+        {data.map((d) => (
+          <div key={d.label} className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full" style={{ backgroundColor: d.color }} />
             <span className="text-sm text-muted-foreground">{d.label}</span>
             <span className="text-sm font-medium">{d.value}</span>
@@ -479,19 +479,19 @@ export function UtilizationHeatmap({ resources, days }: UtilizationHeatmapProps)
         <TableHeader>
           <TableRow>
             <TableHead className="w-[150px]">Resource</TableHead>
-            {days.map((day, i) => (
-              <TableHead key={i} className="w-8 px-1 text-center text-xs">
+            {days.map((day) => (
+              <TableHead key={day.label} className="w-8 px-1 text-center text-xs">
                 {day.label}
               </TableHead>
             ))}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {resources.map((resource, ri) => (
-            <TableRow key={ri}>
+          {resources.map((resource) => (
+            <TableRow key={resource.name}>
               <TableCell className="text-sm">{resource.name}</TableCell>
               {resource.dailyUtilization.map((util, di) => (
-                <TableCell key={di} className="px-1 py-1">
+                <TableCell key={`${resource.name}-day-${di}`} className="px-1 py-1">
                   <div
                     className={`h-6 w-6 cursor-pointer rounded ${getColor(util)}`}
                     title={`${util}%`}
@@ -556,8 +556,8 @@ export function CostBreakdownTable({ data, title }: CostBreakdownTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.map((row, i) => (
-              <TableRow key={i}>
+            {data.map((row) => (
+              <TableRow key={row.label}>
                 <TableCell className="text-sm">{row.label}</TableCell>
                 <TableCell className="text-right text-sm">
                   {row.hours?.toFixed(1) || "-"}

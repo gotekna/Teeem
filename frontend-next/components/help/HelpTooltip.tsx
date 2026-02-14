@@ -87,8 +87,8 @@ export function HelpTooltip({
       <p className="text-sm">{content}</p>
       {tips && tips.length > 0 && (
         <ul className="mt-2 space-y-1">
-          {tips.map((tip, i) => (
-            <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          {tips.map((tip) => (
+            <li key={tip} className="flex items-start gap-1.5 text-xs text-muted-foreground">
               <Lightbulb className="h-3 w-3 text-amber-500 mt-0.5 flex-shrink-0" />
               <span>{tip}</span>
             </li>
@@ -206,8 +206,8 @@ export function HelpIcon({
             <p className="text-sm">{content}</p>
             {tips && tips.length > 0 && (
               <ul className="mt-2 space-y-1">
-                {tips.map((tip, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                {tips.map((tip) => (
+                  <li key={tip} className="flex items-start gap-1.5 text-xs text-muted-foreground">
                     <Lightbulb className="h-3 w-3 text-amber-500 mt-0.5 flex-shrink-0" />
                     <span>{tip}</span>
                   </li>

@@ -243,11 +243,6 @@ export function ColumnEditorModal({
     setSaving(true);
     try {
       const columnId = column.id;
-      console.log('[ColumnEditorModal] handleSave column:', {
-        column_key: column.key,
-        column_id: column.id,
-        foundationId,
-      });
       if (!columnId) {
         toast({
           title: "Error",

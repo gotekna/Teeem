@@ -348,8 +348,8 @@ export function SchemaTab({ foundationId, columns, tableName, onRefresh }: Schem
                 <div key={column.key} className="flex items-start gap-3">
                   <span className="font-medium text-sm min-w-32">{column.label}:</span>
                   <div className="flex flex-wrap gap-1">
-                    {column.choices?.map((choice, i) => (
-                      <Badge key={i} variant="outline" className="text-xs">
+                    {column.choices?.map((choice) => (
+                      <Badge key={choice} variant="outline" className="text-xs">
                         {choice}
                       </Badge>
                     ))}

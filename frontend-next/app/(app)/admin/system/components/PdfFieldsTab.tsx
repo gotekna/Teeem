@@ -181,13 +181,6 @@ export function PdfFieldsTab() {
         (p) => p.pdf_form_field_name === clickedDetectedField.name
       );
 
-      console.log("[PDF Dialog] Existing mapping found:", existingMapping ? {
-        field_key: existingMapping.field_key,
-        text_align: existingMapping.text_align,
-        x: existingMapping.x,
-        y: existingMapping.y,
-      } : null);
-
       if (existingMapping) {
         setDialogHAlign(existingMapping.text_align || "left");
       } else {
@@ -1433,15 +1426,6 @@ export function PdfFieldsTab() {
                             : "hover:bg-accent"
                         )}
                         onClick={async () => {
-                          // Log the alignment being saved
-                          console.log("[PDF Map] Saving field with alignment:", {
-                            fieldId: field.id,
-                            fieldKey: field.field_key,
-                            dialogHAlign,
-                            dialogVAlign,
-                            detectedField: clickedDetectedField?.name,
-                          });
-
                           // Use dialog alignment (smart defaults already applied via useEffect)
                           // AWAIT the save so positions state is updated before closing dialog
                           // Save the pdf_form_field_name to establish SSoT mapping

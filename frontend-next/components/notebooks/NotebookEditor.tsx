@@ -222,12 +222,6 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
   const handleShare = useCallback(() => {
     if (selectedUsers.length === 0) return;
     // TODO: Implement actual share API call
-    console.log("Sharing with:", {
-      userIds: selectedUsers.map(u => u.value),
-      access: shareAccess,
-      pageId,
-      notebookId,
-    });
     // Reset form
     setSelectedUsers([]);
     setShareAccess("read");

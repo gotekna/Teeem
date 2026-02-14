@@ -396,12 +396,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       // For templates: apply backend-calculated dates (SSoT)
       // Backend handles inherited dependencies and header expansion - no frontend cascade needed
       if (mode === 'template' && dateMap) {
-        console.log(`[GanttDataManager] 📅 Applying backend date_map (SSoT)`, {
-          hasDateMap: !!dateMap,
-          dateMapKeys: Object.keys(dateMap).length,
-          sampleKeys: Object.keys(dateMap).slice(0, 5),  // Show key types
-          task378: dateMap['378' as unknown as number],  // JSON keys are strings
-        });
         convertedTasks = applyDateMap(convertedTasks, fetchedRows, dateMap);
         // DO NOT cascade here - backend is SSoT for template dates
         // Frontend cascade doesn't know about inherited dependencies from parent headers
@@ -1044,24 +1038,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     // Split into locked vs unlocked - checking ALL descendants, not just direct
     const lockedSuccessors = successorInfo.filter(s => s.confirm || s.supplier_confirm || s.is_completed);
     const unlockedSuccessors = successorInfo.filter(s => !s.confirm && !s.supplier_confirm && !s.is_completed);
-
-    // Debug logging for cascade detection
-    console.log('[GanttDataManager] Task drag - successor analysis:', {
-      movedTaskNumber: row.task_number,
-      directSuccessorsCount: directSuccessors.length,
-      allSuccessorsCount: allSuccessors.length,
-      allSuccessors: allSuccessors.map(s => ({
-        id: s.id,
-        task_number: s.task_number,
-        name: s.name,
-        confirm: s.confirm,
-        supplier_confirm: s.supplier_confirm,
-        is_completed: s.is_completed,
-        hold: s.hold,
-      })),
-      lockedCount: lockedSuccessors.length,
-      unlockedCount: unlockedSuccessors.length,
-    });
 
     // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
     if (lockedSuccessors.length === 0) {

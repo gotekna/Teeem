@@ -91,14 +91,6 @@ export async function uploadToSharePointDirect(
       message: "Preparing upload...",
     });
 
-    console.log("[DirectUpload] Requesting upload session:", {
-      filename: filename || file.name,
-      file_size: file.size,
-      folder_path: folderPath,
-      job_id: jobId,
-      warehouse_folder_id: warehouseFolderId,
-    });
-
     let sessionResponse: UploadSessionResponse | null;
     try {
       sessionResponse = await api.post<UploadSessionResponse>(

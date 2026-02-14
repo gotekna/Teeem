@@ -363,8 +363,8 @@ export function displayMultipleLookups(value: unknown): React.ReactNode {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.map((item, idx) => (
-                  <span key={idx} className="text-[11px]">{item}</span>
+                {items.map((item) => (
+                  <span key={item} className="text-[11px]">{item}</span>
                 ))}
               </div>
             </TooltipContent>
@@ -479,8 +479,8 @@ export function displayArrayOfItems(value: unknown): React.ReactNode {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.map((item, idx) => (
-                  <span key={idx} className="text-[11px]">{item}</span>
+                {items.map((item) => (
+                  <span key={item} className="text-[11px]">{item}</span>
                 ))}
               </div>
             </TooltipContent>
@@ -518,8 +518,8 @@ export function displayActionButtons(value: unknown): React.ReactNode {
 
     return (
       <div className="flex gap-1">
-        {buttons.slice(0, 3).map((btn, idx) => (
-          <Button key={idx} variant="outline" size="sm" className="h-5 text-[10px] px-2">
+        {buttons.slice(0, 3).map((btn) => (
+          <Button key={btn.label} variant="outline" size="sm" className="h-5 text-[10px] px-2">
             {btn.label}
           </Button>
         ))}
@@ -695,9 +695,9 @@ export function displayXeroLinks(
         </div>
         <div className="space-y-1">
           {tenantNames.length > 0 ? (
-            tenantNames.map((name, idx) => (
+            tenantNames.map((name) => (
               <div
-                key={idx}
+                key={name}
                 className="flex items-center gap-2 py-1 px-2 rounded bg-green-50 dark:bg-green-900/20"
               >
                 <Check className="h-3 w-3 text-green-600 dark:text-green-400 flex-shrink-0" />

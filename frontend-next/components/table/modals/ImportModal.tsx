@@ -381,7 +381,7 @@ export function ImportModal({
                 </thead>
                 <tbody>
                   {previewData.preview_rows.map((row, idx) => (
-                    <tr key={idx} className="border-t">
+                    <tr key={`preview-row-${idx}`} className="border-t">
                       {previewData.headers.filter(h => columnMapping[h] && columnMapping[h] !== '_skip').map(h => (
                         <td key={h} className="p-1.5 whitespace-nowrap max-w-[200px] truncate">
                           {String(row[h] ?? '')}
@@ -437,8 +437,8 @@ export function ImportModal({
         {importResult.errors.length > 0 && (
           <div className="max-h-[200px] overflow-y-auto border rounded-lg p-3 bg-destructive/5">
             <p className="text-xs font-medium text-destructive mb-2">Errors:</p>
-            {importResult.errors.slice(0, 20).map((err, idx) => (
-              <p key={idx} className="text-xs text-destructive/80 mb-1">
+            {importResult.errors.slice(0, 20).map((err) => (
+              <p key={`error-${err.index}`} className="text-xs text-destructive/80 mb-1">
                 Row {err.index + 1}: {err.errors.join(', ')}
               </p>
             ))}
