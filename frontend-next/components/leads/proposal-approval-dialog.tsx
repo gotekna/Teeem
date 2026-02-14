@@ -37,9 +37,9 @@ import type { JobType, JobStatus, Contact } from '@/lib/types';
 interface ExtractedContact {
   contact_id?: number;
   name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
   contact_exists?: boolean;
 }
 

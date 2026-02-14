@@ -530,10 +530,10 @@ export { formatEmpty as displayEmpty };
 export interface ContactForDisplay {
   id: number;
   display_name?: string;
-  company_name?: string;
-  company_name_or_trust?: string;
-  first_name?: string;
-  last_name?: string;
+  company_name?: string | null;
+  company_name_or_trust?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   employer_name?: string; // Company name for person contacts (from backend)
 }
 

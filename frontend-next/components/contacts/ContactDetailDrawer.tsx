@@ -281,7 +281,7 @@ export function ContactDetailDrawer({ contactId, open, onOpenChange }: ContactDe
                               )}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {person.email || person.phone}
+                              {person.email || person.mobile}
                             </div>
                           </div>
                         ))}

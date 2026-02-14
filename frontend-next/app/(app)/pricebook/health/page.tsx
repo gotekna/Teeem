@@ -715,7 +715,7 @@ export default function PricebookHealthPage() {
                               </TableCell>
                               <TableCell>{item.item_name}</TableCell>
                               <TableCell className="text-muted-foreground">{item.category || "-"}</TableCell>
-                              <TableCell className="text-muted-foreground">{item.default_supplier?.name || "-"}</TableCell>
+                              <TableCell className="text-muted-foreground">{item.default_supplier || "-"}</TableCell>
                               <TableCell className="text-right text-muted-foreground">
                                 {item.current_price ? `$${Number(item.current_price).toFixed(2)}` : "-"}
                               </TableCell>

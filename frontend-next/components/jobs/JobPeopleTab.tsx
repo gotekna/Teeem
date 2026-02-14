@@ -12,7 +12,7 @@ import {
   Star,
   X,
   Users,
-  User,
+  User as UserIcon,
   Building2,
   Wrench,
   Calculator,
@@ -76,16 +76,16 @@ const ROLE_GROUPS = [
     icon: Building2,
     roles: [
       { key: "client", label: "Client", icon: Building2, color: "indigo" },
-      { key: "client_representative", label: "Client Representative", icon: User, color: "blue" },
-      { key: "client_broker", label: "Client Broker", icon: User, color: "cyan" },
+      { key: "client_representative", label: "Client Representative", icon: UserIcon, color: "blue" },
+      { key: "client_broker", label: "Client Broker", icon: UserIcon, color: "cyan" },
       { key: "client_bank", label: "Client Bank", icon: Building2, color: "slate" },
     ],
   },
   {
     key: "referral",
     label: "Referral",
-    icon: User,
-    roles: [{ key: "referral", label: "Referral", icon: User, color: "green" }],
+    icon: UserIcon,
+    roles: [{ key: "referral", label: "Referral", icon: UserIcon, color: "green" }],
   },
   {
     key: "external",
@@ -111,7 +111,7 @@ const ROLE_TYPES = ROLE_GROUPS.flatMap((g) => g.roles);
 const INTERNAL_ROLES = INTERNAL_ROLE_KEYS;
 
 const getRoleConfig = (roleKey: string) => {
-  return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: User, color: "gray" };
+  return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: UserIcon, color: "gray" };
 };
 
 const getRoleBadgeClasses = (color: string) => {
@@ -582,7 +582,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                 const displayName =
                   contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
-                const mobile = contact.contact?.phone || contact.contact?.mobile_phone;
+                const mobile = contact.contact?.mobile_phone;
                 const isPrimary = contact.primary;
 
                 return (
@@ -673,7 +673,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                           {/* Contact Details */}
                           <div>
                             <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
-                              <User className="h-4 w-4" />
+                              <UserIcon className="h-4 w-4" />
                               Contact Details
                             </h4>
                             <Card>

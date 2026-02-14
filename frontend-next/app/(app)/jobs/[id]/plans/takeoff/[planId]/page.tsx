@@ -1043,7 +1043,7 @@ export default function TakeoffPage() {
 
   // Assign pricebook item to measurement
   const handlePricebookSelect = React.useCallback(
-    async (pricebookItem: { id: number; code: string; name: string; current_price: number | null }) => {
+    async (pricebookItem: { id: number; code: string; name: string; current_price?: number | null }) => {
       if (!measurementForPricebook) return;
 
       try {

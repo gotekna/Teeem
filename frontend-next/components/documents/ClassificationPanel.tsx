@@ -500,10 +500,8 @@ export default function ClassificationPanel({
                 </SelectContent>
               </Select>
             ) : (
-              <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800">
-                <Badge variant="secondary" className="text-[10px]" title={document.folder_path}>
-                  {document.folder || classificationData?.current?.resolved_folder?.toUpperCase() || "GENERAL"}
-                </Badge>
+              <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800" title={document.folder_path}>
+                {document.folder || classificationData?.current?.resolved_folder?.toUpperCase() || "GENERAL"}
               </div>
             )}
           </div>
@@ -601,8 +599,8 @@ export default function ClassificationPanel({
           })()}
 
 
-          {/* Action buttons */}
-          <div className="pt-1.5 border-t mt-auto space-y-1.5">
+          {/* Action buttons — min-h keeps all 3 columns' action rows aligned */}
+          <div className="pt-1.5 border-t mt-auto space-y-1.5 min-h-[60px]">
             {isEditing ? (
               <>
                 <div className="flex items-center gap-1">
@@ -700,7 +698,7 @@ export default function ClassificationPanel({
                         : "border-red-500 bg-red-50 dark:bg-red-900/20")
                       : "text-muted-foreground"
                   )}>
-                    {ocrFolder ? <Badge variant="secondary" className="text-[10px]">{ocrFolder.toUpperCase()}</Badge> : "-"}
+                    {ocrFolder ? ocrFolder.toUpperCase() : "-"}
                   </div>
                 </div>
               );
@@ -760,44 +758,9 @@ export default function ClassificationPanel({
               );
             })()}
 
-            {/* OCR extras */}
-            <div className="pt-1 border-t border-amber-200 dark:border-amber-800/50">
-              <div>
-                <Label className="text-xs text-muted-foreground">Signals</Label>
-                <div className="mt-0.5 min-h-[28px] text-xs border rounded-md px-2 py-1 bg-muted/50">
-                  {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
-                    <div className="flex flex-wrap gap-0.5">
-                      {classificationData.ocr.signals.map((s, i) => (
-                        <Badge key={i} variant="secondary" className="text-[10px] px-1 py-0">{s}</Badge>
-                      ))}
-                    </div>
-                  ) : "-"}
-                </div>
-              </div>
-
-              <div className="mt-1.5">
-                <Label className="text-xs text-muted-foreground">Text Preview</Label>
-                <div className="mt-0.5 text-xs border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
-                  {classificationData?.ocr?.text_preview || "-"}
-                </div>
-              </div>
-
-              <div className="mt-1.5">
-                <Label className="text-xs text-muted-foreground">Status</Label>
-                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
-                  {classificationData?.ocr?.status === "completed" ? (
-                    <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">completed</Badge>
-                  ) : classificationData?.ocr?.status === "not_applicable" ? (
-                    <Badge variant="outline" className="text-[10px] border-gray-400 text-gray-500">n/a</Badge>
-                  ) : classificationData?.ocr?.status || "-"}
-                </div>
-              </div>
-
-            </div>
-
-            {/* Re-run OCR - action button at bottom of column */}
+            {/* Re-run OCR — min-h keeps aligned with Validate / Apply AI buttons */}
             {onRerunOCR && (
-              <div className="pt-1.5 border-t mt-auto">
+              <div className="pt-1.5 border-t min-h-[60px]">
                 <Button
                   onClick={onRerunOCR}
                   disabled={classificationLoading}
@@ -813,6 +776,40 @@ export default function ClassificationPanel({
                 </Button>
               </div>
             )}
+
+            {/* OCR extras */}
+            <div className="pt-1 border-t border-amber-200 dark:border-amber-800/50">
+              <div>
+                <Label className="text-xs text-muted-foreground">Signals</Label>
+                <div className="mt-0.5 min-h-[28px] text-xs border rounded-md px-2 py-1 bg-muted/50">
+                  {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {classificationData.ocr.signals.map((s, i) => (
+                        <span key={i}>{s}{i < classificationData.ocr.signals.length - 1 ? "," : ""}</span>
+                      ))}
+                    </div>
+                  ) : "-"}
+                </div>
+              </div>
+
+              <div className="mt-1.5">
+                <Label className="text-xs text-muted-foreground">Text Preview</Label>
+                <div className="mt-0.5 text-xs border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto text-muted-foreground leading-tight">
+                  {classificationData?.ocr?.text_preview || "-"}
+                </div>
+              </div>
+
+              <div className="mt-1.5">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
+                  {classificationData?.ocr?.status === "completed" ? (
+                    <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">completed</Badge>
+                  ) : classificationData?.ocr?.status === "not_applicable" ? (
+                    <Badge variant="outline" className="text-[10px] border-gray-400 text-gray-500">n/a</Badge>
+                  ) : classificationData?.ocr?.status || "-"}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -893,7 +890,7 @@ export default function ClassificationPanel({
                         : "border-red-500 bg-red-50 dark:bg-red-900/20")
                       : "text-muted-foreground"
                   )}>
-                    {aiFolder ? <Badge variant="secondary" className="text-[10px]">{aiFolder.toUpperCase()}</Badge> : "-"}
+                    {aiFolder ? aiFolder.toUpperCase() : "-"}
                   </div>
                 </div>
               );
@@ -969,9 +966,9 @@ export default function ClassificationPanel({
               );
             })()}
 
-            {/* AI Action buttons */}
+            {/* AI Action buttons — min-h keeps all 3 columns' action rows aligned */}
             {hasAiResults ? (
-              <div className="pt-1.5 border-t space-y-1">
+              <div className="pt-1.5 border-t space-y-1 min-h-[60px]">
                 {onApplyAI && (
                   <Button
                     onClick={handleApplyAIClick}
@@ -1013,7 +1010,7 @@ export default function ClassificationPanel({
                 )}
               </div>
             ) : canAiVerify && onRerunAI ? (
-              <div className="pt-2 border-t">
+              <div className="pt-2 border-t min-h-[60px]">
                 <Button
                   onClick={onRerunAI}
                   disabled={isProcessing}

@@ -537,7 +537,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{token.contact?.name || "-"}</span>
+                          <span>{token.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
@@ -677,7 +677,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{statement.contact?.name || "-"}</span>
+                          <span>{statement.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -765,7 +765,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{mandate.contact?.name || "-"}</span>
+                          <span>{mandate.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell>

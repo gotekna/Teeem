@@ -48,6 +48,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { SYSTEM_ROLES } from "@/lib/constants/roles";
 import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { API } from "@/lib/constants/api-endpoints";
 
 // ============================================
 // Organization-Wide Access Section (Admin Only)
@@ -148,7 +149,7 @@ function SharePointDelegatedConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/documents/status");
+      const data = await api.get<typeof status>(API.documents.status);
       setStatus(data);
     } catch (error) {
       console.error("Failed to load SharePoint status:", error);

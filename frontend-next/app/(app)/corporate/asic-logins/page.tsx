@@ -40,6 +40,7 @@ import type { CompanyGroup } from "@/lib/types";
 interface AsicCompany {
   id: number;
   name: string;
+  acn?: string;
   company_group_name?: string;
   formatted_acn?: string;
   corporate_key?: string;
@@ -83,7 +84,7 @@ export default function AsicLoginsPage() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (selectedGroup) params.company_group_id = selectedGroup;
-      const response = await api.get<{ companies: Company[] }>("/api/v1/companies/asic_logins", { params });
+      const response = await api.get<{ companies: AsicCompany[] }>("/api/v1/companies/asic_logins", { params });
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load ASIC logins:", error);

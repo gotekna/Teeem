@@ -135,8 +135,8 @@ export default function FeatureRequestsPage() {
   const [showCompleted, setShowCompleted] = useState(false);
 
   // Admin edit state
-  const isAdmin = Array.isArray((user as Record<string, unknown>)?.role_names) &&
-    ((user as Record<string, unknown>).role_names as string[]).some(
+  const isAdmin = Array.isArray(user?.role_names) &&
+    user.role_names.some(
       (r: string) => r.toLowerCase() === SYSTEM_ROLES.ADMIN || r.toLowerCase() === SYSTEM_ROLES.SUPER_ADMIN
     );
   const [editingId, setEditingId] = useState<number | null>(null);

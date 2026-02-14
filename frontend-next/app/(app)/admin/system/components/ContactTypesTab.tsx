@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   Table,
   TableBody,
@@ -382,7 +383,7 @@ export function ContactTypesTab() {
       setContactDocPath(settings.contact_documents_path || "");
 
       // SSoT: Load folder format from WarehouseProvider templates
-      const storageConfig = await api.get<{ success: boolean; data: any }>("/api/v1/warehouse_provider");
+      const storageConfig = await api.get<{ success: boolean; data: any }>(API.warehouseProvider.get);
       const contactTemplate = storageConfig.data?.scope_templates?.contact || "{{ContactId}} - {{ContactName}}";
       setContactFolderFormat(templateToFormat(contactTemplate));
     } catch (error) {
@@ -409,7 +410,7 @@ export function ContactTypesTab() {
     setContactFolderFormat(format);
     try {
       // SSoT: Save to WarehouseProvider templates
-      await api.patch("/api/v1/warehouse_provider", {
+      await api.patch(API.warehouseProvider.update, {
         storage: { scope_templates: { contact: formatToTemplate[format] } },
       });
       toast({

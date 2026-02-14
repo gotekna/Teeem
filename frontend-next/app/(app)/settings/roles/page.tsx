@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   UserGroupIcon,
   ShieldCheckIcon,
@@ -56,7 +57,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Role } from '@/lib/types';
 
 /**
  * Roles & Permissions Page - Organization Settings
@@ -158,7 +158,7 @@ function PermissionsSubTab() {
       setError(null);
 
       const [usersRes, permissionsRes] = await Promise.all([
-        api.get<{ users: User[] }>("/api/v1/users"),
+        api.get<{ users: User[] }>(API.users.list),
         api.get<{
           success: boolean;
           permissions: PermissionsMap;
@@ -493,7 +493,7 @@ function UserRolesSubTab() {
     } catch (error) {
       console.error("Failed to load role users:", error);
       try {
-        const allUsers = await api.get<{ users: User[] }>("/api/v1/users");
+        const allUsers = await api.get<{ users: User[] }>(API.users.list);
         const filtered = (allUsers?.users || []).filter(u =>
           u.role === role.name
         );

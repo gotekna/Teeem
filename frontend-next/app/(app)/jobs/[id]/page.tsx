@@ -1436,7 +1436,7 @@ export default function JobDetailPage() {
                           href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}/${activeParentTab}${activeChildTab ? `/${activeChildTab}` : ''}`)}`}
                           className="font-medium text-primary hover:underline"
                         >
-                          {o.contact.display_name}
+                          {o.contact?.display_name}
                         </Link>
                       </span>
                     ))}

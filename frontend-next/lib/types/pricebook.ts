@@ -16,4 +16,7 @@ export interface PricebookItem {
   item_code?: string;
   item_name?: string;
   colour?: string | null;
+  colour_code?: string | null;
+  colour_brand?: string | null;
+  default_supplier?: string | null;
 }

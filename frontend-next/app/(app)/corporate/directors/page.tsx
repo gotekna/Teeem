@@ -18,6 +18,7 @@ import {
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { BackButton } from "@/components/ui/back-button";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -91,7 +92,7 @@ export default function DirectorsPage() {
   const loadDirectors = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ contacts: Director[] }>("/api/v1/contacts", {
+      const response = await api.get<{ contacts: Director[] }>(API.contacts.list, {
         params: { is_director: true },
       });
       setDirectors(response.contacts || []);

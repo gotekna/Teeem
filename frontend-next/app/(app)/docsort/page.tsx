@@ -17,7 +17,8 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
-import { Ruler } from "lucide-react";
+import { ArrowLeft, Ruler } from "lucide-react";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -578,7 +579,188 @@ export default function DocsortPage() {
 
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex">
-        {/* Left: Upload zone + List */}
+        {/* ═══ FULL-PAGE DETAIL VIEW (when document selected) ═══ */}
+        {panelOpen && selectedItem ? (
+          <>
+            {/* Left: Classification Panel */}
+            <div className="w-1/2 border-r flex flex-col overflow-hidden">
+              {/* Detail Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => { setPanelOpen(false); setSelectedItem(null); }}
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Back
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{selectedItem.display_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {selectedItem.from_email
+                      ? `From: ${selectedItem.from_email}`
+                      : `Uploaded ${formatDistanceToNow(new Date(selectedItem.created_at), { addSuffix: true })}`}
+                  </p>
+                </div>
+              </div>
+
+              {/* Classification Panel */}
+              <div className="flex-1 overflow-y-auto">
+                <ClassificationPanel
+                  document={normalizeDocInboxItem(selectedItem)}
+                  classificationData={classificationData}
+                  classificationLoading={classificationLoading}
+                  documentTypes={panelDocTypes}
+                  companies={panelCompanies}
+                  mode="validate"
+                  onRoute={async (companyId) => {
+                    await handleRoute(selectedItem, undefined, companyId);
+                  }}
+                  onReclassify={async () => {
+                    await handleClassify(selectedItem);
+                    try {
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch { /* ignore */ }
+                  }}
+                  onRerunOCR={async () => {
+                    await handleClassify(selectedItem);
+                    try {
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch { /* ignore */ }
+                  }}
+                />
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="border-t border-border p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>{selectedItem.original_filename || "Unknown file"}</span>
+                  <span>{formatFileSize(selectedItem.file_size)}</span>
+                </div>
+
+                {selectedItem.error_message && (
+                  <div className="p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 text-xs flex items-start gap-1.5">
+                    <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{selectedItem.error_message}</span>
+                  </div>
+                )}
+
+                {selectedItem.routed_to_type && (
+                  <div className="p-2 rounded bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-xs flex items-start gap-1.5">
+                    <CheckCircleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>
+                      Routed to {selectedItem.routed_to_type}
+                      {selectedItem.routed_at && ` — ${formatDistanceToNow(new Date(selectedItem.routed_at), { addSuffix: true })}`}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={async () => {
+                      try {
+                        const response = await api.get<{ url: string }>(
+                          `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
+                        );
+                        if (response?.url) {
+                          window.open(response.url, "_blank");
+                        } else {
+                          toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
+                        }
+                      } catch {
+                        toast({ title: "Download failed", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <DocumentIcon className="h-3.5 w-3.5 mr-1.5" />
+                    Download
+                  </Button>
+
+                  {selectedItem.content_type === "application/pdf" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}
+                    >
+                      <Ruler className="h-3.5 w-3.5 mr-1.5" />
+                      Takeoff
+                    </Button>
+                  )}
+
+                  {!selectedItem.routed_to_type && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={() => handleDelete(selectedItem)}
+                      disabled={processingId === selectedItem.id}
+                    >
+                      <XMarkIcon className="h-3.5 w-3.5 mr-1.5" />
+                      Delete
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Document Preview */}
+            <div className="w-1/2 bg-muted flex flex-col overflow-hidden">
+              {selectedItem.content_type === "application/pdf" ? (
+                <PDFViewer
+                  url={`${getApiBaseUrl()}/api/v1/document_inboxes/${selectedItem.id}/download`}
+                  className="flex-1"
+                  showThumbnails={false}
+                />
+              ) : selectedItem.content_type?.startsWith("image/") ? (
+                <div className="flex items-center justify-center flex-1 p-4 overflow-auto">
+                  <img
+                    src={`${getApiBaseUrl()}/api/v1/document_inboxes/${selectedItem.id}/download`}
+                    alt={selectedItem.original_filename || undefined}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center flex-1 text-muted-foreground">
+                  <DocumentIcon className="h-16 w-16 mb-4 opacity-30" />
+                  <p className="text-sm font-medium">{selectedItem.original_filename}</p>
+                  <p className="text-xs mt-1">{selectedItem.content_type || "Unknown type"}</p>
+                  <p className="text-xs mt-1">{formatFileSize(selectedItem.file_size)}</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4"
+                    onClick={async () => {
+                      try {
+                        const response = await api.get<{ url: string }>(
+                          `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
+                        );
+                        if (response?.url) window.open(response.url, "_blank");
+                      } catch {
+                        toast({ title: "Download failed", variant: "destructive" });
+                      }
+                    }}
+                  >
+                    <DocumentIcon className="h-3.5 w-3.5 mr-1.5" />
+                    Download to View
+                  </Button>
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+        <>
+        {/* ═══ LIST VIEW (default) ═══ */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Drop zone */}
           <div className="p-4 border-b">
@@ -850,150 +1032,7 @@ export default function DocsortPage() {
           </div>
         </div>
 
-        {/* Right: Classification Panel */}
-        {panelOpen && selectedItem && (
-          <div className="w-[520px] border-l border-border flex flex-col overflow-hidden bg-background">
-            {/* Panel Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-              <div className="flex items-center gap-2 min-w-0">
-                {(() => {
-                  const Icon = getDocTypeIcon(selectedItem.document_type);
-                  return <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />;
-                })()}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{selectedItem.display_name}</p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {selectedItem.from_email
-                      ? `From: ${selectedItem.from_email}`
-                      : `Uploaded ${formatDistanceToNow(new Date(selectedItem.created_at), { addSuffix: true })}`}
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 shrink-0"
-                onClick={() => {
-                  setPanelOpen(false);
-                  setSelectedItem(null);
-                }}
-              >
-                <XMarkIcon className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Classification Panel */}
-            <div className="flex-1 overflow-y-auto">
-              <ClassificationPanel
-                document={normalizeDocInboxItem(selectedItem)}
-                classificationData={classificationData}
-                classificationLoading={classificationLoading}
-                documentTypes={panelDocTypes}
-                companies={panelCompanies}
-                mode="validate"
-                onRoute={async (companyId) => {
-                  await handleRoute(selectedItem, undefined, companyId);
-                }}
-                onReclassify={async () => {
-                  await handleClassify(selectedItem);
-                  // Re-fetch classification after reclassify
-                  try {
-                    const response = await api.get<ClassificationData>(
-                      `/api/v1/document_inboxes/${selectedItem.id}/classification`
-                    );
-                    if (response?.success) setClassificationData(response);
-                  } catch { /* ignore */ }
-                }}
-                onRerunOCR={async () => {
-                  await handleClassify(selectedItem);
-                  try {
-                    const response = await api.get<ClassificationData>(
-                      `/api/v1/document_inboxes/${selectedItem.id}/classification`
-                    );
-                    if (response?.success) setClassificationData(response);
-                  } catch { /* ignore */ }
-                }}
-              />
-            </div>
-
-            {/* Bottom Actions */}
-            <div className="border-t border-border p-3 space-y-2">
-              {/* File info summary */}
-              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                <span>{selectedItem.original_filename || "Unknown file"}</span>
-                <span>{formatFileSize(selectedItem.file_size)}</span>
-              </div>
-
-              {/* Error message */}
-              {selectedItem.error_message && (
-                <div className="p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 text-xs flex items-start gap-1.5">
-                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>{selectedItem.error_message}</span>
-                </div>
-              )}
-
-              {/* Routing result */}
-              {selectedItem.routed_to_type && (
-                <div className="p-2 rounded bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-xs flex items-start gap-1.5">
-                  <CheckCircleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                  <span>
-                    Routed to {selectedItem.routed_to_type}
-                    {selectedItem.routed_at && ` — ${formatDistanceToNow(new Date(selectedItem.routed_at), { addSuffix: true })}`}
-                  </span>
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={async () => {
-                    try {
-                      const response = await api.get<{ url: string }>(
-                        `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
-                      );
-                      if (response?.url) {
-                        window.open(response.url, "_blank");
-                      } else {
-                        toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
-                      }
-                    } catch {
-                      toast({ title: "Download failed", variant: "destructive" });
-                    }
-                  }}
-                >
-                  <DocumentIcon className="h-3.5 w-3.5 mr-1.5" />
-                  Download
-                </Button>
-
-                {selectedItem.content_type === "application/pdf" && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}
-                  >
-                    <Ruler className="h-3.5 w-3.5 mr-1.5" />
-                    Takeoff
-                  </Button>
-                )}
-
-                {!selectedItem.routed_to_type && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                    onClick={() => handleDelete(selectedItem)}
-                    disabled={processingId === selectedItem.id}
-                  >
-                    <XMarkIcon className="h-3.5 w-3.5 mr-1.5" />
-                    Delete
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
+        </>
         )}
       </div>
     </div>

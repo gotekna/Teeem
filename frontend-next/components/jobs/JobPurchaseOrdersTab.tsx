@@ -34,7 +34,20 @@ import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
-import type { Role, Contact, User } from '@/lib/types';
+import type { Contact as BaseContact, User } from '@/lib/types';
+
+// Local Role interface for combobox usage
+interface Role {
+  id: number;
+  name: string;
+  value: string;
+  label: string;
+}
+
+// Local Contact interface with employee_names for supplier dropdown
+interface Contact extends BaseContact {
+  employee_names?: string[];
+}
 
 // Extended ComboboxItem with employee data for cascading view
 interface SupplierItem {

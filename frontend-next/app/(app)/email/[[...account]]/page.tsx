@@ -435,6 +435,7 @@ const EmailListItem = memo(function EmailListItem({
   accountType = "outlook",
   sourceFolder,
   enableDrag = false,
+  mailboxEmail,
 }: {
   email: Email;
   isSelected: boolean;
@@ -458,6 +459,7 @@ const EmailListItem = memo(function EmailListItem({
   accountType?: "imap" | "outlook" | "ms365";
   sourceFolder?: string;
   enableDrag?: boolean;
+  mailboxEmail?: string;
 }) {
   const hasThread = threadCount > 1;
 

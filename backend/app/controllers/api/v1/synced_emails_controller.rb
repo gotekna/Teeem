@@ -893,18 +893,31 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # FRC (Feb 2026): Uses delete_user_email! to propagate actual error to user.
   # 404 from Graph API = email already deleted = treated as success.
   def delete_from_outlook
-    unless @email.outlook_id.present?
+    # ⚠️ FRC (Feb 2026): Use mailbox appearance for correct outlook_id and credential
+    # Root cause: The email-level outlook_id and microsoft_credential_id are backward-compat
+    # fields set on first sync. When viewing from a different mailbox (e.g., rach@100xbestlife.com
+    # vs rachel@tekna.com.au), the email-level fields may point to the wrong mailbox/credential.
+    # Fix: If mailbox_owner_email param is provided, use the mailbox appearance's outlook_id
+    # and credential. Fallback to email-level fields for backward compat.
+    mailbox_email = params[:mailbox_owner_email].presence
+    appearance = mailbox_email && @email.mailbox_appearances.for_mailbox(mailbox_email).first
+
+    outlook_id = appearance&.outlook_id || @email.outlook_id
+    credential_id = appearance&.microsoft_credential_id || @email.microsoft_credential_id
+    owner_email = mailbox_email || @email.mailbox_owner_email
+
+    unless outlook_id.present?
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
     end
 
     # SSoT: Use MicrosoftCredential for email operations
-    org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+    org_cred = MicrosoftCredential.find_by(id: credential_id)
     unless org_cred&.connected?
       return render json: { error: "Organization MS365 not connected" }, status: :unprocessable_entity
     end
 
     graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
-    graph_client.delete_user_email!(@email.mailbox_owner_email, @email.outlook_id)
+    graph_client.delete_user_email!(owner_email, outlook_id)
 
     # Mark as deleted in our database (also reached when 404 = already deleted)
     @email.update!(

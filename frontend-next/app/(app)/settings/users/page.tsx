@@ -8,6 +8,7 @@ import { AddUserModal } from "@/components/admin/AddUserModal";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 import { api } from "@/lib/api";
 import { TableRow } from "@/components/table/types";
+import { API } from "@/lib/constants/api-endpoints";
 
 /**
  * Users Management Page - Organization Settings
@@ -57,7 +58,7 @@ export default function UsersSettingsPage() {
 
     try {
       const response = await api.delete<{ success: boolean }>(
-        `/api/v1/users/${user.id}`
+        API.users.delete(user.id)
       );
       if (response?.success) {
         toast({

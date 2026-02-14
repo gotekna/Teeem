@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   Select,
   SelectContent,
@@ -124,8 +125,8 @@ export default function NewAssetPage() {
   const loadData = async () => {
     try {
       const [companiesRes, usersRes] = await Promise.all([
-        api.get<{ companies: Company[] }>("/api/v1/companies"),
-        api.get<{ users: User[] }>("/api/v1/users"),
+        api.get<{ companies: Company[] }>(API.companies.list),
+        api.get<{ users: User[] }>(API.users.list),
       ]);
       setCompanies(companiesRes.companies || []);
       setUsers(usersRes.users || []);

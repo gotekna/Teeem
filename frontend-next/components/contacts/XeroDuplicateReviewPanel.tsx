@@ -219,7 +219,7 @@ export function XeroDuplicateReviewPanel({
     return "text-red-600 dark:text-red-400";
   };
 
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return "Never";
     const date = new Date(dateString);
     const now = new Date();

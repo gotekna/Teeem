@@ -364,6 +364,7 @@ export interface Contact {
   xero_linked_count?: number;
   xero_tenant_names?: string[];
   sync_with_xero: boolean;
+  last_synced_at?: string | null;
   created_at: string;
   updated_at: string;
   contact_persons: ContactPerson[];
@@ -437,6 +438,8 @@ export interface Contact {
   bill_due_type?: string | null;
   sales_due_day?: number | null;
   sales_due_type?: string | null;
+  invoices_count?: number | null;
+  xero_links_count?: number | null;
   // ABN verification fields
   abn_valid?: boolean | null;
   abn_entity_name?: string | null;

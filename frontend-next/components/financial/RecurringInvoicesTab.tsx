@@ -683,7 +683,7 @@ export default function RecurringInvoicesTab() {
                   <SelectContent>
                     {contacts.map((contact) => (
                       <SelectItem key={contact.id} value={contact.id.toString()}>
-                        {contact.name}
+                        {contact.display_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

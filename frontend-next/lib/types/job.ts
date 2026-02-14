@@ -44,9 +44,19 @@ export interface Job {
 
   // Client & Contacts
   client_name?: string;
-  contacts?: unknown[];
+  contacts?: Array<{
+    id?: number;
+    contact_id?: number;
+    name?: string;
+    display_name?: string;
+    company?: string;
+    is_primary?: boolean;
+    role?: string;
+    contact?: { id?: number; display_name?: string; [key: string]: unknown };
+    [key: string]: unknown;
+  }>;
   employee_names?: string;
-  matched_contact?: unknown;
+  matched_contact?: { id: number; name?: string; display_name?: string; [key: string]: unknown };
 
   // Status & Stage
   status?: string;
@@ -66,6 +76,18 @@ export interface Job {
   deposit?: number;
   prime_cost?: number;
   provisional_sums?: number;
+  external_sales_fee?: number;
+  prime_cost_details?: string;
+  provisional_sums_details?: string;
+
+  // Contract Details
+  has_special_conditions?: boolean;
+  special_conditions?: string;
+  construction_days?: number;
+  liquidated_damages?: number;
+  certification_by_owner?: boolean;
+  finance_approval_required?: boolean;
+  finance_approval_date?: string;
 
   // Certification & Tracking
   certifier_job_no?: string;
@@ -75,6 +97,7 @@ export interface Job {
 
   // Location & Address
   location?: string;
+  address?: string;
   latitude?: number;
   longitude?: number;
   lot_number?: string;
@@ -125,6 +148,9 @@ export interface Job {
 
   // Storage
   storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
+
+  // Estimator
+  estimator_analysis?: string;
 
   // Timestamps
   created_at?: string;

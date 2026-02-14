@@ -254,7 +254,7 @@ export function EntityChat({
 
   // Filter jobs based on search
   const filteredJobs = jobs.filter((job) =>
-    job.title.toLowerCase().includes(jobSearch.toLowerCase())
+    job.title?.toLowerCase().includes(jobSearch.toLowerCase())
   );
 
   const formatTime = (dateString: string): string => {

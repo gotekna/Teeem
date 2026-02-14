@@ -49,10 +49,17 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
   // Load estimator data from PDF extraction if available
   useEffect(() => {
     if (job?.estimator_analysis) {
-      setAnalysis({
-        ...job.estimator_analysis,
-        source: "pdf_extraction",
-      });
+      try {
+        const parsed = typeof job.estimator_analysis === 'string'
+          ? JSON.parse(job.estimator_analysis)
+          : job.estimator_analysis;
+        setAnalysis({
+          ...parsed,
+          source: "pdf_extraction",
+        });
+      } catch (e) {
+        console.error("Failed to parse estimator_analysis:", e);
+      }
     }
   }, [job]);
 
