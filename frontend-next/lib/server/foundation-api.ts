@@ -10,6 +10,7 @@ import { cookies } from 'next/headers';
 import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 import type { SavedView } from '@/components/table/types';
+import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
 
 // SSR always uses env variable directly - no localStorage on server
 const getServerApiUrl = () => {
@@ -130,7 +131,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Use cursor-based pagination: initial load is 100 records for instant page load
     // More records will be loaded in background by ContactsPageClient
     const recordsRes = await fetch(
-      `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/records?limit=100`,
+      `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/records?limit=${API_PAGE_SIZES.REFERENCE_LIST}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,

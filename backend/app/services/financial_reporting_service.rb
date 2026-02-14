@@ -114,9 +114,11 @@ class FinancialReportingService
     as_of_date = parse_date(as_of_date)
     date_range = (Date.new(1970, 1, 1)..as_of_date)
 
-    Keepr::Account.all.map do |account|
+    # Chart of accounts could be 100-500 records - use find_each for memory efficiency
+    results = []
+    Keepr::Account.find_each do |account|
       balance = account.balance(date_range)
-      {
+      results << {
         account_id: account.id,
         account_number: account.number,
         account_name: account.name,
@@ -124,6 +126,7 @@ class FinancialReportingService
         balance: balance.to_f
       }
     end
+    results
   end
 
   # Get trial balance (should equal zero)

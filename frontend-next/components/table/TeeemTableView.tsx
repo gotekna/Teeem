@@ -125,7 +125,7 @@ import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
-import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS } from "@/lib/constants/pagination-constants";
+import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS, API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -2862,7 +2862,7 @@ export default function TeeemTableView({
       // Build params with sort to maintain consistent ordering
       const params: Record<string, string | number> = {
         filters: JSON.stringify(combinedFilters),
-        limit: 10000 // Get all records for the group
+        limit: API_PAGE_SIZES.GROUP_EXPANSION // Get all records for the group
       };
 
       // SSoT: Apply current sort order to lazy-loaded records

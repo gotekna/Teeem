@@ -77,6 +77,7 @@ import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
 import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
@@ -727,7 +728,7 @@ export default function AllDocumentsPage() {
     }
     try {
       const response = await api.get<{ tasks: Array<{ id: number; name: string; task_number: number }>; success: boolean }>(
-        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=10`
+        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=${API_PAGE_SIZES.AUTOCOMPLETE}`
       );
       if (response.success && response.tasks) {
         setLinkToTaskResults(response.tasks.map(t => ({ id: t.id, name: t.name, task_number: t.task_number })));

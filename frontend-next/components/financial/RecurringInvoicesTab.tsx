@@ -54,6 +54,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
@@ -192,7 +193,7 @@ export default function RecurringInvoicesTab() {
     setEmailContactsLoading(true);
     try {
       const response = await api.get<{ contacts: EmailContact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=20`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${API_PAGE_SIZES.SEARCH_MODAL}`
       );
       const typedResponse = response as { contacts: EmailContact[] };
       setEmailContacts((typedResponse.contacts || []).filter(c =>
@@ -241,7 +242,7 @@ export default function RecurringInvoicesTab() {
 
   const fetchContacts = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: Contact[] }>("/api/v1/contacts?limit=100");
+      const res = await api.get<{ success: boolean; data: Contact[] }>(`/api/v1/contacts?limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
       if (res?.success) {
         setContacts(res.data || []);
       }
@@ -252,7 +253,7 @@ export default function RecurringInvoicesTab() {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: Job[] }>("/api/v1/jobs?limit=100");
+      const res = await api.get<{ success: boolean; data: Job[] }>(`/api/v1/jobs?limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
       if (res?.success) {
         setJobs(res.data || []);
       }

@@ -33,6 +33,8 @@ import { X, Users, MapPin, Clock, AlignLeft, Check, Calendar } from "lucide-reac
 import { cn } from "@/lib/utils";
 import type { User, Contact } from "@/lib/types";
 
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
+
 // Atoms for event creation
 export const createEventOpenAtom = atom<boolean>(false);
 export const createEventDateAtom = atom<Date>(new Date());
@@ -76,7 +78,7 @@ export function CreateEventDialog({ onSuccess }: CreateEventDialogProps) {
 
         const [usersRes, contactsRes, typesRes] = await Promise.all([
           api.get<{ success: boolean; data: User[] }>("/api/v1/users?active=true"),
-          api.get<{ success: boolean; data: Contact[] }>("/api/v1/contacts?limit=500"),
+          api.get<{ success: boolean; data: Contact[] }>(`/api/v1/contacts?limit=${API_PAGE_SIZES.MEDIUM_REFERENCE}`),
           api.get<{ success: boolean; data: MeetingType[] }>("/api/v1/meeting_types?active_only=true"),
         ]);
 

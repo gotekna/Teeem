@@ -347,7 +347,7 @@ export function EmailDetailDialog({
     // Build quoted body as HTML with blockquote so signature inserts before it
     const quotedHeader = `--- Original Message ---<br>From: ${email.display_from || email.from_email}<br>Date: ${format(new Date(email.received_at), "PPpp")}<br>Subject: ${email.subject || ""}`;
     const quotedContentHtml = originalContent.split("\n").map(line => line || "<br>").join("<br>");
-    const quotedBody = `${attachmentsHtml}<blockquote style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
+    const quotedBody = `${attachmentsHtml}<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
 
     // SSoT: Use the mailbox that received this email as the From address for replies
     const mailboxEmail = email.mailbox_owner_email?.toLowerCase();

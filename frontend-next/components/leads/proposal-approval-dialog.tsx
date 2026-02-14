@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import {
   Dialog,
   DialogContent,
@@ -169,7 +170,7 @@ export function ProposalApprovalDialog({
     setSearching(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=10`
+        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=${API_PAGE_SIZES.AUTOCOMPLETE}`
       );
       setSearchResults(response.contacts || []);
     } catch (error) {

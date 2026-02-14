@@ -50,6 +50,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDateTime } from "@/utils/formatters";
 
 interface ApprovalStep {
@@ -117,7 +118,7 @@ export default function ApprovalsTab() {
       const [workflowsRes, pendingRes, historyRes] = await Promise.all([
         api.get<{ success: boolean; data: ApprovalWorkflow[] }>("/api/v1/gl/approvals/workflows"),
         api.get<{ success: boolean; data: PendingApproval[] }>("/api/v1/gl/approvals/pending"),
-        api.get<{ success: boolean; data: ApprovalHistory[] }>("/api/v1/gl/approvals/history?limit=50"),
+        api.get<{ success: boolean; data: ApprovalHistory[] }>(`/api/v1/gl/approvals/history?limit=${API_PAGE_SIZES.LIST_VIEW}`),
       ]);
 
       if (workflowsRes?.success) setWorkflows(workflowsRes.data || []);

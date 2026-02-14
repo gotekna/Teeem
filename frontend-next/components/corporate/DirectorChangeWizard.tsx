@@ -57,6 +57,7 @@ import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { pollPdfGeneration, type PdfGenerationStatus } from "@/lib/pdf-generation";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
 import { DATE_DISPLAY, DATE_ISO, DATETIME_COMPACT } from "@/lib/constants/date-formats";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 
 // --- Date Picker (standard Popover + Calendar, replaces native input[type=date]) ---
 
@@ -295,7 +296,7 @@ export function DirectorChangeWizard({
     setLoadingPending(true);
     try {
       const response = await api.get<{ success: boolean; data: PendingGeneration[] }>(
-        `/api/v1/pdf_generations?status=pending,processing,completed&limit=20`
+        `/api/v1/pdf_generations?status=pending,processing,completed&limit=${API_PAGE_SIZES.SEARCH_MODAL}`
       );
       if (response?.success && response.data?.length) {
         // Only show recent ones (within last 24 hours)
@@ -387,7 +388,7 @@ export function DirectorChangeWizard({
       setSearchLoading(true);
       try {
         const response = await api.get<{ contacts: ContactSearchResult[] }>(
-          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&per_page=10`
+          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&per_page=${API_PAGE_SIZES.AUTOCOMPLETE}`
         );
         // Filter to people only (not companies)
         const people = (response.contacts || []).filter(

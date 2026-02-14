@@ -133,6 +133,7 @@ module Api
         teeem_core_tables = %w[foundations columns]
 
         # Get all user-defined foundations from the foundations table
+        # Small lookup table (~50-100 foundations), .all is fine
         user_foundations = Foundation.includes(:columns).all.map do |foundation|
           db_name = foundation.database_table_name.to_s
 

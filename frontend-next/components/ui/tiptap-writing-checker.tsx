@@ -1068,6 +1068,28 @@ export const WritingChecker = Extension.create({
   },
 });
 
+// Get position ranges of all blockquote nodes in the document
+// Used to exclude quoted/original message content from writing checks
+function getBlockquoteRanges(doc: ProseMirrorNode): Array<{ from: number; to: number }> {
+  const ranges: Array<{ from: number; to: number }> = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === "blockquote") {
+      ranges.push({ from: pos, to: pos + node.nodeSize });
+      return false; // Don't descend into blockquotes
+    }
+    return true;
+  });
+  return ranges;
+}
+
+// Check if a position falls inside any blockquote range
+function isInsideBlockquote(
+  pos: number,
+  blockquoteRanges: Array<{ from: number; to: number }>
+): boolean {
+  return blockquoteRanges.some((range) => pos >= range.from && pos < range.to);
+}
+
 // Convert text content index to actual ProseMirror document position
 // ProseMirror positions include node boundaries, so we need to traverse the doc
 function textIndexToDocPos(doc: ProseMirrorNode, textIndex: number): number {
@@ -1122,6 +1144,7 @@ function recalculateIssuePositions(
 }
 
 // Find positions of issues in the document
+// Excludes issues inside blockquotes (original/quoted message content)
 function findIssuePositions(
   doc: ProseMirrorNode,
   issues: WritingCheckResult["issues"],
@@ -1129,6 +1152,7 @@ function findIssuePositions(
 ): WritingIssue[] {
   const result: WritingIssue[] = [];
   const text = doc.textContent;
+  const blockquoteRanges = getBlockquoteRanges(doc);
 
   for (const issue of issues) {
     let searchPos = 0;
@@ -1143,6 +1167,12 @@ function findIssuePositions(
         continue;
       }
       const to = from + issue.original.length;
+
+      // Skip issues inside blockquotes (original message content)
+      if (isInsideBlockquote(from, blockquoteRanges)) {
+        searchPos = index + 1;
+        continue;
+      }
 
       const dismissKey = `${issue.original}:${from}`;
       if (!dismissedIssues.has(dismissKey)) {

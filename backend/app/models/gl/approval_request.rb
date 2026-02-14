@@ -24,9 +24,12 @@ module Gl
     # Get pending requests for a user
     def self.pending_for_user_ids(user)
       # Find requests where user can approve the current step
-      pending.select do |request|
-        request.can_be_approved_by?(user)
-      end.map(&:id)
+      # Note: can_be_approved_by? requires method call, can't convert to SQL
+      ids = []
+      pending.find_each do |request|
+        ids << request.id if request.can_be_approved_by?(user)
+      end
+      ids
     end
 
     # Submit document for approval

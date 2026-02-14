@@ -469,6 +469,7 @@ module Api
         {
           total_accounts: @accounts.count,
           by_type: @accounts.group(:account_type).count,
+          # Small lookup table (< 50 company groups typically), .all is fine
           groups: CompanyGroup.all.map { |g|
             { id: g.id, name: g.name, accounts_count: g.xero_chart_of_accounts.count }
           }

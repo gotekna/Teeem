@@ -388,6 +388,7 @@ class HerokuPlatformService
       end
 
       # Xero OAuth credentials (have token expiry)
+      # Small lookup table (< 10 credentials typically), .all is fine
       XeroCredential.all.each do |cred|
         keys << {
           name: "Xero (#{cred.xero_tenant_name.presence || cred.id})",
@@ -399,6 +400,7 @@ class HerokuPlatformService
       end
 
       # Microsoft OAuth credentials (have token expiry)
+      # Small lookup table (< 10 credentials typically), .all is fine
       MicrosoftCredential.all.each do |cred|
         keys << {
           name: "Microsoft (#{cred.credential_type} - #{cred.email.presence || cred.id})",
@@ -410,6 +412,7 @@ class HerokuPlatformService
       end
 
       # S3 credentials (Wasabi)
+      # Small lookup table (< 5 credentials typically), .all is fine
       S3CompatibleCredential.all.each do |cred|
         keys << {
           name: "S3/Wasabi (#{cred.provider_type.presence || 'default'})",

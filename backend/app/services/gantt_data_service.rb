@@ -419,6 +419,7 @@ class GanttDataService
   # SSoT: Load roles lookup map (ID => display_name) from Role model
   # Memoized per request to avoid N+1 queries
   def roles_map
+    # Small lookup table (~20 roles), .all is fine
     @roles_map ||= Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
   end
 

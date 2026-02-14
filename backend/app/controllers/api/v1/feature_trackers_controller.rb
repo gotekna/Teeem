@@ -13,6 +13,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
     end
 
     # Include chapter lookup data for TEEEMTableView
+    # Small lookup table (~20 chapters), .all is fine
     feature_chapters = FeatureChapter.all.map do |fc|
       {
         id: fc.id,

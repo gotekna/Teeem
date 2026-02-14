@@ -1885,21 +1885,28 @@ ${originalBody}
   };
 
   const handleForward = useCallback((email: Email) => {
-    // Build forwarded message header
-    const forwardHeader = `---------- Forwarded message ----------
-From: ${email.from_email || email.from_address}
-Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
-Subject: ${email.subject}
-To: ${email.to_emails?.join(", ") || ""}
+    // Build forwarded message as HTML to preserve formatting
+    const forwardHeaderHtml = `---------- Forwarded message -----------<br>From: ${email.from_email || email.from_address}<br>Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>Subject: ${email.subject}<br>To: ${email.to_emails?.join(", ") || ""}<br><br>`;
 
-`;
-    // Use body_text for plain text forwarding (html will be stripped)
-    const originalBody = email.body_text || email.body_html || "";
+    // Convert body_text newlines to <br> for HTML, or use body_html directly
+    let bodyHtml: string;
+    if (email.body_text) {
+      bodyHtml = email.body_text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .map(line => line || "<br>")
+        .join("<br>");
+    } else {
+      bodyHtml = email.body_html || "";
+    }
+
+    const forwardBody = `<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeaderHtml}${bodyHtml}</blockquote>`;
 
     setReplyTo({
       to: "", // Forward to new recipient
       subject: email.subject?.startsWith("Fwd:") ? email.subject : `Fwd: ${email.subject}`,
-      body: forwardHeader + originalBody,
+      body: forwardBody,
       fromAccountId: selectedAccount,
       forwardEmailId: email.id,
       forwardAttachments: email.attachments?.filter(a => !a.content_id && !a.is_inline) || [],

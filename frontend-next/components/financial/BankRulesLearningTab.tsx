@@ -46,6 +46,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
@@ -131,7 +132,7 @@ export default function BankRulesLearningTab() {
     setError(null);
     try {
       const response = await api.get<{ success: boolean; data: { suggestions: RuleSuggestion[]; count: number } }>(
-        "/api/v1/gl/bank_rules_learning/suggestions?limit=20"
+        `/api/v1/gl/bank_rules_learning/suggestions?limit=${API_PAGE_SIZES.SEARCH_MODAL}`
       );
       if (response?.success) {
         setSuggestions(response.data.suggestions || []);

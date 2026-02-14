@@ -144,7 +144,7 @@ class WHSInspection < ApplicationRecord
     self.overall_pass = compliance_score >= threshold
 
     # Check for critical issues
-    self.critical_issues_found = whs_inspection_items.where(action_required: true).any?
+    self.critical_issues_found = whs_inspection_items.where(action_required: true).exists?
   end
 
   def calculate_and_update_results

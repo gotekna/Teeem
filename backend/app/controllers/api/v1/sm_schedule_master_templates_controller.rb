@@ -1140,6 +1140,7 @@ module Api
 
       # Load roles lookup map (ID => display_name) using Role model
       def load_roles_map
+        # Small lookup table (~20 roles), .all is fine
         Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
       end
 

@@ -106,6 +106,8 @@ export default function XeroIntegrationPage() {
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
+  // NOTE: useState is CORRECT here - this is a settings page popup,
+  // NOT a table modal. activeTableModalAtom is only for table-related modals.
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
   const [companyConnections, setCompanyConnections] = React.useState<CompanyXeroConnection[]>([]);
   const [isMasterTenant, setIsMasterTenant] = React.useState(false);

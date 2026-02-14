@@ -6,6 +6,7 @@ import { TableColumn, TableRow } from '@/components/table/types';
 import type { Foundation } from './useFoundationData';
 import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
 import { CACHE_TTL_VIEWS } from '@/lib/constants/cache-constants';
+import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
 
 /**
  * Extended return type with server-side search support
@@ -201,7 +202,7 @@ export function useFoundationBySlug(
           params: {
             search: query,
             ...(searchAll && { search_all: 'true' }),
-            per_page: 500 // Return up to 500 search results
+            per_page: API_PAGE_SIZES.MEDIUM_REFERENCE // Return up to 500 search results
           }
         }
       );

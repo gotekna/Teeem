@@ -597,6 +597,7 @@ class SmScheduleMasterSyncService
     # Build name → id map
     # For roles, use display_name or name
     if col_name == 'assigned_role'
+      # Small lookup table (~20 roles), .all is fine
       Role.all.each_with_object({}) { |r, h| h[r.name] = r.id; h[r.display_name] = r.id if r.display_name.present? }
     else
       ActiveRecord::Base.connection

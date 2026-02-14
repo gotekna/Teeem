@@ -31,6 +31,7 @@ import {
   Edit,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency } from "@/utils/formatters";
 
 interface AIDashboard {
@@ -96,9 +97,9 @@ export default function AITab() {
     try {
       const [dashboardRes, predictionsRes, anomaliesRes, duplicatesRes] = await Promise.all([
         api.get<{ success: boolean; data: AIDashboard }>("/api/v1/gl/ai/dashboard"),
-        api.get<{ success: boolean; data: Prediction[] }>("/api/v1/gl/ai/predictions?pending_only=true&limit=20"),
-        api.get<{ success: boolean; data: Anomaly[] }>("/api/v1/gl/ai/anomalies?open_only=true&limit=20"),
-        api.get<{ success: boolean; data: DuplicateGroup[] }>("/api/v1/gl/ai/duplicates?pending_only=true&limit=20"),
+        api.get<{ success: boolean; data: Prediction[] }>(`/api/v1/gl/ai/predictions?pending_only=true&limit=${API_PAGE_SIZES.SEARCH_MODAL}`),
+        api.get<{ success: boolean; data: Anomaly[] }>(`/api/v1/gl/ai/anomalies?open_only=true&limit=${API_PAGE_SIZES.SEARCH_MODAL}`),
+        api.get<{ success: boolean; data: DuplicateGroup[] }>(`/api/v1/gl/ai/duplicates?pending_only=true&limit=${API_PAGE_SIZES.SEARCH_MODAL}`),
       ]);
 
       if (dashboardRes?.success) setDashboard(dashboardRes.data);

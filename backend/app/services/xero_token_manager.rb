@@ -227,6 +227,7 @@ class XeroTokenManager
       degraded = 0
       disconnected = 0
 
+      # Small lookup table (< 10 credentials typically), .all is fine
       XeroCredential.all.each do |cred|
         if cred.status == "disconnected" || cred.poisoned?
           disconnected += 1

@@ -277,7 +277,7 @@ module Api
                 .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                 .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                 .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
-                .map(&:id)
+                .pluck(:id)
             else
               base.pluck(:id)
             end
@@ -496,7 +496,7 @@ module Api
                     .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                     .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                     .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
-                    .map(&:id)
+                    .pluck(:id)
                 else
                   base.pluck(:id)
                 end
@@ -794,6 +794,7 @@ module Api
         end
 
         # Filter: keep only records where ALL non-self-ref FKs have a matching target
+        # Note: Needs full records to call .send(fk_field), can't use SQL-only filtering
         kept_ids = source_records.select do |record|
           non_self_ref_fks.all? do |fk_field, remap_config|
             fk_value = record.send(fk_field)

@@ -367,6 +367,6 @@ class OnboardingStatusService
   def email_sync_complete?
     # Check if any email sync credentials are connected and active
     # credential_type: 'email' indicates email sync capability
-    MicrosoftCredential.connected.where(credential_type: 'email').any?
+    MicrosoftCredential.connected.where(credential_type: 'email').exists?
   end
 end

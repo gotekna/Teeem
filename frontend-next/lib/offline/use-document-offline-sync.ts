@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { isOnlineAtom } from "./offline-atoms";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import {
   setDocumentInCache,
   getJobDocumentsFromCache,
@@ -143,7 +144,7 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
         success: boolean;
         jobs?: AssignedJob[];
         records?: AssignedJob[];
-      }>("/api/v1/jobs?filter[status]=active&filter[assigned_to_me]=true&per_page=50");
+      }>(`/api/v1/jobs?filter[status]=active&filter[assigned_to_me]=true&per_page=${API_PAGE_SIZES.LIST_VIEW}`);
 
       const assignedJobs = response?.jobs || response?.records || [];
 

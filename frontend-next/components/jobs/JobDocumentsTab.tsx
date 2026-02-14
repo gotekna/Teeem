@@ -58,6 +58,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
@@ -1365,7 +1366,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         total_unanalyzed?: number;
       }>(`/api/v1/documents/analyze_job_documents`, {
         job_id: jobId,
-        limit: 25,
+        limit: API_PAGE_SIZES.SMALL_LIST,
       });
 
       if (response?.success) {

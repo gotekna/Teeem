@@ -347,7 +347,8 @@ class Corporate < ApplicationRecord
     warnings << "No bank accounts" if bank_accounts.empty?
     warnings << "No shareholders recorded" if corporate_shareholdings.empty?
     warnings << "Missing incorporation date" if date_incorporated.blank?
-    warnings << "No secretary appointed" if corporate_directors.where(is_current: true, position: "secretary").empty?
+    warnings << "No secretary appointed" unless corporate_directors.where(is_current: true, position: "secretary").exists?
+    # Note: This requires loading records to check notes content - can't use .exists? with complex condition
     warnings << "No public officer" unless corporate_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
 
     # Only check for corporate credentials if this is an actual company (has ACN)

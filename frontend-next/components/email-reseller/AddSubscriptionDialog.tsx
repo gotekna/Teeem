@@ -28,6 +28,7 @@ import {
   Search,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { useEmailSubscriptions, useEmailPricing } from "@/hooks/useEmailSubscriptions";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
@@ -132,7 +133,7 @@ export function AddSubscriptionDialog({
     try {
       // SSoT: Backend returns { success, contacts } with display_name field
       const response = await api.get<{ success: boolean; contacts: { id: number; display_name: string; email?: string }[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=10`
+        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=${API_PAGE_SIZES.AUTOCOMPLETE}`
       );
 
       // Only update state if this is still the latest request

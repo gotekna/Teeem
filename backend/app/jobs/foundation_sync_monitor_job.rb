@@ -56,6 +56,7 @@ class FoundationSyncMonitorJob < ApplicationJob
   def find_sync_issues
     issues = []
 
+    # Small lookup table (~50-100 foundations), .all is fine
     Foundation.all.each do |foundation|
       table_name = foundation.database_table_name
 

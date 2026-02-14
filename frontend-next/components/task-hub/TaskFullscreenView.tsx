@@ -1256,6 +1256,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [editingAnswerText, setEditingAnswerText] = useState('');
 
   // Rich text editor modal state (SSoT for all text editing)
+  // NOTE: useState is CORRECT here - this is a standalone task page modal,
+  // NOT a table modal. activeTableModalAtom is only for table-related modals.
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editModalType, setEditModalType] = useState<EditModalType>(null);
   const [editModalItemId, setEditModalItemId] = useState<number | null>(null);

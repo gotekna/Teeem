@@ -317,9 +317,8 @@ class XeroHealthMonitorJob < ApplicationJob
     # Find credentials that need token refresh:
     # 1. status="degraded" (explicit degraded state)
     # 2. status="connected" but token expired (needs proactive refresh)
-    credentials_to_refresh = XeroCredential.all.select do |cred|
-      cred.status == "degraded" || (cred.status == "connected" && cred.expired?)
-    end
+    credentials_to_refresh = XeroCredential.where("status = ? OR (status = ? AND expires_at < ?)",
+                                                   "degraded", "connected", Time.current)
 
     credentials_to_refresh.each do |credential|
       # If refresh_failure_count is high, skip (avoid hammering failed refreshes)

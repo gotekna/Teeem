@@ -185,6 +185,7 @@ class XeroConnectionHealth
 
     # Compute health for all credentials (for admin dashboard)
     def all_credentials_health
+      # Small lookup table, .all is fine
       XeroCredential.all.map do |credential|
         {
           credential_id: credential.id,
