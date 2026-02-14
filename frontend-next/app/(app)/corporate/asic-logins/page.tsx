@@ -54,7 +54,7 @@ export default function AsicLoginsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(true);
-  const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [companies, setCompanies] = React.useState<AsicCompany[]>([]);
   const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = React.useState(searchParams.get("company_group_id") || "");
   const [showPasswords, setShowPasswords] = React.useState<Record<string, boolean>>({});
