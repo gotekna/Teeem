@@ -3284,10 +3284,6 @@ export default function TeeemTableView({
         // must not apply view to a DIFFERENT foundation's global atoms.
         // StrictMode double-mount is safe (same foundation ID) and should proceed.
         if (loadStartFoundationId !== effectiveFoundationId) {
-          console.log('[loadSavedViews] Foundation changed during load, skipping view application', {
-            startedWith: loadStartFoundationId,
-            currentFoundation: effectiveFoundationId,
-          });
           return;
         }
 
@@ -3356,16 +3352,6 @@ export default function TeeemTableView({
           // Check if user has selected a view in THIS session
           const userSelectedThisSession = userSelectedViewRef.current;
 
-          console.log('[loadSavedViews] View application check:', {
-            defaultViewSlug,
-            explicitlyNoView,
-            ssrAlreadyAppliedView,
-            userSelectedThisSession,
-            urlViewExistsForFoundation,
-            willApply: !ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView,
-            defaultViewName: defaultView?.name,
-          });
-
           // Skip if:
           // - SSR already applied a view, OR
           // - User selected a view THIS session (prevents race condition), OR
@@ -3373,11 +3359,6 @@ export default function TeeemTableView({
           if (!ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView) {
             // Apply the selected view
             // URL is SSoT - always update it (event-based breadcrumbs handle sync)
-            console.log('[loadSavedViews] Auto-applying view:', {
-              viewId: defaultView.id,
-              viewName: defaultView.name,
-              viewSlug: defaultView.slug,
-            });
             // silentUrlUpdate: true - uses history.replaceState + VIEW_CHANGE_EVENT
             // This updates URL and triggers breadcrumb rebuild without React re-renders
             loadViewState(defaultView, false, false, true);
@@ -3522,15 +3503,6 @@ export default function TeeemTableView({
   // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
-    // Debug: Log filtering state - only when filters are active or records are empty
-    // This reduces console noise during normal auto-fetch operation
-    if (safeFilters.length > 0 || effectiveEntries.length === 0) {
-      console.log('[TeeemTableView] Filtering entries:', {
-        effectiveEntriesCount: effectiveEntries.length,
-        safeFiltersCount: safeFilters.length,
-        filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
-      });
-    }
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
@@ -3566,16 +3538,7 @@ export default function TeeemTableView({
     const skipClientFilters = effectiveOnServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
       // Use extracted utility function for filters
-      const beforeCount = result.length;
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
-      // Only log if filtering actually removed records (reduces noise)
-      if (beforeCount !== result.length) {
-        console.log('[TeeemTableView] After applying filters:', {
-          beforeCount,
-          afterCount: result.length,
-          filtered: beforeCount - result.length,
-        });
-      }
     }
 
     // Apply sorting using extracted utility function
