@@ -131,6 +131,7 @@ export function ComposeEmailModal({
   const [contactSearch, setContactSearch] = useState("");
   const [ccSearch, setCcSearch] = useState("");
   const [bccSearch, setBccSearch] = useState("");
+  const [recentRecipients, setRecentRecipients] = useState<Array<{ email: string; count: number }>>([]);
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
@@ -218,14 +219,34 @@ export function ComposeEmailModal({
     }
   };
 
+  // Search recently-used email addresses from email history
+  const searchRecentRecipients = async (search: string) => {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
+      setRecentRecipients([]);
+      return;
+    }
+    try {
+      const response = await api.get<{ recipients: Array<{ email: string; count: number; lastUsed: string }> }>(
+        `/api/v1/synced_emails/suggest_recipients?q=${encodeURIComponent(search)}`
+      );
+      const typedResponse = response as { recipients: Array<{ email: string; count: number; lastUsed: string }> };
+      setRecentRecipients(typedResponse.recipients || []);
+    } catch (err) {
+      console.debug("Failed to search recent recipients:", err);
+    }
+  };
+
   // Debounced search - triggered by any of the search inputs
   useEffect(() => {
     const activeSearch = contactSearch || ccSearch || bccSearch;
     const timer = setTimeout(() => {
       if (activeSearch) {
+        // Search contacts and recent recipients in parallel
         searchContacts(activeSearch);
+        searchRecentRecipients(activeSearch);
       } else {
         setContacts([]);
+        setRecentRecipients([]);
       }
     }, CONTACT_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -883,6 +904,7 @@ export function ComposeEmailModal({
                   isLoading={contactsLoading}
                   onSearch={setContactSearch}
                   minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                  recentRecipients={recentRecipients}
                 />
               </div>
               <Button
@@ -907,6 +929,7 @@ export function ComposeEmailModal({
                   isLoading={contactsLoading}
                   onSearch={setCcSearch}
                   minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                  recentRecipients={recentRecipients}
                 />
               </div>
             </div>
@@ -923,6 +946,7 @@ export function ComposeEmailModal({
                     isLoading={contactsLoading}
                     onSearch={setBccSearch}
                     minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                    recentRecipients={recentRecipients}
                   />
                 </div>
               </div>

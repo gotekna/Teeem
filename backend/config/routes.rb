@@ -1432,6 +1432,7 @@ Rails.application.routes.draw do
           get :spam
           post :bulk_delete_spam
           get :rules
+          get :suggest_recipients
         end
         member do
           post :assign_to_job
@@ -1466,6 +1467,7 @@ Rails.application.routes.draw do
           get :spam
           post :bulk_delete_spam
           get :rules
+          get :suggest_recipients
         end
         member do
           post :assign_to_job

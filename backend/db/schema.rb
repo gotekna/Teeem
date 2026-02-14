@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_14_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_14_200001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3098,6 +3098,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_14_100001) do
     t.datetime "updated_at", null: false
     t.index ["chapter_number"], name: "index_feature_chapters_on_chapter_number", unique: true
     t.index ["sort_order"], name: "index_feature_chapters_on_sort_order"
+  end
+
+  create_table "feature_requests", force: :cascade do |t|
+    t.string "title", null: false
+    t.text "description"
+    t.string "category", default: "feature", null: false
+    t.string "status", default: "submitted", null: false
+    t.integer "priority_order"
+    t.bigint "submitted_by_user_id"
+    t.bigint "submitted_by_tenant_id"
+    t.string "submitted_by_name"
+    t.string "submitted_by_company"
+    t.text "admin_notes"
+    t.text "status_update"
+    t.integer "follower_count", default: 0, null: false
+    t.jsonb "follower_user_ids", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_feature_requests_on_category"
+    t.index ["priority_order"], name: "index_feature_requests_on_priority_order"
+    t.index ["status"], name: "index_feature_requests_on_status"
+    t.index ["submitted_by_user_id"], name: "index_feature_requests_on_submitted_by_user_id"
   end
 
   create_table "feature_trackers", force: :cascade do |t|

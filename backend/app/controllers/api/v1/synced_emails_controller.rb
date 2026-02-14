@@ -1583,6 +1583,54 @@ class Api::V1::SyncedEmailsController < ApplicationController
     }
   end
 
+  # GET /api/v1/synced_emails/suggest_recipients?q=docsort
+  # Returns recently-used email addresses matching the query
+  # Searches from_email, to_emails (array), and cc_emails (array) via unnest
+  # Auto-scoped by tenant_id via raw SQL (acts_as_tenant doesn't apply to raw queries)
+  def suggest_recipients
+    query = params[:q].to_s.strip.downcase
+    return render json: { recipients: [] } if query.length < 2
+
+    tenant_id = ActsAsTenant.current_tenant&.id
+    return render json: { recipients: [] } unless tenant_id
+
+    sql = <<~SQL
+      SELECT email, COUNT(*) as usage_count, MAX(last_used) as last_used
+      FROM (
+        SELECT LOWER(from_email) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND from_email IS NOT NULL
+        UNION ALL
+        SELECT LOWER(unnest(to_emails)) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND to_emails IS NOT NULL
+        UNION ALL
+        SELECT LOWER(unnest(cc_emails)) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND cc_emails IS NOT NULL
+      ) all_emails
+      WHERE email LIKE $2
+      GROUP BY email
+      ORDER BY usage_count DESC
+      LIMIT 10
+    SQL
+
+    results = ActiveRecord::Base.connection.exec_query(
+      sql,
+      "SuggestRecipients",
+      [
+        ActiveRecord::Relation::QueryAttribute.new("tenant_id", tenant_id, ActiveRecord::Type::BigInteger.new),
+        ActiveRecord::Relation::QueryAttribute.new("query", "%#{query}%", ActiveRecord::Type::String.new)
+      ]
+    )
+
+    recipients = results.map do |r|
+      { email: r["email"], count: r["usage_count"].to_i, lastUsed: r["last_used"] }
+    end
+
+    render json: { recipients: recipients }
+  end
+
   private
 
   def set_email

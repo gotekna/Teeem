@@ -4,7 +4,7 @@ import * as React from "react";
 import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
-import { X, Building2, Briefcase, Mail, ExternalLink } from "lucide-react";
+import { X, Building2, Briefcase, Mail, ExternalLink, Clock } from "lucide-react";
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { EmailContact, ContactEmail } from "@/lib/email-types";
 import { api } from "@/lib/api";
@@ -17,6 +17,12 @@ interface EmailChip {
   resolved?: boolean; // true once contact lookup completed (whether found or not)
 }
 
+/** A recently-used email address from email history */
+interface RecentRecipient {
+  email: string;
+  count: number;
+}
+
 interface EmailContactAutocompleteProps {
   value: string;
   onChange: (value: string) => void;
@@ -26,6 +32,8 @@ interface EmailContactAutocompleteProps {
   placeholder?: string;
   className?: string;
   minSearchChars?: number;
+  /** Recently-used email addresses from email history */
+  recentRecipients?: RecentRecipient[];
 }
 
 /**
@@ -56,6 +64,7 @@ export function EmailContactAutocomplete({
   placeholder = "",
   className,
   minSearchChars = 2,
+  recentRecipients = [],
 }: EmailContactAutocompleteProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -261,6 +270,26 @@ export function EmailContactAutocomplete({
     return items;
   }, [groupedContacts, collapsedCompanies, emailChips]);
 
+  // Filter recent recipients: exclude emails already in chips or in contact results
+  const filteredRecentRecipients = useMemo(() => {
+    if (recentRecipients.length === 0) return [];
+
+    // Collect all emails shown in contact results
+    const contactEmails = new Set<string>();
+    selectableItems.forEach(item => contactEmails.add(item.email.toLowerCase()));
+    // Also include emails already in chips
+    const chipEmails = new Set(emailChips.map(e => e.toLowerCase()));
+
+    return recentRecipients.filter(r => {
+      const email = r.email.toLowerCase();
+      return !chipEmails.has(email) && !contactEmails.has(email);
+    });
+  }, [recentRecipients, selectableItems, emailChips]);
+
+  // Combined selectable items count for keyboard navigation
+  // Recent recipients come first, then contact items
+  const totalSelectableCount = filteredRecentRecipients.length + selectableItems.length;
+
   // Click outside to close
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -368,7 +397,7 @@ export function EmailContactAutocomplete({
     }
 
     if (!isOpen) {
-      if (e.key === "ArrowDown" && selectableItems.length > 0) {
+      if (e.key === "ArrowDown" && totalSelectableCount > 0) {
         setIsOpen(true);
         e.preventDefault();
       }
@@ -379,20 +408,26 @@ export function EmailContactAutocomplete({
       case "ArrowDown":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev < selectableItems.length - 1 ? prev + 1 : 0
+          prev < totalSelectableCount - 1 ? prev + 1 : 0
         );
         break;
       case "ArrowUp":
         e.preventDefault();
         setHighlightedIndex((prev) =>
-          prev > 0 ? prev - 1 : selectableItems.length - 1
+          prev > 0 ? prev - 1 : totalSelectableCount - 1
         );
         break;
       case "Enter":
         e.preventDefault();
-        if (selectableItems.length > 0 && highlightedIndex < selectableItems.length) {
-          // Add highlighted suggestion
-          handleSelectItem(selectableItems[highlightedIndex]);
+        if (totalSelectableCount > 0 && highlightedIndex < totalSelectableCount) {
+          // Check if highlighting a recent recipient or a contact item
+          if (highlightedIndex < filteredRecentRecipients.length) {
+            // Select recent recipient
+            addCustomEmail(filteredRecentRecipients[highlightedIndex].email);
+          } else {
+            // Select contact item
+            handleSelectItem(selectableItems[highlightedIndex - filteredRecentRecipients.length]);
+          }
         } else if (searchInput.trim()) {
           // Add typed email as custom entry (even if not in contacts)
           addCustomEmail(searchInput.trim());
@@ -444,15 +479,16 @@ export function EmailContactAutocomplete({
   };
 
   const handleFocus = () => {
-    if (searchInput.trim().length >= minSearchChars && contacts.length > 0) {
+    if (searchInput.trim().length >= minSearchChars && (contacts.length > 0 || filteredRecentRecipients.length > 0)) {
       setIsOpen(true);
     }
   };
 
-  const showDropdown = isOpen && (isLoading || contacts.length > 0);
+  const showDropdown = isOpen && (isLoading || contacts.length > 0 || filteredRecentRecipients.length > 0);
 
   // Track which index each item is at for highlighting
-  let globalIndex = 0;
+  // Recent recipients occupy indices 0..N-1, contact items start at N
+  let globalIndex = filteredRecentRecipients.length;
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -543,7 +579,45 @@ export function EmailContactAutocomplete({
               <Spinner size={20} className="text-muted-foreground" />
             </div>
           ) : (
-            Object.entries(groupedContacts).map(([companyName, companyContacts]) => {
+            <>
+            {/* Recently Used section - shown at top before contact results */}
+            {filteredRecentRecipients.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/30">
+                  <Clock className="h-3 w-3" />
+                  Recently Used
+                </div>
+                {filteredRecentRecipients.map((recipient, idx) => {
+                  const currentIdx = idx;
+                  const isHighlighted = currentIdx === highlightedIndex;
+                  return (
+                    <div
+                      key={recipient.email}
+                      data-contact-item
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 cursor-pointer",
+                        isHighlighted ? "bg-primary text-white" : "hover:bg-accent/50"
+                      )}
+                      onClick={() => addCustomEmail(recipient.email)}
+                      onMouseEnter={() => setHighlightedIndex(currentIdx)}
+                    >
+                      <Mail className={cn(
+                        "h-3.5 w-3.5 flex-shrink-0",
+                        isHighlighted ? "text-white/80" : "text-muted-foreground"
+                      )} />
+                      <span className="text-sm truncate">{recipient.email}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-full ml-auto flex-shrink-0",
+                        isHighlighted ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                      )}>
+                        {recipient.count}x
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {Object.entries(groupedContacts).map(([companyName, companyContacts]) => {
               const isCollapsed = collapsedCompanies.has(companyName);
               // Count total emails in this group
               const totalEmails = companyContacts.reduce((sum, c) => {
@@ -666,11 +740,12 @@ export function EmailContactAutocomplete({
                   })}
                 </div>
               );
-            })
+            })}
+            </>
           )}
 
           {/* Allow using typed value as custom email */}
-          {!isLoading && contacts.length === 0 && searchInput.length >= minSearchChars && (
+          {!isLoading && contacts.length === 0 && filteredRecentRecipients.length === 0 && searchInput.length >= minSearchChars && (
             <div
               className="px-3 py-2 cursor-pointer hover:bg-accent/50 text-sm"
               onClick={() => {
