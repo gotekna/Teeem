@@ -133,7 +133,12 @@ class EmailStorageUploadService
     # Step 2: Batch fetch MIME content from Graph API (biggest optimization)
     mime_contents = {}
     emails_by_credential.each do |cred_id, cred_emails|
-      credential = cred_id ? MicrosoftCredential.find_by(id: cred_id) : MicrosoftCredential.active_credential
+      # Tenant-scoped credential lookup (security)
+      credential = if cred_id
+                     MicrosoftCredential.where(tenant_id: @tenant.id).find_by(id: cred_id)
+                   else
+                     MicrosoftCredential.where(tenant_id: @tenant.id).refreshable_app.first
+                   end
       next unless credential&.connected?
 
       begin
@@ -406,16 +411,17 @@ class EmailStorageUploadService
   end
 
   # SSoT: Get credential for an email
-  # Priority: 1. Credential linked to email, 2. Any connected app credential
+  # Priority: 1. Credential linked to email, 2. Any connected app credential (tenant-scoped for security)
   def get_credential_for_email(email)
     # Try the credential that synced this email first
     if email.microsoft_credential_id.present?
-      credential = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+      credential = MicrosoftCredential.where(tenant_id: @tenant.id)
+                                      .find_by(id: email.microsoft_credential_id)
       return credential if credential&.connected?
     end
 
-    # Fall back to any connected credential
-    MicrosoftCredential.active_credential
+    # Fall back to any connected credential from this tenant (security)
+    MicrosoftCredential.where(tenant_id: @tenant.id).refreshable_app.first
   end
 
   def skip_email(email, reason)

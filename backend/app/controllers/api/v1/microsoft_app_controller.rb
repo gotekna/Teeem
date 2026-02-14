@@ -301,6 +301,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
         begin
           state_data = JSON.parse(Base64.urlsafe_decode64(state))
           # Multi-org: find by credential_id from state (SSoT: MicrosoftCredential)
+          # Note: Admin consent callback may not have tenant context, so skip tenant scoping here
+          # Credential ownership is validated during the setup flow
           if state_data["credential_id"]
             credential = MicrosoftCredential.find_by(id: state_data["credential_id"])
           end
@@ -1173,9 +1175,11 @@ class Api::V1::MicrosoftAppController < ApplicationController
     org_name = params[:organization_name].presence || params[:org_name].presence || params[:name].presence
 
     if org_id.present?
-      Organization.find_by(id: org_id)
+      # Tenant-scoped lookup (security)
+      Organization.where(tenant_id: current_tenant&.id).find_by(id: org_id)
     elsif org_name.present?
-      Organization.find_by_name_or_slug(org_name)
+      # Tenant-scoped lookup (security)
+      Organization.where(tenant_id: current_tenant&.id).find_by_name_or_slug(org_name)
     end
   end
 
@@ -1218,18 +1222,23 @@ class Api::V1::MicrosoftAppController < ApplicationController
   # Must be tenant-scoped to prevent cross-tenant disconnect.
   def find_credential_for_disconnect(org_id, org_name)
     if org_id.present?
-      org = Organization.find_by(id: org_id)
+      # Tenant-scoped lookup (security)
+      org = Organization.where(tenant_id: current_tenant&.id)
+                        .find_by(id: org_id)
       # Find ANY credential for this org, including dead/disconnected - tenant-scoped
       tenant_scoped_ms_credentials.active.app_credentials.for_org(org).first if org
     elsif org_name.present?
-      org = Organization.find_by_name_or_slug(org_name)
+      # Tenant-scoped lookup (security)
+      org = Organization.where(tenant_id: current_tenant&.id)
+                        .find_by_name_or_slug(org_name)
       tenant_scoped_ms_credentials.active.app_credentials.for_org(org).first if org
     end
   end
 
   # SSoT: Ensure organization exists for credential operations
   def find_or_create_organization_for_credential(org_name)
-    Organization.find_or_create_by!(name: org_name) do |org|
+    # Tenant-scoped creation (security)
+    Organization.find_or_create_by!(name: org_name, tenant_id: current_tenant&.id) do |org|
       org.slug = org_name.parameterize
     end
   end
@@ -1272,6 +1281,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
   def dual_write_app_credential_consent(old_credential, admin_email)
     Rails.logger.info "[MicrosoftApp] DUAL-WRITE: Updating MicrosoftCredential after admin consent..."
 
+    # Note: During OAuth callback, tenant context may not be available
+    # Lookup by name since this is called during the consent flow
     mc = MicrosoftCredential.find_by(name: old_credential.name, credential_type: "app")
     return unless mc
 

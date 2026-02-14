@@ -17,6 +17,7 @@ import {
   CalendarDaysIcon,
 } from "@heroicons/react/24/outline";
 import { getStorageItem, removeStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 interface PortalUser {
   contact_name?: string;
@@ -37,29 +38,29 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     setIsLoading(false);
 
     // Redirect to login if not authenticated and not already on login page
-    if (!user && pathname !== "/portal/login") {
-      router.push("/portal/login");
+    if (!user && pathname !== ROUTES.PORTAL.LOGIN) {
+      router.push(ROUTES.PORTAL.LOGIN);
     }
   }, [pathname, router]);
 
   const navigation = [
-    { name: "Dashboard", href: "/portal/dashboard", icon: HomeIcon },
-    { name: "Quotes", href: "/portal/quotes", icon: DocumentTextIcon },
-    { name: "Jobs", href: "/portal/jobs", icon: BriefcaseIcon },
-    { name: "Schedule", href: "/portal/schedule", icon: CalendarDaysIcon },
-    { name: "Invoices", href: "/portal/invoices", icon: DocumentDuplicateIcon },
-    { name: "Kudos", href: "/portal/kudos", icon: TrophyIcon },
+    { name: "Dashboard", href: ROUTES.PORTAL.DASHBOARD, icon: HomeIcon },
+    { name: "Quotes", href: ROUTES.PORTAL.QUOTES, icon: DocumentTextIcon },
+    { name: "Jobs", href: ROUTES.PORTAL.JOBS, icon: BriefcaseIcon },
+    { name: "Schedule", href: ROUTES.PORTAL.SCHEDULE, icon: CalendarDaysIcon },
+    { name: "Invoices", href: ROUTES.PORTAL.INVOICES, icon: DocumentDuplicateIcon },
+    { name: "Kudos", href: ROUTES.PORTAL.KUDOS, icon: TrophyIcon },
     { name: "Settings", href: "/portal/settings", icon: Cog6ToothIcon },
   ];
 
   const handleLogout = () => {
     removeStorageItem(STORAGE_KEYS.PORTAL_TOKEN);
     removeStorageItem(STORAGE_KEYS.PORTAL_USER);
-    router.push("/portal/login");
+    router.push(ROUTES.PORTAL.LOGIN);
   };
 
   // Don't render layout for login page
-  if (pathname === "/portal/login") {
+  if (pathname === ROUTES.PORTAL.LOGIN) {
     return <>{children}</>;
   }
 

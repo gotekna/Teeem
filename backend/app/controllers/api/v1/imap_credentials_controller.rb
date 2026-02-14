@@ -756,7 +756,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Include users already shared with this credential (for cross-tenant visibility)
     already_shared_ids = []
     if params[:credential_id].present?
-      credential = ImapCredential.find_by(id: params[:credential_id])
+      # Tenant-scoped lookup (security)
+      credential = ImapCredential.where(user_id: tenant_user_ids)
+                                 .find_by(id: params[:credential_id])
       already_shared_ids = credential&.shared_with_user_ids || []
     end
 
@@ -934,7 +936,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
         return render_error("mailbox_email is required for MS365 accounts", status: :unprocessable_entity)
       end
 
-      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      # Tenant-scoped lookup (security)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: org_cred_id)
       unless org_cred
         return render_error("Microsoft 365 credential not found", status: :not_found)
       end
@@ -1014,7 +1018,9 @@ class Api::V1::ImapCredentialsController < ApplicationController
         return render_error("mailbox_email is required for MS365 accounts", status: :unprocessable_entity)
       end
 
-      org_cred = MicrosoftCredential.find_by(id: org_cred_id)
+      # Tenant-scoped lookup (security)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: org_cred_id)
       unless org_cred
         return render_error("Microsoft 365 credential not found", status: :not_found)
       end

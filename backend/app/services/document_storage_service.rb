@@ -738,16 +738,17 @@ class DocumentStorageService
   end
 
   # Get a credential that can fetch this email
-  # Priority: credential that synced this email > any connected credential
+  # Priority: credential that synced this email > any connected credential (tenant-scoped for security)
   def get_credential_for_email(email)
     # Try the credential that synced this email first
     if email.microsoft_credential_id.present?
-      cred = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+      cred = MicrosoftCredential.where(tenant_id: @tenant.id)
+                                .find_by(id: email.microsoft_credential_id)
       return cred if cred&.connected?
     end
 
-    # Fall back to any connected app credential
-    MicrosoftCredential.active_credential
+    # Fall back to any connected app credential from this tenant (security)
+    MicrosoftCredential.where(tenant_id: @tenant.id).refreshable_app.first
   end
 
   # Create WarehouseDocument for email via standard service

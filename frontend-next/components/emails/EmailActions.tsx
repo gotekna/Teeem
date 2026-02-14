@@ -102,8 +102,8 @@ async function toggleVip(emailAddress: string, name?: string): Promise<{ is_vip:
   return (response as { data: { is_vip: boolean } }).data;
 }
 
-async function deleteEmail(emailId: number): Promise<void> {
-  await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
+async function deleteEmail(emailId: number, mailboxEmail?: string): Promise<void> {
+  await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook${mailboxEmail ? `?mailbox_owner_email=${encodeURIComponent(mailboxEmail)}` : ""}`);
 }
 
 async function markAsSpam(emailId: number, deleteFromOutlook: boolean = false): Promise<void> {
@@ -499,17 +499,18 @@ export function VipBadge({ className }: { className?: string }) {
 // Delete Button Component
 interface DeleteButtonProps {
   emailId: number;
+  mailboxEmail?: string;
   onDelete?: () => void;
   size?: "sm" | "md";
 }
 
-export function DeleteButton({ emailId, onDelete, size = "md" }: DeleteButtonProps) {
+export function DeleteButton({ emailId, mailboxEmail, onDelete, size = "md" }: DeleteButtonProps) {
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async () => {
     setLoading(true);
     try {
-      await deleteEmail(emailId);
+      await deleteEmail(emailId, mailboxEmail);
       onDelete?.();
     } catch (error) {
       console.error("Failed to delete email:", error);

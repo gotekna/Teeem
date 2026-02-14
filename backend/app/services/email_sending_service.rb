@@ -351,7 +351,14 @@ class EmailSendingService
 
   def find_ms365_credential
     credential_id = ms365_credential_id
-    credential = MicrosoftCredential.find_by(id: credential_id)
+    # Tenant-scoped lookup (security) - Use user's tenant
+    tenant = @params.user&.tenant
+    credential = if tenant
+                   MicrosoftCredential.where(tenant_id: tenant.id)
+                                     .find_by(id: credential_id)
+                 else
+                   MicrosoftCredential.find_by(id: credential_id)
+                 end
 
     raise CredentialNotFoundError, "MS365 credential not found" unless credential
     credential

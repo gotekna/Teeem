@@ -48,6 +48,13 @@ export const API_TIMEOUT_FILE_UPLOAD = 60000;
 export const API_TIMEOUT_HEAVY_SYNC = 120000;
 
 /**
+ * Timeout for map/external API requests (8 seconds).
+ * Used for environment maps and other external API calls.
+ * SSoT for: app/(app)/dashboard/components/EnvironmentsMap.tsx
+ */
+export const API_TIMEOUT_EXTERNAL = 8000;
+
+/**
  * Base delay for retry logic (1 second).
  * Doubles with each retry attempt.
  * SSoT for: lib/api.ts
@@ -96,6 +103,40 @@ export const BLOB_URL_CLEANUP_DELAY_MS = 1000;
  */
 export const MODAL_RESET_DELAY_MS = 300;
 
+/**
+ * Short animation delay (100ms).
+ * Used for focus management, quick UI transitions, popover delays.
+ */
+export const UI_ANIMATION_SHORT_MS = 100;
+
+/**
+ * Medium animation delay (200ms).
+ * Used for sequential UI operations.
+ */
+export const UI_ANIMATION_MEDIUM_MS = 200;
+
+/**
+ * Standard animation delay (500ms).
+ * Used for state resets, loading indicators.
+ */
+export const UI_ANIMATION_STANDARD_MS = 500;
+
+/**
+ * Countdown timer tick interval (1 second).
+ * Used for email verification countdown, etc.
+ */
+export const COUNTDOWN_TICK_MS = 1000;
+
+/**
+ * Dynamic title update intervals.
+ * Used for progressive title updates at different frequencies.
+ */
+export const TITLE_UPDATE_FAST_MS = 100;
+export const TITLE_UPDATE_MEDIUM_MS = 500;
+export const TITLE_UPDATE_SLOW_MS = 1000;
+export const TITLE_UPDATE_SLOWEST_MS = 2000;
+export const TITLE_UPDATE_INTERVAL_MS = 500;
+
 // =============================================================================
 // DEBOUNCE CONSTANTS
 // =============================================================================
@@ -119,6 +160,12 @@ export const DEBOUNCE_SHORT_MS = 100;
  */
 export const DEBOUNCE_MEDIUM_MS = 200;
 
+/**
+ * Debounce for viewport resize events (100ms).
+ * SSoT for: lib/hooks/use-device-context.ts
+ */
+export const DEBOUNCE_RESIZE_MS = 100;
+
 // =============================================================================
 // POLLING/RETRY CONSTANTS
 // =============================================================================
@@ -139,6 +186,37 @@ export const POLLING_DELAY_MS = 3000;
  */
 export const POLLING_INTERVAL_MS = 30000;
 
+/**
+ * Inspiring banner quote refresh interval (1 hour).
+ * SSoT for: components/layout/InspiringBanner.tsx
+ */
+export const POLLING_QUOTE_REFRESH_MS = 3600000;
+
+/**
+ * Fast polling interval for status updates (5 seconds).
+ * Used for active job/sync status monitoring.
+ */
+export const POLLING_FAST_MS = 5000;
+
+/**
+ * Slow polling interval for background updates (60 seconds).
+ * Used for badge counts, non-critical updates.
+ */
+export const POLLING_SLOW_MS = 60000;
+
+/**
+ * Xero sync polling interval (10 seconds).
+ * Used for monitoring Xero sync job progress.
+ */
+export const POLLING_XERO_SYNC_MS = 10000;
+
+/**
+ * Chat message polling interval (5 seconds for entity chat, 3 seconds for guest chat).
+ * Used for real-time chat updates.
+ */
+export const POLLING_CHAT_ENTITY_MS = 5000;
+export const POLLING_CHAT_GUEST_MS = 3000;
+
 // =============================================================================
 // GROUPED EXPORTS
 // =============================================================================
@@ -152,6 +230,7 @@ export const API_TIMEOUTS = {
   EMAIL_OFFLINE: API_TIMEOUT_EMAIL_OFFLINE,
   FILE_UPLOAD: API_TIMEOUT_FILE_UPLOAD,
   HEAVY_SYNC: API_TIMEOUT_HEAVY_SYNC,
+  EXTERNAL: API_TIMEOUT_EXTERNAL,
   RETRY_BASE: API_RETRY_DELAY_BASE,
 } as const;
 
@@ -163,6 +242,7 @@ export const UI_TIMEOUTS = {
   SUCCESS_MESSAGE: UI_SUCCESS_MESSAGE_MS,
   EXPORT_STATUS: UI_EXPORT_STATUS_MS,
   AUTOSAVE_FEEDBACK: UI_AUTOSAVE_FEEDBACK_MS,
+  BLOB_URL_CLEANUP: BLOB_URL_CLEANUP_DELAY_MS,
 } as const;
 
 /**
@@ -172,4 +252,41 @@ export const DEBOUNCE = {
   SEARCH: DEBOUNCE_SEARCH_MS,
   SHORT: DEBOUNCE_SHORT_MS,
   MEDIUM: DEBOUNCE_MEDIUM_MS,
+  RESIZE: DEBOUNCE_RESIZE_MS,
+} as const;
+
+/**
+ * All polling constants grouped.
+ */
+export const POLLING = {
+  DEFAULT: POLLING_INTERVAL_MS,
+  FAST: POLLING_FAST_MS,
+  SLOW: POLLING_SLOW_MS,
+  RETRY: POLLING_DELAY_MS,
+  XERO_SYNC: POLLING_XERO_SYNC_MS,
+  CHAT_ENTITY: POLLING_CHAT_ENTITY_MS,
+  CHAT_GUEST: POLLING_CHAT_GUEST_MS,
+  QUOTE_REFRESH: POLLING_QUOTE_REFRESH_MS,
+} as const;
+
+/**
+ * All animation/UI timing constants grouped.
+ */
+export const ANIMATION = {
+  SHORT: UI_ANIMATION_SHORT_MS,
+  MEDIUM: UI_ANIMATION_MEDIUM_MS,
+  STANDARD: UI_ANIMATION_STANDARD_MS,
+  MODAL_RESET: MODAL_RESET_DELAY_MS,
+  COUNTDOWN_TICK: COUNTDOWN_TICK_MS,
+} as const;
+
+/**
+ * Title update timing constants grouped.
+ */
+export const TITLE_UPDATE = {
+  FAST: TITLE_UPDATE_FAST_MS,
+  MEDIUM: TITLE_UPDATE_MEDIUM_MS,
+  SLOW: TITLE_UPDATE_SLOW_MS,
+  SLOWEST: TITLE_UPDATE_SLOWEST_MS,
+  INTERVAL: TITLE_UPDATE_INTERVAL_MS,
 } as const;

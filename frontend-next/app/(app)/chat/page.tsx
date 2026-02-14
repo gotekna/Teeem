@@ -362,12 +362,12 @@ export default function ChatPage() {
   // Load entities for save-to-entity - lazy load when dialog opens
   const loadEntities = useCallback(async () => {
     try {
-      const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
+      const jobsResponse = await api.get<{ constructions: Construction[] }>(API.jobs.list, {
         params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(jobsResponse?.constructions || []);
 
-      const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
+      const contactsResponse = await api.get<{ contacts: Contact[] }>(API.contacts.list, {
         params: { per_page: PAGE_SIZE_REFERENCE },
       });
       setContacts(contactsResponse?.contacts || []);

@@ -22,6 +22,7 @@ import {
 import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
 import { cn } from "@/lib/utils";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 
 // =============================================================================
 // TYPES
@@ -513,7 +514,7 @@ export function DocumentViewer({
 
         // Small delay between downloads to prevent browser blocking
         if (i < files.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, UI_ANIMATION_STANDARD_MS));
         }
       }
     } finally {

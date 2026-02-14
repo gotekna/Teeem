@@ -15,6 +15,7 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { copyToClipboard } from "@/utils/formatters";
 import { BackButton } from "@/components/ui/back-button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -72,7 +73,7 @@ export default function AsicLoginsPage() {
 
   const loadCompanyGroups = async () => {
     try {
-      const response = await api.get<{ company_groups: CompanyGroup[] }>("/api/v1/company_groups");
+      const response = await api.get<{ company_groups: CompanyGroup[] }>(API.companyGroups.list);
       setCompanyGroups(response.company_groups || []);
     } catch (error) {
       console.error("Failed to load company groups:", error);
@@ -84,7 +85,7 @@ export default function AsicLoginsPage() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (selectedGroup) params.company_group_id = selectedGroup;
-      const response = await api.get<{ companies: AsicCompany[] }>("/api/v1/companies/asic_logins", { params });
+      const response = await api.get<{ companies: AsicCompany[] }>(`${API.companies.list}/asic_logins`, { params });
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load ASIC logins:", error);

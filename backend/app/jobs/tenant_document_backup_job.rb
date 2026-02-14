@@ -151,10 +151,13 @@ class TenantDocumentBackupJob < ApplicationJob
   def download_from_s3(doc)
     storage_config = WarehouseProvider.instance
 
+    # Tenant-scoped credential lookup (security)
+    # Note: Job runs within ActsAsTenant.with_tenant(@tenant), so @tenant.id is available
     credential = if storage_config.storage_credential_id.present?
-                   S3CompatibleCredential.find_by(id: storage_config.storage_credential_id)
+                   S3CompatibleCredential.where(tenant_id: @tenant.id)
+                                        .find_by(id: storage_config.storage_credential_id)
                  else
-                   S3CompatibleCredential.active.first
+                   S3CompatibleCredential.where(tenant_id: @tenant.id).active.first
                  end
     return nil unless credential
 

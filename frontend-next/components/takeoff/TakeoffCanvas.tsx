@@ -18,6 +18,8 @@ import { DEFAULT_DRAWING_STYLE } from "./types";
 import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
 import { SnapIndicator, SnapPointsLayer, SnapMagnifier, PinnedMagnifier } from "./SnapIndicator";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
+import { Z_TOOLTIP } from "@/lib/constants/z-index-constants";
 
 // =============================================================================
 // Fabric.js Type Extensions
@@ -769,7 +771,7 @@ export function TakeoffCanvas({
           } else {
             setCalibrationStep("waitingInput");
             setCalibrationInput("");
-            setTimeout(() => calibrationInputRef.current?.focus(), 100);
+            setTimeout(() => calibrationInputRef.current?.focus(), UI_ANIMATION_SHORT_MS);
           }
         }
         break;
@@ -1665,7 +1667,7 @@ export function TakeoffCanvas({
         className="absolute inset-0 pointer-events-none"
         width={pageWidth * zoom}
         height={pageHeight * zoom}
-        style={{ overflow: "visible", zIndex: 20 }}
+        style={{ overflow: "visible", zIndex: Z_TOOLTIP }}
       >
         {/* Debug: Show all available snap points */}
         <SnapPointsLayer
@@ -1918,7 +1920,7 @@ export function TakeoffCanvas({
                 className="absolute inset-0 pointer-events-none"
                 width={pageWidth * zoom}
                 height={pageHeight * zoom}
-                style={{ overflow: "visible", zIndex: 25 }}
+                style={{ overflow: "visible", zIndex: Z_TOOLTIP }}
               >
                 {/* Dashed line from original position to cursor */}
                 <line

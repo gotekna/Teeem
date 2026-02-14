@@ -3,6 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
+import { Z_STICKY_CLASS } from "@/lib/constants/z-index-constants";
 
 /**
  * Layout Container Components
@@ -57,15 +58,15 @@ interface SplitHeaderProps {
 
 /**
  * Header for left panel (30% width).
- * Absolutely positioned at top-left with z-10.
+ * Absolutely positioned at top-left with Z_STICKY.
  *
  * Pattern from JobPlansTab:
- * `absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b`
+ * `absolute top-0 left-0 w-[30%] px-3 py-2 {Z_STICKY_CLASS} bg-card border-b`
  */
 export function SplitLeftHeader({ children, className }: SplitHeaderProps) {
   return (
     <div className={cn(
-      "absolute top-0 left-0 w-[30%] px-3 py-2 z-10 bg-card border-b",
+      `absolute top-0 left-0 w-[30%] px-3 py-2 ${Z_STICKY_CLASS} bg-card border-b`,
       className
     )}>
       {children}
@@ -75,15 +76,15 @@ export function SplitLeftHeader({ children, className }: SplitHeaderProps) {
 
 /**
  * Header for right panel (70% width).
- * Absolutely positioned at top-right with z-10.
+ * Absolutely positioned at top-right with Z_STICKY.
  *
  * Pattern from JobPlansTab:
- * `absolute top-0 left-[30%] right-0 px-3 py-2 z-10 bg-card border-b`
+ * `absolute top-0 left-[30%] right-0 px-3 py-2 {Z_STICKY_CLASS} bg-card border-b`
  */
 export function SplitRightHeader({ children, className }: SplitHeaderProps) {
   return (
     <div className={cn(
-      "absolute top-0 left-[30%] right-0 px-3 py-2 z-10 bg-card border-b",
+      `absolute top-0 left-[30%] right-0 px-3 py-2 ${Z_STICKY_CLASS} bg-card border-b`,
       className
     )}>
       {children}
@@ -201,7 +202,7 @@ export function StickyHeader({
 }: StickyHeaderProps) {
   return (
     <div className={cn(
-      "shrink-0 px-3 py-2 bg-card z-10",
+      `shrink-0 px-3 py-2 bg-card ${Z_STICKY_CLASS}`,
       bordered && "border-b",
       className
     )}>

@@ -59,6 +59,8 @@ import { getIcon } from "@/lib/icon-map";
 import { SIDEBAR_NAVIGATION_EVENT } from "@/contexts/BreadcrumbContext";
 import consoleCapture from "@/utils/consoleCapture";
 import { copyToClipboard } from "@/utils/formatters";
+import { ROUTES, isActiveRoute } from "@/lib/constants/route-paths";
+import { Z_TOOLTIP_CLASS, Z_STICKY_CLASS } from "@/lib/constants/z-index-constants";
 
 // Tenant info for sidebar display
 interface TenantInfo {
@@ -265,7 +267,7 @@ function SidebarContent({
       {/* Logo - only on mobile sheet */}
       {mobile && (
         <div className="h-[70px] flex items-center border-b border-border px-4">
-          <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+          <Link prefetch={false} href={ROUTES.DASHBOARD} className="flex items-center gap-2 font-bold text-xl">
             <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center shrink-0">
               t
             </div>
@@ -338,7 +340,7 @@ function SidebarContent({
                 </span>
               )
             ) : (
-              <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap">
+              <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap`}>
                 {tenantInfo.currentTenant.name}
                 {apiEnvironment && apiEnvironment !== "production" && (
                   <span className={cn(
@@ -704,11 +706,11 @@ export function Sidebar() {
 
   const handleLogout = () => {
     logout();
-    router.push("/login");
+    router.push(ROUTES.LOGIN);
   };
 
   const isActive = (href: string) => {
-    if (href === "/dashboard") return pathname === "/dashboard";
+    if (href === ROUTES.DASHBOARD) return pathname === ROUTES.DASHBOARD;
     // Handle links with query params (legacy format)
     if (href.includes('?')) {
       const [hrefPath, hrefQuery] = href.split('?');
@@ -817,7 +819,7 @@ export function Sidebar() {
           )}
         </span>
         {!isExpanded && !mobile && (
-          <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+          <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap flex items-center gap-2`}>
             {item.name}
             {showBadge && (
               <Badge className={cn(
@@ -907,7 +909,7 @@ export function Sidebar() {
               )}
             </span>
             {!isExpanded && !mobile && (
-              <div className="absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 border shadow-sm whitespace-nowrap flex items-center gap-2">
+              <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap flex items-center gap-2`}>
                 {item.name}
                 {badgeCount > 0 && (
                   <Badge className="bg-yellow-500 text-white hover:bg-yellow-500 text-xs px-1.5 py-0">
@@ -1033,8 +1035,8 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background z-50 flex items-center px-4 justify-between">
-        <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-xl">
+      <div className={`md:hidden fixed top-0 left-0 right-0 h-16 border-b bg-background ${Z_TOOLTIP_CLASS} flex items-center px-4 justify-between`}>
+        <Link prefetch={false} href={ROUTES.DASHBOARD} className="flex items-center gap-2 font-bold text-xl">
           <div className="w-8 h-8 bg-primary text-primary-foreground flex items-center justify-center">
             t
           </div>
@@ -1061,7 +1063,7 @@ export function Sidebar() {
       >
         <SidebarContent {...sidebarContentProps} />
         {/* Sidebar Toggle Buttons */}
-        <div className="absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-10">
+        <div className={`absolute -right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 ${Z_STICKY_CLASS}`}>
           {/* Pin Button - only show when expanded */}
           {isExpanded && (
             <button

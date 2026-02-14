@@ -34,6 +34,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatCurrencyWhole } from "@/utils/formatters";
+import { API } from "@/lib/constants/api-endpoints";
 
 interface PotentialMatch {
   id: number;

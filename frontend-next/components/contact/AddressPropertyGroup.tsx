@@ -13,7 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Pencil, Check, X, MapPin } from "lucide-react";
 import { api } from "@/lib/api";
-import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS, UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 export interface ContactAddress {
   id?: number;
@@ -358,7 +358,7 @@ export function AddressPropertyGroup({
             onValueChange={(value) => {
               setDraft((prev) => ({ ...prev, region: value }));
               // Save after a short delay to allow blur to trigger first
-              setTimeout(handleSave, 100);
+              setTimeout(handleSave, UI_ANIMATION_SHORT_MS);
             }}
             disabled={saving}
           >

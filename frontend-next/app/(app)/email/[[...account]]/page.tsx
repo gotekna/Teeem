@@ -470,6 +470,7 @@ const EmailListItem = memo(function EmailListItem({
       fromEmail={email.from_email || email.from_address}
       fromName={email.from_name || undefined}
       subject={email.subject}
+      mailboxEmail={mailboxEmail}
       onReply={() => onReply?.(email)}
       onReplyAll={() => onReplyAll?.(email)}
       onForward={() => onForward?.(email)}
@@ -594,6 +595,7 @@ const EmailListItem = memo(function EmailListItem({
             <QuickEmailActions
               emailId={email.id}
               isRead={email.is_read}
+              mailboxEmail={mailboxEmail}
               onAction={onQuickAction}
               onSnooze={() => onSnooze?.(email)}
               onReply={() => onReply?.(email)}
@@ -815,7 +817,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number; name: string; content_type: string; size: number}> } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -1884,6 +1886,8 @@ To: ${email.to_emails?.join(", ") || ""}
       subject: email.subject?.startsWith("Fwd:") ? email.subject : `Fwd: ${email.subject}`,
       body: forwardHeader + originalBody,
       fromAccountId: selectedAccount,
+      forwardEmailId: email.id,
+      forwardAttachments: email.attachments?.filter(a => !a.content_id) || [],
     });
     setComposeOpen(true);
   }, [selectedAccount, setComposeOpen]);
@@ -2576,6 +2580,7 @@ To: ${email.to_emails?.join(", ") || ""}
                       accountId={selectedAccount}
                       accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
                       sourceFolder={selectedFolder}
+                      mailboxEmail={accounts.find(a => String(a.id) === selectedAccount)?.email_address ?? undefined}
                     />
                   </div>
                 );
@@ -2818,6 +2823,8 @@ To: ${email.to_emails?.join(", ") || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
         defaultFromEmail={replyTo?.fromEmail}
         replyToMessageId={replyTo?.replyToMessageId}
+        forwardEmailId={replyTo?.forwardEmailId}
+        forwardAttachments={replyTo?.forwardAttachments}
         draft={resumeDraft || undefined}
         onSent={() => {
           fetchEmails();

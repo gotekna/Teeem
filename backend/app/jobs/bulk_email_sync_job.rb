@@ -39,10 +39,12 @@ class BulkEmailSyncJob < ApplicationJob
 
   def perform(credential_id, sync_years: 10, resume: false)
     # SSoT: Use MicrosoftCredential
+    # Security: Job is queued from tenant-scoped controller, so credential_id is already validated.
+    # However, we still verify the credential exists as a defensive measure.
     @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential&.status == "connected"
-      Rails.logger.info "[BulkSync] Skipping - org #{credential_id} not connected"
+      Rails.logger.info "[BulkSync] Skipping - credential #{credential_id} not found or not connected"
       return
     end
 

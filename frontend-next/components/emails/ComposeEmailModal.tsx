@@ -81,6 +81,10 @@ interface ComposeEmailModalProps {
   smTaskId?: number;
   /** Skip signature generation (when body already includes signature) */
   skipSignature?: boolean;
+  /** Forward: original email ID for fetching attachments */
+  forwardEmailId?: number;
+  /** Forward: attachment metadata from the original email */
+  forwardAttachments?: Array<{id: number; name: string; content_type: string; size: number}>;
   onSent?: () => void;
 }
 
@@ -100,6 +104,8 @@ export function ComposeEmailModal({
   initialPreUploadedAttachments,
   smTaskId,
   skipSignature = false,
+  forwardEmailId,
+  forwardAttachments,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -426,6 +432,57 @@ export function ComposeEmailModal({
     }
   }, [open, hasInitialized, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
 
+  // Fetch forward attachments when modal opens with forwardEmailId
+  useEffect(() => {
+    if (!open || !forwardEmailId || !forwardAttachments?.length) return;
+
+    let cancelled = false;
+
+    const fetchForwardAttachments = async () => {
+      const fetchedFiles: File[] = [];
+
+      for (const att of forwardAttachments) {
+        if (cancelled) break;
+        try {
+          // Try presigned URL first (fast path)
+          let blob: Blob | null = null;
+          try {
+            const presigned = await api.get(
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${att.id}/presigned_url?filename=${encodeURIComponent(att.name)}`
+            ) as { success?: boolean; url?: string };
+            if (presigned?.success && presigned.url) {
+              const response = await fetch(presigned.url);
+              if (response.ok) blob = await response.blob();
+            }
+          } catch {
+            // Fall through to proxy
+          }
+
+          // Proxy fallback
+          if (!blob) {
+            blob = await api.getBlob(
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${att.id}/download?filename=${encodeURIComponent(att.name)}`
+            );
+          }
+
+          if (blob && !cancelled) {
+            const file = new File([blob], att.name, { type: att.content_type || blob.type });
+            fetchedFiles.push(file);
+          }
+        } catch (err) {
+          console.error(`[Compose] Failed to fetch forward attachment: ${att.name}`, err);
+        }
+      }
+
+      if (!cancelled && fetchedFiles.length > 0) {
+        setAttachments(prev => [...prev, ...fetchedFiles]);
+      }
+    };
+
+    fetchForwardAttachments();
+
+    return () => { cancelled = true; };
+  }, [open, forwardEmailId, forwardAttachments]);
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {

@@ -17,6 +17,7 @@ import {
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { BackButton } from "@/components/ui/back-button";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -68,7 +69,7 @@ export default function HealthReportPage() {
   const loadHealthReport = async () => {
     try {
       setLoading(true);
-      const response = await api.get<HealthData>("/api/v1/companies/health_report");
+      const response = await api.get<HealthData>(`${API.companies.list}/health_report`);
       setHealthData(response);
     } catch (error) {
       console.error("Failed to load health report:", error);
@@ -80,7 +81,7 @@ export default function HealthReportPage() {
   const handleReloadFromSpreadsheet = async () => {
     try {
       setReloading(true);
-      await api.post("/api/v1/companies/reload");
+      await api.post(`${API.companies.list}/reload`);
       await loadHealthReport();
     } catch (error) {
       console.error("Failed to reload:", error);

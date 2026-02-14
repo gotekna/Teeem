@@ -13,6 +13,7 @@ import {
   PipelineStage,
 } from "@/types/leads";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   Plus,
   TrendingUp,
@@ -113,7 +114,7 @@ export default function LeadsPage() {
   const loadPipeline = useCallback(async () => {
     try {
       setIsLoading(true);
-      const response = await api.get<PipelineResponse>("/api/v1/jobs/pipeline");
+      const response = await api.get<PipelineResponse>(`${API.jobs.list}/pipeline`);
       setJobsByStage(response.jobs_by_stage || {});
       setPipelineMeta(response.meta || null);
     } catch (error) {
@@ -144,7 +145,7 @@ export default function LeadsPage() {
 
   const handleStageChange = async (jobId: number, newStage: PipelineStage) => {
     try {
-      await api.patch(`/api/v1/jobs/${jobId}/stage`, { stage: newStage });
+      await api.patch(`${API.jobs.get(jobId)}/stage`, { stage: newStage });
       loadPipeline();
     } catch (error) {
       console.error("Failed to update stage:", error);
@@ -153,7 +154,7 @@ export default function LeadsPage() {
 
   const handleMarkAsLost = async (jobId: number) => {
     try {
-      await api.patch(`/api/v1/jobs/${jobId}/mark_lost`);
+      await api.patch(`${API.jobs.get(jobId)}/mark_lost`);
       loadPipeline();
     } catch (error) {
       console.error("Failed to mark job as lost:", error);

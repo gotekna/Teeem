@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Paperclip,
   FileText,
@@ -12,6 +12,13 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
@@ -93,6 +100,10 @@ function isSignatureAttachment(attachment: Attachment): boolean {
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter out signature/embedded images
   const visibleAttachments = attachments?.filter(a => !isSignatureAttachment(a)) || [];
@@ -155,6 +166,66 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
     );
   }, [emailId, getPresignedUrl]);
+
+  // Clean up blob URL when preview closes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  // Open preview drawer (single-click action)
+  const handlePreviewDrawer = async (attachment: Attachment) => {
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+    if (!emailId || !attachmentId) return;
+
+    // For spreadsheets/word docs, fall through to new window (no inline preview)
+    if (isSpreadsheetFile(attachment.name, attachment.content_type) ||
+        isWordDocFile(attachment.name, attachment.content_type)) {
+      handleOpenInNewWindow(attachment);
+      return;
+    }
+
+    setPreviewAttachment(attachment);
+    setPreviewLoading(true);
+    setPreviewUrl(null);
+
+    try {
+      const blob = await fetchAttachmentBlob(attachment);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewUrl(url);
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const closePreview = () => {
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+    setPreviewAttachment(null);
+    setPreviewUrl(null);
+  };
+
+  // Handle eye button: single click = drawer, double click = new window
+  const handleEyeClick = (attachment: Attachment) => {
+    if (clickTimerRef.current) {
+      // Double click detected - cancel single click and open new window
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      handleOpenInNewWindow(attachment);
+    } else {
+      // Start single click timer
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        handlePreviewDrawer(attachment);
+      }, 250);
+    }
+  };
 
   // Open attachment in new window (double-click action)
   // For spreadsheets: Opens in TeeemXL
@@ -239,102 +310,6 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
     } catch (error) {
       console.error("Failed to open attachment:", error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  // Preview attachment in popup (single-click action)
-  // For spreadsheets: Opens in TeeemXL
-  // For Word docs: Opens in TeeemWord
-  // For others: Opens in popup window
-  const handlePreviewInPopup = async (attachment: Attachment) => {
-    const attachmentId = attachment.id || attachment.outlook_attachment_id;
-    if (!emailId || !attachmentId) return;
-
-    setLoading(attachment.name);
-    try {
-      // Check if it's a spreadsheet - import to TeeemXL via backend
-      if (isSpreadsheetFile(attachment.name, attachment.content_type)) {
-        const response = await api.post<{
-          success: boolean;
-          data?: { id: number };
-          error?: string;
-        }>("/api/v1/teeem_spreadsheets/import_from_attachment", {
-          email_id: emailId,
-          attachment_id: attachmentId,
-        });
-
-        if (response?.success && response.data?.id) {
-          // Open TeeemXL with the imported spreadsheet in popup
-          window.open(
-            `/admin/system/teeem-xl/${response.data.id}`,
-            "preview",
-            "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
-          );
-        } else {
-          console.error("Failed to import spreadsheet:", response?.error);
-          // Fallback to blob preview
-          const blob = await fetchAttachmentBlob(attachment);
-          const url = window.URL.createObjectURL(blob);
-          window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-          setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
-        }
-        return;
-      }
-
-      // Check if it's a Word doc - download blob and navigate to TeeemWord
-      if (isWordDocFile(attachment.name, attachment.content_type)) {
-        const blob = await fetchAttachmentBlob(attachment);
-
-        // Store the blob in sessionStorage as base64 for TeeemWord to import
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result as string;
-          const fileName = attachment.name;
-
-          // Create a new TeeemDocument first
-          const docResponse = await api.post<{
-            success: boolean;
-            data?: { id: number };
-          }>("/api/v1/teeem_documents", {
-            teeem_document: {
-              name: fileName.replace(/\.(docx?|doc)$/i, ""),
-            },
-          });
-
-          if (docResponse?.success && docResponse.data?.id) {
-            // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT", JSON.stringify({
-              base64,
-              fileName,
-              documentId: docResponse.data.id,
-            }));
-
-            // Open TeeemWord in popup - it will detect the import data and auto-import
-            window.open(
-              `/admin/system/teeem-word/${docResponse.data.id}?import=true`,
-              "preview",
-              "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
-            );
-          } else {
-            // Fallback to blob preview
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-            setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
-          }
-        };
-        reader.readAsDataURL(blob);
-        return;
-      }
-
-      // Default: Open blob in popup window
-      const blob = await fetchAttachmentBlob(attachment);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-      setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
-    } catch (error) {
-      console.error("Failed to preview attachment:", error);
     } finally {
       setLoading(null);
     }
@@ -450,9 +425,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                     variant="ghost"
                     size="sm"
                     className="h-5 w-5 p-0"
-                    onClick={() => handlePreviewInPopup(attachment)}
+                    onClick={() => handleEyeClick(attachment)}
                     disabled={isLoading}
-                    title="Preview"
+                    title="Click to preview, double-click to open in new window"
                   >
                     <Eye className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-pulse")} />
                   </Button>
@@ -477,6 +452,84 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           );
         })}
       </div>
+
+      {/* Preview Drawer */}
+      <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
+        <SheetContent side="right" className="w-[600px] sm:w-[700px] sm:max-w-[80vw] p-0 flex flex-col">
+          <SheetHeader className="px-4 py-3 border-b shrink-0">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-sm font-medium truncate pr-2">
+                {previewAttachment?.name}
+              </SheetTitle>
+              <div className="flex items-center gap-1 shrink-0">
+                {previewAttachment && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => handleOpenInNewWindow(previewAttachment)}
+                      title="Open in new window"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                      Open
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={(e) => handleDownload(previewAttachment, e)}
+                      title="Download"
+                    >
+                      <Download className="h-3.5 w-3.5 mr-1" />
+                      Download
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </SheetHeader>
+          <div className="flex-1 overflow-auto">
+            {previewLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <Spinner className="h-8 w-8" />
+              </div>
+            ) : previewUrl && previewAttachment ? (
+              (() => {
+                const type = previewAttachment.content_type?.toLowerCase() || "";
+                const ext = previewAttachment.name?.split(".").pop()?.toLowerCase() || "";
+
+                // Images
+                if (type.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
+                  return (
+                    <div className="flex items-center justify-center p-4 h-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={previewUrl}
+                        alt={previewAttachment.name}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  );
+                }
+
+                // PDFs and everything else - use iframe
+                return (
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full border-0"
+                    title={previewAttachment.name}
+                  />
+                );
+              })()
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
+                Unable to load preview
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

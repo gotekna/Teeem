@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Spinner } from "@/components/ui/spinner";
 import { getApiBaseUrl } from "@/lib/api";
 import Link from "next/link";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 function LoginForm() {
   const [identifier, setIdentifier] = useState("");
@@ -32,7 +33,7 @@ function LoginForm() {
       const apiUrlParam = searchParams.get('api_url') || undefined;
       const envParam = searchParams.get('environment') || undefined;
       const rememberParam = searchParams.get('remember') === '1';
-      const redirectPath = searchParams.get('redirect') || '/dashboard';
+      const redirectPath = searchParams.get('redirect') || ROUTES.DASHBOARD;
 
       // Use AuthContext to handle the token - this stores it, sets up API URL,
       // and verifies with the backend before redirecting
@@ -62,14 +63,14 @@ function LoginForm() {
     if (searchParams.get('expired') === 'true') {
       setSessionExpiredMessage("Your session has expired. Please log in again.");
       // Clean up the URL without triggering a reload
-      window.history.replaceState({}, '', '/login');
+      window.history.replaceState({}, '', ROUTES.LOGIN);
     }
   }, [searchParams]);
 
   // Redirect if already authenticated
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push("/dashboard");
+      router.push(ROUTES.DASHBOARD);
     }
   }, [isAuthenticated, loading, router]);
 
@@ -151,7 +152,7 @@ function LoginForm() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
                 <Link
-                  href="/forgot-password"
+                  href={ROUTES.FORGOT_PASSWORD}
                   className="text-xs text-primary underline-offset-4 hover:underline"
                 >
                   Forgot password?
@@ -185,7 +186,7 @@ function LoginForm() {
             <p className="text-center text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Link
-                href="/signup"
+                href={ROUTES.SIGNUP}
                 className="underline underline-offset-4 hover:text-primary"
               >
                 Sign up

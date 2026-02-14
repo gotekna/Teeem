@@ -433,6 +433,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
 import { isLookupColumn, isChoiceColumn, isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
+import { Z_STICKY } from '@/lib/constants/z-index-constants';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -4959,7 +4960,7 @@ export default function TeeemTableView({
               paddingLeft: `${16 + depth * 24}px`,
               position: 'sticky',
               left: 0,
-              zIndex: 10,
+              zIndex: Z_STICKY,
               backgroundColor: groupBgColor,
             }}
           >

@@ -39,6 +39,7 @@ export default function BillInboxPage() {
         tableName="Bill Inbox"
         enableExport
         onRowClick={handleRowClick}
+        onRowDoubleClick={handleRowClick}
         refreshTrigger={refreshTrigger}
         leftActions={
           <>

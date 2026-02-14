@@ -64,6 +64,7 @@ import { EmailAccountsTab } from "./EmailAccountsTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { API } from "@/lib/constants/api-endpoints";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -86,7 +87,7 @@ function SharePointConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/documents/status");
+      const data = await api.get<typeof status>("API.documents.status");
       setStatus(data);
     } catch (error) {
       console.error("Failed to load SharePoint status:", error);
@@ -99,7 +100,7 @@ function SharePointConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ auth_url: string }>("/api/v1/documents/authorize");
+      const data = await api.get<{ auth_url: string }>("API.documents.presignedUrl");
       window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
@@ -112,7 +113,7 @@ function SharePointConnection() {
     if (!(await confirm("Are you sure you want to disconnect cloud storage?"))) return;
     setDisconnecting(true);
     try {
-      await api.delete("/api/v1/documents/disconnect");
+      await api.delete("API.documents.delete");
       toast({ title: "Success", description: "Cloud storage disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {
@@ -1000,7 +1001,7 @@ function DocumentStorageProvider() {
   const loadOrgConfig = async () => {
     try {
       // SSoT (Feb 2026): Use WarehouseProvider API directly - same as Warehouse Config page
-      const response = await api.get<{ success: boolean; data: WarehouseProviderConfig }>("/api/v1/warehouse_provider");
+      const response = await api.get<{ success: boolean; data: WarehouseProviderConfig }>(API.warehouseProvider.get);
       if (response.data) {
         setOrgConfig(response.data);
         setBucket(response.data.bucket || "");
@@ -1056,7 +1057,7 @@ function DocumentStorageProvider() {
       const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
 
       const response = await api.patch<{ success: boolean; data?: WarehouseProviderConfig; errors?: string[] }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             provider_type: providerType,
@@ -1095,7 +1096,7 @@ function DocumentStorageProvider() {
           sampled?: boolean;
         };
         error?: string;
-      }>("/api/v1/warehouse_provider/storage_stats");
+      }>(`${API.warehouseProvider.get}/storage_stats`);
 
       if (response?.success && response.stats) {
         setStorageStats(response.stats);
@@ -1121,7 +1122,7 @@ function DocumentStorageProvider() {
         error?: string;
         provider?: string;
         details?: Record<string, unknown>;
-      }>("/api/v1/warehouse_provider/test");
+      }>(API.warehouseProvider.test);
 
       const isSuccess = response?.success ?? false;
       const successMessage = response?.message || "Connection successful";

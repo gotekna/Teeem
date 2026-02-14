@@ -70,6 +70,7 @@ import Link from "next/link";
 import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
 import { TabTypeBadgeCompact } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";
+import { API } from "@/lib/constants/api-endpoints";
 
 // SSoT (Feb 2026): All warehouse type config now comes from database
 // - warehouse_folder.full_path_template is the SSoT for folder paths
@@ -2021,7 +2022,7 @@ export function WarehouseProviderTab() {
         success: boolean;
         data: Record<string, unknown>;
         counts: Record<string, number | Record<string, number>>;
-      }>("/api/v1/documents/all");
+      }>(API.documents.all);
       if (response?.success && response.counts) {
         const counts = response.counts;
         setWarehouseStats({
@@ -2576,7 +2577,7 @@ export function WarehouseProviderTab() {
       console.log('🔵 [saveScopeTemplates] API payload:', JSON.stringify(payload, null, 2));
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         payload
       );
       console.log('🔵 [saveScopeTemplates] API response:', response);
@@ -2617,7 +2618,7 @@ export function WarehouseProviderTab() {
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             virtual_warehouses: { [scopeKey]: isVirtual },
@@ -2686,7 +2687,7 @@ export function WarehouseProviderTab() {
       setLoading(true);
       console.log('🔴 [loadConfig] Fetching storage config...');
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider"
+        API.warehouseProvider.get
       );
       console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
@@ -2744,7 +2745,7 @@ export function WarehouseProviderTab() {
       setSaving(true);
       // Include provider_type and S3/Wasabi fields in save
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             provider_type: formData.provider_type,
@@ -2796,7 +2797,7 @@ export function WarehouseProviderTab() {
     try {
       setTesting(true);
       const response = await api.post<{ success: boolean; message?: string; error?: string; provider?: string; details?: { name?: string; web_url?: string } }>(
-        "/api/v1/warehouse_provider/test"
+        API.warehouseProvider.test
       );
       if (response?.success) {
         toast({

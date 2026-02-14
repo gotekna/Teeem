@@ -398,11 +398,12 @@ class Api::V1::MicrosoftAuthController < ApplicationController
       Rails.logger.warn "[Microsoft Auth] No organization found for user #{user.id} - tenant: #{tenant&.name}"
     end
 
-    # Find or create user's MicrosoftCredential
+    # Find or create user's MicrosoftCredential (tenant-scoped for security)
     credential = MicrosoftCredential.find_or_initialize_by(
       owner_type: "User",
       owner_id: user.id,
-      credential_type: "delegated"
+      credential_type: "delegated",
+      tenant_id: tenant&.id
     )
 
     # Set organization if new record (required FK)

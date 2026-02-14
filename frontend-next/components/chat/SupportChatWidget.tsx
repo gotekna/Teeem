@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 // ─── Types ───
 
@@ -278,7 +279,7 @@ export function SupportChatWidget({ inline = false }: SupportChatWidgetProps) {
   // Focus input when popover opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => inputRef.current?.focus(), UI_ANIMATION_SHORT_MS);
     }
   }, [isOpen]);
 

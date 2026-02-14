@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { TableColumn, SortColumn } from "../types";
 import { isNumericColumn, isBooleanColumn } from '@/lib/constants/column-types';
+import { Z_DEBUG } from '@/lib/constants/z-index-constants';
 
 interface ResizableColumnHeaderProps {
   column: TableColumn;
@@ -333,7 +334,7 @@ export const ResizableColumnHeader = memo(function ResizableColumnHeader({
             top: '100%',
             right: 0,
             marginTop: '4px',
-            zIndex: 9999,
+            zIndex: Z_DEBUG,
           }}
         >
           {Math.round(isResizing ? currentWidth : (measuredWidth || effectiveWidth))}px

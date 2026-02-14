@@ -52,6 +52,7 @@ interface EmailContextMenuProps {
   fromEmail?: string;
   fromName?: string;
   subject?: string;
+  mailboxEmail?: string; // Current mailbox being viewed (for correct Outlook API calls)
   // Callbacks
   onReply?: () => void;
   onReplyAll?: () => void;
@@ -99,6 +100,7 @@ export function EmailContextMenu({
   fromEmail,
   fromName,
   subject,
+  mailboxEmail,
   onReply,
   onReplyAll,
   onForward,
@@ -133,7 +135,7 @@ export function EmailContextMenu({
   const handleDelete = async () => {
     setLoading("delete");
     try {
-      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
+      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook${mailboxEmail ? `?mailbox_owner_email=${encodeURIComponent(mailboxEmail)}` : ""}`);
       onDelete?.();
       onAction?.();
     } catch (error) {

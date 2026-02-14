@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMemo, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ConnectionsTab } from "@/app/(app)/admin/system/components/ConnectionsTab";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 /**
  * Connections Settings Page - Organization Settings
@@ -39,10 +40,10 @@ export default function ConnectionsSettingsPage() {
     const parts = (pathname ?? "").replace("/settings/connections", "").split("/").filter(Boolean);
     if (parts.length === 0) {
       // No tab specified - redirect to default
-      router.replace("/settings/connections/provider", { scroll: false });
+      router.replace(ROUTES.SETTINGS.CONNECTIONS_PROVIDER, { scroll: false });
     } else if (subTab === "email-accounts" && !deepTab) {
       // email-accounts has deep tabs - redirect to default deep tab
-      router.replace("/settings/connections/email-accounts/configuration", { scroll: false });
+      router.replace(ROUTES.SETTINGS.CONNECTIONS_EMAIL_ACCOUNTS, { scroll: false });
     }
   }, [pathname, subTab, deepTab, router]);
 

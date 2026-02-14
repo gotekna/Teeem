@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { SnapPoint } from "./useSnapPoints";
 import { findPdfJunctions } from "./useSnapPoints";
+import { Z_TOOLTIP } from "@/lib/constants/z-index-constants";
 
 // =============================================================================
 // Helpers
@@ -449,7 +450,7 @@ export function PinnedMagnifier({
           width: PINNED_MAG_SIZE,
           height: PINNED_MAG_SIZE + 20,
           pointerEvents: "none",
-          zIndex: 50, // Must be above Fabric.js upper canvas AND calibration overlays (z-10)
+          zIndex: Z_TOOLTIP, // Must be above Fabric.js upper canvas AND calibration overlays
         }}
       >
         <canvas
@@ -786,7 +787,7 @@ export function SnapMagnifier({
         width: MAG_SIZE,
         height: MAG_SIZE + 24,
         pointerEvents: "none",
-        zIndex: 50, // Must be above Fabric.js upper canvas AND calibration overlays (z-10)
+        zIndex: Z_TOOLTIP, // Must be above Fabric.js upper canvas AND calibration overlays
       }}
     >
       <canvas

@@ -21,6 +21,7 @@ import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -52,7 +53,7 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
-      router.push("/login");
+      router.push(ROUTES.LOGIN);
     }
   }, [isAuthenticated, loading, router]);
 

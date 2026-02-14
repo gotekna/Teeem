@@ -190,8 +190,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Filter by Microsoft 365 credential (org-level app credentials)
     # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?
-      # SSoT: Use MicrosoftCredential
-      org_cred = MicrosoftCredential.find_by(id: params[:microsoft_credential_id])
+      # SSoT: Use MicrosoftCredential with tenant scoping (security)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: params[:microsoft_credential_id])
       if org_cred
         # Get the mailboxes this user is authorized to access
         # SSoT: Match the same logic as all_accounts endpoint
@@ -850,7 +851,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # SSoT: Use MicrosoftCredential for email operations (per-user Outlook removed)
     if delete_from_outlook && @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: @email.microsoft_credential_id)
       if org_cred&.connected?
         graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
         graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
@@ -910,8 +912,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use MicrosoftCredential for email operations
-    org_cred = MicrosoftCredential.find_by(id: credential_id)
+    # SSoT: Use MicrosoftCredential for email operations with tenant scoping (security)
+    org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                  .find_by(id: credential_id)
     unless org_cred&.connected?
       return render json: { error: "Organization MS365 not connected" }, status: :unprocessable_entity
     end
@@ -946,9 +949,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
       return render json: { error: "folder_id or folder_name required" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use MicrosoftCredential for MS365 emails
+    # SSoT: Use MicrosoftCredential for MS365 emails with tenant scoping (security)
     if @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: @email.microsoft_credential_id)
       unless org_cred&.connected?
         return render json: { error: "MS365 organization not connected" }, status: :unprocessable_entity
       end
@@ -1239,11 +1243,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # Fallback: Download from Outlook API
-    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments!
+    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments! (tenant-scoped for security)
     credential = if @email.microsoft_credential_id.present?
-                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.refreshable_app.first
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .refreshable_app.first
                  end
 
     unless credential&.valid_credential?
@@ -1391,9 +1397,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     failed_count = 0
     errors = []
 
-    # SSoT: Group by credential to minimize client creation
+    # SSoT: Group by credential to minimize client creation (tenant-scoped for security)
     spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
-      org_cred = MicrosoftCredential.find_by(id: cred_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: cred_id)
       next unless org_cred&.connected?
 
       graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
@@ -1435,9 +1442,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Fetch MIME content from Outlook via Microsoft Graph
   def fetch_outlook_eml
     credential = if @email.microsoft_credential_id.present?
-                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.refreshable_app.first
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .refreshable_app.first
                  end
 
     return nil unless credential&.valid_credential?
@@ -1864,9 +1873,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     begin
       credential = if email.microsoft_credential_id.present?
-                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+                     MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                       .find_by(id: email.microsoft_credential_id)
                    else
-                     MicrosoftCredential.refreshable_app.first
+                     MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                       .refreshable_app.first
                    end
 
       return result unless credential&.valid_credential?

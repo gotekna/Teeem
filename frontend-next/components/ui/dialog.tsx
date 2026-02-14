@@ -4,6 +4,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Cross2Icon } from "@radix-ui/react-icons";
 import * as React from "react";
 import { cn } from "../../lib/utils";
+import { Z_MODAL_CLASS } from "@/lib/constants/z-index-constants";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -19,8 +20,8 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       // Start below header (top-12 = 48px) so header/breadcrumb stay accessible
-      // z-[1100] to be above Leaflet map controls (z-1000) and EntityConfigurationTab fullscreen overlay (z-120)
-      "fixed top-12 left-0 right-0 bottom-0 z-[1100] bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]",
+      // Z_MODAL to be above Leaflet map controls (z-1000) and EntityConfigurationTab fullscreen overlay (z-120)
+      `fixed top-12 left-0 right-0 bottom-0 ${Z_MODAL_CLASS} bg-black/50 data-[state=closed]:animate-[dialog-overlay-hide_100ms] data-[state=open]:animate-[dialog-overlay-show_100ms]`,
       className,
     )}
     {...props}
@@ -78,7 +79,7 @@ const DialogContent = React.forwardRef<
         onOpenAutoFocus?.(e);
       }}
       className={cn(
-        "bg-background border-border border fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[calc(100svh-10vw)] overflow-y-auto w-[90vw] max-w-xl p-6 text-foreground z-[1100] data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
+        `bg-background border-border border fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[calc(100svh-10vw)] overflow-y-auto w-[90vw] max-w-xl p-6 text-foreground ${Z_MODAL_CLASS} data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]`,
         className,
       )}
       {...props}
@@ -140,7 +141,7 @@ const DialogContentFrameless = React.forwardRef<
         onOpenAutoFocus?.(e);
       }}
       className={cn(
-        "fixed bg-background top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl border dark:border-none dark:p-px text-foreground z-[1100] data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]",
+        `fixed bg-background top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-xl border dark:border-none dark:p-px text-foreground ${Z_MODAL_CLASS} data-[state=closed]:animate-[dialog-content-hide_100ms] data-[state=open]:animate-[dialog-content-show_100ms]`,
         className,
       )}
       {...props}

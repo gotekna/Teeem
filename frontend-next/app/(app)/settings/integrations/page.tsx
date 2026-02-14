@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 /**
  * SSoT (Jan 2026): Integrations moved under top-level Connections
@@ -13,7 +14,7 @@ export default function IntegrationsRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/settings/connections/integrations");
+    router.replace(ROUTES.SETTINGS.CONNECTIONS_INTEGRATIONS);
   }, [router]);
 
   return (

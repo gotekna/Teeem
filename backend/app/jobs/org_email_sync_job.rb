@@ -27,6 +27,7 @@ class OrgEmailSyncJob < ApplicationJob
   discard_on MicrosoftAppGraphClient::DeadTokenError do |job, error|
     credential_id = job.arguments[1]&.fetch(:credential_id, nil)
     if credential_id
+      # Security: Job is queued from tenant-scoped controller, credential_id already validated
       credential = MicrosoftCredential.find_by(id: credential_id)
       if credential
         credential.mark_dead!(error.message)
@@ -497,6 +498,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Priority: organization_id > credential_id > org_name > legacy fallback (with warning)
   def find_credential(organization_id: nil, credential_id: nil, org_name: nil)
     # 1. Organization ID (SSoT preferred method)
+    # Security: Job is queued from tenant-scoped controller, organization_id already validated
     if organization_id.present?
       org = Organization.find_by(id: organization_id)
       if org
@@ -507,12 +509,14 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     # 2. Credential ID (direct lookup - SSoT: MicrosoftCredential only)
+    # Security: Job is queued from tenant-scoped controller, credential_id already validated
     if credential_id.present?
       cred = MicrosoftCredential.find_by(id: credential_id)
       return cred if cred
     end
 
     # 3. Organization name (lookup by name)
+    # Security: Job is queued from tenant-scoped controller, org_name already validated
     if org_name.present?
       org = Organization.find_by_name_or_slug(org_name)
       if org

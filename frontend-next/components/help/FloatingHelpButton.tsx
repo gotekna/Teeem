@@ -14,6 +14,7 @@ import { getTourForRoute } from "@/lib/tours/tour-definitions";
 import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
 import { STORAGE_KEYS } from "@/lib/storage-utils";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 export function getHelpButtonHoverOnly(): boolean {
   if (typeof window === "undefined") return false;
@@ -51,7 +52,7 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
 
   const handleStartTour = () => {
     setIsOpen(false); // Close popover
-    setTimeout(() => startTour(), 100); // Small delay for popover to close
+    setTimeout(() => startTour(), UI_ANIMATION_SHORT_MS); // Small delay for popover to close
   };
 
   const handleOpenDocs = () => {

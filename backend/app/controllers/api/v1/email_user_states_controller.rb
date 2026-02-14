@@ -320,8 +320,9 @@ class Api::V1::EmailUserStatesController < ApplicationController
     return unless email.outlook_id.present? && email.mailbox_owner_email.present?
     return unless email.microsoft_credential_id.present?
 
-    # Find the credential for this email's mailbox
-    credential = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+    # Find the credential for this email's mailbox (tenant-scoped for security)
+    credential = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: email.microsoft_credential_id)
     return unless credential&.status == "connected"
 
     # Fire-and-forget - don't block the response on MS Graph call
@@ -346,8 +347,9 @@ class Api::V1::EmailUserStatesController < ApplicationController
     return unless email.imap_credential_id.present?
     return unless email.uid.present?
 
-    # Find the IMAP credential
-    credential = ImapCredential.find_by(id: email.imap_credential_id)
+    # Find the IMAP credential (tenant-scoped for security)
+    credential = ImapCredential.where(user_id: tenant_user_ids)
+                               .find_by(id: email.imap_credential_id)
     return unless credential&.is_active?
 
     folder = email.folder_name || "INBOX"

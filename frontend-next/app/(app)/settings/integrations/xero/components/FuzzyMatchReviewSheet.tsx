@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { API } from "@/lib/constants/api-endpoints";
 
 interface PendingReviewItem {
   id: number;

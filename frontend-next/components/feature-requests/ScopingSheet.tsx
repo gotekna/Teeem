@@ -19,6 +19,7 @@ import {
   User,
   Bot,
 } from "lucide-react";
+import { MODAL_RESET_DELAY_MS, UI_ANIMATION_MEDIUM_MS } from "@/lib/constants/timeout-constants";
 
 interface ScopingSheetProps {
   open: boolean;
@@ -77,7 +78,7 @@ export function ScopingSheet({ open, onOpenChange, onSuccess, onOpenQuickSubmit 
   // Focus input when sheet opens
   useEffect(() => {
     if (open) {
-      setTimeout(() => inputRef.current?.focus(), 300);
+      setTimeout(() => inputRef.current?.focus(), MODAL_RESET_DELAY_MS);
     }
   }, [open]);
 
@@ -325,7 +326,7 @@ export function ScopingSheet({ open, onOpenChange, onSuccess, onOpenQuickSubmit 
           <button
             onClick={() => {
               onOpenChange(false);
-              setTimeout(onOpenQuickSubmit, 200);
+              setTimeout(onOpenQuickSubmit, UI_ANIMATION_MEDIUM_MS);
             }}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
           >

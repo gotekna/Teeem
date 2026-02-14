@@ -7,6 +7,7 @@ import { PositionedTextBox, type PositionedBox } from "./PositionedTextBox";
 import { PositionedImageBox } from "./PositionedImageBox";
 import { DrawingCanvas, type DrawMode, type Stroke } from "./DrawingCanvas";
 import { type Editor } from "@tiptap/react";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 interface NotebookCanvasProps {
   boxes: PositionedBox[];
@@ -165,7 +166,7 @@ export function NotebookCanvas({
         true // skipHistory = true during live resize
       );
       // Clear resizing state after a short delay
-      setTimeout(() => setResizingId(null), 100);
+      setTimeout(() => setResizingId(null), UI_ANIMATION_SHORT_MS);
     },
     [allBoxes, onBoxesChange]
   );

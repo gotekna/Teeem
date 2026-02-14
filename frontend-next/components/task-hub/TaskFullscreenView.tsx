@@ -5,6 +5,7 @@ import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollow
 import { useAuth } from '@/contexts/AuthContext';
 import { copyToClipboard } from '@/utils/formatters';
 import { generateSimpleSignature } from '@/lib/email-signature';
+import { UI_ANIMATION_STANDARD_MS, MODAL_RESET_DELAY_MS } from '@/lib/constants/timeout-constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SmartInput } from '@/components/ui/smart-input';
@@ -2997,7 +2998,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       toast.error('Failed to download file');
     } finally {
       // Brief delay so user sees the loading state
-      setTimeout(() => setDownloadingAttachmentId(null), 500);
+      setTimeout(() => setDownloadingAttachmentId(null), UI_ANIMATION_STANDARD_MS);
     }
   };
 
@@ -3020,7 +3021,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         downloadedCount++;
         // Small delay between downloads to avoid overwhelming the browser
         if (downloadedCount < downloadableFiles.length) {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, MODAL_RESET_DELAY_MS));
         }
       }
       toast.success(`Downloaded ${downloadedCount} file${downloadedCount > 1 ? 's' : ''}`);

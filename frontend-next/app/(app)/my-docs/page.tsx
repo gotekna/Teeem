@@ -21,10 +21,9 @@ import {
   Trash2,
   MoreVertical,
   Briefcase,
-  Eye,
-  Pencil,
   RefreshCw,
-  X,
+  ExternalLink,
+  PanelRightClose,
 } from "lucide-react";
 import {
   Dialog,
@@ -40,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
+import { DocumentViewer } from "@/components/ui/document-viewer";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -95,7 +94,8 @@ export default function MyDocsPage() {
   const [currentFolder, setCurrentFolder] = useState<string | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [selectedDocument, setSelectedDocument] = useState<UserDocument | null>(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
@@ -108,6 +108,7 @@ export default function MyDocsPage() {
   const [newFolderName, setNewFolderName] = useState("");
 
   // Save to job modal
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [saveToJobOpen, setSaveToJobOpen] = useState(false);
   const [saveToJobDoc, setSaveToJobDoc] = useState<UserDocument | null>(null);
   const [jobSearch, setJobSearch] = useState("");
@@ -389,6 +390,37 @@ export default function MyDocsPage() {
     }
   }, [saveToJobDoc, selectedJobId, toast]);
 
+  // Select document for preview panel
+  const handleSelectDocument = useCallback(async (doc: UserDocument) => {
+    setSelectedDocument(doc);
+    setPreviewUrl(null);
+
+    // If the doc already has a fileUrl, use it directly
+    if (doc.fileUrl) {
+      setPreviewUrl(doc.fileUrl);
+      return;
+    }
+
+    // Otherwise fetch a download/preview URL
+    setPreviewLoading(true);
+    try {
+      const response = await api.get<{ success: boolean; url: string }>(`/api/v1/user_documents/${doc.id}/download`);
+      if (response?.success && response.url) {
+        setPreviewUrl(response.url);
+      }
+    } catch (error) {
+      console.error("Failed to get preview URL:", error);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
+
+  // Close preview panel
+  const closePreview = useCallback(() => {
+    setSelectedDocument(null);
+    setPreviewUrl(null);
+  }, []);
+
   // Toggle folder expansion
   const toggleFolder = useCallback((path: string) => {
     setExpandedFolders(prev => {
@@ -406,15 +438,6 @@ export default function MyDocsPage() {
   const navigateToFolder = useCallback((path: string | null) => {
     setCurrentFolder(path);
   }, []);
-
-  // Get file icon
-  const getFileIcon = (doc: UserDocument) => {
-    if (doc.isImage) return <ImageIcon className="h-4 w-4 text-purple-500" />;
-    if (doc.mimeType?.includes("pdf")) return <File className="h-4 w-4 text-red-500" />;
-    if (doc.mimeType?.includes("word") || doc.mimeType?.includes("document")) return <File className="h-4 w-4 text-blue-500" />;
-    if (doc.mimeType?.includes("sheet") || doc.mimeType?.includes("excel")) return <File className="h-4 w-4 text-green-500" />;
-    return <File className="h-4 w-4 text-muted-foreground" />;
-  };
 
   // Render folder tree with drag-and-drop support
   const renderFolderTree = (nodes: FolderNode[], depth = 0) => {
@@ -468,19 +491,30 @@ export default function MyDocsPage() {
     });
   };
 
-  // Render document list item (draggable)
+  // Get local file icon (for list items - different from DocumentViewer's getFileIcon)
+  const getLocalFileIcon = (doc: UserDocument) => {
+    if (doc.isImage) return <ImageIcon className="h-4 w-4 text-purple-500" />;
+    if (doc.mimeType?.includes("pdf")) return <File className="h-4 w-4 text-red-500" />;
+    if (doc.mimeType?.includes("word") || doc.mimeType?.includes("document")) return <File className="h-4 w-4 text-blue-500" />;
+    if (doc.mimeType?.includes("sheet") || doc.mimeType?.includes("excel")) return <File className="h-4 w-4 text-green-500" />;
+    return <File className="h-4 w-4 text-muted-foreground" />;
+  };
+
+  // Render document list item (draggable + clickable for preview)
   const renderDocumentItem = (doc: UserDocument) => (
     <div
       key={doc.id}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 rounded hover:bg-muted group cursor-grab active:cursor-grabbing",
-        draggedDocument?.id === doc.id && "opacity-50"
+        "flex items-center gap-3 px-3 py-2 rounded hover:bg-muted group cursor-pointer",
+        draggedDocument?.id === doc.id && "opacity-50",
+        selectedDocument?.id === doc.id && "bg-primary/10 ring-1 ring-primary/30"
       )}
       draggable
       onDragStart={(e) => handleDocumentDragStart(e, doc)}
       onDragEnd={handleDocumentDragEnd}
+      onClick={() => handleSelectDocument(doc)}
     >
-      {getFileIcon(doc)}
+      {getLocalFileIcon(doc)}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{doc.fileName}</p>
         <p className="text-xs text-muted-foreground">
@@ -489,15 +523,16 @@ export default function MyDocsPage() {
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="opacity-0 group-hover:opacity-100"
+            onClick={(e) => e.stopPropagation()}
+          >
             <MoreVertical className="h-4 w-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => { setSelectedDocument(doc); setPreviewOpen(true); }}>
-            <Eye className="h-4 w-4 mr-2" />
-            Preview
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleDownload(doc)}>
             <Download className="h-4 w-4 mr-2" />
             Download
@@ -522,19 +557,20 @@ export default function MyDocsPage() {
     <div
       key={doc.id}
       className={cn(
-        "border rounded-lg p-3 hover:bg-muted cursor-grab active:cursor-grabbing group",
-        draggedDocument?.id === doc.id && "opacity-50"
+        "border rounded-lg p-3 hover:bg-muted cursor-pointer group",
+        draggedDocument?.id === doc.id && "opacity-50",
+        selectedDocument?.id === doc.id && "bg-primary/10 ring-1 ring-primary/30"
       )}
       draggable
       onDragStart={(e) => handleDocumentDragStart(e, doc)}
       onDragEnd={handleDocumentDragEnd}
-      onClick={() => { setSelectedDocument(doc); setPreviewOpen(true); }}
+      onClick={() => handleSelectDocument(doc)}
     >
       <div className="aspect-square flex items-center justify-center bg-muted/50 rounded mb-2">
         {doc.isImage && doc.fileUrl ? (
           <img src={doc.fileUrl} alt={doc.fileName} className="max-h-full max-w-full object-contain rounded" draggable={false} />
         ) : (
-          <div className="scale-150">{getFileIcon(doc)}</div>
+          <div className="scale-150">{getLocalFileIcon(doc)}</div>
         )}
       </div>
       <p className="text-sm font-medium truncate">{doc.fileName}</p>
@@ -664,7 +700,7 @@ export default function MyDocsPage() {
         {/* Main content area */}
         <div
           className={cn(
-            "flex-1 overflow-y-auto p-4",
+            "flex-1 overflow-y-auto p-4 min-w-0",
             dragOver && "bg-primary/5 border-2 border-dashed border-primary"
           )}
           onDragOver={handleDragOver}
@@ -709,6 +745,88 @@ export default function MyDocsPage() {
             </div>
           )}
         </div>
+
+        {/* Right-side Preview Panel */}
+        {selectedDocument && (
+          <div className="w-[50%] border-l flex flex-col bg-background">
+            {/* Preview header */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b min-h-[48px]">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{selectedDocument.fileName}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(selectedDocument.fileSize)}
+                </p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleDownload(selectedDocument)}
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    if (previewUrl) {
+                      window.open(previewUrl, "_blank");
+                    } else {
+                      handleDownload(selectedDocument);
+                    }
+                  }}
+                  title="Open in new tab"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={closePreview}
+                  title="Close preview"
+                >
+                  <PanelRightClose className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Preview content */}
+            <div className="flex-1 overflow-hidden">
+              {previewLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <Skeleton className="h-8 w-8 rounded-full mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Loading preview...</p>
+                  </div>
+                </div>
+              ) : previewUrl ? (
+                <DocumentViewer
+                  url={previewUrl}
+                  fileName={selectedDocument.fileName}
+                  downloadUrl={previewUrl}
+                  showHeader={false}
+                  showFooter={false}
+                  showSidebar={false}
+                  theme="light"
+                  className="h-full"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full text-center p-6">
+                  <File className="h-12 w-12 text-muted-foreground/50 mb-3" />
+                  <p className="text-sm text-muted-foreground mb-3">Unable to load preview</p>
+                  <Button variant="outline" size="sm" onClick={() => handleDownload(selectedDocument)}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download to view
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* New Folder Dialog */}
@@ -788,45 +906,6 @@ export default function MyDocsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Preview Dialog */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span className="truncate">{selectedDocument?.fileName}</span>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => selectedDocument && handleDownload(selectedDocument)}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                </Button>
-                <Button variant="ghost" size="icon" onClick={() => setPreviewOpen(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-auto min-h-[400px]">
-            {selectedDocument?.mimeType?.includes("pdf") && selectedDocument.fileUrl ? (
-              <PDFViewer url={selectedDocument.fileUrl} />
-            ) : selectedDocument?.isImage && selectedDocument.fileUrl ? (
-              <img
-                src={selectedDocument.fileUrl}
-                alt={selectedDocument.fileName}
-                className="max-w-full h-auto mx-auto"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                <File className="h-16 w-16 text-muted-foreground/50 mb-4" />
-                <p className="text-muted-foreground">Preview not available for this file type</p>
-                <Button variant="outline" className="mt-4" onClick={() => selectedDocument && handleDownload(selectedDocument)}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download to view
-                </Button>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

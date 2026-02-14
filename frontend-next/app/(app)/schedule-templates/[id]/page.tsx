@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import TaskDependencyEditor from "@/components/schedule-master/TaskDependencyEditor";
 import { DocumentTypeLinker } from "@/components/schedule-master/DocumentTypeLinker";
 import { Job } from "@/lib/types";
@@ -298,8 +299,8 @@ export default function ScheduleTemplateDetailPage() {
         api.get<{ success: boolean; rows: SmScheduleMaster[] }>(`/api/v1/sm_schedule_master_templates/${templateId}/rows`),
         api.get<{ success: boolean; data: PlanType[] }>("/api/v1/plan_types"),
         api.get<{ success: boolean; data: { tabs: JobDocTab[] } }>("/api/v1/warehouse_folders/for_scope/job"),
-        api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades"),
-        api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/foundations/sm_stages"),
+        api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_trades")),
+        api.get<{ success: boolean; data: { id: number; name: string }[] }>(API.foundations.bySlug("sm_stages")),
         api.get<{ success: boolean; data: { id: number; name: string }[] }>("/api/v1/bpmn_processes?status=published"),
         api.get<{ success: boolean; data: { id: number; name: string; display_name: string }[] }>("/api/v1/document_types?scope=job"),
       ]);
@@ -414,7 +415,7 @@ export default function ScheduleTemplateDetailPage() {
   const loadJobs = async () => {
     setLoadingJobs(true);
     try {
-      const response = await api.get<{ success: boolean; data: Job[] }>("/api/v1/jobs?status=active&limit=100");
+      const response = await api.get<{ success: boolean; data: Job[] }>(`${API.jobs.list}?status=active&limit=100`);
       setJobs(response.data || []);
     } catch (error) {
       console.error("Failed to load jobs:", error);
@@ -540,7 +541,7 @@ export default function ScheduleTemplateDetailPage() {
   const loadSuppliers = async () => {
     setLoadingSuppliers(true);
     try {
-      const response = await api.get<{ success: boolean; data: Supplier[] }>("/api/v1/contacts?is_supplier=true&limit=500");
+      const response = await api.get<{ success: boolean; data: Supplier[] }>(`${API.contacts.list}?is_supplier=true&limit=500`);
       setSuppliers(response.data || []);
     } catch (error) {
       console.error("Failed to load suppliers:", error);

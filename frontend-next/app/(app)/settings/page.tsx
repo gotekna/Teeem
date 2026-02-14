@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 /**
  * Redirect /settings to /settings/profile (default tab)
@@ -15,7 +16,7 @@ export default function SettingsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/settings/profile");
+    router.replace(ROUTES.SETTINGS.PROFILE);
   }, [router]);
 
   return (
