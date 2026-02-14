@@ -836,7 +836,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     loadCostCentres();
     loadHeaderRows();
     loadChecklists();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showInactive]);
 
   // FRC (Feb 2026): Lazy-load slow edit dialog data on first edit sheet open.
@@ -852,7 +851,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       loadWorkflows();
       loadTaskGroups();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showEditSheet]);
 
   // Load job EntityTabs for photo storage dropdown
@@ -2338,7 +2336,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editRowForm]);
 
   // Load suppliers for auto-PO

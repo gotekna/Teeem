@@ -171,7 +171,6 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
 // Wrapper: Job warehouse tab - contextual view showing ALL related records
 // Shows Job folders for THIS job + Contact folders for contacts on this job +
 // Task folders for tasks on this job, etc.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function JobWarehouseTab(props: any) {
   const warehouseRouter = useRouter();
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -246,7 +245,6 @@ const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
 // Special tabs (overview, whs, plans) have inline JSX and are excluded.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "contract": JobContractTab,
   "specifications": SpecificationBuilder,

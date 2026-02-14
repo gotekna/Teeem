@@ -150,14 +150,17 @@ export function EmailToContactsModal({
     try {
       const response = await api.post<{
         success: boolean;
-        emails: Array<Record<string, unknown>>;
+        emails: Array<Record<string, any>>;
+        stats?: { total_emails: number; existing_contacts: number };
+        error?: string;
       }>("/api/v1/email_to_contacts/analyze", {
         email_data: emailData,
         scope: scope,
       });
 
-      if (response.success) {
-        const emailCandidates: EmailCandidate[] = response.emails.map((e: Record<string, unknown>) => ({
+      if (response?.success) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const emailCandidates: EmailCandidate[] = response.emails.map((e: Record<string, any>) => ({
           email: e.email,
           displayName: e.display_name,
           isExistingContact: e.is_existing_contact,
@@ -228,20 +231,20 @@ export function EmailToContactsModal({
 
         toast({
           title: "Analysis complete",
-          description: `Found ${response.stats.total_emails} email addresses, ${response.stats.existing_contacts} already in contacts.`,
+          description: `Found ${response.stats?.total_emails ?? 0} email addresses, ${response.stats?.existing_contacts ?? 0} already in contacts.`,
         });
       } else {
         toast({
           title: "Analysis failed",
-          description: response.error || "Unknown error",
+          description: response?.error || "Unknown error",
           variant: "destructive",
         });
       }
-    } catch (error: unknown) {
+    } catch (error: any) {
       console.error("Error analyzing emails:", error);
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to analyze emails",
+        description: error?.response?.data?.error || "Failed to analyze emails",
         variant: "destructive",
       });
     } finally {
@@ -301,7 +304,7 @@ export function EmailToContactsModal({
         created_companies?: Array<Record<string, unknown>>;
         linked_to_companies?: Array<Record<string, unknown>>;
         added_emails?: Array<Record<string, unknown>>;
-        errors?: Array<unknown>;
+        errors?: Array<{ email: string; error: string }>;
       }>("/api/v1/email_to_contacts/bulk_create", {
         selections: selections,
         case_id: caseId,

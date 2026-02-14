@@ -131,7 +131,6 @@ export function GanttContextMenu({
   if (!state.isOpen) return null;
 
   const task = state.task;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rowData = task?.rowData as any;
   // SSoT: Use isHeaderRow from lib/gantt/types
   const isHeader = isHeaderRow(rowData);

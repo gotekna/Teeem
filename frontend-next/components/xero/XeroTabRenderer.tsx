@@ -50,7 +50,6 @@ interface XeroTabRendererProps {
   companyName?: string;
 
   /** Full company data object - uses any to support Corporate from caller */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   company?: any;
 
   /** Callback to refresh company data */
@@ -76,7 +75,6 @@ interface XeroTabRendererProps {
    * Used when tab has warehouse_enabled=true
    * Uses any for company to support Corporate type from caller
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DocumentsTabComponent?: React.ComponentType<{
     companyId: string;
     company: any;

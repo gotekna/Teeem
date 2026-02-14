@@ -50,7 +50,7 @@ function calculateBuildPeriod(
   }
 
   const startDate = new Date(startDateStr);
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
   let workingDaysCounted = 0;
   let weekendDays = 0;
   let holidayDays = 0;

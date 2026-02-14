@@ -49,6 +49,7 @@ import {
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
 } from "@/lib/email-constants";
 import { formatFileSize } from "@/utils/formatters";
+import { DocumentViewer } from "@/components/ui/document-viewer";
 import type { EmailDraft, EmailAccount, EmailContact, PreUploadedAttachment } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
@@ -142,6 +143,7 @@ export function ComposeEmailModal({
   const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
   // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
   const [preUploadedAttachments, setPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
@@ -807,6 +809,7 @@ export function ComposeEmailModal({
   const selectedAccount = accounts.find((a) => String(a.id) === formData.credential_id);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col" aria-describedby={undefined}>
         <DialogTitle className="sr-only">Compose Email</DialogTitle>
@@ -1157,7 +1160,7 @@ export function ComposeEmailModal({
                       title="Preview"
                       onClick={() => {
                         const url = URL.createObjectURL(file);
-                        window.open(url, "_blank");
+                        setPreviewFile({ url, name: file.name });
                       }}
                       className="ml-1 hover:text-blue-500"
                     >
@@ -1252,5 +1255,22 @@ export function ComposeEmailModal({
         )}
       </DialogContent>
     </Dialog>
+
+      {/* Attachment preview modal */}
+      {previewFile && (
+        <DocumentViewer
+          modal
+          url={previewFile.url}
+          fileName={previewFile.name}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              URL.revokeObjectURL(previewFile.url);
+              setPreviewFile(null);
+            }
+          }}
+        />
+      )}
+    </>
   );
 }

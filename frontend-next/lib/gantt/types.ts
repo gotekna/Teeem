@@ -80,7 +80,6 @@ export type TaskShape = 'task' | 'milestone' | 'order' | 'call' | 'photo';
  *
  * USE THIS FUNCTION EVERYWHERE instead of inline checks!
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isHeaderRow(row: any): boolean {
   if (!row) return false;
   return row.header_gantt === 'Header' || row.allow_header === true;

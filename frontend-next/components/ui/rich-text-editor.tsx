@@ -1365,7 +1365,6 @@ export function RichTextEditor({
       return baseExtensions;
     },
     // Only recreate extensions when these dependencies change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [placeholder, onSlashCommand, enableWritingChecker, writingContext]
   );
 

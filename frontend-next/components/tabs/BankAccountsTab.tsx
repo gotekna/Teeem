@@ -32,7 +32,6 @@ interface SelectedBankAccount {
 }
 
 export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [entries, setEntries] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
@@ -45,7 +44,6 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
       setLoading(true);
 
       // Load bank account entries for this company
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const entriesResponse = await api.get<{ success: boolean; bank_accounts: any[] }>(
         `/api/v1/companies/${effectiveCompanyId}/bank_accounts`
       );
@@ -157,7 +155,6 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleRowClick = (row: any) => {
     setSelectedAccount({
       id: row.id,

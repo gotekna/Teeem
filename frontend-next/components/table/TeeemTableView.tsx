@@ -1168,7 +1168,6 @@ export default function TeeemTableView({
         setIsLoadingMore(true);
       }
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in API call (not view/cascade filters)
         // This enables instant view switching - data loads once, views filter client-side
@@ -1221,7 +1220,6 @@ export default function TeeemTableView({
     // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
     // ULTRA FIX: safeFilters (view filters) REMOVED from deps - enables instant view switching
     // View filters are now applied client-side by filteredAndSortedEntries
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
@@ -1247,7 +1245,6 @@ export default function TeeemTableView({
 
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
         // This enables instant view switching - all data loads regardless of current view
@@ -1296,7 +1293,6 @@ export default function TeeemTableView({
 
     setIsSearching(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
         limit: TABLE_ROW_LIMIT,
@@ -1470,7 +1466,6 @@ export default function TeeemTableView({
       searchHook.actions.setMode(propSearchMode);
     }
     // Only run on mount - propSearchMode is initial value only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clear search when foundationId OR pathname changes (prevents stale search across different tables/pages)
@@ -1551,7 +1546,6 @@ export default function TeeemTableView({
         effectiveOnServerSearch(searchToApply, propSearchMode);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheInitialized]); // Re-run when session storage becomes available
 
   // View-related state now managed by Jotai atoms (SSoT)
@@ -2078,7 +2072,6 @@ export default function TeeemTableView({
       setEditingData({});
       setValidationErrors({});
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount, not when editingRowIds changes
 
   // ⚠️ CRITICAL: Reset edit mode on unmount (2026-01-09)

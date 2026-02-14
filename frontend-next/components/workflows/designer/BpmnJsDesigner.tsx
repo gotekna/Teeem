@@ -190,7 +190,6 @@ export default function BpmnJsDesigner({
   dataLoaded = false,
 }: BpmnJsDesignerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const modelerRef = useRef<any>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -409,9 +408,7 @@ export default function BpmnJsDesigner({
         // Load initial diagram
         const xmlToLoad = initialXml || EMPTY_BPMN;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (modeler as any).importXML(xmlToLoad);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const canvas = (modeler as any).get("canvas");
         // Center diagram with padding so it doesn't hug the top-left
         canvas.zoom("fit-viewport", "auto");
@@ -421,10 +418,8 @@ export default function BpmnJsDesigner({
         setIsLoaded(true);
 
         // Listen for selection changes
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const eventBus = (modeler as any).get("eventBus");
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         eventBus.on("selection.changed", (e: any) => {
           const selection = e.newSelection;
           if (selection && selection.length === 1) {
@@ -460,7 +455,6 @@ export default function BpmnJsDesigner({
     return () => {
       aborted = true;
       if (modeler) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (modeler as any).destroy();
         modelerRef.current = null;
         initializedRef.current = false;
@@ -595,7 +589,6 @@ export default function BpmnJsDesigner({
     const defaultConfig: TaskConfig = { task_type: "generate_document", execution_mode: "manual" };
     if (!selectedElement?.businessObject) return defaultConfig;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bo = selectedElement.businessObject as any;
     const docs = bo.documentation;
 
@@ -660,7 +653,6 @@ export default function BpmnJsDesigner({
       const configJson = JSON.stringify(newConfig);
 
       // Create a documentation element using moddle
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const documentation = (moddle as any).create("bpmn:Documentation", {
         text: configJson
       });

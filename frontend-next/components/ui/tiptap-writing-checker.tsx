@@ -521,7 +521,6 @@ export const WritingChecker = Extension.create({
 
                         // Try to get TipTap editor instance
                         const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const tiptapEditor = (editorElement as any)?.editor;
 
                         if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
@@ -802,7 +801,6 @@ export const WritingChecker = Extension.create({
 
                   // Try to get TipTap editor instance from the view's DOM
                   const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const tiptapEditor = (editorElement as any)?.editor;
 
                   if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
@@ -1048,7 +1046,6 @@ export const WritingChecker = Extension.create({
     ];
 
     // Helper function to show detail tooltip (accessed from hover handler)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function showDetailTooltip(view: any, issue: WritingIssue) {
       const fn = (window as unknown as { __showDetailTooltip?: (view: unknown, issue: WritingIssue) => void }).__showDetailTooltip;
       if (fn) {

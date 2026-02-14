@@ -111,7 +111,7 @@ export function WarehouseDocTree({
   // Load root on mount
   useEffect(() => {
     fetchFolder("");
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleFolder = useCallback(
     (path: string) => {

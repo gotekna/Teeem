@@ -109,7 +109,6 @@ export function useCorporateTable(
   const stableQueryParams = useMemo(
     () => queryParams || EMPTY_QUERY_PARAMS,
     // Only recreate if queryParams object contents change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify(queryParams)]
   );
 

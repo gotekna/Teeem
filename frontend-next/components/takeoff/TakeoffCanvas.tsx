@@ -328,7 +328,6 @@ export function TakeoffCanvas({
       // Clean up stale Fabric objects when calibration is cancelled/completed/hidden
       clearTempDrawing();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationLine, calibrationStep, showCalibrationOverlay]);
 
   // Sync calibration line endpoint with snap point when cycling magnifier candidates
@@ -735,7 +734,6 @@ export function TakeoffCanvas({
     canvas.on("mouse:move", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseMove(e));
     canvas.on("mouse:up", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseUp(e));
     canvas.on("mouse:dblclick", () => handlersRef.current.doubleClick());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     canvas.on("selection:created", ((e: SelectionEvent) => handlersRef.current.selectionCreated(e)) as any);
     canvas.on("selection:cleared", () => handlersRef.current.selectionCleared());
   };

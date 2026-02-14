@@ -359,7 +359,6 @@ export function EditRowDialog({
         clearTimeout(autoSaveTimerRef.current);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editRowForm]);
 
   if (!row) return null;

@@ -222,7 +222,6 @@ export default function GanttPage() {
     // Note: Job mode returns sm_tasks which have _id suffix fields, cast to any for job-specific fields
     const allRows: EditRowData[] = gantt.tasks.map((t) => {
       const row = t.rowData as SmScheduleMaster;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jobRow = row as any;  // Job tasks have additional fields not in SmScheduleMaster type
       return {
         id: row.id,
@@ -269,7 +268,6 @@ export default function GanttPage() {
     if (!row) return;
 
     // Job tasks have additional fields not in SmScheduleMaster type
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const jobRow = row as any;
 
     // Convert to EditRowData format (SSoT: same as Schedule Master)

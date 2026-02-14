@@ -1717,7 +1717,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Get the mailbox email that received the original message (for Reply From address)
   // SSoT: Ensures reply is sent from the same mailbox the original was received at
   const originalEmailMailbox = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mailbox = (originalEmailData as any)?.mailbox_owner_email || null;
     return mailbox;
   }, [originalEmailData]);

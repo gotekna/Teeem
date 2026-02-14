@@ -21,7 +21,6 @@ import { lazy, ComponentType } from "react";
 // Type for lazy-loaded tab components
 // Using `any` during migration to allow legacy component props
 // TODO: Tighten to TabComponentProps after all components are migrated
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type LazyTabComponent = React.LazyExoticComponent<ComponentType<any>>;
 
 /**

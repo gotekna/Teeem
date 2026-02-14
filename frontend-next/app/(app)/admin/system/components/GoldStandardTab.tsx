@@ -1283,7 +1283,7 @@ function GoldDocumentTypeEditor() {
   const [documentTypes, setDocumentTypes] = React.useState<Array<{ id: number; name: string; abbreviation?: string; scope?: string }>>([]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [documentType, setDocumentType] = React.useState<Record<string, unknown> | null>(null);
+  const [documentType, setDocumentType] = React.useState<Record<string, any> | null>(null);
   const [saving, setSaving] = React.useState(false);
 
   // Drag and drop state
@@ -1479,7 +1479,7 @@ function GoldDocumentTypeEditor() {
 
     if (placeholderSearch.trim()) {
       const search = placeholderSearch.toLowerCase();
-      return placeholders.filter((p: { code: string; longCode?: string; example?: string }) =>
+      return placeholders.filter((p) =>
         p.code.toLowerCase().includes(search) ||
         p.longCode?.toLowerCase().includes(search) ||
         p.example?.toLowerCase().includes(search)
@@ -1769,7 +1769,7 @@ function GoldDocumentTypeEditor() {
                         {p.longCode ? (
                           <div
                             draggable
-                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode)}
+                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode!)}
                             onDragEnd={handleDragEnd}
                             className={cn(
                               "cursor-grab px-1.5 py-1 rounded border text-[10px]",

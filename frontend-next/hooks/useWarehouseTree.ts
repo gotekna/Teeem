@@ -159,7 +159,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchTokenValues();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
 
   // ─── Scoped mode: fetch per-folder document counts ──────────
@@ -185,7 +184,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchScopedCounts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
 
   // ─── Context mode: fetch related records across all warehouse types ──
@@ -228,7 +226,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchContextRecords();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "context" ? `${mode.entityType}-${mode.entityId}` : null, refreshCounter]);
 
   // ─── Fetch warehouse types tree ────────────────────────────────
@@ -320,7 +317,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         }
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseTreeLoading, warehouseTypesTree.length]);
 
   // ─── Scope-from-path helper ────────────────────────────────────

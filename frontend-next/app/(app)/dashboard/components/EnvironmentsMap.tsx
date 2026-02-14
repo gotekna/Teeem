@@ -154,7 +154,6 @@ export default function EnvironmentsMap() {
 
   useEffect(() => {
     checkEnvironments();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const webApps = environments.filter((e) => e.type === "web");

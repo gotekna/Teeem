@@ -223,7 +223,6 @@ export function buildFolderTree(
   ): (FolderTreeItem & { children?: FolderTreeItem[] })[] => {
     return nodes.map((node) => {
       if (node.children && node.children.length === 0) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { children, ...rest } = node;
         return rest;
       }

@@ -760,7 +760,7 @@ export default function ContactDetailPage() {
         router.replace('/contacts');
       } else {
         console.error("Failed to load contact:", err);
-        setError(err?.message || "Failed to load contact");
+        setError((err as Error)?.message || "Failed to load contact");
       }
     } finally {
       setLoading(false);
@@ -1831,7 +1831,6 @@ export default function ContactDetailPage() {
     if (activeTab === "emails" && contact?.email) {
       loadEmails(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   // Reload emails when showAllInThread changes

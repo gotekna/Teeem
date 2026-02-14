@@ -164,7 +164,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
     setIsSearching(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
         limit: TABLE_ROW_LIMIT,
@@ -261,7 +260,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
@@ -290,7 +288,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
     };
 
     fetchInitialRecords();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, foundationId, refreshKey, baseFiltersKey, initialViewLoaded, disableSavedViews, isEmbeddedContext]);
 
   // Auto-load more records in background
@@ -305,7 +302,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({

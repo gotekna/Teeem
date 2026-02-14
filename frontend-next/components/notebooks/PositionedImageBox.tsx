@@ -264,7 +264,6 @@ export function PositionedImageBox({
           height: box.height_px ? "100%" : "auto",
         }}
       >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={box.imageUrl}
           alt=""

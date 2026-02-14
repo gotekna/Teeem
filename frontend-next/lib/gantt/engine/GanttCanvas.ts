@@ -98,7 +98,6 @@ export interface GanttTask {
   /** Hold state for paused tasks */
   holdState?: HoldState;
   /** Original row data from API (for accessing hold etc) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rowData?: any;
 }
 
@@ -3331,7 +3330,7 @@ export class GanttCanvas {
       if (this.isDragging) {
         // Calculate new date based on drag distance
         const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.viewportState.zoom));
-        let newDate = new Date(this.dragStartDate);
+        const newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
         // Use UTC midnight to avoid timezone shifts
@@ -7829,8 +7828,8 @@ export class GanttCanvas {
     if (selectedTasks.length === 0) return;
 
     // Find the date range of selected tasks
-    let minDate = new Date(Math.min(...selectedTasks.map(t => t.startDate.getTime())));
-    let maxDate = new Date(Math.max(...selectedTasks.map(t => t.endDate.getTime())));
+    const minDate = new Date(Math.min(...selectedTasks.map(t => t.startDate.getTime())));
+    const maxDate = new Date(Math.max(...selectedTasks.map(t => t.endDate.getTime())));
 
     // Add padding
     minDate.setDate(minDate.getDate() - padding);
@@ -15620,7 +15619,7 @@ ${this.getAutomatedTestResults()}
     let completed = 0;
     let inProgress = 0;
     let notStarted = 0;
-    let onHold = 0;
+    const onHold = 0;
     let overdue = 0;
 
     for (const task of tasks) {

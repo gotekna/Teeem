@@ -136,7 +136,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
     });
 
     // Convert to swimlane objects
-    let lanes: Swimlane<T>[] = Array.from(groups.entries()).map(
+    const lanes: Swimlane<T>[] = Array.from(groups.entries()).map(
       ([key, groupItems]) => ({
         id: key,
         label: key === "__ungrouped__" ? ungroupedLabel : (getLabel?.(key) ?? key),

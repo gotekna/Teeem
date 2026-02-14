@@ -3286,7 +3286,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               </div>
             ) : previewDocument?.mimeType?.startsWith('image/') ? (
               <div className="h-full flex items-center justify-center bg-black/5 dark:bg-black/20 p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewDocument.url}
                   alt={previewDocument.name}

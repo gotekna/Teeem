@@ -218,9 +218,10 @@ interface DocumentType {
 
 // Type definitions for tab/folder hierarchy
 interface TabNode {
-  id?: number;
+  id?: number | string;
   name: string;
   tab_key?: string;
+  tab_group?: string;
   storage_path?: string;
   children?: TabNode[];
 }
@@ -230,9 +231,9 @@ interface ScopeNode extends TabNode {
 }
 
 interface XeroTabNode {
-  id?: number;
+  id?: number | string;
   name: string;
-  key: string;
+  key?: string;
   children?: XeroTabNode[];
 }
 
@@ -298,7 +299,6 @@ export default function DocumentTypeDetailPage() {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
-      // eslint-disable-next-line eqeqeq
       if (item.id == id) return item.name || null;
       if (item.children?.length) {
         const found = findTabName(item.children, id);
@@ -314,7 +314,6 @@ export default function DocumentTypeDetailPage() {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
-      // eslint-disable-next-line eqeqeq
       if (item.id == id) return item.storage_path || item.name || null;
       // Search in children (handles scope > tabs > subtabs structure)
       if (item.children?.length) {
@@ -342,16 +341,16 @@ export default function DocumentTypeDetailPage() {
       try {
         // Build folder hierarchy recursively for all depths
         // SSoT: Only include 'documents' tab_group folders (Feb 2026)
-        const mapTabRecursive = (tab: Record<string, unknown>): TabNode => ({
-          id: tab.id,
-          name: tab.display_name,
-          tab_key: tab.tab_key,
-          tab_group: tab.tab_group,
+        const mapTabRecursive = (tab: any): TabNode => ({
+          id: tab.id as number | undefined,
+          name: String(tab.display_name || ""),
+          tab_key: tab.tab_key as string | undefined,
+          tab_group: tab.tab_group as string | undefined,
           // SSoT: Include storage path for display in dropdown
-          storage_path: tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path,
+          storage_path: (tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path) as string | undefined,
           // Filter children to only 'documents' tab_group with warehouse_enabled (can receive uploads)
           children: (Array.isArray(tab.children) ? tab.children : [])
-            .filter((c: Record<string, unknown>) => c.tab_group === 'documents' && c.warehouse_enabled)
+            .filter((c: any) => c.tab_group === 'documents' && c.warehouse_enabled)
             .map(mapTabRecursive)
         });
 
@@ -437,11 +436,11 @@ export default function DocumentTypeDetailPage() {
         setXeroTabs([{
           name: xeroFolder.name,
           key: xeroFolder.tab_key || "xero",
-          id: xeroFolder.id,
+          id: typeof xeroFolder.id === "number" ? xeroFolder.id : undefined,
           children: (xeroFolder.children || []).map((c: TabNode) => ({
             name: c.name,
-            key: c.tab_key,
-            id: c.id
+            key: c.tab_key || "",
+            id: typeof c.id === "number" ? c.id : undefined,
           }))
         }]);
       }
@@ -1655,7 +1654,7 @@ export default function DocumentTypeDetailPage() {
                                   // Tab with subtabs - parent is selectable too (so Select value matches when assigned to parent)
                                   return (
                                     <React.Fragment key={tab.id}>
-                                      <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                      <SelectItem value={String(tab.id ?? "")} className="pl-4 font-medium">
                                         <span className="text-muted-foreground">
                                           {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
                                         </span>
@@ -1665,7 +1664,7 @@ export default function DocumentTypeDetailPage() {
                                         )}
                                       </SelectItem>
                                       {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
-                                        <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                        <SelectItem key={subtab.id} value={String(subtab.id ?? "")} className="pl-8">
                                           <span className="text-muted-foreground">
                                             {subtabIdx === filteredSubTabs.length - 1 ? '└─' : '├─'}
                                           </span>
@@ -1680,7 +1679,7 @@ export default function DocumentTypeDetailPage() {
                                 } else if (matchesSearch(tab.name, tab.storage_path)) {
                                   // Leaf tab - directly selectable (only if it matches search)
                                   return (
-                                    <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                    <SelectItem key={tab.id} value={String(tab.id ?? "")} className="pl-4">
                                       <span className="text-muted-foreground">
                                         {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
                                       </span>
@@ -1874,7 +1873,7 @@ export default function DocumentTypeDetailPage() {
                                     return (
                                       <React.Fragment key={tab.id}>
                                         {tabAvailable ? (
-                                          <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                          <SelectItem value={String(tab.id ?? "")} className="pl-4 font-medium">
                                             <span className="text-muted-foreground">
                                               {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
                                             </span>
@@ -1886,7 +1885,7 @@ export default function DocumentTypeDetailPage() {
                                           </SelectLabel>
                                         )}
                                         {availableSubTabs.map((subtab: any, subtabIdx: number) => (
-                                          <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                          <SelectItem key={subtab.id} value={String(subtab.id ?? "")} className="pl-8">
                                             <span className="text-muted-foreground">
                                               {subtabIdx === availableSubTabs.length - 1 ? '└─' : '├─'}
                                             </span>
@@ -1898,7 +1897,7 @@ export default function DocumentTypeDetailPage() {
                                   } else if (tabAvailable) {
                                     // Leaf tab - directly selectable
                                     return (
-                                      <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                      <SelectItem key={tab.id} value={String(tab.id ?? "")} className="pl-4">
                                         <span className="text-muted-foreground">
                                           {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
                                         </span>

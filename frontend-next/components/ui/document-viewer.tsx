@@ -815,15 +815,141 @@ export function DocumentViewer({
       );
     }
 
-    // All other types (eml, excel, word, other) → generic modal
+    // EML → parsed email viewer in dialog
+    if (fileType === "eml") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0">
+            <DialogTitle className="sr-only">{fileName || "Email Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                {emlLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">Loading email...</p>
+                  </div>
+                ) : emlData ? (
+                  <div className="h-full">
+                    <div className="bg-muted/50 border-b p-4 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <User className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">From:</span>
+                          <p className="truncate">{emlData.from}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Users className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">To:</span>
+                          <p className="truncate">{emlData.to}</p>
+                        </div>
+                      </div>
+                      {emlData.cc && (
+                        <div className="flex items-start gap-3">
+                          <Users className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-sm text-muted-foreground">CC:</span>
+                            <p className="truncate">{emlData.cc}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">Date:</span>
+                          <p>{emlData.date}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 overflow-auto" style={{ maxHeight: "calc(90vh - 250px)" }}>
+                      {emlData.isHtml ? (
+                        <iframe
+                          srcDoc={emlData.body}
+                          className="w-full border-0"
+                          style={{ minHeight: "400px", height: "100%" }}
+                          sandbox="allow-same-origin"
+                          title="Email content"
+                        />
+                      ) : (
+                        <pre className="whitespace-pre-wrap font-sans text-sm">
+                          {emlData.body}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                    <Mail className="h-16 w-16" />
+                    <p>Unable to preview this email.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Excel → ExcelDocumentPreview in dialog
+    if (fileType === "excel") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0">
+            <DialogTitle className="sr-only">{fileName || "Spreadsheet Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ExcelDocumentPreview url={url} className="h-full" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Word → WordDocumentPreview in dialog
+    if (fileType === "word") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0">
+            <DialogTitle className="sr-only">{fileName || "Document Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                  <ExternalLink className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0">
+                <WordDocumentPreview url={url} className="h-full" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // All other types → generic modal with open in new tab
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-md">
           <DialogTitle className="sr-only">{fileName || "File Preview"}</DialogTitle>
           <div className="flex flex-col items-center gap-4 py-4">
-            <p className="text-sm text-muted-foreground text-center">
-              Preview not available for this file type.
-            </p>
+            <FileText className="h-16 w-16 text-muted-foreground" />
             <p className="text-sm font-medium">{fileName}</p>
             <Button onClick={() => window.open(url, "_blank")}>
               <ExternalLink className="h-4 w-4 mr-2" />

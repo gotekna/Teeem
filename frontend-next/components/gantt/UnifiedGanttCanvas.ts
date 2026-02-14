@@ -443,7 +443,6 @@ export class UnifiedGanttCanvas {
       let current = taskNumber;
       while (current !== null) {
         const headerTask = this.tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const r = t.rowData as any;
           return r?.task_number === current;
         });
@@ -481,7 +480,6 @@ export class UnifiedGanttCanvas {
     this.collapsedHeaderIds.clear();
     for (const task of this.tasks) {
       if (this.isHeaderTask(task)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         const taskNumber = rowData?.task_number;
         if (taskNumber && !headersToExpand.has(taskNumber)) {
@@ -808,7 +806,6 @@ export class UnifiedGanttCanvas {
     const headerTask = this.tasks.find((t) => t.id === headerTaskId);
     if (!headerTask) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const headerRowData = headerTask.rowData as any;
     const headerTaskNumber = headerRowData?.task_number;
     if (!headerTaskNumber) return;
@@ -822,7 +819,6 @@ export class UnifiedGanttCanvas {
     // Build map of task_number -> parent task_number for recursive lookup
     const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       if (rowData?.task_number) {
         parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
@@ -844,7 +840,6 @@ export class UnifiedGanttCanvas {
 
     // Find all descendants of this header
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const taskNum = rowData?.task_number;
       if (taskNum && isDescendant(taskNum)) {
@@ -869,7 +864,6 @@ export class UnifiedGanttCanvas {
 
     // Update rowData if exists
     if (task.rowData) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (task.rowData as any)[field] = value;
     }
 
@@ -1058,7 +1052,6 @@ export class UnifiedGanttCanvas {
 
   /** Get parent header task number for a child task */
   private getParentHeaderTaskNumber(task: GanttTask): number | null {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const headerGantt = rowData?.header_gantt;
 
@@ -1076,7 +1069,6 @@ export class UnifiedGanttCanvas {
   /** Find header task by task_number */
   private findHeaderByTaskNumber(taskNumber: number): GanttTask | undefined {
     return this.tasks.find((t) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = t.rowData as any;
       return this.isHeaderTask(t) && rowData?.task_number === taskNumber;
     });
@@ -1091,7 +1083,6 @@ export class UnifiedGanttCanvas {
     for (const taskId of this.collapsedHeaderIds) {
       const task = this.tasks.find((t) => t.id === taskId);
       if (task) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData?.task_number) {
           collapsedTaskNumbers.add(rowData.task_number);
@@ -1104,7 +1095,6 @@ export class UnifiedGanttCanvas {
     if (this.showGroupedOnly) {
       for (const task of this.tasks) {
         if (this.isHeaderTask(task)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData?.task_number) {
             headerTaskNumbers.add(rowData.task_number);
@@ -1116,7 +1106,6 @@ export class UnifiedGanttCanvas {
     // Build parent map for ALL tasks (to check any ancestor collapse)
     const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       if (rowData?.task_number) {
         parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
@@ -1154,7 +1143,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Check if any ancestor is collapsed (supports unlimited nesting levels)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const taskNum = rowData?.task_number;
       if (taskNum && hasCollapsedAncestor(taskNum)) {
@@ -1209,7 +1197,6 @@ export class UnifiedGanttCanvas {
     const selectedHeader = this.tasks.find((t) => t.id === this.selectedGroupHeaderId);
     if (!selectedHeader) return false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selectedHeaderRowData = selectedHeader.rowData as any;
     const selectedHeaderTaskNum = selectedHeaderRowData?.task_number;
     if (selectedHeaderTaskNum === undefined) return false;
@@ -1579,7 +1566,6 @@ export class UnifiedGanttCanvas {
       // Check for progress handle click (progress drag) - highest priority
       const progressInfo = this.getProgressHandleAtPosition(x, y);
       if (progressInfo) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = progressInfo.task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.finance_approved;
 
@@ -1601,7 +1587,6 @@ export class UnifiedGanttCanvas {
       const edgeInfo = this.getTaskBarEdgeAtPosition(x, y);
       if (edgeInfo) {
         // Check if task is locked
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = edgeInfo.task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.confirm ||
                          rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1625,7 +1610,6 @@ export class UnifiedGanttCanvas {
       const task = this.getTaskBarAtPosition(x, y);
       if (task) {
         // Check if task is locked (completed tasks can't be dragged)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.confirm ||
                          rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1685,7 +1669,6 @@ export class UnifiedGanttCanvas {
         // Check for progress handle (shows ew-resize cursor)
         const progressInfo = this.getProgressHandleAtPosition(x, y);
         if (progressInfo) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = progressInfo.task.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.finance_approved;
           if (!isLocked) {
@@ -1698,7 +1681,6 @@ export class UnifiedGanttCanvas {
         const edgeInfo = this.getTaskBarEdgeAtPosition(x, y);
         if (edgeInfo) {
           // Check if task is locked
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = edgeInfo.task.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.confirm ||
                            rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1711,7 +1693,6 @@ export class UnifiedGanttCanvas {
         // Check if hovering over task body (show grab cursor for movable tasks)
         const taskAtPos = this.getTaskAtPosition(x, y);
         if (taskAtPos) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = taskAtPos.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.confirm ||
                            rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1811,7 +1792,6 @@ export class UnifiedGanttCanvas {
         }
 
         // Update rowData.duration_days for Days column display
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData) {
           const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
@@ -1838,7 +1818,6 @@ export class UnifiedGanttCanvas {
       if (task) {
         task.progress = newProgress;
         // Also update rowData for consistency
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData) {
           rowData.progress_percentage = newProgress;
@@ -1929,7 +1908,6 @@ export class UnifiedGanttCanvas {
           }
 
           // Update rowData.duration_days for Days column display
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
@@ -1944,7 +1922,6 @@ export class UnifiedGanttCanvas {
           task.endDate = new Date(op.originalEnd);
 
           // Reset rowData.duration_days too
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             const originalDuration = Math.max(1, this.daysBetween(op.originalStart, op.originalEnd) + 1);
@@ -1982,7 +1959,6 @@ export class UnifiedGanttCanvas {
         } else {
           // No change - reset to original
           task.progress = op.originalProgress;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             rowData.progress_percentage = op.originalProgress;
@@ -2342,7 +2318,6 @@ export class UnifiedGanttCanvas {
         const rowIndex = this.visibleTasks.indexOf(task);
         const cellY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         // Calculate duration from dates if not in rowData
         const durationFromDates = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -2507,7 +2482,6 @@ export class UnifiedGanttCanvas {
       if (y < barY || y > barY + taskBarHeight) continue;
 
       // Get current progress
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const progress = task.progress ?? rowData?.progress_percentage ?? 0;
 
@@ -2774,7 +2748,6 @@ export class UnifiedGanttCanvas {
     const barWidth = endX - startX;
 
     // Build tooltip content
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const lines: string[] = [];
     lines.push(task.name);
@@ -2914,7 +2887,6 @@ export class UnifiedGanttCanvas {
       const taskW = Math.max(2, ((taskEndDays - taskStartDays + 1) * dayWidth) * scaleX);
       const taskY = y + 4 + (i * rowHeight) * scaleY;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const color = this.getTaskBarColor(rowData);
 
@@ -3154,7 +3126,6 @@ export class UnifiedGanttCanvas {
 
   private drawTableRow(task: GanttTask, rowIndex: number, y: number): void {
     const { rowHeight } = this.config;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const isHeader = this.isHeaderTask(task);
     const isCollapsed = this.collapsedHeaderIds.has(task.id);
@@ -3309,7 +3280,6 @@ export class UnifiedGanttCanvas {
             // Build task_number -> visual row index map (use visibleTasks for correct row numbers)
             const taskNumToRowIdx = new Map<number, number>();
             this.visibleTasks.forEach((t, idx) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const r = t.rowData as any;
               if (r?.task_number != null) {
                 taskNumToRowIdx.set(Number(r.task_number), idx + 1); // 1-based visual row number
@@ -3402,7 +3372,6 @@ export class UnifiedGanttCanvas {
       // Determine bar color based on status
       // SSoT: Priority order matches old Gantt (Renderer.ts:1524-1566)
       // Complete > Supplier Confirm > Confirm > Hold > Started > Default
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const barColor = this.getTaskBarColor(rowData);
 
@@ -3867,7 +3836,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Check if this is a broken dependency
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const toRowData = toTask.rowData as any;
       const isBroken = toRowData?.dependency_broken ||
         (toRowData?.brokenPredecessorIds && toRowData.brokenPredecessorIds.includes(dep.fromId)) ||
@@ -4086,7 +4054,6 @@ export class UnifiedGanttCanvas {
       const checkboxes: OverlayPosition['checkboxes'] = [];
       let columnX = TABLE_LEFT_PADDING;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       for (const column of this.columns) {
         if (!column.visible) continue;
@@ -4162,7 +4129,6 @@ export class UnifiedGanttCanvas {
    * SSoT: Priority order matches old Gantt (Renderer.ts:1524-1566)
    * Complete > Supplier Confirm > Confirm > Hold > Started > Default
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getTaskBarColor(rowData: any): string {
     // 1. Dark gray for completed tasks (beats all)
     if (rowData?.is_completed) {
