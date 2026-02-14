@@ -1243,10 +1243,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # Fallback: Download from Outlook API
-    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments! (tenant-scoped for security)
+    # Read-only operation: try tenant-scoped first, fall back to direct lookup for shared tenants
     credential = if @email.microsoft_credential_id.present?
                    MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                     .find_by(id: @email.microsoft_credential_id)
+                                     .find_by(id: @email.microsoft_credential_id) ||
+                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
                  else
                    MicrosoftCredential.where(organization_id: tenant_organization_ids)
                                      .refreshable_app.first
@@ -1872,9 +1873,14 @@ class Api::V1::SyncedEmailsController < ApplicationController
     return result unless email.has_attachments && email.outlook_id.present?
 
     begin
+      # Read-only attachment fetch: try tenant-scoped first, fall back to direct lookup
+      # In shared-tenant setups (e.g., Tekna/100xBestLife/LYW sharing same MS365 tenant),
+      # the email's credential_id may belong to a different org within the same MS365 tenant.
+      # Since the email itself is already tenant-scoped (acts_as_tenant), this is safe.
       credential = if email.microsoft_credential_id.present?
                      MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                       .find_by(id: email.microsoft_credential_id)
+                                       .find_by(id: email.microsoft_credential_id) ||
+                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
                    else
                      MicrosoftCredential.where(organization_id: tenant_organization_ids)
                                        .refreshable_app.first
