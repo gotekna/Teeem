@@ -144,11 +144,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     return null;
   }, [emailId]);
 
-  // Fetch attachment content (presigned URL or proxy fallback)
+  // Fetch attachment content via presigned URL (direct S3 download)
   const fetchAttachmentBlob = useCallback(async (attachment: Attachment): Promise<Blob> => {
-    const attachmentId = attachment.id || attachment.outlook_attachment_id;
-
-    // Step 1: Try presigned URL (fast path - no double transfer!)
+    // Get presigned URL from backend (checks Wasabi storage)
     const presignedUrl = await getPresignedUrl(attachment);
     if (presignedUrl && isPresignedUrl(presignedUrl)) {
       const response = await fetch(presignedUrl);
@@ -157,10 +155,8 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       }
     }
 
-    // Step 2: Fall back to api.getBlob() proxy (slow path)
-    return api.getBlob(
-      `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
-    );
+    // No presigned URL = attachment not in storage (both endpoints check same storage)
+    throw new Error("Attachment not in storage - sync may have failed for this email");
   }, [emailId, getPresignedUrl]);
 
   // Clean up blob URL when preview closes
