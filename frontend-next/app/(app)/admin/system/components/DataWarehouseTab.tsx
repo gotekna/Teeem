@@ -216,19 +216,19 @@ interface OrgDataStats {
   warehouse_breakdown?: Array<{
     source_type: string;
     label: string;
-    total: number;
+    total: number;          // Expected: count from source table (how many SHOULD exist)
+    in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
     with_file: number;
-    without_blob: number;
-    unfetchable?: number;  // Emails from deleted mailboxes (will never have file)
-    storage_rate: number;
+    missing: number;        // How many still need files
+    unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
     file_rate: number;
-    linked?: number;  // For Xero: WarehouseDocument records created
-    missing?: number; // For Xero: total - with_file (SSoT from external_invoices)
-    tenant_breakdown?: Array<{  // Per-org breakdown for Xero
+    linked?: number;        // Legacy compat
+    tenant_breakdown?: Array<{
       tenant_id: string;
       tenant_name: string;
       total: number;
+      in_warehouse: number;
       with_blob: number;
       with_file: number;
       linked: number;
@@ -1428,8 +1428,8 @@ export function DataWarehouseTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Source Type</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Linked</TableHead>
+                  <TableHead className="text-right">Expected</TableHead>
+                  <TableHead className="text-right">In Warehouse</TableHead>
                   <TableHead className="text-right">Has File</TableHead>
                   <TableHead className="text-right">Missing</TableHead>
                   <TableHead className="text-right">Unfetchable</TableHead>
@@ -1437,8 +1437,7 @@ export function DataWarehouseTab() {
               </TableHeader>
               <TableBody>
                 {stats.warehouse_breakdown.map((row) => {
-                  // SSoT: Use row.missing if provided (for Xero), otherwise calculate
-                  const missingFile = row.missing ?? (row.with_blob - (row.with_file || 0));
+                  const missing = row.missing ?? 0;
                   return (
                     <React.Fragment key={row.source_type}>
                       <TableRow>
@@ -1458,10 +1457,11 @@ export function DataWarehouseTab() {
                             {row.label}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
-                          {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
+                          {row.total.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(row.in_warehouse ?? row.total).toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right text-green-600 dark:text-green-400">
                           {(row.with_file || 0).toLocaleString()}
@@ -1472,8 +1472,8 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {missingFile > 0 ? (
-                            <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
+                          {missing > 0 ? (
+                            <span className="text-red-600 dark:text-red-400">{missing.toLocaleString()}</span>
                           ) : (
                             <span className="text-green-600 dark:text-green-400">-</span>
                           )}
@@ -1496,7 +1496,7 @@ export function DataWarehouseTab() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{tenant.linked.toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{(tenant.in_warehouse ?? tenant.linked).toLocaleString()}</TableCell>
                           <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
                             {tenant.with_file.toLocaleString()}
                             <span className="text-xs text-muted-foreground ml-1">
