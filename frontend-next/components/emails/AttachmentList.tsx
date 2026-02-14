@@ -470,7 +470,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
       {/* Preview Drawer */}
       <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
-        <SheetContent side="right" className="w-[80vw] max-w-[1400px] min-w-[700px] p-0 flex flex-col">
+        <SheetContent side="right-wide" className="p-0 flex flex-col">
           <SheetHeader className="px-4 py-3 border-b shrink-0">
             <div className="flex items-center justify-between">
               <SheetTitle className="text-sm font-medium truncate pr-2">

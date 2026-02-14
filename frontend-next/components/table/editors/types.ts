@@ -311,9 +311,9 @@ export interface CellPosition {
 export type NavigationDirection = 'next' | 'prev' | 'up' | 'down';
 
 /**
- * Keyboard navigation hook return type
+ * Cell keyboard navigation hook return type
  */
-export interface UseTableKeyboardNavReturn {
+export interface UseCellKeyboardNavReturn {
   /** Currently focused cell */
   focusedCell: CellPosition | null;
 
@@ -326,3 +326,9 @@ export interface UseTableKeyboardNavReturn {
   /** Handle keydown event */
   handleKeyDown: (event: React.KeyboardEvent) => void;
 }
+
+/**
+ * @deprecated Use UseCellKeyboardNavReturn instead
+ * @see UseCellKeyboardNavReturn
+ */
+export type UseTableKeyboardNavReturn = UseCellKeyboardNavReturn;

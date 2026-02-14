@@ -19,7 +19,7 @@ import {
   revertCellAtom,
   exitEditModeAtom,
 } from '@/lib/table-edit-atoms';
-import type { NavigationDirection, UseTableKeyboardNavReturn } from '@/components/table/editors/types';
+import type { NavigationDirection, UseCellKeyboardNavReturn } from '@/components/table/editors/types';
 
 export interface UseCellKeyboardNavOptions {
   /** All column keys in order */
@@ -39,7 +39,7 @@ export function useCellKeyboardNav({
   editableColumnKeys,
   rowIds,
   onExitTable,
-}: UseCellKeyboardNavOptions): UseTableKeyboardNavReturn {
+}: UseCellKeyboardNavOptions): UseCellKeyboardNavReturn {
   const isEditMode = useAtomValue(tableEditModeAtom);
   const [focusedCell, setFocusedCell] = useAtom(focusedCellAtom);
   const startEdit = useSetAtom(startCellEditAtom);
