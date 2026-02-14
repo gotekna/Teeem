@@ -556,6 +556,18 @@ const TIER_1_COMPONENTS: StandardComponent[] = [
     usageCount: 0,
   },
   {
+    id: "error-boundary",
+    name: "ErrorBoundary",
+    displayName: "Error Boundary",
+    category: "feedback",
+    tier: 1,
+    status: "standard",
+    importPath: "@/components/ui/error-boundary",
+    description: "React Error Boundary that catches render errors and prevents app crashes. Reports to Sentry automatically.",
+    whenToUse: "Wrap major route segments, heavy components, or any component tree that should isolate errors from crashing the entire app.",
+    usageCount: 0,
+  },
+  {
     id: "rich-text-editor-modal",
     name: "RichTextEditorModal",
     displayName: "Rich Text Editor Modal",

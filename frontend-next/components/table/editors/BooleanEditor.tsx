@@ -11,7 +11,7 @@
  * - Tab navigation
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Spinner } from "@/components/ui/spinner";

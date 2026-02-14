@@ -22,6 +22,7 @@ import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
 import { ROUTES } from "@/lib/constants/route-paths";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -110,7 +111,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         style={{ paddingTop: shouldHideSidebar ? headerOffset : headerOffset + BREADCRUMB_BAR_HEIGHT }}
       >
         <div className={`flex-1 min-h-0 ${contentClassName}`}>
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
       </main>
 

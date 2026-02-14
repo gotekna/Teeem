@@ -69,6 +69,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import DOMPurify from "isomorphic-dompurify";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   Search,
   X,
@@ -5856,6 +5857,7 @@ export default function TeeemTableView({
 
 
   return (
+    <ErrorBoundary>
     <TableProvider value={tableContextValue}>
     <div className={cn(
       "flex flex-col h-full gap-2",
@@ -6592,5 +6594,6 @@ export default function TeeemTableView({
       )}
     </div>
     </TableProvider>
+    </ErrorBoundary>
   );
 }

@@ -182,4 +182,8 @@ class ImapCredential < ApplicationRecord
     where(user_id: user.id).or(where("? = ANY(shared_with_user_ids)", user.id))
   end
 
+  # Filter scopes (extracted from controllers)
+  scope :active, -> { where(is_active: true) }
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+
 end

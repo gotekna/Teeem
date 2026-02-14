@@ -10,11 +10,11 @@ module Api
         requests = PayNowRequest.includes(:purchase_order, :contact, :reviewed_by_supervisor, :payment)
 
         # Filter by status
-        requests = requests.where(status: params[:status]) if params[:status].present?
+        requests = requests.with_status(params[:status])
 
         # Filter by role - supervisors see pending, builders see all
         if current_user.supervisor? && !current_user.admin?
-          requests = requests.where(status: "pending")
+          requests = requests.pending
         end
 
         # Filter by date range
@@ -23,7 +23,7 @@ module Api
         end
 
         # Filter by supplier
-        requests = requests.where(contact_id: params[:contact_id]) if params[:contact_id].present?
+        requests = requests.for_contact(params[:contact_id])
 
         # Sort
         sort_order = params[:sort_order] == "asc" ? :asc : :desc

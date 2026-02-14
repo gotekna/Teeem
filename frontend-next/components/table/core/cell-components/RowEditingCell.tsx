@@ -9,7 +9,6 @@
  * @see Phase 4 refactoring - SSoT Cleanup
  */
 
-import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';

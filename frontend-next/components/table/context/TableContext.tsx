@@ -26,7 +26,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type { UseSortingReturn } from '../hooks/useSorting';
 import type { UseFilteringReturn } from '../hooks/useFiltering';
 import type { UseGroupingReturn } from '../hooks/useGrouping';

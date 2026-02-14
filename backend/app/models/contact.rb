@@ -23,6 +23,9 @@ class Contact < ApplicationRecord
   # All contacts are now considered active unless is_active=false
   # default_scope { where(deleted: [ false, nil ]) }
 
+  # Filter scopes (extracted from controllers)
+  scope :active, -> { where(is_active: true) }
+
   # Associations
   has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy

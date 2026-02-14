@@ -1,9 +1,10 @@
- 
+
 "use client";
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

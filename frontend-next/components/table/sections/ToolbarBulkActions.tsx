@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Pencil, Trash2, GitMerge, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTableMaybe } from '../context';

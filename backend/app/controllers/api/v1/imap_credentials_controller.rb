@@ -24,7 +24,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
     tenant = current_tenant
 
     # Get IMAP credentials for users in this tenant
-    all_imap = ImapCredential.where(is_active: true, user_id: tenant_user_ids)
+    all_imap = ImapCredential.active.where(user_id: tenant_user_ids)
 
     # Count by status
     # FRC (Feb 2026): Only count as connected if password exists AND sync successful

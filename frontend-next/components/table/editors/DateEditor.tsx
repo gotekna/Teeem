@@ -12,7 +12,7 @@
  * Manual input uses uncontrolled pattern with ref.
  */
 
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { format, parse, isValid } from 'date-fns';
 import { Calendar as CalendarIcon } from "lucide-react";

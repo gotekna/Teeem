@@ -12,7 +12,7 @@
  * Records are fetched fresh each time (no local state).
  */
 
-import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { Check, ChevronDown, X } from "lucide-react";
 import {

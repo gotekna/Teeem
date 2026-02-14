@@ -14,13 +14,13 @@ module Api
         invoices = invoices.where(invoice_type: params[:type]) if params[:type].present?
 
         # Filter by job
-        invoices = invoices.where(job_id: params[:job_id]) if params[:job_id].present?
+        invoices = invoices.for_job(params[:job_id])
 
         # Filter by contact
-        invoices = invoices.where(contact_id: params[:contact_id]) if params[:contact_id].present?
+        invoices = invoices.for_contact(params[:contact_id])
 
         # Filter by status
-        invoices = invoices.where(status: params[:status]) if params[:status].present?
+        invoices = invoices.with_status(params[:status])
 
         # Filter by tenant
         invoices = invoices.where(tenant_id: params[:tenant_id]) if params[:tenant_id].present?

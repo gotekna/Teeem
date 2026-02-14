@@ -12,7 +12,6 @@
  *   const rendered = formatValue(value, 'abn');  // Uses type definition config
  */
 
-import React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

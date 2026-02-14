@@ -13,7 +13,7 @@
  * This is the main component used by TeeemTableView to render editable cells.
  */
 
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { cn } from '@/lib/utils';
 import {

@@ -112,6 +112,10 @@ class MicrosoftCredential < ApplicationRecord
   # DEPRECATED: Use for_tenant instead
   scope :for_org, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
+  # Filter scopes (extracted from controllers)
+  scope :for_organization, ->(org_ids) { where(organization_id: Array(org_ids)) if org_ids.present? }
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+
   # Refreshable = can get a valid token (even if current token is expired)
   # - App credentials: always refreshable (just need client_id/secret)
   # - Delegated credentials: refreshable if refresh_token not dead

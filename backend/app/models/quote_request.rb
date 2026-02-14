@@ -33,6 +33,7 @@ class QuoteRequest < ApplicationRecord
   scope :pending_response, -> { where(status: "sent") }
   scope :recent, -> { order(created_at: :desc) }
   scope :by_trade, ->(trade) { where(trade_category: trade) }
+  scope :with_status, ->(status) { where(status: status) if status.present? }
 
   # Instance Methods
   def send_to_suppliers!(contact_ids)

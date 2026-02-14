@@ -29,6 +29,7 @@ import { GanttContextMenu, ContextMenuState } from './GanttContextMenu';
 import { Spinner } from '@/components/ui/spinner';
 import api from '@/lib/api';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 // =============================================================================
 // Types
@@ -734,6 +735,7 @@ export function GanttUnified({
 
   // Always render canvas structure (so refs are available), but show overlays for loading/error states
   return (
+    <ErrorBoundary>
     <div
       className={cn(
         'flex flex-col h-full overflow-hidden bg-background border-l border-border',
@@ -881,6 +883,7 @@ export function GanttUnified({
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 

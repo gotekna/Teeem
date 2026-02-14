@@ -14,7 +14,7 @@
  * compose-refs infinite loop issues during rapid re-renders (view switching).
  */
 
-import React, { useCallback, memo } from 'react';
+import { useCallback, memo } from 'react';
 import { useAtom, useAtomValue } from 'jotai';
 import { Pencil, Check, AlertTriangle } from "lucide-react";
 import { cn } from '@/lib/utils';

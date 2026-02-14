@@ -1449,6 +1449,8 @@ Rails.application.routes.draw do
           post :link_contact
           post :unlink_contact
           post :quick_create_contact
+          post :send_to_docsort
+          post :send_to_bill_inbox
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
           get "attachments/:attachment_id/presigned_url", action: :attachment_presigned_url

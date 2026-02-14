@@ -1,6 +1,6 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :send_to_docsort, :send_to_bill_inbox, :download_attachment, :download_eml, :attachment_presigned_url ]
   before_action :require_admin, only: [ :bulk_delete_spam, :sync_dashboard ]
 
   # GET /api/v1/synced_emails
@@ -1154,6 +1154,77 @@ class Api::V1::SyncedEmailsController < ApplicationController
       success: false,
       error: e.message
     }, status: :internal_server_error
+  end
+
+  # POST /api/v1/synced_emails/:id/send_to_docsort
+  # Sends email attachments to DocSort (DocumentInbox) for classification
+  def send_to_docsort
+    attachments = @email.attachment_documents.where.not(storage_blob_id: nil)
+
+    if attachments.empty?
+      return render json: {
+        success: false,
+        error: "No attachments to send to DocSort"
+      }, status: :unprocessable_entity
+    end
+
+    created_items = []
+    attachments.each do |att|
+      item = DocumentInbox.create_from_email!(
+        email: @email,
+        attachment_doc: att,
+        source: 'email'
+      )
+      begin
+        item.classify!
+      rescue StandardError => e
+        Rails.logger.error "[SendToDocSort] Classification failed for #{item.id}: #{e.message}"
+      end
+      created_items << item
+    end
+
+    render json: {
+      success: true,
+      message: "#{created_items.size} attachment(s) sent to DocSort",
+      items: created_items.map { |i| { id: i.id, filename: i.original_filename, status: i.status } }
+    }
+  rescue StandardError => e
+    Rails.logger.error "[SendToDocSort] Error: #{e.message}"
+    render json: { success: false, error: e.message }, status: :internal_server_error
+  end
+
+  # POST /api/v1/synced_emails/:id/send_to_bill_inbox
+  # Sends email attachments to Bill Inbox for processing
+  def send_to_bill_inbox
+    attachments = @email.attachment_documents.where.not(storage_blob_id: nil)
+
+    if attachments.empty?
+      return render json: {
+        success: false,
+        error: "No attachments to send to Bill Inbox"
+      }, status: :unprocessable_entity
+    end
+
+    created_items = []
+    attachments.each do |att|
+      item = DocumentInbox.create_from_email!(
+        email: @email,
+        attachment_doc: att,
+        source: 'email'
+      )
+      # Pre-classify as invoice/bill for Bill Inbox
+      item.update!(document_type: 'invoice', status: 'classified')
+      created_items << item
+    end
+
+    render json: {
+      success: true,
+      message: "#{created_items.size} attachment(s) sent to Bill Inbox",
+      items: created_items.map { |i| { id: i.id, filename: i.original_filename, status: i.status } }
+    }
+  rescue StandardError => e
+    Rails.logger.error "[SendToBillInbox] Error: #{e.message}"
+    render json: { success: false, error: e.message }, status: :internal_server_error
   end
 
   # GET /api/v1/synced_email/:id/suggest_contacts

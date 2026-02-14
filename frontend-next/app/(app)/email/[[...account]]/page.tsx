@@ -82,6 +82,8 @@ import {
   ListTodo,
   UserPlus,
   Printer,
+  Receipt,
+  FolderSearch,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -748,6 +750,8 @@ export default function EmailPage() {
   const [lastLocalSyncAt, setLastLocalSyncAt] = useState<Date | null>(null);
   const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
   const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
+  const [sendingToDocsort, setSendingToDocsort] = useState(false);
+  const [sendingToBillInbox, setSendingToBillInbox] = useState(false);
 
   // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts via paginationAtom
   const [pagination, setPagination] = useAtom(paginationAtom);
@@ -1965,6 +1969,54 @@ To: ${email.to_emails?.join(", ") || ""}
     }
   };
 
+  // Send email attachments to DocSort for classification
+  const handleSendToDocsort = async (email: Email) => {
+    if (sendingToDocsort) return;
+    setSendingToDocsort(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string; error?: string }>(
+        `/api/v1/synced_emails/${email.id}/send_to_docsort`
+      );
+      if (response?.success) {
+        toast({ title: "Sent to DocSort", description: response.message });
+      } else {
+        throw new Error(response?.error || "Failed to send to DocSort");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send to DocSort",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToDocsort(false);
+    }
+  };
+
+  // Send email attachments to Bill Inbox
+  const handleSendToBillInbox = async (email: Email) => {
+    if (sendingToBillInbox) return;
+    setSendingToBillInbox(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string; error?: string }>(
+        `/api/v1/synced_emails/${email.id}/send_to_bill_inbox`
+      );
+      if (response?.success) {
+        toast({ title: "Sent to Bill Inbox", description: response.message });
+      } else {
+        throw new Error(response?.error || "Failed to send to Bill Inbox");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send to Bill Inbox",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToBillInbox(false);
+    }
+  };
+
   // Quick create contact from email sender
   const handleQuickCreateContact = async (email: Email) => {
     if (creatingContact) return;
@@ -2663,7 +2715,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 Print
               </Button>
 
-              {/* Right-aligned actions: Contact + Task Creation */}
+              {/* Right-aligned actions */}
               <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -2691,6 +2743,34 @@ To: ${email.to_emails?.join(", ") || ""}
                     <ListTodo className="h-4 w-4 mr-2" />
                   )}
                   + Task
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSendToBillInbox(selectedEmail)}
+                  disabled={sendingToBillInbox || !selectedEmail.has_attachments}
+                  title={selectedEmail.has_attachments ? "Send attachments to Bill Inbox" : "No attachments to send"}
+                >
+                  {sendingToBillInbox ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Receipt className="h-4 w-4 mr-2" />
+                  )}
+                  Bill Inbox
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSendToDocsort(selectedEmail)}
+                  disabled={sendingToDocsort || !selectedEmail.has_attachments}
+                  title={selectedEmail.has_attachments ? "Send attachments to DocSort" : "No attachments to send"}
+                >
+                  {sendingToDocsort ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <FolderSearch className="h-4 w-4 mr-2" />
+                  )}
+                  DocSort
                 </Button>
               </div>
             </div>

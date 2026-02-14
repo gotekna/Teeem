@@ -13,7 +13,7 @@
  * - 100,000 rows: <10ms render (same as 100!)
  */
 
-import React, { useRef, memo, useCallback, useMemo } from "react";
+import { useRef, memo, useCallback, useMemo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import {

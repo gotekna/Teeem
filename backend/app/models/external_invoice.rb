@@ -47,6 +47,11 @@ class ExternalInvoice < ApplicationRecord
   scope :quotes, -> { where(invoice_type: "quote") }
   scope :invoices_and_bills, -> { where(invoice_type: %w[sales_invoice bill]) }
 
+  # Filter scopes (extracted from controllers)
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+  scope :for_job, ->(job_id) { where(job_id: job_id) if job_id.present? }
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id) if contact_id.present? }
+
   # Scopes by status
   scope :draft, -> { where(status: "draft") }
   scope :approved, -> { where(status: "approved") }
