@@ -44,7 +44,11 @@
  *   - Popover, Select, DropdownMenu, Tooltip, ComboboxDropdown
  *   - Must be above modals so dropdowns inside dialogs work
  *
- * LAYER 9: Debug tools (z-9999)
+ * LAYER 9: Toast notifications (z-1300)
+ *   - Toast/notification popups
+ *   - Must be above dropdowns to ensure visibility
+ *
+ * LAYER 10: Debug tools (z-9999)
  *   - Debug toolbar, dev-only overlays
  */
 

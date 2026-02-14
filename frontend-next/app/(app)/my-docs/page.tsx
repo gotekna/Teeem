@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
@@ -421,6 +421,41 @@ export default function MyDocsPage() {
     setPreviewUrl(null);
   }, []);
 
+  // Get subfolders of the current folder for list/gallery view
+  const currentSubfolders = useMemo(() => {
+    const findChildren = (nodes: FolderNode[], targetPath: string | null): FolderNode[] => {
+      if (!targetPath) return nodes; // Root level - return top-level folders
+      for (const node of nodes) {
+        if (node.path === targetPath) return node.children;
+        if (targetPath.startsWith(node.path + "/")) {
+          const result = findChildren(node.children, targetPath);
+          if (result.length > 0) return result;
+        }
+      }
+      return [];
+    };
+    return findChildren(folders, currentFolder);
+  }, [folders, currentFolder]);
+
+  // Delete empty folder
+  const handleDeleteFolder = useCallback(async (folderPath: string) => {
+    if (!confirm(`Delete folder "${folderPath.split("/").pop()}"?`)) return;
+    try {
+      const response = await api.delete<{ success: boolean; error?: string }>(
+        `/api/v1/user_documents/delete_folder?path=${encodeURIComponent(folderPath)}`
+      );
+      if (response?.success) {
+        toast({ title: "Deleted", description: "Folder deleted" });
+        fetchDocuments();
+      } else {
+        toast({ title: "Error", description: response?.error || "Failed to delete folder", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("Failed to delete folder:", error);
+      toast({ title: "Error", description: "Failed to delete folder", variant: "destructive" });
+    }
+  }, [fetchDocuments, toast]);
+
   // Toggle folder expansion
   const toggleFolder = useCallback((path: string) => {
     setExpandedFolders(prev => {
@@ -713,7 +748,7 @@ export default function MyDocsPage() {
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : documents.length === 0 ? (
+          ) : documents.length === 0 && currentSubfolders.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <Folder className="h-16 w-16 text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-medium">No documents yet</h3>
@@ -726,11 +761,76 @@ export default function MyDocsPage() {
               </Button>
             </div>
           ) : viewMode === "gallery" ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {documents.map(renderGalleryItem)}
+            <div>
+              {/* Subfolder items in gallery */}
+              {currentSubfolders.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 mb-4">
+                  {currentSubfolders.map((folder) => (
+                    <div
+                      key={folder.path}
+                      className={cn(
+                        "border rounded-lg p-3 hover:bg-muted cursor-pointer group",
+                        dropTargetFolder === folder.path && draggedDocument && "bg-primary/20 ring-2 ring-primary"
+                      )}
+                      onClick={() => navigateToFolder(folder.path)}
+                      onDragOver={(e) => handleFolderDragOver(e, folder.path)}
+                      onDragLeave={handleFolderDragLeave}
+                      onDrop={(e) => handleFolderDrop(e, folder.path)}
+                    >
+                      <div className="aspect-square flex items-center justify-center bg-muted/50 rounded mb-2">
+                        <Folder className="h-10 w-10 text-amber-500" />
+                      </div>
+                      <p className="text-sm font-medium truncate">{folder.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                {documents.map(renderGalleryItem)}
+              </div>
             </div>
           ) : (
             <div className="space-y-1">
+              {/* Subfolder items in list view */}
+              {currentSubfolders.map((folder) => (
+                <div
+                  key={folder.path}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer group",
+                    dropTargetFolder === folder.path && draggedDocument && "bg-primary/20 ring-2 ring-primary"
+                  )}
+                  onClick={() => navigateToFolder(folder.path)}
+                  onDragOver={(e) => handleFolderDragOver(e, folder.path)}
+                  onDragLeave={handleFolderDragLeave}
+                  onDrop={(e) => handleFolderDrop(e, folder.path)}
+                >
+                  <Folder className="h-4 w-4 text-amber-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{folder.name}</p>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.path); }}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Folder
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              ))}
               {documents.map(renderDocumentItem)}
             </div>
           )}

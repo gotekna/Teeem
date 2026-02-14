@@ -15,7 +15,7 @@
 
 import * as React from "react";
 import { copyToClipboard } from "@/utils/formatters";
-import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS, DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
 import {
   Sun,
   Moon,
@@ -195,7 +195,7 @@ function AttachmentBadgeDemo() {
 
   const handleDownload = () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
+    setTimeout(() => setLoading(false), DEMO_LOADING_MS);
   };
 
   return (
@@ -333,7 +333,7 @@ function ConfirmationDialogDemo() {
 
   const handleConfirm = async () => {
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, DEMO_LOADING_MS));
     setLoading(false);
     setOpen(false);
   };
@@ -441,7 +441,7 @@ function FormModalDemo() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, DEMO_LOADING_MS));
     setLoading(false);
     setOpen(false);
     setName("");

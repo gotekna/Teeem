@@ -98,6 +98,7 @@ import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
@@ -1495,7 +1496,7 @@ export default function EmailPage() {
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         // Skip auto-fetch during account transition to prevent flashing
         skipNextAutoFetchRef.current = true;
-        setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+        setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
@@ -2237,7 +2238,7 @@ To: ${email.to_emails?.join(", ") || ""}
             onClick={() => {
               // Skip auto-fetch during account transition to prevent flashing
               skipNextAutoFetchRef.current = true;
-              setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+              setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
               setSelectedAccount("all");
               setHistoricalMailbox(null);
@@ -2304,7 +2305,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onClick={() => {
                       // Skip auto-fetch during account transition to prevent flashing
                       skipNextAutoFetchRef.current = true;
-                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
                       const accountId = String(account.id);
                       setSelectedAccount(accountId);

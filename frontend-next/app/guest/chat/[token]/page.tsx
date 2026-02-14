@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { Send, MessageSquare } from "lucide-react";
+import { POLLING_CHAT_GUEST_MS } from "@/lib/constants/timeout-constants";
 
 const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || "https://teeem-production-121159e1ff9d.herokuapp.com"
@@ -57,7 +58,7 @@ export default function GuestChatPage() {
   // Poll for messages when joined
   useEffect(() => {
     if (!joined) return;
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(fetchMessages, POLLING_CHAT_GUEST_MS);
     return () => clearInterval(interval);
   }, [joined]);
 

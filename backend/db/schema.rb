@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_14_200002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_14_300001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10033,6 +10033,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_14_200002) do
     t.index ["user_id"], name: "index_user_documents_on_user_id"
   end
 
+  create_table "user_folders", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "path", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "path"], name: "index_user_folders_on_user_id_and_path", unique: true
+    t.index ["user_id"], name: "index_user_folders_on_user_id"
+  end
+
   create_table "user_groups", force: :cascade do |t|
     t.string "name"
     t.string "label"
@@ -11872,6 +11881,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_14_200002) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
+  add_foreign_key "user_folders", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"

@@ -20,6 +20,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { API_TIMEOUT_EXTERNAL } from "@/lib/constants/timeout-constants";
 
 interface EnvironmentStatus {
   name: string;
@@ -123,7 +124,7 @@ export default function EnvironmentsMap() {
         const start = Date.now();
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 8000);
+          const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_EXTERNAL);
           const res = await fetch(`${env.backendUrl}/version`, {
             signal: controller.signal,
             mode: "cors",

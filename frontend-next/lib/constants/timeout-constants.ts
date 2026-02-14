@@ -128,6 +128,13 @@ export const UI_ANIMATION_STANDARD_MS = 500;
 export const COUNTDOWN_TICK_MS = 1000;
 
 /**
+ * Demo loading delay (1.5 seconds).
+ * Used in UI components playground for demonstrating loading states.
+ * SSoT for: app/(app)/admin/system/components/UIComponentsPlaygroundTab.tsx
+ */
+export const DEMO_LOADING_MS = 1500;
+
+/**
  * Dynamic title update intervals.
  * Used for progressive title updates at different frequencies.
  */

@@ -765,9 +765,10 @@ class WarehouseProvider < ApplicationRecord
     case provider_type
     when "s3_compatible"
       if storage_credential_id.present?
-        S3CompatibleCredential.find_by(id: storage_credential_id)&.status == "connected"
+        # Tenant-scoped credential lookup (security)
+        S3CompatibleCredential.where(tenant_id: tenant_id).find_by(id: storage_credential_id)&.status == "connected"
       else
-        S3CompatibleCredential.active.first&.status == "connected"
+        S3CompatibleCredential.where(tenant_id: tenant_id).active.first&.status == "connected"
       end
     when "sharepoint"
       MicrosoftCredential.sharepoint_credential&.status == "connected"

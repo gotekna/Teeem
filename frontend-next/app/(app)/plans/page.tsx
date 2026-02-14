@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatFileSize } from "@/utils/formatters";
+import { POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 interface PlanFolderScan {
   id: number;
@@ -93,7 +94,7 @@ export default function PlansPage() {
           description: response.message || "Scanning folders for new plans...",
         });
         // Refresh after a delay to show results
-        setTimeout(fetchScans, 3000);
+        setTimeout(fetchScans, POLLING_DELAY_MS);
       }
     } catch (error) {
       toast({

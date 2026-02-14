@@ -433,7 +433,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
 import { isLookupColumn, isChoiceColumn, isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
-import { Z_STICKY } from '@/lib/constants/z-index-constants';
+import { Z_STICKY, Z_FULLSCREEN_OVERLAY, Z_TOOLTIP_CLASS } from '@/lib/constants/z-index-constants';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -5884,12 +5884,12 @@ export default function TeeemTableView({
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
       // Fullscreen mode - SSoT for table fullscreen (enableFullscreen prop)
-      // z-[120] to appear above breadcrumb (z-[110])
-      isFullscreen && "fixed inset-0 z-[120] bg-background p-4"
+      // Z_FULLSCREEN_OVERLAY to appear above breadcrumb
+      isFullscreen && `fixed inset-0 z-[${Z_FULLSCREEN_OVERLAY}] bg-background p-4`
     )}>
       {/* DEBUG: Main Container Label */}
       {debugGrid && (
-        <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
+        <div className={`absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
           [1] MAIN CONTAINER (BLUE) - flex flex-col h-full gap-2
         </div>
       )}
@@ -5898,7 +5898,7 @@ export default function TeeemTableView({
       {(healthPanelOpen || showDataHealth) && effectiveFoundationId && (
         <div className={cn("px-4", debugGrid && "border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20 relative")}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [1a] DATA HEALTH (CYAN)
             </div>
           )}
@@ -5919,7 +5919,7 @@ export default function TeeemTableView({
           debugGrid && "border-2 border-green-500 bg-green-50 dark:bg-green-950/20 relative"
         )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [2] HEADER (GREEN) - flex justify-between px-4 shrink-0
             </div>
           )}
@@ -6009,7 +6009,7 @@ export default function TeeemTableView({
         debugGrid && "border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/20 relative"
       )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [3] TOOLBAR (PURPLE) - flex justify-between gap-4 px-4
             </div>
           )}
@@ -6240,7 +6240,7 @@ export default function TeeemTableView({
         {...keyboardProps}
       >
         {debugGrid && (
-          <div className="sticky top-0 left-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-50 inline-block">
+          <div className={`sticky top-0 left-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS} inline-block`}>
             [4] TABLE CONTAINER (ORANGE) - flex-1 min-h-0 overflow-auto
           </div>
         )}
@@ -6316,7 +6316,7 @@ export default function TeeemTableView({
           debugGrid && "border-2 border-red-500 bg-yellow-50 dark:bg-yellow-950/20 relative"
         )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [5] FOOTER (YELLOW/RED) - shrink-0
             </div>
           )}

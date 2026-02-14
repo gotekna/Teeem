@@ -68,6 +68,7 @@ import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { VIEW_CHANGE_EVENT } from "@/lib/breadcrumb-atoms";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
@@ -398,7 +399,7 @@ export default function AllDocumentsPage() {
       await fetchDocuments();
 
       // Clear message after 2 seconds
-      setTimeout(() => setUploadProgress(null), 2000);
+      setTimeout(() => setUploadProgress(null), RETRY_DELAY_MS);
     } catch (err) {
       console.error("Upload failed:", err);
       setUploadProgress(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);

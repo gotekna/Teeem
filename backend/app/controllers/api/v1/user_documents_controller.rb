@@ -35,14 +35,18 @@ module Api
         total_count = documents.count
         documents = documents.limit(limit).offset(offset)
 
-        # Get unique folders for tree display
-        all_folders = UserDocument.for_user(current_user.id)
+        # Get unique folders for tree display (merge document folders + persisted empty folders)
+        doc_folders = UserDocument.for_user(current_user.id)
                                   .my_docs
                                   .where.not(folder: [nil, ""])
                                   .distinct
                                   .pluck(:folder)
                                   .compact
-                                  .sort
+
+        persisted_folders = UserFolder.for_user(current_user.id)
+                                      .pluck(:path)
+
+        all_folders = (doc_folders + persisted_folders).uniq.sort
 
         # Cache provider for all documents in this request (avoids N+1 provider lookups)
         @document_provider = fetch_document_provider
@@ -223,7 +227,7 @@ module Api
       end
 
       # POST /api/v1/user_documents/create_folder
-      # Create a virtual folder (no physical storage - just updates folder path)
+      # Create a virtual folder - persisted in user_folders table
       def create_folder
         folder_name = params[:name]
         parent_folder = params[:parent]
@@ -236,21 +240,48 @@ module Api
         sanitized_name = folder_name.gsub(/[<>:"|?*\\\/]/, "-").strip
         full_path = parent_folder.present? ? "#{parent_folder}/#{sanitized_name}" : sanitized_name
 
-        # Check for existing documents with this folder
-        existing_count = UserDocument.for_user(current_user.id)
-                                     .my_docs
-                                     .where(folder: full_path)
-                                     .count
+        # Persist the folder so it survives page reloads even when empty
+        user_folder = UserFolder.find_or_create_by(user_id: current_user.id, path: full_path)
+
+        unless user_folder.persisted?
+          return render_error("Failed to create folder: #{user_folder.errors.full_messages.join(', ')}", status: :unprocessable_entity)
+        end
 
         render json: {
           success: true,
           folder: {
             name: sanitized_name,
-            path: full_path,
-            documentCount: existing_count
+            path: full_path
           },
           message: "Folder created successfully"
         }
+      end
+
+      # DELETE /api/v1/user_documents/delete_folder
+      # Delete a virtual folder (only if empty)
+      def delete_folder
+        folder_path = params[:path]
+
+        unless folder_path.present?
+          return render_error("Folder path required", status: :unprocessable_entity)
+        end
+
+        # Check if folder has documents
+        doc_count = UserDocument.for_user(current_user.id)
+                                .my_docs
+                                .where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+                                .count
+
+        if doc_count > 0
+          return render_error("Cannot delete folder with #{doc_count} document(s). Move or delete them first.", status: :unprocessable_entity)
+        end
+
+        # Delete the folder and any child folders
+        UserFolder.for_user(current_user.id)
+                  .where("path = ? OR path LIKE ?", folder_path, "#{folder_path}/%")
+                  .destroy_all
+
+        render json: { success: true, message: "Folder deleted" }
       end
 
       private

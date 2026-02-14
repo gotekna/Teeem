@@ -215,6 +215,7 @@ Rails.application.routes.draw do
         end
         collection do
           post :create_folder         # POST /api/v1/user_documents/create_folder - virtual folder
+          delete :delete_folder       # DELETE /api/v1/user_documents/delete_folder - remove empty folder
         end
       end
 

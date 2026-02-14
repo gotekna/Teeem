@@ -53,6 +53,7 @@ import { Progress } from "@/components/ui/progress";
 import { api } from "@/lib/api";
 import { formatDistanceToNow, format } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
+import { COUNTDOWN_TICK_MS } from "@/lib/constants/timeout-constants";
 
 interface MailboxStats {
   email: string;
@@ -230,7 +231,7 @@ export function EmailSyncDashboardTab() {
               setSyncingOrgId(null);
               clearInterval(pollInterval);
               // Refresh dashboard
-              setTimeout(fetchDashboard, 1000);
+              setTimeout(fetchDashboard, COUNTDOWN_TICK_MS);
             } else {
               // Still syncing, update email count
               setSyncProgress(prev => prev ? { ...prev, emailCount: email_count } : null);

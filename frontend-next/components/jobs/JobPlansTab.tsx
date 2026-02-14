@@ -48,6 +48,7 @@ import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadPhoto } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -406,7 +407,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     };
 
     // Start preloading after a short delay to let the selected plan load first
-    const timeoutId = setTimeout(preloadAll, 500);
+    const timeoutId = setTimeout(preloadAll, UI_ANIMATION_STANDARD_MS);
 
     return () => {
       cancelled = true;

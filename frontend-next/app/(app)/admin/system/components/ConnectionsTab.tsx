@@ -65,6 +65,7 @@ import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { API } from "@/lib/constants/api-endpoints";
+import { COUNTDOWN_TICK_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -1721,7 +1722,7 @@ function EmailMigrationCard() {
     try {
       await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
       toast({ title: "Started", description: "Email migration job queued" });
-      setTimeout(loadActiveEmailJob, 1000);
+      setTimeout(loadActiveEmailJob, COUNTDOWN_TICK_MS);
     } catch {
       toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
     }
@@ -2038,7 +2039,7 @@ function DocumentMigrationCard() {
 
   React.useEffect(() => {
     if (status?.migration_in_progress) {
-      refreshIntervalRef.current = setInterval(loadStatus, 5000);
+      refreshIntervalRef.current = setInterval(loadStatus, POLLING_FAST_MS);
     } else if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;

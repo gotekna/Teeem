@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/select";
 import MultipleSelector, { type Option } from "@/components/ui/multiple-selector";
 import { api } from "@/lib/api";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // Constants for the main content box - must match NotebookCanvas
 const MAIN_CONTENT_ID = "main-content";
@@ -214,7 +215,7 @@ export function NotebookEditor({ pageId, notebookId, className }: NotebookEditor
     if (shareLink) {
       copyToClipboard(shareLink);
       setShareLinkCopied(true);
-      setTimeout(() => setShareLinkCopied(false), 2000);
+      setTimeout(() => setShareLinkCopied(false), RETRY_DELAY_MS);
     }
   }, [shareLink]);
 

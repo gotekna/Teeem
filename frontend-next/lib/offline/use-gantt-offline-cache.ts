@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { isOnlineAtom } from "./offline-atoms";
+import { POLLING_SLOW_MS } from "@/lib/constants/timeout-constants";
 import {
   getGanttFromCache,
   setGanttInCache,
@@ -168,7 +169,7 @@ function useLastSyncedDisplay(lastSyncedAt: Date | null): string {
 
     updateDisplay();
     // Update every minute
-    const interval = setInterval(updateDisplay, 60000);
+    const interval = setInterval(updateDisplay, POLLING_SLOW_MS);
     return () => clearInterval(interval);
   }, [lastSyncedAt]);
 

@@ -93,7 +93,7 @@ import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSqua
 import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
-import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS, RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -2305,7 +2305,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       if (silent) {
         setAutoSaveStatus('saved');
         // Reset to idle after 2 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 2000);
+        setTimeout(() => setAutoSaveStatus('idle'), RETRY_DELAY_MS);
         // SSoT: Refresh TeeemTableView (primary data display via Foundation API)
         setDataViewRefreshKey(prev => prev + 1);
         // Also refresh predecessor selector list (secondary use - still uses custom endpoint)

@@ -86,11 +86,14 @@ class StorageBillingService
       return { success: false, error: "Not S3-compatible provider" } unless provider.provider_type == "s3_compatible"
 
       credential_id = provider.storage_credential_id
+      # Tenant-scoped credential lookup (security)
       credential = if credential_id.present?
-        S3CompatibleCredential.find_by(id: credential_id)
-      else
-        S3CompatibleCredential.active.connected.first
-      end
+                     tenant ? S3CompatibleCredential.where(tenant_id: tenant.id).find_by(id: credential_id)
+                            : S3CompatibleCredential.find_by(id: credential_id)
+                   else
+                     tenant ? S3CompatibleCredential.where(tenant_id: tenant.id).active.connected.first
+                            : S3CompatibleCredential.active.connected.first
+                   end
       return { success: false, error: "No active Wasabi credential" } unless credential
 
       bucket = provider.bucket

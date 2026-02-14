@@ -64,7 +64,8 @@ module DocumentProviders
       config = WarehouseProvider.for_tenant(tenant)
       explicit_id = config&.connection_config&.dig("credential_id")
       if explicit_id.present?
-        cred = S3CompatibleCredential.find_by(id: explicit_id)
+        # Tenant-scoped credential lookup (security)
+        cred = S3CompatibleCredential.where(tenant_id: tenant.id).find_by(id: explicit_id)
         if cred&.is_active? && cred&.decryptable?
           return cred
         else

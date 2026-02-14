@@ -39,6 +39,7 @@ import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { formatDate, formatCurrency } from "@/utils/formatters";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // Types for external invoice data (from Xero)
 interface LineItem {
@@ -293,7 +294,7 @@ export default function InvoiceDetailPage() {
     try {
       await copyToClipboard(paymentLinkUrl);
       setPaymentLinkCopied(true);
-      setTimeout(() => setPaymentLinkCopied(false), 2000);
+      setTimeout(() => setPaymentLinkCopied(false), RETRY_DELAY_MS);
     } catch (err) {
       console.error("Failed to copy:", err);
     }

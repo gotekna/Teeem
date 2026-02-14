@@ -17,6 +17,7 @@ import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/
 import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
 import { copyToClipboard } from '@/utils/formatters';
+import { UI_ANIMATION_SHORT_MS } from '@/lib/constants/timeout-constants';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -11403,7 +11404,7 @@ export class GanttCanvas {
 
   initializeOrientationDetection(): void {
     this.detectOrientation();
-    this._boundOrientationChange = () => setTimeout(() => this.detectOrientation(), 100);
+    this._boundOrientationChange = () => setTimeout(() => this.detectOrientation(), UI_ANIMATION_SHORT_MS);
     this._boundOrientationResize = () => this.detectOrientation();
     window.addEventListener('orientationchange', this._boundOrientationChange);
     window.addEventListener('resize', this._boundOrientationResize);
@@ -11445,7 +11446,7 @@ export class GanttCanvas {
     if (!this.screenReaderElement) return;
     this.screenReaderElement.setAttribute('aria-live', priority);
     this.screenReaderElement.textContent = '';
-    setTimeout(() => { if (this.screenReaderElement) this.screenReaderElement.textContent = message; }, 100);
+    setTimeout(() => { if (this.screenReaderElement) this.screenReaderElement.textContent = message; }, UI_ANIMATION_SHORT_MS);
   }
 
   // =========================================================================

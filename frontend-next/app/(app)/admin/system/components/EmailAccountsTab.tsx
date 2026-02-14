@@ -63,6 +63,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import {
   Table,
   TableBody,
@@ -1332,7 +1333,7 @@ export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {
     try {
       await api.post(`/api/v1/imap_credentials/${id}/sync`);
       // Refresh after a short delay
-      setTimeout(fetchData, 2000);
+      setTimeout(fetchData, RETRY_DELAY_MS);
     } catch (error) {
       console.error("Failed to trigger sync:", error);
     } finally {

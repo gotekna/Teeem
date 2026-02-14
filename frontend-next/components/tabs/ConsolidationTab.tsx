@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import type { Corporate } from "@/lib/types/corporate";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 
 interface CompanyGroup {
   id: number;
@@ -328,7 +329,7 @@ export function ConsolidationTab({ company, onUpdate }: ConsolidationTabProps) {
       onUpdate?.();
       // Reload structure after group change
       if (newGroupId) {
-        setTimeout(() => loadGroupStructure(), 500);
+        setTimeout(() => loadGroupStructure(), UI_ANIMATION_STANDARD_MS);
       } else {
         setGroupStructure(null);
       }

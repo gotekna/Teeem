@@ -61,6 +61,7 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
+import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS } from "@/lib/constants/timeout-constants";
 
 interface OrgStatus {
   loading: boolean;
@@ -481,7 +482,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         link.click();
         document.body.removeChild(link);
         // Small delay between downloads to avoid browser blocking
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, UI_ANIMATION_MEDIUM_MS));
       }
       setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
     } else if (action === "delete") {
@@ -1378,7 +1379,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       if (response?.success) {
         setMessage({ type: "success", text: response.message });
         // Refresh after a short delay to see updated data
-        setTimeout(loadAllFiles, 2000);
+        setTimeout(loadAllFiles, RETRY_DELAY_MS);
       }
     } catch (err) {
       console.error("Failed to start AI analysis:", err);
@@ -1456,7 +1457,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         if (!dryRun && totalChanged > 0) {
           setMessage({ type: "success", text: `Categorized ${totalChanged} documents` });
           // Refresh file list to show updated data
-          setTimeout(loadAllFiles, 1000);
+          setTimeout(loadAllFiles, COUNTDOWN_TICK_MS);
         }
       }
     } catch (err) {
