@@ -17,4 +17,27 @@ export interface User {
   force_password_change?: boolean;
   created_at?: string;
   updated_at?: string;
+  // Computed fields (API may split name into first_name/last_name)
+  first_name?: string;
+  last_name?: string;
+  full_name?: string; // Alias for name in some contexts
+  display_name?: string; // Alias for name in some contexts
+  photo_url?: string; // Alias for avatar_url
+  assigned_role?: string; // Legacy field
+  last_login_at?: string;
+  last_seen_at?: string;
+  last_email_sync_at?: string;
+  presence_status?: 'online' | 'away' | 'offline';
+  integrations?: string[];
+  integrations_count?: number;
+  status?: string;
+  role_ids?: Array<{ id: number; display_value: string; name: string }>;
+  // Contact relationship (for UserDetailSheet)
+  contact_id?: number | null;
+  contact?: { id: number; display_name?: string; first_name?: string; last_name?: string } | null;
+  // Primary role (Jan 2026)
+  primary_role_id?: number | null;
+  // Email signature style (Jan 2026)
+  email_signature_style?: string;
+  [key: string]: unknown; // Allow additional properties from API
 }

@@ -11,6 +11,7 @@ import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/sys
 import { selectDefaultView } from '@/lib/view-loading-utils';
 import type { SavedView } from '@/components/table/types';
 import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
+import type { Foundation, ApiColumn } from '@/lib/types';
 
 // SSR always uses env variable directly - no localStorage on server
 const getServerApiUrl = () => {
@@ -20,29 +21,6 @@ const getServerApiUrl = () => {
   }
   return url;
 };
-
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_foundation_slug?: string;
-  lookup_display_column?: string;
-  required?: boolean;
-  is_unique?: boolean;
-  settings?: Record<string, unknown>;
-}
-
-interface Foundation {
-  id: number;
-  name: string;
-  slug: string;
-  columns: ApiColumn[];
-}
 
 interface TableColumn {
   id?: number;
@@ -203,7 +181,7 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       sortable: true,
       filterable: true,
       width: getDefaultWidth(col.column_name, col.column_type),
-      choices: col.available_choices,
+      choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_foundation_slug: col.lookup_foundation_slug,
       lookup_display_column: col.lookup_display_column,

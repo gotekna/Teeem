@@ -319,7 +319,7 @@ module Api
           end
         end
 
-        render json: job_json
+        render json: { success: true, data: job_json }
       end
 
       # POST /api/v1/jobs
@@ -352,20 +352,20 @@ module Api
             response_data[:template_instantiation] = template_instantiation_result
           end
 
-          render json: response_data, status: :created
+          render json: { success: true, data: response_data }, status: :created
         else
           Rails.logger.error "[JobsController#create] Validation failed: #{@job.errors.full_messages.inspect}"
           Rails.logger.error "[JobsController#create] job_status_id was: #{@job.job_status_id.inspect}"
-          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
+          render json: { success: false, error: @job.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
 
       # PUT/PATCH /api/v1/jobs/:id
       def update
         if @job.update(job_params)
-          render json: @job
+          render json: { success: true, data: @job }
         else
-          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
+          render json: { success: false, error: @job.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
 
@@ -382,10 +382,13 @@ module Api
                                   .includes(:user)
                                   .order(created_at: :desc)
 
-        render json: @messages.as_json(
-          include: { user: {} },
-          methods: :formatted_timestamp
-        )
+        render json: {
+          success: true,
+          data: @messages.as_json(
+            include: { user: {} },
+            methods: :formatted_timestamp
+          )
+        }
       end
 
       # GET /api/v1/jobs/:id/emails
@@ -394,7 +397,7 @@ module Api
                               .includes(:synced_by_user)
                               .order(received_at: :desc)
 
-        render json: { emails: @emails }
+        render json: { success: true, data: { emails: @emails } }
       end
 
       # GET /api/v1/jobs/:id/sms_messages
@@ -444,7 +447,7 @@ module Api
                               .includes(:children)
         end
 
-        render json: job_tabs.map(&:as_nested_json)
+        render json: { success: true, data: job_tabs.map(&:as_nested_json) }
       end
 
       # POST /api/v1/jobs/:id/import_xero_bills

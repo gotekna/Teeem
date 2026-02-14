@@ -18,12 +18,7 @@ import NextLink from "next/link";
 import { urls } from "@/lib/url-utils";
 import { isLookupColumn } from "@/lib/constants/column-types";
 import { TableColumn } from "./types";
-
-interface Foundation {
-  id: number;
-  name: string;
-  table_type?: string;
-}
+import type { Foundation } from "@/lib/types";
 
 interface SchemaColumn {
   id: number;

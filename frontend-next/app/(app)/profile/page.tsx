@@ -10,13 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  photo_url?: string | null;
-}
+import type { User } from "@/lib/types";
 
 const MAX_PHOTO_SIZE = MAX_UPLOAD_SIZE;
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
@@ -179,9 +173,9 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="flex items-center gap-6">
                 <div className="h-24 w-24 overflow-hidden rounded-lg bg-muted">
-                  {user?.photo_url ? (
+                  {(user?.photo_url || user?.avatar_url) ? (
                     <img
-                      src={user.photo_url}
+                      src={user.photo_url || user.avatar_url}
                       alt="Avatar"
                       className="h-full w-full object-cover"
                     />

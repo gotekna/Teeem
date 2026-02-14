@@ -51,7 +51,7 @@ import { DATE_ISO } from '@/lib/constants/date-formats';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
-import { Job } from '@/lib/types';
+import type { Job, User } from '@/lib/types';
 
 interface TaskExpandedRowProps {
   task: SmTask;
@@ -68,11 +68,6 @@ const statusColors = {
   supplier_confirm: 'data-[state=checked]:bg-violet-500 data-[state=checked]:border-violet-500',
   completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
-
-interface User {
-  id: number;
-  name: string;
-}
 
 interface TaskHistoryEntry {
   id: number;

@@ -14,16 +14,10 @@ import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import type { ApiColumn as Column } from "@/lib/types";
 
 // DnD Primitives - SSoT for drag and drop UI
 import { DragHandle, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
-
-interface Column {
-  id: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-}
 
 interface SortableGroupByItemProps {
   id: string;

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
-import type { Foundation } from './useFoundationData';
+import type { Foundation, ApiColumn } from '@/lib/types';
 import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
 import { CACHE_TTL_VIEWS } from '@/lib/constants/cache-constants';
 import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
@@ -24,24 +24,6 @@ export interface UseFoundationBySlugReturn {
   serverSearch: (query: string, searchAll?: boolean) => Promise<void>;
   isSearching: boolean;
   clearSearch: () => void;
-}
-
-/**
- * API column format (what the backend returns)
- */
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  required?: boolean;
-  is_unique?: boolean;
-  searchable?: boolean;
 }
 
 /**
@@ -250,7 +232,7 @@ export function useFoundationBySlug(
         sortable: true,
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
-        choices: col.available_choices,
+        choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
         lookup_foundation_id: col.lookup_foundation_id,
         lookup_display_column: col.lookup_display_column,
         searchable: col.searchable ?? false,

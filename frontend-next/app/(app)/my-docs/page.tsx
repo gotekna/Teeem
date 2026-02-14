@@ -392,23 +392,16 @@ export default function MyDocsPage() {
   }, [saveToJobDoc, selectedJobId, toast]);
 
   // Select document for preview panel
+  // Always use backend /content proxy to avoid CORS issues with S3/B2 presigned URLs
+  // (ExcelDocumentPreview/WordDocumentPreview use fetch() which gets CORS-blocked)
   const handleSelectDocument = useCallback(async (doc: UserDocument) => {
     setSelectedDocument(doc);
     setPreviewUrl(null);
 
-    // If the doc already has a fileUrl, use it directly
-    if (doc.fileUrl) {
-      setPreviewUrl(doc.fileUrl);
-      return;
-    }
-
-    // Use backend /content endpoint to stream bytes through our API (bypasses CORS)
-    // This avoids the browser blocking direct fetch() to S3/Wasabi presigned URLs
     setPreviewLoading(true);
     try {
       const contentUrl = `${getApiBaseUrl()}/api/v1/user_documents/${doc.id}/content`;
       const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
-      // Build URL with auth token as query param (send_data doesn't go through api.get)
       setPreviewUrl(`${contentUrl}?token=${encodeURIComponent(token || "")}`);
     } catch (error) {
       console.error("Failed to get preview URL:", error);

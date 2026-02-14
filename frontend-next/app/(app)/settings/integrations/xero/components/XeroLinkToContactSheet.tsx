@@ -28,15 +28,7 @@ import { api } from "@/lib/api";
 import { API } from "@/lib/constants/api-endpoints";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  entity_type: string | null;
-  email: string | null;
-  xero_linked_count?: number;
-  xero_tenant_names?: string[];
-}
+import type { Contact } from "@/lib/types";
 
 interface XeroLinkToContactSheetProps {
   isOpen: boolean;

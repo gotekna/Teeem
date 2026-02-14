@@ -34,12 +34,7 @@ import {
   type Notebook,
   type NotebookShare,
 } from "./hooks/useNotebooks";
-
-interface User {
-  id: number;
-  display_name: string;
-  email: string;
-}
+import type { User } from "@/lib/types";
 
 interface NotebookShareModalProps {
   open: boolean;
@@ -178,7 +173,7 @@ export function NotebookShareModal({
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs">
-                            {user.display_name
+                            {(user.display_name || user.name)
                               .split(" ")
                               .map((n) => n[0])
                               .join("")
@@ -186,7 +181,7 @@ export function NotebookShareModal({
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium">{user.display_name}</div>
+                          <div className="text-sm font-medium">{user.display_name || user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </div>
                       </div>

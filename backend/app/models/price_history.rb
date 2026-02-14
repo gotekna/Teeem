@@ -14,7 +14,7 @@ class PriceHistory < ApplicationRecord
   after_commit :refresh_supplier_cached_flag_on_supplier_change, on: :update, if: :saved_change_to_supplier_id?
 
   # SSoT: Keep PricebookItem.current_price in sync with default supplier's latest price
-  after_commit :sync_current_price_to_item, on: [:create, :update]
+  after_commit :sync_current_price_to_item, on: [:create, :update], if: :price_fields_changed?
 
   # Validations
   validates :pricebook_item_id, presence: true
@@ -115,6 +115,14 @@ class PriceHistory < ApplicationRecord
   end
 
   private
+
+  # Callback condition helper
+  def price_fields_changed?
+    # Only sync if price or supplier changed (expensive - updates pricebook_item)
+    saved_change_to_new_price? ||
+      saved_change_to_supplier_id? ||
+      saved_change_to_date_effective?
+  end
 
   # SSoT: Refresh contact's is_supplier_cached flag
   def refresh_supplier_cached_flag

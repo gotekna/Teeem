@@ -8,6 +8,10 @@ export interface CompanyGroup {
   description?: string;
   active?: boolean;
   companies_count?: number;
+  default_registered_office?: string;
+  default_principal_place?: string;
+  default_accountant?: string;
+  default_accountant_contact?: string;
 }
 
 export interface Company {
@@ -21,6 +25,11 @@ export interface Company {
   trust_name?: string;
   is_trust_of_trustee?: boolean;
 
+  // Contact Information
+  address?: string;
+  email?: string;
+  phone?: string;
+
   // Ownership
   ownership_percentage?: number;
   shareholders?: unknown[];
@@ -33,6 +42,7 @@ export interface Company {
   company_group_id?: number;
   company_group?: string | { id: number; name: string; code?: string };
   group_name?: string;
+  group?: string; // Legacy field, prefer company_group
 
   // Integration
   xero_connected?: boolean;
@@ -42,5 +52,9 @@ export interface Company {
 
   // Status
   status?: string;
+  type?: string; // Legacy field, prefer entity_type
+
+  // Storage
+  storage_folder_url?: string;
 
 }

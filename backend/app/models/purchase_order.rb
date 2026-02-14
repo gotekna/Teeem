@@ -125,10 +125,10 @@ class PurchaseOrder < ApplicationRecord
   # Callbacks
   before_create :set_temporary_po_number
   after_create :generate_po_number_from_id
-  before_save :calculate_totals
-  before_save :calculate_variances
+  before_save :calculate_totals, if: :line_items_or_pricing_changed?
+  before_save :calculate_variances, if: :financial_fields_changed?
   after_create :log_po_created
-  after_save :update_job_profit
+  after_save :update_job_profit, if: :job_profit_fields_changed?
   after_save :sync_supplier_to_sm_task
   after_destroy :update_job_profit
 
@@ -510,6 +510,31 @@ class PurchaseOrder < ApplicationRecord
   end
 
   private
+
+  # Callback condition helpers
+  def line_items_or_pricing_changed?
+    # Recalculate totals if line items changed (tracked via association) or new record
+    new_record? || line_items.any? { |item| item.changed? || item.marked_for_destruction? || item.new_record? }
+  end
+
+  def financial_fields_changed?
+    # Recalculate variances if financial fields changed
+    new_record? ||
+      will_save_change_to_sub_total? ||
+      will_save_change_to_total? ||
+      will_save_change_to_budget? ||
+      will_save_change_to_xero_amount_paid? ||
+      will_save_change_to_xero_complete? ||
+      will_save_change_to_amount_invoiced?
+  end
+
+  def job_profit_fields_changed?
+    # Only update job profit when financial totals or status changes (expensive DB write)
+    saved_change_to_total? ||
+      saved_change_to_sub_total? ||
+      saved_change_to_status? ||
+      saved_change_to_amount_invoiced?
+  end
 
   # Set a temporary PO number to satisfy NOT NULL constraint
   # This will be replaced with the ID-based number in after_create

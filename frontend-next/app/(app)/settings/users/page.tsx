@@ -9,6 +9,7 @@ import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 import { api } from "@/lib/api";
 import { TableRow } from "@/components/table/types";
 import { API } from "@/lib/constants/api-endpoints";
+import type { User } from "@/lib/types";
 
 /**
  * Users Management Page - Organization Settings
@@ -22,17 +23,6 @@ import { API } from "@/lib/constants/api-endpoints";
  * - Built-in caching (instant back navigation)
  * - Server-side search
  */
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  assigned_role?: string;
-  last_login_at?: string;
-  role_ids?: Array<{ id: number; display_value: string; name: string }>;
-  [key: string]: unknown;
-}
 
 export default function UsersSettingsPage() {
   const [showAddModal, setShowAddModal] = useState(false);

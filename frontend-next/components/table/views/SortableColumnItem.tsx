@@ -21,20 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { isLookupColumn, isChoiceColumn } from "@/lib/constants/column-types";
 import type { ColumnPriority } from "@/lib/column-priority";
 import { getColumnTypeLabel, getColumnTypeIcon } from "@/lib/column-type-registry";
+import type { ApiColumn as Column } from "@/lib/types";
 
 // DnD Primitives - SSoT for drag and drop UI
 import { DragHandle, ItemBadge, DRAGGING_CLASSES, DROP_TARGET_CLASSES } from "@/components/ui/dnd";
-
-interface Column {
-  id: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  position?: number;
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  available_choices?: { id: number; value: string }[] | string[];
-}
 
 interface SortableColumnItemProps {
   id: string;

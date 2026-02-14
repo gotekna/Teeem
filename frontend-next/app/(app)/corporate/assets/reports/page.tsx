@@ -47,6 +47,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { format } from "date-fns";
 import { formatCurrencyWhole } from "@/utils/formatters";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { Company } from "@/lib/types";
 
 // Tab definitions
 const TABS = [
@@ -55,12 +56,6 @@ const TABS = [
   { id: "depreciation", name: "Depreciation Schedule", icon: TrendingDown },
   { id: "insurance", name: "Insurance Summary", icon: Shield },
 ];
-
-interface Company {
-  id: number;
-  name: string;
-  code?: string;
-}
 
 interface SummaryData {
   total_assets: number;

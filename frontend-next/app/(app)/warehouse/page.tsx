@@ -64,7 +64,8 @@ import { BackButton } from "@/components/ui/back-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -1431,16 +1432,16 @@ export default function AllDocumentsPage() {
                 ) : previewDocument.mimeType?.includes("wordprocessingml") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".docx") ? (
-                  // Word document preview using TeeemWord's mammoth conversion
-                  <WordDocumentPreview url={previewDocument.fileUrl} className="h-full" />
+                  // Word document preview - use backend content proxy to bypass S3 CORS
+                  <WordDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
                 ) : previewDocument.mimeType?.includes("spreadsheetml") ||
                   previewDocument.mimeType?.includes("ms-excel") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xls") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".xls") ? (
-                  // Excel document preview using TeeemXL
-                  <ExcelDocumentPreview url={previewDocument.fileUrl} className="h-full" />
+                  // Excel document preview - use backend content proxy to bypass S3 CORS
+                  <ExcelDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">

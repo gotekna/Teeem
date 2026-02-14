@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { TableRow } from "@/components/table/types";
+import type { User } from "@/lib/types";
 
 // SSoT: Columns are now fetched from Foundation API (ID: 199)
 // Removed hardcoded TRANSACTION_COLUMNS - 2024-12-27
@@ -21,12 +22,6 @@ import type { TableRow } from "@/components/table/types";
 interface Construction {
   id: number;
   name?: string;
-}
-
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
 }
 
 interface Transaction {

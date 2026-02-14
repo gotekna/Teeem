@@ -31,7 +31,8 @@ import {
   FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -127,40 +128,27 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
     loadCompanies();
   }, [companyId, category, cascadeMode]);
 
-  // Fetch presigned preview URL when side panel document changes
+  // Build backend content proxy URL when side panel document changes
+  // Uses /content endpoint to stream bytes through our API (bypasses S3/B2 CORS)
   React.useEffect(() => {
     if (!sidePanelDocument?.id || !isSidePanelOpen) {
       setSidePanelPreviewUrl(null);
       return;
     }
 
-    let cancelled = false;
     setSidePanelPreviewLoading(true);
     setSidePanelPreviewError(null);
 
-    api.get<{ success: boolean; preview_url?: string; error?: string }>(
-      `/api/v1/company_documents/${sidePanelDocument.id}/preview`
-    ).then(response => {
-      if (cancelled) return;
-      if (response?.success && response.preview_url) {
-        setSidePanelPreviewUrl(response.preview_url);
-      } else {
-        setSidePanelPreviewError(response?.error || "Preview not available");
-        setSidePanelPreviewUrl(null);
-      }
-    }).catch((_error: unknown) => {
-      if (cancelled) return;
-      const errorMessage = _error instanceof Error ? _error.message : String(_error);
-      if (!errorMessage.includes("OneDrive credentials not available")) {
-        console.error("Failed to fetch preview URL:", _error);
-      }
+    try {
+      const contentUrl = `${getApiBaseUrl()}/api/v1/company_documents/${sidePanelDocument.id}/content`;
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      setSidePanelPreviewUrl(`${contentUrl}?token=${encodeURIComponent(token || "")}`);
+    } catch {
       setSidePanelPreviewError("Preview not available");
       setSidePanelPreviewUrl(null);
-    }).finally(() => {
-      if (!cancelled) setSidePanelPreviewLoading(false);
-    });
-
-    return () => { cancelled = true; };
+    } finally {
+      setSidePanelPreviewLoading(false);
+    }
   }, [sidePanelDocument?.id, isSidePanelOpen]);
 
   const loadCompanies = async () => {

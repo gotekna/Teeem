@@ -68,17 +68,11 @@ import { StatCard } from "@/components/ui/stat-card";
 import { api } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
 import { formatDate, formatCurrency, formatCurrencyCompact } from "@/utils/formatters";
+import type { Company } from "@/lib/types";
 
 // ============================================================================
 // Types
 // ============================================================================
-
-interface Company {
-  id: number;
-  name: string;
-  entity_type: string;
-  xero_connected: boolean;
-}
 
 interface DashboardSummary {
   revenue: number;

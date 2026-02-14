@@ -95,20 +95,7 @@ import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
 import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice, isNumericColumn, isBooleanColumn } from "@/lib/constants/column-types";
-
-// Column interface for view manager
-interface Column {
-  id: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  position?: number;
-  lookup_foundation_id?: number;
-  lookup_foundation_slug?: string;  // SSoT: Use slug for API calls (portable across environments)
-  lookup_display_column?: string;
-  available_choices?: { id: number; value: string }[] | string[];
-  searchable?: boolean;
-}
+import type { ApiColumn as Column } from "@/lib/types";
 
 interface ViewManagerSheetProps {
   open: boolean;

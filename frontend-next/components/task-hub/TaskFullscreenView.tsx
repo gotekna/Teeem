@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
+import type { User } from '@/lib/types';
 import { copyToClipboard } from '@/utils/formatters';
 import { generateSimpleSignature } from '@/lib/email-signature';
 import { UI_ANIMATION_STANDARD_MS, MODAL_RESET_DELAY_MS } from '@/lib/constants/timeout-constants';
@@ -100,7 +101,7 @@ import {
   Target,
   Trash2,
   Upload,
-  User,
+  User as UserIcon,
   Users,
   X,
   RefreshCw,
@@ -141,11 +142,6 @@ const statusColors = {
   supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
   completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
-
-interface User {
-  id: number;
-  name: string;
-}
 
 // Suggested email from the suggested_emails endpoint
 interface SuggestedEmail {
@@ -5284,7 +5280,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                <User className="h-3 w-3" />
+                                <UserIcon className="h-3 w-3" />
                                 <span className="font-medium">{note.user.name}</span>
                                 <span>·</span>
                                 <span>{format(new Date(note.created_at), 'dd MMM yyyy h:mm a')}</span>
@@ -6422,7 +6418,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         disabled={client.emails.length === 0}
                                       >
-                                        <User className="h-3 w-3 mr-1" />
+                                        <UserIcon className="h-3 w-3 mr-1" />
                                         {client.name}
                                         {linkedCount > 0 && (
                                           <Badge variant="default" className="ml-1 h-4 px-1 text-[10px] bg-green-600">

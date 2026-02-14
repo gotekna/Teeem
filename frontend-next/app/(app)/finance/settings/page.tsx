@@ -44,6 +44,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
+import type { User } from "@/lib/types";
 
 interface CompanyApprovalRule {
   id: number;
@@ -69,13 +70,6 @@ interface Corporate {
   id: number;
   name: string;
   code: string;
-}
-
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string;
 }
 
 const ruleTypeLabels: Record<string, string> = {
@@ -490,7 +484,7 @@ export default function FinanceSettingsPage() {
                   <SelectContent>
                     {users.map((user) => (
                       <SelectItem key={user.id} value={user.id.toString()}>
-                        {user.first_name} {user.last_name}
+                        {user.name || `${user.first_name || ''} ${user.last_name || ''}`.trim()}
                       </SelectItem>
                     ))}
                   </SelectContent>

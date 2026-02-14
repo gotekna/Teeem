@@ -25,16 +25,9 @@ import { WordViewer, WordViewerLoading, WordViewerError, type WordData } from "@
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import ClassificationPanel from "@/components/documents/ClassificationPanel";
-import type { ClassificationData, ClassificationDocumentType } from "@/lib/types/classification-types";
+import type { ClassificationData, ClassificationDocumentType, ClassificationCompany as Company } from "@/lib/types/classification-types";
 
 // ── Local Types ──
-
-interface Company {
-  id: number;
-  name: string;
-  code?: string;
-  bas_frequency?: "quarterly" | "monthly";
-}
 
 interface CompanyDocument {
   id: number | string;

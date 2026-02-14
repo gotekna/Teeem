@@ -18,7 +18,7 @@ import {
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Building2,
-  User,
+  User as UserIcon,
   Users,
   DollarSign,
   Wrench,
@@ -48,7 +48,7 @@ import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
-import type { JobType, JobStatus, JobStage } from '@/lib/types';
+import type { JobType, JobStatus, JobStage, Contact, User } from '@/lib/types';
 
 interface SuburbSearchResult {
   id: number;
@@ -82,22 +82,6 @@ interface JobFormData {
   contract_value: string;
   latitude: number | null;
   longitude: number | null;
-}
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  company_name?: string;
-  email?: string;
-  mobile_phone?: string;
-  employer_name?: string; // Company name for person contacts (company-aware search)
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role_names?: string[];
 }
 
 interface PeopleFormData {
@@ -1320,7 +1304,7 @@ export default function NewJobPage() {
                 {/* Referral & Sales */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4 text-green-500 dark:text-green-400" />
+                    <UserIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
                     Referral & Sales
                   </h3>
                   <div className="space-y-2">

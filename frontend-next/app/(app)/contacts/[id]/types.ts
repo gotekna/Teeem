@@ -449,6 +449,12 @@ export interface Contact {
   // Supplier team configuration (for auto-calculating task duration)
   team_size?: number | null;
   daily_rate_per_person?: number | null;
+  // Company-aware contact search - company name for person contacts
+  employer_name?: string; // Alias for primary_company?.name in search results
+  // Phone alias for backwards compatibility
+  phone?: string; // Generic phone alias (usually mobile_phone)
+  // Completeness score for data quality
+  completeness_score?: number | null;
 }
 
 // Helper function types

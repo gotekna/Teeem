@@ -57,6 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { User } from "@/lib/types";
 
 /**
  * Roles & Permissions Page - Organization Settings
@@ -84,13 +85,6 @@ const DEFAULT_TAB = "permissions";
 // ============================================
 // Types
 // ============================================
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-}
 
 interface Permission {
   id: number;
@@ -247,7 +241,7 @@ function PermissionsSubTab() {
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+      user.role?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {

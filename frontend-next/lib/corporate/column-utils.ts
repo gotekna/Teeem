@@ -13,24 +13,12 @@ import {
   isSystemGeneratedType,
   isVisibleSystemColumn,
 } from "@/lib/constants/system-columns";
+import type { ApiColumn } from "@/lib/types";
+export type { ApiColumn };
 
 // =============================================================================
 // Types
 // =============================================================================
-
-export interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  header_align?: string;
-  data_align?: string;
-}
 
 export interface ColumnTypeDefault {
   width: number;
@@ -209,7 +197,7 @@ export function convertColumnsToTEEEMFormat(
       showSum: defaults.showSum,
       sumType: defaults.sumType as "currency" | "number" | "percentage" | undefined,
       tooltip: col.description || `${col.column_type} column`,
-      choices: col.available_choices,
+      choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
       editable: !isSystemColumn,
       system: isSystemColumn,
       // SSoT: Lookup configuration from Foundation API
