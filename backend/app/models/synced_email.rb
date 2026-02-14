@@ -1002,6 +1002,11 @@ class SyncedEmail < ApplicationRecord
   # SSoT: Wasabi is THE ONE storage for attachments. No fallbacks.
   # Per-attachment dedup (line-by-line) ensures missing ones get synced
   # even if some already exist.
+  #
+  # FRC (Feb 2026): Legacy fields (microsoft_credential_id, outlook_id, mailbox_owner_email)
+  # are set by the FIRST sync and never updated. For emails in "decommissioned" mailboxes
+  # (e.g., lyw.org.au), the legacy credential may 404. We now fall back to
+  # SyncedEmailMailbox appearances which may have a working credential+outlook_id pair.
   def sync_attachments!(force: false)
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
@@ -1009,18 +1014,37 @@ class SyncedEmail < ApplicationRecord
     # SSoT: Try linking existing attachments first (don't re-download)
     link_existing_attachments!
 
-    unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
-      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
+    # Build ordered list of credential+mailbox+outlook_id combinations to try
+    credential_attempts = build_credential_attempts
+    if credential_attempts.empty?
+      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no credential/outlook_id available"
       return
     end
 
-    cred = MicrosoftCredential.find_by(id: microsoft_credential_id)
-    return unless cred
+    # Try each credential combination until one succeeds
+    attachments = nil
+    used_mailbox = nil
+    credential_attempts.each do |attempt|
+      cred = MicrosoftCredential.find_by(id: attempt[:credential_id])
+      next unless cred&.status == "connected"
 
-    client = MicrosoftAppGraphClient.new(cred)
-    attachments = client.get_email_attachments(mailbox_owner_email, outlook_id)
+      begin
+        client = MicrosoftAppGraphClient.new(cred)
+        attachments = client.get_email_attachments(attempt[:mailbox], attempt[:outlook_id])
+        used_mailbox = attempt[:mailbox]
+        break # Success
+      rescue Microsoft::BaseClient::ApiError => e
+        if e.message.include?("404")
+          Rails.logger.debug "[SyncedEmail] 404 for email #{id} via cred #{attempt[:credential_id]} / #{attempt[:mailbox]} - trying next"
+          next
+        end
+        raise # Re-raise non-404 errors (auth failures, rate limits, etc.)
+      end
+    end
 
-    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id}"
+    return unless attachments&.any?
+
+    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id} (via #{used_mailbox})"
 
     attachments.each do |att|
       next if att["contentBytes"].blank?
@@ -1060,7 +1084,7 @@ class SyncedEmail < ApplicationRecord
           "synced_email_id" => id.to_s,
           "content_id" => content_id,
           "outlook_attachment_id" => graph_attachment_id,
-          "mailbox" => mailbox_owner_email
+          "mailbox" => used_mailbox
         }.compact
       )
 
@@ -1075,6 +1099,33 @@ class SyncedEmail < ApplicationRecord
   end
 
   private
+
+  # Build ordered list of credential+mailbox+outlook_id combinations for attachment sync.
+  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances (SSoT join table).
+  # FRC (Feb 2026): Legacy fields are set by FIRST sync and never updated. For emails originally
+  # synced via a credential that can no longer access the mailbox (e.g., different Azure AD tenant),
+  # the join table may have an alternative appearance with a working credential.
+  def build_credential_attempts
+    attempts = []
+
+    # 1) Legacy fields (backward compat, fastest path for the 90% case)
+    if microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
+      attempts << { credential_id: microsoft_credential_id, mailbox: mailbox_owner_email, outlook_id: outlook_id }
+    end
+
+    # 2) All mailbox appearances with M365 credentials (the SSoT join table)
+    mailbox_appearances.where.not(microsoft_credential_id: nil).where.not(outlook_id: [nil, ""]).each do |appearance|
+      key = [appearance.microsoft_credential_id, appearance.outlook_id]
+      next if attempts.any? { |a| [a[:credential_id], a[:outlook_id]] == key }
+      attempts << {
+        credential_id: appearance.microsoft_credential_id,
+        mailbox: appearance.mailbox_owner_email,
+        outlook_id: appearance.outlook_id
+      }
+    end
+
+    attempts
+  end
 
   # SSoT: Normalize all email addresses to lowercase before saving
   # This ensures case-insensitive matching works with simple equality checks

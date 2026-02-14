@@ -51,16 +51,29 @@ namespace :email do
                                               .compact
                                               .map(&:to_i)
 
-          missing_count = SyncedEmail.where(has_attachments: true)
-                                     .where.not(id: emails_with_docs)
-                                     .where.not(outlook_id: [nil, ""])
-                                     .where.not(mailbox_owner_email: [nil, ""])
-                                     .count
+          # Count emails reachable via legacy fields
+          missing_via_legacy = SyncedEmail.where(has_attachments: true)
+                                          .where.not(id: emails_with_docs)
+                                          .where.not(microsoft_credential_id: nil)
+                                          .count
+
+          # Count emails reachable via SyncedEmailMailbox join table only
+          join_table_email_ids = SyncedEmailMailbox.where.not(microsoft_credential_id: nil)
+                                                   .where.not(outlook_id: [nil, ""])
+                                                   .select(:synced_email_id)
+          missing_via_join = SyncedEmail.where(has_attachments: true)
+                                        .where.not(id: emails_with_docs)
+                                        .where(microsoft_credential_id: nil)
+                                        .where(id: join_table_email_ids)
+                                        .count
+          missing_count = missing_via_legacy + missing_via_join
 
           puts "Total emails with has_attachments=true:  #{total_with_attachments}"
           puts "Total attachment docs in warehouse:      #{total_attachment_docs}"
           puts "Emails with docs linked:                 #{emails_with_docs.count}"
           puts "Emails MISSING attachment docs:          #{missing_count}"
+          puts "  Via legacy credential:                 #{missing_via_legacy}"
+          puts "  Via join table only:                   #{missing_via_join}" if missing_via_join > 0
 
           # Folder path check
           bad_paths = WarehouseDocument.where(source_type: "email_attachment")
@@ -187,11 +200,16 @@ namespace :email do
                                               .compact
                                               .map(&:to_i)
 
+          # FRC (Feb 2026): Include emails that have credentials via SyncedEmailMailbox join table,
+          # not just via legacy SyncedEmail fields. This catches emails from "decommissioned" mailboxes
+          # where the legacy credential may 404 but a join table appearance has a working one.
           scope = SyncedEmail.where(has_attachments: true)
                              .where.not(id: emails_with_docs)
-                             .where.not(outlook_id: [nil, ""])
-                             .where.not(mailbox_owner_email: [nil, ""])
-                             .where.not(microsoft_credential_id: nil)
+                             .where(
+                               "microsoft_credential_id IS NOT NULL OR id IN (" \
+                               "SELECT synced_email_id FROM synced_email_mailboxes " \
+                               "WHERE microsoft_credential_id IS NOT NULL AND outlook_id IS NOT NULL AND outlook_id != '')"
+                             )
                              .order(received_at: :desc) # Most recent first
 
           scope = scope.where(mailbox_owner_email: mailbox_filter) if mailbox_filter
@@ -210,7 +228,6 @@ namespace :email do
           puts ""
 
           stats = { synced: 0, skipped: 0, errors: [], attachment_count: 0 }
-          credential_cache = {}
 
           scope.limit(batch_size).find_each.with_index do |email, i|
             if dry_run
@@ -220,18 +237,10 @@ namespace :email do
             end
 
             begin
-              # Cache credential lookups
-              cred = credential_cache[email.microsoft_credential_id] ||=
-                MicrosoftCredential.find_by(id: email.microsoft_credential_id)
-
-              unless cred&.status == "connected"
-                stats[:skipped] += 1
-                print "S"
-                next
-              end
-
+              # sync_attachments! now handles multi-credential resolution internally
+              # (tries legacy fields first, then SyncedEmailMailbox join table)
               before_count = email.attachment_documents.count
-              email.send(:"sync_attachments!")
+              email.sync_attachments!
               after_count = email.attachment_documents.reload.count
               new_attachments = after_count - before_count
 
