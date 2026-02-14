@@ -980,7 +980,7 @@ class SyncedEmail < ApplicationRecord
         storage_blob: src_doc.storage_blob,
         file_size: src_doc.file_size,
         content_type: src_doc.content_type,
-        metadata: { "synced_email_id" => id.to_s }
+        metadata: { "synced_email_id" => id.to_s, "mailbox" => mailbox_owner_email }.compact
       )
 
       src_doc.storage_blob&.increment!(:reference_count)
