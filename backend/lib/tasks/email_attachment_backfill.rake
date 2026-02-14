@@ -57,23 +57,36 @@ namespace :email do
                                           .where.not(microsoft_credential_id: nil)
                                           .count
 
-          # Count emails reachable via SyncedEmailMailbox join table only
-          join_table_email_ids = SyncedEmailMailbox.where.not(microsoft_credential_id: nil)
-                                                   .where.not(outlook_id: [nil, ""])
-                                                   .select(:synced_email_id)
-          missing_via_join = SyncedEmail.where(has_attachments: true)
+          # Count emails reachable via SyncedEmailMailbox join table (M365)
+          graph_join_ids = SyncedEmailMailbox.where.not(microsoft_credential_id: nil)
+                                             .where.not(outlook_id: [nil, ""])
+                                             .select(:synced_email_id)
+          missing_via_graph_join = SyncedEmail.where(has_attachments: true)
+                                              .where.not(id: emails_with_docs)
+                                              .where(microsoft_credential_id: nil)
+                                              .where(id: graph_join_ids)
+                                              .count
+
+          # Count emails reachable via IMAP only (no M365 credential at all)
+          imap_join_ids = SyncedEmailMailbox.where.not(imap_credential_id: nil)
+                                            .where.not(uid: nil)
+                                            .select(:synced_email_id)
+          missing_via_imap = SyncedEmail.where(has_attachments: true)
                                         .where.not(id: emails_with_docs)
                                         .where(microsoft_credential_id: nil)
-                                        .where(id: join_table_email_ids)
+                                        .where.not(id: graph_join_ids)
+                                        .where(id: imap_join_ids)
                                         .count
-          missing_count = missing_via_legacy + missing_via_join
+
+          missing_count = missing_via_legacy + missing_via_graph_join + missing_via_imap
 
           puts "Total emails with has_attachments=true:  #{total_with_attachments}"
           puts "Total attachment docs in warehouse:      #{total_attachment_docs}"
           puts "Emails with docs linked:                 #{emails_with_docs.count}"
           puts "Emails MISSING attachment docs:          #{missing_count}"
-          puts "  Via legacy credential:                 #{missing_via_legacy}"
-          puts "  Via join table only:                   #{missing_via_join}" if missing_via_join > 0
+          puts "  Via legacy M365 credential:            #{missing_via_legacy}"
+          puts "  Via M365 join table:                   #{missing_via_graph_join}" if missing_via_graph_join > 0
+          puts "  Via IMAP:                              #{missing_via_imap}" if missing_via_imap > 0
 
           # Folder path check
           bad_paths = WarehouseDocument.where(source_type: "email_attachment")
@@ -200,15 +213,17 @@ namespace :email do
                                               .compact
                                               .map(&:to_i)
 
-          # FRC (Feb 2026): Include emails that have credentials via SyncedEmailMailbox join table,
-          # not just via legacy SyncedEmail fields. This catches emails from "decommissioned" mailboxes
-          # where the legacy credential may 404 but a join table appearance has a working one.
+          # FRC (Feb 2026): Include emails reachable via ANY credential path:
+          # 1) Legacy microsoft_credential_id on SyncedEmail
+          # 2) SyncedEmailMailbox with M365 credentials (multi-tenant fallback)
+          # 3) SyncedEmailMailbox with IMAP credentials (Gmail, Webcentral, etc.)
           scope = SyncedEmail.where(has_attachments: true)
                              .where.not(id: emails_with_docs)
                              .where(
                                "microsoft_credential_id IS NOT NULL OR id IN (" \
                                "SELECT synced_email_id FROM synced_email_mailboxes " \
-                               "WHERE microsoft_credential_id IS NOT NULL AND outlook_id IS NOT NULL AND outlook_id != '')"
+                               "WHERE (microsoft_credential_id IS NOT NULL AND outlook_id IS NOT NULL AND outlook_id != '') " \
+                               "OR (imap_credential_id IS NOT NULL AND uid IS NOT NULL))"
                              )
                              .order(received_at: :desc) # Most recent first
 
