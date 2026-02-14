@@ -1780,7 +1780,7 @@ module Api
         # Note: :corporate_group removed - Contact uses :company_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
-           :contact_groups, :portal_user]
+           :contact_groups, :portal_user, primary_company: [:contact_emails, :contact_phones]]
         else
           []
         end

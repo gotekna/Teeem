@@ -203,7 +203,7 @@ class SendNameResolver
         context[:person_name] ||= linkable.display_name
         context[:contact_name] ||= linkable.display_name
       when Corporate
-        context[:company_code] ||= linkable.company_code || linkable&.code
+        context[:company_code] ||= linkable.company_code || linkable.try(:code)
         context[:company_name] ||= linkable.name
         context[:company_group] ||= linkable.company_group&.name
       end
@@ -219,8 +219,8 @@ class SendNameResolver
     wfdt = warehouse_document.warehouse_folder_document_type
     if wfdt&.document_type
       context[:doc_type_name] ||= wfdt.document_type.name
-      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type&.code
-      context[:category] ||= wfdt.document_type&.category
+      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
+      context[:category] ||= wfdt.document_type.try(:category)
     end
     # Metadata fallback for doc type
     context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
@@ -273,7 +273,7 @@ class SendNameResolver
     # Company context
     if documentable.respond_to?(:corporate) && documentable.corporate
       company = documentable.corporate
-      context[:company_code] = company.company_code || company.code
+      context[:company_code] = company.company_code || company.try(:code)
       context[:company_name] = company.name
       context[:company_group] = company.company_group&.name  # SSoT: use association
     end
@@ -283,8 +283,8 @@ class SendNameResolver
     doc_type_record = documentable&.document_type_record
     if doc_type_record
       context[:doc_type_name] = doc_type_record.name
-      context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record&.code
-      context[:category] = doc_type_record.category
+      context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record.try(:code)
+      context[:category] = doc_type_record.try(:category)
     end
 
     # User context

@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useUrlState } from "@/hooks/useUrlState";
 import {
   CloudArrowUpIcon,
@@ -34,6 +33,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
 
 interface PreviewData {
+  success?: boolean;
   file_name: string;
   headers: string[];
   rows: string[][];
@@ -126,22 +126,12 @@ export default function ImportPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      // SSoT: Using storage-utils for localStorage operations
-      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
-      const response = await fetch(
-        `${getApiBaseUrl()}/api/v1/imports/preview`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        }
+      const data = await api.post<PreviewData>(
+        "/api/v1/imports/preview",
+        formData
       );
 
-      const data = await response.json();
-
-      if (data.success) {
+      if (data?.success) {
         setPreviewData(data);
         setTableName(file.name.replace(/\.(csv|xlsx|xls)$/i, ""));
         setColumnMappings(
@@ -153,7 +143,7 @@ export default function ImportPage() {
         );
         setStep("preview");
       } else {
-        throw new Error(data.error || "Failed to parse file");
+        throw new Error("Failed to parse file");
       }
     } catch (err) {
       console.error("Upload failed:", err);

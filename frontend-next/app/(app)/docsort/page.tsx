@@ -39,7 +39,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import ClassificationPanel from "@/components/documents/ClassificationPanel";
@@ -368,24 +367,18 @@ export default function DocsortPage() {
       const formData = new FormData();
       files.forEach((file) => formData.append("files[]", file));
 
-      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/document_inboxes`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      const data = await api.post<{ items?: any[]; errors?: Array<{ error: string }> }>(
+        "/api/v1/document_inboxes",
+        formData
+      );
 
-      const data = await response.json();
-
-      if (data.items?.length > 0) {
+      if (data?.items?.length && data.items.length > 0) {
         toast({
           title: "Files uploaded",
           description: `${data.items.length} file(s) uploaded and queued for classification`,
         });
         loadData(); // Refresh list
-      } else if (data.errors?.length > 0) {
+      } else if (data?.errors?.length && data.errors.length > 0) {
         toast({
           title: "Upload failed",
           description: data.errors.map((e: any) => e.error).join(", "),

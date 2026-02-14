@@ -189,6 +189,7 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => handleCopy(company.corporate_key!, company.id, "corporate_key")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy corporate key"
                         >
                           {copiedField === `${company.id}-corporate_key` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -208,6 +209,7 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => handleCopy(company.asic_username!, company.id, "username")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy username"
                         >
                           {copiedField === `${company.id}-username` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -229,12 +231,14 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => togglePassword(company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label={showPasswords[`${company.id}-password`] ? "Hide password" : "Show password"}
                         >
                           {showPasswords[`${company.id}-password`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
                           onClick={() => handleCopy(company.asic_password!, company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy password"
                         >
                           {copiedField === `${company.id}-password` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -259,12 +263,14 @@ export default function AsicLoginsPage() {
                             <button
                               onClick={() => togglePassword(company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
+                              aria-label={showPasswords[`${company.id}-recovery`] ? "Hide recovery answer" : "Show recovery answer"}
                             >
                               {showPasswords[`${company.id}-recovery`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                             <button
                               onClick={() => handleCopy(company.recovery_answer!, company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
+                              aria-label="Copy recovery answer"
                             >
                               {copiedField === `${company.id}-recovery` ? (
                                 <Check className="h-4 w-4 text-green-500 dark:text-green-400" />

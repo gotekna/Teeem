@@ -67,6 +67,7 @@ import {
   reorderByPosition,
   DragHandle,
   ItemBadge,
+  type ItemBadgeColor,
 } from "@/components/ui/dnd";
 import {
   ChevronDown,
@@ -631,9 +632,9 @@ export function WarehouseFoldersConfig({
 
     const fetchDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: any[] }>('/api/v1/document_types');
+        const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name: string }> }>('/api/v1/document_types');
         if (response?.success && Array.isArray(response.data)) {
-          setAllDocumentTypes(response.data.map((dt: any) => ({
+          setAllDocumentTypes(response.data.map((dt) => ({
             id: dt.id,
             name: dt.name,
             display_name: dt.display_name,
@@ -927,7 +928,7 @@ export function WarehouseFoldersConfig({
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
       warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
-      document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
+      document_type_ids: tab.document_types?.map((dt) => dt.id) || [],
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
       is_system: tab.is_system || false,  // SSoT: System lock
@@ -1060,9 +1061,9 @@ export function WarehouseFoldersConfig({
         toast.success("Tab created");
         setDialogOpen(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save tab:", err);
-      toast.error(err?.message || "Failed to save tab");
+      toast.error(err instanceof Error ? err.message : "Failed to save tab");
     } finally {
       setSaving(false);
     }
@@ -2136,7 +2137,7 @@ export function WarehouseFoldersConfig({
                           key={config.id}
                           id={config.id}
                           position={index + 2}
-                          badgeColor={config.color as any}
+                          badgeColor={config.color as ItemBadgeColor}
                           variant="card"
                           className="border rounded"
                         >

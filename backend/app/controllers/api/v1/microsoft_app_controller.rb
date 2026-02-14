@@ -50,8 +50,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
           tenant_id: credential.azure_tenant_id,  # FRC: Return Azure AD tenant ID, not internal FK
           admin_consent_granted_at: credential.admin_consent_granted_at,
           admin_consent_granted_by: credential.admin_consent_granted_by,
-          last_sync_at: credential&.last_sync_at || credential&.last_synced_at,
-          last_error: credential&.last_error || credential&.error_message,
+          last_sync_at: credential.last_sync_at,
+          last_error: credential.error_message,
           token_valid: !credential.token_expired?
           # NOTE (Feb 2026): docsort_mailbox MOVED to TenantSettings (SSoT)
         }
@@ -118,7 +118,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
           token_expires_at: cred.token_expires_at,
           consecutive_failures: cred&.consecutive_failures || 0,
           last_refresh_attempt_at: cred&.last_refresh_attempt_at,
-          last_error: cred&.last_error || cred&.error_message,
+          last_error: cred.error_message,
           self_healing_available: true # App credentials can auto-heal
         }
       end
@@ -628,7 +628,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     org_id = params[:organization_id] || params[:id]
     org_name = params[:name]
 
-    Rails.logger.info "[MicrosoftApp] Disconnect called - org_id: #{org_id}, org_name: #{org_name}, all params: #{params.to_unsafe_h}"
+    Rails.logger.info "[MicrosoftApp] Disconnect called - org_id: #{org_id}, org_name: #{org_name}, params_keys: #{filtered_params_for_logging.keys}"
 
     # FRC (Feb 2026): For disconnect, we need to find credentials REGARDLESS of status.
     # The normal find_credential_with_org_context excludes "dead" credentials, but you
@@ -1321,5 +1321,15 @@ class Api::V1::MicrosoftAppController < ApplicationController
       redirect_uri: redirect_uri,
       state: state
     })
+  end
+
+  # Filter sensitive params from logs
+  # Excludes tokens, secrets, passwords, credentials to prevent log leakage
+  def filtered_params_for_logging
+    sensitive_keys = %w[
+      access_token refresh_token token client_secret password credential
+      credentials api_key secret authorization bearer
+    ]
+    params.to_h.except(*sensitive_keys)
   end
 end

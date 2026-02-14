@@ -60,7 +60,7 @@ module PlanIdentification
       Rails.logger.info "[PlanIdentificationService] Starting identification for page #{page_number}"
 
       # Check for "All Plans" combined PDF by filename (early exit with 100% confidence)
-      filename = processable&.file_name || processable&.current_revision&.file_name
+      filename = processable.try(:file_name) || processable&.current_revision&.file_name
       if combined_pdf_filename?(filename)
         return build_combined_pdf_result(filename)
       end

@@ -1034,18 +1034,11 @@ export default function TeeemPowerPointPage() {
         const formData = new FormData();
         formData.append("file", pptxBlob, `${name}.pptx`);
 
-        // Send to backend - use fetch since api.post doesn't handle FormData well
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/teeem_presentations/${presentation.id}/save_to_warehouse`,
-          {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-          }
+        // Send to backend - api utility auto-detects FormData
+        await api.post(
+          `/api/v1/teeem_presentations/${presentation.id}/save_to_warehouse`,
+          formData
         );
-
-        if (!response.ok) {
-        }
       } catch (warehouseError) {
         // Don't fail the whole save - database save succeeded
       }

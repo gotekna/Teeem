@@ -367,6 +367,7 @@ export function PdfFieldsTab() {
         addDebugLog(`Loading preview: ${selectedTemplate}, job=${selectedJob.id}`);
       }
 
+      // Use raw fetch for blob response (PDF binary data)
       const response = await fetch(url, {
         method: showBlankTemplate ? "GET" : "POST",
         headers: {

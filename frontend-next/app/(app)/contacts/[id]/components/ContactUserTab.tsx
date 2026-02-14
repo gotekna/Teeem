@@ -2,7 +2,6 @@
 
 import React, { useCallback, useState, useEffect, useRef } from "react";
 import { api } from "@/lib/api";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -190,15 +189,7 @@ export function ContactUserTab({
         const formData = new FormData();
         formData.append("user[photo]", file);
 
-        const token = getStorageItem(STORAGE_KEYS.TOKEN, "", false);
-        const response = await fetch(`/api/v1/users/${details.id}`, {
-          method: "PATCH",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-        const data = await response.json();
+        const data = await api.patch<{ success: boolean }>(`/api/v1/users/${details.id}`, formData);
 
         if (data?.success) {
           // Reload to get new photo URL

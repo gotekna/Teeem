@@ -415,7 +415,7 @@ export default function ProfileSettingsPage() {
                 {signaturePreview || signatureUrl ? (
                   <img
                     src={signaturePreview || signatureUrl || ""}
-                    alt="Signature"
+                    alt="Digital signature preview"
                     className="max-w-full max-h-full object-contain"
                   />
                 ) : (

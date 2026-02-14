@@ -366,7 +366,7 @@ export default function TeeemPdfPage() {
     }
   };
 
-  // Download current PDF
+  // Download current PDF (blob URL - keep using fetch for local blob URLs)
   const handleDownload = async () => {
     if (!pdfUrl) return;
 

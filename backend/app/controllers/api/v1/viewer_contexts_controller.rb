@@ -26,8 +26,7 @@ module Api
       # @param context [Hash] The viewer context (files, Q&A, etc.)
       # @return [Hash] { id: "abc123" }
       def create
-        context = params.permit!.to_h.except(:controller, :action, :viewer_context)
-        context = params[:context].permit!.to_h if params[:context].present?
+        context = viewer_context_params
 
         # Generate short ID
         id = SecureRandom.urlsafe_base64(6) # 8 chars
@@ -58,6 +57,28 @@ module Api
       rescue => e
         Rails.logger.error "[ViewerContexts#show] Error: #{e.message}"
         render_error("Failed to retrieve context", status: :internal_server_error)
+      end
+
+      private
+
+      # Strong parameters for viewer context
+      # Viewer context contains: files array, qa_pairs array, current_file_index
+      def viewer_context_params
+        if params[:context].present?
+          # Nested under :context key
+          params.require(:context).permit(
+            :current_file_index,
+            files: [:url, :name, :type],
+            qa_pairs: [:question, :answer, :timestamp]
+          )
+        else
+          # Direct params (backwards compatibility)
+          params.permit(
+            :current_file_index,
+            files: [:url, :name, :type],
+            qa_pairs: [:question, :answer, :timestamp]
+          )
+        end
       end
     end
   end

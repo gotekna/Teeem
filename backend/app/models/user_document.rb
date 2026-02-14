@@ -195,7 +195,7 @@ class UserDocument < ApplicationRecord
       SubTabName: warehouse_folder&.parent&.display_name,
 
       # DocumentType tokens
-      DocTypeCode: document_type&.code,
+      DocTypeCode: document_type.try(:code),
       DocTypeName: document_type&.name,
       Folder: document_type&.folder,
 

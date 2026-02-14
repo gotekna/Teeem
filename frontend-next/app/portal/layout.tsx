@@ -78,6 +78,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="text-muted-foreground hover:text-foreground dark:text-muted-foreground dark:hover:text-muted-foreground"
+              aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             >
               {mobileMenuOpen ? (
                 <XMarkIcon className="h-6 w-6" />

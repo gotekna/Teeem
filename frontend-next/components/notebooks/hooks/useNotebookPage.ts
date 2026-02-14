@@ -371,18 +371,16 @@ export const attachmentActions = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`/api/v1/notebook_pages/${pageId}/attachments`, {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
+    const response = await api.post<{ attachment: NotebookPageAttachment }>(
+      `/api/v1/notebook_pages/${pageId}/attachments`,
+      formData
+    );
 
-    if (!response.ok) {
+    if (!response?.attachment) {
       throw new Error("Failed to upload attachment");
     }
 
-    const data = await response.json();
-    return data.attachment;
+    return response.attachment;
   },
 
   async delete(attachmentId: number): Promise<void> {
