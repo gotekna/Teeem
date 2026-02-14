@@ -285,7 +285,7 @@ module Bpmn
           User.find_by(id: var_value)
         when "subject_field"
           field = config["assignee_value"]
-          instance.subject.try(field)
+          instance.subject&.send(field)
         else
           nil
         end

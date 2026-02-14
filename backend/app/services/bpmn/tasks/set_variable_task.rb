@@ -27,7 +27,7 @@ module Bpmn
           when "static"
             value_config["value"]
           when "subject_field"
-            @subject.try(value_config["field"])
+            @subject&.send(value_config["field"])
           when "expression"
             evaluate_expression(value_config["value"])
           when "current_time"

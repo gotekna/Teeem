@@ -90,6 +90,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 interface ColumnType {
   columnName: string;
@@ -818,14 +819,14 @@ function GoldStandardDataTab() {
               <Input
                 id={col.column_name}
                 type="color"
-                value={String(value || "#000000")}
+                value={String(value || COLORS.black)}
                 onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
                 className="w-16 h-10 p-1"
               />
               <Input
                 value={String(value || "")}
                 onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
-                placeholder="#000000"
+                placeholder={COLORS.black}
                 className="flex-1"
               />
             </div>
@@ -2090,13 +2091,13 @@ interface SetupItem {
 
 function SetupTableDemo() {
   const [items, setItems] = React.useState<SetupItem[]>([
-    { id: 1, name: "House", color: "#3b82f6", active: true },
-    { id: 2, name: "Duplex", color: "#3b82f6", active: true },
-    { id: 3, name: "Townhouse", color: "#3b82f6", active: true },
-    { id: 4, name: "Micro Apartment", color: "#3b82f6", active: true },
-    { id: 5, name: "Co Living", color: "#3b82f6", active: true },
-    { id: 6, name: "NDIS House", color: "#3b82f6", active: true },
-    { id: 7, name: "NDIS Units", color: "#3b82f6", active: false },
+    { id: 1, name: "House", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 2, name: "Duplex", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 3, name: "Townhouse", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 4, name: "Micro Apartment", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 5, name: "Co Living", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 6, name: "NDIS House", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 7, name: "NDIS Units", color: TAILWIND_COLORS.blue[500], active: false },
   ]);
 
   const [editingItem, setEditingItem] = React.useState<SetupItem | null>(null);
@@ -2112,7 +2113,7 @@ function SetupTableDemo() {
       const newItem: SetupItem = {
         id: Math.max(...items.map(i => i.id)) + 1,
         name: newItemName.trim(),
-        color: "#3b82f6",
+        color: TAILWIND_COLORS.blue[500],
         active: true,
       };
       setItems([...items, newItem]);

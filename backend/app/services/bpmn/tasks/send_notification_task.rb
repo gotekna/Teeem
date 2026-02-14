@@ -67,7 +67,7 @@ module Bpmn
           end
         when "subject_field"
           field = @config["recipient_field"]
-          user = @subject.try(field)
+          user = @subject&.send(field)
           recipients << user if user.is_a?(User)
         when "all_admins"
           recipients = User.with_role("admin").to_a

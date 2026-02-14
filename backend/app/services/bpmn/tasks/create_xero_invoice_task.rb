@@ -57,7 +57,7 @@ module Bpmn
         when "variable"
           @variables[@config["contact_variable"]]
         when "subject_field"
-          @subject.try(@config["contact_field"])&.xero_contact_id
+          @subject&.send(@config["contact_field"])&.xero_contact_id
         else
           @config["contact_id"]
         end
@@ -83,7 +83,7 @@ module Bpmn
           when "variable"
             @variables[amount_config["value"]].to_f
           when "subject_field"
-            @subject.try(amount_config["field"]).to_f
+            @subject&.send(amount_config["field"]).to_f
           else
             amount_config["value"].to_f
           end
