@@ -112,11 +112,18 @@ function parseEmlContent(content: string): {
       if (part.trim() === "" || part.trim() === "--") continue;
 
       // Parse this part's headers
+      // ⚠️ DO NOT SIMPLIFY - Leading empty line skip required (Feb 2026)
+      // After splitting by boundary, each part starts with \n (the newline
+      // right after "--boundary\n"). Without skipping, findIndex returns 0
+      // and all actual headers end up in the body instead.
       const partLines = part.split(/\r?\n/);
-      const partBodyStart = partLines.findIndex(l => l === "") + 1;
-      if (partBodyStart === 0) continue;
-      const partHeaderStr = partLines.slice(0, partBodyStart).join("\n");
-      const partBody = partLines.slice(partBodyStart).join("\n");
+      let firstNonEmpty = 0;
+      while (firstNonEmpty < partLines.length && partLines[firstNonEmpty] === "") firstNonEmpty++;
+      const trimmedLines = partLines.slice(firstNonEmpty);
+      const blankIdx = trimmedLines.findIndex(l => l === "");
+      if (blankIdx === -1) continue;
+      const partHeaderStr = trimmedLines.slice(0, blankIdx).join("\n");
+      const partBody = trimmedLines.slice(blankIdx + 1).join("\n");
 
       // Extract content-type for this part
       const ctMatch = partHeaderStr.match(/content-type:\s*([^\r\n;]+)/i);
