@@ -239,7 +239,6 @@ function processMimePart(
   const contentId = extractContentId(headers["content-id"]);
   const transferEncoding = (headers["content-transfer-encoding"] || "").toLowerCase();
 
-  console.log(`[EML Parser] Processing part - Type: ${contentType.substring(0, 50)}, CID: ${contentId || 'none'}, Encoding: ${transferEncoding || 'none'}`);
 
   // Handle nested multipart
   if (isMultipartContentType(contentType)) {
@@ -263,7 +262,6 @@ function processMimePart(
   } else if (isImageContentType(contentType)) {
     // Extract inline image
     if (!contentId) {
-      console.log(`[EML Parser] Found image (${contentType}) but NO Content-ID - skipping`);
     } else {
       const mimeType = contentType.split(";")[0].trim().toLowerCase();
       // Remove all whitespace from base64 data (line breaks, spaces, etc.)
@@ -276,9 +274,7 @@ function processMimePart(
         if (atIndex > 0) {
           cidMap[contentId.substring(0, atIndex)] = `data:${mimeType};base64,${imageData}`;
         }
-        console.log(`[EML Parser] Found inline image: ${contentId}, size: ${imageData.length}, type: ${mimeType}`);
       } else {
-        console.log(`[EML Parser] Found image with CID ${contentId} but body is empty`);
       }
     }
   }
@@ -298,7 +294,6 @@ function parseEmlContent(content: string): {
   body: string;
   isHtml: boolean;
 } {
-  console.log(`[EML Parser] Starting parse, content length: ${content.length}`);
 
   const { headers, body: rawBody } = parseMimePart(content);
   let body = rawBody;
@@ -306,17 +301,14 @@ function parseEmlContent(content: string): {
   const cidMap: Record<string, string> = {}; // Content-ID -> data URL
 
   const contentType = headers["content-type"] || "";
-  console.log(`[EML Parser] Top-level Content-Type: ${contentType}`);
 
   // Handle multipart messages
   if (isMultipartContentType(contentType)) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
-    console.log(`[EML Parser] Boundary match:`, boundaryMatch ? boundaryMatch[1] : 'NOT FOUND');
     if (boundaryMatch) {
       const boundary = boundaryMatch[1];
       const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const parts = rawBody.split(new RegExp(`--${escapedBoundary}`));
-      console.log(`[EML Parser] Found ${parts.length} parts`);
 
       let htmlPart = "";
       let textPart = "";
@@ -325,7 +317,6 @@ function parseEmlContent(content: string): {
         const part = parts[i];
         if (part.trim() === "" || part.trim() === "--") continue;
         // Log first 200 chars of each part to see what we're working with
-        console.log(`[EML Parser] Part ${i}: ${part.substring(0, 200).replace(/\n/g, '\\n')}`);
         const result = processMimePart(part, cidMap);
         if (result.htmlPart && !htmlPart) htmlPart = result.htmlPart;
         if (result.textPart && !textPart) textPart = result.textPart;
@@ -354,18 +345,15 @@ function parseEmlContent(content: string): {
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
     const httpRefs = allImgSrcs.filter(s => s.includes('http'));
     const dataRefs = allImgSrcs.filter(s => s.includes('data:'));
-    console.log(`[EML Parser] Image sources in HTML: ${allImgSrcs.length} total, ${cidRefs.length} cid:, ${httpRefs.length} http(s):, ${dataRefs.length} data:`);
     if (cidRefs.length > 0) console.log(`[EML Parser] cid: refs:`, cidRefs.slice(0, 5));
     if (httpRefs.length > 0) console.log(`[EML Parser] http refs:`, httpRefs.slice(0, 3));
   }
 
   // Replace cid: references with data URLs
   if (isHtml && Object.keys(cidMap).length > 0) {
-    console.log(`[EML Parser] Found ${Object.keys(cidMap).length} images to replace`);
 
     // First, find all cid: references in the HTML
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
-    console.log(`[EML Parser] Replacing ${cidRefs.length} cid: references`);
 
     for (const [cid, dataUrl] of Object.entries(cidMap)) {
       // Escape special regex characters in the cid
@@ -375,7 +363,6 @@ function parseEmlContent(content: string): {
       const before = body;
       body = body.replace(regex, `src="${dataUrl}"`);
       if (body !== before) {
-        console.log(`[EML Parser] Replaced cid:${cid}`);
       }
     }
 
@@ -390,7 +377,6 @@ function parseEmlContent(content: string): {
         for (const [cid, dataUrl] of Object.entries(cidMap)) {
           if (cid.startsWith(filename) || cid.toLowerCase().startsWith(filename.toLowerCase())) {
             body = body.replace(ref, `src="${dataUrl}"`);
-            console.log(`[EML Parser] Replaced cid:${filename} (matched ${cid})`);
             break;
           }
         }
@@ -405,7 +391,6 @@ function parseEmlContent(content: string): {
   // This happens when reply emails quote original messages with images that weren't included
   const unresolvedCids = body.match(/src=["']cid:[^"']+["']/gi) || [];
   if (unresolvedCids.length > 0) {
-    console.log(`[EML Parser] ${unresolvedCids.length} unresolved cid: images - replacing with placeholder`);
     // Replace with a 1x1 transparent gif and add a data attribute for styling
     body = body.replace(
       /(<img[^>]*)(src=["']cid:[^"']+["'])([^>]*>)/gi,
@@ -413,7 +398,6 @@ function parseEmlContent(content: string): {
     );
   }
 
-  console.log(`[EML Parser] Final result - isHtml: ${isHtml}, images found: ${Object.keys(cidMap).length}, body length: ${body.length}`);
 
   return {
     from: headers["from"] || "Unknown",
@@ -533,7 +517,6 @@ export function DocumentViewer({
   // - Pre-fetching: Next/prev files load in background for instant switching
   // - Memory management: Blob URLs cleaned up on unmount
   useEffect(() => {
-    console.log(`[DocumentViewer] PDF load - file: ${fileName}, type: ${fileType}, url: ${url ? url.substring(0, 80) + '...' : 'EMPTY'}`);
 
     if (fileType !== "pdf") {
       setPdfBlobUrl(null);
@@ -543,7 +526,6 @@ export function DocumentViewer({
 
     // Handle empty/missing URL - show error instead of black screen
     if (!url) {
-      console.warn(`[DocumentViewer] Empty URL for: ${fileName}`);
       setPdfBlobUrl(null);
       setPdfLoadProgress(0);
       setError("Document URL not available. The file may not be uploaded to storage yet.");
@@ -606,7 +588,6 @@ export function DocumentViewer({
         return blob;
       })
       .then(async blob => {
-        console.log(`[DocumentViewer] PDF loaded: ${fileName} (${blob.size} bytes)`);
 
         // Validate PDF content - detect corrupted/invalid files
         // Real PDFs start with %PDF magic bytes and are typically >500 bytes
@@ -627,7 +608,6 @@ export function DocumentViewer({
           return;
         }
 
-        console.log(`[DocumentViewer] PDF validated successfully: ${fileName}`);
         const blobUrl = URL.createObjectURL(blob);
         // Cache for instant navigation
         pdfBlobCacheRef.current.set(url, blobUrl);
@@ -641,7 +621,6 @@ export function DocumentViewer({
         // If we set pdfLoading=false here, it overwrites the new fetch's loading=true state,
         // causing a race condition that shows black screen instead of loading indicator.
         if (err.name === 'AbortError') {
-          console.log(`[DocumentViewer] Fetch aborted (user switched files): ${fileName}`);
           return;
         }
         console.error(`[DocumentViewer] PDF fetch failed for ${fileName}:`, err);
@@ -708,15 +687,12 @@ export function DocumentViewer({
     setEmlData(null);
     setError(null);
 
-    console.log(`[EML Viewer] Fetching EML from: ${url}`);
     fetch(url, { signal: controller.signal })
       .then(res => {
-        console.log(`[EML Viewer] Fetch response status: ${res.status}`);
         if (!res.ok) throw new Error("Failed to fetch email");
         return res.text();
       })
       .then(content => {
-        console.log(`[EML Viewer] Received content, length: ${content.length}, first 500 chars: ${content.substring(0, 500)}`);
         const parsed = parseEmlContent(content);
         setEmlData(parsed);
       })

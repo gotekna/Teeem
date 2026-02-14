@@ -157,7 +157,6 @@ export function MonthView() {
                     className="w-full text-xs text-muted-foreground hover:text-foreground text-left px-1"
                     onClick={() => {
                       // Could open a popover with all events
-                      console.log(`+${overflowCount} more`);
                     }}
                   >
                     +{overflowCount} more

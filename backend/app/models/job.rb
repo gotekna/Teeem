@@ -641,7 +641,7 @@ class Job < ApplicationRecord
       user: nil, # System-initiated, no user context
       clear_existing: false,
       create_purchase_orders: false # Don't auto-create POs on job creation
-    }).execute
+    }).call
 
     if result[:success]
       # Record when template was applied

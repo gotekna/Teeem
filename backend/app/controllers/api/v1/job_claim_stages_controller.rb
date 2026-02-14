@@ -187,7 +187,7 @@ module Api
           user: current_user,
           clear_existing: true, # Re-apply entire schedule
           create_purchase_orders: false
-        }).execute
+        }).call
 
         if result[:success]
           stages = @job.job_claim_stages.includes(:external_invoice).ordered

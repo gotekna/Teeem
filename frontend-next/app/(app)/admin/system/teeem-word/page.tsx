@@ -314,7 +314,6 @@ export default function TeeemWordPage() {
         setName(fileName.replace(/\.docx$/i, ""));
 
         if (result.messages.length > 0) {
-          console.log("Import warnings:", result.messages);
         }
 
         toast({
@@ -387,7 +386,6 @@ export default function TeeemWordPage() {
       try {
         await api.post(`/api/v1/teeem_documents/${document.id}/save_to_warehouse`);
       } catch (warehouseError) {
-        console.warn("Failed to save to warehouse:", warehouseError);
         // Don't fail the whole save - database save succeeded
       }
 
@@ -433,7 +431,6 @@ export default function TeeemWordPage() {
 
       // Log any warnings
       if (result.messages.length > 0) {
-        console.log("Import warnings:", result.messages);
       }
     } catch (error) {
       console.error("Failed to import:", error);

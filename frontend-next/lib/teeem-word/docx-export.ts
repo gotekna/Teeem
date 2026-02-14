@@ -213,7 +213,6 @@ async function convertElementToDocx(
           return new Paragraph({ children: [imageRun] });
         }
       } catch (e) {
-        console.warn("Failed to convert image:", e);
       }
     }
     return null;
@@ -426,7 +425,6 @@ async function createImageFromDataUrl(dataUrl: string): Promise<ImageRun | null>
       },
     });
   } catch (e) {
-    console.warn("Failed to create image:", e);
     return null;
   }
 }

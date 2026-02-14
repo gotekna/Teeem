@@ -68,14 +68,12 @@ export function useNetworkStatus(): UseNetworkStatusResult {
       setWasOffline(false);
     }, 1000);
 
-    console.log("[NetworkStatus] Back online");
   }, [offlineSince]);
 
   const handleOffline = useCallback(() => {
     setIsOnline(false);
     setOfflineSince(new Date());
     setOfflineDuration(0);
-    console.log("[NetworkStatus] Went offline");
   }, []);
 
   useEffect(() => {

@@ -287,7 +287,6 @@ export function useLocationWebSocket(
     lastFailureTimeRef.current = now;
 
     if (failureCountRef.current >= MAX_FAILURES) {
-      console.warn(`[LocationWebSocket] Too many failures (${failureCountRef.current}), disabling`);
       isDisabledRef.current = true;
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
@@ -299,7 +298,6 @@ export function useLocationWebSocket(
   const connect = useCallback(() => {
     if (!enabled) return;
     if (isDisabledRef.current) {
-      console.log("[LocationWebSocket] Disabled due to repeated failures");
       return;
     }
     if (subscriptionRef.current) return;
@@ -313,17 +311,14 @@ export function useLocationWebSocket(
           connected() {
             setIsConnected(true);
             failureCountRef.current = 0;
-            console.log("[LocationWebSocket] Connected");
           },
           disconnected() {
             setIsConnected(false);
             trackFailure();
-            console.log("[LocationWebSocket] Disconnected");
           },
           rejected() {
             setIsConnected(false);
             trackFailure();
-            console.warn("[LocationWebSocket] Connection rejected - ensure you have supervisor/manager access");
           },
           received: handleReceived,
         }

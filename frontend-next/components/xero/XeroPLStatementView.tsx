@@ -126,7 +126,6 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
         setReports(response.data);
         // Show success message
         if (response.message) {
-          console.log(response.message);
         }
       } else {
         setError(response?.error || "Failed to generate historical reports");

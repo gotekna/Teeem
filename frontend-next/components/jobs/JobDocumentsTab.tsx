@@ -337,7 +337,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         if (response.success && response.download_url) {
           return response.download_url;
         }
-        console.warn("Failed to get S3 URL, falling back to web_url:", response.error);
       }
 
       // Default: use web_url for SharePoint documents (or as fallback)
@@ -709,7 +708,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         warehouseFolderId: category?.id,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
-          console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
@@ -1110,7 +1108,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         folderPath: derivedPath,  // For S3 fallback
         filename: file.name,
         onProgress: (progress: UploadProgress) => {
-          console.log(`[FileUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
@@ -1198,7 +1195,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       setError(null);
       // Always request recursive=true to get all files from all subfolders
       const url = `/api/v1/documents/legacy_files?job_id=${jobId}&recursive=true`;
-      console.log('[Legacy Import] Fetching:', url);
 
       const response = await api.get<{
         success: boolean;
@@ -1209,10 +1205,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         error?: string;
       }>(url);
 
-      console.log('[Legacy Import] Response:', response);
 
       if (response?.success) {
-        console.log('[Legacy Import] Found', response.items?.length || 0, 'files');
         setLegacyItems(response.items || []);
         setSelectedLegacyFiles([]);
       } else {
@@ -1276,12 +1270,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Toggle file selection (files only, not folders)
   const toggleFileSelection = useCallback((fileId: string) => {
-    console.log('[Legacy Import] toggleFileSelection called with:', fileId);
     setSelectedLegacyFiles((prev) => {
       const newSelection = prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
         : [...prev, fileId];
-      console.log('[Legacy Import] Selection updated:', newSelection.length, 'files');
       return newSelection;
     });
   }, []);

@@ -232,7 +232,6 @@ function OutlookConnection() {
   React.useEffect(() => {
     const autoRefreshToken = async () => {
       if (status?.needs_refresh && status?.connected) {
-        console.log("Token needs refresh, attempting auto-refresh...");
         try {
           const result = await api.post<{ success: boolean; error?: string }>("/api/v1/microsoft/refresh");
           if (result?.success) {
@@ -240,7 +239,6 @@ function OutlookConnection() {
             loadStatus(); // Reload status after successful refresh
           } else if (result) {
             // Auto-refresh failed, redirect to re-auth
-            console.log("Auto-refresh failed, redirecting to auth...");
             const data = await api.get<{ auth_url: string }>("/api/v1/microsoft/auth_url");
             window.location.href = data.auth_url;
           }

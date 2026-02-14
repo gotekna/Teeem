@@ -70,7 +70,7 @@ module Api
           end
 
           ActiveRecord::Base.transaction do
-            ContactQualityActionService.new(review).execute!
+            ContactQualityActionService.new(review).call!
             review.approve!(current_user, notes: params[:notes])
           end
 
@@ -148,7 +148,7 @@ module Api
                              .find_each do |review|
             begin
               ActiveRecord::Base.transaction do
-                ContactQualityActionService.new(review).execute!
+                ContactQualityActionService.new(review).call!
                 review.approve!(current_user, notes: "Bulk approved")
               end
               results[:approved] += 1

@@ -700,7 +700,7 @@ class SmScheduleMasterSyncService
 
       # 4. Copy fresh from template using SmScheduleMasterTemplateCopyService
       copy_service = SmScheduleMasterTemplateCopyService.new(template, job, user)
-      copy_result = copy_service.execute
+      copy_result = copy_service.call
 
       unless copy_result[:success]
         raise ActiveRecord::Rollback, "Template copy failed: #{copy_result[:error]}"

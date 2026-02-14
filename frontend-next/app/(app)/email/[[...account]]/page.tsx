@@ -1159,7 +1159,6 @@ export default function EmailPage() {
     // Performance: Debounce rapid re-fetches (unless forced or appending for infinite scroll)
     const now = Date.now();
     if (!force && !append && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
-      console.log("[Email] Skipping fetch - too soon since last fetch");
       return;
     }
 
@@ -1280,7 +1279,6 @@ export default function EmailPage() {
           !state.loading &&
           !skipNextAutoFetchRef.current
         ) {
-          console.log("[Email] Infinite scroll triggered - loading page", state.page + 1);
           fetchEmails(state.page + 1, true, undefined, true); // append = true
         }
       },

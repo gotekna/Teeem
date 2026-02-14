@@ -707,7 +707,7 @@ module Api
       # Direction: Task → PO (safe - no cascade storms)
       def schedule_sync
         service = PoScheduleSyncService.new(@purchase_order)
-        result = service.execute!
+        result = service.call!
         render json: { success: true, data: result }
       rescue PoScheduleSyncService::SyncBlockedError => e
         render_error(e.message, blocked: true, status: :unprocessable_entity)

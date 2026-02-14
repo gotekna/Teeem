@@ -308,7 +308,6 @@ export default function PurchaseOrderDetailPage() {
     const handleFocus = () => {
       const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current;
       if (timeSinceLastFetch > STALE_THRESHOLD_MS) {
-        console.log('[PO Detail] Window focused after stale period - reloading data');
         loadPurchaseOrder();
       }
     };
@@ -343,7 +342,6 @@ export default function PurchaseOrderDetailPage() {
     ) {
       const matchingTask = taskItems.find((t) => t.taskId === selectedTaskId);
       if (matchingTask?.start_date) {
-        console.log('[PO Detail] Auto-populating required date from linked task:', matchingTask.start_date);
         setRequiredDate(matchingTask.start_date);
       }
     }
@@ -567,13 +565,10 @@ export default function PurchaseOrderDetailPage() {
         },
       };
 
-      console.log('[PO Save] Sending update with schedule_task_id:', selectedTaskId, 'updateData:', updateData);
       const patchResponse = await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
-      console.log('[PO Save] Patch response:', patchResponse);
 
       // Reload the purchase order data
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
-      console.log('[PO Save] Reloaded PO, sm_tasks:', response.sm_tasks, 'response:', response);
       setPurchaseOrder(response);
 
       // Initialize editable fields
@@ -582,7 +577,6 @@ export default function PurchaseOrderDetailPage() {
       const linkedTaskId = response.sm_tasks && response.sm_tasks.length > 0
         ? response.sm_tasks[0].id
         : null;
-      console.log('[PO Save] Setting linkedTaskId to:', linkedTaskId);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       // SSoT: Auto-populate required_date from linked task's start_date if not already set

@@ -318,7 +318,6 @@ export function useOfflineEmails(
     if (!forceRefresh) {
       const cached = getMemoryCache(accountId);
       if (cached) {
-        console.log("[useOfflineEmails] Using memory cache (< 30s old)");
         // Update state from memory cache without API call
         const now = Date.now();
         setCounts({
@@ -461,7 +460,6 @@ export function useOfflineEmails(
       // Performance: Store in memory cache to prevent re-fetch on rapid tab switches
       setMemoryCache(data, accountId);
 
-      console.log("[useOfflineEmails] Fetched and cached split inbox data");
     } catch (err) {
       // Ignore abort errors
       if (err instanceof Error && err.name === "AbortError") {
@@ -486,7 +484,6 @@ export function useOfflineEmails(
   // Manual refresh (always fetches, bypasses memory cache)
   const refresh = useCallback(async () => {
     if (!isOnline) {
-      console.log("[useOfflineEmails] Cannot refresh while offline");
       return;
     }
     await fetchFromAPI(true); // forceRefresh = true to bypass memory cache
@@ -539,7 +536,6 @@ export function useOfflineEmails(
 
       const isDataStale = await emailCache.isAnyCategoryStale();
       if (isDataStale) {
-        console.log("[useOfflineEmails] Window focused, data stale - refreshing");
         fetchFromAPI();
       }
     };
@@ -551,7 +547,6 @@ export function useOfflineEmails(
   // Sync when coming back online
   useEffect(() => {
     if (wasOffline && enabled) {
-      console.log("[useOfflineEmails] Back online - refreshing");
       fetchFromAPI();
     }
   }, [wasOffline, enabled, fetchFromAPI]);

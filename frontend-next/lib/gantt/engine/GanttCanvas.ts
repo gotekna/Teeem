@@ -1240,7 +1240,6 @@ export class GanttCanvas {
 
     // Prevent cascade loops
     if (this.cascadeInProgress) {
-      console.warn('GanttCanvas: Ignoring nested batch update to prevent cascade loop');
       return;
     }
 
@@ -2066,7 +2065,6 @@ export class GanttCanvas {
   ): GanttDependency | null {
     // Check for circular dependency
     if (this.wouldCreateCircularDependency(fromId, toId)) {
-      console.warn(`Circular dependency prevented: ${fromId} → ${toId}`);
       return null;
     }
 
@@ -2075,7 +2073,6 @@ export class GanttCanvas {
       d => d.fromId === fromId && d.toId === toId
     );
     if (existingDep) {
-      console.warn(`Dependency already exists: ${fromId} → ${toId}`);
       return existingDep;
     }
 
@@ -2160,7 +2157,6 @@ export class GanttCanvas {
 
     if (cycles.length === 0) return removedIds;
 
-    console.warn(`Found ${cycles.length} circular dependencies, removing...`);
 
     // For each cycle, remove the last dependency (the one that closes the loop)
     cycles.forEach(cycle => {
@@ -2458,7 +2454,6 @@ export class GanttCanvas {
   resize(): void {
     const parent = this.canvas.parentElement;
     if (!parent) {
-      console.warn('[GanttCanvas] ⚠️  resize() called but canvas has no parent');
       return;
     }
 
@@ -2694,7 +2689,6 @@ export class GanttCanvas {
       };
       setStorageItem(this.statePersistenceKey, stateToSave, false);
     } catch (e) {
-      console.warn('GanttCanvas: Failed to persist state', e);
     }
   }
 
@@ -2739,7 +2733,6 @@ export class GanttCanvas {
       this.markDirty();
       return true;
     } catch (e) {
-      console.warn('GanttCanvas: Failed to restore state', e);
       return false;
     }
   }
@@ -2751,7 +2744,6 @@ export class GanttCanvas {
     try {
       removeStorageItem(this.statePersistenceKey, false);
     } catch (e) {
-      console.warn('GanttCanvas: Failed to clear persisted state', e);
     }
   }
 
@@ -5541,7 +5533,6 @@ export class GanttCanvas {
    */
   assignResource(taskId: string, resourceId: string): void {
     if (!this.resources.has(resourceId)) {
-      console.warn(`Resource ${resourceId} not found`);
       return;
     }
 
@@ -11233,7 +11224,6 @@ export class GanttCanvas {
     });
 
     if (removed.length > 0) {
-      console.warn('[GanttCanvas] Removed circular dependencies:', removed);
       this.markDirty();
     }
 
@@ -11251,7 +11241,6 @@ export class GanttCanvas {
 
   logCircularDependencyAttempt(fromId: string, toId: string): void {
     if (!this.circularDepLoggingEnabled) return;
-    console.warn(`[GanttCanvas] Circular dependency blocked: ${fromId} → ${toId}`);
   }
 
   // =========================================================================
@@ -13117,7 +13106,6 @@ export class GanttCanvas {
       };
       setStorageItem(key, state, false);
     } catch {
-      console.warn('Failed to save state to localStorage');
     }
   }
 
@@ -13139,7 +13127,6 @@ export class GanttCanvas {
       this.markDirty();
       return true;
     } catch {
-      console.warn('Failed to load state from localStorage');
       return false;
     }
   }
@@ -14749,14 +14736,12 @@ ${this.getAutomatedTestResults()}
     this.visualTestMode = true;
     this.visualTestOverlayVisible = true;
     this.markDirty();
-    console.log('[GanttCanvas] Visual Test Mode enabled');
   }
 
   disableVisualTestMode(): void {
     this.visualTestMode = false;
     this.visualTestOverlayVisible = false;
     this.markDirty();
-    console.log('[GanttCanvas] Visual Test Mode disabled');
   }
 
   isVisualTestModeEnabled(): boolean {
@@ -14767,7 +14752,6 @@ ${this.getAutomatedTestResults()}
   private automatedTestResults: Map<string, { passed: boolean; message: string; duration: number }> = new Map();
 
   async runGanttAutomatedTest(): Promise<{ passed: number; failed: number; total: number; results: Array<{ name: string; passed: boolean; message: string; duration: number }> }> {
-    console.log('[GanttCanvas] Starting automated tests...');
     this.automatedTestResults.clear();
 
     const tests = [
@@ -14809,7 +14793,6 @@ ${this.getAutomatedTestResults()}
     const passed = results.filter(r => r.passed).length;
     const failed = results.filter(r => !r.passed).length;
 
-    console.log(`[GanttCanvas] Tests complete: ${passed} passed, ${failed} failed`);
     return { passed, failed, total: results.length, results };
   }
 
@@ -15044,7 +15027,6 @@ ${this.getAutomatedTestResults()}
 
   setConsoleLogging(category: keyof typeof this.consoleLoggingConfig, enabled: boolean): void {
     this.consoleLoggingConfig[category] = enabled;
-    console.log(`[GanttCanvas] Console logging for '${category}': ${enabled ? 'ENABLED' : 'DISABLED'}`);
   }
 
   getConsoleLoggingConfig(): typeof this.consoleLoggingConfig {
@@ -15055,19 +15037,16 @@ ${this.getAutomatedTestResults()}
     for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
       this.consoleLoggingConfig[key] = true;
     }
-    console.log('[GanttCanvas] All console logging ENABLED');
   }
 
   disableAllConsoleLogging(): void {
     for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
       this.consoleLoggingConfig[key] = false;
     }
-    console.log('[GanttCanvas] All console logging DISABLED');
   }
 
   private log(category: keyof typeof this.consoleLoggingConfig, message: string, ...args: unknown[]): void {
     if (this.consoleLoggingConfig[category]) {
-      console.log(`[GanttCanvas:${category}] ${message}`, ...args);
     }
   }
 
@@ -15093,7 +15072,6 @@ ${this.getAutomatedTestResults()}
       showDependencyPaths: true,
     };
     this.markDirty();
-    console.log('[GanttCanvas] Debug mode ENABLED');
   }
 
   disableDebugMode(): void {
@@ -15107,7 +15085,6 @@ ${this.getAutomatedTestResults()}
       showDependencyPaths: false,
     };
     this.markDirty();
-    console.log('[GanttCanvas] Debug mode DISABLED');
   }
 
   isDebugModeEnabled(): boolean {
@@ -15220,12 +15197,10 @@ ${this.getAutomatedTestResults()}
 
   enableEventLogging(): void {
     this.eventLoggingEnabled = true;
-    console.log('[GanttCanvas] Event logging ENABLED');
   }
 
   disableEventLogging(): void {
     this.eventLoggingEnabled = false;
-    console.log('[GanttCanvas] Event logging DISABLED');
   }
 
   logEvent(type: string, data: unknown): void {
@@ -15335,7 +15310,6 @@ ${this.getAutomatedTestResults()}
       timestamp: Date.now(),
       data: this.getMemoryEstimate(),
     });
-    console.log(`[GanttCanvas] Memory snapshot taken: ${label}`);
   }
 
   getMemorySnapshots(): typeof this.memorySnapshots {
@@ -15401,7 +15375,6 @@ ${this.getAutomatedTestResults()}
       this.clearDirtyRegions();
       this.markDirty();
 
-      console.log('[GanttCanvas] Recovery attempted - state reset');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Recovery failed:', e);
@@ -15416,13 +15389,11 @@ ${this.getAutomatedTestResults()}
   enableErrorReporting(callback: (error: { message: string; context: object }) => void): void {
     this.errorReportingEnabled = true;
     this.errorReportCallback = callback;
-    console.log('[GanttCanvas] Error reporting ENABLED');
   }
 
   disableErrorReporting(): void {
     this.errorReportingEnabled = false;
     this.errorReportCallback = null;
-    console.log('[GanttCanvas] Error reporting DISABLED');
   }
 
   reportError(message: string, context?: object): void {

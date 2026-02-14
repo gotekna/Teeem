@@ -106,7 +106,6 @@ function TablePageContent() {
 
   // Handle row double-click - navigate to full page for supported tables
   const handleRowDoubleClick = (row: TableRow) => {
-    console.log("[TablePage] Double-click on row:", row.id, "tableId:", tableId);
 
     if (tableId === TABLE_IDS.JOBS) {
       router.push(`/jobs/${row.id}`);
@@ -118,11 +117,9 @@ function TablePageContent() {
       if (itemCode) {
         router.push(`/pricebook/${slugifyPricebookCode(itemCode)}`);
       } else {
-        console.warn("[TablePage] Pricebook item missing item_code:", row);
       }
     } else {
       // Companies use /corporate routes, not Foundation-based [slug] pages
-      console.log("[TablePage] No detail page for table:", tableId);
     }
   };
 
@@ -166,7 +163,6 @@ function TablePageContent() {
 
   // Handle row click - navigate to detail page
   const handleRowClick = (row: { id: number | string; [key: string]: unknown }) => {
-    console.log('handleRowClick called with row:', row, 'tableId:', tableId);
     switch (tableId) {
       case TABLE_IDS.JOBS:
         router.push(`/jobs/${row.id}`);

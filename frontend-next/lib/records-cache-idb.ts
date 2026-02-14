@@ -63,19 +63,15 @@ async function getDatabase(): Promise<IDBPDatabase<RecordsCacheDB>> {
   if (!dbPromise) {
     dbPromise = openDB<RecordsCacheDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
-        console.log(`[RecordsCacheIDB] Upgrading database from v${oldVersion} to v${DB_VERSION}`);
 
         if (oldVersion < 1) {
           const store = db.createObjectStore(STORE_NAME, { keyPath: "foundationId" });
           store.createIndex("by-timestamp", "timestamp");
-          console.log("[RecordsCacheIDB] Created foundationRecords store");
         }
       },
       blocked() {
-        console.warn("[RecordsCacheIDB] Database blocked - another tab may be using an older version");
       },
       blocking() {
-        console.warn("[RecordsCacheIDB] This tab is blocking a database upgrade in another tab");
       },
       terminated() {
         console.error("[RecordsCacheIDB] Database connection terminated unexpectedly");
@@ -123,14 +119,11 @@ export async function getFromIDB(foundationId: string | number): Promise<CachedF
     if (age > IDB_CACHE_TTL_MS) {
       // Expired - delete and return null
       await db.delete(STORE_NAME, key);
-      console.log(`[RecordsCacheIDB] EXPIRED: ${foundationId}, age: ${Math.round(age / 1000 / 60)}min`);
       return null;
     }
 
-    console.log(`[RecordsCacheIDB] HIT: ${foundationId}, ${data.records.length} records, age: ${Math.round(age / 1000)}s`);
     return data;
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to read:", error);
     return null;
   }
 }
@@ -161,9 +154,7 @@ export async function setInIDB(
     };
 
     await db.put(STORE_NAME, data);
-    console.log(`[RecordsCacheIDB] SET: ${foundationId}, ${records.length} records`);
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to write:", error);
   }
 }
 
@@ -176,9 +167,7 @@ export async function deleteFromIDB(foundationId: string | number): Promise<void
   try {
     const db = await getDatabase();
     await db.delete(STORE_NAME, String(foundationId));
-    console.log(`[RecordsCacheIDB] DELETED: ${foundationId}`);
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to delete:", error);
   }
 }
 
@@ -191,9 +180,7 @@ export async function clearAllIDB(): Promise<void> {
   try {
     const db = await getDatabase();
     await db.clear(STORE_NAME);
-    console.log("[RecordsCacheIDB] ALL CLEARED");
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to clear:", error);
   }
 }
 
@@ -222,12 +209,10 @@ export async function cleanupExpiredIDB(): Promise<number> {
     await tx.done;
 
     if (deletedCount > 0) {
-      console.log(`[RecordsCacheIDB] Cleaned up ${deletedCount} expired entries`);
     }
 
     return deletedCount;
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to cleanup:", error);
     return 0;
   }
 }
@@ -254,7 +239,6 @@ export async function getIDBStats(): Promise<{ count: number; totalRecords: numb
       oldestAge,
     };
   } catch (error) {
-    console.warn("[RecordsCacheIDB] Failed to get stats:", error);
     return { count: 0, totalRecords: 0, oldestAge: null };
   }
 }

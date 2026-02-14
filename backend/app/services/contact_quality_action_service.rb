@@ -16,7 +16,7 @@ class ContactQualityActionService
     @contact = review.contact
   end
 
-  def execute!
+  def call!
     case @review.recommended_action
     when "convert_to_company"
       convert_person_to_company!

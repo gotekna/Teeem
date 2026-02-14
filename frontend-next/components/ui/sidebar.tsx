@@ -195,11 +195,9 @@ function SidebarContent({
     try {
       // 1. Clear React Query cache
       queryClient.clear();
-      console.log("[ClearCache] React Query cache cleared");
 
       // 2. Clear records cache (L1 + L2)
       clearAllCachedRecords();
-      console.log("[ClearCache] Records cache cleared");
 
       // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
       // Keys to preserve: token, auth, session, sidebar, api_url, api_environment
@@ -237,7 +235,6 @@ function SidebarContent({
       }
       sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
 
-      console.log("[ClearCache] All caches cleared, reloading...");
 
       // Brief feedback then reload
       setTimeout(() => {

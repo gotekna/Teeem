@@ -141,7 +141,6 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         return response.url;
       }
     } catch (err) {
-      console.warn("[AttachmentList] Presigned URL failed, will use proxy:", err);
     }
 
     return null;
@@ -161,7 +160,6 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
 
     // Step 2: Fall back to api.getBlob() proxy (slow path)
-    console.log("[AttachmentList] Using proxy fallback for:", attachment.name);
     return api.getBlob(
       `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
     );

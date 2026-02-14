@@ -102,7 +102,6 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
       const response = await api.get<{ success: boolean; data: UnlinkedContactsData }>(
         "/api/v1/xero/unlinked_contacts"
       );
-      console.log("Unlinked contacts response:", response);
       if (response?.success && response?.data) {
         setData(response.data);
       } else {

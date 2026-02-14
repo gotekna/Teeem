@@ -375,7 +375,6 @@ export default function AssetReportsPage() {
 
   const handleExportCSV = () => {
     // TODO: Implement CSV export
-    console.log("Export CSV");
   };
 
   return (

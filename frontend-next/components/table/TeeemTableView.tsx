@@ -933,11 +933,9 @@ export default function TeeemTableView({
 
         // If autoFetchLimit is set, only restore up to that limit
         if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
-          console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
           recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
           hasMoreToRestore = true; // There are more records available
         } else {
-          console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
         }
 
         setAutoFetchedRecords(recordsToRestore);
@@ -947,7 +945,6 @@ export default function TeeemTableView({
         // L2 (IndexedDB) cache may be stale - trigger background refresh to get fresh data
         // User sees cached data immediately, then silently updates if server data differs
         if (cached.source === 'L2') {
-          console.log(`[RecordsCache] L2 cache restored - triggering background refresh for fresh data`);
           isBackgroundRefreshRef.current = true;
           // Small delay to let UI render with cached data first
           setTimeout(() => {
@@ -1138,7 +1135,6 @@ export default function TeeemTableView({
       const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
       const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
       if (hasPersistedSearch) {
-        console.log('[TeeemTableView] Skipping fetch - search pending:', { urlSearchParam, initialSearch, ref: searchRef.current });
         return;
       }
 
@@ -1161,7 +1157,6 @@ export default function TeeemTableView({
       const hasActiveSearch = Boolean(searchRef.current);
 
       if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged && !hasActiveSearch) {
-        console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
       }
 
@@ -1176,11 +1171,9 @@ export default function TeeemTableView({
       // This prevents double-fetch when filter initialization triggers effect re-run
       // EXCEPTION: If baseFilters changed, we must refetch even with SSR data
       if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0 && !baseFiltersChanged) {
-        console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
         return;
       }
 
-      console.log('[TeeemTableView] Proceeding with API fetch');
 
       // Skip loading indicator for background refresh (L2 cache already displayed data)
       const isBackground = isBackgroundRefreshRef.current;
@@ -1220,7 +1213,6 @@ export default function TeeemTableView({
         }
         // Log completion of background refresh
         if (isBackground) {
-          console.log(`[RecordsCache] Background refresh complete - ${newRecords.length} fresh records loaded`);
           isBackgroundRefreshRef.current = false;
         }
       } catch (error) {
@@ -1656,7 +1648,6 @@ export default function TeeemTableView({
       const staleIds = Array.from(prev).filter(id => !validIds.has(id));
 
       if (staleIds.length > 0) {
-        console.warn(`[TeeemTableView] Removing ${staleIds.length} stale selection IDs:`, staleIds);
         const updated = new Set(prev);
         staleIds.forEach(id => updated.delete(id));
         return updated;
@@ -1761,7 +1752,6 @@ export default function TeeemTableView({
     if (ssrFiltersInitializedRef.current === foundationId) return;
     if (initialView?.filters?.cascadeFilters?.length) {
       ssrFiltersInitializedRef.current = foundationId;
-      console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
       setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
       // Also set filter groups and inter-group logic if present
       if (initialView.filters.filterGroups?.length) {
@@ -1811,7 +1801,6 @@ export default function TeeemTableView({
     const ssrSortOrder = (initialView as { sort_order?: SortColumn[] })?.sort_order;
     if (ssrSortOrder?.length) {
       ssrSortColumnsInitializedRef.current = foundationId;
-      console.log('[SSR] Applying initialView sort_order:', ssrSortOrder.length, 'columns', ssrSortOrder);
       setSortColumns(ssrSortOrder);
     }
   }, [initialView, setSortColumns, foundationId]);
@@ -1830,7 +1819,6 @@ export default function TeeemTableView({
     const shouldInitialize = savedViews.length === 0 || savedViewsAreStale;
     if (shouldInitialize) {
       preloadedViewsInitializedRef.current = foundationId;
-      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views', savedViewsAreStale ? '(replacing stale views)' : '');
       // Map preloaded views to SavedView format
       // Handle both ViewData (from SSR) and SavedView (from client) formats
       // SSR ViewData uses nested format: columns.visible, columns.order, columns.widths
@@ -2020,7 +2008,6 @@ export default function TeeemTableView({
       }
     }
 
-    console.log('[TeeemTableView] serverDisplayMap from SSoT:', map.size, 'entries', Object.keys(serverDisplayValuesMap || {}));
     return map;
   }, [serverGroupCounts, groupByColumns, serverDisplayValuesMap]);
 
@@ -2507,23 +2494,19 @@ export default function TeeemTableView({
       // Client-side search can't replicate this without duplicating logic - backend is THE source
       const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
       if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
-        console.log('[TeeemTableView] All records loaded (no prior search), searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
 
       if (effectiveOnServerSearch) {
         // When clearing search, restore from cache first (avoids refetch if data was loaded)
         if (isClearing) {
-          console.log('[TeeemTableView] Clearing search - checking cache for pre-search data');
           // Try to restore from cache first (preserves all loaded records)
           const cached = effectiveFoundationId ? getCachedRecords(effectiveFoundationId) : null;
           if (cached && cached.records.length > 0) {
-            console.log(`[TeeemTableView] Restoring ${cached.records.length} records from cache`);
             setAutoFetchedRecords(cached.records as TableRowType[]);
             setHasMore(cached.hasMore);
           } else {
             // No cache - trigger a fresh fetch
-            console.log('[TeeemTableView] No cache available - triggering fresh fetch');
             setHasMore(true);
             setAutoFetchRefreshKey(prev => prev + 1);
           }
@@ -2571,11 +2554,9 @@ export default function TeeemTableView({
   // Uses refs to always get current state values
   const autoSaveColumnWidths = useCallback(async (widths: Record<string, number>) => {
     if (!activeViewId || (typeof activeViewId === 'string' && activeViewId.startsWith('new_'))) {
-      console.log('[TeeemTableView] Skipping auto-save - no active view');
       return;
     }
     if (!effectiveFoundationId) {
-      console.log('[TeeemTableView] Skipping auto-save - no foundation ID');
       return;
     }
 
@@ -2596,10 +2577,8 @@ export default function TeeemTableView({
           }
         }
       };
-      console.log('[TeeemTableView] Saving column widths:', { viewId: activeViewId, widths });
 
       await api.patch(`/api/v1/foundation_views/${activeViewId}`, payload);
-      console.log('[TeeemTableView] Auto-saved column widths for view', activeViewId);
     } catch (error) {
       console.error('[TeeemTableView] Failed to auto-save column widths:', error);
     }
@@ -3142,7 +3121,6 @@ export default function TeeemTableView({
           row = response.record;
         }
       } catch (error) {
-        console.warn("Failed to fetch row for editing:", error);
       }
     }
 
@@ -3443,7 +3421,6 @@ export default function TeeemTableView({
             //      But Jotai atoms still have the OLD view's filters from before remount.
             //      We must explicitly CLEAR them, not just skip applying new ones.
             // ════════════════════════════════════════════════════════════════════
-            console.log('[loadSavedViews] v2706 - Clearing view filters (explicitlyNoView)');
             setViewFilters([]);
             setActiveViewId(null);
           }

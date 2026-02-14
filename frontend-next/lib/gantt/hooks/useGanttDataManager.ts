@@ -270,10 +270,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
   const loadData = React.useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
-    console.log('[GanttDataManager] loadData called', { mode, hasApiConfig: !!apiConfig, jobId, templateId, silent });
 
     if (!apiConfig) {
-      console.log('[GanttDataManager] No apiConfig, returning early');
       setTasks([]);
       setDependencies([]);
       setRows([]);
@@ -291,7 +289,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       let dateMap: Record<number, { start_date: string; end_date: string }> | null = null;
       if (mode === 'template' && apiConfig.validateDatesUrl) {
         try {
-          console.log('[GanttDataManager] 🔄 Running template auto-rollover...');
           const validateResult = await api.post<{
             success: boolean;
             updated: number;
@@ -299,18 +296,15 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           }>(apiConfig.validateDatesUrl);
 
           if (validateResult?.updated && validateResult.updated > 0) {
-            console.log(`[GanttDataManager] ✅ Template auto-rollover: ${validateResult.updated} task(s)`);
           }
           dateMap = validateResult?.date_map || null;
         } catch (err) {
-          console.warn('[GanttDataManager] Template auto-rollover failed:', err);
         }
       }
 
       // For jobs: run validate_dates (auto-rollover on load)
       if (mode === 'job' && jobId) {
         try {
-          console.log('[GanttDataManager] 🔄 Running job rollover...');
           const validateResult = await api.post<{
             success: boolean;
             rolled_over: number;
@@ -321,7 +315,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           if (validateResult) {
             const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
             if (fixCount > 0) {
-              console.log(`[GanttDataManager] ✅ Job rollover: ${fixCount} task(s)`);
               toast({
                 title: 'Schedule Updated',
                 description: `${fixCount} task(s) rolled forward`,
@@ -329,7 +322,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
             }
           }
         } catch (err) {
-          console.warn('[GanttDataManager] Job rollover failed:', err);
         }
       }
 
@@ -342,10 +334,8 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         );
         if (holidayResponse?.dates) {
           holidayDates = new Set(holidayResponse.dates);
-          console.log(`[GanttDataManager] 📅 Loaded ${holidayDates.size} holidays`);
         }
       } catch (err) {
-        console.warn('[GanttDataManager] Failed to load holidays from API:', err);
         // SSoT: No fallback - working day calculations will proceed without holidays
       }
 
@@ -382,14 +372,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       const data = response.gantt_data || response;
       const rawRows = data.tasks || data.rows || [];
       const fetchedDeps = data.dependencies || [];
-      console.log('[GanttDataManager] API response - rows:', rawRows.length, 'deps:', fetchedDeps.length, 'isGanttData:', isGanttData);
       if (fetchedDeps.length > 0) {
-        console.log('[GanttDataManager] Sample dep from API:', fetchedDeps[0]);
       }
       // Debug: Log any tasks with dependency_broken = true
       const brokenTasks = rawRows.filter((r: SmScheduleMaster) => r.dependency_broken);
       if (brokenTasks.length > 0) {
-        console.log('[GanttDataManager] Tasks with dependency_broken=true:', brokenTasks.map((t: SmScheduleMaster) => ({ id: t.id, name: t.name, dependency_broken: t.dependency_broken })));
       }
 
       // SSoT: Backend sorts gantt_data by (start_date, end_date, sequence_order) in GanttDataService
@@ -424,7 +411,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           const row = fetchedRows.find(r => String(r.id) === t.id);
           return row?.task_number === 378;
         });
-        console.log(`[GanttDataManager] 📅 Task 378 after applyDateMap:`, task378?.startDate, task378?.endDate);
       }
 
       setTasks(convertedTasks);
@@ -464,7 +450,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
           }
         }
       }
-      console.log('[GanttDataManager] Setting dependencies:', convertedDeps.length);
       setDependencies(convertedDeps);
 
     } catch (err) {
@@ -648,7 +633,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     checked: boolean
   ) => {
     if (!apiConfig) return;
-    console.log('[GanttDataManager] Checkbox toggle:', taskId, field, checked);
 
     const task = tasks.find(t => t.id === taskId);
     const row = task?.rowData as SmScheduleMaster | undefined;
@@ -1005,16 +989,12 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   const handleTaskDrag = React.useCallback(async (task: GanttTask, newStartDate: Date) => {
     if (!apiConfig) return;
     storeUndoState(task);
-    console.log('[GanttDataManager] Task dragged:', task.id, 'to', newStartDate);
-    console.log('[GanttDataManager] task.rowData:', task.rowData);
 
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) {
-      console.log('[GanttDataManager] ⚠️ rowData is undefined, skipping cascade check');
       await executeDragMove(task, newStartDate);
       return;
     }
-    console.log('[GanttDataManager] Row exists - task_number:', row.task_number, 'name:', row.name);
 
     // Find successors recursively
     const findAllSuccessors = (taskNumber: number, visited = new Set<number>()): SmScheduleMaster[] => {
@@ -1042,7 +1022,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       })
       .map(t => t.rowData as SmScheduleMaster);
 
-    console.log('[GanttDataManager] Found direct successors:', directSuccessors.length, 'for task_number:', row.task_number);
 
     if (directSuccessors.length === 0) {
       await executeDragMove(task, newStartDate);
@@ -1052,7 +1031,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     // Find ALL successors recursively (not just direct)
     const allSuccessors = findAllSuccessors(row.task_number);
 
-    console.log('[GanttDataManager] Found ALL successors (recursive):', allSuccessors.length, 'for task_number:', row.task_number);
 
     // Build successor info for ALL descendants
     const successorInfo: SuccessorInfo[] = allSuccessors.map(s => ({
@@ -1087,7 +1065,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
     // If no locked successors, just execute move directly - unlocked tasks cascade automatically via SSoT
     if (lockedSuccessors.length === 0) {
-      console.log('[GanttDataManager] No locked successors - executing move directly');
       await executeDragMove(task, newStartDate);
       return;
     }
@@ -1132,7 +1109,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
         loadData({ silent: true });
       } else {
         // Job mode: Use /move endpoint which auto-cascades unlocked successors
-        console.log('[GanttDataManager] Executing drag move via /move endpoint, new_start_date=', dateStr);
 
         const result = await api.post<{
           success: boolean;
@@ -1148,13 +1124,11 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
         if (result?.needs_confirmation) {
           // Shouldn't happen since we pre-filter locked successors, but handle it
-          console.warn('[GanttDataManager] Move returned needs_confirmation - showing cascade dialog');
           toast({ title: 'Cascade Required', description: 'Please resolve locked successor conflicts', variant: 'destructive' });
           return;
         }
 
         const cascadeCount = (result?.cascade_results?.updated_count || 1) - 1;
-        console.log('[GanttDataManager] Drag move saved successfully, cascaded:', cascadeCount);
 
         const description = cascadeCount > 0
           ? `Moved to ${newStartDate.toLocaleDateString('en-AU')} (+ ${cascadeCount} successor${cascadeCount > 1 ? 's' : ''} cascaded)`
@@ -1311,7 +1285,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     const startDate = task.startDate;
     const newDuration = Math.max(1, countWorkingDays(startDate, newEndDate));
 
-    console.log('[GanttDataManager] Task resized:', task.id, 'new duration:', newDuration);
 
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) {
@@ -1335,7 +1308,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
   const handleDurationChange = React.useCallback(async (taskId: string, newDuration: number) => {
     if (!apiConfig) return;
-    console.log('[GanttDataManager] Duration changed via inline edit:', taskId, 'new duration:', newDuration);
 
     // Optimistic update - update local state immediately (no screen flash)
     setTasks(prevTasks => prevTasks.map(task => {
@@ -1381,7 +1353,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
   // ---------------------------------------------------------------------------
 
   const handleDependencyCreate = React.useCallback((fromId: string, toId: string, type: string) => {
-    console.log('[GanttDataManager] Dependency create:', fromId, '->', toId, 'type:', type);
 
     // Canvas passes row.id (not task_number), so find tasks by id
     // Drag from A to B = B depends on A = A is predecessor of B
@@ -1420,7 +1391,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
   const handleDependencyDelete = React.useCallback(async (dependencyId: string) => {
     if (!apiConfig) return;
-    console.log('[GanttDataManager] Dependency delete:', dependencyId);
 
     // Parse dependency ID: format is "dep-{predecessor_task_number}-{row_id}"
     const match = dependencyId.match(/^dep-(\d+)-(\d+)$/);
@@ -1472,7 +1442,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
 
   const handleResetManualPosition = React.useCallback(async (task: GanttTask) => {
     if (!apiConfig) return;
-    console.log('[GanttDataManager] Reset manual position:', task.id);
 
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) {
@@ -1672,7 +1641,6 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
     handleTaskClick: (task: GanttTask) => {
       // Single-click just selects the task (highlighting handled by canvas)
       // Dependency editor is opened via onDependencyClick (deps column click or double-click on gantt)
-      console.log('[GanttDataManager] Task clicked:', task.id, task.name);
     },
     handleTaskDoubleClick,
     handleCheckboxToggle,

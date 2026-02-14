@@ -440,7 +440,7 @@ class Api::V1::DocumentTemplatesController < ApplicationController
       extra_data: params[:extra_data]&.to_unsafe_h || {}
     )
 
-    result = service.execute!
+    result = service.call!
 
     render json: {
       success: true,

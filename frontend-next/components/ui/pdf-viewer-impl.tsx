@@ -150,14 +150,12 @@ export function PDFViewerImpl({
                   if (data.success && data.url) {
                     fetchUrl = data.url;
                     isPresignedS3 = true;  // Now we have a presigned URL
-                    console.log("[PDF] Upgraded to presigned URL for faster loading");
                   }
                 }
               }
             }
           } catch (e) {
             // Fall back to original URL on any error
-            console.warn("[PDF] Presigned URL upgrade failed, using original:", e);
           }
         }
 

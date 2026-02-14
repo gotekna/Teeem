@@ -110,7 +110,7 @@ class OnboardingProvisioningService
         start_date: Date.current,
         clear_existing: true,
         create_purchase_orders: false
-      }).execute
+      }).call
 
       return result[:tasks_created]
     end

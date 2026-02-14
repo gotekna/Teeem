@@ -244,10 +244,8 @@ export default function BpmnJsDesigner({
         const response = await api.get<{ success: boolean; data: DocumentTemplate[] }>(
           "/api/v1/tekna_documents/templates"
         );
-        console.log("Templates response:", response);
         if (response?.success && response.data) {
           setTemplates(response.data);
-          console.log("Loaded templates:", response.data.length);
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
@@ -258,20 +256,14 @@ export default function BpmnJsDesigner({
 
   // Fetch jobs for test run - load all jobs so search works properly
   useEffect(() => {
-    console.log("[BPMN] Starting to fetch jobs...");
     const fetchJobs = async () => {
       try {
-        console.log("[BPMN] Calling /api/v1/jobs...");
         const response = await api.get<{ jobs: Job[]; pagination: object }>(
           "/api/v1/jobs?per_page=1000"
         );
-        console.log("[BPMN] Jobs API response:", response);
-        console.log("[BPMN] Jobs array:", response?.jobs);
         if (response?.jobs && Array.isArray(response.jobs)) {
-          console.log("[BPMN] Setting", response.jobs.length, "jobs");
           setJobs(response.jobs);
         } else {
-          console.warn("[BPMN] No jobs array in response. Keys:", Object.keys(response || {}));
         }
       } catch (err) {
         console.error("[BPMN] Failed to fetch jobs:", err);
@@ -374,11 +366,9 @@ export default function BpmnJsDesigner({
     });
 
     if (!containerRef.current || typeof window === "undefined") {
-      console.log(`[${myInitId}] No container or SSR, skipping`);
       return;
     }
     if (initializedRef.current) {
-      console.log(`[${myInitId}] Already initialized, skipping`);
       return;
     }
 
@@ -386,22 +376,18 @@ export default function BpmnJsDesigner({
     // For new workflows (no processId), we can start immediately
     // dataLoaded tells us the query completed (even if xml is null)
     if (processId && !dataLoaded && !xmlLoadedRef.current) {
-      console.log(`[${myInitId}] Waiting for data to load... (dataLoaded: ${dataLoaded})`);
       return; // Wait for query to complete
     }
 
-    console.log(`[${myInitId}] Starting modeler initialization...`);
     xmlLoadedRef.current = true;
 
     let modeler: unknown = null;
     let aborted = false;
 
     const initModeler = async () => {
-      console.log(`[${myInitId}] initModeler async starting...`);
       try {
         // Dynamic import for bpmn-js (browser only)
         const BpmnModeler = (await import("bpmn-js/lib/Modeler")).default;
-        console.log(`[${myInitId}] BpmnModeler imported`);
 
         // Import CSS dynamically
         // @ts-expect-error - CSS imports don't have type declarations
@@ -410,35 +396,28 @@ export default function BpmnJsDesigner({
         await import("bpmn-js/dist/assets/bpmn-js.css");
         // @ts-expect-error - CSS imports don't have type declarations
         await import("bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css");
-        console.log(`[${myInitId}] CSS imported`);
 
         // Check if this init attempt was superseded or aborted
         if (aborted || initCounterRef.current !== myInitId) {
-          console.log(`[${myInitId}] Init superseded or aborted (current: ${initCounterRef.current})`);
           return;
         }
 
         // Check if already initialized by another attempt
         if (initializedRef.current) {
-          console.log(`[${myInitId}] Already initialized by another attempt`);
           return;
         }
 
-        console.log(`[${myInitId}] Creating modeler with container:`, containerRef.current);
         modeler = new BpmnModeler({
           container: containerRef.current!,
         });
-        console.log(`[${myInitId}] Modeler created:`, modeler);
 
         modelerRef.current = modeler;
 
         // Load initial diagram
         const xmlToLoad = initialXml || EMPTY_BPMN;
-        console.log(`[${myInitId}] Initializing modeler with XML length:`, xmlToLoad.length);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (modeler as any).importXML(xmlToLoad);
-        console.log(`[${myInitId}] XML imported successfully`);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const canvas = (modeler as any).get("canvas");
         // Center diagram with padding so it doesn't hug the top-left
@@ -447,7 +426,6 @@ export default function BpmnJsDesigner({
         // Mark as fully initialized AFTER successful setup
         initializedRef.current = true;
         setIsLoaded(true);
-        console.log(`[${myInitId}] Modeler loaded and ready`);
 
         // Listen for selection changes
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -487,7 +465,6 @@ export default function BpmnJsDesigner({
 
     // Cleanup
     return () => {
-      console.log(`[${myInitId}] Cleanup running, modeler exists:`, !!modeler, "initialized:", initializedRef.current);
       aborted = true;
       if (modeler) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

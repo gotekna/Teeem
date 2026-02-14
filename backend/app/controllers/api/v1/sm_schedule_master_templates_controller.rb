@@ -213,7 +213,7 @@ module Api
           start_date: params[:start_date],
           user: current_user,
           clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
-        }).execute
+        }).call
 
         if result[:success]
           render json: {

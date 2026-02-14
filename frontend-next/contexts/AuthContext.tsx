@@ -223,7 +223,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const devLogin = async () => {
-    console.log('🔧 Dev Mode: Auto-logging in with mock user...');
 
     // Use a mock user for dev mode - no API call needed
     const mockUser: User = {
@@ -241,7 +240,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     applyUserTheme(mockUser);
     // Load column type definitions from SSoT (fires in background)
     loadTypeDefinitions();
-    console.log('✅ Dev Mode: Logged in as', mockUser.name);
     setLoading(false);
   };
 

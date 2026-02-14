@@ -143,7 +143,6 @@ export function ToolbarBulkActions({
           size="sm"
           onClick={() => {
             if (effectiveVisibleSelectedIds.length === 0) {
-              console.warn('[Delete] No visible selected rows to delete');
               return;
             }
             onDelete(effectiveVisibleSelectedIds);

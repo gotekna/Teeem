@@ -47,7 +47,7 @@ class Estimate < ApplicationRecord
 
   def import_to_purchase_orders!
     service = EstimateToPurchaseOrderService.new(self)
-    result = service.execute
+    result = service.call
 
     raise StandardError, result[:error] unless result[:success]
 

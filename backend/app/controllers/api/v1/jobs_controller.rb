@@ -1209,7 +1209,7 @@ module Api
         result = SmScheduleMasterTemplateCopyService.new(template, @job, {
           start_date: Date.current,
           user: current_user
-        }).execute
+        }).call
 
         if result[:success]
           Rails.logger.info("Successfully instantiated template #{template.name} for job #{@job.id}")

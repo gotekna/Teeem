@@ -687,7 +687,6 @@ export class Renderer {
       // This indicates the task is not following its predecessors as designed
       const rowData = task.rowData as Record<string, unknown> | undefined;
       if (rowData?.dependency_broken) {
-        console.log('[Renderer] Drawing checkered pattern for task:', task.name, 'dependency_broken:', rowData.dependency_broken);
         this.ctx.save();
         // Clip to task bar shape
         this.ctx.beginPath();

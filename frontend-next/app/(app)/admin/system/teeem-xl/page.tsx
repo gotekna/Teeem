@@ -459,7 +459,6 @@ export default function TeeemXLPage() {
       try {
         await api.post(`/api/v1/teeem_spreadsheets/${spreadsheet.id}/save_to_warehouse`);
       } catch (warehouseError) {
-        console.warn("Failed to save to warehouse:", warehouseError);
         // Don't fail the whole save - database save succeeded
       }
 

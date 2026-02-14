@@ -568,7 +568,6 @@ export function WarehouseFoldersConfig({
         });
       }
 
-      console.log('[WarehouseFoldersConfig] Setting status to saving...');
       setSaveStatus('saving');
       await api.patch('/api/v1/warehouse_provider', {
         storage: {
@@ -578,9 +577,7 @@ export function WarehouseFoldersConfig({
       });
 
       // Show green tick - stays until page closes or next change
-      console.log('[WarehouseFoldersConfig] Setting status to saved...');
       setSaveStatus('saved');
-      console.log('[WarehouseFoldersConfig] Auto-saved templates');
     } catch (err) {
       console.error('[WarehouseFoldersConfig] Failed to auto-save templates:', err);
       setSaveStatus('idle');

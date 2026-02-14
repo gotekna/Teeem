@@ -49,7 +49,6 @@ export async function getCachedPdf(url: string): Promise<Blob | null> {
     }
     return null;
   } catch (err) {
-    console.warn("[PDF Cache] Read error:", err);
     return null;
   }
 }
@@ -70,7 +69,6 @@ export async function cachePdf(url: string, blob: Blob): Promise<void> {
     });
     await cache.put(url, response);
   } catch (err) {
-    console.warn("[PDF Cache] Write error:", err);
   }
 }
 
@@ -84,7 +82,6 @@ export async function clearPdfCache(): Promise<void> {
   try {
     await caches.delete(PDF_CACHE_NAME);
   } catch (err) {
-    console.warn("[PDF Cache] Clear error:", err);
   }
 }
 
@@ -99,7 +96,6 @@ export async function removeCachedPdf(url: string): Promise<void> {
     const cache = await caches.open(PDF_CACHE_NAME);
     await cache.delete(url);
   } catch (err) {
-    console.warn("[PDF Cache] Remove error:", err);
   }
 }
 

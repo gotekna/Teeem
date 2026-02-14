@@ -1011,7 +1011,6 @@ export class UnifiedGanttCanvas {
   /** Complete pending dependency creation with selected type */
   completeDependencyCreation(type: 'FS' | 'SS' | 'FF' | 'SF'): void {
     if (this.pendingDependency) {
-      console.log('[UnifiedGanttCanvas] Completing dependency:', this.pendingDependency.fromTaskId, '->', this.pendingDependency.toTaskId, 'type:', type);
       this.callbacks.onDependencyCreate?.(
         this.pendingDependency.fromTaskId,
         this.pendingDependency.toTaskId,
@@ -1024,7 +1023,6 @@ export class UnifiedGanttCanvas {
   /** Cancel pending dependency creation */
   cancelDependencyCreation(): void {
     if (this.pendingDependency) {
-      console.log('[UnifiedGanttCanvas] Cancelling dependency creation');
       this.pendingDependency = null;
       this.callbacks.onDependencyPopupHide?.();
     }
@@ -1962,12 +1960,10 @@ export class UnifiedGanttCanvas {
       if (targetTask && targetTask.id !== op.fromTaskId) {
         // Show popup for dependency type selection (if callback provided)
         if (this.callbacks.onDependencyPopupShow) {
-          console.log('[UnifiedGanttCanvas] Showing dependency popup:', op.fromTaskId, '->', targetTask.id);
           this.pendingDependency = { fromTaskId: op.fromTaskId, toTaskId: targetTask.id };
           this.callbacks.onDependencyPopupShow(op.fromTaskId, targetTask.id, e.clientX, e.clientY);
         } else {
           // No popup callback - create directly with default FS type
-          console.log('[UnifiedGanttCanvas] Creating dependency:', op.fromTaskId, '->', targetTask.id);
           this.callbacks.onDependencyCreate?.(op.fromTaskId, targetTask.id, 'FS');
         }
       }
@@ -1982,7 +1978,6 @@ export class UnifiedGanttCanvas {
 
         if (newProgress !== op.originalProgress) {
           // Emit callback for parent to handle API update
-          console.log('[UnifiedGanttCanvas] Progress changed:', task.id, 'from', op.originalProgress, 'to', newProgress);
           this.callbacks.onProgressChange?.(task, newProgress);
         } else {
           // No change - reset to original
@@ -2363,7 +2358,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Double-click on any other table column → open detail screen
-      console.log('[UnifiedGanttCanvas] Opening detail screen via onTaskDoubleClick');
       this.callbacks.onTaskDoubleClick?.(task, e);
       return;
     }

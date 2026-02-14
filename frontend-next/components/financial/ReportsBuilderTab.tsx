@@ -121,7 +121,6 @@ export default function ReportsBuilderTab() {
       const res = await api.post<{ success: boolean; data: unknown }>(`/api/v1/gl/reports_builder/${report.id}/run`);
       if (res?.success) {
         // In a real implementation, this would display the results
-        console.log("Report results:", res.data);
       }
       fetchData(); // Refresh to update run count
     } catch (error) {

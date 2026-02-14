@@ -109,7 +109,6 @@ export function ScreenSharePrompt() {
           }
         },
         onEnded: (reason) => {
-          console.log("[ScreenSharePrompt] Session ended:", reason);
           send(fromUserId, "session_ended", sessionId);
           managerRef.current = null;
           setActiveSession(null);

@@ -392,7 +392,6 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       }
 
       if (!cancelled && loaded > 0) {
-        console.log(`[Plans] Preloaded ${loaded}/${plansToPreload.length} plans`);
       }
     };
 

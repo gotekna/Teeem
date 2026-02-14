@@ -91,11 +91,9 @@ export function useGanttWithOffline(config: UseGanttWithOfflineConfig) {
             const data = deserializeGanttData(cached);
             // Note: We can't directly set the gantt state since it's managed by useGanttDataManager
             // Instead, the page component should handle this case
-            console.log("[GanttWithOffline] Loaded from cache:", data.tasks.length, "tasks");
             setLoadedFromCache(true);
           }
         } catch (error) {
-          console.warn("[GanttWithOffline] Failed to load from cache:", error);
         } finally {
           setLoadingFromCache(false);
         }
@@ -115,10 +113,8 @@ export function useGanttWithOffline(config: UseGanttWithOfflineConfig) {
     }
 
     // If offline, try to load from cache
-    console.log("[GanttWithOffline] Offline - attempting cache load");
     const cached = await getGanttFromCache(mode, id);
     if (cached) {
-      console.log("[GanttWithOffline] Serving cached data");
       // The gantt hook will show "no data" but we return cached data
       return deserializeGanttData(cached);
     }

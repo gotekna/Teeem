@@ -151,7 +151,6 @@ export function GanttDependencyEditor({
 
     // Add pending predecessor from drag-create if not already in the list
     if (pendingPredecessor) {
-      console.log('[GanttDependencyEditor] pendingPredecessor:', pendingPredecessor);
       const alreadyExists = predecessorLinks.some(link => {
         const predTask = tasks.find(t => t.id === link.predecessorId);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -166,17 +165,14 @@ export function GanttDependencyEditor({
           const r = t.rowData as any;
           return r?.task_number === pendingPredecessor.taskNumber;
         });
-        console.log('[GanttDependencyEditor] Found pendingTask:', pendingTask?.id, pendingTask?.name);
         if (pendingTask) {
           predecessorLinks.push({
             predecessorId: pendingTask.id,
             type: (pendingPredecessor.type as DependencyType) || 'FS',
             lag: pendingPredecessor.lag || 0,
           });
-          console.log('[GanttDependencyEditor] Added pending predecessor, total:', predecessorLinks.length);
         }
       } else {
-        console.log('[GanttDependencyEditor] Pending predecessor already exists');
       }
     }
 
@@ -443,7 +439,6 @@ export function GanttDependencyEditor({
           updates.confirm = false;
         }
         if (Object.keys(updates).length > 0) {
-          console.log('[GanttDependencyEditor] Unlocking successor:', task.id, updates);
           await onUpdateTask(task.id, updates);
         }
       }
@@ -478,7 +473,6 @@ export function GanttDependencyEditor({
         };
       }).filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving restored dependency (move successor):', currentPreds);
       await onSave(task.id, currentPreds, currentSuccs);
 
       // Close dialogs
@@ -491,10 +485,8 @@ export function GanttDependencyEditor({
 
   // Handle moving the predecessor to honor dependency
   const handleMovePredecessor = async () => {
-    console.log('[GanttDependencyEditor] handleMovePredecessor called');
 
     if (!restoreConflict || !restoreConflict.predecessorTask || !task) {
-      console.log('[GanttDependencyEditor] Early return - missing data');
       return;
     }
 
@@ -536,7 +528,6 @@ export function GanttDependencyEditor({
         };
       }).filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving restored dependency immediately:', currentPreds);
       await onSave(task.id, currentPreds, currentSuccs);
 
       // 2. THEN: Update predecessor task (move it backward) if needed
@@ -561,7 +552,6 @@ export function GanttDependencyEditor({
         updates.hold = true;
         updates.hold_date = dateStr;
 
-        console.log('[GanttDependencyEditor] Moving predecessor (hold_date):', predTask.id, updates);
         await onUpdateTask(predTask.id, updates);
       }
 
@@ -586,22 +576,16 @@ export function GanttDependencyEditor({
     let currentSuccLinks = [...depEditorSuccessorLinks];
 
     // Check if there's a pending predecessor in the input field (controlled state)
-    console.log('[GanttDependencyEditor] pendingPredRowNum:', pendingPredRowNum);
-    console.log('[GanttDependencyEditor] tasks.length:', tasks.length);
 
     if (pendingPredRowNum) {
       const taskNum = parseInt(pendingPredRowNum, 10);
-      console.log('[GanttDependencyEditor] taskNum:', taskNum);
       // Find by task_number, not array index
       const t = tasks.find(t => {
         const rd = t.rowData as any;
         return rd?.task_number === taskNum;
       }) || null;
-      console.log('[GanttDependencyEditor] found task t:', t?.id, t?.name);
-      console.log('[GanttDependencyEditor] current task.id:', task?.id);
       if (t && t.id !== task?.id && !currentPredLinks.some(l => l.predecessorId === t.id)) {
         currentPredLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending predecessor from input:', taskNum);
       }
     }
 
@@ -615,11 +599,9 @@ export function GanttDependencyEditor({
       }) || null;
       if (t && t.id !== task?.id && !currentSuccLinks.some(l => l.predecessorId === t.id)) {
         currentSuccLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending successor from input:', taskNum);
       }
     }
 
-    console.log('[GanttDependencyEditor] handleSave called, depEditorLinks:', currentPredLinks.length);
 
     setIsSaving(true);
     try {
@@ -652,9 +634,7 @@ export function GanttDependencyEditor({
         })
         .filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving predecessors:', predecessors, 'successors:', successors);
       await onSave(task.id, predecessors, successors);
-      console.log('[GanttDependencyEditor] Save completed');
       onClose();
     } catch (error) {
       console.error('[GanttDependencyEditor] Failed to save dependencies:', error);

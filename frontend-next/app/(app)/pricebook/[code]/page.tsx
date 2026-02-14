@@ -252,10 +252,8 @@ export default function PriceBookItemDetailPage() {
     try {
       setLoadingSuppliers(true);
       const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers');
-      console.log('[loadSuppliers] Response:', response);
 
       if (response?.success && Array.isArray(response.contacts)) {
-        console.log('[loadSuppliers] Setting suppliers count:', response.contacts.length);
         setSuppliers(response.contacts);
       } else {
         console.error('[loadSuppliers] Invalid response structure:', response);
@@ -471,8 +469,6 @@ export default function PriceBookItemDetailPage() {
     const supplierToKeep = newPriceEntry.supplier_id;
     const lgaToKeep = newPriceEntry.lga;
 
-    console.log('[handleAddNewPrice] Current newPriceEntry:', newPriceEntry);
-    console.log('[handleAddNewPrice] Saving with supplier:', supplierToKeep, 'lga:', lgaToKeep);
 
     try {
       const response = await api.post<{ success: boolean; item: PriceBookItem }>(`/api/v1/pricebook/${code}/add_price`, {
@@ -482,16 +478,13 @@ export default function PriceBookItemDetailPage() {
         date_effective: newPriceEntry.date_effective || undefined,
       });
 
-      console.log('[handleAddNewPrice] Response received:', response);
 
       // Update item state directly from response to avoid reload
       if (response?.success && response.item) {
-        console.log('[handleAddNewPrice] Updating item state with price_histories count:', response.item.price_histories?.length);
         setItem(response.item);
       }
 
       // Reset form completely - clear all fields
-      console.log('[handleAddNewPrice] Clearing form');
 
       setNewPriceEntry({
         price: "",
@@ -500,11 +493,9 @@ export default function PriceBookItemDetailPage() {
         supplier_id: null,
       });
 
-      console.log('[handleAddNewPrice] Form reset complete');
 
       // Log what the state should be after update
       setTimeout(() => {
-        console.log('[handleAddNewPrice] After state update, newPriceEntry should have supplier_id:', supplierToKeep);
       }, 100);
     } catch (err) {
       console.error("Failed to add price:", err);
@@ -514,7 +505,6 @@ export default function PriceBookItemDetailPage() {
 
   // Handle setting default supplier from price history
   const handleSetDefaultSupplier = async (supplierId: number | undefined) => {
-    console.log('[handleSetDefaultSupplier] Called with supplierId:', supplierId, 'type:', typeof supplierId);
 
     if (!supplierId) {
       console.error('[handleSetDefaultSupplier] No supplier ID provided');
@@ -528,19 +518,14 @@ export default function PriceBookItemDetailPage() {
     }
 
     if (item.default_supplier_id === supplierId) {
-      console.log('[handleSetDefaultSupplier] This supplier is already the default');
       return;
     }
 
-    console.log('[handleSetDefaultSupplier] Setting default supplier:', supplierId);
-    console.log('[handleSetDefaultSupplier] Current default:', item.default_supplier_id);
-    console.log('[handleSetDefaultSupplier] Request body:', { supplier_id: supplierId });
 
     try {
       const response = await api.post(`/api/v1/pricebook/${code}/set_default_supplier`, {
         supplier_id: supplierId,
       });
-      console.log('[handleSetDefaultSupplier] Success:', response);
 
       // Update state directly without reload
       setItem(prevItem => {
@@ -1113,8 +1098,6 @@ export default function PriceBookItemDetailPage() {
                               <Checkbox
                                 checked={isDefaultSupplier}
                                 onCheckedChange={() => {
-                                  console.log('[Checkbox click] history.supplier:', history.supplier);
-                                  console.log('[Checkbox click] supplier.id:', history.supplier?.id);
                                   handleSetDefaultSupplier(history.supplier?.id);
                                 }}
                               />
@@ -1200,7 +1183,6 @@ export default function PriceBookItemDetailPage() {
                                 }
                                 const selectedSupplier = suppliers.find(s => s.id === newPriceEntry.supplier_id);
                                 if (!selectedSupplier) {
-                                  console.log('[Supplier button] Could not find supplier with ID:', newPriceEntry.supplier_id, 'in', suppliers.length, 'suppliers');
                                   return <span className="text-muted-foreground">Select Supplier...</span>;
                                 }
                                 return selectedSupplier.display_name || selectedSupplier.display_name;
@@ -1219,11 +1201,8 @@ export default function PriceBookItemDetailPage() {
                                       key={supplier.id}
                                       value={supplier.display_name || supplier.display_name}
                                       onSelect={() => {
-                                        console.log('[New price supplier select] Selected:', supplier.display_name || supplier.display_name, 'ID:', supplier.id);
                                         setNewPriceEntry(prev => {
-                                          console.log('[New price supplier select] Previous state:', prev);
                                           const newState = { ...prev, supplier_id: supplier.id };
-                                          console.log('[New price supplier select] New state:', newState);
                                           return newState;
                                         });
                                         setNewPriceSupplierPopoverOpen(false);

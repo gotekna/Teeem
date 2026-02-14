@@ -93,11 +93,9 @@ export default function TrainingSessionPage() {
     const api = new window.JitsiMeetExternalAPI(domain, options);
 
     api.addListener("videoConferenceJoined", () => {
-      console.log("User joined the conference");
     });
 
     api.addListener("videoConferenceLeft", () => {
-      console.log("User left the conference");
       setMeetingEnded(true);
       router.push("/training");
     });

@@ -1045,10 +1045,8 @@ export default function TeeemPowerPointPage() {
         );
 
         if (!response.ok) {
-          console.warn("Failed to save to warehouse:", await response.text());
         }
       } catch (warehouseError) {
-        console.warn("Failed to save to warehouse:", warehouseError);
         // Don't fail the whole save - database save succeeded
       }
 

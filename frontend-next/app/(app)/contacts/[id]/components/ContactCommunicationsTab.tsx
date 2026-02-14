@@ -54,7 +54,6 @@ export function ContactCommunicationsTab({ contact }: ContactCommunicationsTabPr
       }
     } catch (err) {
       // API may not exist yet - show empty state
-      console.log("Communications API not available yet");
       setCommunications([]);
     } finally {
       setLoading(false);

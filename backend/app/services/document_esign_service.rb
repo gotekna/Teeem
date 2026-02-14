@@ -45,7 +45,7 @@ class DocumentEsignService
   end
 
   # Execute the full workflow: generate → upload → create e-sign request → send
-  def execute!
+  def call!
     validate!
 
     # Step 1: Generate the main document

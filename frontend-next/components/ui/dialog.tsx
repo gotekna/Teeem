@@ -46,7 +46,6 @@ const DialogContent = React.forwardRef<
         const target = e.target as HTMLElement;
         const isWritingChecker = target.closest('[data-writing-checker-tooltip]');
         if (isWritingChecker) {
-          console.log('[Dialog] Allowing writing-checker tooltip click');
           e.preventDefault(); // Prevent Radix from closing dialog or blocking event
           return;
         }
@@ -56,7 +55,6 @@ const DialogContent = React.forwardRef<
         // Also handle onInteractOutside for writing-checker tooltips
         const target = e.target as HTMLElement;
         if (target.closest('[data-writing-checker-tooltip]')) {
-          console.log('[Dialog] Allowing writing-checker tooltip interaction');
           e.preventDefault();
           return;
         }

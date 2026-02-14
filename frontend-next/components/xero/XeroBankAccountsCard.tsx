@@ -285,7 +285,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
   const loadTransactions = async (accountId: string) => {
     try {
       setTransactionsLoading(true);
-      console.log(`[XeroBankTransactions] Loading transactions for account ${accountId}, date range: ${dateRange.from} to ${dateRange.to}`);
 
       const response = await api.get<{
         success: boolean;
@@ -318,7 +317,6 @@ export function XeroBankAccountsCard({ companyId }: XeroBankAccountsCardProps) {
 
         // Log first few transactions for debugging
         if (response.transactions.length > 0) {
-          console.log(`[XeroBankTransactions] First transaction:`, response.transactions[0]);
         }
       } else {
         setTransactions([]);

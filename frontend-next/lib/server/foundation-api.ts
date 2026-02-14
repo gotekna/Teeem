@@ -15,10 +15,8 @@ import type { SavedView } from '@/components/table/types';
 const getServerApiUrl = () => {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (!url) {
-    console.warn('[SSR] NEXT_PUBLIC_API_URL not set - API requests will fail');
     throw new Error('NEXT_PUBLIC_API_URL environment variable is required');
   }
-  console.log('[SSR] API URL:', url);
   return url;
 };
 
@@ -90,7 +88,6 @@ interface FoundationData {
 async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value || null;
-  console.log('[SSR] getAuthToken:', token ? `token found (${token.substring(0, 20)}...)` : 'no token');
   return token;
 }
 
@@ -99,11 +96,9 @@ async function getAuthToken(): Promise<string | null> {
  * This runs during SSR and provides initial data to components
  */
 export async function fetchFoundationBySlug(slug: string): Promise<FoundationData> {
-  console.log('[SSR] fetchFoundationBySlug starting for:', slug);
   const token = await getAuthToken();
 
   if (!token) {
-    console.log('[SSR] No auth token - returning empty data');
     return {
       foundation: null,
       columns: [],
@@ -159,7 +154,6 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);
 
-    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length, '- hasMore:', hasMore);
     return {
       foundation,
       columns,
@@ -349,9 +343,7 @@ export async function fetchFoundationForSSR(
       ) || null;
 
       if (view) {
-        console.log('[SSR] Pre-loaded URL view:', view.name, 'with grouping:', view.group_by_columns);
       } else {
-        console.log('[SSR] View not found for slug:', viewSlug);
       }
     }
 
@@ -368,7 +360,6 @@ export async function fetchFoundationForSSR(
         // Find original ViewData by ID
         view = views.find(v => v.id === defaultView.id) || null;
         if (view) {
-          console.log('[SSR] Auto-selected default view:', view.name, 'with grouping:', view.group_by_columns);
         }
       }
     }
@@ -404,7 +395,6 @@ export async function fetchFoundationForSSR(
               totalRecords: groupsData.total_records || 0,
               displayValuesMap: groupsData.display_values_map || {},
             };
-            console.log('[SSR] Pre-loaded group counts:', groupCounts.groups.length, 'groups');
           }
         }
       } catch (groupErr) {
@@ -492,7 +482,6 @@ export async function fetchViewBySlug(
   const token = await getAuthToken();
 
   if (!token) {
-    console.log('[SSR] No auth token - cannot fetch view');
     return null;
   }
 
@@ -520,7 +509,6 @@ export async function fetchViewBySlug(
     const views = data.views as ViewData[];
 
     if (!views || !Array.isArray(views)) {
-      console.log('[SSR] No views found for foundation:', foundationSlug);
       return null;
     }
 
@@ -532,11 +520,9 @@ export async function fetchViewBySlug(
     );
 
     if (view) {
-      console.log('[SSR] Found view:', view.name, 'slug:', view.slug);
       return view;
     }
 
-    console.log('[SSR] View not found for slug:', viewSlug);
     return null;
   } catch (err) {
     console.error('[SSR] Failed to fetch view:', err);

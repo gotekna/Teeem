@@ -548,16 +548,16 @@ class Contact < ApplicationRecord
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
-  after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
+  after_commit :enqueue_relationship_sync, if: :should_sync_primary_company_to_relationship?
 
   # SSoT: Sync Contact → Corporate for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
   # Two-way sync for ABN: Contact.abn ↔ Corporate.abn
-  after_commit :sync_to_corporate, if: :should_sync_to_corporate?
+  after_commit :enqueue_corporate_sync, if: :should_sync_to_corporate?
 
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
-  after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+  after_commit :enqueue_invoice_linking, on: [:create, :update], if: :should_auto_link_invoices?
 
   # Materialized Path: Recompute warehouse document paths when contact name changes
   after_commit :queue_warehouse_path_recompute,
@@ -1573,6 +1573,21 @@ class Contact < ApplicationRecord
   # Materialized Path: Queue recomputation of warehouse document paths
   def queue_warehouse_path_recompute
     RecomputeDocumentPathsJob.perform_later("Contact", id)
+  end
+
+  # Enqueue background job: Sync primary_company_id → employee_of relationship
+  def enqueue_relationship_sync
+    ContactRelationshipSyncService.call(self)
+  end
+
+  # Enqueue background job: Sync Contact → Corporate
+  def enqueue_corporate_sync
+    ContactSyncCorporateJob.perform_later(id)
+  end
+
+  # Enqueue background job: Auto-link unlinked Xero invoices
+  def enqueue_invoice_linking
+    ContactAutoLinkInvoicesJob.perform_later(id)
   end
 
   # SSoT: Sync mobile_phone to linked user

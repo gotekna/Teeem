@@ -186,19 +186,14 @@ export const NotebooksSidebar = forwardRef<NotebooksSidebarRef, NotebooksSidebar
   };
 
   const handleCreatePage = async (notebookId: number, sectionId: number) => {
-    console.log("📝 Creating page:", { notebookId, sectionId });
     try {
       const page = await pageActions.create(notebookId, sectionId, { title: "Untitled" });
-      console.log("✓ Page created successfully:", page);
       // Ensure the section is expanded so the new page is visible
       setExpandedSections((prev) => new Set(prev).add(sectionId));
       // Invalidate React Query cache to force refresh the sidebar
       await queryClient.invalidateQueries({ queryKey: ["notebook", notebookId] });
-      console.log("✓ Sidebar refreshed");
       // Log the updated notebook data
-      console.log("📊 Notebook data after refresh:", selectedNotebook);
       const section = selectedNotebook?.sections?.find(s => s.id === sectionId);
-      console.log("📊 Section pages after refresh:", section?.pages);
       onSelectPage(page.id, notebookId);
     } catch (err) {
       console.error("✗ Failed to create page:", err);

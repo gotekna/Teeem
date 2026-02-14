@@ -141,7 +141,6 @@ export function useCorporateTable(
       }
 
       if (!foundationId) {
-        console.warn(`No foundation ID for entity type: ${entityType}`);
         return;
       }
 

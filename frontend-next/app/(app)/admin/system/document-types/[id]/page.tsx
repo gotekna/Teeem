@@ -554,7 +554,6 @@ export default function DocumentTypeDetailPage() {
           setPreviewCompanyId(defaultCompany ? defaultCompany.id : corporateLinkedCompanies[0].id);
         }
       } else {
-        console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
       }
     } catch (error) {

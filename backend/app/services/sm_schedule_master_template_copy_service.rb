@@ -10,7 +10,7 @@
 # - Optionally creating Purchase Orders for tasks that require them
 #
 # Usage:
-#   result = SmScheduleMasterTemplateCopyService.new(template, job, options).execute
+#   result = SmScheduleMasterTemplateCopyService.new(template, job, options).call
 #
 # Options:
 #   user: User performing the copy (for audit trail)
@@ -36,7 +36,7 @@ class SmScheduleMasterTemplateCopyService
     @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
   end
 
-  def execute
+  def call
     return failure("Template is required") unless template.present?
     return failure("Job is required") unless job.present?
 

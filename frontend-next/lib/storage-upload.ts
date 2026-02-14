@@ -112,7 +112,6 @@ export async function uploadToSharePointDirect(
           warehouse_folder_id: warehouseFolderId,
         }
       );
-      console.log("[DirectUpload] Session response:", sessionResponse);
     } catch (apiError) {
       console.error("[DirectUpload] API error:", apiError);
       throw apiError;
@@ -400,7 +399,6 @@ export async function uploadPhoto(
 
   // Check provider type
   const providerType = await getStorageProviderType();
-  console.log("[uploadPhoto] Storage provider:", providerType);
 
   // FRC (Feb 2026): Fail early if no provider configured
   if (!providerType) {

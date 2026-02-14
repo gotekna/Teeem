@@ -122,7 +122,6 @@ export async function syncPhoto(photo: PendingPhoto): Promise<PhotoSyncResult> {
         syncedAt: Date.now(),
       });
 
-      console.log(`[PhotoSync] Synced photo ${photo.id} → server ID ${response.photo?.id}`);
 
       return {
         photoId: photo.id,
@@ -212,7 +211,6 @@ export async function syncAllPendingPhotos(
     status: "completed",
   });
 
-  console.log(`[PhotoSync] Batch complete: ${result.synced} synced, ${result.failed} failed`);
   return result;
 }
 

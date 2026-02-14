@@ -313,7 +313,6 @@ export function displayLookup(value: unknown): React.ReactNode {
       obj.display_value || obj.display || obj.name || obj.display_name || obj.id || ""
     );
     if (!displayText) {
-      console.warn("[displayLookup] Object without display property:", value);
       return formatEmpty();
     }
   } else {

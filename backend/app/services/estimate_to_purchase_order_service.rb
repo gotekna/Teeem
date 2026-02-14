@@ -6,7 +6,7 @@ class EstimateToPurchaseOrderService
     @warnings = []
   end
 
-  def execute
+  def call
     # Validation checks
     return error_result("Estimate already imported") if @estimate.status_imported?
     return error_result("Must be matched to a job first") unless @construction

@@ -466,7 +466,6 @@ export default function AllDocumentsPage() {
     } catch (error) {
       // Expected to fail if no desktop app connected (401)
       // Just log and continue - the UI will show empty state
-      console.log("Sync settings not available (no desktop app connected):", error);
     } finally {
       setSyncLoading(false);
     }

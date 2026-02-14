@@ -283,7 +283,6 @@ export default function ContactQualityReviewPage() {
     setScanning(true);
     try {
       const result = await api.post<ScanResponse>("/api/v1/contacts/quality_reviews/scan", {});
-      console.log("Scan result:", result);
       await fetchReviews();
     } catch (error) {
       console.error("Scan failed:", error);

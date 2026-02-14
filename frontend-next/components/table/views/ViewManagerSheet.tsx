@@ -549,7 +549,6 @@ export function ViewManagerSheet({
         await new Promise(resolve => setTimeout(resolve, 10));
 
         // Trigger data refresh to apply new filters/sorting/etc
-        console.log('[ViewManagerSheet] Triggering refresh after view applied');
         onRefresh?.();
 
         onViewsChange?.();

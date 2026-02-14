@@ -169,13 +169,11 @@ export function ColumnEditorModal({
       }
 
       const tableIdToLoad = editedColumn.lookup_table_id;
-      console.log('[ColumnEditorModal] Loading records for target table:', tableIdToLoad);
 
       try {
         const response = await api.get<{ records: Array<Record<string, unknown>> }>(
           `/api/v1/foundations/${tableIdToLoad}/records`
         );
-        console.log('[ColumnEditorModal] Records response for table', tableIdToLoad, ':', response);
 
         if (response?.records) {
           // Get display column from current config, default to 'name'
@@ -184,7 +182,6 @@ export function ColumnEditorModal({
             id: record.id as number,
             display: String(record[displayColumn] || record.name || record.title || record.id),
           }));
-          console.log('[ColumnEditorModal] Setting records for table', tableIdToLoad, ':', records);
           setTargetTableRecords(records);
         }
       } catch (error) {
@@ -198,9 +195,7 @@ export function ColumnEditorModal({
   // Sync state when column changes
   useEffect(() => {
     if (column) {
-      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_foundation_id:', column.lookup_foundation_id);
       const newLookupTableId = column.lookup_foundation_id || null;
-      console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
       // SSoT: column_type should always be set - log error if missing (skip system columns)
       const systemColumns = ['id', 'created_at', 'updated_at'];
@@ -273,7 +268,6 @@ export function ColumnEditorModal({
         },
       });
 
-      console.log('[ColumnEditorModal] Saved column with choices:', editedColumn.choices);
       toast({ title: "Success", description: "Column updated successfully" });
 
       // Invalidate columns cache so ViewManagerSheet shows the updated column

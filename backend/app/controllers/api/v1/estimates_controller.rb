@@ -68,7 +68,7 @@ module Api
 
       def generate_purchase_orders
         service = EstimateToPurchaseOrderService.new(@estimate)
-        result = service.execute
+        result = service.call
 
         if result[:success]
           render json: result, status: :created

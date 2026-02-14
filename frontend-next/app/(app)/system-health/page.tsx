@@ -395,7 +395,6 @@ export default function SystemHealthPage() {
         });
 
         if (response?.success) {
-          console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
         }
 
         // Refresh health data
@@ -403,7 +402,6 @@ export default function SystemHealthPage() {
       } else {
         // For review items, navigate to the relevant page
         // TODO: Open a modal or navigate to the data health details
-        console.log("Review action:", quickWin);
       }
     } catch (error) {
       console.error("Failed to fix:", error);

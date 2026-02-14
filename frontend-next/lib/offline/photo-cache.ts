@@ -250,7 +250,6 @@ export async function storePhoto(
   const db = await getDB();
   await db.put(PHOTOS_STORE, photo);
 
-  console.log(`[PhotoCache] Stored photo: ${photo.fileName} (${formatFileSize(photo.fileSize)})`);
   return photo;
 }
 

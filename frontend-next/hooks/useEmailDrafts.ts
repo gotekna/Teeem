@@ -104,7 +104,6 @@ export function useEmailDrafts() {
         return response.data;
       }
     } catch (err) {
-      console.warn("Failed to load drafts from API, using localStorage:", err);
       // Fall back to localStorage
       const localDrafts = getDraftsFromStorage();
       setDrafts(localDrafts);
@@ -128,7 +127,6 @@ export function useEmailDrafts() {
 
     if (localOnlyDrafts.length === 0) return;
 
-    console.log(`Migrating ${localOnlyDrafts.length} local drafts to API...`);
 
     // Migrate each local draft to API
     for (const draft of localOnlyDrafts) {
@@ -145,7 +143,6 @@ export function useEmailDrafts() {
           attachment_names: draft.attachment_names,
         });
       } catch (err) {
-        console.warn(`Failed to migrate draft ${draft.id}:`, err);
       }
     }
 
@@ -212,7 +209,6 @@ export function useEmailDrafts() {
         return savedDraft.id;
       }
     } catch (err) {
-      console.warn("Failed to save draft to API, saving locally:", err);
     }
 
     // Fallback to localStorage only
@@ -245,7 +241,6 @@ export function useEmailDrafts() {
       try {
         await api.delete<DeleteApiResponse>(`/api/v1/email_drafts/${id}`);
       } catch (err) {
-        console.warn("Failed to delete draft from API:", err);
       }
     }
 
@@ -271,7 +266,6 @@ export function useEmailDrafts() {
     try {
       await api.delete<DeleteApiResponse>("/api/v1/email_drafts/destroy_all");
     } catch (err) {
-      console.warn("Failed to clear drafts from API:", err);
     }
 
     setDrafts([]);

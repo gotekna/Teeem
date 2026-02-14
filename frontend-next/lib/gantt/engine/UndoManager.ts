@@ -50,7 +50,6 @@ export class UndoManager {
    */
   execute(command: Command): void {
     if (this.isExecuting) {
-      console.warn('UndoManager: Cannot execute while undo/redo in progress');
       return;
     }
 
@@ -99,7 +98,6 @@ export class UndoManager {
   undo(): Command | null {
     if (!this.canUndo()) return null;
     if (this.isExecuting) {
-      console.warn('UndoManager: Cannot undo while operation in progress');
       return null;
     }
 
@@ -124,7 +122,6 @@ export class UndoManager {
   redo(): Command | null {
     if (!this.canRedo()) return null;
     if (this.isExecuting) {
-      console.warn('UndoManager: Cannot redo while operation in progress');
       return null;
     }
 

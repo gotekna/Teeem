@@ -284,7 +284,6 @@ export function PoTemplatesTab() {
             supplier_id: group.supplierId,
           }).catch((err: unknown) => {
             // Non-critical: log but don't fail the save
-            console.warn("[PoTemplatesTab] Failed to add supplier price history:", err);
           })
         );
       }

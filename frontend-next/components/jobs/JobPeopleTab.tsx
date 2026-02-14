@@ -207,23 +207,18 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
 
     try {
       setSearching(true);
-      console.log("[JobPeopleTab] Searching contacts with query:", query);
       // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Contact[] }>("/api/v1/contacts", {
         params: { search: query, per_page: PAGE_SIZE_AUTOCOMPLETE },
         dedupe: false, // Disable deduplication for search
       });
 
-      console.log("[JobPeopleTab] API response:", response);
-      console.log("[JobPeopleTab] Contacts returned:", response.contacts?.length || 0);
 
       const existingForRole = contacts.filter((c) => c.role === addingRole).map((c) => c.contact_id);
-      console.log("[JobPeopleTab] Existing contacts for role", addingRole, ":", existingForRole);
 
       const filtered = (response.contacts || []).filter(
         (contact) => !existingForRole.includes(contact.id)
       );
-      console.log("[JobPeopleTab] Filtered results:", filtered.length);
       setSearchResults(filtered);
       setHasSearched(true); // Mark that a search has completed
     } catch (err) {

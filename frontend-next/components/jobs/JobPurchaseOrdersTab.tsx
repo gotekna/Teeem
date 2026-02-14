@@ -392,7 +392,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       );
 
       if (response?.success) {
-        console.log(`Budget ${response.action}: ${response.count} POs`);
         setRefreshKey((k) => k + 1);
         clearSelection();
       } else {

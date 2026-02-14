@@ -148,7 +148,7 @@ namespace :contacts do
       reviews.find_each do |review|
         begin
           ActiveRecord::Base.transaction do
-            ContactQualityActionService.new(review).execute!
+            ContactQualityActionService.new(review).call!
             review.update!(status: "approved", reviewed_at: Time.current)
           end
           approved += 1

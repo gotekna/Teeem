@@ -197,7 +197,6 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
   // Sync documents for a single job
   const syncJob = useCallback(async (jobId: number) => {
     if (!isOnline) {
-      console.warn("[DocumentSync] Cannot sync while offline");
       return;
     }
 
@@ -292,15 +291,12 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
               completed++;
             } else {
               failed++;
-              console.warn(`[DocumentSync] Failed to fetch ${doc.name}:`, blobResponse.status);
             }
           } else {
             failed++;
-            console.warn(`[DocumentSync] No download URL for ${doc.name}`);
           }
         } catch (docError) {
           failed++;
-          console.warn(`[DocumentSync] Error syncing ${doc.name}:`, docError);
         }
 
         // Update progress

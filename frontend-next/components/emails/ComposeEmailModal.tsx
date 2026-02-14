@@ -263,7 +263,6 @@ export function ComposeEmailModal({
   // SSoT (Feb 2026): Supports per-account branding - if account has custom branding, use it instead of company settings
   const getUserSignature = (selectedAccountId?: string): string => {
     if (!currentUser) {
-      console.log('[ComposeSignature] getUserSignature: no currentUser');
       return "";
     }
 
@@ -369,7 +368,6 @@ export function ComposeEmailModal({
 
   useEffect(() => {
     if (open && !hasInitialized) {
-      console.log('[ComposeModal] Initializing modal...');
       setHasInitialized(true);
       fetchAccounts();
       fetchFrequentContacts();
@@ -542,7 +540,6 @@ export function ComposeEmailModal({
       const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active
       );
-      console.log('[ComposeAccounts] Active accounts:', activeAccounts.length);
       setAccounts(activeAccounts);
 
       // If a specific account was requested (e.g., for replies), use that
@@ -551,7 +548,6 @@ export function ComposeEmailModal({
 
       if (defaultFromAccountId) {
         accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
-        console.log('[ComposeAccounts] Looking for defaultFromAccountId:', defaultFromAccountId, 'found:', !!accountToSelect);
       }
 
       // If no account found by ID, try to find by email address (for replies)
@@ -571,20 +567,16 @@ export function ComposeEmailModal({
             matchedFromAlias = defaultFromEmail;
           }
         }
-        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect, 'alias:', matchedFromAlias);
       }
 
       if (!accountToSelect) {
         accountToSelect = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
-        console.log('[ComposeAccounts] Selected account:', accountToSelect?.email_address, 'is_default:', accountToSelect?.is_default);
       }
 
       if (accountToSelect) {
         // Use the matched alias as FROM if we found via alias, otherwise use primary email
         const fromAddress = matchedFromAlias || accountToSelect.email_address;
-        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id, 'from:', fromAddress);
         setFormData((prev) => {
-          console.log('[ComposeAccounts] setFormData called, prev credential_id:', prev.credential_id);
           return {
             ...prev,
             credential_id: String(accountToSelect!.id),
@@ -592,7 +584,6 @@ export function ComposeEmailModal({
           };
         });
       } else {
-        console.log('[ComposeAccounts] No account to select!');
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);
@@ -657,19 +648,16 @@ export function ComposeEmailModal({
     setError(null);
 
     if (!formData.credential_id) {
-      console.log('[ComposeSend] Error: no credential_id');
       setError("Please select an email account");
       return;
     }
 
     if (!formData.to.trim()) {
-      console.log('[ComposeSend] Error: no to');
       setError("Please enter a recipient");
       return;
     }
 
     if (!formData.subject.trim()) {
-      console.log('[ComposeSend] Error: no subject');
       setError("Please enter a subject");
       return;
     }

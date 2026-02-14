@@ -181,7 +181,6 @@ export function PdfFieldsTab() {
         (p) => p.pdf_form_field_name === clickedDetectedField.name
       );
 
-      console.log("[PDF Dialog] Opening dialog for:", clickedDetectedField.name);
       console.log("[PDF Dialog] Existing mapping found:", existingMapping ? {
         field_key: existingMapping.field_key,
         text_align: existingMapping.text_align,
@@ -190,13 +189,11 @@ export function PdfFieldsTab() {
       } : null);
 
       if (existingMapping) {
-        console.log("[PDF Dialog] Setting alignment from existing:", existingMapping.text_align || "left");
         setDialogHAlign(existingMapping.text_align || "left");
       } else {
         // Smart defaults based on field name
         const fieldName = clickedDetectedField.name.toLowerCase();
         const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment|value)/.test(fieldName);
-        console.log("[PDF Dialog] No existing mapping, using smart default:", isCurrency ? "right" : "left");
         setDialogHAlign(isCurrency ? "right" : "left");
       }
       setDialogVAlign("middle");
@@ -219,7 +216,6 @@ export function PdfFieldsTab() {
   const addDebugLog = React.useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = `[${timestamp}] ${message}`;
-    console.log(`[PdfFieldsTab] ${message}`);
     setDebugLogs((prev) => [...prev.slice(-19), logEntry]);
   }, []);
 
@@ -435,7 +431,6 @@ export function PdfFieldsTab() {
         setPositions((prev) =>
           prev.map((p) => (p.id === id ? response.data : p))
         );
-        console.log('[PDF] Box dimensions saved:', response.data.box_width, response.data.box_height);
       }
     } catch (err) {
       console.error('[PDF] Failed to save box dimensions:', err);
@@ -445,20 +440,17 @@ export function PdfFieldsTab() {
   // Save position
   const savePosition = async (id: number, updates: Partial<PdfFieldPosition>) => {
     addDebugLog(`Saving: id=${id}, x=${updates.x}, y=${updates.y}`);
-    console.log("[PDF Save] Starting save...", { id, updates });
     try {
       setSaving(true);
 
       // Log what we're sending
       const requestBody = { pdf_field_position: updates };
-      console.log("[PDF Save] Request body:", JSON.stringify(requestBody, null, 2));
 
       const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
         `/api/v1/pdf_field_positions/${id}`,
         requestBody
       );
 
-      console.log("[PDF Save] Response:", response);
       addDebugLog(`API response: ${JSON.stringify(response).substring(0, 200)}`);
 
       if (response.success && response.data) {
@@ -660,7 +652,6 @@ export function PdfFieldsTab() {
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              console.log('[PAGE] Previous clicked, currentPage:', currentPage);
               setCurrentPage((p) => Math.max(1, p - 1));
             }}
             disabled={currentPage <= 1}
@@ -675,7 +666,6 @@ export function PdfFieldsTab() {
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              console.log('[PAGE] Next clicked, currentPage:', currentPage);
               setCurrentPage((p) => Math.min(totalPages, p + 1));
             }}
             disabled={currentPage >= totalPages}

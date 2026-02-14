@@ -430,7 +430,6 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
-    console.warn(`Verification timeout for document ${docId}`);
     return null;
   };
 

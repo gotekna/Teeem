@@ -7,7 +7,7 @@ class AiReviewJob < ApplicationJob
     Rails.logger.info "Starting AI review for estimate #{estimate_id}"
 
     service = PlanReviewService.new(estimate)
-    result = service.execute
+    result = service.call
 
     if result[:success]
       Rails.logger.info "AI review completed for estimate #{estimate_id}"

@@ -67,7 +67,6 @@ export function WordDocumentPreview({ url, className }: WordDocumentPreviewProps
         if (!cancelled) {
           setHtml(result.value);
           if (result.messages.length > 0) {
-            console.log("Word document conversion warnings:", result.messages);
           }
         }
       } catch (err) {

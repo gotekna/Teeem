@@ -54,11 +54,9 @@ function dedupedLog(message: string): void {
 
   // Log any suppressed duplicates from the previous batch
   if (existing && existing.count > 1) {
-    console.log(`[RecordsCache] (${existing.count - 1} identical logs suppressed)`);
   }
 
   // Log new message and reset counter
-  console.log(message);
   recentLogs.set(message, { count: 1, lastTime: now });
 
   // Clean up old entries (prevent memory leak)
@@ -159,7 +157,6 @@ export function setCachedRecords(
   // This handles large datasets like Pricebook (5,285 items)
   if (isIndexedDBAvailable()) {
     setInIDB(foundationId, records, totalCount, hasMore, cursor).catch(e => {
-      console.warn('[RecordsCache] Failed to write to IndexedDB:', e);
     });
   }
 }

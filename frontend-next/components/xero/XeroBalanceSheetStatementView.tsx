@@ -126,7 +126,6 @@ export function XeroBalanceSheetStatementView({ companyId }: XeroBalanceSheetSta
         // Show success message
         if (response.message) {
           // Could use a toast here, but for now just log
-          console.log(response.message);
         }
       } else {
         setError(response?.error || "Failed to generate historical reports");

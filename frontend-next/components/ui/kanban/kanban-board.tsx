@@ -266,7 +266,6 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
         });
 
         if (fromIndex !== effectiveTargetIndex && fromIndex !== -1) {
-          console.log('[KanbanBoard] Calling onCardReorder');
           onCardReorder?.({
             item: activeItemData,
             columnId: activeColumnId,

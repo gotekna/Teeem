@@ -65,7 +65,6 @@ export function useViewPersistence(
   const saveView = useCallback(async (_state: Partial<ViewState>) => {
     // TODO: Implement API call to save view
     // POST /api/v1/foundations/{foundationId}/views/{viewId}
-    console.log("[useViewPersistence] Save not yet implemented");
   }, []);
 
   return {

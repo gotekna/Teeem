@@ -221,7 +221,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
     const cached = getCachedRecords(foundationId);
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
-      console.log(`[useAutoFetch] Restoring ${cached.records.length} records from cache`);
       setRecords(cached.records as TableRow[]);
       setHasMore(cached.hasMore);
       hasAppliedInitialRecordsRef.current = true;
@@ -247,23 +246,19 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
       // Skip if search is pending (URL param or initial)
       const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
       if (hasPersistedSearch) {
-        console.log('[useAutoFetch] Skipping fetch - search pending');
         return;
       }
 
       // Skip if all records already loaded
       if (!hasMore && records.length > 0) {
-        console.log('[useAutoFetch] All records loaded, applying filters client-side');
         return;
       }
 
       // Skip if SSR data already applied
       if (hasAppliedInitialRecordsRef.current && records.length > 0 && refreshKey === 0) {
-        console.log('[useAutoFetch] SSR data already applied, skipping duplicate fetch');
         return;
       }
 
-      console.log('[useAutoFetch] Fetching initial records');
       setIsLoadingMore(true);
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

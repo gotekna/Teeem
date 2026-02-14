@@ -292,7 +292,6 @@ const withRetry = async <T>(
       const delay = RETRY_DELAY_BASE * Math.pow(2, attempt) + Math.random() * 500;
       await new Promise(resolve => setTimeout(resolve, delay));
 
-      console.warn(`API retry attempt ${attempt + 1}/${maxRetries} after error:`, apiError.message);
     }
   }
 

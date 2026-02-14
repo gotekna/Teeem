@@ -57,7 +57,7 @@ module Api
       def apply
         job = Job.find(params[:job_id])
         service = PoTemplateApplyService.new(@pack, job)
-        result = service.execute
+        result = service.call
 
         if result[:success]
           render json: { success: true, data: result }

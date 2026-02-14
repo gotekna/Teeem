@@ -104,7 +104,6 @@ export function ScreenShareViewer({
               }
             },
             onEnded: (reason) => {
-              console.log("[ScreenShareViewer] Session ended:", reason);
               doCleanup();
             },
           });

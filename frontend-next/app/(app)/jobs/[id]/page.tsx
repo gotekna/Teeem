@@ -965,7 +965,6 @@ export default function JobDetailPage() {
 
       // Check if cached promise is stale (older than TTL)
       if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
-        console.warn(`Clearing stale job request cache for ${cacheKey}`);
         jobRequestCache.delete(cacheKey);
       }
 
@@ -1691,11 +1690,8 @@ export default function JobDetailPage() {
                 council={job.council}
                 onLocationUpdate={(data) => {
                   // Update job state with new location data using functional update
-                  console.log("Job page received location update:", data);
                   setJob((prevJob) => {
-                    console.log("Previous job location:", prevJob?.location);
                     const newJob = prevJob ? { ...prevJob, ...data } : prevJob;
-                    console.log("New job location:", newJob?.location);
                     return newJob;
                   });
                 }}

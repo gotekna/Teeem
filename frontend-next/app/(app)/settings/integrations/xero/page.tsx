@@ -264,12 +264,9 @@ export default function XeroIntegrationPage() {
   };
 
   const handleDisconnect = async () => {
-    console.log("[Xero] Disconnect button clicked, starting disconnect...");
     setDisconnecting(true);
     try {
-      console.log("[Xero] Calling api.xero.disconnect()...");
       await api.xero.disconnect();
-      console.log("[Xero] Disconnect successful");
       setStatus({ connected: false });
       setTenants([]);
       toast({
@@ -285,7 +282,6 @@ export default function XeroIntegrationPage() {
       });
     } finally {
       setDisconnecting(false);
-      console.log("[Xero] Disconnect process complete");
     }
   };
 

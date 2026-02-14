@@ -50,7 +50,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
 
   # Copy template to a construction as sm_tasks
   def copy_to_construction(construction, options = {})
-    SmScheduleMasterTemplateCopyService.new(self, construction, options).execute
+    SmScheduleMasterTemplateCopyService.new(self, construction, options).call
   end
 
   private

@@ -548,6 +548,7 @@ export default function MyDocsPage() {
       onDragStart={(e) => handleDocumentDragStart(e, doc)}
       onDragEnd={handleDocumentDragEnd}
       onClick={() => handleSelectDocument(doc)}
+      onDoubleClick={() => handleDownload(doc)}
     >
       {getLocalFileIcon(doc)}
       <div className="flex-1 min-w-0">
@@ -600,6 +601,7 @@ export default function MyDocsPage() {
       onDragStart={(e) => handleDocumentDragStart(e, doc)}
       onDragEnd={handleDocumentDragEnd}
       onClick={() => handleSelectDocument(doc)}
+      onDoubleClick={() => handleDownload(doc)}
     >
       <div className="aspect-square flex items-center justify-center bg-muted/50 rounded mb-2">
         {doc.isImage && doc.fileUrl ? (

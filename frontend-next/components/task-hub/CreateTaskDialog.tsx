@@ -208,7 +208,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           for (const attachment of pendingAttachments) {
             if (attachment.type === 'upload' && attachment.file) {
               // TODO: Implement file upload to SharePoint first, then attach
-              console.log('File upload not yet implemented:', attachment.file.name);
             } else if (attachment.id) {
               // Attach existing email/document
               try {

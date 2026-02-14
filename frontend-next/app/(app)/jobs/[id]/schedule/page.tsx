@@ -366,14 +366,11 @@ export default function SchedulePage() {
 
   // Set fullscreen layout mode when Gantt is fullscreen
   React.useEffect(() => {
-    console.log('[SchedulePage] 🖥️  Fullscreen effect', { ganttFullscreen });
     if (ganttFullscreen) {
-      console.log('[SchedulePage] Setting layout mode to fullscreen');
       setMode("fullscreen");
     }
     return () => {
       if (ganttFullscreen) {
-        console.log('[SchedulePage] Cleanup: Resetting layout mode to padded');
         setMode("padded");
       }
     };
@@ -431,17 +428,13 @@ export default function SchedulePage() {
   const [loadingResetPreview, setLoadingResetPreview] = React.useState(false);
 
   React.useEffect(() => {
-    console.log('[SchedulePage] 🔄 Fetch job effect triggered', { jobId });
     const fetchJob = async () => {
       try {
-        console.log('[SchedulePage] 📡 Fetching job data...', { jobId });
         const jobData = await api.get<Job>(`/api/v1/jobs/${jobId}`);
-        console.log('[SchedulePage] ✅ Job data received', jobData);
         setJob(jobData);
       } catch (error) {
         console.error("[SchedulePage] ❌ Failed to fetch job:", error);
       } finally {
-        console.log('[SchedulePage] 🏁 Job fetch complete, setting loading=false');
         setLoading(false);
       }
     };
@@ -526,7 +519,6 @@ export default function SchedulePage() {
   // Handle double-click to open task edit dialog
   // Converts table row to EditRowData format for the shared EditRowDialog
   const handleRowDoubleClick = React.useCallback((row: Record<string, unknown>) => {
-    console.log('[SchedulePage] Task double-clicked:', row);
     // Convert to EditRowData format (SSoT: same as Schedule Master)
     const editRow: EditRowData = {
       id: Number(row.id),
@@ -609,11 +601,9 @@ export default function SchedulePage() {
 
   // Open Gantt - fetch tasks with po_required filtering (SSoT: ?for=gantt)
   const handleOpenGantt = React.useCallback(async () => {
-    console.log('[SchedulePage] 📊 handleOpenGantt called');
     setGanttOpen(true);
     setLoadingGantt(true);
     try {
-      console.log('[SchedulePage] 🔄 Validating dates and running rollover...');
       // SSoT: Validate dates first (safety net - runs rollover for this job)
       // Uses SmRolloverJob as THE ONE source of truth for rollover logic
       try {
@@ -621,10 +611,8 @@ export default function SchedulePage() {
           `/api/v1/jobs/${jobId}/sm_tasks/validate_dates`
         );
         if (validateResult) {
-          console.log('[SchedulePage] ✅ Validation result:', validateResult);
           const fixCount = (validateResult.rolled_over || 0) + (validateResult.extended || 0);
           if (fixCount > 0) {
-            console.log('[SchedulePage] 📅 Tasks updated:', { fixCount });
             toast({
               title: "Schedule Updated",
               description: `${fixCount} task(s) with past dates moved forward`,
@@ -633,10 +621,8 @@ export default function SchedulePage() {
         }
       } catch (validateError) {
         // Don't block loading if validation fails - just log it
-        console.warn("[SchedulePage] ⚠️  Failed to validate dates:", validateError);
       }
 
-      console.log('[SchedulePage] 📡 Fetching Gantt data...', { jobId });
       // SSoT: Use ?for=gantt to get filtered tasks (po_required without PO = invisible)
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       const tasks = response.gantt_data?.tasks || [];
@@ -653,14 +639,12 @@ export default function SchedulePage() {
       console.error("[SchedulePage] ❌ Failed to fetch tasks for Gantt:", error);
       toast({ title: "Error", description: "Failed to load Gantt data", variant: "destructive" });
     } finally {
-      console.log('[SchedulePage] 🏁 handleOpenGantt complete, setting loadingGantt=false');
       setLoadingGantt(false);
     }
   }, [jobId, toast]);
 
   // Refetch Gantt data (called after dependency changes, task updates, etc.)
   const refetchGanttData = React.useCallback(async () => {
-    console.log('[SchedulePage] 🔄 Refetching Gantt data...');
     try {
       const response = await api.get<GanttDataResponse>(`/api/v1/jobs/${jobId}/sm_tasks?for=gantt`);
       console.log('[SchedulePage] ✅ Gantt data refetched', {
@@ -683,7 +667,6 @@ export default function SchedulePage() {
       ganttFullscreen
     });
     if (isGanttMode && !loading && job && !ganttFullscreen) {
-      console.log('[SchedulePage] 🚀 Auto-opening Gantt in fullscreen mode');
       setGanttFullscreen(true);
       handleOpenGantt();
     }
@@ -705,7 +688,6 @@ export default function SchedulePage() {
       ganttTasksCount: ganttTasks.length
     });
     if (ganttTasks.length === 0) {
-      console.log('[SchedulePage] ⚠️  No Gantt tasks to format');
       return [];
     }
 
@@ -1245,7 +1227,6 @@ export default function SchedulePage() {
   });
 
   if (loading) {
-    console.log('[SchedulePage] 🔄 Rendering loading skeleton');
     return (
       <div className="flex flex-col h-full -mt-4">
         {/* Skeleton header - matches actual layout */}
@@ -1324,7 +1305,6 @@ export default function SchedulePage() {
                 size="sm"
                 className="h-7 px-2 text-xs"
                 onClick={() => {
-                  console.log('PO button clicked, selectedTask:', selectedGanttTask?.id, selectedGanttTask?.purchaseOrderId);
                   // If a task with a PO is selected, open that specific PO
                   if (selectedGanttTask?.purchaseOrderId) {
                     window.open(`/jobs/${jobId}/purchase-orders/${selectedGanttTask.purchaseOrderId}`, '_blank');
@@ -1378,7 +1358,6 @@ export default function SchedulePage() {
               showToolbar={true}
               onTaskDrag={handleTaskDrag}
               onTaskClick={(task) => {
-                console.log('Gantt task clicked:', task.id, task.name);
                 setSelectedGanttTask(task);
               }}
               className="h-full"
@@ -1489,7 +1468,6 @@ export default function SchedulePage() {
                 showToolbar={true}
                 onTaskDrag={handleTaskDrag}
                 onTaskClick={(task) => {
-                  console.log('Gantt task clicked:', task.id, task.name);
                   setSelectedGanttTask(task);
                 }}
                 className="h-full"
