@@ -214,22 +214,6 @@ class WarehouseDocument < ApplicationRecord
     WarehousePathComputer.new.compute(self)[:folder_path]
   end
 
-  # SSoT: Map source_type to root folder name
-  def source_type_to_root_folder
-    case source_type
-    when "corporate", "xero", "financial", "asset" then "Corporate"
-    when "job", "compliance" then "Jobs"
-    when "contact", "people" then "Contacts"
-    when "task" then "Tasks"
-    when "email", "email_attachment" then "Emails"
-    when "case" then "Cases"
-    when "user" then "Teeem Docs"
-    when "template", "warehouse", "esignature" then "Warehouse"
-    when "notebook" then "Notes"
-    else source_type&.titleize || "Documents"
-    end
-  end
-
   # ========================================
   # Computed UI Name (Runtime Resolution)
   # ========================================
@@ -547,47 +531,21 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Check if warehouse_type needs (re)computation
+  # Derived from warehouse_folder FK chain, so recompute when folder changes.
   def needs_warehouse_type_recomputation?
     warehouse_type.blank? ||
-      source_type_changed? ||
-      linkable_type_changed?
+      warehouse_folder_id_changed?
   end
 
-  # Compute and store the warehouse_type code from linkable_type or source_type.
-  # Uses the same mapping as WarehousePathComputer#source_type_to_warehouse_type_code.
+  # Compute and store the warehouse_type code from warehouse_folder FK chain.
+  # materialize_folder_path runs first (before_save order), so warehouse_folder_id is already set.
   def materialize_warehouse_type
-    # Prefer linkable_type (most precise) then fall back to source_type
-    self.warehouse_type = derive_warehouse_type
-  end
-
-  # SSoT: Derive warehouse_type code from linkable_type or source_type
-  # Matches WarehousePathComputer mappings exactly.
-  def derive_warehouse_type
-    # 1. From linkable_type (most precise, FK-driven)
-    if linkable_type.present?
-      code = case linkable_type
-             when "Job" then "job"
-             when "Contact" then "contact"
-             when "CorporateCompany" then "corporate"
-             when "SmTask" then "task"
-             end
-      return code if code
-    end
-
-    # 2. From source_type (fallback)
-    case source_type
-    when "task" then "task"
-    when "email", "email_attachment" then "email"
-    when "corporate", "xero", "financial", "asset" then "corporate"
-    when "job", "compliance" then "job"
-    when "contact", "people" then "contact"
-    when "case" then "case"
-    when "notebook" then "notebook"
-    when "user" then "user"
-    when "warehouse", "template" then "warehouse"
-    when "esignature" then "e_signing"
-    else "unassigned"
-    end
+    self.warehouse_type = if warehouse_folder_id.present?
+                            wf = warehouse_folder || WarehouseFolder.find_by(id: warehouse_folder_id)
+                            wf&.warehouse_type&.code || "unassigned"
+                          else
+                            "unassigned"
+                          end
   end
 
   # Compute and store the materialized folder path using WarehousePathComputer

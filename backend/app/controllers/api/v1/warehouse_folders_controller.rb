@@ -269,27 +269,28 @@ module Api
           .includes(:children, :warehouse_type)
           .order(:order_position, :name)
 
-        # Group folders by warehouse type's display name
-        grouped = all_folders.group_by { |folder| folder.warehouse_type&.display_name }
+        # Group folders by warehouse_type (FK-driven, not display name strings)
+        grouped = all_folders.group_by { |folder| folder.warehouse_type }
 
-        tree = grouped.map do |warehouse_folder_name, folders|
-          next nil if warehouse_folder_name.blank?
+        tree = grouped.map do |wt, folders|
+          next nil if wt.blank?
 
           {
-            id: "wf-#{warehouse_folder_name.downcase.gsub(/\s+/, '-')}",
-            name: warehouse_folder_name,
+            id: "wf-#{wt.code}",
+            name: wt.display_name,
             type: "category",
-            icon: warehouse_folder_icon(warehouse_folder_name),
-            warehouseType: folders.first&.warehouse_type_code,
-            folderPath: warehouse_folder_name,
-            fullPath: warehouse_folder_name,
-            fileCount: warehouse_folder_count(warehouse_folder_name, counts),
+            icon: wt.icon_name || "folder",
+            warehouseType: wt.code,
+            folderPath: wt.display_name,
+            fullPath: wt.display_name,
+            fileCount: counts[wt.code] || 0,
             children: folders.map { |folder| build_tree_node(folder) }
           }
         end.compact
 
-        sort_order = %w[Jobs Corporate Contacts Contact Emails Tasks Users Warehouse Templates Cases Assets]
-        tree.sort_by! { |node| sort_order.index(node[:name]) || 999 }
+        # Sort by warehouse_type order_position (DB-driven, not hardcoded)
+        wt_order = WarehouseType.enabled.ordered.pluck(:code)
+        tree.sort_by! { |node| wt_order.index(node[:warehouseType]) || 999 }
 
         render json: {
           success: true,
@@ -302,37 +303,6 @@ module Api
       end
 
       private
-
-      def warehouse_folder_icon(name)
-        {
-          "Jobs" => "briefcase",
-          "Corporate" => "building2",
-          "Contact" => "contact",
-          "Contacts" => "contact",
-          "Emails" => "mail",
-          "Tasks" => "clipboard-list",
-          "Users" => "user",
-          "Warehouse" => "warehouse",
-          "Templates" => "file-text",
-          "Cases" => "folder",
-          "Assets" => "package"
-        }[name] || "folder"
-      end
-
-      def warehouse_folder_count(name, counts)
-        mapping = {
-          "Jobs" => "jobs",
-          "Corporate" => "corporate",
-          "Contact" => "contacts",
-          "Contacts" => "contacts",
-          "Emails" => "emails",
-          "Tasks" => "tasks",
-          "Users" => "users",
-          "Warehouse" => "warehousing",
-          "Templates" => "templates"
-        }
-        counts[mapping[name]] || 0
-      end
 
       def build_tree_node(folder, depth = 0)
         children = folder.children
@@ -353,19 +323,10 @@ module Api
       end
 
       def fetch_warehouse_counts
-        counts = WarehouseDocument.group(:source_type).count
-
-        {
-          "jobs" => counts["job"] || 0,
-          "corporate" => counts["corporate"] || 0,
-          "contacts" => counts["contact"] || 0,
-          "emails" => counts["email"] || 0,
-          "tasks" => counts["task"] || 0,
-          "users" => counts["user"] || 0,
-          "warehousing" => counts["warehouse"] || 0,
-          "templates" => counts["template"] || 0,
-          "total" => counts.values.sum
-        }
+        # Group by warehouse_type code (set via FK chain, not source_type)
+        counts = WarehouseDocument.where.not(warehouse_type: [nil, ""]).group(:warehouse_type).count
+        counts["total"] = counts.values.sum
+        counts
       end
 
       def set_warehouse_folder
