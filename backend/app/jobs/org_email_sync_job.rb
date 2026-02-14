@@ -78,63 +78,76 @@ class OrgEmailSyncJob < ApplicationJob
       return
     end
 
-    sync_config = @credential.sync_config || {}
-    sync_all = sync_config["sync_all"] || false
-    user_emails = sync_config["user_emails"] || []
-    sync_years = sync_config["sync_years"] || 3
-    sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
-
-    # Determine which users to sync
-    # Priority: 1) sync_all → all tenant mailboxes
-    #           2) user_emails configured → use those
-    #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
-    if sync_all
-      # Get all users from tenant
-      client = MicrosoftAppGraphClient.new(@credential)
-      tenant_users = client.list_users(select: "id,mail,userPrincipalName")
-      user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
-    elsif user_emails.empty?
-      # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
-      # If Sync All is OFF, only sync mailboxes that are visible to at least one user
-      # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
-      user_mailbox_access = sync_config["user_mailbox_access"] || {}
-
-      # Collect all unique mailboxes that have at least one user with access
-      user_emails = user_mailbox_access.values.flatten.compact.uniq
-
-      Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
-    end
-
-    if user_emails.empty?
-      Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
+    # ⚠️ FRC (Feb 2026): Set tenant context for StorageBlob and WarehouseDocument operations
+    # Root cause: sync_attachments! → StorageBlob.find_or_create_for_content! → upload_to_storage!
+    # → storage_provider (class method) requires ActsAsTenant.current_tenant to find the
+    # WarehouseProvider config. Without this, ALL attachment uploads fail with TenantNotFoundError,
+    # which caused ~99% of email attachments to never reach Wasabi storage.
+    tenant = @credential.tenant
+    unless tenant
+      Rails.logger.error "[OrgEmailSync] No tenant found for credential #{@credential.id} - cannot sync attachments"
       return
     end
 
-    Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} users"
+    ActsAsTenant.with_tenant(tenant) do
+      sync_config = @credential.sync_config || {}
+      sync_all = sync_config["sync_all"] || false
+      user_emails = sync_config["user_emails"] || []
+      sync_years = sync_config["sync_years"] || 3
+      sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
 
-    total_synced = 0
-    errors = []
+      # Determine which users to sync
+      # Priority: 1) sync_all → all tenant mailboxes
+      #           2) user_emails configured → use those
+      #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
+      if sync_all
+        # Get all users from tenant
+        client = MicrosoftAppGraphClient.new(@credential)
+        tenant_users = client.list_users(select: "id,mail,userPrincipalName")
+        user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
+      elsif user_emails.empty?
+        # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
+        # If Sync All is OFF, only sync mailboxes that are visible to at least one user
+        # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
+        user_mailbox_access = sync_config["user_mailbox_access"] || {}
 
-    user_emails.each do |user_email|
-      begin
-        synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
-        total_synced += synced
-        Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
-      rescue StandardError => e
-        Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
-        errors << { user: user_email, error: e.message }
+        # Collect all unique mailboxes that have at least one user with access
+        user_emails = user_mailbox_access.values.flatten.compact.uniq
+
+        Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
       end
-    end
 
-    # Update last sync time
-    # FRC (Jan 2026): Use update_columns to bypass optimistic locking
-    # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
-    # when credential is modified elsewhere. update_columns is safe for timestamps.
-    @credential.update_columns(last_sync_at: Time.current)
+      if user_emails.empty?
+        Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
+        return
+      end
 
-    Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} users (tenant: #{tenant.name})"
 
-    { total_synced: total_synced, errors: errors }
+      total_synced = 0
+      errors = []
+
+      user_emails.each do |user_email|
+        begin
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
+          total_synced += synced
+          Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
+          errors << { user: user_email, error: e.message }
+        end
+      end
+
+      # Update last sync time
+      # FRC (Jan 2026): Use update_columns to bypass optimistic locking
+      # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
+      # when credential is modified elsewhere. update_columns is safe for timestamps.
+      @credential.update_columns(last_sync_at: Time.current)
+
+      Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+
+      { total_synced: total_synced, errors: errors }
+    end # ActsAsTenant.with_tenant
   end
 
   private
@@ -192,10 +205,15 @@ class OrgEmailSyncJob < ApplicationJob
     total_synced = Concurrent::AtomicFixnum.new(0)
     failed_folders = Concurrent::Array.new
 
+    # Capture tenant for child threads (ActsAsTenant uses thread-local storage)
+    current_tenant = ActsAsTenant.current_tenant
+
     # Process folders in parallel batches
     folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
       threads = folder_batch.map do |folder|
         Thread.new do
+          # Set tenant context in child thread (thread-local, not inherited)
+          ActsAsTenant.current_tenant = current_tenant
           # Each thread gets its own database connection from the pool
           ActiveRecord::Base.connection_pool.with_connection do
             begin
