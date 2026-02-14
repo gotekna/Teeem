@@ -154,11 +154,11 @@ class BillInbox < ApplicationRecord
   # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
   # Configure at: /settings/company/warehouse-config → Warehouse Folders
   def virtual_folder_path
-    return "Warehousing/BillInbox/Unknown" unless tenant_id
+    return "Warehouse/BillInbox/Unknown" unless tenant_id
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:bill_inbox)
-    return "Warehousing/BillInbox/Unknown" unless template
+    return "Warehouse/BillInbox/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
@@ -228,11 +228,11 @@ class BillInbox < ApplicationRecord
   end
 
   # SSoT: Folder path for File Warehouse Doc Tree
-  # Produces: "Warehousing/BillInbox/{Status}/{Year}/{Month}"
+  # Produces: "Warehouse/BillInbox/{Status}/{Year}/{Month}"
   def warehouse_folder_path
     s = status&.titleize || "Unknown"
     date = created_at || Time.current
-    "Warehousing/BillInbox/#{s}/#{date.strftime('%Y/%m')}"
+    "Warehouse/BillInbox/#{s}/#{date.strftime('%Y/%m')}"
   end
 
   private

@@ -76,7 +76,10 @@ module Api
           0
         end
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
+        # SSoT: WarehouseDocument.count is THE ONE total (Phase 3)
+        # Previously this was a manual sum of categories which missed source_types
+        # like warehouse, asset, financial, compliance, xero, notebook, user, etc.
+        total = warehouse_total
 
         # Fetch task documents with their task associations
         # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now

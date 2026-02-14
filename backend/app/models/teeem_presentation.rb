@@ -55,14 +55,14 @@ class TeeemPresentation < ApplicationRecord
   end
 
   # SSoT: Folder path for File Warehouse Doc Tree
-  # Job-attached: "Jobs/{JobCode}/PowerPoint", Standalone: "Warehousing/PowerPoint/{UserName}/{Year}"
+  # Job-attached: "Jobs/{JobCode}/PowerPoint", Standalone: "Warehouse/PowerPoint/{UserName}/{Year}"
   def warehouse_folder_path
     if job.present?
       "Jobs/#{job.job_code}/PowerPoint"
     else
       user_name = user&.name || "Unknown"
       year = (created_at || Time.current).year
-      "Warehousing/PowerPoint/#{user_name}/#{year}"
+      "Warehouse/PowerPoint/#{user_name}/#{year}"
     end
   end
 

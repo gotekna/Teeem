@@ -288,7 +288,7 @@ module Api
           }
         end.compact
 
-        sort_order = %w[Jobs Corporate Contacts Contact Emails Tasks Users Warehousing Templates Cases Assets]
+        sort_order = %w[Jobs Corporate Contacts Contact Emails Tasks Users Warehouse Templates Cases Assets]
         tree.sort_by! { |node| sort_order.index(node[:name]) || 999 }
 
         render json: {
@@ -312,7 +312,7 @@ module Api
           "Emails" => "mail",
           "Tasks" => "clipboard-list",
           "Users" => "user",
-          "Warehousing" => "warehouse",
+          "Warehouse" => "warehouse",
           "Templates" => "file-text",
           "Cases" => "folder",
           "Assets" => "package"
@@ -328,7 +328,7 @@ module Api
           "Emails" => "emails",
           "Tasks" => "tasks",
           "Users" => "users",
-          "Warehousing" => "warehousing",
+          "Warehouse" => "warehousing",
           "Templates" => "templates"
         }
         counts[mapping[name]] || 0

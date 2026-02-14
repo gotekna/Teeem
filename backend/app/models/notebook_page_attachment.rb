@@ -83,10 +83,10 @@ class NotebookPageAttachment < ApplicationRecord
   # Model callbacks run without ActsAsTenant context set
   def warehouse_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Notes/Unknown" unless tenant
+    return "Warehouse/Notes/Unknown" unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
-    return "Warehousing/Notes/Unknown" unless config
+    return "Warehouse/Notes/Unknown" unless config
 
     config.resolve_warehouse_path(self, scope: :notes)
   end
@@ -97,11 +97,11 @@ class NotebookPageAttachment < ApplicationRecord
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Notes/Unknown" unless tenant
+    return "Warehouse/Notes/Unknown" unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:notebook)
-    return "Warehousing/Notes/Unknown" unless template
+    return "Warehouse/Notes/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
     notebook_name = notebook&.name || "General"

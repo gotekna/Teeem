@@ -357,12 +357,12 @@ module WarehouseSyncable
   def compute_virtual_folder_path
     return virtual_folder_path if respond_to?(:virtual_folder_path)
 
-    # Default folder structure: Warehousing/{DocumentType}/{UserName}/{Year}
+    # Default folder structure: Warehouse/{DocumentType}/{UserName}/{Year}
     doc_type = warehouse_type_to_folder_name
     user_name = respond_to?(:user) ? (user&.name || "Unknown") : "Unknown"
     year = (created_at || Time.current).year.to_s
 
-    "Warehousing/#{doc_type}/#{user_name}/#{year}"
+    "Warehouse/#{doc_type}/#{user_name}/#{year}"
   end
 
   # Map warehouse_document_type to human-readable folder name

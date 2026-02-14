@@ -224,7 +224,7 @@ class WarehouseDocument < ApplicationRecord
     when "email", "email_attachment" then "Emails"
     when "case" then "Cases"
     when "user" then "Teeem Docs"
-    when "template", "warehouse", "esignature" then "Warehousing"
+    when "template", "warehouse", "esignature" then "Warehouse"
     when "notebook" then "Notes"
     else source_type&.titleize || "Documents"
     end

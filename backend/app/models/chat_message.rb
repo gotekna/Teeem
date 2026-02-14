@@ -101,11 +101,11 @@ class ChatMessage < ApplicationRecord
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Chat/Unknown" unless tenant
+    return "Warehouse/Chat/Unknown" unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:chat)
-    return "Warehousing/Chat/Unknown" unless template
+    return "Warehouse/Chat/Unknown" unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
@@ -176,10 +176,10 @@ class ChatMessage < ApplicationRecord
   end
 
   # SSoT: Folder path for File Warehouse Doc Tree
-  # Produces: "Warehousing/Chat/General/{Year}/{Month}"
+  # Produces: "Warehouse/Chat/General/{Year}/{Month}"
   def warehouse_folder_path
     date = created_at || Time.current
-    "Warehousing/Chat/General/#{date.strftime('%Y/%m')}"
+    "Warehouse/Chat/General/#{date.strftime('%Y/%m')}"
   end
 
   private

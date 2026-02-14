@@ -1077,7 +1077,15 @@ export default function AllDocumentsPage() {
           viewMode === "table" ? "p-0" : "px-4 py-4",
           previewDocument && viewMode !== "table" && "max-w-[50%]"
         )} data-tour="warehouse-files">
-          {loading ? (
+          {viewMode === "table" ? (
+            // Table View renders immediately - no dependency on fetchDocuments counts
+            <div className="flex flex-col h-full">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
+                autoFetchRecords={true}
+              />
+            </div>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
               <div className="relative">
                 <div className="h-16 w-16 rounded-full border-4 border-muted animate-pulse" />
@@ -1202,14 +1210,6 @@ export default function AllDocumentsPage() {
                   ))}
                 </div>
               )}
-            </div>
-          ) : viewMode === "table" ? (
-            // Table View - TeeemTableView backed by Foundation API
-            <div className="flex flex-col h-full">
-              <TeeemTableView
-                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
-                autoFetchRecords={true}
-              />
             </div>
           ) : null}
         </div>
