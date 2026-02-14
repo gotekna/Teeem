@@ -1144,7 +1144,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     else
       render json: {
         success: false,
-        error: result[:errors]&.first || "Failed to create contact"
+        error: result[:errors]&.map { |e| e.is_a?(Hash) ? e[:error] : e.to_s }&.join(", ").presence || "Failed to create contact"
       }, status: :unprocessable_entity
     end
   rescue StandardError => e
