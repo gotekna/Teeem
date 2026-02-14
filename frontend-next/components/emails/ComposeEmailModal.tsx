@@ -52,6 +52,7 @@ import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
 import { DATE_ISO } from "@/lib/constants/date-formats";
+import { API } from "@/lib/constants/api-endpoints";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -205,7 +206,7 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `${API.contacts.list}?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
       // Filter to contacts that have at least one email (primary or in contact_emails)
@@ -325,7 +326,7 @@ export function ComposeEmailModal({
           brand_colors?: { primary?: string; primaryForeground?: string };
         }
         const response = await api.get<{ success: boolean; data: CompanySettingsData }>(
-          "/api/v1/company_settings"
+          API.companySettings.get
         );
         if (response?.data) {
           setCompanySettings(response.data);

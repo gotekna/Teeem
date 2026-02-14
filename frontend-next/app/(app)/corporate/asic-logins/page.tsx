@@ -34,25 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-interface Company {
-  id: number;
-  name: string;
-  company_group_name?: string;
-  acn?: string;
-  formatted_acn?: string;
-  corporate_key?: string;
-  asic_username?: string;
-  asic_password?: string;
-  recovery_question?: string;
-  recovery_answer?: string;
-  has_credentials?: boolean;
-}
-
-interface CompanyGroup {
-  id: number;
-  name: string;
-}
+import type { Company, CompanyGroup } from "@/lib/types";
 
 export default function AsicLoginsPage() {
   const router = useRouter();

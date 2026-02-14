@@ -71,6 +71,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { DocumentItem } from "@/components/warehouse/types";
+import type { Job, JobType, JobStatus, JobStage } from "@/lib/types";
 
 // =============================================================================
 // LAZY LOADED TAB COMPONENTS - Performance optimization
@@ -295,99 +296,6 @@ interface JobContact {
     company_name_or_trust?: string;
   };
 }
-
-interface Job {
-  id: number;
-  name: string;
-  status: string;
-  stage: string;
-  job_code?: string;
-  job_type?: { id: number; name: string; icon?: string };
-  job_type_id?: number;
-  job_status?: { id: number; name: string; color?: string };
-  job_status_id?: number;
-  job_stage?: { id: number; name: string };
-  job_stage_id?: number;
-  contract_value: number;
-  live_profit: number;
-  profit_percentage: number;
-  certifier_job_no?: string;
-  xero_tracking_option_id?: string;
-  xero_tracking_option_name?: string;
-  start_date?: string;
-  location?: string;
-  latitude?: number;
-  longitude?: number;
-  lot_number?: string;
-  street_number?: string;
-  street_name?: string;
-  street_type?: string;
-  suburb?: string;
-  postcode?: string;
-  state?: string;
-  council?: string;
-  site_supervisor_name?: string;
-  site_supervisor_email?: string;
-  site_supervisor_phone?: string;
-  // Contract fields
-  plan_number?: string;
-  contract_price?: number;
-  deposit?: number;
-  prime_cost?: number;
-  provisional_sums?: number;
-  contract_date?: string;
-  // Build schedule
-  build_period?: string;
-  stage_slab?: string;
-  stage_frame?: string;
-  stage_enclosed?: string;
-  stage_fixing?: string;
-  stage_practical?: string;
-  stage_weather?: string;
-  weekend_work?: string;
-  // Important dates
-  plan_date?: string;
-  spec_date?: string;
-  practical_completion_date?: string;
-  warranty_end_date?: string;
-  contacts?: JobContact[];
-  estimator_analysis?: {
-    job_summary?: string;
-    key_points?: string[];
-    estimated_scope?: {
-      complexity?: string;
-      duration_estimate?: string;
-      key_trades?: string[];
-      major_materials?: string[];
-      potential_challenges?: string[];
-    };
-    recommendations?: string[];
-    source?: string;
-  };
-  // Construction details
-  level?: string;
-  dwelling_type?: string;
-  // Storage folder status
-  storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
-}
-
-interface JobType {
-  id: number;
-  name: string;
-  icon?: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-  color?: string;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-}
-
 
 function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline" {
   switch (stage?.toLowerCase()) {

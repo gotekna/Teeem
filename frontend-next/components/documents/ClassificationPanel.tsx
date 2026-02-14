@@ -398,7 +398,7 @@ export default function ClassificationPanel({
         <div className="space-y-1.5 flex-1">
           {/* Document Type */}
           <div>
-            <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+            <Label className="text-xs text-muted-foreground">Doc Type</Label>
             {isEditing ? (
               <>
                 <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
@@ -457,7 +457,7 @@ export default function ClassificationPanel({
 
           {/* Company */}
           <div>
-            <Label className="text-[10px] text-muted-foreground">Company</Label>
+            <Label className="text-xs text-muted-foreground">Company</Label>
             {isEditing ? (
               <ComboboxDropdown
                 items={companies.map(c => ({
@@ -485,7 +485,7 @@ export default function ClassificationPanel({
 
           {/* Folder */}
           <div className={cn(localGetAutoFields(isEditing ? editedDocumentType : document.document_type).folder && !isEditing && "opacity-40")}>
-            <Label className="text-[10px] text-muted-foreground">
+            <Label className="text-xs text-muted-foreground">
               Folder {localGetAutoFields(isEditing ? editedDocumentType : document.document_type).folder && <span className="italic">(auto)</span>}
             </Label>
             {isEditing ? (
@@ -510,7 +510,7 @@ export default function ClassificationPanel({
 
           {/* Description */}
           <div>
-            <Label className="text-[10px] text-muted-foreground">Description</Label>
+            <Label className="text-xs text-muted-foreground">Description</Label>
             {isEditing ? (
               isBASDocument ? (
                 <div className="mt-0.5 flex flex-wrap gap-0.5">
@@ -539,7 +539,7 @@ export default function ClassificationPanel({
 
           {/* Financial Year */}
           <div>
-            <Label className="text-[10px] text-muted-foreground">FY</Label>
+            <Label className="text-xs text-muted-foreground">FY</Label>
             {isEditing ? (
               <div className="mt-0.5 flex flex-wrap gap-0.5">
                 {FY_OPTIONS.slice(0, 6).map(opt => (
@@ -567,7 +567,7 @@ export default function ClassificationPanel({
               : (document.display_name || classificationData?.current?.resolved_ui_name);
             return (
               <div className={cn(isAuto && "opacity-40")}>
-                <Label className="text-[10px] text-muted-foreground">
+                <Label className="text-xs text-muted-foreground">
                   UI Name {isAuto && <span className="italic">(auto)</span>}
                 </Label>
                 <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
@@ -588,12 +588,12 @@ export default function ClassificationPanel({
               : (document.download_name || classificationData?.current?.resolved_dl_name);
             return (
               <div className={cn(isAuto && "opacity-40")}>
-                <Label className="text-[10px] text-muted-foreground">
+                <Label className="text-xs text-muted-foreground">
                   DL Name {isAuto && <span className="italic">(auto)</span>}
                 </Label>
-                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate font-mono">
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 truncate">
                   {isAuto && classificationLoading && !classificationData?.current?.resolved_dl_name
-                    ? <span className="text-muted-foreground/50 italic font-sans">loading...</span>
+                    ? <span className="text-muted-foreground/50 italic">loading...</span>
                     : (dlName || "-")}
                 </div>
               </div>
@@ -653,7 +653,7 @@ export default function ClassificationPanel({
               const ocrDt = ocrType ? localGetDocTypeRecord(ocrType) : null;
               return (
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+                  <Label className="text-xs text-muted-foreground">Doc Type</Label>
                   <div className={cn(
                     "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
                     ocrType
@@ -677,7 +677,7 @@ export default function ClassificationPanel({
 
             {/* Company */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Company</Label>
+              <Label className="text-xs text-muted-foreground">Company</Label>
               <div className={cn("mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate", !document.company && "text-muted-foreground italic font-mono")}>
                 {document.company ? (
                   <span className="truncate">{document.company.code ? `[${document.company.code}]` : ""} {document.company.name}</span>
@@ -691,7 +691,7 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(classificationData?.ocr?.document_type);
               return (
                 <div className={cn(auto.folder && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
                     "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
                     ocrFolder
@@ -708,13 +708,13 @@ export default function ClassificationPanel({
 
             {/* Description - OCR doesn't extract */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Description</Label>
+              <Label className="text-xs text-muted-foreground">Description</Label>
               <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
             </div>
 
             {/* FY - OCR doesn't detect */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">FY</Label>
+              <Label className="text-xs text-muted-foreground">FY</Label>
               <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
             </div>
 
@@ -724,7 +724,7 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(classificationData?.ocr?.document_type);
               return (
                 <div className={cn(auto.uiName && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
                     "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     ocrUiName
@@ -745,9 +745,9 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(classificationData?.ocr?.document_type);
               return (
                 <div className={cn(auto.dlName && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate font-mono",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     ocrDlName
                       ? (ocrDlName === document.download_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -763,7 +763,7 @@ export default function ClassificationPanel({
             {/* OCR extras */}
             <div className="pt-1 border-t border-amber-200 dark:border-amber-800/50">
               <div>
-                <Label className="text-[10px] text-muted-foreground">Signals</Label>
+                <Label className="text-xs text-muted-foreground">Signals</Label>
                 <div className="mt-0.5 min-h-[28px] text-xs border rounded-md px-2 py-1 bg-muted/50">
                   {classificationData?.ocr?.signals && classificationData.ocr.signals.length > 0 ? (
                     <div className="flex flex-wrap gap-0.5">
@@ -776,14 +776,14 @@ export default function ClassificationPanel({
               </div>
 
               <div className="mt-1.5">
-                <Label className="text-[10px] text-muted-foreground">Text Preview</Label>
+                <Label className="text-xs text-muted-foreground">Text Preview</Label>
                 <div className="mt-0.5 text-xs border rounded-md px-2 py-1 bg-muted/50 max-h-20 overflow-y-auto font-mono text-muted-foreground leading-tight">
                   {classificationData?.ocr?.text_preview || "-"}
                 </div>
               </div>
 
               <div className="mt-1.5">
-                <Label className="text-[10px] text-muted-foreground">Status</Label>
+                <Label className="text-xs text-muted-foreground">Status</Label>
                 <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
                   {classificationData?.ocr?.status === "completed" ? (
                     <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">completed</Badge>
@@ -845,7 +845,7 @@ export default function ClassificationPanel({
           <div className={cn("space-y-1.5", !hasAiResults && "opacity-40")}>
             {/* Doc Type */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Doc Type</Label>
+              <Label className="text-xs text-muted-foreground">Doc Type</Label>
               <div className={cn(
                 "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
                 document.ai_suggested_type
@@ -869,7 +869,7 @@ export default function ClassificationPanel({
 
             {/* Company */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Company</Label>
+              <Label className="text-xs text-muted-foreground">Company</Label>
               <div className={cn("mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate")}>
                 {document.company ? (
                   <span className="truncate">{document.company.code ? `[${document.company.code}]` : ""} {document.company.name}</span>
@@ -883,7 +883,7 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(document.ai_suggested_type);
               return (
                 <div className={cn(auto.folder && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
                     "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
                     aiFolder
@@ -900,7 +900,7 @@ export default function ClassificationPanel({
 
             {/* Description */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">Description</Label>
+              <Label className="text-xs text-muted-foreground">Description</Label>
               <div className={cn(
                 "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
                 document.ai_extracted_description ? "border-green-500 bg-green-50 dark:bg-green-900/20" : ""
@@ -911,7 +911,7 @@ export default function ClassificationPanel({
 
             {/* FY */}
             <div>
-              <Label className="text-[10px] text-muted-foreground">FY</Label>
+              <Label className="text-xs text-muted-foreground">FY</Label>
               <div className={cn(
                 "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
                 document.ai_suggested_fy
@@ -932,7 +932,7 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(classificationData?.ai?.document_type || document.ai_suggested_type);
               return (
                 <div className={cn(auto.uiName && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
                     "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     aiUiName
@@ -953,9 +953,9 @@ export default function ClassificationPanel({
               const auto = localGetAutoFields(classificationData?.ai?.document_type || document.ai_suggested_type);
               return (
                 <div className={cn(auto.dlName && "opacity-40")}>
-                  <Label className="text-[10px] text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
+                  <Label className="text-xs text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
                   <div className={cn(
-                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate font-mono",
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
                     aiDlName
                       ? (aiDlName === document.download_name
                         ? "border-green-500 bg-green-50 dark:bg-green-900/20"
@@ -1080,7 +1080,7 @@ export default function ClassificationPanel({
                 )}
                 {(document as any).ai_analysis_notes && (
                   <div>
-                    <Label className="text-[10px] text-muted-foreground">AI Reasoning</Label>
+                    <Label className="text-xs text-muted-foreground">AI Reasoning</Label>
                     <p className="mt-0.5 text-[10px] text-muted-foreground italic bg-muted/50 rounded-md px-1.5 py-1 max-h-24 overflow-y-auto">
                       {(document as any).ai_analysis_notes}
                     </p>

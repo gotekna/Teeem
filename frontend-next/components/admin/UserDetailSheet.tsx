@@ -35,12 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-
-interface Role {
-  id: number;
-  name: string;
-  display_name: string;
-}
+import type { Role } from '@/lib/types';
 
 interface UserData {
   id: number;

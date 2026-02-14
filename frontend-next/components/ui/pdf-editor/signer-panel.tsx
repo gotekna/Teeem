@@ -22,15 +22,7 @@ import {
 } from "@/components/ui/combobox-dropdown";
 import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { api } from "@/lib/api";
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  company_name?: string;
-  email?: string;
-  mobile_phone?: string;
-  employer_name?: string;
-}
+import type { Contact } from "@/lib/types";
 
 interface ExtendedSignerPanelProps extends SignerPanelProps {
   fields?: SignatureField[];

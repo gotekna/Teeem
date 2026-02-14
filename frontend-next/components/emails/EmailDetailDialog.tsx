@@ -30,6 +30,7 @@ import { ComposeEmailModal } from "./ComposeEmailModal";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { cn } from "@/lib/utils";
 import { DATETIME_FULL_12H } from "@/lib/constants/date-formats";
+import { Job } from "@/lib/types";
 
 /**
  * Strips existing quoted content from email body text.
@@ -138,12 +139,6 @@ interface EmailDetailData {
   thread_count?: number;
   // Mailbox info for replies
   mailbox_owner_email?: string;
-}
-
-interface Job {
-  id: number;
-  job_number: string;
-  title: string;
 }
 
 interface EmailDetailDialogProps {

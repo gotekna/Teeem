@@ -60,6 +60,7 @@ import { useConfirm } from "@/contexts/ConfirmationContext";
 import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
 import type { EmailContact } from "@/lib/email-types";
 import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
+import type { Job, Contact } from "@/lib/types";
 
 const CONTACT_SEARCH_MIN_CHARS = 2;
 const CONTACT_SEARCH_DEBOUNCE_MS = DEBOUNCE_SEARCH_MS;
@@ -118,16 +119,6 @@ interface Summary {
   paused_count: number;
   due_today: number;
   total_monthly_value: number;
-}
-
-interface Contact {
-  id: number;
-  name: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 const FREQUENCIES = [

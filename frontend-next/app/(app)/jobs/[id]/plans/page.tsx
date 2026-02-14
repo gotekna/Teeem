@@ -7,14 +7,7 @@ import { JobPlansTab } from "@/components/jobs/JobPlansTab";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-
-
-interface Job {
-  id: number;
-  name: string;
-  job_number: string;
-  title: string;
-}
+import { Job } from "@/lib/types";
 
 export default function PlansFullscreenPage() {
   const params = useParams();

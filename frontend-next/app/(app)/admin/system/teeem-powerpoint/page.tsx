@@ -80,6 +80,7 @@ import type {
   ChartData,
   ChartType,
 } from "@/lib/teeem-powerpoint";
+import { Job } from "@/lib/types";
 
 // Types
 interface TeeemPresentation {
@@ -91,11 +92,6 @@ interface TeeemPresentation {
   jobName?: string;
   updatedAt: string;
   createdAt: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 // Slide canvas dimensions (16:9 aspect ratio in inches)

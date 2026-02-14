@@ -60,12 +60,7 @@ import {
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
 import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
-
-interface Contact {
-  id: number;
-  name: string;
-  email?: string;
-}
+import type { Contact } from "@/lib/types";
 
 interface PortalToken {
   id: number;

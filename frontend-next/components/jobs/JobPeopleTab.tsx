@@ -32,22 +32,7 @@ import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { INTERNAL_ROLE_KEYS } from "@/lib/constants/job-roles";
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  company_name?: string;
-  company_name_or_trust?: string;
-  email?: string;
-  mobile_phone?: string;
-  phone?: string;
-  office_phone?: string;
-  address?: string;
-  postcode?: string;
-  entity_type?: string;
-  abn?: string;
-  acn?: string;
-}
+import type { Contact, User } from "@/lib/types";
 
 interface RelatedJob {
   id: number;
@@ -76,12 +61,6 @@ interface JobContact {
   relationships_count?: number;
   related_jobs?: RelatedJob[];
   related_jobs_count?: number;
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
 }
 
 interface JobPeopleTabProps {

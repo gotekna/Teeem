@@ -48,6 +48,7 @@ import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
+import type { JobType, JobStatus, JobStage } from '@/lib/types';
 
 interface SuburbSearchResult {
   id: number;
@@ -81,21 +82,6 @@ interface JobFormData {
   contract_value: string;
   latitude: number | null;
   longitude: number | null;
-}
-
-interface JobType {
-  id: number;
-  name: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
 }
 
 interface Contact {

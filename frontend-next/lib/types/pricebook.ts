@@ -13,5 +13,4 @@ export interface PricebookItem {
   preferred_supplier_name?: string | null;
   supplier_id?: number | null;
   active?: boolean;
-  [key: string]: unknown;
 }

@@ -35,6 +35,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { AdaptiveFormDesigner } from "@/components/workflows/forms/designer/AdaptiveFormDesigner";
 import type { AdaptiveFormSchema } from "@/lib/workflow-forms/types";
 import { createEmptySchema } from "@/lib/workflow-forms/schema-utils";
+import { Job } from "@/lib/types";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -97,12 +98,6 @@ interface DocumentTemplate {
   category: string;
   layout: string;
   requires: string[];
-}
-
-interface Job {
-  id: number;
-  name: string;
-  job_number?: string;
 }
 
 // Preview job with contacts for showing actual names/emails

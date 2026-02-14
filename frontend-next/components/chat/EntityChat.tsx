@@ -23,6 +23,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
+import { Job } from "@/lib/types";
 
 interface Message {
   id: number;
@@ -50,11 +51,6 @@ interface GuestSession {
   status: string;
   job_id: number | null;
   expires_at: string;
-}
-
-interface Job {
-  id: number;
-  title: string;
 }
 
 type EntityType = "job" | "contact" | "case";

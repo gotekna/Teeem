@@ -19,17 +19,9 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import type { PricebookItem } from '@/lib/types';
 
-// Types
-interface PricebookItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  current_price: number;
-  colour?: string;
-  colour_code?: string;
-  colour_brand?: string;
-}
+// Types (API returns item_code/item_name instead of SSoT's code/name)
 
 interface JobColourSelection {
   id?: number;

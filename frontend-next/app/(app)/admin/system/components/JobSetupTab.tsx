@@ -70,42 +70,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-interface JobType {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  active: boolean;
-  sm_schedule_master_template_id?: number | null;
-  schedule_template_summary?: {
-    template_id: number;
-    template_name: string;
-    version_id: number | null;
-    version_number: number | null;
-    row_count: number;
-  } | null;
-}
+import type { JobType, JobStatus, JobStage } from '@/lib/types';
 
 interface ScheduleMasterTemplate {
   id: number;
   name: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  active: boolean;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  active: boolean;
 }
 
 interface Suburb {

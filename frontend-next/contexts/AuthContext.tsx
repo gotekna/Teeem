@@ -5,14 +5,7 @@ import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
 import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  permissions: string[];
-  [key: string]: unknown;
-}
+import type { User } from '@/lib/types';
 
 interface AuthContextType {
   user: User | null;

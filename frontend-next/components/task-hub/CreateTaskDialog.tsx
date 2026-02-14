@@ -25,19 +25,7 @@ import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
 import { Spinner } from "@/components/ui/spinner";
-
-interface Job {
-  id: number;
-  name: string;
-  client_name?: string;
-  employee_names?: string[];
-  matched_contact?: { name: string; role: string };
-}
-
-interface User {
-  id: number;
-  name: string;
-}
+import type { User, Job } from '@/lib/types';
 
 interface CreateTaskDialogProps {
   open: boolean;

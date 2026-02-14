@@ -43,5 +43,4 @@ export interface Company {
   // Status
   status?: string;
 
-  [key: string]: unknown;
 }

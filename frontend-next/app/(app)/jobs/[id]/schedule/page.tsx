@@ -47,14 +47,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { parseISO } from "date-fns";
 import { clearCachedRecords } from "@/lib/records-cache";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
-
-interface Job {
-  id: number;
-  name: string;
-  title: string;
-  status: string;
-  stage: string;
-}
+import { Job } from "@/lib/types";
 
 // SmTask interface for Gantt
 interface SmTask {

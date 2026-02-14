@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { Job } from "@/lib/types";
 
 interface EstimatedScope {
   complexity?: string;
@@ -33,12 +34,6 @@ interface Analysis {
   estimated_scope?: EstimatedScope;
   recommendations?: string[];
   source?: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  estimator_analysis?: Analysis;
 }
 
 interface JobEstimatorTabProps {

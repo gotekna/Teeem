@@ -39,22 +39,7 @@ import type {
   SyncConfiguration,
   FieldMapping,
 } from "@/types/xero";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  first_name?: string | null;
-  last_name?: string | null;
-  email?: string | null;
-  mobile_phone?: string | null;
-  office_phone?: string | null;
-  company_name_or_trust?: string | null;
-  abn?: string | null;
-  entity_type: string | null;
-  xero_contact_id?: string | null;
-  sync_with_xero?: boolean;
-  [key: string]: any;
-}
+import type { Contact } from "@/lib/types";
 
 interface XeroSyncSectionProps {
   contact: Contact;

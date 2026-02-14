@@ -39,6 +39,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { hasFirstLastName, hasCompanyName, canHaveEmployees, canHaveEmployer, getEntityTypeIcon, isTrust } from "@/lib/entity-types";
+import { API } from "@/lib/constants/api-endpoints";
 
 interface ContactSearchResult {
   id: number;
@@ -120,7 +121,7 @@ export default function NewContactPage() {
       setSearchingCompanies(true);
       try {
         // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
-        const response = await api.get<{ contacts: ContactSearchResult[] }>("/api/v1/contacts", {
+        const response = await api.get<{ contacts: ContactSearchResult[] }>("API.contacts.list", {
           params: { search: companySearchQuery, per_page: PAGE_SIZE_SEARCH },
         });
         // Filter out persons - keep company, trust, and blank entity_type
@@ -149,7 +150,7 @@ export default function NewContactPage() {
       setSearchingEmployees(true);
       try {
         // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
-        const response = await api.get<{ contacts: ContactSearchResult[] }>("/api/v1/contacts", {
+        const response = await api.get<{ contacts: ContactSearchResult[] }>("API.contacts.list", {
           params: {
             search: employeeSearchQuery,
             entity_type: "person",  // Only search people
@@ -217,7 +218,7 @@ export default function NewContactPage() {
   const createAndSelectCompany = async () => {
     if (!companySearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string } }>(API.contacts.create, {
         contact: {
           display_name: companySearchQuery,
           entity_type: "company",
@@ -338,7 +339,7 @@ export default function NewContactPage() {
       }
 
       console.log("Creating contact with payload:", JSON.stringify(contactPayload, null, 2));
-      const response = await api.post<{ contact: { id: number } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number } }>(API.contacts.create, {
         contact: contactPayload,
       });
 
@@ -353,7 +354,7 @@ export default function NewContactPage() {
           try {
             if (emp.id) {
               // Existing person - create employee_of relationship
-              await api.post(`/api/v1/contacts/${emp.id}/relationships`, {
+              await api.post(`${API.contacts.get(emp.id)}/relationships`, {
                 relationship: {
                   related_contact_id: newContactId,
                   relationship_type: "employee_of",
@@ -362,7 +363,7 @@ export default function NewContactPage() {
               linkedCount++;
             } else {
               // New person - create contact and link
-              await api.post("/api/v1/contacts", {
+              await api.post(API.contacts.create, {
                 contact: {
                   display_name: emp.name,
                   entity_type: "person",

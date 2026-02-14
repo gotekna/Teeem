@@ -52,6 +52,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { api } from "@/lib/api";
 import TaskDependencyEditor from "@/components/schedule-master/TaskDependencyEditor";
 import { DocumentTypeLinker } from "@/components/schedule-master/DocumentTypeLinker";
+import { Job } from "@/lib/types";
 
 // Types
 interface SmScheduleMasterTemplate {
@@ -136,13 +137,6 @@ interface JobDocTab {
   tab_key: string;
   display_name: string;
   hierarchy_path: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  address: string;
-  status: string;
 }
 
 interface Supplier {

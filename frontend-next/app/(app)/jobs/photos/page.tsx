@@ -16,6 +16,7 @@ import { Camera, RefreshCw, User, ChevronDown, ChevronRight } from "lucide-react
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import type { JobType, JobStatus } from '@/lib/types';
 
 // PhotoThumbnail with fallback - tries thumbnail_url first, falls back to proxy_url
 // SSoT: Same pattern as PhotoGallery component
@@ -119,19 +120,9 @@ interface JobsPhotosResponse {
   };
 }
 
-interface JobType {
-  id: number;
-  name: string;
-}
-
 interface JobTypesResponse {
   success: boolean;
   data: JobType[];
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
 }
 
 interface StatusesResponse {

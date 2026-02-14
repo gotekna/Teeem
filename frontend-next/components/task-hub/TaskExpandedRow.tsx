@@ -51,12 +51,7 @@ import { DATE_ISO } from '@/lib/constants/date-formats';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { Briefcase } from 'lucide-react';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
-
-interface Job {
-  id: number;
-  name: string;
-  client_name?: string;
-}
+import { Job } from '@/lib/types';
 
 interface TaskExpandedRowProps {
   task: SmTask;

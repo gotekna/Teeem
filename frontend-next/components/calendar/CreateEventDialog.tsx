@@ -31,23 +31,11 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { X, Users, MapPin, Clock, AlignLeft, Check, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { User, Contact } from "@/lib/types";
 
 // Atoms for event creation
 export const createEventOpenAtom = atom<boolean>(false);
 export const createEventDateAtom = atom<Date>(new Date());
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
-interface Contact {
-  id: number;
-  name: string;
-  email: string | null;
-  company_name: string | null;
-}
 
 interface MeetingType {
   id: number;

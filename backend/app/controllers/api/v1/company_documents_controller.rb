@@ -360,11 +360,11 @@ module Api
           resolver.send(:expand_template, ui_template, context)
         end
 
-        # Resolve DL name from effective template chain
+        # Resolve DL name from effective template chain (with extension)
         dl_template = primary_wfdt&.effective_download_name_template || dt.download_name
         resolved_dl = if dl_template.present?
           expanded = resolver.send(:expand_template, dl_template, context)
-          expanded.present? ? resolver.send(:full_sanitize, expanded) : nil
+          expanded.present? ? resolver.send(:sanitize_and_ensure_extension, expanded, warehouse_doc) : nil
         end
 
         { folder: folder, ui_name: resolved_ui, dl_name: resolved_dl }

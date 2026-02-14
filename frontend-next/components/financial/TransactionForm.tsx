@@ -5,6 +5,7 @@ import { XMarkIcon } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
 import { MAX_INLINE_IMAGE_SIZE } from "@/lib/constants/file-size-limits";
+import { Job } from "@/lib/types";
 
 interface Transaction {
   id: number;
@@ -14,11 +15,6 @@ interface Transaction {
   description?: string;
   category?: string;
   job_id?: number;
-}
-
-interface Job {
-  id: number;
-  name?: string;
 }
 
 interface TransactionFormProps {

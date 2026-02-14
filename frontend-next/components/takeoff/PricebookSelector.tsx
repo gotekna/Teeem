@@ -21,21 +21,11 @@ import { useDebounce } from "@/hooks/use-debounce";
 import type { TakeoffMeasurement, PricebookItemSummary } from "./types";
 import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
 import { PAGE_SIZE_LIST } from '@/lib/constants/pagination-constants';
+import type { PricebookItem } from '@/lib/types';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-interface PricebookItem {
-  id: number;
-  code: string;
-  name: string;
-  description: string | null;
-  unit: string;
-  current_price: number | null;
-  category: string | null;
-  preferred_supplier_name: string | null;
-}
 
 interface PricebookSelectorProps {
   open: boolean;

@@ -4,6 +4,7 @@
 export interface JobType {
   id: number;
   name: string;
+  description?: string;
   color?: string;
   icon?: string;
   position?: number;
@@ -122,6 +123,4 @@ export interface Job {
   created_at?: string;
   updated_at?: string;
 
-  // Allow additional fields from Foundation API
-  [key: string]: unknown;
 }

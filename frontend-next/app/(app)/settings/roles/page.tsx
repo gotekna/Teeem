@@ -56,6 +56,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { Role } from '@/lib/types';
 
 /**
  * Roles & Permissions Page - Organization Settings

@@ -45,6 +45,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { Job } from "@/lib/types";
 
 // Initialize pdf.js worker
 if (typeof window !== "undefined") {
@@ -67,12 +68,6 @@ interface PdfFieldPosition {
   text_align: "left" | "center" | "right";
   pdf_form_field_name: string | null;  // SSoT: PDF form field this data field maps to
   updated_at: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  display_name?: string;
 }
 
 // Detected form field from PDF parsing (AcroForm)

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
+import { API } from "@/lib/constants/api-endpoints";
 
 interface CompanyLink {
   id: number;
@@ -142,7 +143,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies");
+      const response = await api.get<{ success: boolean; companies: Company[] }>(API.companies.list);
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);

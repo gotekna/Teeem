@@ -69,6 +69,7 @@ import { useLayoutMode } from "@/contexts/LayoutModeContext";
 import { importDocx, exportDocx } from "@/lib/teeem-word";
 import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
+import { Job } from "@/lib/types";
 
 // Types
 interface DocumentData {
@@ -90,11 +91,6 @@ interface TeeemDocument {
   jobName?: string;
   updatedAt: string;
   createdAt: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 // Toolbar button component

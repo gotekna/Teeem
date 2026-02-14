@@ -31,62 +31,7 @@ import { slugifyContactName } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { EntityChat } from "@/components/chat/EntityChat";
 import { Spinner } from "@/components/ui/spinner";
-
-interface ContactPerson {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string | null;
-  is_primary: boolean;
-}
-
-interface ContactGroup {
-  id: number;
-  name: string;
-}
-
-interface ContactAddress {
-  id: number;
-  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
-  line1: string;
-  line2: string | null;
-  city: string;
-  region: string;
-  postal_code: string;
-  country: string;
-  is_primary: boolean;
-}
-
-interface Contact {
-  id: number;
-  display_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  mobile_phone: string | null;
-  office_phone: string | null;
-  website: string | null;
-  abn: string | null;
-  address: string | null; // Legacy - deprecated, use contact_addresses
-  notes: string | null;
-  is_active: boolean;
-  "is_supplier?": boolean;
-  "is_customer?": boolean;
-  is_family_member: boolean;
-  xero_contact_id: string | null;
-  sync_with_xero: boolean;
-  created_at: string;
-  updated_at: string;
-  contact_persons: ContactPerson[];
-  contact_groups: ContactGroup[];
-  contact_addresses?: ContactAddress[]; // SSoT for addresses
-  jobs_count: number;
-  purchase_orders_count: number;
-  quotes_count: number;
-  company_name: string | null;
-  position: string | null;
-}
+import type { Contact, ContactPerson, ContactGroup, ContactAddress } from "@/lib/types";
 
 interface ContactDetailDrawerProps {
   contactId: number | null;

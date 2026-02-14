@@ -122,15 +122,10 @@ import type { PreUploadedAttachment } from '@/lib/email-types';
 import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
+import { Job } from '@/lib/types';
 
 // Type for rich text editor modal
 type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
-
-interface Job {
-  id: number;
-  name: string;
-  client_name?: string;
-}
 
 interface TaskFullscreenViewProps {
   task: SmTask;

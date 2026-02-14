@@ -7,6 +7,7 @@
 
 import { api } from '@/lib/api';
 import { COMPANY_TIMEZONE } from '@/lib/timezone-utils';
+import { API } from '@/lib/constants/api-endpoints';
 
 interface CompanySettings {
   timezone: string;
@@ -48,7 +49,7 @@ export async function fetchCompanySettings(): Promise<CompanySettings> {
   }
 
   // Start new fetch via backend API
-  fetchPromise = api.get<CompanySettings>('/api/v1/company_settings')
+  fetchPromise = api.get<CompanySettings>(API.companySettings.get)
     .then(data => {
       cachedSettings = {
         timezone: data.timezone || DEFAULT_SETTINGS.timezone,

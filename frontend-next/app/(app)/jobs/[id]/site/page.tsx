@@ -7,13 +7,7 @@ import { JobSitePresenceTab } from "@/components/jobs/JobSitePresenceTab";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-
-
-interface Job {
-  id: number;
-  name: string;
-  title: string;
-}
+import { Job } from "@/lib/types";
 
 export default function SiteFullscreenPage() {
   const params = useParams();

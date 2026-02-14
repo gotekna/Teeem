@@ -8,6 +8,7 @@ import { X, Building2, Briefcase, Mail, ExternalLink, Clock } from "lucide-react
 import { ExpandChevron } from "@/components/ui/expand-chevron";
 import type { EmailContact, ContactEmail } from "@/lib/email-types";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 
 /** Chip data includes contact info for navigation */
 interface EmailChip {
@@ -107,7 +108,7 @@ export function EmailContactAutocomplete({
       for (const chip of unresolvedChips) {
         try {
           const response = await api.get<{ contacts: Array<{ id: number; display_name: string; email?: string; contact_emails?: Array<{ email: string }> }> }>(
-            `/api/v1/contacts?search=${encodeURIComponent(chip.email)}&with_email=true&per_page=5`
+            `${API.contacts.list}?search=${encodeURIComponent(chip.email)}&with_email=true&per_page=5`
           );
           const results = (response as { contacts: Array<{ id: number; display_name: string; email?: string; contact_emails?: Array<{ email: string }> }> }).contacts || [];
           // Find exact email match

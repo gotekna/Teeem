@@ -52,16 +52,11 @@ import { EditRowDialog, type EditRowData, type EditRowFormData } from '@/compone
 import { clearCachedRecords } from '@/lib/records-cache';
 import { GanttSyncIndicator } from '@/components/ui/gantt-sync-indicator';
 import { useAutoGanttCache, useGanttOfflineCache } from '@/lib/offline';
+import { Job } from '@/lib/types';
 
 // =============================================================================
 // Types
 // =============================================================================
-
-interface Job {
-  id: number;
-  name: string;
-  title: string;
-}
 
 // =============================================================================
 // Page Component

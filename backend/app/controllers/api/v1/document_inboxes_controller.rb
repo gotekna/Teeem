@@ -379,7 +379,7 @@ module Api
         resolved_ui = ui_template.present? ? resolver.send(:expand_template, ui_template, context) : nil
         resolved_dl = if dl_template.present?
           expanded = resolver.send(:expand_template, dl_template, context)
-          expanded.present? ? resolver.send(:full_sanitize, expanded) : nil
+          expanded.present? ? resolver.send(:sanitize_and_ensure_extension, expanded, @item) : nil
         end
 
         { folder: folder, ui_name: resolved_ui, dl_name: resolved_dl }

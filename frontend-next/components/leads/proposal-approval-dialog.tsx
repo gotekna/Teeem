@@ -32,23 +32,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  email?: string;
-  company_name?: string;
-}
-
-interface JobType {
-  id: number;
-  name: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-}
+import type { JobType, JobStatus, Contact } from '@/lib/types';
 
 interface ExtractedContact {
   contact_id?: number;

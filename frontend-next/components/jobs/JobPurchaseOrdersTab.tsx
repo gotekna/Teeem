@@ -34,13 +34,7 @@ import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  employee_names?: string[];
-  employee_count?: number;
-}
+import type { Role, Contact, User } from '@/lib/types';
 
 // Extended ComboboxItem with employee data for cascading view
 interface SupplierItem {
@@ -60,18 +54,6 @@ interface SmTask {
   supplier_id?: number;
   assigned_user_id?: number;
   assigned_role?: string;
-}
-
-interface User {
-  id: number;
-  name: string;
-}
-
-// Role from /api/v1/roles
-interface Role {
-  id: number;
-  value: string;  // e.g., "supervisor"
-  label: string;  // e.g., "Supervisor"
 }
 
 // Job's internal team member (from job_contacts)

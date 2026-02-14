@@ -35,16 +35,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import type { PricebookItem } from '@/lib/types';
 
-// Types
-interface PricebookItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  category?: string;
-  current_price?: number;
-  default_supplier?: { id: number; name: string };
-}
+// Types (using item_code/item_name from API, not SSoT's code/name)
 
 interface SupplierCategoryEntry {
   supplier: { id: number; name: string };
