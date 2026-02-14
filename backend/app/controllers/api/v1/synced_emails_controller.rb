@@ -883,6 +883,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # DELETE /api/v1/synced_email/:id/delete_from_outlook
   # Delete a single email from Outlook (without marking as spam)
   # SSoT: Uses org credentials (per-user Outlook removed)
+  # FRC (Feb 2026): Uses delete_user_email! to propagate actual error to user.
+  # 404 from Graph API = email already deleted = treated as success.
   def delete_from_outlook
     unless @email.outlook_id.present?
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
@@ -895,22 +897,22 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
-    result = graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
+    graph_client.delete_user_email!(@email.mailbox_owner_email, @email.outlook_id)
 
-    if result
-      # Mark as deleted in our database
-      @email.update!(
-        email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
-      )
+    # Mark as deleted in our database (also reached when 404 = already deleted)
+    @email.update!(
+      email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
+    )
 
-      render json: {
-        success: true,
-        message: "Email deleted from Outlook",
-        email_id: @email.id
-      }
-    else
-      render json: { error: "Failed to delete email from Outlook" }, status: :unprocessable_entity
-    end
+    render json: {
+      success: true,
+      message: "Email deleted from Outlook",
+      email_id: @email.id
+    }
+  rescue MicrosoftAppGraphClient::ApiError => e
+    render json: { error: "Outlook delete failed: #{e.message}" }, status: :unprocessable_entity
+  rescue MicrosoftAppGraphClient::NotConnectedError => e
+    render json: { error: "MS365 connection issue: #{e.message}" }, status: :unprocessable_entity
   end
 
   # POST /api/v1/synced_email/:id/move_to_folder

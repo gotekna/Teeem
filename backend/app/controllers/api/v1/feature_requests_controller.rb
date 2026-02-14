@@ -3,6 +3,22 @@ module Api
     class FeatureRequestsController < ApplicationController
       before_action :set_feature_request, only: [ :update, :follow, :unfollow ]
 
+      # POST /api/v1/feature_requests/scope
+      # AI-powered feature request scoping assistant
+      def scope
+        service = FeatureRequestScopingService.new(user: current_user, tenant: current_tenant)
+
+        existing = FeatureRequest.active.pluck(:title, :description, :status)
+
+        result = service.scope(
+          message: params[:message],
+          history: params[:history] || [],
+          existing_requests: existing
+        )
+
+        render_success(result)
+      end
+
       # GET /api/v1/feature_requests
       # Shared across all tenants - no tenant scoping
       def index

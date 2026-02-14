@@ -1773,6 +1773,9 @@ Rails.application.routes.draw do
 
       # Feature Requests & Suggestions (shared across all tenants)
       resources :feature_requests, only: [:index, :create, :update] do
+        collection do
+          post :scope
+        end
         member do
           post :follow
           delete :follow, action: :unfollow

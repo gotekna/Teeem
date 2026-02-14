@@ -42,6 +42,7 @@ import {
   MessageSquare,
   Users,
 } from "lucide-react";
+import { ScopingSheet } from "@/components/feature-requests/ScopingSheet";
 
 // Types
 interface FeatureRequest {
@@ -128,6 +129,7 @@ export default function FeatureRequestsPage() {
   const [counts, setCounts] = useState({ submitted: 0, planned: 0, in_progress: 0, completed: 0 });
   const [loading, setLoading] = useState(true);
   const [showSubmitDialog, setShowSubmitDialog] = useState(false);
+  const [showScopingSheet, setShowScopingSheet] = useState(false);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [followingIds, setFollowingIds] = useState<Set<number>>(new Set());
   const [showCompleted, setShowCompleted] = useState(false);
@@ -253,8 +255,8 @@ export default function FeatureRequestsPage() {
                 </p>
               </div>
             </div>
-            <Button onClick={() => setShowSubmitDialog(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1.5" />
+            <Button onClick={() => setShowScopingSheet(true)} size="sm">
+              <Sparkles className="h-4 w-4 mr-1.5" />
               Submit Request
             </Button>
           </div>
@@ -278,8 +280,8 @@ export default function FeatureRequestsPage() {
             <p className="text-sm text-muted-foreground mb-4">
               Be the first to submit a feature request or suggestion!
             </p>
-            <Button onClick={() => setShowSubmitDialog(true)} size="sm">
-              <Plus className="h-4 w-4 mr-1.5" />
+            <Button onClick={() => setShowScopingSheet(true)} size="sm">
+              <Sparkles className="h-4 w-4 mr-1.5" />
               Submit Request
             </Button>
           </div>
@@ -394,7 +396,15 @@ export default function FeatureRequestsPage() {
         )}
       </div>
 
-      {/* Submit Dialog */}
+      {/* AI Scoping Sheet */}
+      <ScopingSheet
+        open={showScopingSheet}
+        onOpenChange={setShowScopingSheet}
+        onSuccess={fetchRequests}
+        onOpenQuickSubmit={() => setShowSubmitDialog(true)}
+      />
+
+      {/* Quick Submit Dialog (fallback) */}
       <SubmitDialog
         open={showSubmitDialog}
         onOpenChange={setShowSubmitDialog}
