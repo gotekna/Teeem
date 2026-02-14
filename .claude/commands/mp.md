@@ -35,71 +35,72 @@ git checkout Staging
 git pull origin Staging
 ```
 
-### Step 3 - Deploy to Beta
+### Step 3 - Deploy to Beta + Production (Single Temp Dir, Parallel Workers)
 
 ```bash
-echo "📦 Deploying Staging → Beta..."
+echo "📦 Deploying Staging → Beta + Production..."
 
 cd /Users/robertharder/GitHub/teeem
 
 sync
 sleep 1
 
+# Build ONE temp dir - reused for ALL pushes
 DEPLOY_DIR=$(mktemp -d)
-# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
 cd "$DEPLOY_DIR"
 git init
 git add .
-git commit -m "Deploy to Beta $(date +%Y%m%d-%H%M%S)"
+git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
-# Deploy to web app
-git remote add heroku https://git.heroku.com/teeem-beta.git
-git push heroku HEAD:main --force
+# Add all remotes upfront
+git remote add beta https://git.heroku.com/teeem-beta.git
+git remote add production https://git.heroku.com/teeem-production.git
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
+git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null
 
-# Deploy to worker app
-git remote add worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+# Deploy Beta web first (safety gate)
+echo "📦 Deploying → Beta..."
+git push beta HEAD:main --force
+BETA_EXIT=$?
 
-cd /Users/robertharder/GitHub/teeem
-rm -rf "$DEPLOY_DIR"
-
+if [ $BETA_EXIT -ne 0 ]; then
+  echo "❌ Beta deploy failed - aborting pipeline"
+  cd /Users/robertharder/GitHub/teeem
+  rm -rf "$DEPLOY_DIR"
+  exit 1
+fi
 echo "✅ Beta deployed"
-```
 
-### Step 4 - Deploy to Production
+# Deploy Production web + ALL workers in PARALLEL
+echo "📦 Deploying → Production + workers (parallel)..."
+git push production HEAD:main --force &
+PID_PROD=$!
 
-```bash
-echo "📦 Deploying → production..."
+git push beta-worker HEAD:main --force 2>/dev/null &
+PID_BW=$!
 
-cd /Users/robertharder/GitHub/teeem
+git push prod-worker HEAD:main --force 2>/dev/null &
+PID_PW=$!
 
-sync
-sleep 1
+wait $PID_PROD
+PROD_EXIT=$?
 
-DEPLOY_DIR=$(mktemp -d)
-# FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
-rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
-
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy to Production $(date +%Y%m%d-%H%M%S)"
-
-# Deploy to web app
-git remote add heroku https://git.heroku.com/teeem-production.git
-git push heroku HEAD:main --force
-
-# Deploy to worker app
-git remote add worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null && git push worker HEAD:main --force || echo "⚠️ Production worker app not yet created"
+wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
+wait $PID_PW 2>/dev/null || echo "⚠️ Production worker not available"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-echo "✅ Production deployed"
+if [ $PROD_EXIT -eq 0 ]; then
+  echo "✅ Production deployed"
+else
+  echo "❌ Production deploy failed (exit: $PROD_EXIT)"
+fi
 ```
 
-### Step 5 - Run Post-Deploy Verification
+### Step 4 - Run Post-Deploy Verification
 
 ```bash
 # Wait for dyno to restart
@@ -142,7 +143,7 @@ heroku run rails runner "
 " --app teeem-production
 ```
 
-### Step 6 - Report Status
+### Step 5 - Report Status
 
 ```bash
 BACKEND_VERSION=$(curl -s https://teeemlive-ce8e2660a615.herokuapp.com/version | jq -r '.version' 2>/dev/null || echo "unknown")

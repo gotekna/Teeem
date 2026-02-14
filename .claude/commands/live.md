@@ -177,14 +177,22 @@ BETA_EXIT=$?
 wait $PROD_PID
 PROD_EXIT=$?
 
-# STEP 3: Deploy to Worker apps (separate slugs)
-echo "📦 Deploying → Worker apps..."
+# STEP 3: Deploy to ALL Worker apps in PARALLEL
+echo "📦 Deploying → Worker apps (parallel)..."
 git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git push staging-worker HEAD:main --force
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
+git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null
 
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+git push staging-worker HEAD:main --force &
+PID_SW=$!
+git push beta-worker HEAD:main --force 2>/dev/null &
+PID_BW=$!
+git push prod-worker HEAD:main --force 2>/dev/null &
+PID_PW=$!
 
-git remote add prod-worker https://git.heroku.com/teeem-production-worker.git 2>/dev/null && git push prod-worker HEAD:main --force || echo "⚠️ Production worker app not yet created"
+wait $PID_SW 2>/dev/null || echo "⚠️ Staging worker push failed"
+wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
+wait $PID_PW 2>/dev/null || echo "⚠️ Production worker not available"
 
 # Cleanup
 cd /Users/robertharder/GitHub/teeem

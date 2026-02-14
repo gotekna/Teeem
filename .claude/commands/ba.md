@@ -196,15 +196,29 @@ git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 git remote add staging https://git.heroku.com/teeem-staging.git
 
-echo "📦 Building slug on Staging..."
-git push staging HEAD:main --force
+echo "📦 Building slug on Staging + deploying workers in PARALLEL..."
+
+# Add all remotes upfront
+git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
+git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null
+
+# Push staging (main slug build) and workers in parallel
+git push staging HEAD:main --force &
+PID_STAGING=$!
+
+git push staging-worker HEAD:main --force &
+PID_SW=$!
+
+git push beta-worker HEAD:main --force 2>/dev/null &
+PID_BW=$!
+
+# Wait for staging first (it's the gate)
+wait $PID_STAGING
 STAGING_EXIT=$?
 
-# Deploy to worker apps (separate slugs - not part of pipeline promotion)
-git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git push staging-worker HEAD:main --force
-
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+# Wait for workers (non-blocking, report failures)
+wait $PID_SW 2>/dev/null || echo "⚠️ Staging worker push failed"
+wait $PID_BW 2>/dev/null || echo "⚠️ Beta worker not available"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
