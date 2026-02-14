@@ -309,18 +309,46 @@ class SyncedEmail < ApplicationRecord
 
   # Get or create mailbox appearance (used during sync)
   # Supports both MS365 (outlook_id, microsoft_credential_id) and IMAP (uid, imap_credential_id)
+  #
+  # ⚠️ FRC (Feb 2026): Don't overwrite credential_id/outlook_id on existing appearances!
+  # Root cause: When multiple credentials share a Microsoft tenant (sync_all: true),
+  # they all sync the same mailboxes. The uniqueness key is (synced_email_id, mailbox_owner_email),
+  # so the LAST credential to run would overwrite the credential_id. This broke the email list
+  # query which filtered by credential_id on the join table.
+  # Fix: Only set credential_id and outlook_id on NEW appearances. For existing ones,
+  # only update folder_name and is_read (which are genuinely per-sync-run values).
   def ensure_mailbox_appearance(mailbox_email:, outlook_id: nil, uid: nil, folder_name: nil, is_read: false, microsoft_credential_id: nil, imap_credential_id: nil)
     appearance = mailbox_appearances.find_or_initialize_by(
       mailbox_owner_email: mailbox_email.downcase
     )
-    appearance.assign_attributes(
-      outlook_id: outlook_id,
-      uid: uid,
-      folder_name: folder_name,
-      is_read: is_read,
-      microsoft_credential_id: microsoft_credential_id,
-      imap_credential_id: imap_credential_id
-    )
+
+    if appearance.new_record?
+      # New appearance - set all fields including credential ownership
+      appearance.assign_attributes(
+        outlook_id: outlook_id,
+        uid: uid,
+        folder_name: folder_name,
+        is_read: is_read,
+        microsoft_credential_id: microsoft_credential_id,
+        imap_credential_id: imap_credential_id
+      )
+    else
+      # Existing appearance - only update mutable fields, preserve credential ownership
+      appearance.assign_attributes(
+        folder_name: folder_name,
+        is_read: is_read
+      )
+      # Only update credential/outlook_id if this is the SAME credential (not a different one overwriting)
+      if appearance.microsoft_credential_id == microsoft_credential_id || appearance.microsoft_credential_id.nil?
+        appearance.outlook_id = outlook_id if outlook_id.present?
+        appearance.microsoft_credential_id = microsoft_credential_id if microsoft_credential_id.present?
+      end
+      if appearance.imap_credential_id == imap_credential_id || appearance.imap_credential_id.nil?
+        appearance.uid = uid if uid.present?
+        appearance.imap_credential_id = imap_credential_id if imap_credential_id.present?
+      end
+    end
+
     appearance.save!
     appearance
   end

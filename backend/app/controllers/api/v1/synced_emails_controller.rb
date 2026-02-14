@@ -217,16 +217,24 @@ class Api::V1::SyncedEmailsController < ApplicationController
         if user_mailboxes.any?
           # Ultra Email Architecture: Filter via mailbox_appearances join table
           # This allows emails sent to multiple recipients to be seen by all of them
-          # ⚠️ FRC (Jan 2026): Do NOT filter on synced_emails.microsoft_credential_id!
-          # An email may be synced by Org A (cred 9) but have a mailbox appearance for Org B (cred 11).
-          # Example: Derick sends to robert@tekna AND james@hoh - synced once via Tekna, but visible in both.
-          # We filter on the JOIN TABLE's credential, not the main table's.
+          #
+          # ⚠️ FRC (Feb 2026): Do NOT filter on microsoft_credential_id in the join table!
+          # Root cause: When multiple credentials share a Microsoft tenant (sync_all: true),
+          # they ALL sync the same mailboxes. ensure_mailbox_appearance uses find_or_initialize_by
+          # keyed on mailbox_owner_email, so the LAST credential to sync overwrites credential_id.
+          # Example: Cred 9 (Tekna) syncs rachel@tekna.com.au → appearance.credential_id = 9
+          #          Cred 12 (LYW) syncs same mailbox later → overwrites to credential_id = 12
+          #          Rachel views Tekna account (cred 9) → query WHERE credential_id=9 misses all recent emails!
+          #
+          # Fix: Filter ONLY by mailbox_owner_email. Access control is already handled by
+          # user_mailbox_access config (line 198), which limits which mailboxes each user sees
+          # per credential. The credential_id filter is redundant and harmful.
+          #
           # Accept both :mailbox and :mailbox_owner_email params (frontend sends mailbox_owner_email)
           specific_mailbox = params[:mailbox].presence || params[:mailbox_owner_email].presence
           if specific_mailbox.present? && user_mailboxes.map(&:downcase).include?(specific_mailbox.downcase)
-            # Specific mailbox requested - filter by mailbox and credential on JOIN table
+            # Specific mailbox requested - filter by mailbox_owner_email only
             emails = emails.joins(:mailbox_appearances)
-              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", specific_mailbox)
               .distinct
 
@@ -243,9 +251,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
               end
             end
           else
-            # All user's mailboxes - filter by mailboxes and credential on JOIN table
+            # All user's mailboxes - filter by mailbox_owner_email only
             emails = emails.joins(:mailbox_appearances)
-              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
               .distinct
 
