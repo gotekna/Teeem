@@ -523,7 +523,7 @@ class Api::V1::UsersController < ApplicationController
       related_contact_id: company_contact.id,
       relationship_type: "employee_of",
       is_active: true,
-      start_date: Date.today
+      start_date: Date.current
     )
   rescue => e
     # Non-critical: log but don't fail user creation

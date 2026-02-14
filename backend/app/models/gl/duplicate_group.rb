@@ -148,7 +148,7 @@ module Gl
         records.group_by do |r|
           {
             fields: %w[contact_id amount date],
-            values: [r.try(:contact_id), r.amount&.to_f&.round(2), r.date]
+            values: [r&.contact_id, r.amount&.to_f&.round(2), r.date]
           }
         end
       when "contact", "vendor"

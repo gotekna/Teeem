@@ -129,7 +129,7 @@ module Gl
 
     def check_unusual_amount(transaction)
       amount = transaction_amount(transaction).abs
-      account = transaction.try(:gl_account) || transaction.try(:account)
+      account = transaction&.gl_account || transaction&.account
 
       return { type: "unusual_amount", score: 0, reason: nil } unless account
 
@@ -164,7 +164,7 @@ module Gl
       end
 
       # Late night transactions (if we have time data)
-      if transaction.try(:created_at)&.hour
+      if transaction&.created_at&.hour
         hour = transaction.created_at.hour
         if hour >= 22 || hour <= 5
           return { type: "unusual_timing", score: 25, reason: "Transaction at unusual hour (#{hour}:00)" }
@@ -193,8 +193,8 @@ module Gl
     end
 
     def check_unusual_category(transaction)
-      account = transaction.try(:gl_account) || transaction.try(:account)
-      contact = transaction.try(:contact)
+      account = transaction&.gl_account || transaction&.account
+      contact = transaction&.contact
 
       return { type: "unusual_category", score: 0, reason: nil } unless account && contact
 
@@ -205,7 +205,7 @@ module Gl
         # Never seen this contact use this account before
         total_contact_txns = contact_transaction_count(contact)
         if total_contact_txns >= 5
-          return { type: "unusual_category", score: 30, reason: "First transaction to account '#{account.try(:name)}' for this contact" }
+          return { type: "unusual_category", score: 30, reason: "First transaction to account '#{account&.name}' for this contact" }
         end
       end
 
@@ -213,7 +213,7 @@ module Gl
     end
 
     def check_unusual_frequency(transaction)
-      contact = transaction.try(:contact)
+      contact = transaction&.contact
       return { type: "unusual_frequency", score: 0, reason: nil } unless contact
 
       date = transaction_date(transaction)
@@ -233,7 +233,7 @@ module Gl
 
     def check_duplicate_pattern(transaction)
       # Look for potential duplicates (same amount, same contact, within 7 days)
-      contact = transaction.try(:contact)
+      contact = transaction&.contact
       amount = transaction_amount(transaction)
       date = transaction_date(transaction)
 
@@ -325,13 +325,13 @@ module Gl
     end
 
     def transaction_amount(transaction)
-      (transaction.try(:debit) || 0) + (transaction.try(:credit) || 0)
+      (transaction&.debit || 0) + (transaction&.credit || 0)
     end
 
     def transaction_date(transaction)
-      transaction.try(:entry_date) ||
-        transaction.try(:journal_entry)&.entry_date ||
-        transaction.try(:created_at)&.to_date
+      transaction&.entry_date ||
+        transaction&.journal_entry&.entry_date ||
+        transaction&.created_at&.to_date
     end
 
     def holiday?(date)
@@ -375,10 +375,10 @@ module Gl
         type: transaction.class.name,
         amount: transaction_amount(transaction),
         date: transaction_date(transaction),
-        account_name: transaction.try(:gl_account)&.name || transaction.try(:account)&.name,
-        account_code: transaction.try(:gl_account)&.code || transaction.try(:account)&.code,
-        description: transaction.try(:description) || transaction.try(:memo),
-        contact_name: transaction.try(:journal_entry)&.contact&.display_name
+        account_name: transaction&.gl_account&.name || transaction&.account&.name,
+        account_code: transaction&.gl_account&.code || transaction&.account&.code,
+        description: transaction&.description || transaction&.memo,
+        contact_name: transaction&.journal_entry&.contact&.display_name
       }
     end
   end

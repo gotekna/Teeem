@@ -22,7 +22,7 @@ module TeeemXl
   # - xl/worksheets/_rels/sheet1.xml.rels: Worksheet relationships (drawings, charts)
   #
   class Relationships
-    NAMESPACE = "http://schemas.openxmlformats.org/package/2006/relationships"
+    NAMESPACE = "http://schemas.openxmlformats.org/package/2006/relationships".freeze
 
     # Single relationship entry
     Relationship = Struct.new(:id, :type, :target, :target_mode, keyword_init: true) do

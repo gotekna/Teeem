@@ -978,7 +978,7 @@ export function ColumnEditorModal({
                           </div>
                         ) : (
                           editedColumn.choices.map((choice, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                            <div key={`choice-${choice}-${index}`} className="flex items-center justify-between p-3 hover:bg-muted/50">
                               <span className="text-sm">{choice}</span>
                               <Button
                                 variant="ghost"

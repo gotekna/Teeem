@@ -21,7 +21,7 @@ class XeroRateLimitTracker
   CONCURRENT_LIMIT = 5
 
   # Cache key for Xero-enforced rate limit lockout
-  LOCKOUT_KEY = "xero:rate:lockout"
+  LOCKOUT_KEY = "xero:rate:lockout".freeze
 
   class << self
     # Record a Xero-enforced rate limit (from 429 response)

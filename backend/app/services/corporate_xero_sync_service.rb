@@ -50,7 +50,7 @@ class CorporateXeroSyncService
 
     client = XeroApiClient.new
     all_monthly_data = []
-    today = Date.today
+    today = Date.current
 
     # Fetch year by year due to 365-day limit
     years.times do |year_offset|

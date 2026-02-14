@@ -988,7 +988,7 @@ class TenantConfigSyncService
               end
               if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
                 new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
-                  *Array(master_record.class.try(:sync_key_source) || :name).map { |f| master_record.send(f).to_s }
+                  *Array(master_record.class&.sync_key_source || :name).map { |f| master_record.send(f).to_s }
                 )
               end
               new_record.save!
@@ -1460,7 +1460,7 @@ class TenantConfigSyncService
         end
         if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
           new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
-            *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+            *Array(source_record.class&.sync_key_source || :name).map { |f| source_record.send(f).to_s }
           )
         end
         new_record.save!
@@ -1498,7 +1498,7 @@ class TenantConfigSyncService
       # Copy sync_key from source so the link is established
       if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
         new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
-          *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+          *Array(source_record.class&.sync_key_source || :name).map { |f| source_record.send(f).to_s }
         )
       end
       new_record.save!

@@ -347,7 +347,7 @@ module Api
         resolver = SendNameResolver.new
         context = resolver.send(:build_context, warehouse_doc)
         context[:doc_type_name] = dt.name
-        context[:doc_type_code] = dt.abbreviation || dt.try(:code)
+        context[:doc_type_code] = dt.abbreviation || dt&.code
 
         # SSoT: Use WFDT effective template chain (WFDT → DocumentType → WarehouseFolder)
         # This matches how WarehouseDocumentCreator resolves names at creation time

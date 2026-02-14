@@ -230,7 +230,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
               <CardContent>
                 <ul className="space-y-3">
                   {analysis.key_points.map((point, index) => (
-                    <li key={index} className="flex gap-3">
+                    <li key={`point-${index}-${point.substring(0, 20)}`} className="flex gap-3">
                       <span className="flex-shrink-0 flex items-center justify-center h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
                         {index + 1}
                       </span>
@@ -287,7 +287,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                     <div className="flex flex-wrap gap-2">
                       {analysis.estimated_scope.key_trades.map((trade, index) => (
                         <Badge
-                          key={index}
+                          key={`trade-${trade}-${index}`}
                           variant="secondary"
                           className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 dark:bg-blue-900/30 dark:text-blue-400"
                         >
@@ -309,7 +309,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                     <CardContent>
                       <ul className="space-y-1">
                         {analysis.estimated_scope.major_materials.map((material, index) => (
-                          <li key={index} className="text-sm flex items-start gap-2">
+                          <li key={`material-${material}-${index}`} className="text-sm flex items-start gap-2">
                             <span className="text-primary mt-1">•</span>
                             <span>{material}</span>
                           </li>
@@ -332,7 +332,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
                     <CardContent>
                       <ul className="space-y-1">
                         {analysis.estimated_scope.potential_challenges.map((challenge, index) => (
-                          <li key={index} className="text-sm flex items-start gap-2">
+                          <li key={`challenge-${challenge.substring(0, 20)}-${index}`} className="text-sm flex items-start gap-2">
                             <span className="text-yellow-600 dark:text-yellow-400 mt-1">⚠</span>
                             <span>{challenge}</span>
                           </li>
@@ -356,7 +356,7 @@ export function JobEstimatorTab({ jobId, job }: JobEstimatorTabProps) {
               <CardContent>
                 <ul className="space-y-2">
                   {analysis.recommendations.map((recommendation, index) => (
-                    <li key={index} className="text-sm flex items-start gap-2">
+                    <li key={`rec-${recommendation.substring(0, 20)}-${index}`} className="text-sm flex items-start gap-2">
                       <span className="text-green-600 dark:text-green-400 mt-1">✓</span>
                       <span>{recommendation}</span>
                     </li>

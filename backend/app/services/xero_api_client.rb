@@ -48,7 +48,7 @@ class XeroApiClient
   # - accounting.settings: Read tax rates, tracking categories
   # - accounting.attachments: Read/write attachments (upgraded from .read for two-way sync)
   # - accounting.reports.read: Read financial reports (P&L, Balance Sheet)
-  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments accounting.reports.read"
+  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments accounting.reports.read".freeze
 
   # Generate OAuth authorization URL
   def authorization_url

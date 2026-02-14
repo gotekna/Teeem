@@ -201,7 +201,7 @@ module Api
         director = @company.corporate_directors.build(
           contact: contact,
           position: params[:position],
-          appointment_date: params[:appointment_date] || Date.today,
+          appointment_date: params[:appointment_date] || Date.current,
           is_current: true
         )
 
@@ -241,7 +241,7 @@ module Api
       def remove_director
         director = @company.corporate_directors.find(params[:director_id])
 
-        if director.update(resignation_date: params[:resignation_date] || Date.today, is_current: false)
+        if director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
           render json: {
             success: true,
             message: "Director removed successfully"

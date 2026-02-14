@@ -32,12 +32,12 @@ class AbaFileGeneratorService
   }.freeze
 
   # Indicator types
-  INDICATOR_NEW_OR_VARIED = "N"
-  INDICATOR_DIVIDEND = "D"
-  INDICATOR_INTEREST = "Y"
-  INDICATOR_SALARY_SUPER = "W"
-  INDICATOR_TAX_WITHHELD = "X"
-  INDICATOR_SELF_BALANCED = " "
+  INDICATOR_NEW_OR_VARIED = "N".freeze
+  INDICATOR_DIVIDEND = "D".freeze
+  INDICATOR_INTEREST = "Y".freeze
+  INDICATOR_SALARY_SUPER = "W".freeze
+  INDICATOR_TAX_WITHHELD = "X".freeze
+  INDICATOR_SELF_BALANCED = " ".freeze
 
   class ValidationError < StandardError; end
   class GenerationError < StandardError; end

@@ -28,9 +28,9 @@ module AnthropicClient
   extend ActiveSupport::Concern
 
   # Available models - use these constants to avoid typos
-  CLAUDE_HAIKU = "claude-3-haiku-20240307"
-  CLAUDE_SONNET = "claude-sonnet-4-5-20250929"
-  CLAUDE_SONNET_LEGACY = "claude-3-5-sonnet-20241022"
+  CLAUDE_HAIKU = "claude-3-haiku-20240307".freeze
+  CLAUDE_SONNET = "claude-sonnet-4-5-20250929".freeze
+  CLAUDE_SONNET_LEGACY = "claude-3-5-sonnet-20241022".freeze
 
   included do
     # Default model for simple tasks

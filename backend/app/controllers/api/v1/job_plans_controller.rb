@@ -241,7 +241,7 @@ module Api
         end
 
         # Create staging filename with timestamp
-        staging_filename = "_staging_#{Time.now.to_i}_#{uploaded_file.original_filename}"
+        staging_filename = "_staging_#{Time.current.to_i}_#{uploaded_file.original_filename}"
         staging_result = upload_to_provider(job_folder_path, uploaded_file.read, staging_filename, content_type: uploaded_file.content_type)
         uploaded_file.rewind
 

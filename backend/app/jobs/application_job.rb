@@ -39,7 +39,7 @@ class ApplicationJob < ActiveJob::Base
           class: self.class.name,
           job_id: job_id,
           queue: queue_name,
-          arguments: arguments.map { |arg| arg.try(:to_global_id)&.to_s || arg.inspect }.first(5),
+          arguments: arguments.map { |arg| arg&.to_global_id&.to_s || arg.inspect }.first(5),
           executions: executions,
           scheduled_at: scheduled_at
         })

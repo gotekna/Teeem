@@ -14,7 +14,7 @@
 # - MicrosoftGraphClient (delegated permissions)
 #
 class MicrosoftGraphBase
-  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0".freeze
   GRAPH_DEFAULT_SCOPE = "https://graph.microsoft.com/.default".freeze
   AZURE_DEFAULT_TENANT = "common".freeze
 

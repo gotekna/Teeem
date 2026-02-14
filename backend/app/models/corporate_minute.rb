@@ -56,7 +56,7 @@ class CorporateMinute < ApplicationRecord
       abn: company.formatted_abn,
       registered_office: company.registered_office_address,
       meeting_date: meeting_date&.strftime("%d %B %Y"),
-      current_date: Date.today.strftime("%d %B %Y")
+      current_date: Date.current.strftime("%d %B %Y")
     }
 
     self.content = minute_template.generate_content(default_values.merge(values))

@@ -137,32 +137,32 @@ class InvoicePdfGenerator
     return {} unless job
 
     street_address = [
-      job.try(:street_number),
-      job.try(:street_name),
-      job.try(:street_type)
+      job&.street_number,
+      job&.street_name,
+      job&.street_type
     ].compact.reject(&:blank?).join(" ")
 
     {
       id: job.id,
-      job_number: job.try(:job_number) || job.id.to_s,
+      job_number: job&.job_number || job.id.to_s,
       name: job.name,
-      title: job.try(:title) || job.name,
+      title: job&.title || job.name,
 
       # Address
-      address: street_address.presence || job.try(:address),
-      suburb: job.try(:suburb),
-      state: job.try(:state),
-      postcode: job.try(:postcode),
-      full_address: [street_address, job.try(:suburb), job.try(:state), job.try(:postcode)].compact.reject(&:blank?).join(", "),
+      address: street_address.presence || job&.address,
+      suburb: job&.suburb,
+      state: job&.state,
+      postcode: job&.postcode,
+      full_address: [street_address, job&.suburb, job&.state, job&.postcode].compact.reject(&:blank?).join(", "),
 
       # Contract details
       # SSoT: contract_price is THE ONE
-      contract_value: job.try(:contract_price),
-      contract_value_formatted: format_currency(job.try(:contract_price)),
+      contract_value: job&.contract_price,
+      contract_value_formatted: format_currency(job&.contract_price),
 
       # Dates
-      contract_date: format_date(job.try(:contract_date)),
-      site_start_date: format_date(job.try(:site_start_date))
+      contract_date: format_date(job&.contract_date),
+      site_start_date: format_date(job&.site_start_date)
     }
   end
 
@@ -173,27 +173,27 @@ class InvoicePdfGenerator
       id: contact.id,
       display_name: contact.display_name,
       full_name: contact.display_name,
-      first_name: contact.try(:first_name),
-      last_name: contact.try(:last_name),
+      first_name: contact&.first_name,
+      last_name: contact&.last_name,
 
       # Entity type
-      entity_type: contact.try(:entity_type),
-      is_company: contact.try(:entity_type) == "company",
+      entity_type: contact&.entity_type,
+      is_company: contact&.entity_type == "company",
 
       # Contact details
-      email: contact.try(:email),
-      phone: contact.try(:office_phone) || contact.try(:mobile_phone),
+      email: contact&.email,
+      phone: contact&.office_phone || contact&.mobile_phone,
 
       # Business details
-      company_name: contact.try(:company_name_or_trust),
-      abn: contact.try(:abn),
-      abn_formatted: format_abn(contact.try(:abn)),
+      company_name: contact&.company_name_or_trust,
+      abn: contact&.abn,
+      abn_formatted: format_abn(contact&.abn),
 
       # Address
-      address: contact.try(:address),
-      suburb: contact.try(:city),
-      state: contact.try(:state),
-      postcode: contact.try(:postcode),
+      address: contact&.address,
+      suburb: contact&.city,
+      state: contact&.state,
+      postcode: contact&.postcode,
       full_address: build_full_address(contact)
     }
   end
@@ -226,7 +226,7 @@ class InvoicePdfGenerator
       email: settings.email,
       phone: settings.phone,
       phone_formatted: format_phone(settings.phone),
-      website: settings.try(:website),
+      website: settings&.website,
 
       address: settings.address,
       full_address: settings.address&.gsub("\n", ", "),
@@ -830,8 +830,8 @@ class InvoicePdfGenerator
   end
 
   def build_full_address(contact)
-    parts = [contact.try(:address)]
-    parts << [contact.try(:city), contact.try(:state), contact.try(:postcode)].compact.reject(&:blank?).join(" ")
+    parts = [contact&.address]
+    parts << [contact&.city, contact&.state, contact&.postcode].compact.reject(&:blank?).join(" ")
     parts.compact.reject(&:blank?).join(", ")
   end
 end

@@ -44,7 +44,7 @@ class ContactRelationshipSyncService
       relationship_type: "employee_of"
     )
     relationship.is_active = true
-    relationship.start_date ||= Date.today
+    relationship.start_date ||= Date.current
     relationship.save!
 
     Rails.logger.info("ContactRelationshipSyncService: Contact##{@contact.id} employee_of relationship synced to Contact##{@contact.primary_company_id}")
@@ -54,7 +54,7 @@ class ContactRelationshipSyncService
     # Deactivate any existing employee_of relationships (primary company was cleared)
     updated = @contact.outgoing_relationships
       .where(relationship_type: "employee_of", is_active: true)
-      .update_all(is_active: false, end_date: Date.today)
+      .update_all(is_active: false, end_date: Date.current)
 
     if updated > 0
       Rails.logger.info("ContactRelationshipSyncService: Contact##{@contact.id} deactivated #{updated} employee_of relationship(s)")

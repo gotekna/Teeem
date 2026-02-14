@@ -21,7 +21,7 @@ module TeeemXl
   # - Override: Maps specific paths to content types (takes precedence)
   #
   class ContentTypes
-    NAMESPACE = "http://schemas.openxmlformats.org/package/2006/content-types"
+    NAMESPACE = "http://schemas.openxmlformats.org/package/2006/content-types".freeze
 
     attr_reader :defaults, :overrides
 

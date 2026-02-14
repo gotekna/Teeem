@@ -14,7 +14,7 @@ module Bpmn
         raise "No line items specified" if line_items.blank?
 
         # Find the Xero credential for the organization
-        org = @subject.try(:organization) || Organization.current
+        org = @subject&.organization || Organization.current
         xero_credential = org&.xero_credential
 
         raise "No Xero connection found" unless xero_credential&.connected?
@@ -57,7 +57,7 @@ module Bpmn
         when "variable"
           @variables[@config["contact_variable"]]
         when "subject_field"
-          @subject.try(@config["contact_field"])&.try(:xero_contact_id)
+          @subject.try(@config["contact_field"])&.xero_contact_id
         else
           @config["contact_id"]
         end

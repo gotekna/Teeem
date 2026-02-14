@@ -15,7 +15,7 @@
 #
 class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCamelCase
   # TEEEM SharePoint site ID (discovered via Graph API)
-  TEEEM_SITE_ID = "gotekna.sharepoint.com,d551d458-8c0e-4e22-98b0-434ba9b0e85d,5892a9c8-67f7-4d87-92ca-b1c9a6dd327c"
+  TEEEM_SITE_ID = "gotekna.sharepoint.com,d551d458-8c0e-4e22-98b0-434ba9b0e85d,5892a9c8-67f7-4d87-92ca-b1c9a6dd327c".freeze
 
   attr_reader :stats
 

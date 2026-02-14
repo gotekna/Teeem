@@ -12,7 +12,7 @@ module Gl
     attr_reader :corporate
 
     # RBA RSS feed for exchange rates
-    RBA_RATES_URL = 'https://www.rba.gov.au/rss/rss-cb-exchange-rates.xml'
+    RBA_RATES_URL = 'https://www.rba.gov.au/rss/rss-cb-exchange-rates.xml'.freeze
 
     # Currency codes RBA provides rates for
     RBA_CURRENCIES = %w[USD CNY JPY EUR KRW GBP SGD INR THB NZD TWD MYR IDR VND AED].freeze

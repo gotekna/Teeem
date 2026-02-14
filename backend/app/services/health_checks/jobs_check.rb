@@ -10,7 +10,7 @@ module HealthChecks
   #   - Jobs without assigned PM (info)
   #
   class JobsCheck < BaseCheck
-    FOUNDATION_SLUG = "jobs"
+    FOUNDATION_SLUG = "jobs".freeze
 
     def self.check_type
       "jobs"

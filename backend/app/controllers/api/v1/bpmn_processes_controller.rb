@@ -184,7 +184,7 @@ module Api
             job: {
               id: job.id,
               name: job.name,
-              job_number: job.try(:job_number)
+              job_number: job&.job_number
             }
           }
         rescue StandardError => e

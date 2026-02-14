@@ -99,14 +99,14 @@ class CompanyImportService
     warnings << "No public officer appointed" unless company.corporate_directors.current.any? { |d| d.position&.include?("public_officer") }
     warnings << "Missing corporate key" if company.corporate_key.blank?
     warnings << "Missing ASIC credentials" if company.asic_username.blank?
-    warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.today
+    warnings << "Review date overdue" if company.review_date.present? && company.review_date < Date.current
     warnings << "Missing principal place of business" if company.principal_place_of_business.blank?
 
     # Compliance warnings
-    overdue = company.corporate_compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count
+    overdue = company.corporate_compliance_items.where("due_date < ? AND completed = ?", Date.current, false).count
     warnings << "#{overdue} overdue compliance items" if overdue > 0
 
-    upcoming = company.corporate_compliance_items.where("due_date BETWEEN ? AND ?", Date.today, 30.days.from_now).where(completed: false).count
+    upcoming = company.corporate_compliance_items.where("due_date BETWEEN ? AND ?", Date.current, 30.days.from_now).where(completed: false).count
     warnings << "#{upcoming} compliance items due within 30 days" if upcoming > 0
 
     # Calculate health score
@@ -139,7 +139,7 @@ class CompanyImportService
       has_registered_office: company.registered_office_address.present?,
       has_corporate_key: company.corporate_key.present?,
       review_date: company.review_date,
-      review_overdue: company.review_date.present? && company.review_date < Date.today
+      review_overdue: company.review_date.present? && company.review_date < Date.current
     }
   end
 

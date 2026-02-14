@@ -102,7 +102,7 @@ export default function SignupPage() {
               <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20">
                 <ul className="list-disc list-inside space-y-1">
                   {errors.map((error, index) => (
-                    <li key={index}>{error}</li>
+                    <li key={`error-${error}-${index}`}>{error}</li>
                   ))}
                 </ul>
               </div>

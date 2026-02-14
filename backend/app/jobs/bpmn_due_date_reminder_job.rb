@@ -54,7 +54,7 @@ class BpmnDueDateReminderJob < ApplicationJob
     user = task.assigned_to
     return unless user.is_a?(User)
 
-    subject_name = task.subject&.try(:name) || task.subject&.try(:title) || "Unknown"
+    subject_name = task.subject&.name || task.subject&.title || "Unknown"
     hours_until = ((task.due_date - Time.current) / 1.hour).round
 
     Notification.create!(
@@ -78,7 +78,7 @@ class BpmnDueDateReminderJob < ApplicationJob
     user = task.assigned_to
     return unless user.is_a?(User)
 
-    subject_name = task.subject&.try(:name) || task.subject&.try(:title) || "Unknown"
+    subject_name = task.subject&.name || task.subject&.title || "Unknown"
     hours_overdue = ((Time.current - task.due_date) / 1.hour).round
 
     Notification.create!(

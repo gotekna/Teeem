@@ -32,7 +32,7 @@ class AssetServiceHistory < ApplicationRecord
 
   def days_since_service
     return nil unless service_date.present?
-    (Date.today - service_date).to_i
+    (Date.current - service_date).to_i
   end
 
   # ========================================

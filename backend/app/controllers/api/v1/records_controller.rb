@@ -1683,7 +1683,7 @@ module Api
         end
 
         send_data csv_data,
-          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.csv",
+          filename: "#{@foundation.slug}_export_#{Date.current.iso8601}.csv",
           type: "text/csv",
           disposition: "attachment"
       end
@@ -1705,7 +1705,7 @@ module Api
 
         xlsx_data = package.to_stream.read
         send_data xlsx_data,
-          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.xlsx",
+          filename: "#{@foundation.slug}_export_#{Date.current.iso8601}.xlsx",
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           disposition: "attachment"
       end

@@ -19,7 +19,7 @@ class CloudflareService
   class RecordExistsError < ApiError; end
   class RateLimitError < ApiError; end
 
-  BASE_URL = "https://api.cloudflare.com/client/v4"
+  BASE_URL = "https://api.cloudflare.com/client/v4".freeze
 
   def initialize(credential = nil)
     @credential = credential || CloudflareCredential.active_credential

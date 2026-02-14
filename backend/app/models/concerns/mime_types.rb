@@ -10,19 +10,19 @@
 #
 module MimeTypes
   # Documents
-  PDF = "application/pdf"
-  DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-  XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-  PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  PDF = "application/pdf".freeze
+  DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document".freeze
+  XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet".freeze
+  PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation".freeze
 
   # Data formats
-  JSON = "application/json"
-  CSV = "text/csv"
-  OCTET_STREAM = "application/octet-stream"
+  JSON = "application/json".freeze
+  CSV = "text/csv".freeze
+  OCTET_STREAM = "application/octet-stream".freeze
 
   # Images
-  PNG = "image/png"
-  JPEG = "image/jpeg"
-  JPG = "image/jpeg"  # Alias for JPEG
-  GIF = "image/gif"
+  PNG = "image/png".freeze
+  JPEG = "image/jpeg".freeze
+  JPG = "image/jpeg".freeze  # Alias for JPEG
+  GIF = "image/gif".freeze
 end

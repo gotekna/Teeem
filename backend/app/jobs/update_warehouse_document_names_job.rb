@@ -103,10 +103,10 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
         context[:company_name] = company.name
       end
 
-      doc_type = documentable.try(:document_type_record) || documentable.try(:document_type)
+      doc_type = documentable&.document_type_record || documentable&.document_type
       if doc_type.respond_to?(:name)
         context[:doc_type_name] = doc_type.name
-        context[:doc_type_code] = doc_type.try(:abbreviation)
+        context[:doc_type_code] = doc_type&.abbreviation
       end
 
       if documentable.respond_to?(:subject)
@@ -153,8 +153,8 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
     wfdt = wd.warehouse_folder_document_type
     if wfdt&.document_type
       context[:doc_type_name] ||= wfdt.document_type.name
-      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
-      context[:category] ||= wfdt.document_type.try(:category)
+      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type&.code
+      context[:category] ||= wfdt.document_type&.category
     end
 
     # Auto-numbering

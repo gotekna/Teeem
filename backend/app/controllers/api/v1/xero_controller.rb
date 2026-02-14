@@ -2814,7 +2814,7 @@ module Api
                 bank_result = sync_service.sync_bank_accounts(auto_create: true)
                 tx_result = sync_service.sync_transactions(
                   from_date: 3.months.ago.to_date,
-                  to_date: Date.today
+                  to_date: Date.current
                 )
               rescue StandardError => e
                 Rails.logger.warn("[Xero] Bank sync failed for #{company.name}: #{e.message}")

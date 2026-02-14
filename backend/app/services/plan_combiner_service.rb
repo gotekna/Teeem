@@ -158,7 +158,7 @@ class PlanCombinerService
       category: "",
       category_code: "",
       rev: "A",
-      date: Date.today.strftime("%Y%m%d"),
+      date: Date.current.strftime("%Y%m%d"),
       variant: ""
     }
   end

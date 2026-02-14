@@ -19,7 +19,7 @@ class PdfThumbnailService
   FULL_QUALITY = 75
 
   # Shared settings
-  THUMBNAIL_FORMAT = 'webp'  # WebP is 50% smaller than PNG
+  THUMBNAIL_FORMAT = 'webp'.freeze  # WebP is 50% smaller than PNG
   THUMBNAIL_DENSITY = 72      # Screen resolution (was 150)
 
   class ThumbnailError < StandardError; end

@@ -59,9 +59,9 @@ class ContactDocument < ApplicationRecord
   scope :recent, -> { order(created_at: :desc) }
   scope :by_content_hash, ->(hash) { where(content_hash: hash) if hash.present? }
   scope :expiring_soon, ->(days = 90) {
-    where("expiry_date IS NOT NULL AND expiry_date BETWEEN ? AND ?", Date.today, Date.today + days.days)
+    where("expiry_date IS NOT NULL AND expiry_date BETWEEN ? AND ?", Date.current, Date.current + days.days)
   }
-  scope :expired, -> { where("expiry_date < ?", Date.today) }
+  scope :expired, -> { where("expiry_date < ?", Date.current) }
   # Migration scopes
   scope :migration_pending, -> { where(migration_status: 'pending') }
   scope :migration_in_progress, -> { where(migration_status: 'in_progress') }
@@ -88,17 +88,17 @@ class ContactDocument < ApplicationRecord
   end
 
   def expired?
-    expiry_date.present? && expiry_date < Date.today
+    expiry_date.present? && expiry_date < Date.current
   end
 
   def expiring_soon?(days = 90)
     return false unless expiry_date.present?
-    expiry_date.between?(Date.today, Date.today + days.days)
+    expiry_date.between?(Date.current, Date.current + days.days)
   end
 
   def days_until_expiry
     return nil unless expiry_date.present?
-    (expiry_date - Date.today).to_i
+    (expiry_date - Date.current).to_i
   end
 
   # Find an existing document by content hash

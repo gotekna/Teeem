@@ -2966,13 +2966,13 @@ module Api
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
-        start_time = Time.now
+        start_time = Time.current
         # SSoT: Get drive_id from WarehouseProvider
         storage_drive_id = WarehouseProvider.instance&.drive_id
 
         while folders_to_process.any?
           # Check if we've exceeded the time limit
-          if Time.now - start_time > max_time
+          if Time.current - start_time > max_time
             Rails.logger.warn("[Job All Files] Recursive listing timed out after #{max_time}s with #{files.length} files found")
             break
           end
@@ -3019,7 +3019,7 @@ module Api
           end
         end
 
-        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s")
+        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.current - start_time).round(2)}s")
 
         # Sort by folder path then name
         files.sort_by { |f| [ f[:folder_path].to_s.downcase, f[:name].downcase ] }

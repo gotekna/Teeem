@@ -197,7 +197,7 @@ class XeroSyncService
   def parse_xero_date(month, day)
     return nil unless month.present? && day.present?
     # Create date for current year's financial year end
-    Date.new(Date.today.year, month.to_i, day.to_i)
+    Date.new(Date.current.year, month.to_i, day.to_i)
   rescue ArgumentError
     nil
   end

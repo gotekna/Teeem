@@ -686,7 +686,7 @@ module Api
           lookup_foundation_id: column.lookup_foundation_id,
           lookup_foundation_slug: column.lookup_foundation_slug,  # SSoT: Always return slug
           lookup_display_column: column.lookup_display_column,
-          lookup_filter: column.try(:lookup_filter),  # Role-based or other filtering
+          lookup_filter: column&.lookup_filter,  # Role-based or other filtering
           is_multiple: column.is_multiple,
           has_cross_table_refs: column.has_cross_table_refs,
           header_align: column.header_align || "left",

@@ -9,16 +9,9 @@ import {
   File,
   Download,
   Eye,
-  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { Spinner } from "@/components/ui/spinner";
+import { DocumentViewerModal, getFileType } from "@/components/ui/document-viewer-modal";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
@@ -108,10 +101,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   const [loading, setLoading] = useState<string | null>(null);
   const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const [previewWidth, setPreviewWidth] = useState(800);
-  const [isResizing, setIsResizing] = useState(false);
-  const isResizingRef = useRef(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter out signature/embedded images
@@ -183,8 +173,8 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     };
   }, [previewUrl]);
 
-  // Open preview drawer (single-click action)
-  const handlePreviewDrawer = async (attachment: Attachment) => {
+  // Open preview modal using standard DocumentViewerModal (single-click action)
+  const handlePreviewModal = async (attachment: Attachment) => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
@@ -196,30 +186,35 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       return;
     }
 
+    // Clean up previous blob URL
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+
     setPreviewAttachment(attachment);
-    setPreviewLoading(true);
-    setPreviewUrl(null);
 
     try {
       const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
       setPreviewUrl(url);
+      setPreviewOpen(true);
     } catch (error) {
       console.error("Failed to load preview:", error);
-    } finally {
-      setPreviewLoading(false);
     }
   };
 
   const closePreview = () => {
-    if (previewUrl) {
-      window.URL.revokeObjectURL(previewUrl);
-    }
-    setPreviewAttachment(null);
-    setPreviewUrl(null);
+    setPreviewOpen(false);
+    setTimeout(() => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewAttachment(null);
+      setPreviewUrl(null);
+    }, 300);
   };
 
-  // Handle eye button: single click = drawer, double click = new window
+  // Handle eye button: single click = modal, double click = new window
   const handleEyeClick = (attachment: Attachment) => {
     if (clickTimerRef.current) {
       // Double click detected - cancel single click and open new window
@@ -230,7 +225,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       // Start single click timer
       clickTimerRef.current = setTimeout(() => {
         clickTimerRef.current = null;
-        handlePreviewDrawer(attachment);
+        handlePreviewModal(attachment);
       }, 250);
     }
   };
@@ -471,119 +466,16 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         })}
       </div>
 
-      {/* Preview Drawer - resizable */}
-      <Sheet open={!!previewAttachment} onOpenChange={(open) => !open && closePreview()}>
-        <SheetContent
-          side="right"
-          className="p-0 flex flex-col !max-w-none"
-          style={{ width: `${previewWidth}px` }}
-        >
-          {/* Resize drag handle */}
-          <div
-            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 z-10"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              isResizingRef.current = true;
-              setIsResizing(true);
-              const startX = e.clientX;
-              const startWidth = previewWidth;
-              const onMouseMove = (ev: MouseEvent) => {
-                if (!isResizingRef.current) return;
-                const delta = startX - ev.clientX;
-                const newWidth = Math.max(400, Math.min(window.innerWidth - 80, startWidth + delta));
-                setPreviewWidth(newWidth);
-              };
-              const onMouseUp = () => {
-                isResizingRef.current = false;
-                setIsResizing(false);
-                document.removeEventListener("mousemove", onMouseMove);
-                document.removeEventListener("mouseup", onMouseUp);
-                document.body.style.cursor = "";
-                document.body.style.userSelect = "";
-              };
-              document.body.style.cursor = "col-resize";
-              document.body.style.userSelect = "none";
-              document.addEventListener("mousemove", onMouseMove);
-              document.addEventListener("mouseup", onMouseUp);
-            }}
-          />
-          <SheetHeader className="px-4 py-3 border-b shrink-0">
-            <div className="flex items-center justify-between">
-              <SheetTitle className="text-sm font-medium truncate pr-2">
-                {previewAttachment?.name}
-              </SheetTitle>
-              <div className="flex items-center gap-1 shrink-0">
-                {previewAttachment && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={() => handleOpenInNewWindow(previewAttachment)}
-                      title="Open in new window"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                      Open
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={(e) => handleDownload(previewAttachment, e)}
-                      title="Download"
-                    >
-                      <Download className="h-3.5 w-3.5 mr-1" />
-                      Download
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </SheetHeader>
-          <div className="flex-1 overflow-auto relative">
-            {/* Transparent overlay prevents iframe from capturing mouse during resize */}
-            {isResizing && <div className="absolute inset-0 z-10" />}
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Spinner className="h-8 w-8" />
-              </div>
-            ) : previewUrl && previewAttachment ? (
-              (() => {
-                const type = previewAttachment.content_type?.toLowerCase() || "";
-                const ext = previewAttachment.name?.split(".").pop()?.toLowerCase() || "";
-
-                // Images
-                if (type.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) {
-                  return (
-                    <div className="flex items-center justify-center p-4 h-full">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={previewUrl}
-                        alt={previewAttachment.name}
-                        className="max-w-full max-h-full object-contain"
-                      />
-                    </div>
-                  );
-                }
-
-                // PDFs - hide the thumbnail sidebar; everything else - plain iframe
-                const isPdf = type.includes("pdf") || ext === "pdf";
-                return (
-                  <iframe
-                    src={isPdf ? `${previewUrl}#navpanes=0&view=FitH` : previewUrl}
-                    className="w-full h-full border-0"
-                    title={previewAttachment.name}
-                  />
-                );
-              })()
-            ) : (
-              <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                Unable to load preview
-              </div>
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Preview Modal - standard DocumentViewerModal (SSoT) */}
+      {previewUrl && previewAttachment && (
+        <DocumentViewerModal
+          url={previewUrl}
+          fileName={previewAttachment.name}
+          fileType={getFileType(previewAttachment.name)}
+          open={previewOpen}
+          onOpenChange={(open) => { if (!open) closePreview(); }}
+        />
+      )}
     </div>
   );
 }

@@ -41,7 +41,7 @@ class CorporateLoan < ApplicationRecord
   end
 
   def overdue?
-    maturity_date.present? && maturity_date < Date.today && status == "active"
+    maturity_date.present? && maturity_date < Date.current && status == "active"
   end
 
   private

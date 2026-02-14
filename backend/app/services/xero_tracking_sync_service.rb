@@ -3,7 +3,7 @@
 # Service to sync jobs with Xero tracking categories
 # Creates new tracking options in Xero when jobs are created
 class XeroTrackingSyncService
-  TRACKING_CATEGORY_NAME = "Job"
+  TRACKING_CATEGORY_NAME = "Job".freeze
 
   def initialize
     @client = XeroApiClient.new

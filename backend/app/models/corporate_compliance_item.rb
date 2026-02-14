@@ -19,9 +19,9 @@ class CorporateComplianceItem < ApplicationRecord
   # Scopes
   scope :pending, -> { where(completed: false) }
   scope :completed_items, -> { where(completed: true) }
-  scope :overdue, -> { where("due_date < ? AND completed = ?", Date.today, false) }
+  scope :overdue, -> { where("due_date < ? AND completed = ?", Date.current, false) }
   scope :due_soon, ->(days = 30) {
-    where("due_date BETWEEN ? AND ? AND completed = ?", Date.today, days.days.from_now, false)
+    where("due_date BETWEEN ? AND ? AND completed = ?", Date.current, days.days.from_now, false)
   }
   scope :by_type, ->(type) { where(item_type: type) }
   scope :recurring, -> { where.not(recurrence: nil) }
@@ -29,11 +29,11 @@ class CorporateComplianceItem < ApplicationRecord
   # Instance methods
   def days_until_due
     return nil unless due_date.present?
-    (due_date - Date.today).to_i
+    (due_date - Date.current).to_i
   end
 
   def overdue?
-    due_date.present? && due_date < Date.today && !completed
+    due_date.present? && due_date < Date.current && !completed
   end
 
   def due_soon?(days = 30)

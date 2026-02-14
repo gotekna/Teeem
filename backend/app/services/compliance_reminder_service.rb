@@ -1,6 +1,6 @@
 class ComplianceReminderService
   def initialize
-    @today = Date.today
+    @today = Date.current
   end
 
   # Check all compliance items and send reminders

@@ -1,5 +1,5 @@
 class GrokService
-  BASE_URL = "https://api.x.ai/v1"
+  BASE_URL = "https://api.x.ai/v1".freeze
 
   def initialize
     @api_key = ENV["XAI_API_KEY"]

@@ -191,7 +191,7 @@ module Gl
       end
 
       # Factor 5: Large invoice amount (0-10 points)
-      invoice_amount = invoice.try(:total) || invoice.try(:amount) || 0
+      invoice_amount = invoice&.total || invoice&.amount || 0
       avg_amount = history[:total_amount].to_f / [history[:total_invoices], 1].max
 
       if invoice_amount > avg_amount * 2
@@ -354,10 +354,10 @@ module Gl
       {
         id: invoice.id,
         type: invoice.class.name,
-        invoice_number: invoice.try(:invoice_number) || invoice.try(:reference),
+        invoice_number: invoice&.invoice_number || invoice&.reference,
         contact_id: invoice.contact_id,
-        contact_name: invoice.contact&.display_name || invoice.try(:contact_name),
-        total: invoice.try(:total) || invoice.try(:amount),
+        contact_name: invoice.contact&.display_name || invoice&.contact_name,
+        total: invoice&.total || invoice&.amount,
         due_date: invoice.due_date,
         invoice_date: invoice.invoice_date,
         status: invoice.status,

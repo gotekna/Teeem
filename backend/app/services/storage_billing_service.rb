@@ -14,7 +14,7 @@
 class StorageBillingService
   include CacheConstants
 
-  CACHE_KEY = "storage_billing_data"
+  CACHE_KEY = "storage_billing_data".freeze
   CACHE_TTL = CACHE_TTL_HOURLY
 
   # Wasabi pricing

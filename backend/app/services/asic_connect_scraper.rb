@@ -4,7 +4,7 @@ require "uri"
 require "cgi"
 
 class AsicConnectScraper
-  ASIC_CONNECT_URL = "https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin"
+  ASIC_CONNECT_URL = "https://www.edge.asic.gov.au/004/compportal/get/ServicesLogin".freeze
   REQUEST_TIMEOUT = 30 # seconds
 
   def initialize(company, headless: true) # headless param kept for backwards compatibility

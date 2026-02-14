@@ -759,19 +759,19 @@ module HealthChecks
         elsif item.respond_to?(:display_name)
           display_parts = []
           display_parts << (item.display_name.presence || "Contact ##{item.id}")
-          display_parts << "(#{item.entity_type})" if item.try(:entity_type).present?
+          display_parts << "(#{item.entity_type})" if item&.entity_type.present?
           # Show invalid website in display if present
-          display_parts << "- website: #{item.website}" if item.try(:website).present?
+          display_parts << "- website: #{item.website}" if item&.website.present?
 
           {
             id: item.id,
             display: display_parts.join(" "),
             display_name: item.display_name,
-            first_name: item.try(:first_name),
-            last_name: item.try(:last_name),
-            entity_type: item.try(:entity_type),
-            email: item.try(:email),
-            website: item.try(:website)
+            first_name: item&.first_name,
+            last_name: item&.last_name,
+            entity_type: item&.entity_type,
+            email: item&.email,
+            website: item&.website
           }
         else
           super
@@ -850,8 +850,8 @@ module HealthChecks
             xero_contact_id: c.xero_id,
             xero_id: c.xero_id,
             # Modal needs these counts for merge preview (loaded via SQL subquery for performance)
-            jobs_count: c.try(:jobs_count) || 0,
-            purchase_orders_count: c.try(:purchase_orders_count) || 0,
+            jobs_count: c&.jobs_count || 0,
+            purchase_orders_count: c&.purchase_orders_count || 0,
             # completeness_score is calculated - would need to load full record
             completeness_score: 0
           }

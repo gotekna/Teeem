@@ -20,8 +20,8 @@ class WorkerWatchdog
   CHECK_INTERVAL = 2.minutes
   CIRCUIT_BREAKER_MAX_RESTARTS = 3
   CIRCUIT_BREAKER_WINDOW = 30.minutes
-  CACHE_KEY_RESTART_TIMES = "worker_watchdog:restart_times"
-  CACHE_KEY_LAST_STATUS = "worker_watchdog:last_status"
+  CACHE_KEY_RESTART_TIMES = "worker_watchdog:restart_times".freeze
+  CACHE_KEY_LAST_STATUS = "worker_watchdog:last_status".freeze
 
   # SSoT: The shared worker app processes ALL background jobs for all environments.
   # Individual apps (production, staging, beta) only run web dynos.

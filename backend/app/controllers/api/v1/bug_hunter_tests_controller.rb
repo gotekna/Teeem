@@ -197,7 +197,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
   end
 
   def run_working_days_test(template_id)
-    start_time = Time.now
+    start_time = Time.current
 
     # Get the template, or use the default Schedule Master template (SmScheduleMasterTemplate is THE ONE - SSoT)
     template_id = template_id || SmScheduleMasterTemplate.default_template.first&.id || 1
@@ -216,7 +216,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
 
     # RULE #9.3: Use company timezone, not server timezone
     timezone = company_settings.timezone || "UTC"
-    reference_date = Time.now.in_time_zone(timezone).to_date
+    reference_date = Time.current.in_time_zone(timezone).to_date
 
     # Get working days configuration
     working_days = company_settings.working_days || {
@@ -281,7 +281,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
       end
     end
 
-    duration = (Time.now - start_time).round(2)
+    duration = (Time.current - start_time).round(2)
 
     if violations.empty?
       {
@@ -324,7 +324,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
     {
       passed: false,
       message: "Test error: #{e.message}",
-      duration: (Time.now - start_time).round(2)
+      duration: (Time.current - start_time).round(2)
     }
   end
 
@@ -333,7 +333,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
     require "timeout"
 
     frontend_path = Rails.root.join("..", "frontend")
-    start_time = Time.now
+    start_time = Time.current
 
     # Get template ID from params, default to 4 (Bug Hunter Schedule Master)
     # Sanitize template_id to prevent command injection - convert to integer then string
@@ -366,7 +366,7 @@ class Api::V1::BugHunterTestsController < ApplicationController
       )
     end
 
-    duration = (Time.now - start_time).round(2)
+    duration = (Time.current - start_time).round(2)
 
     # Parse test results
     passed = status.success?

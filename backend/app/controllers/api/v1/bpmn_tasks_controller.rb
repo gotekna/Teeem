@@ -140,10 +140,10 @@ module Api
         {
           id: subject.id,
           type: subject.class.name,
-          name: subject.try(:display_name) || subject.try(:name) || subject.try(:title) || "#{subject.class.name} ##{subject.id}",
+          name: subject&.display_name || subject&.name || subject&.title || "#{subject.class.name} ##{subject.id}",
           # Include common fields if available
-          status: subject.try(:status),
-          created_at: subject.try(:created_at)
+          status: subject&.status,
+          created_at: subject&.created_at
         }
       end
     end

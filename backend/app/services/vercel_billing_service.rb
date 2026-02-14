@@ -10,8 +10,8 @@
 class VercelBillingService
   include CacheConstants
 
-  CACHE_KEY = "vercel_billing_data"
-  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2"
+  CACHE_KEY = "vercel_billing_data".freeze
+  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2".freeze
   CACHE_TTL = CACHE_TTL_HOURLY
 
   class << self

@@ -22,7 +22,7 @@ PRIMARY_FOLDERS = WarehouseFolder.where(warehouse_type: 'corporate_entity', tab_
                            .order(:order_position)
                            .pluck(:display_name).freeze
 ASSETS_SUBFOLDERS = %w[Disposal Expenses Purchases Valuation].freeze
-NEEDS_REVIEW_FOLDER = "_NEEDS_REVIEW"
+NEEDS_REVIEW_FOLDER = "_NEEDS_REVIEW".freeze
 
 # Statistics
 stats = {
@@ -399,7 +399,7 @@ puts "=== Step 3: Creating folder structure in 00 TEEEM PRIVATE ==="
 
 # Find or create 00 TEEEM PRIVATE folder
 private_folder = nil
-PRIVATE_FOLDER_NAME = "00 TEEEM PRIVATE"
+PRIVATE_FOLDER_NAME = "00 TEEEM PRIVATE".freeze
 begin
   root_result = client.get("/drives/#{credential.drive_id}/root/children")
   private_folder = root_result["value"].find { |item| item["name"] == PRIVATE_FOLDER_NAME }

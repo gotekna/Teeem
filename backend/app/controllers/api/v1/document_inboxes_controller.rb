@@ -357,7 +357,7 @@ module Api
         # Build minimal context for template expansion (no warehouse doc for inbox items)
         context = {
           doc_type_name: dt.name,
-          doc_type_code: dt.abbreviation || dt.try(:code),
+          doc_type_code: dt.abbreviation || dt&.code,
           document_date: @item&.created_at || Time.current,
           original_filename: @item&.original_filename,
           folder: folder
@@ -368,7 +368,7 @@ module Api
           if @item.metadata["company_id"].present?
             company = Corporate.find_by(id: @item.metadata["company_id"])
             if company
-              context[:company_code] = company.company_code || company.try(:code)
+              context[:company_code] = company.company_code || company&.code
               context[:company_name] = company.name
               context[:company_group] = company.company_group&.name
             end

@@ -3,7 +3,7 @@
 # Service to import bills from Xero as Purchase Orders for a job
 # Matches bills by Xero Tracking Category (Job)
 class XeroBillImportService
-  TRACKING_CATEGORY_NAME = "Job"
+  TRACKING_CATEGORY_NAME = "Job".freeze
 
   class Error < StandardError; end
   class NotConnectedError < Error; end

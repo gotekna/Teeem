@@ -5,7 +5,7 @@
 class XeroFullBillImportService
   include XeroConstants
 
-  TRACKING_CATEGORY_NAME = "Job"
+  TRACKING_CATEGORY_NAME = "Job".freeze
 
   attr_reader :stats
 

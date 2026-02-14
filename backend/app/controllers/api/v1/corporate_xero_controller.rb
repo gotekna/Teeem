@@ -286,7 +286,7 @@ module Api
           # Then sync transactions for last 3 months
           tx_result = sync_service.sync_transactions(
             from_date: 3.months.ago.to_date,
-            to_date: Date.today
+            to_date: Date.current
           )
 
           if bank_result[:success] && tx_result[:success]
@@ -435,7 +435,7 @@ module Api
 
           # Parse optional parameters
           from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 3.months.ago.to_date
-          to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.today
+          to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
           bank_account_id = params[:bank_account_id]
 
           result = sync_service.sync_transactions(
@@ -469,7 +469,7 @@ module Api
 
         # Parse filters
         from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : 1.month.ago.to_date
-        to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.today
+        to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : Date.current
         bank_account_id = params[:bank_account_id]
 
         transactions = @company.bank_transactions
@@ -876,8 +876,8 @@ module Api
         end
 
         begin
-          from_date = params[:from_date] || Date.today.beginning_of_year.to_s
-          to_date = params[:to_date] || Date.today.to_s
+          from_date = params[:from_date] || Date.current.beginning_of_year.to_s
+          to_date = params[:to_date] || Date.current.to_s
 
           client = XeroApiClient.new
           result = client.get(
@@ -1003,7 +1003,7 @@ module Api
         end
 
         begin
-          as_of_date = params[:date] || Date.today.to_s
+          as_of_date = params[:date] || Date.current.to_s
 
           client = XeroApiClient.new
           result = client.get(
@@ -1063,7 +1063,7 @@ module Api
 
         begin
           from_date = params[:from_date] || 3.months.ago.to_date.to_s
-          to_date = params[:to_date] || Date.today.to_s
+          to_date = params[:to_date] || Date.current.to_s
 
           client = XeroApiClient.new
 
@@ -1339,8 +1339,8 @@ module Api
           return render_error("No companies in this group are connected to Xero", status: :bad_request)
         end
 
-        from_date = params[:from_date] || Date.today.beginning_of_year.to_s
-        to_date = params[:to_date] || Date.today.to_s
+        from_date = params[:from_date] || Date.current.beginning_of_year.to_s
+        to_date = params[:to_date] || Date.current.to_s
         client = XeroApiClient.new
 
         company_reports = []
@@ -1419,7 +1419,7 @@ module Api
           return render_error("No companies in this group are connected to Xero", status: :bad_request)
         end
 
-        as_of_date = params[:date] || Date.today.to_s
+        as_of_date = params[:date] || Date.current.to_s
         client = XeroApiClient.new
 
         company_reports = []

@@ -116,7 +116,7 @@ class XeroBankSyncService
   end
 
   # Sync transactions for a specific bank account or all linked accounts
-  def sync_transactions(bank_account_id: nil, from_date: 3.months.ago.to_date, to_date: Date.today)
+  def sync_transactions(bank_account_id: nil, from_date: 3.months.ago.to_date, to_date: Date.current)
     ensure_valid_token!
 
     accounts_to_sync = if bank_account_id
@@ -159,7 +159,7 @@ class XeroBankSyncService
   end
 
   # Get transaction summary for a bank account
-  def transaction_summary(bank_account_id: nil, from_date: 1.month.ago.to_date, to_date: Date.today)
+  def transaction_summary(bank_account_id: nil, from_date: 1.month.ago.to_date, to_date: Date.current)
     transactions = company.bank_transactions.by_date_range(from_date, to_date)
     transactions = transactions.where(bank_account_id: bank_account_id) if bank_account_id
 
@@ -246,7 +246,7 @@ class XeroBankSyncService
     # For closed accounts, get last transaction date as close date
     date_closed = nil
     if is_closed
-      date_closed = fetch_last_transaction_date(xero_account["AccountID"]) || Date.today
+      date_closed = fetch_last_transaction_date(xero_account["AccountID"]) || Date.current
     end
 
     company.bank_accounts.create!(
@@ -304,7 +304,7 @@ class XeroBankSyncService
       # Use last transaction date as close date (when bank feed stopped)
       unless local_account.date_closed.present?
         last_tx_date = fetch_last_transaction_date(xero_account["AccountID"])
-        changes[:date_closed] = last_tx_date || Date.today
+        changes[:date_closed] = last_tx_date || Date.current
       end
     elsif !is_closed && local_account.status == "closed"
       # Account was re-opened in Xero

@@ -94,15 +94,15 @@ class SyncTaskAttachmentsJob < ApplicationJob
 
     # Get display name
     display_name = att.read_attribute(:display_name).presence ||
-                   att.attachable&.try(:display_name) ||
-                   att.attachable&.try(:subject) ||
+                   att.attachable&.display_name ||
+                   att.attachable&.subject ||
                    "Attachment"
 
     # Create the warehouse document
     att.create_warehouse_document!(
       source_type: "task",
       display_name: display_name,
-      original_filename: att.attachable&.try(:original_filename) || att.attachable&.try(:file_name),
+      original_filename: att.attachable&.original_filename || att.attachable&.file_name,
       storage_blob: blob,
       linkable_type: "SmTask",
       linkable_id: task.id,

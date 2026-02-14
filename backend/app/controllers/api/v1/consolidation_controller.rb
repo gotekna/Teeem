@@ -32,7 +32,7 @@ module Api
       # GET /api/v1/consolidation/:company_group_id
       # Returns detailed consolidation info for a group
       def show
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         relationships = service.intercompany_relationships
@@ -60,7 +60,7 @@ module Api
       # POST /api/v1/consolidation/:company_group_id/reconcile
       # Run reconciliation for a company group
       def reconcile
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         result = service.run_reconciliation
@@ -80,7 +80,7 @@ module Api
       # GET /api/v1/consolidation/:company_group_id/relationships
       # Returns intercompany relationships for a group
       def relationships
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         render json: {
@@ -104,7 +104,7 @@ module Api
       # GET /api/v1/consolidation/mismatches
       # Returns all current mismatches across all groups (for health dashboard)
       def mismatches
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
 
         all_mismatches = []
 
@@ -144,7 +144,7 @@ module Api
           return render_error("Company is not part of a group", status: :bad_request)
         end
 
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(company.company_group, as_of_date: as_of_date)
 
         render json: {

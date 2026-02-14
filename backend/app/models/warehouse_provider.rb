@@ -458,8 +458,8 @@ class WarehouseProvider < ApplicationRecord
     end
 
     # Date tokens - try multiple date fields
-    date = record.try(:expense_date) || record.try(:reading_date) ||
-           record.try(:transaction_date) || record.try(:created_at) || Time.current
+    date = record&.expense_date || record&.reading_date ||
+           record&.transaction_date || record&.created_at || Time.current
     tokens[:Year] = date.year.to_s
     tokens[:Month] = date.strftime("%m")
 
@@ -472,10 +472,10 @@ class WarehouseProvider < ApplicationRecord
     end
 
     # Generic category - try multiple field names
-    tokens[:Category] = record.try(:category) ||
-                        record.try(:expense_type)&.titleize ||
-                        record.try(:reading_type)&.titleize ||
-                        record.try(:document_type)&.titleize ||
+    tokens[:Category] = record&.category ||
+                        record&.expense_type&.titleize ||
+                        record&.reading_type&.titleize ||
+                        record&.document_type&.titleize ||
                         "Documents"
 
     # Task context for task documents

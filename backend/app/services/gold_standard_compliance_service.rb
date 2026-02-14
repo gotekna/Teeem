@@ -12,7 +12,7 @@
 class GoldStandardComplianceService
   SYSTEM_COLUMNS = %w[id created_at updated_at].freeze
   # SSoT: Use slug to identify Gold Standard Table (numeric ID differs per environment)
-  GOLD_STANDARD_SLUG = "gold_standard_table"
+  GOLD_STANDARD_SLUG = "gold_standard_table".freeze
 
   def initialize(foundation)
     @foundation = foundation

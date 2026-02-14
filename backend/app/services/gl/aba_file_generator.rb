@@ -4,11 +4,11 @@ module Gl
   # Generates ABA (Australian Bankers Association) files for batch payments
   # Specification: https://www.cemtexaba.com/aba-format/cemtex-aba-file-format-details
   class AbaFileGenerator
-    RECORD_TYPE_DESCRIPTIVE = "0"
-    RECORD_TYPE_DETAIL = "1"
-    RECORD_TYPE_TOTAL = "7"
+    RECORD_TYPE_DESCRIPTIVE = "0".freeze
+    RECORD_TYPE_DETAIL = "1".freeze
+    RECORD_TYPE_TOTAL = "7".freeze
 
-    TRANSACTION_CODE_CREDIT = "50" # Externally initiated credit
+    TRANSACTION_CODE_CREDIT = "50".freeze # Externally initiated credit
 
     def initialize(payment_batch)
       @batch = payment_batch

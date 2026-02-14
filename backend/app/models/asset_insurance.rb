@@ -12,9 +12,9 @@ class AssetInsurance < ApplicationRecord
   scope :active, -> { where(status: "active") }
   scope :expired, -> { where(status: "expired") }
   scope :expiring_soon, ->(days = 30) {
-    where("renewal_date BETWEEN ? AND ? AND status = ?", Date.today, days.days.from_now, "active")
+    where("renewal_date BETWEEN ? AND ? AND status = ?", Date.current, days.days.from_now, "active")
   }
-  scope :overdue, -> { where("renewal_date < ? AND status = ?", Date.today, "active") }
+  scope :overdue, -> { where("renewal_date < ? AND status = ?", Date.current, "active") }
 
   # Callbacks
   before_save :update_status_based_on_renewal_date
@@ -24,11 +24,11 @@ class AssetInsurance < ApplicationRecord
   # Instance methods
   def days_until_renewal
     return nil unless renewal_date.present?
-    (renewal_date - Date.today).to_i
+    (renewal_date - Date.current).to_i
   end
 
   def expired?
-    renewal_date.present? && renewal_date < Date.today
+    renewal_date.present? && renewal_date < Date.current
   end
 
   def expiring_soon?(days = 30)
@@ -43,7 +43,7 @@ class AssetInsurance < ApplicationRecord
   private
 
   def update_status_based_on_renewal_date
-    if renewal_date.present? && renewal_date < Date.today
+    if renewal_date.present? && renewal_date < Date.current
       self.status = "expired"
     end
   end

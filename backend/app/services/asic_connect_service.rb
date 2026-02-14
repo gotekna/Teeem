@@ -4,10 +4,10 @@ require "json"
 
 class AsicConnectService
   # ASIC Connect portal URL
-  ASIC_CONNECT_URL = "https://connectonline.asic.gov.au"
+  ASIC_CONNECT_URL = "https://connectonline.asic.gov.au".freeze
 
   # ASIC Registry Search (public, no login required)
-  ASIC_REGISTRY_URL = "https://connectonline.asic.gov.au/RegistrySearch/faces/landing/SearchRegisters.jspx"
+  ASIC_REGISTRY_URL = "https://connectonline.asic.gov.au/RegistrySearch/faces/landing/SearchRegisters.jspx".freeze
 
   def initialize(company)
     @company = company

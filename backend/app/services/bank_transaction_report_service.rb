@@ -62,10 +62,10 @@ class BankTransactionReportService
     }
   }.freeze
 
-  BORDER_COLOR = "CCCCCC"        # Light gray borders
+  BORDER_COLOR = "CCCCCC".freeze        # Light gray borders
 
-  LEGAL_DISCLAIMER = "This document is a transaction record reconstructed from Xero accounting software bank feed data. " \
-                     "It is not an official bank statement. Retained as an accounting record per s262A ITAA 1936."
+  LEGAL_DISCLAIMER = ("This document is a transaction record reconstructed from Xero accounting software bank feed data. " \
+                      "It is not an official bank statement. Retained as an accounting record per s262A ITAA 1936.").freeze
 
   def initialize(bank_account_id: nil, bank_account: nil, financial_year: nil, month: nil, start_date: nil, end_date: nil, opening_balance: nil, transactions: nil, account_name: nil, template: nil)
     @bank_account_id = bank_account_id

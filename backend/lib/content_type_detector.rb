@@ -67,7 +67,7 @@ module ContentTypeDetector
     ".msg"  => "application/vnd.ms-outlook"
   }.freeze
 
-  DEFAULT_CONTENT_TYPE = "application/octet-stream"
+  DEFAULT_CONTENT_TYPE = "application/octet-stream".freeze
 
   # Detect content type from filename
   # @param filename [String] The filename or path

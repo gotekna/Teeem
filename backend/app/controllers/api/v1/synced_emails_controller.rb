@@ -2116,7 +2116,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email: contact.email,
       phone: contact.phone,
       company_name: contact.company_name,
-      avatar_url: contact.try(:avatar_url)
+      avatar_url: contact&.avatar_url
     }
   end
 

@@ -40,7 +40,7 @@ class CorporateDirector < ApplicationRecord
   # Instance methods
   def active_duration
     start_date = appointment_date || created_at.to_date
-    end_date = resignation_date || Date.today
+    end_date = resignation_date || Date.current
     (end_date - start_date).to_i
   end
 
@@ -51,7 +51,7 @@ class CorporateDirector < ApplicationRecord
   private
 
   def update_current_status
-    if resignation_date.present? && resignation_date <= Date.today
+    if resignation_date.present? && resignation_date <= Date.current
       self.is_current = false
     end
   end
@@ -145,7 +145,7 @@ class CorporateDirector < ApplicationRecord
         relationship_type: "director_of"
       )
       if rel
-        rel.update!(is_active: false, end_date: resignation_date || Date.today)
+        rel.update!(is_active: false, end_date: resignation_date || Date.current)
       end
     end
   rescue StandardError => e

@@ -24,8 +24,8 @@ class AnomalyDetectionService
   LATE_END_HOUR = 22
 
   # Severity levels
-  SEVERITY_WARNING = "warning"
-  SEVERITY_CRITICAL = "critical"
+  SEVERITY_WARNING = "warning".freeze
+  SEVERITY_CRITICAL = "critical".freeze
 
   # Anomaly types
   ANOMALY_TYPES = %w[

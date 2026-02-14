@@ -14,7 +14,7 @@ class PlanFolderScanJob < ApplicationJob
   queue_as :default
 
   # SSoT (Feb 2026): Use WarehouseFolder.folder_name_for instead of constant
-  PLANS_FOLDER_NAME_FALLBACK = "Plan Documents"
+  PLANS_FOLDER_NAME_FALLBACK = "Plan Documents".freeze
   SKIP_FILES = ["All Plans.pdf", "Thumbs.db", ".DS_Store"].freeze
 
   def plans_folder_name

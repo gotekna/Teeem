@@ -26,9 +26,9 @@ module Gl
     # Create split with lines
     def self.create_split!(transaction, lines_params, user:)
       split = new(
-        corporate: transaction.try(:corporate) || Corporate.first,
+        corporate: transaction&.corporate || Corporate.first,
         original_transaction: transaction,
-        original_amount: transaction.try(:amount) || transaction.try(:total),
+        original_amount: transaction&.amount || transaction&.total,
         created_by: user
       )
 

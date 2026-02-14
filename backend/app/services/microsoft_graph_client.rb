@@ -1,6 +1,6 @@
 class MicrosoftGraphClient
   GRAPH_API_BASE = MicrosoftGraphBase::GRAPH_API_BASE
-  TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+  TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token".freeze
 
   class AuthenticationError < StandardError; end
   class APIError < StandardError; end

@@ -145,7 +145,7 @@ class OrgEmailSyncJob < ApplicationJob
     # Determine since date - prefer sync_days over sync_years if both are set
     lookback_time = if sync_days.present?
                       if sync_days == 0
-                        Date.today.beginning_of_day  # Just today (from midnight)
+                        Date.current.beginning_of_day  # Just today (from midnight)
                       else
                         sync_days.days.ago  # Last N days (24-hour periods)
                       end

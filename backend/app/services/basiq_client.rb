@@ -17,7 +17,7 @@ require "base64"
 class BasiqClient
   include HTTParty
 
-  BASE_URL = "https://au-api.basiq.io"
+  BASE_URL = "https://au-api.basiq.io".freeze
 
   # Custom error classes
   class ApiError < StandardError; end

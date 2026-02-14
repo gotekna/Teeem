@@ -57,7 +57,7 @@ class SendNameResolver
     # 3. Fallback chain
     fallback_name = warehouse_document.ui_name.presence ||
                     warehouse_document.original_filename.presence ||
-                    warehouse_document.documentable&.try(:file_name).presence ||
+                    warehouse_document.documentable&.file_name.presence ||
                     "document"
 
     sanitize_and_ensure_extension(fallback_name, warehouse_document)
@@ -107,7 +107,7 @@ class SendNameResolver
     context = build_context_from_documentable(documentable)
 
     # Get template from DocumentType (SSoT for non-warehouse documents)
-    template = documentable.try(:document_type)&.download_name.presence
+    template = documentable&.document_type&.download_name.presence
 
     if template.present?
       expanded = expand_template(template, context)
@@ -117,9 +117,9 @@ class SendNameResolver
     end
 
     # Fallback
-    fallback = documentable.try(:file_name).presence ||
-               documentable.try(:filename).presence ||
-               documentable.try(:original_filename).presence ||
+    fallback = documentable&.file_name.presence ||
+               documentable&.filename.presence ||
+               documentable&.original_filename.presence ||
                "document"
 
     sanitize_and_ensure_extension(fallback, documentable)
@@ -203,7 +203,7 @@ class SendNameResolver
         context[:person_name] ||= linkable.display_name
         context[:contact_name] ||= linkable.display_name
       when Corporate
-        context[:company_code] ||= linkable.company_code || linkable.try(:code)
+        context[:company_code] ||= linkable.company_code || linkable&.code
         context[:company_name] ||= linkable.name
         context[:company_group] ||= linkable.company_group&.name
       end
@@ -219,8 +219,8 @@ class SendNameResolver
     wfdt = warehouse_document.warehouse_folder_document_type
     if wfdt&.document_type
       context[:doc_type_name] ||= wfdt.document_type.name
-      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type.try(:code)
-      context[:category] ||= wfdt.document_type.try(:category)
+      context[:doc_type_code] ||= wfdt.document_type.abbreviation || wfdt.document_type&.code
+      context[:category] ||= wfdt.document_type&.category
     end
     # Metadata fallback for doc type
     context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
@@ -237,8 +237,8 @@ class SendNameResolver
     return context unless documentable
 
     # Common fields
-    context[:document_date] = documentable.try(:created_at) || Time.current
-    context[:file_name] = documentable.try(:file_name)
+    context[:document_date] = documentable&.created_at || Time.current
+    context[:file_name] = documentable&.file_name
 
     # Email-specific context (SyncedEmail)
     if documentable.respond_to?(:synced_email) && documentable.email_warehouse
@@ -280,10 +280,10 @@ class SendNameResolver
 
     # Document type context
     # Note: Use document_type_record (association) not document_type (string column)
-    doc_type_record = documentable.try(:document_type_record)
+    doc_type_record = documentable&.document_type_record
     if doc_type_record
       context[:doc_type_name] = doc_type_record.name
-      context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record.try(:code)
+      context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record&.code
       context[:category] = doc_type_record.category
     end
 

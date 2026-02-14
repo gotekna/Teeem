@@ -13,7 +13,7 @@ class ESignatureField < ApplicationRecord
   FIELD_TYPES = %w[signature initials date text].freeze
 
   # Default date format for date fields
-  DEFAULT_DATE_FORMAT = "%d/%m/%Y"
+  DEFAULT_DATE_FORMAT = "%d/%m/%Y".freeze
 
   # ==========================================================================
   # Associations

@@ -10,7 +10,7 @@ require "stringio"
 class HerokuPlatformService
   include CacheConstants
 
-  CACHE_KEY = "heroku_platform:infrastructure"
+  CACHE_KEY = "heroku_platform:infrastructure".freeze
   CACHE_TTL = CACHE_TTL_LONG
 
   # All TEEEM Heroku apps to query
@@ -105,7 +105,7 @@ class HerokuPlatformService
   ].freeze
 
   # Dev apps that should share Sam Dev's database (not their own)
-  DEV_DB_SOURCE = "teeem-sam-dev"
+  DEV_DB_SOURCE = "teeem-sam-dev".freeze
   DEV_DB_TARGETS = %w[teeem-rob-dev teeem-jake-dev].freeze
 
   class << self

@@ -6,7 +6,7 @@ class DocumentVerificationService
 
   # SSoT: MAX_FILE_SIZE_FOR_AI defined in DocumentStorageConstants
   MAX_FILE_SIZE = DocumentStorageConstants::MAX_FILE_SIZE_FOR_AI
-  MODEL = "claude-sonnet-4-20250514"
+  MODEL = "claude-sonnet-4-20250514".freeze
 
   class VerificationError < StandardError; end
   class FileNotFoundError < VerificationError; end

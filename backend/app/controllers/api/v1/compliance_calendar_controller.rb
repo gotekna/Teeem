@@ -134,8 +134,8 @@ module Api
             ato_related: item.ato_related,
             recurrence: item.recurrence,
             completed_at: item.completed_at,
-            is_overdue: item.due_date < Date.today && !item.completed,
-            days_until_due: (item.due_date - Date.today).to_i
+            is_overdue: item.due_date < Date.current && !item.completed,
+            days_until_due: (item.due_date - Date.current).to_i
           }
         end
       end

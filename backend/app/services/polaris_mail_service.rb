@@ -22,7 +22,7 @@ class PolarisMailService
   class RateLimitError < StandardError; end
 
   # PolarisMail Admin API endpoint
-  API_BASE = "https://cfcp.emailarray.com/admin"
+  API_BASE = "https://cfcp.emailarray.com/admin".freeze
 
   # Account types
   ACCOUNT_TYPES = {

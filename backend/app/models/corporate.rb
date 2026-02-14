@@ -186,7 +186,7 @@ class Corporate < ApplicationRecord
   scope :trusts, -> { where.not(trust_name: [ nil, "" ]) }
   scope :compliance_due_soon, -> {
     joins(:corporate_compliance_items)
-      .where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
+      .where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.current, 90.days.from_now)
       .where(corporate_compliance_items: { completed: false })
       .distinct
   }
@@ -310,13 +310,13 @@ class Corporate < ApplicationRecord
   end
 
   def overdue_compliance_items
-    corporate_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
+    corporate_compliance_items.where("due_date < ? AND completed = ?", Date.current, false)
   end
 
   def upcoming_compliance_items(days = 30)
     corporate_compliance_items.where(
       "due_date BETWEEN ? AND ? AND completed = ?",
-      Date.today,
+      Date.current,
       days.days.from_now,
       false
     ).order(:due_date)

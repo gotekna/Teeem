@@ -12,7 +12,7 @@ module HealthChecks
   #   - Orphaned documents by source type
   #
   class DocumentsCheck < BaseCheck
-    FOUNDATION_SLUG = "warehouse_documents"
+    FOUNDATION_SLUG = "warehouse_documents".freeze
 
     def self.check_type
       "warehouse_documents"

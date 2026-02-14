@@ -237,7 +237,7 @@ class GlobalSearchService
       {
         id: record.id,
         type: model.name.underscore,
-        title: record.try(:name) || record.try(:title) || "Record ##{record.id}"
+        title: record&.name || record&.title || "Record ##{record.id}"
       }
     end
   end

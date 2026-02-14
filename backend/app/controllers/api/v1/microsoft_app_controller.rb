@@ -50,8 +50,8 @@ class Api::V1::MicrosoftAppController < ApplicationController
           tenant_id: credential.azure_tenant_id,  # FRC: Return Azure AD tenant ID, not internal FK
           admin_consent_granted_at: credential.admin_consent_granted_at,
           admin_consent_granted_by: credential.admin_consent_granted_by,
-          last_sync_at: credential.try(:last_sync_at) || credential.try(:last_synced_at),
-          last_error: credential.try(:last_error) || credential.try(:error_message),
+          last_sync_at: credential&.last_sync_at || credential&.last_synced_at,
+          last_error: credential&.last_error || credential&.error_message,
           token_valid: !credential.token_expired?
           # NOTE (Feb 2026): docsort_mailbox MOVED to TenantSettings (SSoT)
         }
@@ -116,9 +116,9 @@ class Api::V1::MicrosoftAppController < ApplicationController
           status: cred.status,
           token_valid: !cred.token_expired?,
           token_expires_at: cred.token_expires_at,
-          consecutive_failures: cred.try(:consecutive_failures) || 0,
-          last_refresh_attempt_at: cred.try(:last_refresh_attempt_at),
-          last_error: cred.try(:last_error) || cred.try(:error_message),
+          consecutive_failures: cred&.consecutive_failures || 0,
+          last_refresh_attempt_at: cred&.last_refresh_attempt_at,
+          last_error: cred&.last_error || cred&.error_message,
           self_healing_available: true # App credentials can auto-heal
         }
       end
@@ -1162,7 +1162,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
       related_contact_id: company_contact.id,
       relationship_type: "employee_of",
       is_active: true,
-      start_date: Date.today
+      start_date: Date.current
     )
   rescue => e
     Rails.logger.warn "Failed to auto-link imported user #{user.id} to tenant company: #{e.message}"

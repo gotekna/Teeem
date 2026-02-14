@@ -264,18 +264,18 @@ module Engines
           data[:site_address] = split[:line1]
           data[:site_address_2] = split[:line2] if split[:line2].present?
         end
-        data[:lot_number] ||= job.try(:lot_number)
-        data[:plan_number] ||= job.try(:plan_number)
-        data[:local_authority] ||= job.try(:council)  # Council = Local Authority
+        data[:lot_number] ||= job&.lot_number
+        data[:plan_number] ||= job&.plan_number
+        data[:local_authority] ||= job&.council  # Council = Local Authority
         data[:job_reference] ||= job.job_number || job.id.to_s
 
         # Contract info (Item 1: Contract Price breakdown)
-        data[:contract_date] ||= format_date(job.try(:contract_date) || Date.current)
+        data[:contract_date] ||= format_date(job&.contract_date || Date.current)
 
         # Item 1a, 1b, 1c: Price breakdown
-        total = job.try(:contract_price).to_f
-        prime = job.try(:prime_cost).to_f
-        provisional = job.try(:provisional_sums).to_f
+        total = job&.contract_price.to_f
+        prime = job&.prime_cost.to_f
+        provisional = job&.provisional_sums.to_f
         fixed = total - prime - provisional  # a = total - b - c
 
         data[:fixed_price_component] ||= format_currency(fixed)
@@ -287,9 +287,9 @@ module Engines
         deposit_stage = job.job_claim_stages.find_by("LOWER(name) LIKE ?", "%deposit%")
         if deposit_stage&.expected_amount.present?
           data[:deposit] ||= format_currency(deposit_stage.expected_amount)
-        elsif job.try(:deposit).present?
+        elsif job&.deposit.present?
           data[:deposit] ||= format_currency(job.deposit)
-        elsif job.try(:contract_price).present?
+        elsif job&.contract_price.present?
           # Fallback: calculate 5% if no Claims tab data
           deposit_amount = (job.contract_price * 0.05).round(2)
           data[:deposit] ||= format_currency(deposit_amount)
@@ -319,7 +319,7 @@ module Engines
         end
 
         # Item 5: Starting Date (split into day/month/year)
-        if job.try(:start_date).present?
+        if job&.start_date.present?
           start = job.start_date
           data[:start_date_day] ||= start.day.to_s
           data[:start_date_month] ||= start.month.to_s
@@ -327,10 +327,10 @@ module Engines
         end
 
         # Item 6: Completion Period (auto-calculate build period and weekends/holidays)
-        construction_days = job.try(:construction_days) || 300
-        weather_days = job.try(:weather_days) || 10
-        other_delays = job.try(:other_delay_days) || 0
-        start_date = job.try(:start_date) || Date.current
+        construction_days = job&.construction_days || 300
+        weather_days = job&.weather_days || 10
+        other_delays = job&.other_delay_days || 0
+        start_date = job&.start_date || Date.current
 
         # Calculate calendar days and weekends/holidays
         build_calc = calculate_build_period(start_date, construction_days, weather_days)
@@ -354,13 +354,13 @@ module Engines
         data[:item7_completion_overlay] = total_completion.to_s  # Same value for Item 7
 
         # Item 15: Prime Cost/Provisional Sums details and Special Conditions
-        data[:prime_cost_details] ||= job.try(:prime_cost_details) if job.try(:prime_cost_details).present?
-        data[:provisional_sums_details] ||= job.try(:provisional_sums_details) if job.try(:provisional_sums_details).present?
-        data[:special_conditions] ||= job.try(:special_conditions) if job.try(:has_special_conditions) && job.try(:special_conditions).present?
+        data[:prime_cost_details] ||= job&.prime_cost_details if job&.prime_cost_details.present?
+        data[:provisional_sums_details] ||= job&.provisional_sums_details if job&.provisional_sums_details.present?
+        data[:special_conditions] ||= job&.special_conditions if job&.has_special_conditions && job&.special_conditions.present?
 
         # Plan and Spec dates (for document packages)
-        data[:plan_date] ||= format_date(job.try(:plan_date)) if job.try(:plan_date).present?
-        data[:spec_date] ||= format_date(job.try(:spec_date)) if job.try(:spec_date).present?
+        data[:plan_date] ||= format_date(job&.plan_date) if job&.plan_date.present?
+        data[:spec_date] ||= format_date(job&.spec_date) if job&.spec_date.present?
 
         # Owner info from ALL client contacts (handles multiple owners, companies, combos)
         client_contacts = job.job_contacts
@@ -378,25 +378,25 @@ module Engines
 
           # Use primary contact's details for address/phone/email (SSoT: Contact model)
           primary = client_contacts.first
-          data[:owner_phone] ||= primary.try(:mobile_phone) || primary.try(:phone)
-          data[:owner_email] ||= primary.try(:email)
-          data[:owner_postcode] ||= primary.try(:postcode)
+          data[:owner_phone] ||= primary&.mobile_phone || primary&.phone
+          data[:owner_email] ||= primary&.email
+          data[:owner_postcode] ||= primary&.postcode
           # Remove postcode from address if duplicated
-          owner_addr = primary.try(:address).to_s
-          owner_pc = primary.try(:postcode).to_s
+          owner_addr = primary&.address.to_s
+          owner_pc = primary&.postcode.to_s
           data[:owner_address] ||= owner_pc.present? ? owner_addr.sub(/\s*#{owner_pc}\s*$/, "").strip : owner_addr
         end
 
         # Owner's Authorised Representative (from job_contacts with role 'client_representative')
         rep_contact = job.job_contacts.find_by(role: "client_representative")&.contact
         if rep_contact
-          data[:owner_rep_name] ||= rep_contact.try(:full_name) || rep_contact.try(:display_name)
-          data[:owner_rep_phone] ||= rep_contact.try(:mobile_phone) || rep_contact.try(:phone)
-          data[:owner_rep_email] ||= rep_contact.try(:email)
-          data[:owner_rep_postcode] ||= rep_contact.try(:postcode)
+          data[:owner_rep_name] ||= rep_contact&.full_name || rep_contact&.display_name
+          data[:owner_rep_phone] ||= rep_contact&.mobile_phone || rep_contact&.phone
+          data[:owner_rep_email] ||= rep_contact&.email
+          data[:owner_rep_postcode] ||= rep_contact&.postcode
           # Remove postcode from address if duplicated
-          rep_addr = rep_contact.try(:address).to_s
-          rep_pc = rep_contact.try(:postcode).to_s
+          rep_addr = rep_contact&.address.to_s
+          rep_pc = rep_contact&.postcode.to_s
           data[:owner_rep_address] ||= rep_pc.present? ? rep_addr.sub(/\s*#{rep_pc}\s*$/, "").strip : rep_addr
         end
 
@@ -672,9 +672,9 @@ module Engines
       when "company"
         name = contact.company_name_or_trust.presence || contact.full_name
         # Prefer ACN for companies, fall back to ABN
-        if contact.try(:acn).present?
+        if contact&.acn.present?
           "#{name} ACN #{format_acn(contact.acn)}"
-        elsif contact.try(:abn).present?
+        elsif contact&.abn.present?
           "#{name} ABN #{format_abn(contact.abn)}"
         else
           name
