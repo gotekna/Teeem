@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { hasStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 interface Notification {
   id: number;
@@ -121,7 +122,7 @@ export function NotificationBell() {
   // Poll for unread count every 30 seconds
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
+    const interval = setInterval(fetchUnreadCount, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchUnreadCount]);
 

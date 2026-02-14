@@ -5,8 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { X, ArrowRight, AlertCircle } from "lucide-react";
 import { useOnboardingStatus } from "@/lib/hooks/useOnboardingStatus";
-
-const BANNER_DISMISSED_KEY = "onboarding_banner_dismissed";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 export default function OnboardingBanner() {
   const pathname = usePathname();
@@ -16,7 +15,7 @@ export default function OnboardingBanner() {
 
   // Check localStorage on mount
   useEffect(() => {
-    const dismissed = sessionStorage.getItem(BANNER_DISMISSED_KEY) === "true";
+    const dismissed = sessionStorage.getItem(SESSION_STORAGE_KEYS.ONBOARDING_BANNER_DISMISSED) === "true";
     setIsDismissed(dismissed);
   }, []);
 
@@ -37,7 +36,7 @@ export default function OnboardingBanner() {
 
   const handleDismiss = () => {
     setIsDismissed(true);
-    sessionStorage.setItem(BANNER_DISMISSED_KEY, "true");
+    sessionStorage.setItem(SESSION_STORAGE_KEYS.ONBOARDING_BANNER_DISMISSED, "true");
   };
 
   const handleContinue = () => {

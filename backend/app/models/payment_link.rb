@@ -100,7 +100,7 @@ class PaymentLink < ApplicationRecord
   # Get the public payment URL
   def payment_url
     # This will be configured based on environment
-    base_url = Rails.application.config.payment_portal_url || "https://pay.teeem.com"
+    base_url = Rails.application.config.payment_portal_url || InfrastructureUrls.payment_portal_url
     "#{base_url}/pay/#{token}"
   end
 

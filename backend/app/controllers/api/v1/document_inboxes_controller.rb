@@ -16,7 +16,7 @@ module Api
     #   GET    /api/v1/docsort/stats          - Get statistics
     #
     class DocumentInboxesController < ApplicationController
-      before_action :set_item, only: [:show, :destroy, :classify, :route, :override, :download]
+      before_action :set_item, only: [:show, :destroy, :classify, :route, :override, :download, :classification]
 
       # GET /api/v1/docsort
       def index
@@ -257,10 +257,94 @@ module Api
         }
       end
 
+      # GET /api/v1/document_inboxes/:id/classification
+      # Returns the same ClassificationData shape as company_documents/:id/classification
+      # so ClassificationPanel can consume it uniformly.
+      def classification
+        classification = @item.classification_result || {}
+        methods = classification.is_a?(Hash) ? (classification["methods"] || classification[:methods] || {}) : {}
+
+        # Build OCR breakdown from content_match method
+        content_match = methods["content_match"] || methods[:content_match] || {}
+        ocr_doc_type = content_match["document_type"] || content_match[:document_type]
+        ocr_resolved = resolve_inbox_doc_type_fields(ocr_doc_type)
+        ocr_data = {
+          document_type: ocr_doc_type,
+          confidence: ((content_match["confidence"] || content_match[:confidence] || 0).to_f * 100).round,
+          signals: content_match["signals"] || content_match[:signals] || content_match["matched_terms"] || content_match[:matched_terms] || [],
+          text_preview: content_match["text_preview"] || content_match[:text_preview],
+          status: content_match["status"] || content_match[:status] || "not_available",
+          duration_ms: content_match["duration_ms"] || content_match[:duration_ms],
+          resolved_folder: ocr_resolved[:folder],
+          resolved_ui_name: ocr_resolved[:ui_name],
+          resolved_dl_name: ocr_resolved[:dl_name]
+        }
+
+        # Build AI breakdown from ai_match method
+        ai_match = methods["ai_match"] || methods[:ai_match] || {}
+        ai_doc_type = ai_match["document_type"] || ai_match[:document_type]
+        ai_resolved = resolve_inbox_doc_type_fields(ai_doc_type)
+        ai_data = {
+          document_type: ai_doc_type,
+          confidence: ((ai_match["confidence"] || ai_match[:confidence] || 0).to_f * 100).round,
+          signals: ai_match["signals"] || ai_match[:signals] || [],
+          status: ai_match["status"] || ai_match[:status] || "not_available",
+          duration_ms: ai_match["duration_ms"] || ai_match[:duration_ms],
+          resolved_folder: ai_resolved[:folder],
+          resolved_ui_name: ai_resolved[:ui_name],
+          resolved_dl_name: ai_resolved[:dl_name]
+        }
+
+        # Name match data
+        name_match = methods["name_match"] || methods[:name_match] || {}
+        nm_doc_type = name_match["document_type"] || name_match[:document_type]
+        nm_resolved = resolve_inbox_doc_type_fields(nm_doc_type)
+        name_data = {
+          document_type: nm_doc_type,
+          confidence: ((name_match["confidence"] || name_match[:confidence] || 0).to_f * 100).round,
+          signals: name_match["signals"] || name_match[:signals] || [],
+          status: name_match["status"] || name_match[:status] || "not_available",
+          resolved_folder: nm_resolved[:folder],
+          resolved_ui_name: nm_resolved[:ui_name],
+          resolved_dl_name: nm_resolved[:dl_name]
+        }
+
+        # Resolve fields for the item's current doc type
+        current_doc_type = @item.document_type
+        current_resolved = resolve_inbox_doc_type_fields(current_doc_type)
+
+        render json: {
+          success: true,
+          has_classification: classification.present?,
+          winner: classification["winner"] || classification[:winner],
+          current: {
+            resolved_folder: current_resolved[:folder],
+            resolved_ui_name: current_resolved[:ui_name],
+            resolved_dl_name: current_resolved[:dl_name]
+          },
+          ocr: ocr_data,
+          ai: ai_data,
+          name_match: name_data,
+          classified_at: classification["classified_at"] || classification[:classified_at]
+        }
+      end
+
       private
 
       def set_item
         @item = DocumentInbox.find(params[:id])
+      end
+
+      def resolve_inbox_doc_type_fields(doc_type_slug)
+        return { folder: nil, ui_name: nil, dl_name: nil } if doc_type_slug.blank?
+
+        dt = DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
+          doc_type_slug.tr('_', ' ').downcase,
+          doc_type_slug.downcase
+        )
+        return { folder: nil, ui_name: nil, dl_name: nil } unless dt
+
+        { folder: dt.folder, ui_name: dt.respond_to?(:ui_name) ? dt.ui_name : nil, dl_name: dt.respond_to?(:download_name) ? dt.download_name : nil }
       end
 
       def serialize_item(item, detailed: false)

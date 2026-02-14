@@ -20,7 +20,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   # Get the OAuth authorization URL for connecting all Microsoft services
   def auth_url
     client_id = ENV["OUTLOOK_CLIENT_ID"]
-    tenant = ENV["OUTLOOK_TENANT_ID"] || "common"
+    tenant = ENV["OUTLOOK_TENANT_ID"] || MicrosoftGraphBase::AZURE_DEFAULT_TENANT
 
     if client_id.blank?
       render json: { error: "Microsoft OAuth not configured. Please set OUTLOOK_CLIENT_ID environment variable." }, status: :unprocessable_entity
@@ -49,7 +49,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
     # Only force account picker if not using tenant-specific auth
     # When OUTLOOK_TENANT_ID is set, users from that org are pre-consented
     # and can sign in seamlessly without being asked for consent again
-    if tenant == "common"
+    if tenant == MicrosoftGraphBase::AZURE_DEFAULT_TENANT
       auth_params[:prompt] = "select_account"
     end
     # For tenant-specific apps with admin consent, let Microsoft decide the flow
@@ -351,7 +351,7 @@ class Api::V1::MicrosoftAuthController < ApplicationController
   def exchange_code_for_tokens(code)
     client_id = ENV["OUTLOOK_CLIENT_ID"]
     client_secret = ENV["OUTLOOK_CLIENT_SECRET"]
-    tenant = ENV["OUTLOOK_TENANT_ID"] || "common"
+    tenant = ENV["OUTLOOK_TENANT_ID"] || MicrosoftGraphBase::AZURE_DEFAULT_TENANT
     redirect_uri = microsoft_redirect_uri
 
     response = HTTP.post("https://login.microsoftonline.com/#{tenant}/oauth2/v2.0/token",

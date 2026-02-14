@@ -284,7 +284,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
     tenant = params[:tenant]
     state = params[:state]
 
-    frontend_url = ENV["FRONTEND_URL"] || "http://localhost:3000"
+    frontend_url = InfrastructureUrls.frontend_url
 
     if error.present?
       Rails.logger.error "[MicrosoftApp] Admin consent error: #{error} - #{error_description}"

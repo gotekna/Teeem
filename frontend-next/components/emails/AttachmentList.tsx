@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
 import { BLOB_URL_CLEANUP_DELAY_MS } from "@/lib/constants/timeout-constants";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 // File type detection helpers
 function isSpreadsheetFile(name: string, contentType?: string): boolean {
@@ -212,7 +213,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
           if (docResponse?.success && docResponse.data?.id) {
             // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("teeem_word_import", JSON.stringify({
+            sessionStorage.setItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT", JSON.stringify({
               base64,
               fileName,
               documentId: docResponse.data.id,
@@ -304,7 +305,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
           if (docResponse?.success && docResponse.data?.id) {
             // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("teeem_word_import", JSON.stringify({
+            sessionStorage.setItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT", JSON.stringify({
               base64,
               fileName,
               documentId: docResponse.data.id,

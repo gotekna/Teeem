@@ -93,6 +93,7 @@ import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSqua
 import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
+import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -101,7 +102,7 @@ function CopyableCode({ children }: { children: string }) {
   const handleCopy = async () => {
     await copyToClipboard(children);
     setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
   };
 
   return (
@@ -2329,8 +2330,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       console.error("Failed to save row:", error);
       if (silent) {
         setAutoSaveStatus('error');
-        // Reset to idle after 3 seconds
-        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+        // Reset to idle after showing error message
+        setTimeout(() => setAutoSaveStatus('idle'), UI_SUCCESS_MESSAGE_MS);
       } else {
         toast({ title: "Error", description: "Failed to save row", variant: "destructive" });
       }

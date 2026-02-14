@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { api } from '@/lib/api'
+import { formatDateTime, formatCurrency } from '@/utils/formatters'
 import {
   Table,
   TableBody,
@@ -66,25 +67,11 @@ export default function PriceHistoriesPage() {
     }
   }
 
-  const formatPrice = (price: number | null) => {
-    if (price === null) return 'N/A'
-    return `$${price.toFixed(2)}`
-  }
-
   const formatChange = (change: number | null, percentage: number | null) => {
     if (change === null || percentage === null) return 'N/A'
     const sign = change >= 0 ? '+' : ''
-    return `${sign}${formatPrice(change)} (${sign}${percentage.toFixed(2)}%)`
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-AU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const formattedPrice = formatCurrency(change)
+    return `${sign}${formattedPrice} (${sign}${percentage.toFixed(2)}%)`
   }
 
   if (loading) {
@@ -159,10 +146,10 @@ export default function PriceHistoriesPage() {
                     {history.supplier_name || 'N/A'}
                   </TableCell>
                   <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
-                    {formatPrice(history.old_price)}
+                    {history.old_price !== null ? formatCurrency(history.old_price) : 'N/A'}
                   </TableCell>
                   <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
-                    {formatPrice(history.new_price)}
+                    {history.new_price !== null ? formatCurrency(history.new_price) : 'N/A'}
                   </TableCell>
                   <TableCell className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
                     history.price_change && history.price_change > 0
@@ -180,7 +167,7 @@ export default function PriceHistoriesPage() {
                     {history.lga || 'N/A'}
                   </TableCell>
                   <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground dark:text-muted-foreground">
-                    {formatDate(history.created_at)}
+                    {formatDateTime(history.created_at)}
                   </TableCell>
                 </TableRow>
               ))}

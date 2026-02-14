@@ -7,8 +7,8 @@ class XeroApiClient
   include XeroConstants
 
   BASE_URL = XERO_API_BASE_URL
-  AUTH_URL = "https://login.xero.com/identity/connect/authorize"
-  TOKEN_URL = "https://identity.xero.com/connect/token"
+  AUTH_URL = XERO_AUTH_URL
+  TOKEN_URL = XERO_TOKEN_URL
   CONNECTIONS_URL = XERO_CONNECTIONS_URL
 
   # Custom error classes
@@ -495,7 +495,7 @@ class XeroApiClient
       auth_header = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
 
       response = HTTParty.post(
-        "https://identity.xero.com/connect/revocation",
+        XERO_REVOCATION_URL,
         headers: {
           "Authorization" => "Basic #{auth_header}",
           "Content-Type" => "application/x-www-form-urlencoded"
@@ -944,7 +944,7 @@ class XeroApiClient
     OAuth2::Client.new(
       @client_id,
       @client_secret,
-      site: "https://login.xero.com",
+      site: XERO_OAUTH_SITE,
       authorize_url: AUTH_URL,
       token_url: TOKEN_URL
     )

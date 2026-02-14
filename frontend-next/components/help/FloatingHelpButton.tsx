@@ -13,18 +13,16 @@ import { getHelpForPage, getPageHelp } from "@/lib/helpMapping";
 import { getTourForRoute } from "@/lib/tours/tour-definitions";
 import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
-
-// LocalStorage key for help button visibility preference
-const HELP_BUTTON_HOVER_ONLY_KEY = "teeem_help_button_hover_only";
+import { STORAGE_KEYS } from "@/lib/storage-utils";
 
 export function getHelpButtonHoverOnly(): boolean {
   if (typeof window === "undefined") return false;
-  return localStorage.getItem(HELP_BUTTON_HOVER_ONLY_KEY) === "true";
+  return localStorage.getItem(STORAGE_KEYS.HELP_BUTTON_HOVER_ONLY) === "true";
 }
 
 export function setHelpButtonHoverOnly(value: boolean): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(HELP_BUTTON_HOVER_ONLY_KEY, value ? "true" : "false");
+  localStorage.setItem(STORAGE_KEYS.HELP_BUTTON_HOVER_ONLY, value ? "true" : "false");
 }
 
 interface FloatingHelpButtonProps {

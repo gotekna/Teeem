@@ -13,7 +13,7 @@ import MultipleSelector from "@/components/ui/multiple-selector";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
-import { UI_AUTOSAVE_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 // ============================================================================
 // TYPES - Extracted from ScheduleMasterTab.tsx (SSoT)
@@ -332,7 +332,7 @@ export function EditRowDialog({
       console.error("Failed to save row:", error);
       if (silent) {
         setAutoSaveStatus('error');
-        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+        setTimeout(() => setAutoSaveStatus('idle'), UI_SUCCESS_MESSAGE_MS);
       }
     }
   };

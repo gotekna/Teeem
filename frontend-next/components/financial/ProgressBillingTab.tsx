@@ -54,6 +54,7 @@ import {
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { safePercent } from "@/lib/utils";
+import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 // Types
 interface ProgressClaim {
@@ -343,7 +344,7 @@ export default function ProgressBillingTab() {
   // Clear messages
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      const timer = setTimeout(() => setSuccessMessage(null), UI_SUCCESS_MESSAGE_MS);
       return () => clearTimeout(timer);
     }
   }, [successMessage]);

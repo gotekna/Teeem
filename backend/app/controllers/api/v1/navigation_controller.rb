@@ -196,7 +196,7 @@ module Api
           accounts << {
             id: "imap_#{cred.id}",
             name: cred.email_address || cred.name,
-            href: "/email?account=#{cred.id}",
+            href: "/email/#{cred.email_address || cred.id}",
             icon: "mail",
             badge_key: nil,
             position: saved_positions[account_id] || (fallback_position += 1),
@@ -237,7 +237,7 @@ module Api
             accounts << {
               id: account_id,
               name: email,
-              href: "/email?account=#{account_id}",
+              href: "/email/#{email}",
               icon: "mail",
               badge_key: nil,
               position: saved_positions[account_id] || (fallback_position += 1),

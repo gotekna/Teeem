@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Pencil, Check, X } from "lucide-react";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 export interface SelectOption {
   value: string;
@@ -140,7 +141,7 @@ export const PropertyRow = memo(function PropertyRow({
       setIsEditing(false);
       // Show success flash
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 1500);
+      setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
       // Keep editing mode on error
@@ -164,7 +165,7 @@ export const PropertyRow = memo(function PropertyRow({
       await onSave("");
       setDraft("");
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 1500);
+      setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to clear";
       setError(message);
@@ -195,7 +196,7 @@ export const PropertyRow = memo(function PropertyRow({
       try {
         await onSave(checked);
         setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 1500);
+        setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save");
       } finally {
@@ -219,7 +220,7 @@ export const PropertyRow = memo(function PropertyRow({
         setDraft(newValue);
         setIsEditing(false);
         setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 1500);
+        setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save");
       } finally {

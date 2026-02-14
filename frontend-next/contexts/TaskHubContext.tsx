@@ -289,6 +289,7 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Board priority (for BoardView drag-and-drop ordering)
   reorderBoardTask: (taskId: number, status: string, priority: number | null) => Promise<void>;
+  bulkReorderBoardTasks: (updates: Array<{ taskId: number; status: string; priority: number }>) => Promise<void>;
 
   // View & filter actions
   setActiveView: (view: ViewType) => void;
@@ -768,6 +769,36 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     }
   }, [tasks]);
 
+  // Bulk board reorder - single optimistic update for all tasks, avoids N re-renders
+  const bulkReorderBoardTasks = useCallback(async (
+    updates: Array<{ taskId: number; status: string; priority: number }>
+  ) => {
+    const originalTasks = [...tasks];
+
+    // Single optimistic update for ALL tasks at once (prevents blur from rapid re-renders)
+    setTasks(prev => prev.map(t => {
+      const update = updates.find(u => u.taskId === t.id);
+      if (!update) return t;
+      const currentPriority = t.board_priority || {};
+      return { ...t, board_priority: { ...currentPriority, [update.status]: update.priority } };
+    }));
+
+    // Fire API calls in background
+    try {
+      await Promise.all(updates.map(({ taskId, status, priority }) => {
+        const currentTask = originalTasks.find(t => t.id === taskId);
+        const currentPriority = currentTask?.board_priority || {};
+        const newPriority = { ...currentPriority, [status]: priority };
+        return api.patch(`/api/v1/sm_tasks/${taskId}`, {
+          sm_task: { board_priority: newPriority }
+        });
+      }));
+    } catch (err) {
+      console.error('[TaskHubContext] Failed to bulk reorder board tasks:', err);
+      setTasks(originalTasks);
+    }
+  }, [tasks]);
+
   // Action Items methods
   const addActionItem = useCallback(async (
     taskId: number,
@@ -1244,6 +1275,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     bulkUpdateStatus,
     bulkAssign,
     reorderBoardTask,
+    bulkReorderBoardTasks,
     setActiveView,
     setFilters,
     clearFilters,

@@ -1485,7 +1485,7 @@ module Api
           credential = rate_cred_scope.where(status: %w[connected degraded]).first
           rate_usage = credential ? XeroRateLimitTracker.usage_for(credential.tenant_id) : nil
           daily_percentage = rate_usage&.dig(:daily, :percentage) || 0
-          is_rate_limited = daily_percentage >= 80
+          is_rate_limited = daily_percentage >= XeroConstants::XERO_RATE_LIMIT_WARNING_THRESHOLD
 
           # PDF sync uses smart rate limiting - calculates next run based on pending count AND rate limit status
           # SSoT: If rate limited, show when we'll resume (next recurring run or rate limit reset)

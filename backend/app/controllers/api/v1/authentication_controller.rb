@@ -293,7 +293,7 @@ module Api
           begin
             credential = ImapCredential.where(is_active: true).first
             if credential
-              reset_url = "https://teeem.vercel.app/reset-password?token=#{token}"
+              reset_url = "#{InfrastructureUrls.frontend_url}/reset-password?token=#{token}"
               service = ImapEmailService.new(credential)
               service.send_email(
                 to: [ user.email ],

@@ -241,7 +241,7 @@ module Api
 
         def base_portal_url
           # Would come from settings
-          ENV.fetch("PORTAL_URL", "https://pay.teeem.app")
+          InfrastructureUrls.payment_portal_url
         end
 
         def outstanding_invoices(contact)

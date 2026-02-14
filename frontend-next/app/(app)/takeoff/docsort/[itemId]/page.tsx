@@ -13,6 +13,7 @@ import { PdfChrome } from "@/components/ui/pdf-chrome";
 import { ChevronUp, ChevronDown, ChevronLeft } from "lucide-react";
 import { useBreadcrumbContext } from "@/contexts/BreadcrumbContext";
 import { useLayoutMode } from "@/contexts/LayoutModeContext";
+import { STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Takeoff components - lazy-load TakeoffCanvas (pulls in fabric ~500KB)
 import dynamic from "next/dynamic";
@@ -106,14 +107,14 @@ export default function DocsortTakeoffPage() {
   // Sidebar state - pinned persists to localStorage
   const [sidebarPinned, setSidebarPinned] = React.useState(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('takeoff-sidebar-pinned') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.TAKEOFF_SIDEBAR_PINNED) === 'true';
   });
   const [sidebarOpen, setSidebarOpen] = React.useState(sidebarPinned);
 
   const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
   const handlePinSidebar = (pinned: boolean) => {
     setSidebarPinned(pinned);
-    localStorage.setItem('takeoff-sidebar-pinned', String(pinned));
+    localStorage.setItem(STORAGE_KEYS.TAKEOFF_SIDEBAR_PINNED, String(pinned));
     if (pinned) setSidebarOpen(true);
   };
 

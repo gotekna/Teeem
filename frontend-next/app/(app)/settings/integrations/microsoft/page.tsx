@@ -47,6 +47,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { SYSTEM_ROLES } from "@/lib/constants/roles";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 // ============================================
 // Organization-Wide Access Section (Admin Only)
@@ -662,7 +663,7 @@ export default function MicrosoftIntegrationPage() {
                       navigator.clipboard.writeText(consentUrl);
                       setCopied(true);
                       setWaitingForConsent(true);
-                      setTimeout(() => setCopied(false), 3000);
+                      setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
                     }}
                     className="shrink-0"
                   >

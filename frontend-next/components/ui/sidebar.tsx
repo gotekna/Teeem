@@ -709,7 +709,7 @@ export function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === "/dashboard") return pathname === "/dashboard";
-    // Handle email links with query params (e.g., /email?account=ms365_9_6588f630)
+    // Handle links with query params (legacy format)
     if (href.includes('?')) {
       const [hrefPath, hrefQuery] = href.split('?');
       if (!pathname.startsWith(hrefPath)) return false;

@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CheckCircle2, ArrowRight, Mail, FileSpreadsheet, Settings, Users, ExternalLink } from "lucide-react";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 export default function GetStartedCompletePage() {
   const router = useRouter();
@@ -19,8 +20,8 @@ export default function GetStartedCompletePage() {
 
   useEffect(() => {
     // Get tenant and admin info from session storage
-    const storedTenant = sessionStorage.getItem("signup_tenant");
-    const storedAdmin = sessionStorage.getItem("signup_admin");
+    const storedTenant = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
+    const storedAdmin = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN");
 
     if (!storedTenant) {
       router.push("/get-started");
@@ -34,10 +35,10 @@ export default function GetStartedCompletePage() {
 
     // Clear session storage after successful signup
     return () => {
-      sessionStorage.removeItem("signup_tenant");
-      sessionStorage.removeItem("signup_admin");
-      sessionStorage.removeItem("signup_tier");
-      sessionStorage.removeItem("signup_template_packs");
+      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
+      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN");
+      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TIER");
+      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TEMPLATE_PACKS");
     };
   }, [router]);
 

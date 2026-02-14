@@ -3163,7 +3163,7 @@ module Api
         end
 
         # Final fallback to environment variable
-        frontend_url = ENV["FRONTEND_URL"] || "https://teeem.vercel.app"
+        frontend_url = InfrastructureUrls.frontend_url
         Rails.logger.info "Using frontend URL from ENV (fallback): #{frontend_url}"
         frontend_url
       end

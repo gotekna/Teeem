@@ -662,7 +662,7 @@ module Api
       end
 
       def frontend_url
-        ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
+        InfrastructureUrls.frontend_url
       end
 
 

@@ -24,6 +24,7 @@ import {
   Check,
 } from "lucide-react";
 import { formatPhoneNumber, validatePhoneNumber } from "@/app/(app)/contacts/[id]/types";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 export interface ContactPhone {
   id?: number;
@@ -143,7 +144,7 @@ function PhoneRow({
     try {
       await onSave({ phone_number: formatted, phone_type: draftType });
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 1500);
+      setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
@@ -162,7 +163,7 @@ function PhoneRow({
         try {
           await onSave({ phone_type: newType as ContactPhone["phone_type"] });
           setShowSuccess(true);
-          setTimeout(() => setShowSuccess(false), 1500);
+          setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Failed to save");
         } finally {

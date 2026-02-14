@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 // Types
 interface Health {
@@ -64,7 +65,7 @@ export default function SystemPerformancePage() {
     loadAllData();
 
     if (autoRefresh) {
-      const interval = setInterval(loadAllData, 30000);
+      const interval = setInterval(loadAllData, POLLING_INTERVAL_MS);
       return () => clearInterval(interval);
     }
   }, [autoRefresh]);

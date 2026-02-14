@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import {
   Clock,
   Users,
@@ -174,7 +175,7 @@ export default function SitePresenceDashboardPage() {
     fetchDashboardData();
 
     // Auto-refresh every 30 seconds
-    const interval = setInterval(() => fetchDashboardData(true), 30000);
+    const interval = setInterval(() => fetchDashboardData(true), POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchDashboardData]);
 

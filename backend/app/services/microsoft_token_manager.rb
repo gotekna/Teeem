@@ -188,7 +188,7 @@ class MicrosoftTokenManager
         form: {
           client_id: credential.client_id,
           client_secret: credential.client_secret,
-          scope: "https://graph.microsoft.com/.default",
+          scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
           grant_type: "client_credentials"
         }
       )
@@ -221,7 +221,7 @@ class MicrosoftTokenManager
       return { success: false, error: "No refresh token" } if credential.refresh_token.blank?
 
       response = HTTP.post(
-        "https://login.microsoftonline.com/#{credential.azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
+        "https://login.microsoftonline.com/#{credential.azure_tenant_id.presence || MicrosoftGraphBase::AZURE_DEFAULT_TENANT}/oauth2/v2.0/token",
         form: {
           client_id: ENV["OUTLOOK_CLIENT_ID"],
           client_secret: ENV["OUTLOOK_CLIENT_SECRET"],

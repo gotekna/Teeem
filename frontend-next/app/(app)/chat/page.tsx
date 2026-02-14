@@ -62,6 +62,7 @@ import { api } from "@/lib/api";
 import { renderMessageContent } from "@/components/chat/SupportChatWidget";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { ScreenShareViewer } from "@/components/screen-share/ScreenShareViewer";
@@ -157,7 +158,7 @@ export default function ChatPage() {
     };
     loadOnlineUsers();
 
-    const interval = setInterval(loadOnlineUsers, 30000);
+    const interval = setInterval(loadOnlineUsers, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -180,7 +181,7 @@ export default function ChatPage() {
     };
     loadConversations();
 
-    const interval = setInterval(loadConversations, 30000);
+    const interval = setInterval(loadConversations, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 

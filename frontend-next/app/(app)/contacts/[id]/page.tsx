@@ -68,6 +68,7 @@ import { clearCachedRecords } from "@/lib/records-cache";
 import { PAGE_SIZE_LIST, PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
@@ -1649,7 +1650,7 @@ export default function ContactDetailPage() {
       });
       setHasChanges(false);
       // Signal that contacts list needs refresh when navigating back
-      sessionStorage.setItem('contacts_needs_refresh', 'true');
+      sessionStorage.setItem('SESSION_STORAGE_KEYS.CONTACTS_NEEDS_REFRESH', 'true');
       // Clear Xero sync contacts cache so changes show when returning to that view
       clearCachedRecords("xero-sync-contacts");
       loadContact();

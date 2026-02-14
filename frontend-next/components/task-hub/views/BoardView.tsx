@@ -328,7 +328,7 @@ function sortTasksForColumn(tasks: TaskItem[], status: string): TaskItem[] {
 }
 
 export function BoardView() {
-  const { filteredTasks, updateTask, reorderBoardTask } = useTaskHub();
+  const { filteredTasks, updateTask, bulkReorderBoardTasks } = useTaskHub();
   const { user } = useAuth();
   const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -381,16 +381,11 @@ export function BoardView() {
 
   // Handle card reorder within a column (drag-and-drop priority ordering)
   // Strategy: Assign sequential priorities to ALL tasks in the column to maintain new order
+  // Uses bulkReorderBoardTasks for single optimistic update (avoids blur from N re-renders)
   const handleCardReorder = useCallback(async (event: CardReorderEvent<TaskItem>) => {
     const { item, columnId, fromIndex, toIndex } = event;
 
-    console.log('[BoardView] handleCardReorder called:', { itemId: item.id, columnId, fromIndex, toIndex });
-
-    // Don't do anything if position didn't change
-    if (fromIndex === toIndex) {
-      console.log('[BoardView] fromIndex === toIndex, skipping');
-      return;
-    }
+    if (fromIndex === toIndex) return;
 
     // Get all tasks in this column (sorted by current order)
     const columnTasks = [...sortedTasks.filter(t => t.status === columnId)];
@@ -399,23 +394,19 @@ export function BoardView() {
     const [movedTask] = columnTasks.splice(fromIndex, 1);
     columnTasks.splice(toIndex, 0, movedTask);
 
-    console.log('[BoardView] New order:', columnTasks.map((t, i) => `${i}: ${t.id}`));
+    // Single bulk update for all tasks in the column
+    const updates = columnTasks.map((task, index) => ({
+      taskId: task.id,
+      status: columnId,
+      priority: (index + 1) * 1000,
+    }));
 
-    // Assign sequential priorities to ALL tasks in the column
-    // This ensures the new order is maintained regardless of existing priorities
     try {
-      const updatePromises = columnTasks.map((task, index) => {
-        const newPriority = (index + 1) * 1000; // 1000, 2000, 3000, etc.
-        console.log(`[BoardView] Setting task ${task.id} priority to ${newPriority}`);
-        return reorderBoardTask(task.id, columnId, newPriority);
-      });
-
-      await Promise.all(updatePromises);
-      console.log('[BoardView] All priorities updated successfully');
+      await bulkReorderBoardTasks(updates);
     } catch (error) {
       console.error('[BoardView] Failed to reorder tasks:', error);
     }
-  }, [sortedTasks, reorderBoardTask]);
+  }, [sortedTasks, bulkReorderBoardTasks]);
 
   // Handle card click to open sheet
   const handleCardClick = (task: TaskItem) => {
@@ -429,7 +420,7 @@ export function BoardView() {
   };
 
   // Handle position change via typed number input
-  // Uses same strategy as drag reorder: assign priorities to ALL tasks
+  // Uses bulkReorderBoardTasks for single optimistic update (avoids blur from N re-renders)
   const handlePositionChange = useCallback(async (task: TaskItem, newPosition: number) => {
     const columnTasks = [...sortedTasks.filter(t => t.status === task.status)];
     const currentIndex = columnTasks.findIndex(t => t.id === task.id);
@@ -442,18 +433,19 @@ export function BoardView() {
     const [movedTask] = columnTasks.splice(currentIndex, 1);
     columnTasks.splice(newIndex, 0, movedTask);
 
-    // Assign sequential priorities to ALL tasks in the column
-    try {
-      const updatePromises = columnTasks.map((t, index) => {
-        const newPriority = (index + 1) * 1000;
-        return reorderBoardTask(t.id, task.status, newPriority);
-      });
+    // Single bulk update for all tasks in the column
+    const updates = columnTasks.map((t, index) => ({
+      taskId: t.id,
+      status: task.status,
+      priority: (index + 1) * 1000,
+    }));
 
-      await Promise.all(updatePromises);
+    try {
+      await bulkReorderBoardTasks(updates);
     } catch (error) {
       console.error('Failed to reorder task:', error);
     }
-  }, [sortedTasks, reorderBoardTask]);
+  }, [sortedTasks, bulkReorderBoardTasks]);
 
   // Get column-based background color for waiting statuses
   const getWaitingColumnStyles = (status: string) => {

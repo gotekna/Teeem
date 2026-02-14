@@ -27,7 +27,7 @@ import {
   type SuccessorInfo,
 } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { UI_AUTOSAVE_FEEDBACK_MS } from '@/lib/constants/timeout-constants';
+import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from '@/lib/constants/timeout-constants';
 import { type GanttMode, getGanttApiConfig, wrapPayload } from './ganttApi';
 
 // =============================================================================
@@ -1564,7 +1564,7 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       console.error('[GanttDataManager] Save failed:', err);
       if (silent) {
         setAutoSaveStatus('error');
-        setTimeout(() => setAutoSaveStatus('idle'), 3000);
+        setTimeout(() => setAutoSaveStatus('idle'), UI_SUCCESS_MESSAGE_MS);
       } else {
         toast({ title: 'Error', description: 'Failed to save', variant: 'destructive' });
       }

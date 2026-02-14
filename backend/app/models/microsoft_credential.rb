@@ -183,7 +183,7 @@ class MicrosoftCredential < ApplicationRecord
       form: {
         client_id: client_id,
         client_secret: client_secret,
-        scope: "https://graph.microsoft.com/.default",
+        scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
         grant_type: "client_credentials"
       }
     )
@@ -239,7 +239,7 @@ class MicrosoftCredential < ApplicationRecord
     return false if refresh_token_dead?
 
     response = HTTP.post(
-      "https://login.microsoftonline.com/#{azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
+      "https://login.microsoftonline.com/#{azure_tenant_id.presence || MicrosoftGraphBase::AZURE_DEFAULT_TENANT}/oauth2/v2.0/token",
       form: {
         client_id: ENV["OUTLOOK_CLIENT_ID"],
         client_secret: ENV["OUTLOOK_CLIENT_SECRET"],

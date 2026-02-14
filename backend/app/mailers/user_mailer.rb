@@ -82,7 +82,7 @@ class UserMailer < ApplicationMailer
   private
 
   def frontend_url(path = "")
-    base = ENV["FRONTEND_URL"] || "http://localhost:3000"
+    base = InfrastructureUrls.frontend_url
     "#{base}#{path}"
   end
 end

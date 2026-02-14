@@ -32,30 +32,17 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import ClassificationPanel from "@/components/documents/ClassificationPanel";
+import type { ClassificationData, ClassificationDocumentType, ClassificationCompany, ClassificationDocument } from "@/lib/types/classification-types";
 
 // Types
 interface ClassificationSuggestion {
@@ -171,16 +158,6 @@ const STATUS_COLORS: Record<string, string> = {
   red: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
 };
 
-// Classification method labels
-const METHOD_LABELS: Record<string, string> = {
-  filename_pattern: "Filename pattern match",
-  content_type: "Content type detection",
-  file_extension: "File extension detection",
-  document_type_matcher: "Document type matcher",
-  ai: "AI classification",
-  default: "Default (no match)",
-};
-
 // Display names for the 3 classification methods
 const METHOD_DISPLAY_NAMES: Record<string, string> = {
   name_match: "Name Match",
@@ -212,13 +189,16 @@ export default function DocsortPage() {
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [selectedItem, setSelectedItem] = useState<DocumentInboxItem | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+
+  // Classification panel state
+  const [classificationData, setClassificationData] = useState<ClassificationData | null>(null);
+  const [classificationLoading, setClassificationLoading] = useState(false);
+  const [panelDocTypes, setPanelDocTypes] = useState<ClassificationDocumentType[]>([]);
+  const [panelCompanies, setPanelCompanies] = useState<ClassificationCompany[]>([]);
   const [reclassifyingAll, setReclassifyingAll] = useState(false);
   const [documentTypes, setDocumentTypes] = useState<{ value: string; label: string; id?: number; folderPath?: string; targetFolder?: string; uiName?: string; downloadName?: string }[]>(FALLBACK_DOCUMENT_TYPES);
-  const [companies, setCompanies] = useState<ComboboxItem[]>([]);
-  const [companyGroupMap, setCompanyGroupMap] = useState<Record<string, string>>({});
-  const [selectedCorporate, setSelectedCorporate] = useState<ComboboxItem | undefined>();
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("active");
@@ -253,68 +233,65 @@ export default function DocsortPage() {
     }
   }, []);
 
-  // Load companies for the filing dropdown
-  const loadCompanies = useCallback(async () => {
-    try {
-      const response = await api.get<{ success: boolean; companies: Array<{ id: number; name: string; company_code?: string; company_group?: { id: number; name: string } | null }> }>(
-        "/api/v1/companies?include_unlinked=true"
-      );
-      if (response?.companies) {
-        setCompanies(
-          response.companies.map((c) => ({
-            id: c.id.toString(),
-            label: c.name,
-            searchText: c.company_code || undefined,
-          }))
-        );
-        // Build company ID → group name map for template expansion
-        const groupMap: Record<string, string> = {};
-        for (const c of response.companies) {
-          if (c.company_group?.name) {
-            groupMap[c.id.toString()] = c.company_group.name;
-          }
-        }
-        setCompanyGroupMap(groupMap);
-      }
-    } catch (error) {
-      console.error("Failed to load companies:", error);
-    }
-  }, []);
-
-  // Load document types and companies once on mount
+  // Load document types on mount
   useEffect(() => {
     loadDocumentTypes();
-    loadCompanies();
-  }, [loadDocumentTypes, loadCompanies]);
+  }, [loadDocumentTypes]);
 
-  // Auto-detect company from filename by finding the longest company name match
-  const detectCompanyFromFilename = useCallback((filename: string | null): ComboboxItem | undefined => {
-    if (!filename || companies.length === 0) return undefined;
-    // Strip extension and normalize
-    const baseName = filename.replace(/\.[^.]+$/, "");
+  // Load ClassificationPanel-compatible doc types
+  useEffect(() => {
+    const fetchPanelDocTypes = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: ClassificationDocumentType[] }>("/api/v1/document_types");
+        if (response?.success && response.data) setPanelDocTypes(response.data);
+      } catch { /* non-critical */ }
+    };
+    fetchPanelDocTypes();
+  }, []);
 
-    // Normalize abbreviations so "Ltd" matches "Limited", "Pty" matches "Proprietary", etc.
-    const normalizeAbbreviations = (s: string) =>
-      s.toLowerCase()
-        .replace(/\blimited\b/g, "ltd")
-        .replace(/\bproprietary\b/g, "pty")
-        .replace(/\bincorporated\b/g, "inc")
-        .replace(/\bcorporation\b/g, "corp")
-        .trim();
+  // Load ClassificationPanel-compatible companies
+  useEffect(() => {
+    const fetchPanelCompanies = async () => {
+      try {
+        const response = await api.get<{ success: boolean; companies: ClassificationCompany[] }>("/api/v1/companies?include_unlinked=true");
+        if (response?.companies) setPanelCompanies(response.companies);
+      } catch { /* non-critical */ }
+    };
+    fetchPanelCompanies();
+  }, []);
 
-    const normalizedFilename = normalizeAbbreviations(baseName);
-    let bestMatch: ComboboxItem | undefined;
-    let bestLength = 0;
-    for (const company of companies) {
-      // Strip trailing markers like " *" and normalize abbreviations
-      const name = normalizeAbbreviations(company.label.replace(/\s*\*\s*$/, ""));
-      if (name.length > 2 && normalizedFilename.includes(name) && name.length > bestLength) {
-        bestMatch = company;
-        bestLength = name.length;
+  // Fetch classification data when selected item changes
+  useEffect(() => {
+    const fetchClassification = async () => {
+      if (!selectedItem || !panelOpen) {
+        setClassificationData(null);
+        return;
       }
-    }
-    return bestMatch;
-  }, [companies]);
+      setClassificationLoading(true);
+      try {
+        const response = await api.get<ClassificationData>(
+          `/api/v1/document_inboxes/${selectedItem.id}/classification`
+        );
+        if (response?.success) setClassificationData(response);
+      } catch {
+        setClassificationData(null);
+      } finally {
+        setClassificationLoading(false);
+      }
+    };
+    fetchClassification();
+  }, [selectedItem?.id, panelOpen]);
+
+  // Normalize DocumentInboxItem → ClassificationDocument
+  const normalizeDocInboxItem = useCallback((item: DocumentInboxItem): ClassificationDocument => {
+    return {
+      id: item.id,
+      document_type: item.document_type || undefined,
+      display_name: item.display_name,
+      file_name: item.original_filename || undefined,
+      source: item.source,
+    };
+  }, []);
 
   // Load items and stats
   const loadData = useCallback(async () => {
@@ -495,7 +472,7 @@ export default function DocsortPage() {
           description: response.routing?.message || "Successfully routed",
         });
         loadData();
-        setDrawerOpen(false);
+        setPanelOpen(false);
         setSelectedItem(null);
       } else {
         toast({
@@ -539,7 +516,7 @@ export default function DocsortPage() {
       await api.delete(`/api/v1/document_inboxes/${item.id}?hard=true`);
       toast({ title: "Item deleted" });
       loadData();
-      setDrawerOpen(false);
+      setPanelOpen(false);
       setSelectedItem(null);
     } catch (error) {
       toast({
@@ -705,8 +682,7 @@ export default function DocsortPage() {
                       )}
                       onClick={() => {
                         setSelectedItem(item);
-                        setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
-                        setDrawerOpen(true);
+                        setPanelOpen(true);
                       }}
                     >
                       {/* Icon */}
@@ -860,8 +836,7 @@ export default function DocsortPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedItem(item);
-                          setSelectedCorporate(detectCompanyFromFilename(item.original_filename));
-                          setDrawerOpen(true);
+                          setPanelOpen(true);
                         }}
                         className="p-1 rounded hover:bg-muted transition-colors"
                       >
@@ -875,511 +850,142 @@ export default function DocsortPage() {
           </div>
         </div>
 
-        {/* Right: Detail panel */}
-        <Sheet open={drawerOpen} onOpenChange={(open) => {
-          setDrawerOpen(open);
-          if (!open) {
-            setSelectedItem(null);
-            setSelectedCorporate(undefined);
-          }
-        }}>
-          <SheetContent side="right-xl" className="overflow-y-auto">
-            {selectedItem && (
-              <>
-                <SheetHeader>
-                  <SheetTitle className="flex items-center gap-2">
-                    {(() => {
-                      const Icon = getDocTypeIcon(selectedItem.document_type);
-                      return <Icon className="h-5 w-5" />;
-                    })()}
-                    {selectedItem.display_name}
-                  </SheetTitle>
-                  <SheetDescription>
+        {/* Right: Classification Panel */}
+        {panelOpen && selectedItem && (
+          <div className="w-[520px] border-l border-border flex flex-col overflow-hidden bg-background">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <div className="flex items-center gap-2 min-w-0">
+                {(() => {
+                  const Icon = getDocTypeIcon(selectedItem.document_type);
+                  return <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />;
+                })()}
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate">{selectedItem.display_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">
                     {selectedItem.from_email
                       ? `From: ${selectedItem.from_email}`
                       : `Uploaded ${formatDistanceToNow(new Date(selectedItem.created_at), { addSuffix: true })}`}
-                  </SheetDescription>
-                </SheetHeader>
-
-                <div className="mt-6 space-y-6">
-                  {/* Classification Header */}
-                  <div>
-                    <h4 className="text-sm font-medium mb-3">Classification</h4>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Document Type</span>
-                        <Select
-                          value={selectedItem.document_type || "general"}
-                          onValueChange={(value) => handleOverride(selectedItem, value)}
-                          disabled={processingId === selectedItem.id}
-                        >
-                          <SelectTrigger className="w-[160px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {documentTypes.map((type) => (
-                              <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      {/* Folder path, proposed names, and doc type link */}
-                      {(() => {
-                        const matchedType = documentTypes.find(
-                          (t) => t.value === (selectedItem.document_type || "general")
-                        );
-                        if (!matchedType || matchedType.value === "general") return null;
-
-                        // Expand {{Token}} placeholders with available context
-                        const expandTemplate = (template: string | undefined) => {
-                          if (!template) return null;
-                          const now = new Date();
-                          const dd = String(now.getDate()).padStart(2, '0');
-                          const mm = String(now.getMonth() + 1).padStart(2, '0');
-                          const yyyy = now.getFullYear();
-                          const originalFilename = selectedItem.original_filename || selectedItem.display_name || '';
-                          const baseName = originalFilename.replace(/\.[^/.]+$/, '');
-                          const ext = originalFilename.split('.').pop() || '';
-
-                          let result = template;
-                          const tokens: Record<string, string> = {
-                            DocTypeName: matchedType.label,
-                            DocTypeCode: matchedType.value,
-                            CompanyName: selectedCorporate?.label || '',
-                            CompanyCode: selectedCorporate?.searchText || '',
-                            CompanyGroup: (selectedCorporate?.id && companyGroupMap[selectedCorporate.id]) || '',
-                            Date: `${dd}-${mm}-${yyyy}`,
-                            DDMMYYYY: `${dd}-${mm}-${yyyy}`,
-                            YYYYMMDD: `${yyyy}-${mm}-${dd}`,
-                            OriginalFileName: baseName,
-                            OriginalFileNameWithExt: originalFilename,
-                            FileExtension: ext,
-                            Subject: selectedItem.subject || '',
-                            FromEmail: selectedItem.from_email || '',
-                          };
-                          for (const [key, val] of Object.entries(tokens)) {
-                            if (val) {
-                              result = result.replaceAll(`{{${key}}}`, val).replaceAll(`{${key}}`, val);
-                            }
-                          }
-                          // Show unreplaced tokens as readable placeholders (e.g. {CompanyName} → [Company Name])
-                          // so the user can see what data is needed (e.g. select a company)
-                          result = result.replace(/\{\{?([^}]+)\}?\}/g, (_, name) =>
-                            `[${name.replace(/([A-Z])/g, ' $1').trim()}]`
-                          ).replace(/\s+/g, ' ').trim();
-                          return result || null;
-                        };
-
-                        const proposedFolder = expandTemplate(matchedType.targetFolder);
-                        const proposedUiName = expandTemplate(matchedType.uiName);
-                        const proposedDlName = expandTemplate(matchedType.downloadName);
-
-                        return (
-                          <div className="space-y-1.5">
-                            {matchedType.targetFolder && (
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-sm text-muted-foreground shrink-0">Folder Path</span>
-                                <span className="text-sm text-right text-muted-foreground/80 font-mono truncate" title={`Template: ${matchedType.targetFolder}\nResolved: ${proposedFolder}`}>
-                                  {proposedFolder || matchedType.targetFolder}
-                                </span>
-                              </div>
-                            )}
-                            {proposedUiName && (
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-sm text-muted-foreground shrink-0">Proposed UI Name</span>
-                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.uiName}\nResolved: ${proposedUiName}`}>
-                                  {proposedUiName}
-                                </span>
-                              </div>
-                            )}
-                            {proposedDlName && (
-                              <div className="flex items-start justify-between gap-2">
-                                <span className="text-sm text-muted-foreground shrink-0">Proposed DL Name</span>
-                                <span className="text-sm text-right truncate" title={`Template: ${matchedType.downloadName}\nResolved: ${proposedDlName}`}>
-                                  {proposedDlName}
-                                </span>
-                              </div>
-                            )}
-                            {matchedType.id && (
-                              <div className="flex items-center justify-end">
-                                <button
-                                  onClick={() => window.open(`/admin/system/document-types/${matchedType.id}`, '_blank')}
-                                  className="text-xs text-primary hover:underline"
-                                >
-                                  Open Document Type Settings →
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                      {selectedItem.classification_confidence !== null && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Confidence</span>
-                          <Badge className={cn(CONFIDENCE_COLORS[selectedItem.confidence_color])}>
-                            {selectedItem.confidence_percent}%
-                          </Badge>
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">Status</span>
-                        <Badge className={cn(STATUS_COLORS[selectedItem.status_color])}>
-                          {selectedItem.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 3-Method Classification Display */}
-                  {selectedItem.classification_result?.methods ? (
-                    <div>
-                      <h4 className="text-sm font-medium mb-2">Classification Methods</h4>
-                      <Accordion
-                        type="multiple"
-                        defaultValue={selectedItem.classification_result.winner ? [selectedItem.classification_result.winner] : ["name_match"]}
-                        className="w-full"
-                      >
-                        {(Object.entries(selectedItem.classification_result.methods) as [string, MethodResult][]).map(
-                          ([methodKey, methodResult]) => {
-                            const isWinner = selectedItem.classification_result?.winner === methodKey;
-                            const hasResult = methodResult.status === "completed" && methodResult.document_type;
-                            const confidencePercent = Math.round(methodResult.confidence * 100);
-                            const docTypeLabel = hasResult
-                              ? documentTypes.find((t) => t.value === methodResult.document_type)?.label || methodResult.document_type
-                              : null;
-
-                            return (
-                              <AccordionItem key={methodKey} value={methodKey} className="border-b last:border-b-0">
-                                <AccordionTrigger className="py-3 text-sm hover:no-underline">
-                                  <div className="flex items-center gap-2 flex-1 min-w-0 pr-2">
-                                    <span className="font-medium shrink-0">
-                                      {METHOD_DISPLAY_NAMES[methodKey] || methodKey}
-                                    </span>
-                                    {hasResult ? (
-                                      <>
-                                        <span className="text-muted-foreground truncate">{docTypeLabel}</span>
-                                        <Badge
-                                          variant="outline"
-                                          className={cn(
-                                            "text-xs shrink-0",
-                                            confidencePercent >= 80
-                                              ? "border-green-500 text-green-700 dark:text-green-400"
-                                              : confidencePercent >= 60
-                                                ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
-                                                : "border-gray-400 text-gray-600 dark:text-gray-400"
-                                          )}
-                                        >
-                                          {confidencePercent}%
-                                        </Badge>
-                                      </>
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">
-                                        {METHOD_STATUS_LABELS[methodResult.status] || methodResult.status}
-                                      </span>
-                                    )}
-                                    {isWinner && (
-                                      <Badge className="text-xs bg-primary/10 text-primary border-primary/30 shrink-0">
-                                        Winner
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </AccordionTrigger>
-                                <AccordionContent className="text-sm">
-                                  <div className="space-y-2 pl-1">
-                                    {/* Signals / Matched Terms */}
-                                    {methodResult.signals && methodResult.signals.length > 0 && (
-                                      <div>
-                                        <span className="text-xs text-muted-foreground">
-                                          {methodKey === "content_match" ? "Matched Terms" : "Signals"}
-                                        </span>
-                                        <div className="flex flex-wrap gap-1 mt-1">
-                                          {methodResult.signals.map((signal, i) => (
-                                            <Badge key={i} variant="outline" className="text-xs font-mono">
-                                              {signal}
-                                            </Badge>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Text Preview (Content Match / OCR) */}
-                                    {methodResult.text_preview && (
-                                      <div>
-                                        <span className="text-xs text-muted-foreground">Text Preview</span>
-                                        <p className="text-xs mt-1 p-2 rounded bg-muted/50 font-mono whitespace-pre-wrap line-clamp-4">
-                                          {methodResult.text_preview}
-                                        </p>
-                                      </div>
-                                    )}
-
-                                    {/* Suggestions (Name Match) */}
-                                    {methodResult.suggestions && methodResult.suggestions.length > 0 && (
-                                      <div>
-                                        <span className="text-xs text-muted-foreground">Suggestions</span>
-                                        <div className="space-y-1 mt-1">
-                                          {methodResult.suggestions.map((suggestion, i) => (
-                                            <div
-                                              key={i}
-                                              className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
-                                            >
-                                              <div className="flex-1 min-w-0">
-                                                <span className="font-medium">{suggestion.name}</span>
-                                                {suggestion.matched_term && (
-                                                  <span className="text-muted-foreground ml-1">
-                                                    via {suggestion.match_type}: &quot;{suggestion.matched_term}&quot;
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <Badge
-                                                variant="outline"
-                                                className={cn(
-                                                  "text-xs ml-2 shrink-0",
-                                                  suggestion.confidence >= 80
-                                                    ? "border-green-500 text-green-700 dark:text-green-400"
-                                                    : suggestion.confidence >= 60
-                                                      ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
-                                                      : "border-gray-400 text-gray-600 dark:text-gray-400"
-                                                )}
-                                              >
-                                                {suggestion.confidence}%
-                                              </Badge>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Reason (for N/A, disabled, error) */}
-                                    {methodResult.reason && (
-                                      <p className="text-xs text-muted-foreground italic">{methodResult.reason}</p>
-                                    )}
-
-                                    {/* Duration */}
-                                    {methodResult.duration_ms != null && (
-                                      <p className="text-xs text-muted-foreground">Time: {methodResult.duration_ms}ms</p>
-                                    )}
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            );
-                          }
-                        )}
-                      </Accordion>
-                    </div>
-                  ) : selectedItem.classification_result ? (
-                    /* Backward compatibility: old single-result display */
-                    <div>
-                      <h4 className="text-sm font-medium mb-3">Classification Details</h4>
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-sm text-muted-foreground shrink-0">Method</span>
-                          <span className="text-sm text-right break-words min-w-0">
-                            {METHOD_LABELS[selectedItem.classification_result.method] || selectedItem.classification_result.method}
-                          </span>
-                        </div>
-                        {selectedItem.classification_result.signals?.length > 0 && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Signals</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {selectedItem.classification_result.signals.map((signal, i) => (
-                                <Badge key={i} variant="outline" className="text-xs font-mono">
-                                  {signal}
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {selectedItem.classification_result.matched_document_type && (
-                          <div className="flex items-start justify-between gap-2">
-                            <span className="text-sm text-muted-foreground shrink-0">Matched Type</span>
-                            <span className="text-sm text-right break-words min-w-0">
-                              {selectedItem.classification_result.matched_document_type}
-                            </span>
-                          </div>
-                        )}
-                        {selectedItem.classification_result.suggestions &&
-                          selectedItem.classification_result.suggestions.length > 0 && (
-                          <div>
-                            <span className="text-sm text-muted-foreground">Suggestions</span>
-                            <div className="space-y-1 mt-1">
-                              {selectedItem.classification_result.suggestions.map((suggestion, i) => (
-                                <div
-                                  key={i}
-                                  className="flex items-center justify-between p-1.5 rounded bg-muted/50 text-xs"
-                                >
-                                  <span className="font-medium">{suggestion.name}</span>
-                                  <Badge variant="outline" className="text-xs ml-2">
-                                    {suggestion.confidence}%
-                                  </Badge>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {/* No classification at all */}
-                  {selectedItem.document_type === "general" &&
-                    !selectedItem.classification_result && (
-                    <div className="p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-400">
-                      <p className="text-sm">
-                        No document type matches found. Use the dropdown above to manually classify this document.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* File info */}
-                  <div>
-                    <h4 className="text-sm font-medium mb-3">File Details</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground shrink-0">Filename</span>
-                        <span className="text-right break-words min-w-0">{selectedItem.original_filename || "—"}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground shrink-0">Size</span>
-                        <span>{formatFileSize(selectedItem.file_size)}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground shrink-0">Type</span>
-                        <span className="text-right break-words min-w-0">{selectedItem.content_type || "—"}</span>
-                      </div>
-                      <div className="flex justify-between gap-2">
-                        <span className="text-muted-foreground shrink-0">Source</span>
-                        <span className="capitalize">{selectedItem.source}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Error message */}
-                  {selectedItem.error_message && (
-                    <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400">
-                      <div className="flex items-start gap-2">
-                        <ExclamationTriangleIcon className="h-5 w-5 flex-shrink-0" />
-                        <p className="text-sm">{selectedItem.error_message}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Routing result */}
-                  {selectedItem.routed_to_type && (
-                    <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400">
-                      <div className="flex items-start gap-2">
-                        <CheckCircleIcon className="h-5 w-5 flex-shrink-0" />
-                        <div className="text-sm">
-                          <p>Routed to {selectedItem.routed_to_type}</p>
-                          <p className="text-xs opacity-75">
-                            {selectedItem.routed_at &&
-                              formatDistanceToNow(new Date(selectedItem.routed_at), { addSuffix: true })}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* File under company */}
-                  {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-medium flex items-center gap-1.5 text-muted-foreground">
-                        <BuildingOffice2Icon className="h-4 w-4" />
-                        File under Company
-                      </label>
-                      <ComboboxDropdown
-                        items={companies}
-                        selectedItem={selectedCorporate}
-                        onSelect={(item) => setSelectedCorporate(item)}
-                        placeholder="Select company..."
-                        searchPlaceholder="Search companies..."
-                        clearable
-                        onClear={() => setSelectedCorporate(undefined)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex flex-col gap-2">
-                    {selectedItem.status === "classified" && !selectedItem.routed_to_type && (
-                      <Button
-                        onClick={() => handleRoute(selectedItem, undefined, selectedCorporate?.id)}
-                        disabled={processingId === selectedItem.id}
-                      >
-                        {processingId === selectedItem.id ? (
-                          <Spinner size={16} className="mr-2" />
-                        ) : (
-                          <CheckCircleIcon className="h-4 w-4 mr-2" />
-                        )}
-                        {selectedCorporate ? `File under ${selectedCorporate.label}` : "Route Document"}
-                      </Button>
-                    )}
-
-                    {selectedItem.status === "pending" && (
-                      <Button
-                        onClick={() => handleClassify(selectedItem)}
-                        disabled={processingId === selectedItem.id}
-                        variant="outline"
-                      >
-                        {processingId === selectedItem.id ? (
-                          <Spinner size={16} className="mr-2" />
-                        ) : (
-                          <ArrowPathIcon className="h-4 w-4 mr-2" />
-                        )}
-                        Re-classify
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          const response = await api.get<{ url: string }>(
-                            `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
-                          );
-                          if (response?.url) {
-                            window.open(response.url, "_blank");
-                          } else {
-                            toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
-                          }
-                        } catch {
-                          toast({ title: "Download failed", variant: "destructive" });
-                        }
-                      }}
-                    >
-                      <DocumentIcon className="h-4 w-4 mr-2" />
-                      Download
-                    </Button>
-
-                    {/* Open in Takeoff - for any PDF document */}
-                    {selectedItem.content_type === "application/pdf" && (
-                      <Button
-                        variant="outline"
-                        onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}
-                      >
-                        <Ruler className="h-4 w-4 mr-2" />
-                        Open in Takeoff
-                      </Button>
-                    )}
-
-                    {!selectedItem.routed_to_type && (
-                      <Button
-                        variant="ghost"
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        onClick={() => handleDelete(selectedItem)}
-                        disabled={processingId === selectedItem.id}
-                      >
-                        <XMarkIcon className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    )}
-                  </div>
+                  </p>
                 </div>
-              </>
-            )}
-          </SheetContent>
-        </Sheet>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 shrink-0"
+                onClick={() => {
+                  setPanelOpen(false);
+                  setSelectedItem(null);
+                }}
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Classification Panel */}
+            <div className="flex-1 overflow-y-auto">
+              <ClassificationPanel
+                document={normalizeDocInboxItem(selectedItem)}
+                classificationData={classificationData}
+                classificationLoading={classificationLoading}
+                documentTypes={panelDocTypes}
+                companies={panelCompanies}
+                mode="validate"
+                onRoute={async (companyId) => {
+                  await handleRoute(selectedItem, undefined, companyId);
+                }}
+                onReclassify={async () => {
+                  await handleClassify(selectedItem);
+                  // Re-fetch classification after reclassify
+                  try {
+                    const response = await api.get<ClassificationData>(
+                      `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                    );
+                    if (response?.success) setClassificationData(response);
+                  } catch { /* ignore */ }
+                }}
+              />
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="border-t border-border p-3 space-y-2">
+              {/* File info summary */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>{selectedItem.original_filename || "Unknown file"}</span>
+                <span>{formatFileSize(selectedItem.file_size)}</span>
+              </div>
+
+              {/* Error message */}
+              {selectedItem.error_message && (
+                <div className="p-2 rounded bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-400 text-xs flex items-start gap-1.5">
+                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>{selectedItem.error_message}</span>
+                </div>
+              )}
+
+              {/* Routing result */}
+              {selectedItem.routed_to_type && (
+                <div className="p-2 rounded bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-400 text-xs flex items-start gap-1.5">
+                  <CheckCircleIcon className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>
+                    Routed to {selectedItem.routed_to_type}
+                    {selectedItem.routed_at && ` — ${formatDistanceToNow(new Date(selectedItem.routed_at), { addSuffix: true })}`}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={async () => {
+                    try {
+                      const response = await api.get<{ url: string }>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
+                      );
+                      if (response?.url) {
+                        window.open(response.url, "_blank");
+                      } else {
+                        toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
+                      }
+                    } catch {
+                      toast({ title: "Download failed", variant: "destructive" });
+                    }
+                  }}
+                >
+                  <DocumentIcon className="h-3.5 w-3.5 mr-1.5" />
+                  Download
+                </Button>
+
+                {selectedItem.content_type === "application/pdf" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => router.push(`/takeoff/docsort/${selectedItem.id}`)}
+                  >
+                    <Ruler className="h-3.5 w-3.5 mr-1.5" />
+                    Takeoff
+                  </Button>
+                )}
+
+                {!selectedItem.routed_to_type && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    onClick={() => handleDelete(selectedItem)}
+                    disabled={processingId === selectedItem.id}
+                  >
+                    <XMarkIcon className="h-3.5 w-3.5 mr-1.5" />
+                    Delete
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

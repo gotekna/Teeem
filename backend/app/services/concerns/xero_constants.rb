@@ -13,6 +13,10 @@ module XeroConstants
   # ============================================
   XERO_API_BASE_URL = "https://api.xero.com/api.xro/2.0".freeze
   XERO_CONNECTIONS_URL = "https://api.xero.com/connections".freeze
+  XERO_OAUTH_SITE = "https://login.xero.com".freeze
+  XERO_AUTH_URL = "https://login.xero.com/identity/connect/authorize".freeze
+  XERO_TOKEN_URL = "https://identity.xero.com/connect/token".freeze
+  XERO_REVOCATION_URL = "https://identity.xero.com/connect/revocation".freeze
 
   # ============================================
   # RATE LIMITING (SSoT)
@@ -45,6 +49,7 @@ module XeroConstants
 
   XERO_CALLS_PER_MINUTE = 60
   XERO_DAILY_API_LIMIT = 5000
+  XERO_RATE_LIMIT_WARNING_THRESHOLD = 80
 
   # ============================================
   # NON-XERO CONSTANTS

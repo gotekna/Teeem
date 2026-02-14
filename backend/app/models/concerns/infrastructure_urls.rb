@@ -69,6 +69,22 @@ module InfrastructureUrls
     TenantSetting::FRONTEND_ENVIRONMENT_URLS.values
   end
 
+  # Portal URLs (SSoT)
+  # Subcontractor portal (quote requests, supplier responses)
+  SUBCONTRACTOR_PORTAL_URL = "https://portal.teeem.com".freeze
+  # Payment portal (invoices, payment links)
+  PAYMENT_PORTAL_URL = "https://pay.teeem.com".freeze
+
+  # Get subcontractor portal URL (ENV override for dev/staging)
+  def self.portal_url
+    ENV["PORTAL_URL"] || SUBCONTRACTOR_PORTAL_URL
+  end
+
+  # Get payment portal URL (ENV override for dev/staging)
+  def self.payment_portal_url
+    ENV["PAYMENT_PORTAL_URL"] || PAYMENT_PORTAL_URL
+  end
+
   # Check if current app is a dev Heroku instance (should not redirect)
   def self.dev_instance?
     ENV["HEROKU_APP_NAME"]&.include?("-dev")

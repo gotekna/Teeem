@@ -133,6 +133,12 @@ export const RETRY_DELAY_MS = 2000;
  */
 export const POLLING_DELAY_MS = 3000;
 
+/**
+ * Interval for auto-refresh polling (30 seconds).
+ * Used for periodic data refreshes in dashboard/stats pages.
+ */
+export const POLLING_INTERVAL_MS = 30000;
+
 // =============================================================================
 // GROUPED EXPORTS
 // =============================================================================

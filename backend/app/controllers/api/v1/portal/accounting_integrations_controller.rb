@@ -268,7 +268,7 @@ module Api
 
         def generate_xero_oauth_url
           client_id = ENV["XERO_CLIENT_ID"] || "YOUR_XERO_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/xero"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/xero"
           scope = "accounting.transactions accounting.contacts"
           state = generate_oauth_state("xero")
 
@@ -277,14 +277,14 @@ module Api
 
         def generate_myob_oauth_url
           client_id = ENV["MYOB_CLIENT_ID"] || "YOUR_MYOB_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/myob"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/myob"
 
           "https://secure.myob.com/oauth2/account/authorize?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=CompanyFile"
         end
 
         def generate_quickbooks_oauth_url
           client_id = ENV["QUICKBOOKS_CLIENT_ID"] || "YOUR_QUICKBOOKS_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/quickbooks"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/quickbooks"
 
           "https://appcenter.intuit.com/connect/oauth2?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=com.intuit.quickbooks.accounting"
         end

@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { api } from '@/lib/api';
+import { STORAGE_KEYS } from '@/lib/storage-utils';
 
 export interface OnboardingStep {
   key: string;
@@ -108,7 +109,7 @@ export async function completeOnboarding(): Promise<void> {
 export async function downloadTemplate(type: string): Promise<Blob> {
   const response = await fetch(`/api/v1/onboarding/templates/${type}`, {
     headers: {
-      Authorization: `Bearer ${localStorage.getItem('token')}`,
+      Authorization: `Bearer ${localStorage.getItem(STORAGE_KEYS.TOKEN)}`,
     },
   });
   if (!response.ok) {

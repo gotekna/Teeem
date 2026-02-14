@@ -30,6 +30,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
@@ -491,7 +492,7 @@ export function XeroSyncStats() {
   React.useEffect(() => {
     fetchData();
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchData]);
 

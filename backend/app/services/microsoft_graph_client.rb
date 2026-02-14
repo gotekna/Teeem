@@ -120,7 +120,7 @@ class MicrosoftGraphClient
     params = {
       client_id: ENV["ONEDRIVE_CLIENT_ID"],
       client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
-      scope: "https://graph.microsoft.com/.default",
+      scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
       grant_type: "client_credentials"
     }
 

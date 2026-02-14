@@ -144,6 +144,8 @@ export default function PortalKudos() {
     return EVENT_TYPE_LABELS[eventType] || eventType.replace(/_/g, " ");
   };
 
+  // NOTE: Custom formatter for relative time display ("X minutes ago")
+  // Different from SSoT formatters in utils/formatters.ts which use absolute dates
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     const now = new Date();

@@ -2,6 +2,7 @@
 // SSoT for all page tours - each page has steps pointing to UI elements
 
 import { Step } from "react-joyride";
+import { STORAGE_KEYS } from "@/lib/storage-utils";
 
 export interface PageTour {
   id: string;
@@ -379,20 +380,20 @@ export function getTourForRoute(pathname: string): PageTour | null {
 // Check if tour has been completed
 export function isTourCompleted(tourId: string): boolean {
   if (typeof window === "undefined") return false;
-  const completed = localStorage.getItem(`tour_completed_${tourId}`);
+  const completed = localStorage.getItem(`${STORAGE_KEYS.TOUR_COMPLETED_PREFIX}${tourId}`);
   return completed === "true";
 }
 
 // Mark tour as completed
 export function markTourCompleted(tourId: string): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(`tour_completed_${tourId}`, "true");
+  localStorage.setItem(`${STORAGE_KEYS.TOUR_COMPLETED_PREFIX}${tourId}`, "true");
 }
 
 // Reset tour (for "Take Tour Again")
 export function resetTour(tourId: string): void {
   if (typeof window === "undefined") return;
-  localStorage.removeItem(`tour_completed_${tourId}`);
+  localStorage.removeItem(`${STORAGE_KEYS.TOUR_COMPLETED_PREFIX}${tourId}`);
 }
 
 // Reset all tours
@@ -400,7 +401,7 @@ export function resetAllTours(): void {
   if (typeof window === "undefined") return;
   Object.keys(tourRegistry).forEach((route) => {
     const tour = tourRegistry[route];
-    localStorage.removeItem(`tour_completed_${tour.id}`);
+    localStorage.removeItem(`${STORAGE_KEYS.TOUR_COMPLETED_PREFIX}${tour.id}`);
   });
-  localStorage.removeItem(`tour_completed_job-detail`);
+  localStorage.removeItem(`${STORAGE_KEYS.TOUR_COMPLETED_PREFIX}job-detail`);
 }

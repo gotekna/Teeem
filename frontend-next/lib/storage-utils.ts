@@ -21,8 +21,15 @@ const STORAGE_PREFIX = 'teeem_';
 export const STORAGE_KEYS = {
   // Auth & User
   TOKEN: 'token',
+  TEEEM_TOKEN: 'teeem_token', // Legacy auth token (used in xero callback)
   PORTAL_TOKEN: 'portal_token',
   PORTAL_USER: 'portal_user',
+
+  // API Configuration
+  API_URL: 'api_url',
+  TEEEM_API_URL: 'teeem_api_url', // Legacy API URL (used in xero callback)
+  API_ENVIRONMENT: 'api_environment',
+  TENANT_OVERRIDE: 'tenant_override',
 
   // UI State
   VIEW_MODE: 'view_mode',
@@ -37,11 +44,6 @@ export const STORAGE_KEYS = {
   TASK_HUB_FILTERS: 'taskHub_filters',
   TASK_COLORS: 'task_colors',
   AGENT_TASKS: 'agentTasks',
-
-  // API Configuration
-  API_URL: 'api_url',
-  API_ENVIRONMENT: 'api_environment',
-  TENANT_OVERRIDE: 'tenant_override',
 
   // Feature-specific
   EMAIL_DRAFTS: 'email_drafts',
@@ -81,6 +83,41 @@ export const STORAGE_KEYS = {
   JOB_PHOTOS_TYPES: 'job-photos-selected-job-types',
   JOB_PHOTOS_STATUSES: 'job-photos-selected-statuses',
   JOB_PHOTOS_SUPERVISORS: 'job-photos-selected-supervisors',
+
+  // Tours
+  TOUR_COMPLETED_PREFIX: 'tour_completed_', // Append tourId
+
+  // Takeoff
+  TAKEOFF_SIDEBAR_PINNED: 'takeoff-sidebar-pinned',
+
+  // Help System
+  HELP_BUTTON_HOVER_ONLY: 'teeem_help_button_hover_only',
+
+} as const;
+
+/**
+ * SessionStorage-only keys (SSoT)
+ * These keys are used with sessionStorage instead of localStorage
+ */
+export const SESSION_STORAGE_KEYS = {
+  // Xero Integration
+  XERO_PROCESSED_CODE: 'xero_processed_code',
+  XERO_RETURN_URL: 'xero_return_url',
+
+  // Signup Flow
+  SIGNUP_TENANT: 'signup_tenant',
+  SIGNUP_ADMIN: 'signup_admin',
+  SIGNUP_TIER: 'signup_tier',
+  SIGNUP_TEMPLATE_PACKS: 'signup_template_packs',
+
+  // Import/Export
+  TEEEM_WORD_IMPORT: 'teeem_word_import',
+
+  // Data Refresh Flags
+  CONTACTS_NEEDS_REFRESH: 'contacts_needs_refresh',
+
+  // Onboarding
+  ONBOARDING_BANNER_DISMISSED: 'onboarding_banner_dismissed',
 
 } as const;
 

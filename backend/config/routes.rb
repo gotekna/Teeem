@@ -2419,6 +2419,7 @@ Rails.application.routes.draw do
           post :route
           patch :override
           get :download
+          get :classification
         end
       end
 

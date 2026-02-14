@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 // Types
 interface BankAccount {
@@ -282,7 +283,7 @@ export default function BankFeedsTab() {
   // Clear messages
   useEffect(() => {
     if (successMessage) {
-      const timer = setTimeout(() => setSuccessMessage(null), 3000);
+      const timer = setTimeout(() => setSuccessMessage(null), UI_SUCCESS_MESSAGE_MS);
       return () => clearTimeout(timer);
     }
   }, [successMessage]);

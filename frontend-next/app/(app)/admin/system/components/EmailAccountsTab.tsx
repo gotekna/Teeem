@@ -84,6 +84,7 @@ import {
 } from "@/lib/email-signature";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 interface ImapCredential {
   id: number;
@@ -571,7 +572,7 @@ function MS365MailboxAccessConfig() {
                       navigator.clipboard.writeText(ms365ConsentUrl);
                       setMs365Copied(true);
                       setMs365Waiting(true);
-                      setTimeout(() => setMs365Copied(false), 3000);
+                      setTimeout(() => setMs365Copied(false), UI_COPY_FEEDBACK_MS);
                     }}
                     className="shrink-0"
                   >

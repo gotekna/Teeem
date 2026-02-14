@@ -388,7 +388,7 @@ module Api
 
       def onboarding_url(token)
         # Frontend URL for the public onboarding form
-        frontend_host = ENV["FRONTEND_URL"] || (Rails.env.production? ? "https://teeem.vercel.app" : "https://teeemrob.vercel.app")
+        frontend_host = InfrastructureUrls.frontend_url
         "#{frontend_host}/director-onboarding/#{token}"
       end
 

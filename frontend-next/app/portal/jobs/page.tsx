@@ -14,6 +14,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
 import { portalApi } from "@/lib/portal-api";
+import { formatDateTime } from "@/utils/formatters";
 
 interface Construction {
   id: number;
@@ -140,17 +141,6 @@ export default function PortalJobs() {
     );
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   if (loading) {
     return (
@@ -270,13 +260,13 @@ export default function PortalJobs() {
                   {job.arrived_at && (
                     <div className="flex items-center text-xs text-muted-foreground dark:text-muted-foreground">
                       <ClockIcon className="h-4 w-4 mr-1 text-muted-foreground dark:text-muted-foreground" />
-                      Arrived: {formatDate(job.arrived_at)}
+                      Arrived: {formatDateTime(job.arrived_at)}
                     </div>
                   )}
                   {job.completed_at && (
                     <div className="flex items-center text-xs text-muted-foreground dark:text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4 mr-1 text-green-500 dark:text-green-400" />
-                      Completed: {formatDate(job.completed_at)}
+                      Completed: {formatDateTime(job.completed_at)}
                     </div>
                   )}
                   {job.days_on_site !== null && job.days_on_site !== undefined && (

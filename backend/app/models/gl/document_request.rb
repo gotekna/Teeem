@@ -38,7 +38,7 @@ module Gl
     # Generate portal URL
     def portal_url
       return nil unless access_token
-      "#{ENV.fetch('FRONTEND_URL', 'https://app.teeem.com')}/document-upload/#{access_token}"
+      "#{InfrastructureUrls.frontend_url}/document-upload/#{access_token}"
     end
 
     # Check completion

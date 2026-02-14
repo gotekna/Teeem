@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Building2, User, Mail, Phone, Globe, ArrowRight, Check, AlertCircle, Gift, Package } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import api from "@/lib/api";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface SignupData {
   company_name: string;
@@ -189,8 +190,8 @@ function GetStartedPageContent() {
 
       if (response?.success) {
         // Store tenant info for the next steps
-        sessionStorage.setItem("signup_tenant", JSON.stringify(response.tenant));
-        sessionStorage.setItem("signup_admin", JSON.stringify(response.admin_user));
+        sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT", JSON.stringify(response.tenant));
+        sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN", JSON.stringify(response.admin_user));
         router.push("/get-started/plan");
       } else {
         setError(response?.error || "Signup failed");

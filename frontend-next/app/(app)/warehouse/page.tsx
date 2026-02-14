@@ -77,6 +77,7 @@ import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
+import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 interface AllDocumentsResponse {
   success: boolean;
@@ -401,7 +402,7 @@ export default function AllDocumentsPage() {
     } catch (err) {
       console.error("Upload failed:", err);
       setUploadProgress(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
-      setTimeout(() => setUploadProgress(null), 3000);
+      setTimeout(() => setUploadProgress(null), UI_SUCCESS_MESSAGE_MS);
     } finally {
       setIsUploading(false);
     }
