@@ -29,6 +29,7 @@ import {
   Clock,
   Moon,
   Sun,
+  Lightbulb,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -686,6 +687,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
+
+          {/* Feature Requests */}
+          <Link prefetch={false}
+            href="/feature-requests"
+            className="p-1.5 text-muted-foreground hover:text-amber-500 dark:hover:text-amber-400 rounded-md transition-colors"
+            title="Feature Requests & Suggestions"
+          >
+            <Lightbulb className="h-4 w-4" />
+          </Link>
 
           {/* Separator */}
           <div

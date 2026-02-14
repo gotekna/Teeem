@@ -1769,6 +1769,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Feature Requests & Suggestions (shared across all tenants)
+      resources :feature_requests, only: [:index, :create, :update] do
+        member do
+          post :follow
+          delete :follow, action: :unfollow
+        end
+      end
+
       # Agent definitions
       resources :agents, only: [ :index ] do
         collection do

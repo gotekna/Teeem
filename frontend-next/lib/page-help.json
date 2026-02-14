@@ -1,8 +1,8 @@
 {
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
-    "lastUpdated": "2026-01-31",
-    "totalPages": 185,
+    "lastUpdated": "2026-02-14",
+    "totalPages": 186,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -821,6 +821,12 @@
       "description": "Advanced data management and reporting tools.",
       "tips": ["Run custom queries on your data", "Export reports to Excel", "Schedule automated reports"],
       "tasks": ["Run data query", "Export to Excel", "Create scheduled report", "View data statistics"]
+    },
+    "/feature-requests": {
+      "title": "Feature Requests & Suggestions",
+      "description": "Submit feature requests, vote on ideas, and track what's being built. Shared across all companies.",
+      "tips": ["Follow requests you care about to track progress", "Requests are sorted by status: In Progress, Planned, Submitted", "Your submissions are auto-followed", "Completed features show release notes"],
+      "tasks": ["Submit a new feature request", "Follow requests you want", "View what's currently being built", "Check status updates on your requests"]
     },
     "/system-health": {
       "title": "System Health",
