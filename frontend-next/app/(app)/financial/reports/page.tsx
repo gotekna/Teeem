@@ -19,8 +19,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-import { api, getApiBaseUrl } from "@/lib/api";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
 
 // Types
@@ -176,16 +175,8 @@ export default function FinancialReportsPage() {
         filename = `job_profitability_${new Date().toISOString().split("T")[0]}.csv`;
       }
 
-      const response = await fetch(
-        `${getApiBaseUrl()}${url}?${new URLSearchParams(params)}`,
-        {
-          headers: {
-            Authorization: `Bearer ${getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false)}`,
-          },
-        }
-      );
-
-      const blob = await response.blob();
+      // Use api.getBlob() for CSV download
+      const blob = await api.getBlob(url, { params });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;

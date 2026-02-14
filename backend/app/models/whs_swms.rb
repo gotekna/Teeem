@@ -11,7 +11,7 @@ class WHSSWMS < ApplicationRecord
   has_many :whs_swms_hazards, dependent: :destroy
   has_many :whs_swms_controls, through: :whs_swms_hazards
   has_many :whs_swms_acknowledgments, dependent: :destroy
-  has_many :whs_swms_that_supersede_this, class_name: "WHSSWMS", foreign_key: "superseded_by_id"
+  has_many :whs_swms_that_supersede_this, class_name: "WHSSWMS", foreign_key: "superseded_by_id", dependent: :nullify
 
   # Constants (define BEFORE validations)
   STATUSES = %w[draft pending_approval approved rejected superseded].freeze

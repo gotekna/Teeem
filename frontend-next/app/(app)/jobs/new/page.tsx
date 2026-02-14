@@ -390,17 +390,6 @@ export default function NewJobPage() {
           postcode = addressMatch[6] || "";
         }
 
-        console.log("Pre-filling form with:", {
-          address: propertyAddress,
-          description: description.substring(0, 100) + "...",
-          contract_value: data.contract_value,
-          streetNumber,
-          streetName,
-          streetType,
-          suburb,
-          state,
-          postcode
-        });
 
         setFormData(prev => ({
           ...prev,

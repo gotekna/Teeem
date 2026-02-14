@@ -215,8 +215,9 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
 
   const updateContactPerson = (index: number, field: keyof ContactPerson, value: string | boolean | null) => {
     const updated = [...contactPersons];
-     
-    (updated[index] as any)[field] = value;
+
+    // Type-safe assignment using Record type
+    (updated[index] as Record<keyof ContactPerson, string | boolean | null | number | undefined>)[field] = value;
 
     // If setting this one as primary, unset others
     if (field === "is_primary" && value === true) {

@@ -693,15 +693,11 @@ function GoldStandardDataTab() {
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    console.log("[GoldStandardTab] handleBulkDelete called with ids:", ids);
     if (!(await confirm(`Are you sure you want to delete ${ids.length} item(s)?`))) {
-      console.log("[GoldStandardTab] Delete cancelled by user");
       return;
     }
     try {
-      console.log("[GoldStandardTab] Calling bulk_delete API...");
       const response = await api.post("/api/v1/gold_standard_table/bulk_delete", { ids });
-      console.log("[GoldStandardTab] Bulk delete response:", response);
       setEntries((prev) => prev.filter((e) => !ids.includes(e.id)));
       toast({ title: "Success", description: `${ids.length} item(s) deleted successfully` });
     } catch (error) {

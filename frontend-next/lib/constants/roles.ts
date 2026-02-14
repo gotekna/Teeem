@@ -132,24 +132,3 @@ export const PLAN_RECIPIENT_TYPE_LABELS = {
   [PLAN_RECIPIENT_TYPES.CONTACT]: "Contact",
 } as const;
 
-// =============================================================================
-// Legacy Role Constants (Deprecated - use SYSTEM_ROLES instead)
-// =============================================================================
-
-/**
- * @deprecated Use SYSTEM_ROLES.ADMIN instead
- * Kept for backward compatibility during migration
- */
-export const ROLE_ADMIN = SYSTEM_ROLES.ADMIN;
-
-/**
- * @deprecated Use SYSTEM_ROLES.USER instead
- * Kept for backward compatibility during migration
- */
-export const ROLE_USER = SYSTEM_ROLES.USER;
-
-/**
- * @deprecated Use SYSTEM_ROLES.PRODUCT_OWNER instead
- * Kept for backward compatibility during migration
- */
-export const ROLE_PRODUCT_OWNER = SYSTEM_ROLES.PRODUCT_OWNER;

@@ -126,6 +126,7 @@ export function XeroConnectionCard({
           );
           if (statusCheck.connected) {
             clearInterval(pollInterval);
+            clearTimeout(timeoutId);
             // Show confirmation dialog instead of auto-accepting
             setPendingConnection(statusCheck);
             setShowConfirmDialog(true);
@@ -133,7 +134,7 @@ export function XeroConnectionCard({
           }
         }, 3000);
         // Stop polling after 5 minutes
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           clearInterval(pollInterval);
           setConnecting(false);
         }, 300000);

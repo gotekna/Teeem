@@ -228,7 +228,7 @@ module Api
 
         # Filter by location presence if requested
         if params[:has_location] == "true"
-          @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
+          @jobs = @jobs.with_coordinates
         end
 
         # Search using SSoT SearchService

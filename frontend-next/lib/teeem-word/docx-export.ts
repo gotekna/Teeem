@@ -254,7 +254,8 @@ async function extractTextRuns(
               : undefined,
             strike: inheritedStyle.strike,
             color: inheritedStyle.color,
-            highlight: inheritedStyle.highlight as any,
+            // docx library expects specific highlight enum, cast for compatibility
+            highlight: inheritedStyle.highlight as unknown as ConstructorParameters<typeof TextRun>[0] extends Record<string, unknown> ? ConstructorParameters<typeof TextRun>[0]['highlight'] : string,
           })
         );
       }

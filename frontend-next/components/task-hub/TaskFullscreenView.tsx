@@ -48,7 +48,6 @@ import { SubtaskList } from './SubtaskList';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
-import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import { TABLE_ROW_LIMIT } from '@/lib/constants/pagination-constants';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -2848,17 +2847,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!task.purchase_order_id) return;
     try {
       setPoPdfLoading('preview');
-      const baseUrl = getApiBaseUrl();
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
-        headers,
-        credentials: 'include',
+      const html = await api.getText(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf`, {
+        params: { format: 'html' }
       });
-      const html = await response.text();
       setPoPreviewHtml(html);
       setPoPreviewModalOpen(true);
     } catch (err) {
@@ -3564,38 +3555,34 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const uploadFileWithCategory = async (file: File, category: AttachmentCategory, actionItemId?: number) => {
     setAttachmentLoading(true);
 
-    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
-    const baseUrl = getApiBaseUrl();
-
     try {
       // Step 1: Get presigned URL from backend
-      const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          filename: file.name,
-          content_type: file.type || 'application/octet-stream',
-          category,
-        }),
+      const presignData = await api.post<{
+        success: boolean;
+        upload_url?: string;
+        key?: string;
+        content_type?: string;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        category,
       });
 
-      const presignData = await presignResponse.json();
-      if (!presignData.success || !presignData.upload_url) {
+      if (!presignData?.success || !presignData.upload_url) {
         console.error('[TaskFullscreenView] Failed to get presigned URL:', presignData);
-        toast.error(presignData.error || 'Failed to prepare upload. Please try again.');
+        toast.error(presignData?.error || 'Failed to prepare upload. Please try again.');
         setAttachmentLoading(false);
         return;
       }
 
 
       try {
+        // Step 2: Upload directly to S3 (external URL - keep as raw fetch)
         const s3Response = await fetch(presignData.upload_url, {
           method: 'PUT',
           headers: {
-            'Content-Type': presignData.content_type,
+            'Content-Type': presignData.content_type || 'application/octet-stream',
           },
           body: file,
         });
@@ -3615,25 +3602,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
 
       // Step 3: Confirm upload with backend
-      const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          key: presignData.key,
-          filename: file.name,
-          content_type: file.type || 'application/octet-stream',
-          category,
-          action_item_id: actionItemId,
-        }),
+      const confirmData = await api.post<{
+        success: boolean;
+        attachment?: TaskAttachment;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+        key: presignData.key,
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        category,
+        action_item_id: actionItemId,
       });
 
-      const confirmData = await confirmResponse.json();
-
-      if (confirmData.success && confirmData.attachment) {
-        setLocalAttachments(prev => [...prev, confirmData.attachment]);
+      if (confirmData?.success && confirmData.attachment) {
+        setLocalAttachments(prev => [...prev, confirmData.attachment!]);
         toast.success(`Uploaded ${file.name}`);
 
         // If linked to an action item, refresh to get updated action items
@@ -3642,7 +3624,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       } else {
         console.error('[TaskFullscreenView] Confirm failed:', confirmData);
-        toast.error(confirmData.error || 'Failed to save attachment. Please try again.');
+        toast.error(confirmData?.error || 'Failed to save attachment. Please try again.');
       }
     } catch (error) {
       console.error('[TaskFullscreenView] Upload error:', error);

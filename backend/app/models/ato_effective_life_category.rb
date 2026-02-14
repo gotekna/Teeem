@@ -5,7 +5,7 @@ class AtoEffectiveLifeCategory < ApplicationRecord
   belongs_to :parent_category, class_name: "AtoEffectiveLifeCategory",
              foreign_key: "parent_code", primary_key: "code", optional: true
   has_many :subcategories, class_name: "AtoEffectiveLifeCategory",
-           foreign_key: "parent_code", primary_key: "code"
+           foreign_key: "parent_code", primary_key: "code", dependent: :destroy
 
   # Validations
   validates :code, presence: true, uniqueness: true

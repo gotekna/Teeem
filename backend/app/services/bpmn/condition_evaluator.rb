@@ -21,6 +21,16 @@ module Bpmn
       # Replace variable references with actual values
       result = expression.dup
 
+      # IMPORTANT: Handle 'not in' operator BEFORE 'in' operator
+      # Otherwise "x not in [...]" matches the 'in' regex first, capturing "not" as variable name
+      result = result.gsub(/(\w+)\s+not\s+in\s+\[([^\]]+)\]/) do |_match|
+        var_name = Regexp.last_match(1)
+        array_str = Regexp.last_match(2)
+        var_value = get_variable(var_name)
+        array_values = parse_array_values(array_str)
+        (!array_values.include?(var_value)).to_s
+      end
+
       # Handle 'in' operator: "x in ['a', 'b']" => ['a', 'b'].include?(x)
       result = result.gsub(/(\w+)\s+in\s+\[([^\]]+)\]/) do |_match|
         var_name = Regexp.last_match(1)
@@ -28,15 +38,6 @@ module Bpmn
         var_value = get_variable(var_name)
         array_values = parse_array_values(array_str)
         array_values.include?(var_value).to_s
-      end
-
-      # Handle 'not in' operator
-      result = result.gsub(/(\w+)\s+not\s+in\s+\[([^\]]+)\]/) do |_match|
-        var_name = Regexp.last_match(1)
-        array_str = Regexp.last_match(2)
-        var_value = get_variable(var_name)
-        array_values = parse_array_values(array_str)
-        (!array_values.include?(var_value)).to_s
       end
 
       # Handle 'contains' operator: "roles contains 'admin'"
@@ -136,26 +137,30 @@ module Bpmn
     end
 
     def safe_eval(expression)
-      # Only allow safe operations
-      allowed_pattern = /\A[\s\w'".<>=!&|()\[\],+-]+\z/
-      unless expression.match?(allowed_pattern)
-        Rails.logger.warn("BPMN ConditionEvaluator: Potentially unsafe expression: #{expression}")
-        return false
-      end
+      # Use Dentaku for safe expression evaluation (no eval() risk)
+      # Dentaku supports: ==, !=, <, >, <=, >=, &&, ||, !, true, false, nil
+      # All complex operators (in, contains, is_empty) are pre-processed above
 
-      # Replace logical operators for Ruby
-      ruby_expr = expression
+      # Normalize logical operators for Dentaku
+      dentaku_expr = expression
         .gsub(/\band\b/i, "&&")
         .gsub(/\bor\b/i, "||")
         .gsub(/\bnot\b/i, "!")
         .gsub(/\btrue\b/i, "true")
         .gsub(/\bfalse\b/i, "false")
-        .gsub(/\bnil\b/i, "nil")
+        .gsub(/\bnil\b/i, "0") # Dentaku doesn't support nil, treat as falsy
 
-      # Evaluate in a safe binding
-      binding.eval(ruby_expr)
+      # Evaluate using Dentaku (safe, no code execution)
+      calculator = Dentaku::Calculator.new
+      result = calculator.evaluate(dentaku_expr)
+
+      # Coerce result to boolean
+      !!result
+    rescue Dentaku::ParseError, Dentaku::UnboundVariableError => e
+      Rails.logger.error("BPMN ConditionEvaluator: Dentaku parse error for '#{expression}': #{e.message}")
+      false
     rescue StandardError => e
-      Rails.logger.error("BPMN ConditionEvaluator: Safe eval failed for '#{expression}': #{e.message}")
+      Rails.logger.error("BPMN ConditionEvaluator: Evaluation failed for '#{expression}': #{e.message}")
       false
     end
   end

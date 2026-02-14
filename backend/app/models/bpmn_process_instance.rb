@@ -110,9 +110,9 @@ class BpmnProcessInstance < ApplicationRecord
 
   # Subject display
   def subject_display_name
-    subject&.display_name ||
-      subject&.name ||
-      subject&.title ||
+    subject.try(:display_name) ||
+      subject.try(:name) ||
+      subject.try(:title) ||
       "#{subject_type} ##{subject_id}"
   end
 

@@ -3,10 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
-import { STORAGE_KEYS, SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
-
-// Public callback page - outside (app) so no auth required
-// Uses direct fetch instead of api lib to avoid auth redirect issues
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
+import { api } from "@/lib/api";
 
 interface Status {
   loading: boolean;
@@ -82,34 +80,16 @@ function XeroCallbackContent() {
     }
 
     try {
-      // Get auth token from localStorage (shared with main window)
-      const token = localStorage.getItem(STORAGE_KEYS.TEEEM_TOKEN);
-      const apiUrl = localStorage.getItem(STORAGE_KEYS.TEEEM_API_URL) || process.env.NEXT_PUBLIC_API_URL || "";
-
-      if (!token) {
-        throw new Error("No auth token found. Please log in again.");
-      }
-
-      if (!apiUrl) {
-        throw new Error("API URL not configured. Please log in again.");
-      }
-
       const endpoint = isCompanyCallback && companyId
-        ? `${apiUrl}/api/v1/companies/${companyId}/xero/callback?code=${code}&state=${state}`
-        : `${apiUrl}/api/v1/xero/callback`;
+        ? `/api/v1/companies/${companyId}/xero/callback?code=${code}&state=${state}`
+        : `/api/v1/xero/callback`;
 
-      const response = await fetch(endpoint, {
-        method: isCompanyCallback ? "GET" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: isCompanyCallback ? undefined : JSON.stringify({ code }),
-      });
+      const response = isCompanyCallback
+        ? await api.get<{ success: boolean; error?: string }>(endpoint)
+        : await api.post<{ success: boolean; error?: string }>(endpoint, { code });
 
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || `Failed with status ${response.status}`);
+      if (!response?.success) {
+        throw new Error(response?.error || "Failed to complete Xero connection");
       }
 
       // Mark as processed

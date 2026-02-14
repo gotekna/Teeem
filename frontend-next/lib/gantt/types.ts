@@ -127,6 +127,10 @@ export interface SmScheduleMaster {
   assigned_role_name: string | null;
   supplier_id: number | null;
   supplier_name: string | null;
+  supplier_email?: string | null;
+  supplier_confirmation_method?: 'phone' | 'text' | 'email' | null;
+  supplier_confirmed_contact_name?: string | null;
+  po_supplier?: { name?: string; email?: string } | null; // PO supplier lookup object
   checklist_id: number | null;
   require_photo: boolean;
   require_certificate: boolean;
@@ -225,13 +229,24 @@ export interface SmScheduleMasterTemplate {
 /**
  * Minimal rowData for job tasks (SmTask-based Gantt)
  * Used when displaying job schedule vs template schedule
+ * Extends SmScheduleMaster with job-specific ID suffix fields
  */
-export interface JobTaskRowData {
-  task_number: number;
-  predecessor_ids?: ApiPredecessor[];
-  // Lock status fields (used by dependency editor)
-  confirm?: boolean;
-  supplier_confirm?: boolean;
+export interface JobTaskRowData extends SmScheduleMaster {
+  // Job tasks use _id suffix for lookup fields (templates use direct values)
+  trade_id?: number | null;
+  trade_name?: string | null;
+  stage_id?: number | null;
+  stage_name?: string | null;
+  assigned_role_id?: number | null;
+  cost_centre_id?: number | null;
+  spawn_order_task?: boolean;
+  spawn_call_task?: boolean;
+  is_claim_task?: boolean;
+  is_variation?: boolean;
+  claim_percentage?: number | null;
+  claim_invoice_pattern?: string | null;
+  claim_invoice_template_id?: number | null;
+  claim_trading_name_id?: number | null;
 }
 
 /**

@@ -430,6 +430,11 @@ class SmTask < ApplicationRecord
   scope :by_ticket_category, ->(category) { tickets.where(ticket_category: category) }
 
   # ============================================
+  # Map & Coordinate Scopes
+  # ============================================
+  scope :with_coordinates, -> { where.not(latitude: nil).where.not(longitude: nil) }
+
+  # ============================================
   # Privacy & Visibility Scopes
   # ============================================
   # User can see tasks that are:

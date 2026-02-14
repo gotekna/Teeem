@@ -7,7 +7,7 @@ module Gl
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: 'User', optional: true
     belongs_to :updated_by, class_name: 'User', optional: true
-    has_many :generated_invoices, class_name: 'Gl::Invoice', foreign_key: :recurring_invoice_id
+    has_many :generated_invoices, class_name: 'Gl::Invoice', foreign_key: :recurring_invoice_id, dependent: :nullify
 
     # Validations
     validates :name, presence: true

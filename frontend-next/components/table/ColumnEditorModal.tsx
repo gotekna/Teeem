@@ -206,10 +206,10 @@ export function ColumnEditorModal({
         name: column.label || "",
         column_name: column.key || "",
         data_type: column.column_type || "single_line_text",
-        header_align: (column as any).header_align || "left",
-        data_align: (column as any).data_align || "left",
-        column_group: (column as any).column_group || "",
-        formula: (column as any).formula || "",
+        header_align: column.headerAlign || "left",
+        data_align: column.dataAlign || "left",
+        column_group: ((column as unknown as Record<string, unknown>).column_group as string) || "",
+        formula: ((column as unknown as Record<string, unknown>).formula as string) || "",
         choices: column.choices || [],
         lookup_table_id: newLookupTableId,
         lookup_display_column: column.lookup_display_column || "",
@@ -222,9 +222,9 @@ export function ColumnEditorModal({
     if (!column) return false;
     return (
       editedColumn.name !== column.label ||
-      editedColumn.header_align !== ((column as any).header_align || "left") ||
-      editedColumn.data_align !== ((column as any).data_align || "left") ||
-      editedColumn.column_group !== ((column as any).column_group || "")
+      editedColumn.header_align !== (column.headerAlign || "left") ||
+      editedColumn.data_align !== (column.dataAlign || "left") ||
+      editedColumn.column_group !== (((column as unknown as Record<string, unknown>).column_group as string) || "")
     );
   };
 
@@ -356,7 +356,7 @@ export function ColumnEditorModal({
                 )}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                {metadata.icon} {metadata.label} • {(column as any).required ? "Required" : "Optional"}
+                {metadata.icon} {metadata.label} • {column.required ? "Required" : "Optional"}
               </DialogDescription>
             </div>
           </div>

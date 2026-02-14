@@ -51,7 +51,7 @@ export default function PreferencesPage() {
   // Initialize AI Writing Assistant from user data
   React.useEffect(() => {
     if (user) {
-      setEnableAiWritingAssistant((user as any).enable_ai_writing_assistant ?? false);
+      setEnableAiWritingAssistant(user.enable_ai_writing_assistant ?? false);
     }
   }, [user]);
 

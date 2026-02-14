@@ -207,6 +207,8 @@ interface DirectorChangeWizardProps {
  * Fetch a PDF from the backend download endpoint and return a blob URL.
  * The backend streams content directly when Authorization header is present,
  * avoiding CORS issues with S3/Wasabi presigned URL redirects.
+ *
+ * Keep as raw fetch - returns PDF blob (not JSON), so cannot use api.get()
  */
 async function fetchPdfAsBlob(downloadPath: string): Promise<string | null> {
   try {

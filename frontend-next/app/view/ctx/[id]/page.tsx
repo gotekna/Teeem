@@ -45,6 +45,7 @@ function ViewerContent() {
         if (!apiBase) {
           throw new Error("NEXT_PUBLIC_API_URL not configured");
         }
+        // Keep as raw fetch - public/unauthenticated endpoint (no auth headers)
         const response = await fetch(`${apiBase}/api/v1/viewer_contexts/${contextId}`);
         const data = await response.json();
 

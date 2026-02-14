@@ -5,7 +5,7 @@ class SmRecurringTaskDefinition < ApplicationRecord
   belongs_to :checklist, optional: true
   belongs_to :created_by, class_name: 'User', optional: true
   belongs_to :updated_by, class_name: 'User', optional: true
-  has_many :generated_tasks, class_name: 'SmTask', foreign_key: :recurring_task_definition_id
+  has_many :generated_tasks, class_name: 'SmTask', foreign_key: :recurring_task_definition_id, dependent: :nullify
 
   # Validations
   validates :name, presence: true

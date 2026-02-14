@@ -33,31 +33,31 @@ module Api
 
         # Task attachment counts - documents uploaded against task IDs
         # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
-        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue 0
+        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue (Rails.logger.warn("[Documents] SmTaskAttachment count failed: #{$!.message}"); 0)
 
         # Document templates (Word/Excel templates stored in storage)
-        template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
+        template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue (Rails.logger.warn("[Documents] DocumentTemplate count failed: #{$!.message}"); 0)
 
         # Pricebook images (product photos)
-        pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0
+        pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue (Rails.logger.warn("[Documents] PricebookItem count failed: #{$!.message}"); 0)
 
         # Active Storage REMOVED (Jan 2026) - SSoT is now StorageBlob
         active_storage_count = 0  # Legacy field for API compatibility
 
         # Notes attachments (notebook page files)
-        notes_count = NotebookPageAttachment.count rescue 0
+        notes_count = NotebookPageAttachment.count rescue (Rails.logger.warn("[Documents] NotebookPageAttachment count failed: #{$!.message}"); 0)
 
         # Excel spreadsheets (TeeemXL)
-        excel_count = TeeemSpreadsheet.count rescue 0
+        excel_count = TeeemSpreadsheet.count rescue (Rails.logger.warn("[Documents] TeeemSpreadsheet count failed: #{$!.message}"); 0)
 
         # Word documents (TeeemWord)
-        word_count = TeeemDocument.count rescue 0
+        word_count = TeeemDocument.count rescue (Rails.logger.warn("[Documents] TeeemDocument count failed: #{$!.message}"); 0)
 
         # PowerPoint presentations (TeeemPowerPoint)
-        powerpoint_count = TeeemPresentation.count rescue 0
+        powerpoint_count = TeeemPresentation.count rescue (Rails.logger.warn("[Documents] TeeemPresentation count failed: #{$!.message}"); 0)
 
         # PDF documents (TeeemPdf)
-        pdf_count = TeeemPdf.count rescue 0
+        pdf_count = TeeemPdf.count rescue (Rails.logger.warn("[Documents] TeeemPdf count failed: #{$!.message}"); 0)
 
         # Warehouse total (all Teeem document types stored in S3/Warehouse)
         warehousing_count = excel_count + word_count + powerpoint_count + pdf_count + notes_count
@@ -209,7 +209,7 @@ module Api
 
         # Get folder counts for this query
         folder_counts = WarehouseDocument.where(source_type: params[:source_type])
-                                         .where.not(folder_path: [nil, ""])
+                                         .in_folder
                                          .group(:folder_path)
                                          .count
 
@@ -415,7 +415,7 @@ module Api
         # SSoT (Jan 2026): Uses WarehouseDocument.folder_path for corporate documents
         folders = if sources == ["corporate"]
           folder_counts = WarehouseDocument.where(source_type: "corporate")
-                                           .where.not(folder_path: [nil, ""])
+                                           .in_folder
                                            .group(:folder_path)
                                            .count
           folder_counts.keys.sort.map.with_index do |folder_name, index|
@@ -612,7 +612,7 @@ module Api
           # SSoT (Feb 2026): Root folders built purely from folder_path column
           # No config dependency - shows exactly what exists in the data
           root_counts = base_scope
-            .where.not(folder_path: [nil, ""])
+            .in_folder
             .group(Arel.sql("split_part(folder_path, '/', 1)"))
             .count
 
@@ -1464,7 +1464,7 @@ module Api
       # in warehouse_types_controller.rb instead — FK-based, no path matching.
       def build_generic_folder_tree(scope, path_segments)
         # SSoT: source_type scopes documents, folder_path provides tree structure
-        base = WarehouseDocument.where(source_type: scope).where.not(folder_path: [nil, ""])
+        base = WarehouseDocument.where(source_type: scope).in_folder
 
         # Root prefix = first segment of folder_path (set by WarehousePathComputer from template)
         # e.g., "Job" for job docs, "Contacts" for contact docs
@@ -1814,7 +1814,7 @@ module Api
       # @return [Hash] { folders: [{ name, path, count }...], total_files: Integer }
       def build_virtual_folder_tree(documents, base_path)
         # Get all unique folder paths
-        all_folders = documents.where.not(folder_path: [nil, ""])
+        all_folders = documents.in_folder
                                .distinct
                                .pluck(:folder_path)
 

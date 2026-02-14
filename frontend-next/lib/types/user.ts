@@ -39,5 +39,12 @@ export interface User {
   primary_role_id?: number | null;
   // Email signature style (Jan 2026)
   email_signature_style?: string;
+  // QBCC and signature fields (profile page)
+  qbcc_licence_number?: string;
+  qbcc_licence_class?: string;
+  signature_url?: string | null;
+  can_sign_certificates?: boolean;
+  // AI writing assistant preference
+  enable_ai_writing_assistant?: boolean;
   [key: string]: unknown; // Allow additional properties from API
 }

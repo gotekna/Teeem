@@ -119,14 +119,14 @@ export default function ProfileSettingsPage() {
     if (user) {
       setProfileName(user.name || "");
       setProfileEmail(user.email || "");
-      setProfilePhone((user as any).mobile_phone || "");
-      setProfileJobTitle((user as any).job_title || "");
+      setProfilePhone(user.mobile_phone || "");
+      setProfileJobTitle(user.job_title || "");
       // Profile photo
-      setPhotoUrl((user as any).photo_url || null);
+      setPhotoUrl(user.photo_url || null);
       // QBCC/Signature fields
-      setQbccLicenceNumber((user as any).qbcc_licence_number || "");
-      setQbccLicenceClass((user as any).qbcc_licence_class || "");
-      setSignatureUrl((user as any).signature_url || null);
+      setQbccLicenceNumber(user.qbcc_licence_number || "");
+      setQbccLicenceClass(user.qbcc_licence_class || "");
+      setSignatureUrl(user.signature_url || null);
     }
   }, [user]);
 
@@ -464,7 +464,7 @@ export default function ProfileSettingsPage() {
             </div>
 
             {/* Status Indicator */}
-            {(user as any)?.can_sign_certificates && (
+            {user?.can_sign_certificates && (
               <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                 <Check className="h-4 w-4" />
                 Ready to sign certificates

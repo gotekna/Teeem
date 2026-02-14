@@ -43,7 +43,7 @@ import {
   PlayCircle,
   GitBranch,
 } from 'lucide-react';
-import type { GanttTask, SmScheduleMaster } from '@/lib/gantt/types';
+import type { GanttTask, SmScheduleMaster, JobTaskRowData } from '@/lib/gantt/types';
 import { isHeaderRow } from '@/lib/gantt/types';
 import type { PhotoItem } from '@/components/ui/photo-gallery';
 import { ImageLightbox } from '@/components/ui/image-lightbox';
@@ -219,10 +219,10 @@ export default function GanttPage() {
     setAvailableHeaderRows(headers);
 
     // Convert all gantt tasks to EditRowData format
-    // Note: Job mode returns sm_tasks which have _id suffix fields, cast to any for job-specific fields
+    // Note: Job mode returns sm_tasks which have _id suffix fields
     const allRows: EditRowData[] = gantt.tasks.map((t) => {
       const row = t.rowData as SmScheduleMaster;
-      const jobRow = row as any;  // Job tasks have additional fields not in SmScheduleMaster type
+      const jobRow = row as JobTaskRowData;  // Job tasks extend SmScheduleMaster with _id suffix fields
       return {
         id: row.id,
         task_number: row.task_number,
@@ -267,8 +267,8 @@ export default function GanttPage() {
     const row = task.rowData as SmScheduleMaster | undefined;
     if (!row) return;
 
-    // Job tasks have additional fields not in SmScheduleMaster type
-    const jobRow = row as any;
+    // Job tasks extend SmScheduleMaster with _id suffix fields
+    const jobRow = row as JobTaskRowData;
 
     // Convert to EditRowData format (SSoT: same as Schedule Master)
     const editRow: EditRowData = {

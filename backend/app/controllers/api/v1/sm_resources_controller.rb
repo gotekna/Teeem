@@ -240,7 +240,7 @@ module Api
             end
           }
         else
-          render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
+          render json: { success: false, error: result[:errors].join(", ") }, status: :unprocessable_entity
         end
       end
 
@@ -253,7 +253,7 @@ module Api
         if result[:success]
           render json: { success: true }
         else
-          render json: { success: false, errors: result[:errors] }, status: :unprocessable_entity
+          render json: { success: false, error: result[:errors].join(", ") }, status: :unprocessable_entity
         end
       end
 

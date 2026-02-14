@@ -689,10 +689,10 @@ export function useGanttDataManager(config: GanttDataManagerConfig) {
       }
 
       // Get supplier name, email, and previous confirmation details from rowData
-      const supplierName = (row as any).supplier_name || (row as any).po_supplier?.name || null;
-      const supplierEmail = (row as any).supplier_email || (row as any).po_supplier?.email || null;
-      const previousMethod = (row as any).supplier_confirmation_method || null;
-      const previousContactName = (row as any).supplier_confirmed_contact_name || '';
+      const supplierName = row.supplier_name || row.po_supplier?.name || null;
+      const supplierEmail = row.supplier_email || row.po_supplier?.email || null;
+      const previousMethod = (row.supplier_confirmation_method || null) as 'phone' | 'text' | 'email' | null;
+      const previousContactName = row.supplier_confirmed_contact_name || '';
       const hasPredecessors = (row.predecessor_ids?.length ?? 0) > 0;
 
       setSupplierConfirmDialog({

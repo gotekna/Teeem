@@ -11,7 +11,7 @@ module Gl
     belongs_to :created_by, class_name: "User", optional: true
 
     has_many :steps, class_name: "Gl::ApprovalWorkflowStep", foreign_key: "workflow_id", dependent: :destroy
-    has_many :approval_requests, class_name: "Gl::ApprovalRequest", foreign_key: "workflow_id"
+    has_many :approval_requests, class_name: "Gl::ApprovalRequest", foreign_key: "workflow_id", dependent: :destroy
 
     accepts_nested_attributes_for :steps, allow_destroy: true
 

@@ -159,7 +159,7 @@ class BpmnTaskInstance < ApplicationRecord
   end
 
   def assignee_name
-    assigned_to&.name || assigned_to&.email || "Unassigned"
+    assigned_to.try(:name) || assigned_to.try(:email) || "Unassigned"
   end
 
   def overdue?
@@ -198,7 +198,7 @@ class BpmnTaskInstance < ApplicationRecord
   end
 
   def create_task_notification(user, type, title)
-    subject_name = subject&.name || subject&.title || "Unknown"
+    subject_name = subject.try(:name) || subject.try(:title) || "Unknown"
     process = bpmn_process_instance&.bpmn_process
 
     Notification.create!(

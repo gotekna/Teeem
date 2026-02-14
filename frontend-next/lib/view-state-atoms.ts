@@ -719,11 +719,14 @@ export const loadFoundationViewsAtom = atom(
             ? view.filters
             : (view.filters?.cascadeFilters || []);
 
+          // Map backend snake_case fields to frontend camelCase
+          const backendView = view as unknown as SavedView & { is_default?: boolean };
+
           return {
             ...view,
-            isDefault: (view as any).is_default, // Map backend is_default to frontend isDefault
-            view_type: (view as any).view_display_type || "table", // Map backend field to frontend field
-            view_display_type: (view as any).view_display_type, // Preserve for applyViewAtom panel mode check
+            isDefault: backendView.is_default ?? view.isDefault,
+            view_type: view.view_display_type || "table", // Map backend field to frontend field
+            view_display_type: view.view_display_type, // Preserve for applyViewAtom panel mode check
             filters: ensureFilterIds(rawFilters),
             filterGroups: Array.isArray(view.filters) ? [{ id: "default", logic: "AND" as const }] : (view.filters?.filterGroups || [{ id: "default", logic: "AND" as const }]),
             interGroupLogic: Array.isArray(view.filters) ? "OR" as const : (view.filters?.interGroupLogic || "OR" as const),

@@ -120,11 +120,6 @@ export default function PredecessorEditor({ isOpen, onClose, currentRow, allRows
       }
     }
 
-    // Log if we removed any
-    if (removedDueToCircular.length > 0) {
-      console.log(`Auto-removed ${removedDueToCircular.length} circular dependencies: ${removedDueToCircular.join(', ')}`)
-    }
-
     // Save as array of objects (with circular dependencies removed)
     onSave(nonCircularPreds)
     onClose()

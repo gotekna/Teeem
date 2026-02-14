@@ -455,6 +455,11 @@ export interface Contact {
   phone?: string; // Generic phone alias (usually mobile_phone)
   // Completeness score for data quality
   completeness_score?: number | null;
+  // Portal access fields
+  portal_enabled?: boolean;
+  portal_last_login?: string | null;
+  // Related jobs for display
+  related_jobs?: Array<{ id: number; job_code: string; job_name?: string }>;
 }
 
 // Helper function types

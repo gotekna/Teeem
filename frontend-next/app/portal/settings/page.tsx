@@ -70,6 +70,12 @@ export default function PortalSettings() {
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
+      const message = error instanceof Error ? error.message : "Failed to load settings";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

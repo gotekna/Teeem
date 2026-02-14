@@ -119,6 +119,7 @@ class WarehouseDocument < ApplicationRecord
   scope :by_warehouse_type, ->(wt) { where(warehouse_type: wt) }
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
+  scope :in_folder, -> { where.not(folder_path: [nil, ""]) }
 
   # Phase 6: Multi-tenant scopes
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
