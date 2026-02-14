@@ -11,6 +11,7 @@ import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -136,7 +137,7 @@ export function XeroInvoicesCard({
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
         entries={invoices}
-        foundationId="external_invoices"
+        foundationId={FOUNDATION_SLUGS.EXTERNAL_INVOICES}
         tableName="Sales Invoices"
         onRefresh={handleRefresh}
         enableExport={true}

@@ -22,15 +22,13 @@ import {
 import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/components/documents/signature-field-config-modal";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { convertColumnsToTEEEMFormat, type ApiColumn } from "@/lib/corporate/column-utils";
-
-// SSoT: Use slug for Foundation lookup - numeric IDs differ per environment
-const DOCUMENT_TYPES_FOUNDATION_SLUG = "document_types";
 
 interface DocumentTypeFolder {
   id: number;
@@ -119,10 +117,10 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     try {
       // SSoT: Use slug for Foundation API - backend resolves to numeric ID
       const response = await api.get<{ foundation: { columns: ApiColumn[] } }>(
-        `/api/v1/foundations/${DOCUMENT_TYPES_FOUNDATION_SLUG}`
+        `/api/v1/foundations/${FOUNDATION_SLUGS.DOCUMENT_TYPES}`
       );
       const dbColumns = response?.foundation?.columns || [];
-      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, DOCUMENT_TYPES_FOUNDATION_SLUG);
+      const teeemColumns = convertColumnsToTEEEMFormat(dbColumns, FOUNDATION_SLUGS.DOCUMENT_TYPES);
 
       // SSoT: primary_folder, primary_folder_path, and show_in_folders are now Foundation columns
       // Added in migration 20260205101500 - no manual enhancement needed
@@ -476,7 +474,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       {/* Table - SSoT: Use slug, TeeemTableView resolves numeric ID */}
       {/* Add Record uses TeeemTableView's built-in modal via Foundation API */}
       <TeeemTableView
-          foundationId="document_types"
+          foundationId={FOUNDATION_SLUGS.DOCUMENT_TYPES}
           tableName={`Document Types (${filteredDocTypes.length}${scopeFilter !== "all" ? ` - ${scopeFilter}` : ""})`}
           entries={filteredDocTypes}
           // ⚠️ legacyDataSource: Documented exception to autoFetchRecords (per CLAUDE.md)

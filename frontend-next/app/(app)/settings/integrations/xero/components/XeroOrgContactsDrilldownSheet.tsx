@@ -31,6 +31,7 @@ import {
   FileX,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { XeroLinkToContactSheet } from "./XeroLinkToContactSheet";
 import { clearCachedRecords } from "@/lib/records-cache";
 import { searchQueryAtom } from "@/lib/table-atoms";
@@ -509,7 +510,7 @@ export function XeroOrgContactsDrilldownSheet({
               <div className="h-full">
                 <TeeemTableView
                   key={`tenant-${selectedTenant.tenant_id}-${quickFilter}-${refreshKey}`}
-                  foundationId="xero-sync-contacts"
+                  foundationId={FOUNDATION_SLUGS.XERO_SYNC_CONTACTS}
                   autoFetchRecords={true}
                   onRowClick={handleRowClick}
                   customCellRenderer={customCellRenderer}

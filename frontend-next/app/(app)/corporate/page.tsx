@@ -1568,7 +1568,7 @@ export default function CorporateDashboardPage() {
         {/* Companies Tab */}
         <TabsContent value="companies" className="mt-4">
           <TeeemTableView
-            foundationId="corporate_companies"
+            foundationId={FOUNDATION_SLUGS.CORPORATE_COMPANIES}
             tableName="All Companies"
             entries={companies}
             onRowDoubleClick={(company) => router.push(`/corporate/companies/${company.id}`)}

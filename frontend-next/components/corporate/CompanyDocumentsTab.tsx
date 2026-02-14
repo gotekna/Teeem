@@ -35,6 +35,7 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import DocumentEditModal from "@/components/corporate/DocumentEditModal";
@@ -548,7 +549,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   return (
     <>
       <TeeemTableView
-        foundationId="company_documents"
+        foundationId={FOUNDATION_SLUGS.COMPANY_DOCUMENTS}
         tableName={`${category ? category.toUpperCase() : "All"} Documents (${documents.length})`}
         entries={documents}
         onDelete={handleDelete}

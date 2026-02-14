@@ -524,7 +524,20 @@ module Api
         end
 
         # Get count before pagination (skip if using cursor pagination for performance)
-        total_count = params[:cursor].present? ? nil : query.count
+        # For large tables (100K+), use fast approximate count from pg_class stats
+        # to avoid slow COUNT(*) scans. Exact count used for filtered/searched queries.
+        has_active_filters = search.present? || params[:filters].present? || params[:duplicates_only].present? || params[:xero_tenant_id].present? || params[:job_id].present?
+        total_count = if params[:cursor].present?
+          nil
+        elsif !has_active_filters && model.respond_to?(:list_view_excluded_columns)
+          # Unfiltered large table: use PostgreSQL stats (instant, updated by ANALYZE)
+          approx = ActiveRecord::Base.connection.select_value(
+            "SELECT reltuples::bigint FROM pg_class WHERE relname = #{ActiveRecord::Base.connection.quote(model.table_name)}"
+          ).to_i
+          approx > 0 ? approx : query.count
+        else
+          query.count
+        end
 
         # Performance: Heavy columns (e.g., JSONB metadata) are excluded at query level
         # via model.list_view_excluded_columns (applied above). This is model-opt-in,

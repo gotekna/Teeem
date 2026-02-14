@@ -104,6 +104,8 @@ export const TAILWIND_COLORS = {
     500: '#f59e0b',
     600: '#d97706',
     700: '#b45309',
+    800: '#92400e',
+    900: '#78350f',
   },
   yellow: {
     400: '#facc15',
@@ -114,6 +116,8 @@ export const TAILWIND_COLORS = {
     400: '#fb923c',
     500: '#f97316',
     600: '#ea580c',
+    700: '#c2410c',
+    800: '#9a3412',
   },
   // Purple/Violet
   purple: {

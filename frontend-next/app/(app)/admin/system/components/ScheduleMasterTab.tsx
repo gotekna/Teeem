@@ -94,6 +94,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
 import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
 import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS, RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 // Copyable code component for column names
 function CopyableCode({ children }: { children: string }) {
@@ -2847,7 +2848,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           <div className="flex flex-col h-full">
             <TeeemTableView
               key={`${dataViewRefreshKey}-${selectedTagFilter}-${dataViewTemplateId}`}
-              foundationId="sm-schedule-master"
+              foundationId={FOUNDATION_SLUGS.SM_SCHEDULE_MASTER}
               tableName={dataViewTemplateId === -1
                 ? "No Template Selected"
                 : dataViewTemplateId

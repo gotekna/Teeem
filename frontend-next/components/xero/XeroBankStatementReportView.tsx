@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw, FileText, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -310,7 +311,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
               <TabsContent key={bankName} value={bankName} className="mt-0">
                 <TeeemTableView
                   entries={getTableRows(reportsByBank[bankName] || [])}
-                  foundationId="bank_statement_reports"
+                  foundationId={FOUNDATION_SLUGS.BANK_STATEMENT_REPORTS}
                   tableName="Statements"
                   onRowClick={handleRowClick}
                   viewOnly={true}

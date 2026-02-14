@@ -54,6 +54,29 @@ class ImapEmailService
     raise
   end
 
+  # Fetch attachments for a single email by UID.
+  # Used by SyncedEmail#sync_attachments! for IMAP-only mailboxes (Gmail, Webcentral, etc.)
+  # @param uid [Integer] IMAP UID of the email
+  # @param folder [String] IMAP folder containing the email
+  # @return [Array<Hash>, nil] Array of { filename:, content_type:, content:, size: } or nil
+  def fetch_attachments_by_uid(uid, folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(folder)
+
+      fetch_data = imap.uid_fetch([uid.to_i], ["BODY.PEEK[]"])
+      return nil unless fetch_data&.any?
+
+      raw = fetch_data.first.attr["BODY[]"] || fetch_data.first.attr["RFC822"]
+      return nil unless raw
+
+      mail = Mail.read_from_string(raw)
+      extract_attachments(mail)
+    end
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error fetching attachments by UID #{uid}: #{e.message}"
+    nil
+  end
+
   # Fetch emails incrementally using UID
   # @return [Array<Hash>] Array of email data hashes
   def fetch_new_emails(folder: "INBOX", limit: 500)

@@ -69,17 +69,33 @@ class WarehouseDocument < ApplicationRecord
   # as they generate expensive per-type queries across 125K+ records
   # ========================================
   def self.safe_eager_load_associations
-    [:warehouse_folder, :warehouse_folder_document_type, :storage_blob]
+    # Only storage_blob — warehouse_folder/warehouse_folder_document_type FKs
+    # are excluded from list views (list_view_excluded_columns) so no point loading them
+    [:storage_blob]
   end
 
   # ========================================
-  # Performance: Exclude heavy columns from Foundation API list views
-  # metadata is JSONB (TOAST-compressed) - skipping it avoids decompression
-  # and significantly reduces payload for 24K+ record tables.
+  # Performance: Exclude columns from Foundation API list views
+  # Table could reach 3M+ records — every byte per row matters.
+  # - metadata: JSONB (TOAST-compressed), largest column by far
+  # - Internal FKs/config: not displayed in table UI, only needed in detail views
   # Detail views (show action) still return all columns.
   # ========================================
   def self.list_view_excluded_columns
-    %w[metadata]
+    %w[
+      metadata
+      folder_path
+      version_group_id
+      version_number
+      is_latest_version
+      parent_document_id
+      linkable_type
+      linkable_id
+      warehouse_folder_id
+      warehouse_folder_document_type_id
+      path_template_version
+      warehouse_type
+    ]
   end
 
   # ========================================

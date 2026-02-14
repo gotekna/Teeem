@@ -70,6 +70,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -869,7 +870,7 @@ function GoldStandardDataTab() {
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
-        foundationId="gold_standard_table"
+        foundationId={FOUNDATION_SLUGS.GOLD_STANDARD_TABLE}
         foundationIdNumeric={foundationNumericId || undefined}  // Enables view URL sync
         tableName="Gold Standard Table"
         // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled

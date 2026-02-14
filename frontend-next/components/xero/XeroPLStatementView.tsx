@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, FileText, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow, TableColumn } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -257,7 +258,7 @@ export function XeroPLStatementView({ companyId }: XeroPLStatementViewProps) {
           <div className="-mx-4">
             <TeeemTableView
               entries={tableRows}
-              foundationId="profit_loss_reports"
+              foundationId={FOUNDATION_SLUGS.PROFIT_LOSS_REPORTS}
               tableName="P&L Report Statements"
               onRowClick={handleRowClick}
               viewOnly={true}

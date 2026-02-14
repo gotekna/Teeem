@@ -1014,17 +1014,32 @@ class SyncedEmail < ApplicationRecord
     # SSoT: Try linking existing attachments first (don't re-download)
     link_existing_attachments!
 
-    # Build ordered list of credential+mailbox+outlook_id combinations to try
-    credential_attempts = build_credential_attempts
-    if credential_attempts.empty?
-      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no credential/outlook_id available"
+    # Try Microsoft Graph first, then IMAP fallback
+    if sync_attachments_via_graph!
+      update_column(:attachment_count, attachment_documents.reload.count)
       return
     end
 
-    # Try each credential combination until one succeeds
+    if sync_attachments_via_imap!
+      update_column(:attachment_count, attachment_documents.reload.count)
+      return
+    end
+
+    Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no working credential (Graph or IMAP)"
+  end
+
+  private
+
+  # Fetch attachments via Microsoft Graph API.
+  # Tries legacy fields first, then SyncedEmailMailbox appearances.
+  # Returns true if attachments were found and processed, false if no Graph path worked.
+  def sync_attachments_via_graph!
+    graph_attempts = build_graph_credential_attempts
+    return false if graph_attempts.empty?
+
     attachments = nil
     used_mailbox = nil
-    credential_attempts.each do |attempt|
+    graph_attempts.each do |attempt|
       cred = MicrosoftCredential.find_by(id: attempt[:credential_id])
       next unless cred&.status == "connected"
 
@@ -1032,20 +1047,53 @@ class SyncedEmail < ApplicationRecord
         client = MicrosoftAppGraphClient.new(cred)
         attachments = client.get_email_attachments(attempt[:mailbox], attempt[:outlook_id])
         used_mailbox = attempt[:mailbox]
-        break # Success
+        break
       rescue Microsoft::BaseClient::ApiError => e
         if e.message.include?("404")
           Rails.logger.debug "[SyncedEmail] 404 for email #{id} via cred #{attempt[:credential_id]} / #{attempt[:mailbox]} - trying next"
           next
         end
-        raise # Re-raise non-404 errors (auth failures, rate limits, etc.)
+        raise
       end
     end
 
-    return unless attachments&.any?
+    return false unless attachments&.any?
 
-    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id} (via #{used_mailbox})"
+    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id} via Graph (#{used_mailbox})"
+    store_graph_attachments!(attachments, used_mailbox)
+    true
+  end
 
+  # Fetch attachments via IMAP (for non-M365 mailboxes: Gmail, Webcentral, etc.)
+  # Uses SyncedEmailMailbox join table to find IMAP credential + UID.
+  # Returns true if attachments were found and processed, false if no IMAP path worked.
+  def sync_attachments_via_imap!
+    imap_attempts = build_imap_credential_attempts
+    return false if imap_attempts.empty?
+
+    imap_attempts.each do |attempt|
+      cred = ImapCredential.find_by(id: attempt[:imap_credential_id])
+      next unless cred
+
+      begin
+        service = ImapEmailService.new(cred)
+        mail_attachments = service.fetch_attachments_by_uid(attempt[:uid], folder: attempt[:folder])
+        next unless mail_attachments&.any?
+
+        Rails.logger.info "[SyncedEmail] Syncing #{mail_attachments.count} attachments for email #{id} via IMAP (#{attempt[:mailbox]})"
+        store_imap_attachments!(mail_attachments, attempt[:mailbox])
+        return true
+      rescue => e
+        Rails.logger.debug "[SyncedEmail] IMAP attachment fetch failed for email #{id} via cred #{attempt[:imap_credential_id]}: #{e.message}"
+        next
+      end
+    end
+
+    false
+  end
+
+  # Store attachments fetched from Microsoft Graph API
+  def store_graph_attachments!(attachments, used_mailbox)
     attachments.each do |att|
       next if att["contentBytes"].blank?
 
@@ -1053,8 +1101,8 @@ class SyncedEmail < ApplicationRecord
       filename = att["name"]
       content_type = att["contentType"]
       byte_size = att["size"].to_i
-      content_id = att["contentId"]  # For matching cid: references in HTML
-      graph_attachment_id = att["id"]  # Microsoft Graph attachment ID
+      content_id = att["contentId"]
+      graph_attachment_id = att["id"]
 
       # Skip small inline images (likely signatures)
       next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
@@ -1063,14 +1111,10 @@ class SyncedEmail < ApplicationRecord
       existing_doc = attachment_documents.find { |d| d.original_filename == filename }
       next if existing_doc&.storage_blob_id.present?
 
-      # Create StorageBlob (handles deduplication via content_hash)
       blob = StorageBlob.find_or_create_for_content!(
-        content,
-        filename: filename,
-        content_type: content_type
+        content, filename: filename, content_type: content_type
       )
 
-      # Create WarehouseDocument via standard service
       # FRC (Feb 2026): Use linkable (not documentable) because has_one :warehouse_document
       # reserves documentable for the email body doc. Attachments are tracked via metadata.
       WarehouseDocumentCreator.create!(
@@ -1093,19 +1137,56 @@ class SyncedEmail < ApplicationRecord
     rescue StandardError => e
       Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
     end
-
-    # Update attachment count
-    update_column(:attachment_count, attachment_documents.reload.count)
   end
 
-  private
+  # Store attachments fetched from IMAP
+  def store_imap_attachments!(mail_attachments, mailbox)
+    mail_attachments.each do |att|
+      next unless att[:content].present?
 
-  # Build ordered list of credential+mailbox+outlook_id combinations for attachment sync.
-  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances (SSoT join table).
+      filename = att[:filename]
+      content_type = att[:content_type]
+      content = att[:content]
+      byte_size = att[:size] || content.bytesize
+
+      # Skip small inline images (likely signatures)
+      next if content_type&.start_with?("image/") && byte_size < 50_000
+
+      # Per-attachment dedup
+      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
+      next if existing_doc&.storage_blob_id.present?
+
+      blob = StorageBlob.find_or_create_for_content!(
+        content, filename: filename, content_type: content_type
+      )
+
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "email_attachment",
+        linkable: self,
+        storage_blob: blob,
+        file_size: byte_size.positive? ? byte_size : blob.file_size,
+        content_type: content_type || blob.content_type,
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "mailbox" => mailbox,
+          "source" => "imap"
+        }.compact
+      )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[SyncedEmail] Synced IMAP attachment: #{filename}"
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to sync IMAP attachment #{filename}: #{e.message}"
+    end
+  end
+
+  # Build ordered list of Microsoft Graph credential attempts.
+  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances.
   # FRC (Feb 2026): Legacy fields are set by FIRST sync and never updated. For emails originally
   # synced via a credential that can no longer access the mailbox (e.g., different Azure AD tenant),
   # the join table may have an alternative appearance with a working credential.
-  def build_credential_attempts
+  def build_graph_credential_attempts
     attempts = []
 
     # 1) Legacy fields (backward compat, fastest path for the 90% case)
@@ -1121,6 +1202,24 @@ class SyncedEmail < ApplicationRecord
         credential_id: appearance.microsoft_credential_id,
         mailbox: appearance.mailbox_owner_email,
         outlook_id: appearance.outlook_id
+      }
+    end
+
+    attempts
+  end
+
+  # Build IMAP credential attempts from SyncedEmailMailbox join table.
+  # Used as fallback when no Microsoft Graph credential is available (Gmail, Webcentral, etc.)
+  def build_imap_credential_attempts
+    attempts = []
+
+    mailbox_appearances.where.not(imap_credential_id: nil).where.not(uid: nil).each do |appearance|
+      next if attempts.any? { |a| a[:imap_credential_id] == appearance.imap_credential_id && a[:uid] == appearance.uid }
+      attempts << {
+        imap_credential_id: appearance.imap_credential_id,
+        mailbox: appearance.mailbox_owner_email,
+        uid: appearance.uid,
+        folder: appearance.folder_name || "INBOX"
       }
     end
 

@@ -390,8 +390,8 @@ export function EditorToolbar({
   const [linkOpen, setLinkOpen] = React.useState(false);
   const [fontSizeInput, setFontSizeInput] = React.useState("");
   const [fontSizeOpen, setFontSizeOpen] = React.useState(false);
-  const [selectedTextColor, setSelectedTextColor] = React.useState(RICH_TEXT_COLORS.defaults.textColor);
-  const [selectedHighlightColor, setSelectedHighlightColor] = React.useState(RICH_TEXT_COLORS.defaults.highlightColor);
+  const [selectedTextColor, setSelectedTextColor] = React.useState<string>(RICH_TEXT_COLORS.defaults.textColor);
+  const [selectedHighlightColor, setSelectedHighlightColor] = React.useState<string>(RICH_TEXT_COLORS.defaults.highlightColor);
   const imageInputRef = React.useRef<HTMLInputElement>(null);
   const { issues, isChecking } = useWritingCheckerState(editor);
 
@@ -1181,7 +1181,7 @@ export function EditorToolbar({
                       width: Math.min(pen.size * 2, 12),
                       height: Math.min(pen.size * 2, 12),
                       backgroundColor: pen.color,
-                      opacity: pen.opacity || 1,
+                      opacity: ('opacity' in pen ? pen.opacity : 1) as number,
                     }}
                   />
                 </button>
