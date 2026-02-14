@@ -86,6 +86,19 @@ class ApplicationController < ActionController::API
       end
     end
 
+    # Fallback: Try token query param (for streaming endpoints like /content
+    # where fetch() can't easily set Authorization headers)
+    unless @current_user
+      if params[:token].present?
+        begin
+          decoded = JsonWebToken.decode(params[:token])
+          @current_user = User.find(decoded[:user_id]) if decoded
+        rescue ActiveRecord::RecordNotFound, JWT::DecodeError
+          # Query param auth also failed
+        end
+      end
+    end
+
     # Require authentication - no default user fallback
     # Use throw :abort to properly halt the filter chain in Rails API mode
     unless @current_user

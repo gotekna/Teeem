@@ -210,6 +210,7 @@ Rails.application.routes.draw do
       # UserDocuments - personal user documents (My Docs feature)
       resources :user_documents, only: [ :index, :show, :create, :update, :destroy ] do
         member do
+          get :content                # GET /api/v1/user_documents/:id/content - stream bytes (CORS-safe preview)
           get :download               # GET /api/v1/user_documents/:id/download - presigned URL
           post :save_to_job           # POST /api/v1/user_documents/:id/save_to_job - link to job
         end

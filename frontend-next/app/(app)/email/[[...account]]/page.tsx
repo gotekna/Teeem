@@ -335,12 +335,14 @@ interface Email {
   job_id: number | null;
   job_number: string | null;
   attachments?: Array<{
-    id: number;
+    id: number | null;
     name: string;
     content_type: string;
     size: number;
     content_id?: string;
     inline_url?: string;
+    outlook_attachment_id?: string;
+    is_inline?: boolean;
   }>;
   // Threading fields
   internet_message_id?: string;
@@ -818,7 +820,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number; name: string; content_type: string; size: number}> } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}> } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -1886,7 +1888,7 @@ To: ${email.to_emails?.join(", ") || ""}
       body: forwardHeader + originalBody,
       fromAccountId: selectedAccount,
       forwardEmailId: email.id,
-      forwardAttachments: email.attachments?.filter(a => !a.content_id) || [],
+      forwardAttachments: email.attachments?.filter(a => !a.content_id && !a.is_inline) || [],
     });
     setComposeOpen(true);
   }, [selectedAccount, setComposeOpen]);

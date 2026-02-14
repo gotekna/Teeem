@@ -84,7 +84,7 @@ interface ComposeEmailModalProps {
   /** Forward: original email ID for fetching attachments */
   forwardEmailId?: number;
   /** Forward: attachment metadata from the original email */
-  forwardAttachments?: Array<{id: number; name: string; content_type: string; size: number}>;
+  forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>;
   onSent?: () => void;
 }
 
@@ -442,11 +442,18 @@ export function ComposeEmailModal({
       for (const att of forwardAttachments) {
         if (cancelled) break;
         try {
+          // Use whichever ID is available: local WarehouseDocument id OR Outlook attachment id
+          const attachmentId = att.id || att.outlook_attachment_id;
+          if (!attachmentId) {
+            console.warn(`[Compose] No attachment ID for: ${att.name}, skipping`);
+            continue;
+          }
+
           // Try presigned URL first (fast path)
           let blob: Blob | null = null;
           try {
             const presigned = await api.get(
-              `/api/v1/synced_emails/${forwardEmailId}/attachments/${att.id}/presigned_url?filename=${encodeURIComponent(att.name)}`
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(att.name)}`
             ) as { success?: boolean; url?: string };
             if (presigned?.success && presigned.url) {
               const response = await fetch(presigned.url);
@@ -459,7 +466,7 @@ export function ComposeEmailModal({
           // Proxy fallback
           if (!blob) {
             blob = await api.getBlob(
-              `/api/v1/synced_emails/${forwardEmailId}/attachments/${att.id}/download?filename=${encodeURIComponent(att.name)}`
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(att.name)}`
             );
           }
 

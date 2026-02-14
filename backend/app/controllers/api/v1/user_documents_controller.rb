@@ -164,6 +164,20 @@ module Api
         render json: { success: true, message: "Document deleted successfully" }
       end
 
+      # GET /api/v1/user_documents/:id/content
+      # Streams file bytes through backend (bypasses CORS for mammoth.js / PDF.js preview)
+      # Accepts ?token= query param for auth (since fetch() from DocumentViewer can't set headers)
+      def content
+        unless @document.storage_blob
+          return render_error("No file content available", status: :not_found)
+        end
+
+        send_data @document.storage_blob.download,
+                  filename: @document.file_name || "document",
+                  type: @document.storage_blob.content_type || "application/octet-stream",
+                  disposition: "inline"
+      end
+
       # GET /api/v1/user_documents/:id/download
       def download
         unless @document.storage_blob&.storage_path.present?

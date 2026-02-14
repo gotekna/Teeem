@@ -20,7 +20,7 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [sessionExpiredMessage, setSessionExpiredMessage] = useState("");
-  const { login, isAuthenticated, loading, handleTokenFromRedirect } = useAuth();
+  const { login, isAuthenticated, loading, handleTokenFromRedirect, forcePasswordChange } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -33,18 +33,13 @@ function LoginForm() {
       const apiUrlParam = searchParams.get('api_url') || undefined;
       const envParam = searchParams.get('environment') || undefined;
       const rememberParam = searchParams.get('remember') === '1';
-      const redirectPath = searchParams.get('redirect') || ROUTES.DASHBOARD;
 
       // Use AuthContext to handle the token - this stores it, sets up API URL,
-      // and verifies with the backend before redirecting
-      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam, rememberParam).then((success) => {
-        if (success) {
-          router.push(redirectPath);
-        }
-        // If failed, user stays on login page (logout was called by handleTokenFromRedirect)
-      });
+      // and verifies with the backend
+      // Navigation handled by useEffect watching isAuthenticated (avoids race condition)
+      handleTokenFromRedirect(tokenParam, apiUrlParam, envParam, rememberParam);
     }
-  }, [searchParams, router, handleTokenFromRedirect]);
+  }, [searchParams, handleTokenFromRedirect]);
 
   // Pre-fill email and password from URL params (e.g., welcome email link)
   useEffect(() => {
@@ -68,11 +63,21 @@ function LoginForm() {
   }, [searchParams]);
 
   // Redirect if already authenticated
+  // ⚠️ DO NOT SIMPLIFY - This is THE ONE navigation after login (Feb 2026)
+  // ════════════════════════════════════════════════════════════════════
+  // Why: handleSubmit must NOT call router.push() directly because React
+  // state (setUser) hasn't propagated yet. The dashboard layout checks
+  // isAuthenticated and redirects back to login if it's still false.
+  // This effect fires AFTER React re-renders with isAuthenticated=true,
+  // so the dashboard layout sees the correct auth state.
+  // ❌ WRONG: router.push('/dashboard') in handleSubmit (race condition)
+  // ✅ CORRECT: Let this effect handle navigation after state propagates
+  // ════════════════════════════════════════════════════════════════════
   useEffect(() => {
     if (!loading && isAuthenticated) {
-      router.push(ROUTES.DASHBOARD);
+      router.push(forcePasswordChange ? "/settings/security" : ROUTES.DASHBOARD);
     }
-  }, [isAuthenticated, loading, router]);
+  }, [isAuthenticated, loading, router, forcePasswordChange]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,17 +88,17 @@ function LoginForm() {
     try {
       const result = await login(identifier, password, rememberMe);
       if (result.success) {
-        // Force password change shows dialog immediately via layout
-        // Push to dashboard - the ChangePasswordDialog will block interaction
-        router.push(result.forcePasswordChange ? "/settings/security" : "/dashboard");
+        // Navigation handled by useEffect watching isAuthenticated
+        // DO NOT router.push() here - React state hasn't propagated yet
+        // Keep isLoading=true so button stays as "Signing in..." until redirect
+        return;
       } else {
         setError(result.error || "Login failed. Please try again.");
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsLoading(false);
     }
+    setIsLoading(false);
   };
 
   const handleMicrosoftLogin = () => {

@@ -40,7 +40,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DocumentViewer } from "@/components/ui/document-viewer";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
@@ -401,13 +402,14 @@ export default function MyDocsPage() {
       return;
     }
 
-    // Otherwise fetch a download/preview URL
+    // Use backend /content endpoint to stream bytes through our API (bypasses CORS)
+    // This avoids the browser blocking direct fetch() to S3/Wasabi presigned URLs
     setPreviewLoading(true);
     try {
-      const response = await api.get<{ success: boolean; url: string }>(`/api/v1/user_documents/${doc.id}/download`);
-      if (response?.success && response.url) {
-        setPreviewUrl(response.url);
-      }
+      const contentUrl = `${getApiBaseUrl()}/api/v1/user_documents/${doc.id}/content`;
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      // Build URL with auth token as query param (send_data doesn't go through api.get)
+      setPreviewUrl(`${contentUrl}?token=${encodeURIComponent(token || "")}`);
     } catch (error) {
       console.error("Failed to get preview URL:", error);
     } finally {
