@@ -492,14 +492,19 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_email/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
-    # SSoT: Use MicrosoftCredential
-    org_cred = MicrosoftCredential.app_credentials.find_by(name: "Tekna")
+    # FRC (Feb 2026): Was hardcoded to find_by(name: "Tekna") - SSoT violation.
+    # Use tenant-scoped credentials and report the most recent sync across all orgs.
+    org_creds = MicrosoftCredential.refreshable_app
+                                   .where(organization_id: tenant_organization_ids)
+
+    last_sync = org_creds.maximum(:last_sync_at)
 
     render json: {
       status: "automatic",
       message: "Email sync runs automatically every 15 minutes via org-wide sync",
-      last_sync_at: org_cred&.last_sync_at,
-      sync_interval: "15 minutes"
+      last_sync_at: last_sync,
+      sync_interval: "15 minutes",
+      organizations: org_creds.map { |c| { id: c.id, name: c.name, last_sync_at: c.last_sync_at } }
     }
   end
 
@@ -1230,6 +1235,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
 
     # Fetch attachment from Microsoft Graph (Outlook)
+    # FRC (Feb 2026): outlook_attachment_id was never defined - NameError crash.
+    # When local storage lookup fails, params[:attachment_id] IS the Outlook attachment ID
+    # (frontend sends attachment.id || attachment.outlook_attachment_id)
+    outlook_attachment_id = attachment_id
     Rails.logger.info "[SyncedEmail] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
     client = MicrosoftAppGraphClient.new(credential)
     attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)

@@ -881,10 +881,10 @@ export default function ClassificationPanel({
               </div>
             </div>
 
-            {/* UI Name */}
+            {/* UI Name — resolved_ui_name (template-expanded) takes priority over raw AI suggestion */}
             {(() => {
-              const aiUiName = document.ai_suggested_name || classificationData?.ai?.resolved_ui_name;
-              const auto = localGetAutoFields(document.ai_suggested_type);
+              const aiUiName = classificationData?.ai?.resolved_ui_name || document.ai_suggested_name;
+              const auto = localGetAutoFields(classificationData?.ai?.document_type || document.ai_suggested_type);
               return (
                 <div className={cn(auto.uiName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
@@ -905,7 +905,7 @@ export default function ClassificationPanel({
             {/* DL Name */}
             {(() => {
               const aiDlName = classificationData?.ai?.resolved_dl_name;
-              const auto = localGetAutoFields(document.ai_suggested_type);
+              const auto = localGetAutoFields(classificationData?.ai?.document_type || document.ai_suggested_type);
               return (
                 <div className={cn(auto.dlName && "opacity-40")}>
                   <Label className="text-[10px] text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>

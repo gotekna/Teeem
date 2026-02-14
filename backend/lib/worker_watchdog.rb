@@ -23,6 +23,10 @@ class WorkerWatchdog
   CACHE_KEY_RESTART_TIMES = "worker_watchdog:restart_times"
   CACHE_KEY_LAST_STATUS = "worker_watchdog:last_status"
 
+  # SSoT: The shared worker app processes ALL background jobs for all environments.
+  # Individual apps (production, staging, beta) only run web dynos.
+  SHARED_WORKER_APP = "teeem-shared-worker".freeze
+
   class << self
     def start!
       @thread = Thread.new do
@@ -97,10 +101,11 @@ class WorkerWatchdog
         return
       end
 
-      app_name = ENV["HEROKU_APP_NAME"]
+      # Worker dyno lives on the shared worker app, not on this app
+      app_name = SHARED_WORKER_APP
       api_key = HerokuPlatformService.api_key
 
-      Rails.logger.warn("[WorkerWatchdog] Restarting worker dyno on #{app_name}")
+      Rails.logger.warn("[WorkerWatchdog] Restarting worker dyno on #{app_name} (triggered from #{ENV['HEROKU_APP_NAME']})")
       record_restart!
 
       uri = URI("https://api.heroku.com/apps/#{app_name}/dynos/worker")

@@ -338,13 +338,54 @@ module Api
       def resolve_inbox_doc_type_fields(doc_type_slug)
         return { folder: nil, ui_name: nil, dl_name: nil } if doc_type_slug.blank?
 
-        dt = DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
-          doc_type_slug.tr('_', ' ').downcase,
-          doc_type_slug.downcase
-        )
+        dt = DocumentType.find_by_name_or_alias(doc_type_slug) ||
+          DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
+            doc_type_slug.tr('_', ' ').downcase,
+            doc_type_slug.downcase
+          )
         return { folder: nil, ui_name: nil, dl_name: nil } unless dt
 
-        { folder: dt.folder, ui_name: dt.respond_to?(:ui_name) ? dt.ui_name : nil, dl_name: dt.respond_to?(:download_name) ? dt.download_name : nil }
+        folder = dt.folder
+
+        # SSoT: Use WFDT effective template chain (WFDT → DocumentType → WarehouseFolder)
+        primary_wfdt = dt.warehouse_folder_document_types.find_by(is_primary: true) ||
+                       dt.warehouse_folder_document_types.first
+
+        ui_template = primary_wfdt&.effective_ui_name_template || dt.ui_name
+        dl_template = primary_wfdt&.effective_download_name_template || dt.download_name
+
+        # Build minimal context for template expansion (no warehouse doc for inbox items)
+        context = {
+          doc_type_name: dt.name,
+          doc_type_code: dt.abbreviation || dt.try(:code),
+          document_date: @item&.created_at || Time.current,
+          original_filename: @item&.original_filename,
+          folder: folder
+        }
+
+        # Add company context from metadata if available
+        if @item&.metadata.is_a?(Hash)
+          if @item.metadata["company_id"].present?
+            company = Corporate.find_by(id: @item.metadata["company_id"])
+            if company
+              context[:company_code] = company.company_code || company.try(:code)
+              context[:company_name] = company.name
+              context[:company_group] = company.company_group&.name
+            end
+          end
+        end
+
+        resolver = SendNameResolver.new
+        resolved_ui = ui_template.present? ? resolver.send(:expand_template, ui_template, context) : nil
+        resolved_dl = if dl_template.present?
+          expanded = resolver.send(:expand_template, dl_template, context)
+          expanded.present? ? resolver.send(:full_sanitize, expanded) : nil
+        end
+
+        { folder: folder, ui_name: resolved_ui, dl_name: resolved_dl }
+      rescue StandardError => e
+        Rails.logger.debug "[DocumentInboxes] resolve_inbox_doc_type_fields failed for '#{doc_type_slug}': #{e.message}"
+        { folder: nil, ui_name: nil, dl_name: nil }
       end
 
       def serialize_item(item, detailed: false)

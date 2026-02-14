@@ -300,27 +300,36 @@ module Api
         return { folder: nil, ui_name: nil, dl_name: nil } if doc_type_slug.blank?
 
         # Find the DocumentType record by slug or name
-        dt = DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
-          doc_type_slug.tr('_', ' ').downcase,
-          doc_type_slug.downcase
-        )
+        dt = DocumentType.find_by_name_or_alias(doc_type_slug) ||
+          DocumentType.find_by("lower(name) = ? OR lower(replace(name, ' ', '_')) = ?",
+            doc_type_slug.tr('_', ' ').downcase,
+            doc_type_slug.downcase
+          )
         return { folder: nil, ui_name: nil, dl_name: nil } unless dt
 
         # Resolve folder from doc type's primary warehouse folder
         folder = dt.folder
 
-        # Resolve ui_name and dl_name by expanding templates with the document's context
+        # Build context from warehouse doc, then override doc type tokens
+        # with the RESOLVED doc type (not the document's current doc type)
         resolver = SendNameResolver.new
         context = resolver.send(:build_context, warehouse_doc)
+        context[:doc_type_name] = dt.name
+        context[:doc_type_code] = dt.abbreviation || dt.try(:code)
 
-        # Resolve UI name from doc type's template
-        ui_template = dt.ui_name
+        # SSoT: Use WFDT effective template chain (WFDT → DocumentType → WarehouseFolder)
+        # This matches how WarehouseDocumentCreator resolves names at creation time
+        primary_wfdt = dt.warehouse_folder_document_types.find_by(is_primary: true) ||
+                       dt.warehouse_folder_document_types.first
+
+        # Resolve UI name from effective template chain
+        ui_template = primary_wfdt&.effective_ui_name_template || dt.ui_name
         resolved_ui = if ui_template.present?
           resolver.send(:expand_template, ui_template, context)
         end
 
-        # Resolve DL name from doc type's template
-        dl_template = dt.download_name
+        # Resolve DL name from effective template chain
+        dl_template = primary_wfdt&.effective_download_name_template || dt.download_name
         resolved_dl = if dl_template.present?
           expanded = resolver.send(:expand_template, dl_template, context)
           expanded.present? ? resolver.send(:full_sanitize, expanded) : nil
