@@ -60,20 +60,16 @@ class PurchaseOrder < ApplicationRecord
     # Try SmTask.stage first, then SmScheduleMaster.stage
     stage_id = sm_task&.stage || sm_task&.sm_schedule_master&.stage
     return nil unless stage_id
-    # Look up stage name from sm_stages table
-    ActiveRecord::Base.connection.select_value(
-      "SELECT name FROM sm_stages WHERE id = #{stage_id.to_i}"
-    )
+    # Look up stage name from sm_stages table using ActiveRecord (SQL injection safe)
+    SmStage.find_by(id: stage_id)&.name
   end
 
   def trade_from_task
     # Try SmTask.trade first, then SmScheduleMaster.trade
     trade_id = sm_task&.trade || sm_task&.sm_schedule_master&.trade
     return nil unless trade_id
-    # Look up trade name from sm_trades table
-    ActiveRecord::Base.connection.select_value(
-      "SELECT name FROM sm_trades WHERE id = #{trade_id.to_i}"
-    )
+    # Look up trade name from sm_trades table using ActiveRecord (SQL injection safe)
+    SmTrade.find_by(id: trade_id)&.name
   end
 
   has_many :purchase_order_documents, dependent: :destroy

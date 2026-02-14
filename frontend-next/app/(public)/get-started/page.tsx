@@ -190,8 +190,8 @@ function GetStartedPageContent() {
 
       if (response?.success) {
         // Store tenant info for the next steps
-        sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT", JSON.stringify(response.tenant));
-        sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN", JSON.stringify(response.admin_user));
+        sessionStorage.setItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT, JSON.stringify(response.tenant));
+        sessionStorage.setItem(SESSION_STORAGE_KEYS.SIGNUP_ADMIN, JSON.stringify(response.admin_user));
         router.push("/get-started/plan");
       } else {
         setError(response?.error || "Signup failed");

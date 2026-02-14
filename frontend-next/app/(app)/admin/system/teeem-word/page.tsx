@@ -285,13 +285,13 @@ export default function TeeemWordPage() {
     const shouldImport = searchParams.get("import") === "true";
     if (!shouldImport || !editor || !document) return;
 
-    const importData = sessionStorage.getItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT");
+    const importData = sessionStorage.getItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT);
     if (!importData) return;
 
     try {
       const { base64, fileName } = JSON.parse(importData);
       if (!base64 || !fileName?.toLowerCase().endsWith(".docx")) {
-        sessionStorage.removeItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT");
+        sessionStorage.removeItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT);
         return;
       }
 
@@ -332,13 +332,13 @@ export default function TeeemWordPage() {
         });
       }).finally(() => {
         setImporting(false);
-        sessionStorage.removeItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT");
+        sessionStorage.removeItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT);
         // Remove the import param from URL
         router.replace(`/admin/system/teeem-word/${document.id}`);
       });
     } catch (error) {
       console.error("Failed to parse import data:", error);
-      sessionStorage.removeItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT");
+      sessionStorage.removeItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT);
     }
   }, [editor, document, searchParams, router, toast]);
 

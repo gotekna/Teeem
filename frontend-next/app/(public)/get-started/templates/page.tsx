@@ -37,7 +37,7 @@ export default function TemplateSelectionPage() {
 
   useEffect(() => {
     // Get tenant info from session storage
-    const storedTenant = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
+    const storedTenant = sessionStorage.getItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT);
     if (!storedTenant) {
       router.push("/get-started");
       return;
@@ -79,7 +79,7 @@ export default function TemplateSelectionPage() {
 
   const handleContinue = () => {
     // Store selected packs
-    sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_TEMPLATE_PACKS", JSON.stringify(selectedPacks));
+    sessionStorage.setItem(SESSION_STORAGE_KEYS.SIGNUP_TEMPLATE_PACKS, JSON.stringify(selectedPacks));
     router.push("/get-started/complete");
   };
 

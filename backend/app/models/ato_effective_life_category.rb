@@ -22,6 +22,6 @@ class AtoEffectiveLifeCategory < ApplicationRecord
 
   # Search categories by name
   def self.search(query)
-    where("name ILIKE ?", "%#{query}%").active
+    where("name ILIKE ?", "%#{sanitize_sql_like(query)}%").active
   end
 end

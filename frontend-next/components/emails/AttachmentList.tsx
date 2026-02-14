@@ -284,7 +284,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
           if (docResponse?.success && docResponse.data?.id) {
             // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT", JSON.stringify({
+            sessionStorage.setItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT, JSON.stringify({
               base64,
               fileName,
               documentId: docResponse.data.id,

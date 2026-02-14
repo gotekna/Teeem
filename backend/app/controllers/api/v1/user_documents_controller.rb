@@ -20,7 +20,11 @@ module Api
 
         # Filter by folder
         if params[:folder].present?
+          # Show documents in this folder (and subfolders)
           documents = documents.where("folder LIKE ?", "#{params[:folder]}%")
+        else
+          # Root level ("All Documents"): only show documents not in any folder
+          documents = documents.where(folder: [nil, ""])
         end
 
         # Search

@@ -76,10 +76,12 @@ class MicrosoftTokenManager
       return { success: false, error: "Credential is dead" } if credential.refresh_token_dead?
 
       # Use advisory lock to prevent concurrent refresh attempts
-      lock_id = LOCK_ID_OFFSET + credential.id
+      lock_id = LOCK_ID_OFFSET + credential.id.to_i
 
       begin
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_lock(?)", lock_id])
+        )
 
         # Reload to check if another process already refreshed
         credential.reload
@@ -92,7 +94,9 @@ class MicrosoftTokenManager
 
         perform_refresh(credential)
       ensure
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_unlock(?)", lock_id])
+        )
       end
     end
 

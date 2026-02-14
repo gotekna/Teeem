@@ -20,6 +20,7 @@ import {
   FileIcon as LucideFileIcon
 } from "lucide-react";
 import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
+import { WordDocumentPreview } from "@/components/ui/word-document-preview";
 import { cn } from "@/lib/utils";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
@@ -1093,6 +1094,13 @@ export function DocumentViewer({
           ) : fileType === "excel" ? (
             <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden" style={{ minHeight: "calc(100vh - 200px)" }}>
               <ExcelDocumentPreview
+                url={url}
+                className="h-full"
+              />
+            </div>
+          ) : fileType === "word" ? (
+            <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden" style={{ minHeight: "calc(100vh - 200px)" }}>
+              <WordDocumentPreview
                 url={url}
                 className="h-full"
               />

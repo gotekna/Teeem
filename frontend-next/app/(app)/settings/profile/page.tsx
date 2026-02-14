@@ -48,7 +48,6 @@ import {
   type SignatureStyleId,
   DEFAULT_SIGNATURE_STYLE,
 } from "@/lib/email-signature";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { MAX_UPLOAD_SIZE, MAX_SIGNATURE_SIZE } from "@/lib/constants/file-size-limits";
 
 // QBCC Licence Classes relevant for Form 43 certificates
@@ -233,16 +232,11 @@ export default function ProfileSettingsPage() {
           formData.append("user[signature]", signatureFile);
         }
 
-        // Use Next.js proxy route for FormData uploads (handles CORS)
-        const token = getStorageItem(STORAGE_KEYS.TOKEN, '', false);
-        const response = await fetch(`/api/v1/users/${user.id}`, {
-          method: "PATCH",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-        const data = await response.json();
+        // Use api.patch for FormData uploads (handles auth automatically)
+        const data = await api.patch<{ success?: boolean; errors?: string[] }>(
+          `/api/v1/users/${user.id}`,
+          formData
+        );
 
         if (data?.success) {
           setPhotoFile(null);

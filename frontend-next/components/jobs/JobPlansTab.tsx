@@ -345,20 +345,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       try {
         // Get presigned URL for faster download
-        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
-        if (!token) return false;
-
-        const presignedResponse = await fetch(
-          `${getApiBaseUrl()}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: "include",
-            mode: "cors",
-          }
+        const data = await api.get<{ success: boolean; url?: string }>(
+          `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
         );
 
-        if (!presignedResponse.ok) return false;
-        const data = await presignedResponse.json();
         if (!data.success || !data.url) return false;
 
         // Fetch PDF from presigned URL (direct from S3 - fast)

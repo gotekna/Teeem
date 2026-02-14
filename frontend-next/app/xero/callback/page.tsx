@@ -36,12 +36,12 @@ function XeroCallbackContent() {
     const companyId = isCompanyCallback ? state.replace("company_", "") : null;
 
     // Check if we've already processed this code
-    const processedCode = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_PROCESSED_CODE");
+    const processedCode = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_PROCESSED_CODE);
     if (code && code === processedCode) {
       window.close();
       // Fallback redirect if close doesn't work
       setTimeout(() => {
-        const returnUrl = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+        const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
         window.location.href = returnUrl;
       }, 500);
       return;
@@ -57,7 +57,7 @@ function XeroCallbackContent() {
       setTimeout(() => {
         window.close();
         setTimeout(() => {
-          const returnUrl = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+          const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
         }, 500);
       }, 3000);
@@ -74,7 +74,7 @@ function XeroCallbackContent() {
       setTimeout(() => {
         window.close();
         setTimeout(() => {
-          const returnUrl = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+          const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
         }, 500);
       }, 3000);
@@ -83,8 +83,8 @@ function XeroCallbackContent() {
 
     try {
       // Get auth token from localStorage (shared with main window)
-      const token = localStorage.getItem("STORAGE_KEYS.TEEEM_TOKEN");
-      const apiUrl = localStorage.getItem("STORAGE_KEYS.TEEEM_API_URL") || process.env.NEXT_PUBLIC_API_URL || "";
+      const token = localStorage.getItem(STORAGE_KEYS.TEEEM_TOKEN);
+      const apiUrl = localStorage.getItem(STORAGE_KEYS.TEEEM_API_URL) || process.env.NEXT_PUBLIC_API_URL || "";
 
       if (!token) {
         throw new Error("No auth token found. Please log in again.");
@@ -113,7 +113,7 @@ function XeroCallbackContent() {
       }
 
       // Mark as processed
-      sessionStorage.setItem("SESSION_STORAGE_KEYS.XERO_PROCESSED_CODE", code);
+      sessionStorage.setItem(SESSION_STORAGE_KEYS.XERO_PROCESSED_CODE, code);
 
       setStatus({
         loading: false,
@@ -136,7 +136,7 @@ function XeroCallbackContent() {
         // If window.close() didn't work (blocked by browser), redirect after a delay
         setTimeout(() => {
           // Still here? Redirect to integrations page
-          const returnUrl = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+          const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
         }, 500);
       }, 1500);
@@ -150,7 +150,7 @@ function XeroCallbackContent() {
       setTimeout(() => {
         window.close();
         setTimeout(() => {
-          const returnUrl = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+          const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
         }, 500);
       }, 3000);
@@ -190,7 +190,7 @@ function XeroCallbackContent() {
                     window.close();
                     // Fallback if close doesn't work
                     setTimeout(() => {
-                      window.location.href = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+                      window.location.href = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
                     }, 100);
                   }}
                   className="mt-4 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline"
@@ -214,7 +214,7 @@ function XeroCallbackContent() {
                   onClick={() => {
                     window.close();
                     setTimeout(() => {
-                      window.location.href = sessionStorage.getItem("SESSION_STORAGE_KEYS.XERO_RETURN_URL") || "/settings/integrations/xero";
+                      window.location.href = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
                     }, 100);
                   }}
                   className="mt-2 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 underline"

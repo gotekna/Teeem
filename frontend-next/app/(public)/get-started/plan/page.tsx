@@ -39,7 +39,7 @@ export default function PlanSelectionPage() {
 
   useEffect(() => {
     // Get tenant info from session storage
-    const storedTenant = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
+    const storedTenant = sessionStorage.getItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT);
     if (!storedTenant) {
       router.push("/get-started");
       return;
@@ -102,7 +102,7 @@ export default function PlanSelectionPage() {
 
   const handleContinue = () => {
     // Store selected tier
-    sessionStorage.setItem("SESSION_STORAGE_KEYS.SIGNUP_TIER", selectedTier);
+    sessionStorage.setItem(SESSION_STORAGE_KEYS.SIGNUP_TIER, selectedTier);
     router.push("/get-started/templates");
   };
 

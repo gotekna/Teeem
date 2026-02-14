@@ -20,8 +20,8 @@ export default function GetStartedCompletePage() {
 
   useEffect(() => {
     // Get tenant and admin info from session storage
-    const storedTenant = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
-    const storedAdmin = sessionStorage.getItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN");
+    const storedTenant = sessionStorage.getItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT);
+    const storedAdmin = sessionStorage.getItem(SESSION_STORAGE_KEYS.SIGNUP_ADMIN);
 
     if (!storedTenant) {
       router.push("/get-started");
@@ -35,10 +35,10 @@ export default function GetStartedCompletePage() {
 
     // Clear session storage after successful signup
     return () => {
-      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TENANT");
-      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_ADMIN");
-      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TIER");
-      sessionStorage.removeItem("SESSION_STORAGE_KEYS.SIGNUP_TEMPLATE_PACKS");
+      sessionStorage.removeItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT);
+      sessionStorage.removeItem(SESSION_STORAGE_KEYS.SIGNUP_ADMIN);
+      sessionStorage.removeItem(SESSION_STORAGE_KEYS.SIGNUP_TIER);
+      sessionStorage.removeItem(SESSION_STORAGE_KEYS.SIGNUP_TEMPLATE_PACKS);
     };
   }, [router]);
 
