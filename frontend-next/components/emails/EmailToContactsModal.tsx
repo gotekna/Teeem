@@ -159,7 +159,6 @@ export function EmailToContactsModal({
       });
 
       if (response?.success) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const emailCandidates: EmailCandidate[] = response.emails.map((e: Record<string, any>) => ({
           email: e.email,
           displayName: e.display_name,
