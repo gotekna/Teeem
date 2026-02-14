@@ -431,8 +431,15 @@ class Api::V1::ImapCredentialsController < ApplicationController
       # FRC (Feb 2026): Auto-include user's own email if their domain matches
       # the tenant's internal domains. Uses TenantSetting (auto-scoped to current tenant)
       # instead of hardcoded domain mapping per org name.
+      #
+      # ⚠️ FRC (Feb 2026): Only auto-include for the PRIMARY credential!
+      # Root cause: When a tenant has multiple MS365 credentials (e.g., Tekna, 100xBestLife, LYW)
+      # sharing the same Microsoft tenant, the domain check matched ALL credentials,
+      # causing rachel@tekna.com.au to appear 3 times in the sidebar (once per credential).
+      # Fix: Only auto-include on the primary credential. Other credentials require explicit
+      # user_mailbox_access configuration.
       auto_emails = []
-      if current_user.email.present?
+      if org_cred.is_primary && current_user.email.present?
         user_domain = current_user.email.split("@").last&.downcase
         tenant_domains = TenantSetting.internal_email_domains
 
