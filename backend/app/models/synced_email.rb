@@ -973,10 +973,11 @@ class SyncedEmail < ApplicationRecord
       next unless src_doc.storage_blob_id
 
       # Create new WarehouseDocument linking to same blob via standard service
+      # FRC (Feb 2026): Use linkable (not documentable) - see sync_attachments! comment
       WarehouseDocumentCreator.create!(
         filename: src_doc.ui_name,
         source_type: "email_attachment",
-        documentable: self,
+        linkable: self,
         storage_blob: src_doc.storage_blob,
         file_size: src_doc.file_size,
         content_type: src_doc.content_type,
@@ -1046,10 +1047,12 @@ class SyncedEmail < ApplicationRecord
       )
 
       # Create WarehouseDocument via standard service
+      # FRC (Feb 2026): Use linkable (not documentable) because has_one :warehouse_document
+      # reserves documentable for the email body doc. Attachments are tracked via metadata.
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",
-        documentable: self,
+        linkable: self,
         storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
         content_type: content_type || blob.content_type,
