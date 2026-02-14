@@ -14,10 +14,11 @@ import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
 import type { Foundation, ApiColumn } from '@/lib/types';
 
 // SSR always uses env variable directly - no localStorage on server
+// Prefer non-public API_URL (runtime, set per Vercel environment) with NEXT_PUBLIC fallback
 const getServerApiUrl = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL;
+  const url = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
   if (!url) {
-    throw new Error('NEXT_PUBLIC_API_URL environment variable is required');
+    throw new Error('API_URL or NEXT_PUBLIC_API_URL environment variable is required');
   }
   return url;
 };

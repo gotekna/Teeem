@@ -9,10 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Spinner } from "@/components/ui/spinner";
 import { Send, MessageSquare } from "lucide-react";
 import { POLLING_CHAT_GUEST_MS } from "@/lib/constants/timeout-constants";
-
-const API_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "https://teeem-production-121159e1ff9d.herokuapp.com"
-).trim();
+import { getApiBaseUrl } from "@/lib/api";
 
 interface GuestMessage {
   id: number;
@@ -69,7 +66,7 @@ export default function GuestChatPage() {
 
   const fetchSession = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat_guest_sessions/${token}`);
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/chat_guest_sessions/${token}`);
       const data = await res.json();
       if (data.success) {
         setSession(data.data);
@@ -92,7 +89,7 @@ export default function GuestChatPage() {
     if (!guestName.trim()) return;
     setJoining(true);
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat_guest_sessions/${token}/join`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/chat_guest_sessions/${token}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: guestName.trim() }),
@@ -112,7 +109,7 @@ export default function GuestChatPage() {
 
   const fetchMessages = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat_guest_sessions/${token}/messages`);
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/chat_guest_sessions/${token}/messages`);
       const data = await res.json();
       if (data.success) {
         setMessages(data.data);
@@ -141,7 +138,7 @@ export default function GuestChatPage() {
     setMessages((prev) => [...prev, tempMsg]);
 
     try {
-      const res = await fetch(`${API_URL}/api/v1/chat_guest_sessions/${token}/send_message`, {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/chat_guest_sessions/${token}/send_message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),

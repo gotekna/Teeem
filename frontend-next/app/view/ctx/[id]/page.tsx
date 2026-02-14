@@ -15,6 +15,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { DocumentViewer, ViewerFile, QAPair } from "@/components/ui/document-viewer";
+import { getApiBaseUrl } from "@/lib/api";
 
 // Context structure from API
 interface ViewerContext {
@@ -40,11 +41,7 @@ function ViewerContent() {
 
     const fetchContext = async () => {
       try {
-        // Use env variable for API URL (set per deployment environment)
-        const apiBase = process.env.NEXT_PUBLIC_API_URL;
-        if (!apiBase) {
-          throw new Error("NEXT_PUBLIC_API_URL not configured");
-        }
+        const apiBase = getApiBaseUrl();
         // Keep as raw fetch - public/unauthenticated endpoint (no auth headers)
         const response = await fetch(`${apiBase}/api/v1/viewer_contexts/${contextId}`);
         const data = await response.json();

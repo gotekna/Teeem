@@ -27,6 +27,8 @@ Commits only THIS chat session's changes and deploys to Staging AND Beta environ
 | Pipeline promotion (build once on staging, promote slug to beta) | ~2-3 min |
 | Smart migration check (only if db/migrate changed) | ~10-20s |
 | Vercel branch filtering (each project builds only its branch) | ~6 duplicate builds eliminated |
+| Skip frontend merges on backend-only deploys | ~30s git ops + avoids unnecessary Vercel builds |
+| Turbopack production builds | ~1-2 min per Vercel build |
 
 ## Vercel Branch Filtering
 
@@ -135,22 +137,28 @@ git push origin Staging
 
 **This triggers Vercel auto-deploy for Beta frontend.**
 
+**Skip entirely if no frontend changes (saves ~30s git ops + prevents unnecessary Vercel builds).**
+
 ```bash
-echo "🔀 Merging frontend branch Staging → Beta..."
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^frontend-next/"; then
+  echo "🔀 Frontend changes detected - merging Staging → Beta..."
 
-# Save current branch
-CURRENT_BRANCH=$(git branch --show-current)
+  # Save current branch
+  CURRENT_BRANCH=$(git branch --show-current)
 
-# Merge Staging → Beta
-git checkout Beta
-git pull origin Beta
-git merge Staging -m "Merge Staging into Beta for deployment"
-git push origin Beta
-echo "✅ Beta frontend updated"
+  # Merge Staging → Beta
+  git checkout Beta
+  git pull origin Beta
+  git merge Staging -m "Merge Staging into Beta for deployment"
+  git push origin Beta
+  echo "✅ Beta frontend updated"
 
-# Return to original branch
-git checkout "$CURRENT_BRANCH"
-echo "✅ Frontend branch merged"
+  # Return to original branch
+  git checkout "$CURRENT_BRANCH"
+  echo "✅ Frontend branch merged"
+else
+  echo "⏭️  No frontend changes - skipping branch merge (Vercel won't rebuild)"
+fi
 ```
 
 ### Step 4.6 - Verify Backend Changes Were Committed
@@ -266,6 +274,7 @@ BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 COMMIT_HASH=$(git rev-parse --short HEAD)
 COMMIT_MSG=$(git log -1 --pretty=%s)
 BACKEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "deployed" || echo "skipped")
+FRONTEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^frontend-next/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**
@@ -276,7 +285,7 @@ Commit: [hash] - [message]
 ----------------------------------------
 Frontend (Vercel - auto-deploy on branch merge):
   ✅ Staging: Staging branch pushed
-  ✅ Beta: Staging → Beta merged
+  ✅ Beta: [merged/skipped (no frontend changes)]
 
 Backend (Heroku - pipeline promotion):
   ✅ Staging: [deployed/skipped] (slug built)

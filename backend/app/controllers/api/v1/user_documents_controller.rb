@@ -108,7 +108,14 @@ module Api
           storage_provider: WarehouseProvider.instance.storage_provider_for_new_documents
         )
 
-        if document.save
+        # All-or-nothing: UserDocument + blob ref + WarehouseDocument in one transaction
+        # FRC (Feb 2026): Without transaction, UserDocument can save but WarehouseDocument
+        # creation fails, leaving orphans invisible to the data warehouse dashboard.
+        ActiveRecord::Base.transaction do
+          unless document.save
+            raise ActiveRecord::Rollback
+          end
+
           blob.increment_reference!
 
           # SSoT: WarehouseDocumentCreator handles metadata + callbacks
@@ -120,7 +127,9 @@ module Api
             content_type: document.content_type,
             file_size: document.file_size
           )
+        end
 
+        if document.persisted?
           @document_provider = fetch_document_provider
 
           render json: {

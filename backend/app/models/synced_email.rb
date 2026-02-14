@@ -1056,7 +1056,8 @@ class SyncedEmail < ApplicationRecord
         metadata: {
           "synced_email_id" => id.to_s,
           "content_id" => content_id,
-          "outlook_attachment_id" => graph_attachment_id
+          "outlook_attachment_id" => graph_attachment_id,
+          "mailbox" => mailbox_owner_email
         }.compact
       )
 
