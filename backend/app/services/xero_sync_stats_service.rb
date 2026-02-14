@@ -82,7 +82,7 @@ class XeroSyncStatsService
         rate_limits: rate_usage ? {
           daily_percentage: rate_usage.dig(:daily, :percentage)&.round(1) || 0,
           minute_percentage: rate_usage.dig(:minute, :percentage)&.round(1) || 0,
-          is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= XERO_RATE_LIMIT_WARNING_THRESHOLD
+          is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= XeroConstants::XERO_RATE_LIMIT_WARNING_THRESHOLD
         } : nil
       }
     end
