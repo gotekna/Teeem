@@ -246,7 +246,7 @@ export function EditorToolbar({
         onValueChange={(value) => onZoomChange(Number(value))}
       >
         <SelectTrigger className="h-8 w-20 text-xs">
-          <SelectValue />
+          <span className="truncate">{zoom}%</span>
         </SelectTrigger>
         <SelectContent>
           {ZOOM_OPTIONS.map((z) => (

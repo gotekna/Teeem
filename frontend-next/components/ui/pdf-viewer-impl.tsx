@@ -54,8 +54,7 @@ export function PDFViewerImpl({
   const [isPageTransitioning, setIsPageTransitioning] = React.useState(false);
   const [containerKey, setContainerKey] = React.useState<number>(0);
   // Zoom state: 100 = 100%, "page-fit" = fit to width
-  // Default to 100% for sharp, readable text (page-fit causes blurriness)
-  const [zoom, setZoom] = React.useState<number | "page-fit">(100);
+  const [zoom, setZoom] = React.useState<number | "page-fit">("page-fit");
   // Download progress (0-100) - null when not tracking (e.g., cached or unknown size)
   const [downloadProgress, setDownloadProgress] = React.useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);

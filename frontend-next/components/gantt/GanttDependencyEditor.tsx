@@ -572,8 +572,8 @@ export function GanttDependencyEditor({
     if (!task) return;
 
     // Start with current links
-    let currentPredLinks = [...depEditorLinks];
-    let currentSuccLinks = [...depEditorSuccessorLinks];
+    const currentPredLinks = [...depEditorLinks];
+    const currentSuccLinks = [...depEditorSuccessorLinks];
 
     // Check if there's a pending predecessor in the input field (controlled state)
 

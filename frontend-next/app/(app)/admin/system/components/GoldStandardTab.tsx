@@ -1283,7 +1283,7 @@ function GoldDocumentTypeEditor() {
   const [documentTypes, setDocumentTypes] = React.useState<Array<{ id: number; name: string; abbreviation?: string; scope?: string }>>([]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [documentType, setDocumentType] = React.useState<any>(null);
+  const [documentType, setDocumentType] = React.useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = React.useState(false);
 
   // Drag and drop state
@@ -1343,10 +1343,10 @@ function GoldDocumentTypeEditor() {
   const loadDocumentTypes = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+      const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
       if (response.success && Array.isArray(response.data)) {
         const sorted = response.data
-          .map((dt: any) => ({ id: dt.id, name: dt.name, abbreviation: dt.abbreviation, scope: dt.scope || "company" }))
+          .map((dt: Record<string, unknown>) => ({ id: Number(dt.id), name: String(dt.name), abbreviation: dt.abbreviation ? String(dt.abbreviation) : undefined, scope: (dt.scope as string) || "company" }))
           .sort((a, b) => a.name.localeCompare(b.name));
         setDocumentTypes(sorted);
         // Select first one by default
@@ -1363,16 +1363,16 @@ function GoldDocumentTypeEditor() {
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<any>('/api/v1/companies');
-      const companiesData = response.data?.companies || response.companies || response.data || response;
+      const response = await api.get<Record<string, unknown>>('/api/v1/companies');
+      const companiesData = (response.data as { companies?: unknown })?.companies || (response as { companies?: unknown }).companies || (response.data as unknown) || response;
       if (Array.isArray(companiesData)) {
-        const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
-        setCompanies(corporateLinkedCompanies);
+        const corporateLinkedCompanies = companiesData.filter((c: Record<string, unknown>) => c.company_group_id != null);
+        setCompanies(corporateLinkedCompanies as Array<{id: number; name: string; code: string}>);
         if (corporateLinkedCompanies.length > 0) {
-          const teeemHomes = corporateLinkedCompanies.find((c: any) =>
-            c.code === "TH" || c.name?.toLowerCase().includes("teeem")
-          );
-          setPreviewCompanyId(teeemHomes ? teeemHomes.id : corporateLinkedCompanies[0].id);
+          const teeemHomes = corporateLinkedCompanies.find((c: Record<string, unknown>) =>
+            c.code === "TH" || (typeof c.name === 'string' && c.name?.toLowerCase().includes("teeem"))
+          ) as { id: number; name: string; code: string } | undefined;
+          setPreviewCompanyId(teeemHomes ? teeemHomes.id : (corporateLinkedCompanies[0] as { id: number }).id);
         }
       }
     } catch (error) {
@@ -1389,14 +1389,14 @@ function GoldDocumentTypeEditor() {
 
   const loadDocumentType = async (id: number) => {
     try {
-      const response = await api.get<{ data: any }>(`/api/v1/document_types/${id}`);
+      const response = await api.get<{ data: Record<string, unknown> }>(`/api/v1/document_types/${id}`);
       setDocumentType(response.data);
     } catch (error) {
       console.error("Failed to load document type:", error);
     }
   };
 
-  const updateField = (field: string, value: any) => {
+  const updateField = (field: string, value: unknown) => {
     if (!documentType) return;
     setDocumentType({ ...documentType, [field]: value });
   };
@@ -1479,7 +1479,7 @@ function GoldDocumentTypeEditor() {
 
     if (placeholderSearch.trim()) {
       const search = placeholderSearch.toLowerCase();
-      return placeholders.filter((p: any) =>
+      return placeholders.filter((p: { code: string; longCode?: string; example?: string }) =>
         p.code.toLowerCase().includes(search) ||
         p.longCode?.toLowerCase().includes(search) ||
         p.example?.toLowerCase().includes(search)
@@ -1748,7 +1748,7 @@ function GoldDocumentTypeEditor() {
                     <div>LONG</div>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
-                    {getAvailablePlaceholders().map((p: any, idx: number) => (
+                    {getAvailablePlaceholders().map((p: { code: string; longCode?: string; example?: string; longExample?: string; color?: string; label?: string }, idx: number) => (
                       <React.Fragment key={`${p.code}-${idx}`}>
                         <div
                           draggable

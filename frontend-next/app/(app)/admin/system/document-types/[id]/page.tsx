@@ -216,6 +216,26 @@ interface DocumentType {
   certificate_template?: string; // Template to use (e.g., "form_43")
 }
 
+// Type definitions for tab/folder hierarchy
+interface TabNode {
+  id?: number;
+  name: string;
+  tab_key?: string;
+  storage_path?: string;
+  children?: TabNode[];
+}
+
+interface ScopeNode extends TabNode {
+  isScope?: boolean;
+}
+
+interface XeroTabNode {
+  id?: number;
+  name: string;
+  key: string;
+  children?: XeroTabNode[];
+}
+
 export default function DocumentTypeDetailPage() {
   // Use full-height layout mode for the detail form
   useSetLayoutMode("full-height");
@@ -253,9 +273,9 @@ export default function DocumentTypeDetailPage() {
   const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact'>('all'); // Filter tabs by scope
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
-  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
-  const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
+  const [folderHierarchy, setFolderHierarchy] = React.useState<ScopeNode[]>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
+  const [allTabsForLookup, setAllTabsForLookup] = React.useState<TabNode[]>([]); // All tabs (any group) for name lookups
+  const [xeroTabs, setXeroTabs] = React.useState<XeroTabNode[]>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
   const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string; displayLabel: string }>>([]);
@@ -274,7 +294,7 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: THE ONE function for tab name resolution in this component
   // Searches recursively through scope > tab > subtab hierarchy
-  const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabName = React.useCallback((items: TabNode[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
@@ -290,7 +310,7 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: Returns storage_path for display (shows full folder path)
   // Searches recursively through scope > tab > subtab hierarchy
-  const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabPath = React.useCallback((items: TabNode[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
@@ -322,7 +342,7 @@ export default function DocumentTypeDetailPage() {
       try {
         // Build folder hierarchy recursively for all depths
         // SSoT: Only include 'documents' tab_group folders (Feb 2026)
-        const mapTabRecursive = (tab: any): any => ({
+        const mapTabRecursive = (tab: Record<string, unknown>): TabNode => ({
           id: tab.id,
           name: tab.display_name,
           tab_key: tab.tab_key,
@@ -330,8 +350,8 @@ export default function DocumentTypeDetailPage() {
           // SSoT: Include storage path for display in dropdown
           storage_path: tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path,
           // Filter children to only 'documents' tab_group with warehouse_enabled (can receive uploads)
-          children: (tab.children || [])
-            .filter((c: any) => c.tab_group === 'documents' && c.warehouse_enabled)
+          children: (Array.isArray(tab.children) ? tab.children : [])
+            .filter((c: Record<string, unknown>) => c.tab_group === 'documents' && c.warehouse_enabled)
             .map(mapTabRecursive)
         });
 
@@ -344,21 +364,21 @@ export default function DocumentTypeDetailPage() {
           { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
         ];
 
-        const scopeGroupedHierarchy: any[] = [];
-        const allTabsFromAllScopes: any[] = [];
+        const scopeGroupedHierarchy: ScopeNode[] = [];
+        const allTabsFromAllScopes: TabNode[] = [];
 
         for (const scopeCfg of scopeConfig) {
           try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
+            const scopeData = await api.get<{ success: boolean; data: { tabs: Array<Record<string, unknown>> } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
               // SSoT: Only 'documents' tab_group with warehouse_enabled can store user uploads (Feb 2026)
               // Filter out 'data' tabs and tabs that can't receive documents
               // Include root tabs that are warehouse-enabled OR have warehouse-enabled children
               // Contact root folders (Financial, Corporate, etc.) have warehouse_enabled: false
               // but their children (Invoices, Bills, ID, Tax) have warehouse_enabled: true
-              const documentTabs = scopeData.data.tabs.filter((t: any) =>
+              const documentTabs = scopeData.data.tabs.filter((t: Record<string, unknown>) =>
                 (t.tab_group === 'documents' && t.warehouse_enabled) ||
-                (t.children?.some((c: any) => c.tab_group === 'documents' && c.warehouse_enabled))
+                (Array.isArray(t.children) && t.children.some((c: Record<string, unknown>) => c.tab_group === 'documents' && c.warehouse_enabled))
               );
 
               // Add to all tabs for lookup
@@ -388,7 +408,7 @@ export default function DocumentTypeDetailPage() {
 
           // Extract all tab names for folder options
           const rootNames = scopeGroupedHierarchy
-            .flatMap(scope => scope.children.map((t: any) => t.name))
+            .flatMap(scope => (scope.children || []).map((t: TabNode) => t.name))
             .sort();
           setFolderOptions(rootNames);
         } else {
@@ -410,15 +430,15 @@ export default function DocumentTypeDetailPage() {
   // With scope-first hierarchy, Xero is under Corporate > Xero
   React.useEffect(() => {
     // Find Corporate scope, then find Xero tab within it
-    const corporateScope = folderHierarchy.find((f: any) => f.tab_key === "corporate" || f.name === "Corporate");
+    const corporateScope = folderHierarchy.find((f: ScopeNode) => f.tab_key === "corporate" || f.name === "Corporate");
     if (corporateScope) {
-      const xeroFolder = (corporateScope.children || []).find((f: any) => f.name === "Xero" || f.tab_key === "xero");
+      const xeroFolder = (corporateScope.children || []).find((f: TabNode) => f.name === "Xero" || f.tab_key === "xero");
       if (xeroFolder) {
         setXeroTabs([{
           name: xeroFolder.name,
           key: xeroFolder.tab_key || "xero",
           id: xeroFolder.id,
-          children: (xeroFolder.children || []).map((c: any) => ({
+          children: (xeroFolder.children || []).map((c: TabNode) => ({
             name: c.name,
             key: c.tab_key,
             id: c.id
@@ -461,11 +481,11 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchAllDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+        const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
         if (response.success && Array.isArray(response.data)) {
           // Sort by name for consistent navigation, include scope
           const sorted = response.data
-            .map((dt: any) => ({ id: dt.id, name: dt.name, scope: dt.scope || "company" }))
+            .map((dt: Record<string, unknown>) => ({ id: Number(dt.id), name: String(dt.name), scope: (dt.scope as string) || "company" }))
             .sort((a, b) => a.name.localeCompare(b.name));
           setAllDocumentTypes(sorted);
         }

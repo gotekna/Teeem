@@ -158,10 +158,10 @@ export function EmailBlacklistTab() {
         resetForm();
         loadItems();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to add blacklist pattern",
+        description: error instanceof Error ? error.message : "Failed to add blacklist pattern",
         variant: "destructive",
       });
     } finally {
@@ -193,10 +193,10 @@ export function EmailBlacklistTab() {
         resetForm();
         loadItems();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to update blacklist pattern",
+        description: error instanceof Error ? error.message : "Failed to update blacklist pattern",
         variant: "destructive",
       });
     } finally {
@@ -218,10 +218,10 @@ export function EmailBlacklistTab() {
         });
         loadItems();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete blacklist pattern",
+        description: error instanceof Error ? error.message : "Failed to delete blacklist pattern",
         variant: "destructive",
       });
     }
@@ -242,10 +242,10 @@ export function EmailBlacklistTab() {
         });
         loadItems();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to toggle pattern",
+        description: error instanceof Error ? error.message : "Failed to toggle pattern",
         variant: "destructive",
       });
     }
@@ -270,10 +270,10 @@ export function EmailBlacklistTab() {
           matched_pattern: response.matched_pattern,
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message || "Failed to test email",
+        description: error instanceof Error ? error.message : "Failed to test email",
         variant: "destructive",
       });
     } finally {

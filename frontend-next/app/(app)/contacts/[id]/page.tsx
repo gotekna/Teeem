@@ -600,8 +600,8 @@ export default function ContactDetailPage() {
           const incoming = response.relationships?.incoming || [];
 
           // Store metadata if returned
-          if ((response as any).relationship_types_metadata) {
-            setRelationshipTypeMetadata((response as any).relationship_types_metadata);
+          if ('relationship_types_metadata' in response) {
+            setRelationshipTypeMetadata(response.relationship_types_metadata as RelationshipTypeMetadata[]);
           }
 
           // Group relationships by employee ID and collect role types
@@ -710,14 +710,14 @@ export default function ContactDetailPage() {
 
     const fetchAllContacts = async () => {
       try {
-        const response = await api.get<{ contacts: any[] }>("/api/v1/contacts", {
+        const response = await api.get<{ contacts: Array<Record<string, unknown>> }>("/api/v1/contacts", {
           params: { limit: PAGE_SIZE_LARGE }
         });
         const contacts = response.contacts || [];
         const options: Option[] = contacts
-          .filter((c: any) => c.id !== contact?.id) // Exclude current contact
-          .map((c: any) => ({
-            value: c.id.toString(),
+          .filter((c: Record<string, unknown>) => c.id !== contact?.id) // Exclude current contact
+          .map((c: Record<string, unknown>) => ({
+            value: String(c.id),
             label: `${c.display_name || c.first_name || 'Unknown'} (${c.entity_type || 'unknown'})`,
           }));
         setAvailableContacts(options);
@@ -748,9 +748,14 @@ export default function ContactDetailPage() {
       setError(null);
       const response = await api.get<{ contact: Contact }>(`/api/v1/contacts/${id}`);
       setContact(response.contact);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // Type guard for error with status
+      const hasStatus = (e: unknown): e is { status?: number; message?: string } => {
+        return typeof e === 'object' && e !== null;
+      };
+
       // Silently redirect if contact not found (404) or forbidden (403)
-      if (err?.status === 404 || err?.status === 403 || err?.message?.includes('not found')) {
+      if (hasStatus(err) && (err.status === 404 || err.status === 403 || err.message?.includes('not found'))) {
         // Use replace instead of push to avoid SSR and keep browser history clean
         router.replace('/contacts');
       } else {
@@ -784,7 +789,7 @@ export default function ContactDetailPage() {
           await executeDelete();
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to check deletion:", error);
       // Fallback to simple confirm
       if (await confirm(`Delete contact "${contact.display_name}"?`)) {
@@ -816,9 +821,11 @@ export default function ContactDetailPage() {
 
       setDeletionDialogOpen(false);
       router.push('/contacts');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete contact:", error);
-      const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
+      const errorMessage = error instanceof Error ? error.message :
+                          (typeof error === 'object' && error !== null && 'error' in error ? String(error.error) :
+                          "Failed to delete contact. Please try again.");
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
@@ -841,9 +848,11 @@ export default function ContactDetailPage() {
         setDeletionDialogOpen(false);
         router.push('/contacts');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to archive contact:", error);
-      const errorMessage = error?.message || error?.error || "Failed to archive contact. Please try again.";
+      const errorMessage = error instanceof Error ? error.message :
+                          (typeof error === 'object' && error !== null && 'error' in error ? String(error.error) :
+                          "Failed to archive contact. Please try again.");
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
