@@ -755,188 +755,119 @@ module Api
         }
 
         # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
-        # Shows documents by source_type with storage status
-        # Special handling: Split "email" into email_body vs email_attachment
+        # DB-driven from WarehouseType — no hardcoded source_type mapping.
+        # Email warehouse_type is split into email_body + email_attachment rows.
+        # Xero gets special handling for per-tenant breakdown.
         warehouse_breakdown = if defined?(WarehouseDocument) && defined?(StorageBlob)
           results = []
 
-          # Helper to count docs with verified file in StorageBlob (Jan 2026)
-          # Uses verified_at timestamp - set when file confirmed to exist in storage
+          # Helper: count docs with verified file in StorageBlob
           count_with_file = ->(scope) {
             scope.joins(:storage_blob)
                  .where("storage_blobs.verified_at IS NOT NULL")
                  .count
           }
 
-          # ── Consistent columns for ALL rows ──────────────────────────────
-          # total:         "Expected" — count from source table (how many SHOULD exist)
-          # in_warehouse:  WarehouseDocument count (how many records exist)
-          # with_blob:     WarehouseDocuments with a storage_blob_id
-          # with_file:     Blobs with verified_at (confirmed in Wasabi)
-          # missing:       total - with_file (how many still need files)
-          # file_rate:     with_file / total * 100
+          # Helper: build a row hash with consistent columns
+          build_row = ->(source_type, label, scope, expected: nil) {
+            in_warehouse = scope.count
+            w_blob = scope.where.not(storage_blob_id: nil).count
+            w_file = count_with_file.call(scope)
+            total = expected || in_warehouse
+            {
+              source_type: source_type, label: label,
+              total: total, in_warehouse: in_warehouse,
+              with_blob: w_blob, with_file: w_file,
+              missing: [total - w_file, 0].max,
+              file_rate: total > 0 ? ((w_file.to_f / total) * 100).round(1) : 0
+            }
+          }
 
-          # ── Xero ────────────────────────────────────────────────────────────
-          if defined?(ExternalInvoice)
-            xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
-            xero_scope = WarehouseDocument.where(source_type: "xero")
-            xero_in_warehouse = xero_scope.count
-            xero_with_blob = xero_scope.where.not(storage_blob_id: nil).count
-            xero_with_file = xero_scope.where.not(storage_blob_id: nil)
-              .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil }).count
+          # Pre-compute all warehouse_type counts in 3 queries (not N+1)
+          by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).group(:warehouse_type).count
+          blob_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).where.not(storage_blob_id: nil).group(:warehouse_type).count
+          file_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""])
+            .joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL")
+            .group(:warehouse_type).count
 
-            # Per-tenant breakdown
-            tenant_breakdown = []
-            if defined?(XeroCredential)
-              xero_cred_scope = if current_tenant&.master_tenant?
-                                  XeroCredential.where.not(tenant_id: nil)
-                                else
-                                  XeroCredential.for_teeem_tenant(current_tenant).where.not(tenant_id: nil)
-                                end
-              xero_cred_scope.find_each do |cred|
-                tenant_id = cred.tenant_id
-                tenant_name = cred.tenant_name || "Unknown"
-                tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").where.not(contact_id: nil).count
-                next if tenant_total == 0
+          # Expected counts from source tables (only for types with a source_model)
+          expected_counts = {
+            "job" => (Job.count rescue 0),
+            "corporate" => (defined?(Corporate) ? Corporate.count : 0),
+            "contact" => (Contact.count rescue 0),
+            "user" => (User.count rescue 0),
+            "task" => (defined?(SmTask) ? SmTask.count : 0)
+          }
 
-                tenant_invoice_ids = ExternalInvoice.where(tenant_id: tenant_id).pluck(:id)
-                t_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: tenant_invoice_ids)
-                t_in_warehouse = t_scope.count
-                t_with_blob = t_scope.where.not(storage_blob_id: nil).count
-                t_with_file = t_scope.where.not(storage_blob_id: nil).joins(:storage_blob).where.not(storage_blobs: { content_hash: nil }).count
+          # ── Iterate all warehouse types from DB ────────────────────────────
+          WarehouseType.enabled.ordered.each do |wt|
+            # Email type: split into body + attachment rows
+            if wt.code == "email"
+              # Email Bodies
+              email_body_total = SyncedEmail.count
+              email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
+              email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
+              row = build_row.call("email_body", "Email Bodies", email_body_scope, expected: email_body_total)
+              row[:unfetchable] = email_body_unfetchable
+              row[:missing] = [email_body_total - row[:with_file] - email_body_unfetchable, 0].max
+              results << row if email_body_total > 0
 
-                tenant_breakdown << {
-                  tenant_id: tenant_id, tenant_name: tenant_name,
-                  total: tenant_total, in_warehouse: t_in_warehouse,
-                  with_blob: t_with_blob, with_file: t_with_file,
-                  linked: t_in_warehouse, missing: tenant_total - t_with_file,
-                  file_rate: tenant_total > 0 ? ((t_with_file.to_f / tenant_total) * 100).round(1) : 0
-                }
+              # Email Attachments
+              email_attach_target = SyncedEmail.where(has_attachments: true).count
+              email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
+              results << build_row.call("email_attachment", "Email Attachments", email_attach_scope, expected: email_attach_target) if email_attach_target > 0 || email_attach_scope.exists?
+              next
+            end
+
+            # Xero (corporate type, source_type=xero): separate row with tenant breakdown
+            if wt.code == "corporate" && defined?(ExternalInvoice)
+              xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
+              xero_scope = WarehouseDocument.where(source_type: "xero")
+              if xero_total > 0
+                row = build_row.call("xero", "Xero Invoices", xero_scope, expected: xero_total)
+
+                # Per-tenant breakdown
+                tenant_breakdown = []
+                if defined?(XeroCredential)
+                  xero_cred_scope = if current_tenant&.master_tenant?
+                                      XeroCredential.where.not(tenant_id: nil)
+                                    else
+                                      XeroCredential.for_teeem_tenant(current_tenant).where.not(tenant_id: nil)
+                                    end
+                  xero_cred_scope.find_each do |cred|
+                    t_total = ExternalInvoice.where(tenant_id: cred.tenant_id).where.not(status: "draft").where.not(contact_id: nil).count
+                    next if t_total == 0
+                    t_ids = ExternalInvoice.where(tenant_id: cred.tenant_id).pluck(:id)
+                    t_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: t_ids)
+                    t_row = build_row.call("xero", cred.tenant_name || "Unknown", t_scope, expected: t_total)
+                    tenant_breakdown << t_row.merge(tenant_id: cred.tenant_id, tenant_name: cred.tenant_name || "Unknown")
+                  end
+                end
+
+                row[:tenant_breakdown] = tenant_breakdown.sort_by { |t| -t[:total] }
+                results << row
               end
             end
 
-            if xero_total > 0
-              results << {
-                source_type: "xero", label: "Xero Invoices",
-                total: xero_total, in_warehouse: xero_in_warehouse,
-                with_blob: xero_with_blob, with_file: xero_with_file,
-                linked: xero_in_warehouse,
-                missing: xero_total - xero_with_file,
-                file_rate: xero_total > 0 ? ((xero_with_file.to_f / xero_total) * 100).round(1) : 0,
-                tenant_breakdown: tenant_breakdown.sort_by { |t| -t[:total] }
-              }
-            end
-          end
+            # Standard row for this warehouse type
+            in_warehouse = by_wt[wt.code] || 0
+            expected = expected_counts[wt.code]
+            total = expected || in_warehouse
+            next if in_warehouse == 0 && (expected.nil? || expected == 0)
 
-          # ── Jobs ─────────────────────────────────────────────────────────────
-          job_total = Job.count
-          job_scope = WarehouseDocument.where(source_type: "job")
-          job_in_warehouse = job_scope.count
-          job_with_blob = job_scope.where.not(storage_blob_id: nil).count
-          job_with_file = count_with_file.call(job_scope)
-          if job_in_warehouse > 0 || job_total > 0
+            w_blob = blob_by_wt[wt.code] || 0
+            w_file = file_by_wt[wt.code] || 0
             results << {
-              source_type: "job", label: "Job Documents",
-              total: job_total, in_warehouse: job_in_warehouse,
-              with_blob: job_with_blob, with_file: job_with_file,
-              missing: [job_in_warehouse - job_with_file, 0].max,
-              file_rate: job_in_warehouse > 0 ? ((job_with_file.to_f / job_in_warehouse) * 100).round(1) : 0
+              source_type: wt.code, label: wt.display_name,
+              icon: wt.icon_name,
+              total: total, in_warehouse: in_warehouse,
+              with_blob: w_blob, with_file: w_file,
+              missing: [total - w_file, 0].max,
+              file_rate: total > 0 ? ((w_file.to_f / total) * 100).round(1) : 0
             }
           end
 
-          # ── Corporate ────────────────────────────────────────────────────────
-          corporate_total = defined?(Corporate) ? Corporate.count : 0
-          corporate_scope = WarehouseDocument.where(source_type: "corporate")
-          corporate_in_warehouse = corporate_scope.count
-          corporate_with_blob = corporate_scope.where.not(storage_blob_id: nil).count
-          corporate_with_file = count_with_file.call(corporate_scope)
-          if corporate_in_warehouse > 0 || corporate_total > 0
-            results << {
-              source_type: "corporate", label: "Corporate Documents",
-              total: corporate_total, in_warehouse: corporate_in_warehouse,
-              with_blob: corporate_with_blob, with_file: corporate_with_file,
-              missing: [corporate_in_warehouse - corporate_with_file, 0].max,
-              file_rate: corporate_in_warehouse > 0 ? ((corporate_with_file.to_f / corporate_in_warehouse) * 100).round(1) : 0
-            }
-          end
-
-          # ── Contacts ─────────────────────────────────────────────────────────
-          contact_total = Contact.count
-          contact_scope = WarehouseDocument.where(source_type: "contact")
-          contact_in_warehouse = contact_scope.count
-          contact_with_blob = contact_scope.where.not(storage_blob_id: nil).count
-          contact_with_file = count_with_file.call(contact_scope)
-          if contact_in_warehouse > 0 || contact_total > 0
-            results << {
-              source_type: "contact", label: "Contact Documents",
-              total: contact_total, in_warehouse: contact_in_warehouse,
-              with_blob: contact_with_blob, with_file: contact_with_file,
-              missing: [contact_in_warehouse - contact_with_file, 0].max,
-              file_rate: contact_in_warehouse > 0 ? ((contact_with_file.to_f / contact_in_warehouse) * 100).round(1) : 0
-            }
-          end
-
-          # ── Email Bodies ─────────────────────────────────────────────────────
-          email_body_total = SyncedEmail.count
-          email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
-          email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
-          email_body_in_warehouse = email_body_scope.count
-          email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
-          email_body_with_file = count_with_file.call(email_body_scope)
-          if email_body_total > 0
-            results << {
-              source_type: "email_body", label: "Email Bodies",
-              total: email_body_total, in_warehouse: email_body_in_warehouse,
-              with_blob: email_body_with_blob, with_file: email_body_with_file,
-              missing: email_body_total - email_body_with_file - email_body_unfetchable,
-              unfetchable: email_body_unfetchable,
-              file_rate: email_body_total > 0 ? ((email_body_with_file.to_f / email_body_total) * 100).round(1) : 0
-            }
-          end
-
-          # ── Email Attachments ────────────────────────────────────────────────
-          # Target: emails with has_attachments=true (how many SHOULD have attachment docs)
-          email_attach_target = SyncedEmail.where(has_attachments: true).count
-          email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
-          email_attach_in_warehouse = email_attach_scope.count
-          email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
-          email_attach_with_file = count_with_file.call(email_attach_scope)
-          if email_attach_target > 0 || email_attach_in_warehouse > 0
-            results << {
-              source_type: "email_attachment", label: "Email Attachments",
-              total: email_attach_target, in_warehouse: email_attach_in_warehouse,
-              with_blob: email_attach_with_blob, with_file: email_attach_with_file,
-              missing: [email_attach_in_warehouse - email_attach_with_file, 0].max,
-              file_rate: email_attach_in_warehouse > 0 ? ((email_attach_with_file.to_f / email_attach_in_warehouse) * 100).round(1) : 0
-            }
-          end
-
-          # ── Remaining source types (generic) ─────────────────────────────────
-          # Exclude all specially-handled types above
-          special_types = %w[email email_attachment xero job corporate contact].freeze
-          by_source = WarehouseDocument.where.not(source_type: special_types).group(:source_type).count
-          with_blob = WarehouseDocument.where.not(source_type: special_types).where.not(storage_blob_id: nil).group(:source_type).count
-          with_file_by_source = WarehouseDocument.where.not(source_type: special_types)
-            .joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL")
-            .group(:source_type).count
-
-          by_source.each do |source_type, st_total|
-            next if source_type.blank? || st_total == 0
-            with_storage = with_blob[source_type] || 0
-            with_file_count = with_file_by_source[source_type] || 0
-            results << {
-              source_type: source_type,
-              label: WarehouseProvider.label_for(source_type),
-              total: st_total, in_warehouse: st_total,
-              with_blob: with_storage, with_file: with_file_count,
-              missing: [st_total - with_file_count, 0].max,
-              file_rate: st_total > 0 ? ((with_file_count.to_f / st_total) * 100).round(1) : 0
-            }
-          end
-
-          # Sort: Xero first, then by in_warehouse descending
-          sort_order = %w[xero job corporate contact email_body email_attachment]
-          results.sort_by { |r| [sort_order.index(r[:source_type]) || 99, -r[:in_warehouse]] }  # Sort by total descending
+          results
         else
           []
         end

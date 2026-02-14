@@ -59,6 +59,7 @@ import { api } from "@/lib/api";
 import { format } from "date-fns";
 import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 import { cn } from "@/lib/utils";
+import { getIcon } from "@/lib/icon-map";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { formatFileSize } from "@/utils/formatters";
 
@@ -216,6 +217,7 @@ interface OrgDataStats {
   warehouse_breakdown?: Array<{
     source_type: string;
     label: string;
+    icon?: string;          // Icon name from WarehouseType (DB-driven)
     total: number;          // Expected: count from source table (how many SHOULD exist)
     in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
@@ -223,7 +225,6 @@ interface OrgDataStats {
     missing: number;        // How many still need files
     unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
     file_rate: number;
-    linked?: number;        // Legacy compat
     tenant_breakdown?: Array<{
       tenant_id: string;
       tenant_name: string;
@@ -231,7 +232,6 @@ interface OrgDataStats {
       in_warehouse: number;
       with_blob: number;
       with_file: number;
-      linked: number;
       missing: number;
       file_rate: number;
     }>;
@@ -1443,17 +1443,15 @@ export function DataWarehouseTab() {
                       <TableRow>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
-                            {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
-                            {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
-                            {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
-                            {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
-                            {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
-                            {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
-                            {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
-                            {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
-                            {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
-                            {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
+                            {(() => {
+                              const IconComponent = getIcon(
+                                row.source_type === "email_body" ? "mail"
+                                : row.source_type === "email_attachment" ? "paperclip"
+                                : row.source_type === "xero" ? "file-text"
+                                : row.icon || "folder"
+                              );
+                              return <IconComponent className="h-4 w-4 text-muted-foreground" />;
+                            })()}
                             {row.label}
                           </div>
                         </TableCell>
@@ -1461,7 +1459,7 @@ export function DataWarehouseTab() {
                           {row.total.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right">
-                          {(row.in_warehouse ?? row.total).toLocaleString()}
+                          {row.in_warehouse.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right text-green-600 dark:text-green-400">
                           {(row.with_file || 0).toLocaleString()}
@@ -1496,7 +1494,7 @@ export function DataWarehouseTab() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{(tenant.in_warehouse ?? tenant.linked).toLocaleString()}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{tenant.in_warehouse.toLocaleString()}</TableCell>
                           <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
                             {tenant.with_file.toLocaleString()}
                             <span className="text-xs text-muted-foreground ml-1">
