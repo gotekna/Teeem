@@ -894,8 +894,11 @@ module Api
           # FRC (Feb 2026): Previous query only checked warehouse_documents, missing 15+ other
           # models (ChatMessage, PdfGeneration, email_attachments, etc.) — showed 6K+ false orphans.
           # BlobReferenceScanner is THE SSoT for all blob references across 20+ sources.
-          referenced_count = BlobReferenceScanner.all_referenced_blob_ids.size
-          orphan_blobs = [total_blobs - referenced_count, 0].max
+          # Only count blobs older than 7 days as orphans — newer ones are likely in-flight
+          # (e.g., two-step email sync creates blob before WarehouseDocument links it).
+          all_referenced_ids = BlobReferenceScanner.all_referenced_blob_ids
+          mature_blob_ids = StorageBlob.where("created_at < ?", 7.days.ago).pluck(:id)
+          orphan_blobs = (mature_blob_ids.to_set - all_referenced_ids).size
           # How many WH docs have a verified file (across ALL docs, not just breakdown rows)
           docs_with_file = WarehouseDocument.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
           # Unclassified: docs NOT covered by any breakdown row
