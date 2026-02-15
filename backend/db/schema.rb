@@ -7132,8 +7132,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_15_100001) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_vitals", force: :cascade do |t|
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"

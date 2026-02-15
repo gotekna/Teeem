@@ -511,7 +511,7 @@ module Api
       def data_stats
         # Skip cache only for admins (prevents DoS via forced cache refresh)
         skip_cache = params[:refresh] == "true" && current_user&.admin?
-        cache_key = "organization:data_stats"
+        cache_key = "organization:data_stats:tenant_#{current_tenant&.id || 'none'}"
 
         # Try to get from cache first (10 minute TTL - stats don't change often)
         unless skip_cache
