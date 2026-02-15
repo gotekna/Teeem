@@ -558,15 +558,21 @@ class GanttDataService
     result
   end
 
+  # Safely get the linked template row (only SmTask has this association)
+  # When records ARE SmScheduleMaster rows, they don't have a self-referential association
+  def template_row_for(record)
+    record.respond_to?(:sm_schedule_master) ? record.sm_schedule_master : nil
+  end
+
   # Check if record is a header
   def is_header?(record)
-    record&.allow_header || record&.sm_schedule_master&.allow_header
+    record&.allow_header || template_row_for(record)&.allow_header
   end
 
   # Get parent task_number from header_gantt field
   # Now supports nested headers - headers CAN have parents (2-level nesting)
   def get_parent_task_number(record)
-    header_gantt = record&.header_gantt || record&.sm_schedule_master&.header_gantt
+    header_gantt = record&.header_gantt || template_row_for(record)&.header_gantt
     return nil if header_gantt.nil? || header_gantt == "Header"
 
     # Parse task_number from header_gantt (can be string or integer)
@@ -580,8 +586,8 @@ class GanttDataService
   #   - Tasks: returns parent task_number
   # Returns nil if no parent
   def determine_header_gantt(record)
-    header_gantt = record&.header_gantt || record&.sm_schedule_master&.header_gantt
-    is_header = record&.allow_header || record&.sm_schedule_master&.allow_header
+    header_gantt = record&.header_gantt || template_row_for(record)&.header_gantt
+    is_header = record&.allow_header || template_row_for(record)&.allow_header
 
     # If header_gantt has a numeric parent, return it (even for Level 2 headers)
     if header_gantt.present? && header_gantt != "Header" && header_gantt.to_s.match?(/^\d+$/)

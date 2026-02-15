@@ -467,43 +467,55 @@ module Api
       end
 
       # POST /api/v1/jobs/:id/link_xero_tracking
-      # Link this job to a Xero tracking option
+      # Link this job to one or more Xero tracking options
+      # Accepts either:
+      #   Single: { tracking_option_id: "...", tracking_option_name: "..." }
+      #   Multi:  { tracking_options: [{ id: "...", name: "...", is_primary: true }, ...] }
       def link_xero_tracking
-        tracking_option_id = params[:tracking_option_id]
-        tracking_option_name = params[:tracking_option_name]
-
-        unless tracking_option_id.present?
-          return render_error("tracking_option_id is required", status: :bad_request)
-        end
-
-        if @job.update(
-          xero_tracking_option_id: tracking_option_id,
-          xero_tracking_option_name: tracking_option_name
-        )
-          render json: {
-            success: true,
-            job: @job.as_json
-          }
+        if params[:tracking_options].present?
+          # Multi-link mode: replace all link rows
+          link_xero_tracking_multi
         else
-          render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+          # Single-link mode (backward compatible)
+          link_xero_tracking_single
         end
       end
 
       # GET /api/v1/jobs/:id/xero_tracking_options
-      # Get available Xero tracking options and suggest a match for this job
+      # Get available Xero tracking options and current linked options for this job
       def xero_tracking_options
         tracking_options = XeroBillImportService.fetch_tracking_options
 
         # Find suggested match based on job title/location
         suggested_match = XeroBillImportService.match_job_to_tracking_option(@job, tracking_options)
 
+        # Return all linked options from join table (multi-link)
+        current_links = @job.xero_tracking_links.order(is_primary: :desc, created_at: :asc)
+        current_options = current_links.map do |link|
+          {
+            id: link.tracking_option_id,
+            name: link.tracking_option_name,
+            variant: link.variant,
+            is_primary: link.is_primary
+          }
+        end
+
+        # Backward compat: if no link rows but legacy column has a value, include it
+        if current_options.empty? && @job.xero_tracking_option_id.present?
+          current_options = [{
+            id: @job.xero_tracking_option_id,
+            name: @job.xero_tracking_option_name,
+            variant: nil,
+            is_primary: true
+          }]
+        end
+
         render json: {
           success: true,
           tracking_options: tracking_options.map { |o| { id: o["TrackingOptionID"], name: o["Name"] } },
-          current_option: @job.xero_tracking_option_id.present? ? {
-            id: @job.xero_tracking_option_id,
-            name: @job.xero_tracking_option_name
-          } : nil,
+          current_options: current_options,
+          # Legacy single-option field for backward compat
+          current_option: current_options.find { |o| o[:is_primary] } || current_options.first,
           suggested_match: suggested_match ? {
             id: suggested_match["TrackingOptionID"],
             name: suggested_match["Name"]
@@ -1053,6 +1065,96 @@ module Api
       end
 
       private
+
+      # Single-link mode: link one tracking option (backward compatible)
+      def link_xero_tracking_single
+        tracking_option_id = params[:tracking_option_id]
+        tracking_option_name = params[:tracking_option_name]
+
+        unless tracking_option_id.present?
+          return render_error("tracking_option_id is required", status: :bad_request)
+        end
+
+        ActiveRecord::Base.transaction do
+          # Create or update link row
+          link = XeroJobTrackingLink.find_or_initialize_by(tracking_option_id: tracking_option_id)
+          link.assign_attributes(
+            job: @job,
+            tracking_option_name: tracking_option_name,
+            is_primary: true,
+            tenant_id: @job.tenant_id
+          )
+          link.save!
+
+          # Unset previous primary (if different)
+          @job.xero_tracking_links.where.not(id: link.id).update_all(is_primary: false)
+
+          # Backward compat: update job columns
+          @job.update_columns(
+            xero_tracking_option_id: tracking_option_id,
+            xero_tracking_option_name: tracking_option_name
+          )
+        end
+
+        render json: { success: true, job: @job.reload.as_json }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
+      end
+
+      # Multi-link mode: replace all tracking links with the provided set
+      def link_xero_tracking_multi
+        options = params[:tracking_options]
+
+        unless options.is_a?(Array) && options.any?
+          return render_error("tracking_options must be a non-empty array", status: :bad_request)
+        end
+
+        ActiveRecord::Base.transaction do
+          incoming_ids = options.map { |o| o[:id] }.compact
+
+          # Remove links no longer in the set
+          @job.xero_tracking_links.where.not(tracking_option_id: incoming_ids).destroy_all
+
+          # Create or update each link
+          primary_set = false
+          options.each do |opt|
+            link = XeroJobTrackingLink.find_or_initialize_by(tracking_option_id: opt[:id])
+            is_primary = opt[:is_primary].present? ? ActiveModel::Type::Boolean.new.cast(opt[:is_primary]) : false
+            link.assign_attributes(
+              job: @job,
+              tracking_option_name: opt[:name],
+              is_primary: is_primary,
+              tenant_id: @job.tenant_id
+            )
+            link.save!
+            primary_set = true if is_primary
+          end
+
+          # If no explicit primary, set the first as primary
+          unless primary_set
+            first_link = @job.xero_tracking_links.reload.first
+            first_link&.update!(is_primary: true)
+          end
+
+          # Backward compat: update job columns from primary
+          primary_link = @job.xero_tracking_links.reload.find_by(is_primary: true)
+          if primary_link
+            @job.update_columns(
+              xero_tracking_option_id: primary_link.tracking_option_id,
+              xero_tracking_option_name: primary_link.tracking_option_name
+            )
+          end
+        end
+
+        # Return updated options
+        current_options = @job.xero_tracking_links.reload.order(is_primary: :desc).map do |link|
+          { id: link.tracking_option_id, name: link.tracking_option_name, variant: link.variant, is_primary: link.is_primary }
+        end
+
+        render json: { success: true, current_options: current_options }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
+      end
 
       # SSoT: Use WarehouseProvider.job_path for consistent folder naming
       def build_job_folder_path(job)

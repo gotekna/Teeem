@@ -157,8 +157,9 @@ class XeroFullBillImportService
       return
     end
 
-    # Find the job linked to this tracking option
-    job = Job.find_by(xero_tracking_option_id: tracking_option_id)
+    # Find the job linked to this tracking option (join table first, then legacy fallback)
+    job = XeroJobTrackingLink.job_for(tracking_option_id) ||
+          Job.find_by(xero_tracking_option_id: tracking_option_id)
     unless job
       Rails.logger.debug("Skipping bill '#{invoice_number}' - tracking option not linked to any job")
       @stats[:no_job] += 1

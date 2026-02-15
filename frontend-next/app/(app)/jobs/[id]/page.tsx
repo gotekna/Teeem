@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
 // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
@@ -768,9 +769,9 @@ export default function JobDetailPage() {
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
 
-  // Xero tracking category state
+  // Xero tracking category state (multi-link)
   const [xeroTrackingOptions, setXeroTrackingOptions] = React.useState<{id: string, name: string}[]>([]);
-  const [currentXeroOption, setCurrentXeroOption] = React.useState<{id: string, name: string} | null>(null);
+  const [currentXeroOptions, setCurrentXeroOptions] = React.useState<{id: string, name: string, variant?: string, is_primary?: boolean}[]>([]);
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
@@ -1017,13 +1018,14 @@ export default function JobDetailPage() {
       const response = await api.get<{
         success: boolean;
         tracking_options: {id: string, name: string}[];
+        current_options: {id: string, name: string, variant?: string, is_primary?: boolean}[];
         current_option: {id: string, name: string} | null;
         suggested_match: {id: string, name: string} | null;
       }>(`/api/v1/jobs/${jobId}/xero_tracking_options`);
 
       if (response?.success) {
         setXeroTrackingOptions(response.tracking_options || []);
-        setCurrentXeroOption(response.current_option);
+        setCurrentXeroOptions(response.current_options || []);
         setSuggestedXeroMatch(response.suggested_match);
       }
     } catch (error) {
@@ -1031,17 +1033,32 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
-  // Link job to Xero tracking option
-  const handleLinkXero = async (optionId: string, optionName: string) => {
+  // Link job to multiple Xero tracking options
+  const handleLinkXeroMulti = async (selected: {value: string, label: string}[]) => {
     if (!job) return;
     setLinkingXero(true);
     try {
-      await api.post(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
-        tracking_option_id: optionId,
-        tracking_option_name: optionName,
+      const trackingOptions = selected.map((opt, idx) => ({
+        id: opt.value,
+        name: opt.label,
+        is_primary: idx === 0, // First selected is primary
+      }));
+
+      const response = await api.post<{
+        success: boolean;
+        current_options: {id: string, name: string, variant?: string, is_primary?: boolean}[];
+      }>(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
+        tracking_options: trackingOptions,
       });
-      setCurrentXeroOption({ id: optionId, name: optionName });
-      setJob({ ...job, xero_tracking_option_id: optionId, xero_tracking_option_name: optionName });
+
+      if (response?.success && response.current_options) {
+        setCurrentXeroOptions(response.current_options);
+        // Update job with primary option for backward compat
+        const primary = response.current_options.find(o => o.is_primary) || response.current_options[0];
+        if (primary) {
+          setJob({ ...job, xero_tracking_option_id: primary.id, xero_tracking_option_name: primary.name });
+        }
+      }
     } catch (error) {
       console.error("Failed to link Xero tracking:", error);
     } finally {
@@ -1649,19 +1666,20 @@ export default function JobDetailPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Xero Job Category</Label>
+                    <Label>Xero Job Categories</Label>
                     {xeroTrackingOptions.length > 0 ? (
-                      <ComboboxDropdown
-                        items={xeroTrackingOptions.map((opt) => ({ id: opt.id, label: opt.name }))}
-                        selectedItem={currentXeroOption ? { id: currentXeroOption.id, label: currentXeroOption.name } : undefined}
-                        onSelect={(item) => handleLinkXero(item.id, item.label)}
-                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero job..."}
+                      <MultipleSelector
+                        value={currentXeroOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        defaultOptions={xeroTrackingOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        onChange={(selected) => handleLinkXeroMulti(selected)}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero tracking options..."}
                         disabled={linkingXero}
+                        hidePlaceholderWhenSelected
                       />
                     ) : (
-                      <Input value={currentXeroOption?.name || "Loading..."} readOnly />
+                      <Input value={currentXeroOptions[0]?.name || "Loading..."} readOnly />
                     )}
-                    {!currentXeroOption && suggestedXeroMatch && (
+                    {currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">
                         Suggested match: {suggestedXeroMatch.name}
                       </p>

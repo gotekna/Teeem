@@ -246,10 +246,25 @@ class ExternalInvoice < ApplicationRecord
     tracking_data.map { |t| t["Option"] }.compact.uniq
   end
 
-  # Link to job based on tracking category
+  # Link to job based on tracking category (join table first, then legacy fallback)
   def link_to_job!
     return if job_id.present?
 
+    # Try join table by tracking option ID first
+    if tracking_data.present?
+      tracking_data.each do |tracking|
+        tracking_option_id = tracking["TrackingOptionID"]
+        next if tracking_option_id.blank?
+
+        job = XeroJobTrackingLink.job_for(tracking_option_id)
+        if job
+          update!(job: job)
+          return
+        end
+      end
+    end
+
+    # Legacy fallback: match by tracking option name
     tracking_option_names.each do |name|
       job = Job.find_by(xero_tracking_option_name: name)
       if job

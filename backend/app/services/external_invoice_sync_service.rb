@@ -422,17 +422,30 @@ class ExternalInvoiceSyncService
   def link_to_job(invoice)
     return if invoice.tracking_data.blank?
 
-    # Find job by tracking option name
+    # Find job by tracking option ID (join table first) or name (legacy fallback)
     invoice.tracking_data.each do |tracking|
+      tracking_option_id = tracking["TrackingOptionID"]
       option_name = tracking["Option"]
-      next if option_name.blank?
 
+      # Try join table by tracking option ID first
+      if tracking_option_id.present?
+        job = XeroJobTrackingLink.job_for(tracking_option_id)
+        if job
+          invoice.update!(job: job)
+          @stats[:linked_to_jobs] += 1
+          Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title} via tracking link")
+          return
+        end
+      end
+
+      # Legacy fallback: match by tracking option name
+      next if option_name.blank?
       job = Job.find_by(xero_tracking_option_name: option_name)
       if job
         invoice.update!(job: job)
         @stats[:linked_to_jobs] += 1
-        Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title}")
-        break
+        Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title} via legacy name match")
+        return
       end
     end
   end

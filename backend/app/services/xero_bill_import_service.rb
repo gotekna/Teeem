@@ -93,8 +93,17 @@ class XeroBillImportService
       raise NotConnectedError, "Xero is not connected"
     end
 
-    unless @job.xero_tracking_option_id.present?
+    unless @job.xero_tracking_option_id.present? || @job.xero_tracking_links.any?
       raise NoTrackingOptionError, "Job '#{@job.title}' is not linked to a Xero tracking option"
+    end
+  end
+
+  # All tracking option IDs for this job (join table + legacy column)
+  def job_tracking_option_ids
+    @job_tracking_option_ids ||= begin
+      ids = @job.xero_tracking_links.pluck(:tracking_option_id)
+      ids << @job.xero_tracking_option_id if @job.xero_tracking_option_id.present? && !ids.include?(@job.xero_tracking_option_id)
+      ids
     end
   end
 
@@ -119,7 +128,7 @@ class XeroBillImportService
       tracking = line["Tracking"] || []
       tracking.any? do |t|
         t["TrackingCategoryID"] == tracking_category_id &&
-          t["TrackingOptionID"] == @job.xero_tracking_option_id
+          job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
   end
@@ -170,11 +179,11 @@ class XeroBillImportService
   def calculate_job_total(bill)
     line_items = bill["LineItems"] || []
 
-    # Sum only line items that are tracked to this job
+    # Sum only line items that are tracked to this job (any linked tracking option)
     matching_lines = line_items.select do |line|
       tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t["TrackingOptionID"] == @job.xero_tracking_option_id
+        job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
 
@@ -188,7 +197,7 @@ class XeroBillImportService
     matching_lines = line_items.select do |line|
       tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t["TrackingOptionID"] == @job.xero_tracking_option_id
+        job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
 

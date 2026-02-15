@@ -167,12 +167,13 @@ class XeroTrackingImportService
     primary_option = XeroTrackingAddressParser.primary_option(options)
     parsed = primary_option["_parsed"]
 
-    # Check if ANY option in the group is already linked to a job
+    # Check if ANY option in the group is already linked via join table or legacy column
     options.each do |option|
-      existing = Job.find_by(xero_tracking_option_id: option["TrackingOptionID"])
+      existing = XeroJobTrackingLink.job_for(option["TrackingOptionID"]) ||
+                 Job.find_by(xero_tracking_option_id: option["TrackingOptionID"])
       if existing
-        # Link remaining unlinked options to the same job
-        link_remaining_options(existing, options)
+        # Ensure ALL options in the group have link rows
+        create_tracking_links(existing, options)
         Rails.logger.debug("Skipping group '#{parsed[:code]}' - already linked to job ##{existing.id}")
         @stats[:skipped] += 1
         return
@@ -184,7 +185,7 @@ class XeroTrackingImportService
 
     job = if existing_job
       # Link all tracking options to existing job
-      link_all_options(existing_job, options)
+      create_tracking_links(existing_job, options)
       Rails.logger.info("Linked existing job ##{existing_job.id} '#{existing_job.name}' to #{options.length} tracking option(s)")
       @stats[:linked] += 1
       existing_job
@@ -233,8 +234,8 @@ class XeroTrackingImportService
 
     job = Job.create!(attrs)
 
-    # Link any variant options to the same job
-    link_remaining_options(job, options)
+    # Create tracking link rows for ALL options in the group
+    create_tracking_links(job, options)
 
     Rails.logger.info("Created new job ##{job.id} '#{job.name}' (code: #{job.job_code}) from tracking option '#{tracking_option_name}'")
     @stats[:created] += 1
@@ -242,48 +243,31 @@ class XeroTrackingImportService
     job
   end
 
-  # Link all tracking options in a group to a job
-  def link_all_options(job, options)
-    # Set the Production (P) variant as the job's tracking option (SSoT)
+  # Create XeroJobTrackingLink rows for all tracking options in a group
+  # Also maintains backward-compat: writes primary option to job columns
+  def create_tracking_links(job, options)
     primary = XeroTrackingAddressParser.primary_option(options)
-    if primary && job.xero_tracking_option_id != primary["TrackingOptionID"]
-      job.update!(
-        xero_tracking_option_id: primary["TrackingOptionID"],
-        xero_tracking_option_name: primary["Name"]
-      )
-    end
 
     options.each do |option|
-      next if job.xero_tracking_option_id == option["TrackingOptionID"]
+      tracking_option_id = option["TrackingOptionID"]
+      is_primary = (option == primary)
+      parsed = option["_parsed"] || {}
 
-      # Only set if job has no tracking option yet (shouldn't happen after above)
-      if job.xero_tracking_option_id.blank?
-        job.update!(
-          xero_tracking_option_id: option["TrackingOptionID"],
-          xero_tracking_option_name: option["Name"]
-        )
-      end
-    end
-
-    # Ensure at least one option is linked
-    if job.xero_tracking_option_id.blank?
-      first = options.first
-      job.update!(
-        xero_tracking_option_id: first["TrackingOptionID"],
-        xero_tracking_option_name: first["Name"]
+      # Find or create the link row (idempotent)
+      link = XeroJobTrackingLink.find_or_initialize_by(tracking_option_id: tracking_option_id)
+      link.assign_attributes(
+        job: job,
+        tracking_option_name: option["Name"],
+        variant: parsed[:variant],
+        is_primary: is_primary,
+        tenant_id: job.tenant_id
       )
+      link.save!
     end
-  end
 
-  # Link remaining unlinked variant options to the same job
-  def link_remaining_options(job, options)
-    # The Job model only stores one tracking option ID.
-    # For variants, we link the Production (P) one as SSoT; others implicitly linked by code.
-    return if options.length <= 1
-
-    primary = XeroTrackingAddressParser.primary_option(options)
+    # Backward compat: ensure job columns reflect primary option
     if primary && job.xero_tracking_option_id != primary["TrackingOptionID"]
-      job.update!(
+      job.update_columns(
         xero_tracking_option_id: primary["TrackingOptionID"],
         xero_tracking_option_name: primary["Name"]
       )
@@ -292,7 +276,13 @@ class XeroTrackingImportService
 
   # Find existing job for a group of tracking options
   def find_existing_job_for_group(options)
-    # First check by tracking option ID
+    # First check join table by tracking option ID
+    options.each do |option|
+      job = XeroJobTrackingLink.job_for(option["TrackingOptionID"])
+      return job if job
+    end
+
+    # Then check legacy column by tracking option ID
     options.each do |option|
       job = Job.find_by(xero_tracking_option_id: option["TrackingOptionID"])
       return job if job
