@@ -142,12 +142,16 @@ class XeroContactBatchFetchJob < ApplicationJob
   def handle_rate_limit(session, page, error, retry_count, tenant_name)
     Rails.logger.warn("[XeroContactBatchFetch] Rate limited on page #{page}: #{error.message}")
 
-    # Record the rate limit
-    retry_after = extract_retry_after(error.message)
-    XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: session.tenant_id)
+    # FRC (Feb 2026): Cap retry_after to 120s. Xero sometimes returns huge values
+    # (e.g., 9738s for daily limit), but we should retry sooner — if still rate
+    # limited, we'll get another 429. Matches XeroRateLimitTracker::MAX_LOCKOUT_DURATION.
+    raw_retry = extract_retry_after(error.message)
+    capped_retry = [raw_retry, 120].min
 
-    # Schedule retry after lockout expires
-    XeroContactBatchFetchJob.set(wait: (retry_after + 5).seconds).perform_later(
+    XeroRateLimitTracker.record_lockout!(raw_retry, tenant_id: session.tenant_id)
+
+    # Schedule retry after lockout expires (use capped value for wait time)
+    XeroContactBatchFetchJob.set(wait: (capped_retry + 5).seconds).perform_later(
       session_id: session.id,
       page: page,
       tenant_name: tenant_name,
@@ -155,9 +159,7 @@ class XeroContactBatchFetchJob < ApplicationJob
     )
   end
 
-  # FRC (Feb 2026): Default reduced from 3600s to 120s across all Xero jobs.
-  # Xero's per-minute limit resets in 60s - locking for 1 hour was absurd.
-  # SSoT version is in XeroJobBase concern (this job doesn't include it).
+  # SSoT: Same logic as XeroJobBase concern (this job doesn't include it).
   def extract_retry_after(error_message)
     match = error_message.to_s.match(/retry after (\d+)/i)
     match ||= error_message.to_s.match(/(\d+)\s*seconds?/i)
