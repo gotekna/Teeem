@@ -84,6 +84,13 @@ class XeroBankTransactionSyncJob < ApplicationJob
     rescue XeroApiClient::RateLimitError => e
       handle_rate_limit_error(tenant_id, e, options)
       { success: false, rate_limited: true }
+    rescue XeroApiClient::AuthenticationError => e
+      # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+      credential = XeroCredential.find_by(tenant_id: tenant_id)
+      Rails.logger.warn("[BankTransactionSync] Auth failed for #{credential&.tenant_name}, marking disconnected")
+      credential&.mark_disconnected!
+      result[:errors] << { tenant_id: tenant_id, error: "Auth failed - marked disconnected" }
+      { success: false, auth_failed: true }
     end
   end
 

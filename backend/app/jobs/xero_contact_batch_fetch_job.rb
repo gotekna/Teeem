@@ -84,6 +84,12 @@ class XeroContactBatchFetchJob < ApplicationJob
   rescue XeroApiClient::RateLimitError => e
     # Handle rate limit with session tracking
     handle_rate_limit(session, page, e, retry_count, tenant_name)
+  rescue XeroApiClient::AuthenticationError => e
+    # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+    credential = XeroCredential.find_by(tenant_id: tenant_id)
+    Rails.logger.warn("[XeroContactBatchFetch] Auth failed for #{tenant_name}, marking disconnected")
+    credential&.mark_disconnected!
+    session.fail!("Auth failed for #{tenant_name} - credential disconnected")
   rescue StandardError => e
     # FAIL FAST - any unexpected error stops the sync
     Rails.logger.error("[XeroContactBatchFetch] Unexpected error: #{e.class.name}: #{e.message}")
