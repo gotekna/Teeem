@@ -94,7 +94,6 @@ class WarehouseDocument < ApplicationRecord
       warehouse_folder_id
       warehouse_folder_document_type_id
       path_template_version
-      warehouse_type
     ]
   end
 

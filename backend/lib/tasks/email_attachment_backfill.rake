@@ -308,5 +308,72 @@ namespace :email do
       puts "BACKFILL COMPLETE"
       puts "=" * 70
     end
+
+    desc "Backfill SyncedEmailMailbox join table for IMAP emails (enables attachment backfill)"
+    task backfill_imap_appearances: :environment do
+      puts "=" * 70
+      puts "IMAP MAILBOX APPEARANCE BACKFILL"
+      puts "=" * 70
+      puts ""
+
+      Tenant.find_each do |tenant|
+        ActsAsTenant.with_tenant(tenant) do
+          # Find IMAP emails that have legacy fields but no join table entry
+          imap_emails = SyncedEmail.where(source_type: "imap")
+                                    .where.not(imap_credential_id: nil)
+                                    .where.not(uid: nil)
+
+          total = imap_emails.count
+          next if total == 0
+
+          # Check how many already have appearances
+          with_appearances = imap_emails.where(
+            id: SyncedEmailMailbox.where.not(imap_credential_id: nil).select(:synced_email_id)
+          ).count
+
+          missing = total - with_appearances
+
+          puts "-" * 70
+          puts "TENANT: #{tenant.name} (id=#{tenant.id})"
+          puts "-" * 70
+          puts "Total IMAP emails:              #{total}"
+          puts "Already have appearances:        #{with_appearances}"
+          puts "Missing appearances:             #{missing}"
+
+          next if missing == 0
+
+          created = 0
+          errors = 0
+
+          imap_emails.where.not(
+            id: SyncedEmailMailbox.where.not(imap_credential_id: nil).select(:synced_email_id)
+          ).find_each do |email|
+            email.ensure_mailbox_appearance(
+              mailbox_email: email.mailbox_owner_email,
+              uid: email.uid,
+              folder_name: email.folder_name,
+              is_read: email.is_read,
+              imap_credential_id: email.imap_credential_id
+            )
+            created += 1
+            print "."
+          rescue StandardError => e
+            errors += 1
+            puts "\n  ERROR email #{email.id}: #{e.message}"
+          end
+
+          puts ""
+          puts "  Created: #{created}, Errors: #{errors}"
+        end
+      end
+
+      puts ""
+      puts "=" * 70
+      puts "IMAP APPEARANCE BACKFILL COMPLETE"
+      puts "=" * 70
+      puts ""
+      puts "Now run: rails email:attachments:backfill[100]"
+      puts "to backfill attachments for IMAP emails."
+    end
   end
 end

@@ -11,6 +11,7 @@ import {
   resetTour,
   type PageTour,
 } from "@/lib/tours/tour-definitions";
+import { COLORS, TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // Dynamic import to avoid SSR issues with react-joyride
 const Joyride = dynamic(() => import("react-joyride"), { ssr: false });
@@ -25,12 +26,12 @@ interface PageTourProps {
 // Custom styles for the tour
 const tourStyles = {
   options: {
-    arrowColor: "#fff",
-    backgroundColor: "#fff",
+    arrowColor: COLORS.white,
+    backgroundColor: COLORS.white,
     overlayColor: "rgba(0, 0, 0, 0.5)",
-    primaryColor: "#6366f1", // Indigo-500
+    primaryColor: TAILWIND_COLORS.indigo[500],
     spotlightShadow: "0 0 15px rgba(99, 102, 241, 0.5)",
-    textColor: "#1f2937",
+    textColor: TAILWIND_COLORS.gray[800],
     zIndex: 10000,
   },
   tooltip: {
@@ -50,19 +51,19 @@ const tourStyles = {
     lineHeight: 1.5,
   },
   buttonNext: {
-    backgroundColor: "#6366f1",
+    backgroundColor: TAILWIND_COLORS.indigo[500],
     borderRadius: 6,
-    color: "#fff",
+    color: COLORS.white,
     fontSize: 14,
     padding: "8px 16px",
   },
   buttonBack: {
-    color: "#6366f1",
+    color: TAILWIND_COLORS.indigo[500],
     fontSize: 14,
     marginRight: 8,
   },
   buttonSkip: {
-    color: "#6b7280",
+    color: TAILWIND_COLORS.gray[500],
     fontSize: 13,
   },
   buttonClose: {

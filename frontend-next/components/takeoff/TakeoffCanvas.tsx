@@ -20,6 +20,7 @@ import { SnapIndicator, SnapPointsLayer, SnapMagnifier, PinnedMagnifier } from "
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 import { Z_TOOLTIP } from "@/lib/constants/z-index-constants";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 // =============================================================================
 // Fabric.js Type Extensions
@@ -463,7 +464,7 @@ export function TakeoffCanvas({
 
     const isSelected = selectedMeasurement?.id === measurement.id;
     // Selected = vivid green highlight so user can confirm which shape they clicked
-    const effectiveColor = isSelected ? "#22C55E" : color;
+    const effectiveColor = isSelected ? TAILWIND_COLORS.green[500] : color;
     const strokeWidth = isSelected ? 3 : 2;
 
     switch (geometry_data.type) {
@@ -482,7 +483,7 @@ export function TakeoffCanvas({
               top: point.y - markerRadius - 6,
               radius: markerRadius + 6,
               fill: isBeingRepositioned ? "rgba(59,130,246,0.3)" : "rgba(34,197,94,0.2)",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: isBeingRepositioned ? 4 : 3,
               strokeDashArray: isBeingRepositioned ? [4, 3] : undefined,
               selectable: false,
@@ -496,8 +497,8 @@ export function TakeoffCanvas({
             left: point.x - markerRadius,
             top: point.y - markerRadius,
             radius: markerRadius,
-            fill: isBeingRepositioned ? "#3B82F680" : isSelected ? "#22C55E" : color,
-            stroke: isSelected ? "#fff" : "#fff",
+            fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : isSelected ? TAILWIND_COLORS.green[500] : color,
+            stroke: isSelected ? COLORS.white : COLORS.white,
             strokeWidth: isSelected ? 3 : 2,
             selectable: currentTool === "select",
             opacity: isBeingRepositioned ? 0.5 : 1,
@@ -513,7 +514,7 @@ export function TakeoffCanvas({
             left: point.x,
             top: point.y,
             fontSize: drawingStyle.fontSize,
-            fill: "#fff",
+            fill: COLORS.white,
             fontWeight: "bold",
             originX: "center",
             originY: "center",
@@ -530,7 +531,7 @@ export function TakeoffCanvas({
       case "polygon": {
         // Area/perimeter measurement
         const polygon = new fabric.Polygon(scaledPoints, {
-          fill: isSelected ? "#22C55E44" : `${color}33`,
+          fill: isSelected ? `${TAILWIND_COLORS.green[500]}44` : `${color}33`,
           stroke: effectiveColor,
           strokeWidth,
           selectable: currentTool === "select",
@@ -562,8 +563,8 @@ export function TakeoffCanvas({
               left: pt.x - 6,
               top: pt.y - 6,
               radius: 6,
-              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : COLORS.white,
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: 2,
               strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
               opacity: isBeingRepositioned ? 0.5 : 1,
@@ -613,8 +614,8 @@ export function TakeoffCanvas({
               left: pt.x - 6,
               top: pt.y - 6,
               radius: 6,
-              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : COLORS.white,
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: 2,
               strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
               opacity: isBeingRepositioned ? 0.5 : 1,
@@ -648,7 +649,7 @@ export function TakeoffCanvas({
     const line = new fabric.Line(
       [scaledLine[0].x, scaledLine[0].y, scaledLine[1].x, scaledLine[1].y],
       {
-        stroke: "#F59E0B",  // Amber
+        stroke: TAILWIND_COLORS.amber[500],  // Amber
         strokeWidth: 2,
         strokeDashArray: [5, 5],
         selectable: false,
@@ -673,7 +674,7 @@ export function TakeoffCanvas({
     const connector = new fabric.Line(
       [midX, midY, labelX, labelY],
       {
-        stroke: "#F59E0B",
+        stroke: TAILWIND_COLORS.amber[500],
         strokeWidth: 1,
         strokeDashArray: [2, 2],
         selectable: false,
@@ -693,7 +694,7 @@ export function TakeoffCanvas({
       left: labelX,
       top: labelY - 8,
       fontSize: 12,
-      fill: "#F59E0B",
+      fill: TAILWIND_COLORS.amber[500],
       backgroundColor: "rgba(255,255,255,0.9)",
       originX: "center",
       originY: "bottom",
@@ -1143,7 +1144,7 @@ export function TakeoffCanvas({
 
     // Draw new temp line (green when verifying, amber when calibrating)
     const isVerifyMode = pageScale?.calibrated && pageScale.scale_factor;
-    const lineColor = isVerifyMode ? "#16A34A" : "#F59E0B";
+    const lineColor = isVerifyMode ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.amber[500];
     const line = new fabric.Line([sx, sy, ex, ey], {
       stroke: lineColor,
       strokeWidth: 3,
@@ -1200,7 +1201,7 @@ export function TakeoffCanvas({
         left: labelX,
         top: labelY - 6,
         fontSize: 11,
-        fill: pageScale?.calibrated ? "#16A34A" : "#F59E0B",
+        fill: pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.amber[500],
         backgroundColor: "rgba(255,255,255,0.85)",
         originX: "center",
         originY: "bottom",

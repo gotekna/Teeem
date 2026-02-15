@@ -463,6 +463,17 @@ class ImapEmailService
           if existing
             # Update read status from server (in case it changed)
             existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
+
+            # FRC (Feb 2026): Always ensure mailbox appearance exists for IMAP emails
+            # Previously skipped entirely, leaving join table empty for existing emails
+            existing.ensure_mailbox_appearance(
+              mailbox_email: credential.email_address,
+              uid: email_data[:uid],
+              folder_name: email_data[:folder_name],
+              is_read: email_data[:is_read] || false,
+              imap_credential_id: credential.id
+            )
+
             results[:skipped] += 1
             next
           end
@@ -493,6 +504,16 @@ class ImapEmailService
             synced_by_user: credential.user,
             # SSoT: Multi-tenancy - set tenant_id from credential's user
             tenant_id: credential.user&.tenant_id
+          )
+
+          # FRC (Feb 2026): Populate the SyncedEmailMailbox join table
+          # This enables sync_attachments! to find IMAP credentials for backfill
+          email.ensure_mailbox_appearance(
+            mailbox_email: credential.email_address,
+            uid: email_data[:uid],
+            folder_name: email_data[:folder_name],
+            is_read: email_data[:is_read] || false,
+            imap_credential_id: credential.id
           )
 
           # Attach files if present

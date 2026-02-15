@@ -1208,13 +1208,26 @@ class SyncedEmail < ApplicationRecord
     attempts
   end
 
-  # Build IMAP credential attempts from SyncedEmailMailbox join table.
+  # Build IMAP credential attempts for attachment fetching.
+  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances.
   # Used as fallback when no Microsoft Graph credential is available (Gmail, Webcentral, etc.)
   def build_imap_credential_attempts
     attempts = []
 
+    # 1) Legacy fields (backward compat, fastest path)
+    if imap_credential_id.present? && uid.present? && mailbox_owner_email.present?
+      attempts << {
+        imap_credential_id: imap_credential_id,
+        mailbox: mailbox_owner_email,
+        uid: uid,
+        folder: folder_name || "INBOX"
+      }
+    end
+
+    # 2) All mailbox appearances with IMAP credentials (the SSoT join table)
     mailbox_appearances.where.not(imap_credential_id: nil).where.not(uid: nil).each do |appearance|
-      next if attempts.any? { |a| a[:imap_credential_id] == appearance.imap_credential_id && a[:uid] == appearance.uid }
+      key = [appearance.imap_credential_id, appearance.uid]
+      next if attempts.any? { |a| [a[:imap_credential_id], a[:uid]] == key }
       attempts << {
         imap_credential_id: appearance.imap_credential_id,
         mailbox: appearance.mailbox_owner_email,

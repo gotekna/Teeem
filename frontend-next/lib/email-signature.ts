@@ -3,6 +3,18 @@
  * SSoT for generating branded email signatures from user data
  */
 
+import { TAILWIND_COLORS, COLORS } from '@/lib/constants/color-constants';
+
+/** Email signature color palette - SSoT for all signature templates */
+const EMAIL_SIGNATURE_COLORS = {
+  heading: TAILWIND_COLORS.gray[700],     // #374151
+  body: TAILWIND_COLORS.gray[500],        // #6b7280
+  muted: TAILWIND_COLORS.gray[400],       // #9ca3af
+  border: TAILWIND_COLORS.gray[200],      // #e5e7eb
+  link: TAILWIND_COLORS.gray[700],        // #374151
+  background: TAILWIND_COLORS.gray[50],   // #f9fafb
+} as const;
+
 export interface SignatureUserData {
   name: string;
   email: string;
@@ -251,11 +263,11 @@ function generateModernLight(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? `<span style="color: #666666; margin-left: 12px;">${user.mobile_phone}</span>`
+    ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.body}; margin-left: 12px;">${user.mobile_phone}</span>`
     : "";
 
   const companyName = company?.name || DEFAULT_COMPANY.name;

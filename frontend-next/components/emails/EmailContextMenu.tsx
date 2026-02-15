@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 interface EmailFolder {
   id: string;
@@ -74,12 +75,12 @@ interface EmailContextMenuProps {
 }
 
 const STAR_COLORS = [
-  { key: "yellow", hex: "#EAB308", label: "Yellow" },
-  { key: "blue", hex: "#3B82F6", label: "Blue" },
-  { key: "green", hex: "#22C55E", label: "Green" },
-  { key: "red", hex: "#EF4444", label: "Red" },
-  { key: "purple", hex: "#A855F7", label: "Purple" },
-  { key: "orange", hex: "#F97316", label: "Orange" },
+  { key: "yellow", hex: TAILWIND_COLORS.yellow[500], label: "Yellow" },
+  { key: "blue", hex: TAILWIND_COLORS.blue[500], label: "Blue" },
+  { key: "green", hex: TAILWIND_COLORS.green[500], label: "Green" },
+  { key: "red", hex: TAILWIND_COLORS.red[500], label: "Red" },
+  { key: "purple", hex: TAILWIND_COLORS.purple[500], label: "Purple" },
+  { key: "orange", hex: TAILWIND_COLORS.orange[500], label: "Orange" },
 ];
 
 const SNOOZE_OPTIONS = [

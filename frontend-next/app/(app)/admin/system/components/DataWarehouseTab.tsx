@@ -22,10 +22,17 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Database,
   HardDrive,
@@ -1428,11 +1435,66 @@ export function DataWarehouseTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Source Type</TableHead>
-                  <TableHead className="text-right">Expected</TableHead>
-                  <TableHead className="text-right">In Warehouse</TableHead>
-                  <TableHead className="text-right">Has File</TableHead>
-                  <TableHead className="text-right">Missing</TableHead>
-                  <TableHead className="text-right">Unfetchable</TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Expected</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Total records in the source table (e.g. SyncedEmail, Job, Contact). How many SHOULD have files.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">WH Docs</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">WarehouseDocument records created. Metadata exists but file may not be uploaded yet.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Has File</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">WarehouseDocuments with a verified file stored in Wasabi (StorageBlob with verified_at set).</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Missing</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Expected minus Has File. Records that still need files uploaded to Wasabi.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unfetchable</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Emails from deleted/disconnected mailboxes that can never be fetched.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1515,6 +1577,46 @@ export function DataWarehouseTab() {
                   );
                 })}
               </TableBody>
+              <TableFooter>
+                {(() => {
+                  const totals = stats.warehouse_breakdown.reduce(
+                    (acc, row) => ({
+                      expected: acc.expected + (row.total || 0),
+                      inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
+                      withFile: acc.withFile + (row.with_file || 0),
+                      missing: acc.missing + (row.missing ?? 0),
+                      unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
+                    }),
+                    { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, unfetchable: 0 }
+                  );
+                  const totalRate = totals.expected > 0 ? ((totals.withFile / totals.expected) * 100).toFixed(1) : "0";
+                  return (
+                    <TableRow className="font-medium">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right">{totals.expected.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{totals.inWarehouse.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-green-600 dark:text-green-400">
+                        {totals.withFile.toLocaleString()}
+                        <span className="text-xs text-muted-foreground ml-1">({totalRate}%)</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {totals.missing > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">{totals.missing.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-green-600 dark:text-green-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {totals.unfetchable > 0 ? (
+                          <span className="text-orange-600 dark:text-orange-400">{totals.unfetchable.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })()}
+              </TableFooter>
             </Table>
             {/* Blob Storage Summary */}
             {stats.blob_stats && (
