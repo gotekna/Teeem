@@ -15,7 +15,12 @@
 class XeroContactBatchProcessJob < ApplicationJob
   queue_as :default
 
-  def perform(session_id:, xero_contacts:, page:, xero_org_id:, tenant_name: nil)
+  # FRC (Feb 2026): xero_contacts_json is a JSON string, not Array<Hash>.
+  # ActiveJob/SolidQueue can't serialize nested Hashes from JSON.parse
+  # (NoMethodError: undefined method 'to_global_id' for an instance of Hash).
+  # We serialize to JSON string in fetch job and parse here.
+  def perform(session_id:, xero_contacts_json:, page:, xero_org_id:, tenant_name: nil)
+    xero_contacts = JSON.parse(xero_contacts_json)
     session = XeroSyncSession.find_by(id: session_id)
 
     unless session

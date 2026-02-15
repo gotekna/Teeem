@@ -58,10 +58,14 @@ class XeroContactBatchFetchJob < ApplicationJob
     session.increment_fetched!(contacts.size, page: page)
 
     # Queue processing job for this batch
+    # FRC (Feb 2026): Pass contacts as JSON string, not raw Array<Hash>.
+    # ActiveJob/SolidQueue serialization fails with "undefined method
+    # to_global_id for an instance of Hash" when serializing nested Hashes
+    # from JSON.parse. JSON string is a primitive that serializes cleanly.
     unless contacts.empty?
       XeroContactBatchProcessJob.perform_later(
         session_id: session.id,
-        xero_contacts: contacts,
+        xero_contacts_json: contacts.to_json,
         page: page,
         xero_org_id: tenant_id,
         tenant_name: tenant_name
