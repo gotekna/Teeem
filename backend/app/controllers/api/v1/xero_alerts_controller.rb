@@ -154,12 +154,13 @@ module Api
         end
       end
 
+      # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
       def find_credential_for_company(company)
-        return XeroCredential.current unless company
-
-        # Try to find via connection
-        connection = company.corporate_xero_connection
-        connection&.xero_credential || XeroCredential.current
+        if company
+          connection = company.corporate_xero_connection
+          return connection.xero_credential if connection&.xero_credential
+        end
+        XeroCredential.current_for(current_tenant)
       end
 
       def calculate_overall_status(credential)

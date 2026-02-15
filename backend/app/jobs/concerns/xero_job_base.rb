@@ -116,12 +116,18 @@ module XeroJobBase
   private
 
   # Find the appropriate credential
+  # FRC (Feb 2026): Added teeem_tenant_id support to prevent cross-tenant leaks
   def find_credential(options)
     if options[:credential_id]
       XeroCredential.find(options[:credential_id])
     elsif options[:tenant_id]
       XeroCredential.find_by!(tenant_id: options[:tenant_id])
+    elsif options[:teeem_tenant_id]
+      XeroCredential.current_for(options[:teeem_tenant_id])
     else
+      # Fallback: No tenant context in background jobs - use unscoped .current
+      # Jobs should always pass credential_id or tenant_id to avoid this path
+      Rails.logger.warn("[#{self.class.name}] No credential_id or tenant_id provided, using unscoped XeroCredential.current")
       XeroCredential.current
     end
   end

@@ -99,8 +99,14 @@ class XeroInvoicePushJob < ApplicationJob
 
     return if count.zero?
 
-    # Get credential
-    credential = tenant_id ? XeroCredential.find_by(tenant_id: tenant_id) : XeroCredential.current
+    # FRC (Feb 2026): Tenant-scoped credential lookup
+    # When no tenant_id provided, falls back to unscoped .current (logged warning in find_credential)
+    credential = if tenant_id
+                   XeroCredential.find_by(tenant_id: tenant_id)
+                 else
+                   Rails.logger.warn("[XeroInvoicePushJob] No tenant_id for batch push, using unscoped .current")
+                   XeroCredential.current
+                 end
 
     unless credential
       Rails.logger.warn("[XeroInvoicePushJob] No credential found for batch push")

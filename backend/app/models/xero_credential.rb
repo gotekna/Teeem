@@ -52,10 +52,18 @@ class XeroCredential < ApplicationRecord
   # Callbacks
   after_create :set_as_primary_if_none_exists
 
-  # Get the current (primary or latest) active credential
+  # Get the current (primary or latest) active credential (UNSCOPED - use current_for in controllers)
   # Priority: 1) Primary connected credential, 2) Any primary, 3) Most recent connected
   def self.current
     primary.connected.first || primary.first || connected.order(created_at: :desc).first || order(created_at: :desc).first
+  end
+
+  # FRC (Feb 2026): Tenant-scoped version of .current to prevent cross-tenant leaks
+  # Use this in controllers/services where tenant context is available
+  def self.current_for(tenant)
+    scope = for_teeem_tenant(tenant)
+    scope.primary.connected.first || scope.primary.first ||
+      scope.connected.order(created_at: :desc).first || scope.order(created_at: :desc).first
   end
 
   # Set this credential as the primary one (and unset others for this tenant)

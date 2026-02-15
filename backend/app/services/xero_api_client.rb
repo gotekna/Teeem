@@ -191,7 +191,7 @@ class XeroApiClient
   # Refresh the access token
   # DELEGATES TO XeroTokenManager - Single Source of Truth for token operations
   def refresh_access_token
-    credential = XeroCredential.current
+    credential = current_credential
     return { success: false, error: "No credentials found" } unless credential
 
     refresh_access_token_for(credential)
@@ -314,21 +314,18 @@ class XeroApiClient
   def connection_status
     # Multi-tenancy: Filter by TEEEM tenant
     # Master tenant sees all; other tenants only see their own Xero orgs
-    all_credentials = if @teeem_tenant&.master_tenant?
+    tenant = @teeem_tenant || ActsAsTenant.current_tenant
+    all_credentials = if tenant&.master_tenant?
                         XeroCredential.all
-                      elsif @teeem_tenant
-                        XeroCredential.for_teeem_tenant(@teeem_tenant)
+                      elsif tenant
+                        XeroCredential.for_teeem_tenant(tenant)
                       else
                         XeroCredential.all  # Fallback for backward compatibility
                       end
 
     # FRC (Feb 2026): Derive primary from tenant-scoped set, NOT global XeroCredential.current
     # Bug: XeroCredential.current is unscoped - returns Tekna Homes even on Pilgrim tenant
-    # Same priority logic as XeroCredential.current but scoped to this tenant's credentials
-    tenant_primary = all_credentials.primary.connected.first ||
-                     all_credentials.primary.first ||
-                     all_credentials.connected.order(created_at: :desc).first ||
-                     all_credentials.order(created_at: :desc).first
+    tenant_primary = current_credential
 
     if all_credentials.empty?
       return {
@@ -466,7 +463,7 @@ class XeroApiClient
 
   # Disconnect from Xero (revoke tokens)
   def disconnect
-    credential = XeroCredential.current
+    credential = current_credential
     return { success: false, error: "Not connected" } unless credential
 
     begin
@@ -906,13 +903,26 @@ class XeroApiClient
 
   private
 
+  # FRC (Feb 2026): Tenant-scoped credential lookup - replaces all XeroCredential.current calls
+  # Uses @teeem_tenant when available to prevent cross-tenant leaks
+  # Falls back to ActsAsTenant.current_tenant for safety (covers cases where
+  # XeroApiClient.new was called without explicit teeem_tenant: param)
+  def current_credential
+    tenant = @teeem_tenant || ActsAsTenant.current_tenant
+    if tenant
+      XeroCredential.current_for(tenant)
+    else
+      XeroCredential.current
+    end
+  end
+
   # Find the appropriate credential for a tenant
   def find_credential_for_tenant(tenant_id)
     if tenant_id.present?
       CorporateXeroConnection.find_by(xero_tenant_id: tenant_id) ||
         XeroCredential.find_by(tenant_id: tenant_id)
     else
-      XeroCredential.current
+      current_credential
     end
   end
 
@@ -994,8 +1004,8 @@ class XeroApiClient
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
 
-    # Default to current global credential if no tenant specified
-    credential ||= XeroCredential.current
+    # Default to current tenant-scoped credential if no tenant specified
+    credential ||= current_credential
 
     unless credential
       raise AuthenticationError, "Not authenticated with Xero"
@@ -1109,7 +1119,7 @@ class XeroApiClient
       credential = CorporateXeroConnection.find_by(xero_tenant_id: tenant_id)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
-    credential ||= XeroCredential.current
+    credential ||= current_credential
 
     unless credential
       raise AuthenticationError, "Not authenticated with Xero"

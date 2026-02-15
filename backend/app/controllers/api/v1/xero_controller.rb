@@ -933,14 +933,14 @@ module Api
       # Import all Xero tracking categories as Jobs
       def import_tracking_categories
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
             return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
-          service = XeroTrackingImportService.new
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           result = service.import_all
 
           render json: result
@@ -958,14 +958,14 @@ module Api
       # Preview tracking categories with parsed job data, client info, and couple detection
       def tracking_categories_preview
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
             return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
-          service = XeroTrackingImportService.new
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           result = service.preview
 
           render json: result
@@ -984,14 +984,14 @@ module Api
       # Body: { option_ids: ["id1", "id2", ...] } - if empty, imports all
       def import_jobs
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
             return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
-          service = XeroTrackingImportService.new
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           option_ids = params[:option_ids]
 
           result = if option_ids.present? && option_ids.is_a?(Array) && option_ids.any?
@@ -1065,7 +1065,7 @@ module Api
       # Run full import: contacts, tracking categories, bills, and claims
       def full_import
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
@@ -1087,7 +1087,7 @@ module Api
 
           # Step 2: Import tracking categories as jobs
           Rails.logger.info("Full import: Starting tracking category import")
-          tracking_service = XeroTrackingImportService.new
+          tracking_service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           results[:tracking_categories] = tracking_service.import_all
 
           # Step 3: Import bills as purchase orders

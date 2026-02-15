@@ -1034,8 +1034,9 @@ module Api
         0
       end
 
+      # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
       def get_xero_status
-        credential = XeroCredential.current
+        credential = XeroCredential.current_for(current_tenant)
         return { connected: false } unless credential
 
         # Use the SSoT status field from XeroCredential model

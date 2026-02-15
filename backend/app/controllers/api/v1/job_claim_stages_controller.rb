@@ -258,8 +258,8 @@ module Api
           return render_error("Job has no client contact assigned. Please add a client first.", status: :unprocessable_entity)
         end
 
-        # Get Xero credential for tenant_id
-        xero_credential = XeroCredential.current
+        # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
+        xero_credential = XeroCredential.current_for(current_tenant)
         unless xero_credential
           return render_error("No Xero connection configured", status: :unprocessable_entity)
         end
@@ -377,8 +377,8 @@ module Api
           return render_error("Invoice has already been sent to Xero", status: :unprocessable_entity)
         end
 
-        # Get Xero credential
-        xero_credential = XeroCredential.current
+        # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
+        xero_credential = XeroCredential.current_for(current_tenant)
         unless xero_credential
           return render_error("No Xero connection configured", status: :unprocessable_entity)
         end

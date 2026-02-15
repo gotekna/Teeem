@@ -14,8 +14,8 @@ class XeroTrackingImportService
 
   attr_reader :stats
 
-  def initialize
-    @client = XeroApiClient.new
+  def initialize(teeem_tenant: nil)
+    @client = XeroApiClient.new(teeem_tenant: teeem_tenant || ActsAsTenant.current_tenant)
     @tracking_category_name = XeroConstants.tracking_category_name
     @stats = {
       created: 0,
