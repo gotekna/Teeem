@@ -29,8 +29,13 @@ production:
       polling_interval: 0.1
 
     # Background worker: analytics, bulk ops, maintenance
+    # FRC (Feb 2026): Increased from 2→6 threads. Each xero_bulk job spawns
+    # 4 concurrent download threads (IO-bound HTTP to Xero API), so more
+    # SolidQueue threads = more orgs syncing PDFs simultaneously.
+    # Standard-2X dyno (1GB) handles this easily for IO-bound work.
+    # DB pool (RAILS_MAX_THREADS) must be >= total_threads + max_child_threads.
     - queues: [xero_sync, xero_bulk, low, low_priority]
-      threads: 2
+      threads: 6
       processes: 1
       polling_interval: 1
 
