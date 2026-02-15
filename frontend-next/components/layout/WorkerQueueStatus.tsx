@@ -42,6 +42,7 @@ interface QueueStatusData {
     last_heartbeat: string | null;
     staleness_seconds: number | null;
   };
+  backlog: Array<{ key: string; label: string; remaining: number }>;
 }
 
 function getStatusIconColor(status: QueueStatusLevel) {
@@ -266,6 +267,31 @@ export function WorkerQueueStatus() {
                 />
               </div>
             </div>
+
+            {/* Backlog - application-level remaining work */}
+            {data.backlog && data.backlog.length > 0 && (
+              <div className="p-3 border-b border-border">
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                    Backlog
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    remaining
+                  </p>
+                </div>
+                {data.backlog.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex justify-between text-xs py-0.5"
+                  >
+                    <span className="text-foreground">{item.label}</span>
+                    <span className="text-blue-500 dark:text-blue-400 shrink-0 ml-2 tabular-nums">
+                      {item.remaining.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Processes */}
             {processEntries.length > 0 && (

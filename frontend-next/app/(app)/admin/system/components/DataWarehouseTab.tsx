@@ -233,7 +233,8 @@ interface OrgDataStats {
     missing: number; // Docs without files (Expected - Has File for targets, WH Docs - Has File for others)
     unique_blobs?: number;  // Distinct storage blobs (deduplication count)
     duplicates?: number;    // with_blob minus unique_blobs (shared blob references)
-    unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
+    unfetchable?: number;   // Emails that can never be fetched (deleted mailbox, content_unavailable, no outlook_id)
+    no_outlook_id?: number;  // Subset: emails without outlook_id/mailbox (can't fetch from Microsoft)
     file_rate: number;
     tenant_breakdown?: Array<{
       tenant_id: string;
@@ -1522,7 +1523,7 @@ export function DataWarehouseTab() {
                           <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unfetchable</span>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Emails from deleted/disconnected mailboxes that can never be fetched.</p>
+                          <p className="max-w-xs text-xs">Emails that can never be fetched: deleted mailboxes, removed users, no Outlook ID, or content permanently unavailable from Microsoft.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -1673,12 +1674,13 @@ export function DataWarehouseTab() {
                   },
                   { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, duplicates: 0, unfetchable: 0 }
                 );
-                const totalWhDocs = stats.documents.total_documents;
-                const grandInWarehouse = totalWhDocs;
-                // Use docs_with_file from backend (includes ALL docs, not just classified rows)
-                const grandWithFile = stats.blob_stats?.docs_with_file ?? rowTotals.withFile;
+                // Include unclassified in totals so footer = sum of all visible rows
+                const unclassifiedWh = stats.blob_stats?.unclassified_total ?? 0;
+                const unclassifiedFile = stats.blob_stats?.unclassified_with_file ?? 0;
                 const grandExpected = rowTotals.expected;
-                const grandMissing = rowTotals.missing;
+                const grandInWarehouse = rowTotals.inWarehouse + unclassifiedWh;
+                const grandWithFile = rowTotals.withFile + unclassifiedFile;
+                const grandMissing = rowTotals.missing + Math.max(unclassifiedWh - unclassifiedFile, 0);
                 const totalRate = grandInWarehouse > 0 ? ((grandWithFile / grandInWarehouse) * 100).toFixed(1) : "0";
                 return (
                   <TableFooter>

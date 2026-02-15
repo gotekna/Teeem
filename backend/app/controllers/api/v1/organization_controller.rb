@@ -789,12 +789,16 @@ module Api
           }
 
           # Pre-compute all warehouse_type counts in 4 queries (not N+1)
-          by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).group(:warehouse_type).count
-          blob_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).where.not(storage_blob_id: nil).group(:warehouse_type).count
-          file_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""])
+          # Exclude source_type='xero' — Xero docs get their own row with Expected target,
+          # but are stored with warehouse_type='contact'/'corporate'. Excluding prevents
+          # double-counting and keeps Contact/Corporate showing only non-Xero docs.
+          base_wt_scope = WarehouseDocument.where.not(warehouse_type: [nil, ""]).where.not(source_type: "xero")
+          by_wt = base_wt_scope.group(:warehouse_type).count
+          blob_by_wt = base_wt_scope.where.not(storage_blob_id: nil).group(:warehouse_type).count
+          file_by_wt = base_wt_scope
             .joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL")
             .group(:warehouse_type).count
-          unique_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""])
+          unique_by_wt = base_wt_scope
             .where.not(storage_blob_id: nil)
             .group(:warehouse_type).distinct.count(:storage_blob_id)
 
@@ -809,11 +813,19 @@ module Api
             if wt.code == "email"
               # Email Bodies
               email_body_total = SyncedEmail.count
-              email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
+              # SSoT: Two sources of "unfetchable" emails:
+              # 1. Legacy: storage_path starts with "UNFETCHABLE" (old pattern)
+              # 2. Current: content_unavailable=true (EmailStorageUploadService marks these)
+              email_body_unfetchable_legacy = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
+              email_body_content_unavailable = SyncedEmail.where(content_unavailable: true).count
+              email_body_unfetchable = email_body_unfetchable_legacy + email_body_content_unavailable
+              # Also count emails missing outlook_id or mailbox (can never be fetched)
+              email_body_no_outlook = SyncedEmail.where(outlook_id: [nil, ""]).or(SyncedEmail.where(mailbox_owner_email: [nil, ""])).count
               email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
               row = build_row.call("email_body", "Email Bodies", email_body_scope, expected: email_body_total)
               row[:unfetchable] = email_body_unfetchable
-              row[:missing] = [email_body_total - row[:with_file] - email_body_unfetchable, 0].max
+              row[:no_outlook_id] = email_body_no_outlook
+              row[:missing] = [email_body_total - row[:with_file] - email_body_unfetchable - email_body_no_outlook, 0].max
               results << row if email_body_total > 0
 
               # Email Attachments

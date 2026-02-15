@@ -208,6 +208,9 @@ module Api
           []
         end
 
+        # 8. Application-level backlog (remaining work, not queue jobs)
+        backlog = compute_backlog
+
         render json: {
           success: true,
           data: {
@@ -224,7 +227,8 @@ module Api
             queueDepth: queue_depth,
             pausedQueues: paused_queues,
             topFailed: top_failed,
-            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds)
+            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds),
+            backlog: backlog
           }
         }
       rescue StandardError => e
@@ -412,6 +416,41 @@ module Api
         end
       rescue StandardError => e
         Rails.logger.debug "[SystemController] auto_clear_stale_failures failed: #{e.message}"
+      end
+
+      # Application-level backlog: remaining work across subsystems
+      # These are NOT queue jobs - they're records still needing processing
+      def compute_backlog
+        items = []
+
+        # Email uploads remaining (SSoT: matches EmailStorageUploadService filters)
+        email_remaining = SyncedEmail.unscoped
+          .where(storage_path: [nil, ""])
+          .where(storage_email_path: [nil, ""])
+          .where.not(outlook_id: [nil, ""])
+          .where.not(mailbox_owner_email: [nil, ""])
+          .where(content_unavailable: false)
+          .count
+
+        items << { key: "email_uploads", label: "Email uploads", remaining: email_remaining } if email_remaining > 0
+
+        # Xero contacts pending review (unscoped - cross-tenant)
+        xero_pending = if MvXeroSyncStat.available?
+          MvXeroSyncStat.sum(:pending_review).to_i
+        else
+          0
+        end
+
+        items << { key: "xero_contacts", label: "Xero contacts pending", remaining: xero_pending } if xero_pending > 0
+
+        # Xero active sync sessions
+        xero_active = XeroSyncSession.active.count
+        items << { key: "xero_sync", label: "Xero sync sessions", remaining: xero_active } if xero_active > 0
+
+        items
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_backlog failed: #{e.message}"
+        []
       end
 
       def get_pending_jobs_count
