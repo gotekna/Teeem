@@ -3256,14 +3256,11 @@ module Api
       # 2. Invoices for a Xero org may span multiple TEEEM tenants
       # 3. Using contact_ids leaked cross-tenant counts
       def count_remaining_for_tenant(xero_tenant_id)
-        # Xero only generates PDFs for certain invoice types:
-        # - sales_invoice, quote, credit_note: YES (Xero auto-generates PDF)
-        # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices)
+        # All invoice types can have PDFs (including bills - supplier invoices are attached)
         total = ExternalInvoice.unscoped
           .where(xero_org_id: xero_tenant_id)
           .where.not(status: %w[voided deleted])
           .where.not(status: "draft")
-          .where.not(invoice_type: "bill")
           .count
 
         # Count invoices WITH synced PDFs
@@ -3277,7 +3274,6 @@ module Api
           .where(external_invoices: { xero_org_id: xero_tenant_id })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
-          .where.not(external_invoices: { invoice_type: "bill" })
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max

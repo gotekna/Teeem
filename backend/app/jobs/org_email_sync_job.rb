@@ -51,6 +51,12 @@ class OrgEmailSyncJob < ApplicationJob
   # Fix: 2 threads is safer while still providing parallelism benefit.
   PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
+  # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
+  # Root cause: Pilgrim Homes (56 mailboxes x 15 years) would take ~56 hours to fully sync.
+  # Heroku kills dynos at 30 minutes, so the job dies mid-sync and last_sync_at never updates.
+  # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
+  # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
+  PER_CREDENTIAL_TIMEOUT = 10.minutes
 
   # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
   # ════════════════════════════════════════════════════════════════
@@ -126,19 +132,36 @@ class OrgEmailSyncJob < ApplicationJob
 
       total_synced = 0
       errors = []
+      sync_started_at = Time.current
 
       user_emails.each do |user_email|
+        # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
+        # Without this, 56 mailboxes x 15 years exceeds Heroku's 30-min dyno timeout,
+        # the job dies, last_sync_at never updates, and the credential is permanently stuck.
+        elapsed = Time.current - sync_started_at
+        if elapsed > PER_CREDENTIAL_TIMEOUT
+          remaining = user_emails.count - total_synced - errors.count
+          Rails.logger.warn "[OrgEmailSync] Time budget (#{PER_CREDENTIAL_TIMEOUT.to_i}s) exceeded for #{@credential.name} after #{total_synced} mailboxes, #{remaining} remaining - will continue next run"
+          break
+        end
+
         begin
           synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
           total_synced += synced
           Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
+
+          # FRC (Feb 2026): Update last_sync_at after EACH successful mailbox
+          # Root cause: If the job dies mid-sync (Heroku timeout, OOM), last_sync_at stays nil
+          # and subsequent incremental syncs re-process everything from scratch.
+          # Updating incrementally ensures progress is tracked even on partial completion.
+          @credential.update_columns(last_sync_at: Time.current)
         rescue StandardError => e
           Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
           errors << { user: user_email, error: e.message }
         end
       end
 
-      # Update last sync time
+      # Final update (also covers the case where all mailboxes completed)
       # FRC (Jan 2026): Use update_columns to bypass optimistic locking
       # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
       # when credential is modified elsewhere. update_columns is safe for timestamps.
