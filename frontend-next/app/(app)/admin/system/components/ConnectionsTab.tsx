@@ -1791,14 +1791,14 @@ function EmailMigrationCard() {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Emails uploaded</span>
             <span className="font-semibold">
-              {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
+              {(storageUpload.uploaded ?? 0).toLocaleString()} / {(storageUpload.uploadable ?? 0).toLocaleString()}
             </span>
           </div>
           <Progress value={storageUpload.upload_rate} className="h-3" />
           {storageUpload.remaining > 0 && (
             <p className="text-sm text-muted-foreground">
               <span className="font-medium text-orange-600 dark:text-orange-400">
-                {storageUpload.remaining.toLocaleString()}
+                {(storageUpload.remaining ?? 0).toLocaleString()}
               </span>{" "}
               emails remaining
             </p>
@@ -1829,7 +1829,7 @@ function EmailMigrationCard() {
                         variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}
                         className="text-xs"
                       >
-                        {item.pending.toLocaleString()}
+                        {(item.pending ?? 0).toLocaleString()}
                       </Badge>
                     </div>
                   ))}
@@ -1948,8 +1948,8 @@ function AttachmentDeduplicationCard() {
     return <></>; // No attachments to process - render empty to maintain consistent component tree
   }
 
-  const isComplete = attachments.migration_rate >= 100;
-  const pending = attachments.legacy_sharepoint;
+  const isComplete = (attachments.migration_rate ?? 0) >= 100;
+  const pending = attachments.legacy_sharepoint ?? 0;
 
   return (
     <Card>
@@ -1977,13 +1977,13 @@ function AttachmentDeduplicationCard() {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Attachments deduplicated</span>
             <span className="font-semibold">
-              {attachments.with_blob.toLocaleString()} / {attachments.total.toLocaleString()}
+              {(attachments.with_blob ?? 0).toLocaleString()} / {(attachments.total ?? 0).toLocaleString()}
             </span>
           </div>
           <Progress value={attachments.migration_rate} className="h-2" />
           <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>Legacy SharePoint: {attachments.legacy_sharepoint.toLocaleString()}</span>
-            <span>Deduplicated: {attachments.with_blob.toLocaleString()}</span>
+            <span>Legacy SharePoint: {(attachments.legacy_sharepoint ?? 0).toLocaleString()}</span>
+            <span>Deduplicated: {(attachments.with_blob ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -2302,7 +2302,7 @@ function IntegrationsSubTab() {
 
         // Fetch Cloudflare status
         try {
-          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/cloudflare_credentials');
+          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/api/v1/cloudflare_credentials');
           if (cloudflareResponse?.success && cloudflareResponse.data) {
             setCloudflareStatus({ connected: cloudflareResponse.data.status === 'connected', account_id: cloudflareResponse.data.account_id });
           } else {

@@ -213,26 +213,48 @@ class XeroTrackingImportService
     }
 
     # Set address fields if parsed successfully
-    if parsed[:parsed]
+    # FRC (Feb 2026): Only set address components if we have enough data for Job validation.
+    # Job validates suburb + state when street_name is present (has_address_components?).
+    # Parser doesn't extract state from Xero tracking names, so default to QLD.
+    if parsed[:parsed] && parsed[:street_name].present? && parsed[:suburb].present?
       attrs[:street_number] = parsed[:street_number]
       attrs[:street_name] = parsed[:street_name]
       attrs[:street_type] = parsed[:street_type]
       attrs[:suburb] = parsed[:suburb]
+      attrs[:state] = "QLD"  # Default: all Pilgrim/Tekna jobs are in Queensland
       # name will be auto-generated from address components by Job model callback
     else
-      # Use raw tracking option name as the job name
+      # Not enough address data for validation - use raw name instead
       attrs[:name] = parsed[:title].presence || tracking_option_name
     end
 
     # Use parsed code as job_code if available
+    # FRC (Feb 2026): job_code has a DB-level NOT NULL constraint.
+    # If parsed code already exists, generate a unique variation instead of leaving nil.
     if parsed[:code].present?
-      # Check uniqueness
-      unless Job.exists?(job_code: parsed[:code])
+      if Job.exists?(job_code: parsed[:code])
+        # Code exists - append suffix to make unique
+        attrs[:job_code] = "#{parsed[:code]}-X"
+        # If that also exists, keep trying
+        suffix = 2
+        while Job.exists?(job_code: attrs[:job_code])
+          attrs[:job_code] = "#{parsed[:code]}-X#{suffix}"
+          suffix += 1
+        end
+      else
         attrs[:job_code] = parsed[:code]
       end
     end
+    # If no code parsed, after_create callback generates "J#{id}" via generate_job_code_if_blank
+    # But job_code is NOT NULL at DB level, so we need a temporary value for the INSERT
+    attrs[:job_code] ||= "XERO-#{SecureRandom.hex(4).upcase}"
 
     job = Job.create!(attrs)
+
+    # Replace temporary job_code with standard format if it was auto-generated
+    if attrs[:job_code]&.start_with?("XERO-")
+      job.update_column(:job_code, "J#{job.id}")
+    end
 
     # Create tracking link rows for ALL options in the group
     create_tracking_links(job, options)
