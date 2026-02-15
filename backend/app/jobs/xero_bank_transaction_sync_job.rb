@@ -11,7 +11,7 @@
 class XeroBankTransactionSyncJob < ApplicationJob
   include XeroConstants  # For BANK_TRANSACTION_SYNC_DELAY_SEC
   include XeroJobBase
-  queue_as :default
+  queue_as :xero_sync
 
   # FRC (Jan 2026): Updated to sync ALL connected XeroCredentials, not just primary
   # Bug: Was only syncing primary + CorporateXeroConnection, missing 9 of 10 orgs

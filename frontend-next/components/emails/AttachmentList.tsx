@@ -198,10 +198,10 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return;
 
-    // For spreadsheets/word docs/emails, fall through to new window (no inline preview)
+    // For spreadsheets/word docs, fall through to new window (opens in TeeemXL/TeeemWord editors)
+    // EML files use the DocumentViewer modal which has a built-in email parser
     if (isSpreadsheetFile(attachment.name, attachment.content_type) ||
-        isWordDocFile(attachment.name, attachment.content_type) ||
-        isEmailFile(attachment.name, attachment.content_type)) {
+        isWordDocFile(attachment.name, attachment.content_type)) {
       handleOpenInNewWindow(attachment);
       return;
     }

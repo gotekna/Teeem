@@ -13,7 +13,7 @@
 # Queue: default (SolidQueue uses default queue)
 #
 class XeroContactBatchProcessJob < ApplicationJob
-  queue_as :default
+  queue_as :xero_bulk
 
   # FRC (Feb 2026): xero_contacts_json is a JSON string, not Array<Hash>.
   # ActiveJob/SolidQueue can't serialize nested Hashes from JSON.parse

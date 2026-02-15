@@ -15,7 +15,7 @@
 class XeroHealthMonitorJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  queue_as :xero_sync
 
   # Expected sync intervals (if no sync in this time, it's stale)
   # SSoT: Must match XeroSyncStatus::SYNC_TYPES ("pdfs" not "attachments")

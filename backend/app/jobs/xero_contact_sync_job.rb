@@ -14,7 +14,7 @@
 #
 class XeroContactSyncJob < ApplicationJob
   include XeroJobBase
-  queue_as :default
+  queue_as :xero_sync
 
   # Perform can accept different actions:
   # - No args: Full sync all tenants (delegates to orchestrator)

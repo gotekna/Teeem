@@ -15,7 +15,7 @@
 # Queue: default (SolidQueue uses default queue)
 #
 class XeroContactBatchFetchJob < ApplicationJob
-  queue_as :default
+  queue_as :xero_bulk
 
   # Xero returns max 100 contacts per page
   BATCH_SIZE = 100

@@ -12,7 +12,7 @@ class XeroInvoiceSyncJob < ApplicationJob
   include XeroJobBase
   include CacheConstants
 
-  queue_as :default
+  queue_as :xero_sync
 
   # Perform incremental sync of invoices from Xero
   # Can accept options:

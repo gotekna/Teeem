@@ -10,15 +10,20 @@
 # - critical: SmRolloverJob, time-sensitive operations
 # - default: BPMN workflows, user-triggered jobs, email sync
 # - solid_queue_recurring: SolidQueue's internal recurring task scheduler
-# - xero_sync: Xero contact/invoice sync operations
-# - xero_bulk: Xero API bulk operations (rate-limited)
-# - low: Background analytics, warehouse jobs (can wait)
+# - xero_sync: Xero sync operations (invoice, contact, bank txn, tracking, health)
+# - xero_bulk: Xero batch operations (contact batch fetch/process, attachment sync)
+# - low: Background analytics, warehouse jobs, email uploads (can wait)
 # - low_priority: Long-running backfill, non-urgent maintenance
 #
 # FRC (Feb 2026): Split into two worker groups so low-priority bulk jobs
 # (MV refresh, backups, email uploads) cannot starve user-facing jobs.
 # Previous config had 3 threads on a single worker listening to only 4 queues,
 # silently ignoring critical, xero_sync, and low_priority queues entirely.
+#
+# FRC (Feb 2026): Moved ALL Xero jobs off :default queue onto :xero_sync/:xero_bulk.
+# Previously 9 Xero job types were on :default (3 threads) while Worker 2 (6 threads)
+# sat idle for those jobs. Now Worker 2 handles all Xero work, freeing Worker 1
+# for user-facing operations.
 
 production:
   workers:
