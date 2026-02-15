@@ -6,10 +6,10 @@
 #   → code: "106HAR", street_number: "106", street_name: "Harold",
 #     street_type: "Street", suburb: "Holland Park"
 #
-# Duplicate tracking categories (design vs construction):
-#   "106HAR 106 Harold Street, Holland Park"   → code: "106HAR", variant: nil (primary)
-#   "P-106HAR 106 Harold St, Holland Park"     → code: "106HAR", variant: "P" (design)
-#   Both map to the same job. The variant prefix is stripped from the code.
+# Variant tracking categories (same job, different phases):
+#   "106HAR 106 Harold Street, Holland Park"   → code: "106HAR", variant: nil
+#   "P-106HAR 106 Harold St, Holland Park"     → code: "106HAR", variant: "P" (Production = SSoT)
+#   Both map to the same job. P = Production is the authoritative source.
 #
 # Also handles simpler formats like:
 #   "J201 45 Smith St" → code: "J201", street_number: "45", street_name: "Smith", street_type: "St"
@@ -27,8 +27,12 @@ class XeroTrackingAddressParser
   STREET_TYPE_PATTERN = STREET_TYPES.map { |t| Regexp.escape(t) }.join("|")
 
   # Known variant prefixes that indicate a duplicate tracking option for the same job
-  # e.g., "P-106HAR" = Planning/Design phase of job "106HAR"
+  # P = Production (SSoT), D = Design, C = Construction, S = Site
+  # e.g., "P-106HAR" = Production phase of job "106HAR" (authoritative data source)
   VARIANT_PREFIXES = %w[P D C S].freeze
+
+  # The production variant is the SSoT when data differs between variants
+  PRODUCTION_VARIANT = "P".freeze
 
   # Parse a tracking option name into structured fields
   # Returns a hash with parsed components or nil values for unparseable parts
@@ -121,6 +125,18 @@ class XeroTrackingAddressParser
     end
 
     groups
+  end
+
+  # Select the SSoT (primary) option from a group of variants.
+  # P (Production) is authoritative when present; otherwise falls back to non-variant.
+  def self.primary_option(options)
+    # Prefer Production variant (P-prefix) as SSoT
+    production = options.find { |o| o["_parsed"][:variant] == PRODUCTION_VARIANT }
+    return production if production
+
+    # Fall back to non-variant (base code)
+    non_variant = options.find { |o| o["_parsed"][:variant].nil? }
+    non_variant || options.first
   end
 
   # Extract variant prefix from a code like "P-106HAR"

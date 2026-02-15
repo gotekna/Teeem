@@ -98,8 +98,8 @@ class XeroTrackingImportService
     grouped = XeroTrackingAddressParser.group_by_job(tracking_options)
 
     preview_items = grouped.map do |code, options|
-      # Use the primary (non-variant) option for display, fallback to first
-      primary_option = options.find { |o| o["_parsed"][:variant].nil? } || options.first
+      # P (Production) is SSoT when present; otherwise non-variant
+      primary_option = XeroTrackingAddressParser.primary_option(options)
       parsed = primary_option["_parsed"]
 
       # Check if job already exists
@@ -163,8 +163,8 @@ class XeroTrackingImportService
   # Import a group of tracking options that all map to the same job
   # e.g., ["106HAR 106 Harold Street, Holland Park", "P-106HAR 106 Harold St, Holland Park"]
   def import_job_group(options)
-    # Use the primary (non-variant) option for job creation
-    primary_option = options.find { |o| o["_parsed"][:variant].nil? } || options.first
+    # P (Production) is SSoT when present; otherwise non-variant
+    primary_option = XeroTrackingAddressParser.primary_option(options)
     parsed = primary_option["_parsed"]
 
     # Check if ANY option in the group is already linked to a job
@@ -198,7 +198,7 @@ class XeroTrackingImportService
   end
 
   def create_job_from_parsed(parsed, options)
-    primary_option = options.find { |o| o["_parsed"][:variant].nil? } || options.first
+    primary_option = XeroTrackingAddressParser.primary_option(options)
     tracking_option_id = primary_option["TrackingOptionID"]
     tracking_option_name = primary_option["Name"]
 
@@ -244,11 +244,20 @@ class XeroTrackingImportService
 
   # Link all tracking options in a group to a job
   def link_all_options(job, options)
+    # Set the Production (P) variant as the job's tracking option (SSoT)
+    primary = XeroTrackingAddressParser.primary_option(options)
+    if primary && job.xero_tracking_option_id != primary["TrackingOptionID"]
+      job.update!(
+        xero_tracking_option_id: primary["TrackingOptionID"],
+        xero_tracking_option_name: primary["Name"]
+      )
+    end
+
     options.each do |option|
       next if job.xero_tracking_option_id == option["TrackingOptionID"]
 
-      # The primary tracking option goes on the job record
-      if option["_parsed"][:variant].nil? && job.xero_tracking_option_id.blank?
+      # Only set if job has no tracking option yet (shouldn't happen after above)
+      if job.xero_tracking_option_id.blank?
         job.update!(
           xero_tracking_option_id: option["TrackingOptionID"],
           xero_tracking_option_name: option["Name"]
@@ -269,10 +278,10 @@ class XeroTrackingImportService
   # Link remaining unlinked variant options to the same job
   def link_remaining_options(job, options)
     # The Job model only stores one tracking option ID.
-    # For variants, we link the primary one; variants are implicitly linked by code.
+    # For variants, we link the Production (P) one as SSoT; others implicitly linked by code.
     return if options.length <= 1
 
-    primary = options.find { |o| o["_parsed"][:variant].nil? }
+    primary = XeroTrackingAddressParser.primary_option(options)
     if primary && job.xero_tracking_option_id != primary["TrackingOptionID"]
       job.update!(
         xero_tracking_option_id: primary["TrackingOptionID"],
@@ -298,8 +307,8 @@ class XeroTrackingImportService
       end
     end
 
-    # Then try fuzzy name match using the primary option
-    primary = options.find { |o| (o["_parsed"] || {})[:variant].nil? } || options.first
+    # Then try fuzzy name match using the Production (SSoT) option
+    primary = XeroTrackingAddressParser.primary_option(options)
     find_job_by_name(primary["Name"])
   end
 
