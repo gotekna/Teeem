@@ -9,6 +9,8 @@ import {
   File,
   Download,
   Eye,
+  CloudDownload,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
@@ -66,6 +68,10 @@ export interface Attachment {
   inline_url?: string;
   // Flag: true if this is an inline image (signature) that shouldn't show in attachment list
   is_inline?: boolean;
+  // Two-step sync (Feb 2026): Whether StorageBlob exists for this attachment
+  has_blob?: boolean;
+  // Two-step sync: "pending" | "downloaded" | "failed" | "unknown"
+  blob_status?: string;
 }
 
 interface AttachmentListProps {
@@ -112,6 +118,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   }
 
   // Get presigned URL for attachment (with caching)
+  // Two-step aware: If attachment has no blob, triggers on-demand download via download_blob endpoint
   const getPresignedUrl = useCallback(async (attachment: Attachment): Promise<string | null> => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return null;
@@ -125,13 +132,31 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
 
     try {
-      // Try to get presigned URL (fast path - direct S3 download)
+      // If we know there's no blob, use the download_blob endpoint to fetch it first
+      if (attachment.has_blob === false && attachment.id) {
+        const downloadResponse = await api.post(
+          `/api/v1/synced_emails/${emailId}/attachments/${attachment.id}/download_blob`
+        ) as { success?: boolean; url?: string; blob_status?: string };
+
+        if (downloadResponse.success && downloadResponse.url) {
+          presignedUrlCache.set(cacheKey, {
+            url: downloadResponse.url,
+            expiresAt: Date.now() + 900 * 1000,
+          });
+          // Update the attachment's blob status in-place
+          attachment.has_blob = true;
+          attachment.blob_status = "downloaded";
+          return downloadResponse.url;
+        }
+        return null;
+      }
+
+      // Normal path: get presigned URL (backend handles on-demand download if needed)
       const response = await api.get(
         `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(attachment.name)}`
-      ) as { success?: boolean; url?: string; expires_in?: number; fallback_to_proxy?: boolean };
+      ) as { success?: boolean; url?: string; expires_in?: number; blob_status?: string };
 
       if (response.success && response.url) {
-        // Cache the presigned URL
         const expiresIn = response.expires_in || 900;
         presignedUrlCache.set(cacheKey, {
           url: response.url,
@@ -411,19 +436,28 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
           const hasId = emailId && (attachment.id || attachment.outlook_attachment_id);
+          const needsDownload = attachment.has_blob === false;
+          const isFailed = needsDownload && attachment.blob_status === "failed";
 
           return (
             <div
               key={attachment.id || idx}
               className="flex items-center gap-1.5 text-sm"
             >
-              <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+              {isFailed ? (
+                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" title="Download failed - click to retry" />
+              ) : needsDownload ? (
+                <CloudDownload className="h-4 w-4 text-blue-500 shrink-0" title="Click to download from email server" />
+              ) : (
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
               <span
                 className={cn(
                   "truncate max-w-[200px]",
-                  isLoading && "opacity-50"
+                  isLoading && "opacity-50",
+                  needsDownload && !isFailed && "text-muted-foreground"
                 )}
-                title={attachment.name}
+                title={needsDownload ? `${attachment.name} (not yet downloaded)` : attachment.name}
               >
                 {attachment.name}
               </span>
@@ -435,7 +469,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                     className="h-5 w-5 p-0"
                     onClick={() => handleEyeClick(attachment)}
                     disabled={isLoading}
-                    title="Click to preview, double-click to open in new window"
+                    title={needsDownload ? "Download from email server and preview" : "Click to preview, double-click to open in new window"}
                   >
                     <Eye className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-pulse")} />
                   </Button>
@@ -445,7 +479,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                     className="h-5 w-5 p-0"
                     onClick={(e) => handleDownload(attachment, e)}
                     disabled={isLoading}
-                    title="Download"
+                    title={needsDownload ? "Download from email server" : "Download"}
                   >
                     <Download className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-spin")} />
                   </Button>

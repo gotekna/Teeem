@@ -1,6 +1,6 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :send_to_docsort, :send_to_bill_inbox, :download_attachment, :download_eml, :attachment_presigned_url ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :send_to_docsort, :send_to_bill_inbox, :download_attachment, :download_eml, :attachment_presigned_url, :download_blob ]
   before_action :require_admin, only: [ :bulk_delete_spam, :sync_dashboard ]
 
   # GET /api/v1/synced_emails
@@ -1298,16 +1298,33 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   # SSoT: Wasabi is THE ONE storage. Presigned URL = direct S3 download.
-  # If not in storage, fail fast - no fallback to Outlook proxy.
+  # Two-step aware (Feb 2026): If doc exists but has no blob, trigger on-demand download first.
   def attachment_presigned_url
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]
 
     doc = find_attachment_doc(attachment_id, filename_param)
 
-    unless doc&.storage_blob.present?
-      Rails.logger.error "[SyncedEmail] Presigned URL: attachment not in storage: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
-      return render json: { success: false, error: "Attachment not in storage" }
+    unless doc
+      Rails.logger.error "[SyncedEmail] Presigned URL: attachment not found: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
+      return render json: { success: false, error: "Attachment not found" }
+    end
+
+    # Two-step: If doc exists but has no blob, try on-demand download
+    if doc.storage_blob_id.nil?
+      outlook_att_id = doc.metadata&.dig("outlook_attachment_id")
+      if outlook_att_id.present?
+        downloaded_doc = sync_attachment_on_demand(outlook_att_id, existing_doc: doc)
+        doc = downloaded_doc if downloaded_doc&.storage_blob_id.present?
+      end
+    end
+
+    unless doc.storage_blob.present?
+      return render json: {
+        success: false,
+        error: "Attachment not yet downloaded from email server",
+        blob_status: doc.metadata&.dig("blob_status") || "pending"
+      }
     end
 
     filename = doc.original_filename || doc.ui_name
@@ -1326,6 +1343,63 @@ class Api::V1::SyncedEmailsController < ApplicationController
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
     render json: { success: false, error: "Failed to get presigned URL" }
+  end
+
+  # POST /api/v1/synced_emails/:id/attachments/:attachment_id/download_blob
+  # Two-step sync: On-demand blob download for a metadata-only attachment.
+  # If blob already exists, returns presigned URL immediately.
+  # If not, downloads from MS365 using outlook_attachment_id in metadata.
+  def download_blob
+    doc = @email.attachment_documents.find_by(id: params[:attachment_id])
+    unless doc
+      return render json: { success: false, error: "Attachment not found" }, status: :not_found
+    end
+
+    # Already has blob - return presigned URL
+    if doc.storage_blob.present?
+      url = doc.storage_blob.presigned_url(
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+        filename: doc.original_filename || doc.ui_name
+      )
+      return render json: {
+        success: true,
+        url: url,
+        filename: doc.original_filename || doc.ui_name,
+        content_type: doc.content_type || doc.storage_blob.content_type,
+        blob_status: "downloaded"
+      }
+    end
+
+    # Download from MS365
+    outlook_att_id = doc.metadata&.dig("outlook_attachment_id")
+    unless outlook_att_id.present?
+      return render json: { success: false, error: "No outlook_attachment_id in metadata - cannot download" }
+    end
+
+    downloaded_doc = sync_attachment_on_demand(outlook_att_id, existing_doc: doc)
+
+    if downloaded_doc&.storage_blob.present?
+      url = downloaded_doc.storage_blob.presigned_url(
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+        filename: downloaded_doc.original_filename || downloaded_doc.ui_name
+      )
+      render json: {
+        success: true,
+        url: url,
+        filename: downloaded_doc.original_filename || downloaded_doc.ui_name,
+        content_type: downloaded_doc.content_type || downloaded_doc.storage_blob.content_type,
+        blob_status: "downloaded"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Failed to download attachment from email server",
+        blob_status: doc.reload.metadata&.dig("blob_status") || "failed"
+      }
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] download_blob failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    render json: { success: false, error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
   # GET /api/v1/synced_email/:id/download_eml
@@ -1640,75 +1714,103 @@ class Api::V1::SyncedEmailsController < ApplicationController
   private
 
   # SSoT: Single lookup for attachment WarehouseDocument
+  # Two-step aware (Feb 2026): Returns docs even without blobs (metadata-only)
+  # Caller decides whether to trigger on-demand download based on blob presence.
   # Tries: DB ID → Graph attachment ID (metadata) → filename match
   def find_attachment_doc(attachment_id, filename = nil)
     docs = @email.attachment_documents.includes(:storage_blob)
 
     # 1. By numeric DB ID
-    doc = docs.find_by(id: attachment_id) if attachment_id.to_s.match?(/\A\d+\z/)
-    return doc if doc&.storage_blob.present?
+    if attachment_id.to_s.match?(/\A\d+\z/)
+      doc = docs.find_by(id: attachment_id)
+      return doc if doc
+    end
 
     # 2. By Microsoft Graph attachment ID (stored in metadata during sync)
     doc = docs.find { |d| d.metadata&.dig("outlook_attachment_id") == attachment_id }
-    return doc if doc&.storage_blob.present?
+    return doc if doc
 
     # 3. By filename
     if filename.present?
       doc = docs.find { |d| (d.original_filename || d.ui_name) == filename }
-      return doc if doc&.storage_blob.present?
-    end
-
-    # 4. On-demand sync from MS365 - attachment exists in Outlook but wasn't synced to Wasabi
-    # This handles attachments discovered by build_attachments_list supplementary fetch
-    if attachment_id.present? && !attachment_id.to_s.match?(/\A\d+\z/) && @email.outlook_id.present?
-      doc = sync_attachment_on_demand(attachment_id)
-      return doc if doc&.storage_blob.present?
+      return doc if doc
     end
 
     nil
   end
 
   # Fetch a single attachment from MS365 and store in Wasabi on-demand.
-  # Called when user tries to download an attachment that was shown via the
-  # supplementary MS365 fetch but wasn't synced during initial email sync.
-  def sync_attachment_on_demand(outlook_attachment_id)
+  # Two-step aware (Feb 2026): If existing_doc is provided (blobless metadata doc),
+  # updates it with the downloaded blob instead of creating a new WarehouseDocument.
+  def sync_attachment_on_demand(outlook_attachment_id, existing_doc: nil)
     credential = find_email_credential(@email)
     return nil unless credential&.valid_credential?
 
     mailbox = @email.mailbox_owner_email
     return nil unless mailbox.present?
 
+    # Try mailbox appearances if primary outlook_id is nil
+    outlook_id = @email.outlook_id
+    unless outlook_id.present?
+      appearance = @email.mailbox_appearances.where.not(outlook_id: [nil, ""]).first
+      outlook_id = appearance&.outlook_id
+      mailbox = appearance&.mailbox_owner_email || mailbox
+    end
+    return nil unless outlook_id.present?
+
     client = MicrosoftAppGraphClient.new(credential)
-    result = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
-    return nil unless result
+    result = client.download_email_attachment(mailbox, outlook_id, outlook_attachment_id)
+
+    unless result
+      existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+      return nil
+    end
 
     ActsAsTenant.with_tenant(@email.tenant) do
       blob = StorageBlob.find_or_create_for_content!(
         result[:content], filename: result[:filename], content_type: result[:content_type]
       )
 
-      doc = WarehouseDocumentCreator.create!(
-        filename: result[:filename],
-        source_type: "email_attachment",
-        linkable: @email,
-        storage_blob: blob,
-        file_size: result[:content].bytesize,
-        content_type: result[:content_type] || blob.content_type,
-        metadata: {
-          "synced_email_id" => @email.id.to_s,
-          "content_id" => result[:content_id],
-          "outlook_attachment_id" => outlook_attachment_id,
-          "mailbox" => mailbox,
-          "synced_on_demand" => true
-        }.compact
-      )
-
-      blob.increment!(:reference_count)
-      Rails.logger.info "[SyncedEmail] On-demand synced attachment: #{result[:filename]} for email #{@email.id}"
-      doc
+      if existing_doc
+        # Update the existing blobless doc with the downloaded blob
+        existing_doc.update!(
+          storage_blob: blob,
+          file_size: result[:content].bytesize,
+          content_type: result[:content_type] || blob.content_type,
+          metadata: (existing_doc.metadata || {}).merge(
+            "content_id" => result[:content_id],
+            "blob_status" => "downloaded",
+            "synced_on_demand" => true
+          ).compact
+        )
+        blob.increment!(:reference_count)
+        Rails.logger.info "[SyncedEmail] On-demand filled blob for existing doc #{existing_doc.id}: #{result[:filename]}"
+        existing_doc
+      else
+        doc = WarehouseDocumentCreator.create!(
+          filename: result[:filename],
+          source_type: "email_attachment",
+          linkable: @email,
+          storage_blob: blob,
+          file_size: result[:content].bytesize,
+          content_type: result[:content_type] || blob.content_type,
+          metadata: {
+            "synced_email_id" => @email.id.to_s,
+            "content_id" => result[:content_id],
+            "outlook_attachment_id" => outlook_attachment_id,
+            "mailbox" => mailbox,
+            "blob_status" => "downloaded",
+            "synced_on_demand" => true
+          }.compact
+        )
+        blob.increment!(:reference_count)
+        Rails.logger.info "[SyncedEmail] On-demand synced attachment: #{result[:filename]} for email #{@email.id}"
+        doc
+      end
     end
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] On-demand sync failed for attachment #{outlook_attachment_id}: #{e.message}"
+    existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
     nil
   end
 
@@ -1889,32 +1991,30 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - merge synced records (WarehouseDocument) with MS365
-  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
-  # FRC (Feb 2026): Fixed to always check MS365 for missing attachments
-  # Previously only showed synced attachments, missing real PDFs while showing signature images
+  # Build attachments list - local WarehouseDocuments only (SSoT)
+  # Two-step sync (Feb 2026): Local data is SSoT. No MS365 queries at view time.
+  # Attachments without blobs show has_blob: false for on-demand download via frontend.
   def build_attachments_list(email)
     result = []
-    synced_filenames = Set.new
 
-    # First add local attachment_documents (already synced via WarehouseDocument)
     synced = email.attachment_documents.includes(:storage_blob)
     synced.each do |doc|
-      # For inline images: content_id matches cid: references in HTML
       content_id = doc.metadata&.dig('content_id')
       content_type = doc.content_type || doc.storage_blob&.content_type
       file_size = doc.file_size || doc.storage_blob&.file_size || 0
+      has_blob = doc.storage_blob_id.present?
+      blob_status = doc.metadata&.dig("blob_status") || (has_blob ? "downloaded" : "unknown")
 
       # Mark inline images (signature logos) - they're embedded in the body via cid:
       # Keep large images (>100KB) as they're likely real photos, not signatures
       is_inline_signature = content_id.present? && content_type&.start_with?('image/') && file_size < 100_000
 
       # Generate presigned URL for inline images (to replace cid: references)
-      inline_url = if doc.storage_blob.present? && content_id.present?
+      inline_url = if has_blob && content_id.present?
                      doc.storage_blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
                    end
+
       filename = doc.original_filename || doc.ui_name || "Unknown"
-      synced_filenames << filename.downcase
 
       result << {
         id: doc.id,
@@ -1924,89 +2024,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
         outlook_attachment_id: doc.metadata&.dig("outlook_attachment_id"),
         content_id: content_id,
         inline_url: inline_url,
-        is_inline: is_inline_signature  # Flag for frontend to hide from attachment list
+        is_inline: is_inline_signature,
+        has_blob: has_blob,
+        blob_status: blob_status
       }
-    end
-
-    # Also fetch from MS365 to find any attachments not yet synced (e.g., large PDFs)
-    return result unless email.has_attachments && email.outlook_id.present?
-
-    begin
-      # Read-only attachment fetch: try tenant-scoped first, fall back to direct lookup
-      # In shared-tenant setups (e.g., Tekna/100xBestLife/LYW sharing same MS365 tenant),
-      # the email's credential_id may belong to a different org within the same MS365 tenant.
-      # Since the email itself is already tenant-scoped (acts_as_tenant), this is safe.
-      credential = if email.microsoft_credential_id.present?
-                     MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                       .find_by(id: email.microsoft_credential_id) ||
-                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
-                   else
-                     MicrosoftCredential.where(organization_id: tenant_organization_ids)
-                                       .refreshable_app.first
-                   end
-
-      return result unless credential&.valid_credential?
-
-      mailbox = email.mailbox_owner_email
-      return result unless mailbox.present?
-
-      client = MicrosoftAppGraphClient.new(credential)
-      ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
-
-      # Filter out embedded images/signatures - be conservative to not lose real attachments
-      # Must match sync filter logic (synced_email.rb line ~1078) to avoid inconsistencies.
-      # FRC (Feb 2026): Previous filter rejected any isInline attachment, which incorrectly
-      # hid PDFs and other non-image attachments that MS Graph sometimes marks as isInline.
-      # Fix: Only reject small inline IMAGES (signatures/logos), never non-image attachments.
-      filtered = ms_attachments.reject do |att|
-        content_type = att["contentType"]&.to_s&.downcase || ""
-        file_size = att["size"].to_i
-        is_image = content_type.start_with?("image/")
-        is_small = file_size < 100_000  # 100KB threshold
-        is_inline = att["isInline"] == true
-        has_content_id = att["contentId"].present?
-
-        # Only reject small inline images (signatures/logos)
-        # Never reject non-image files (PDFs, EMLs, etc.) regardless of isInline flag
-        is_image && is_small && (is_inline || has_content_id)
-      end
-
-      # Add MS365 attachments that aren't already synced locally
-      filtered.each do |att|
-        filename = att["name"] || "attachment"
-        next if synced_filenames.include?(filename.downcase)
-
-        # FRC (Feb 2026): Item attachments (nested emails) have contentType=null from Graph API.
-        # Detect by @odata.type and set correct content_type + .eml extension so frontend
-        # can route to the EML viewer instead of a broken iframe preview.
-        is_item_attachment = att["@odata.type"] == "#microsoft.graph.itemAttachment"
-        content_type = if is_item_attachment
-                         "message/rfc822"
-                       else
-                         att["contentType"]
-                       end
-        if is_item_attachment && !filename.downcase.end_with?(".eml")
-          filename = "#{filename}.eml"
-        end
-
-        result << {
-          id: nil,  # No local ID yet - needs to be fetched on download
-          name: filename,
-          content_type: content_type,
-          size: att["size"],
-          outlook_attachment_id: att["id"]
-        }
-      end
-
-      # SSoT: Update attachment_count when we discover actual count from Outlook
-      # Count non-inline attachments (real documents visible to users)
-      # FRC: Use is_inline flag, not content_id - PDFs can have content_id from MS Graph
-      real_attachment_count = result.reject { |a| a[:is_inline] }.size
-      if real_attachment_count > 0 && email.attachment_count.to_i != real_attachment_count
-        email.update_column(:attachment_count, real_attachment_count)
-      end
-    rescue StandardError => e
-      Rails.logger.warn "[SyncedEmail] Failed to fetch attachments from MS365: #{e.message}"
     end
 
     result

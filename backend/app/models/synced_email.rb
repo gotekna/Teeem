@@ -936,16 +936,17 @@ class SyncedEmail < ApplicationRecord
   # SSoT: Try to link attachments from related emails without downloading
   # Checks same internet_message_id (exact copy in another mailbox) or conversation_id (thread)
   # Returns true if attachments were linked, false if download still needed
+  # Two-step aware (Feb 2026): Also copies blobless metadata docs (pending downloads)
   def link_existing_attachments!
     return false unless has_attachments
     return false if attachment_documents.any?
 
     # Find related emails with synced attachments (via WarehouseDocument)
+    # Include blobless docs too - they carry metadata (outlook_attachment_id) for later download
     related_with_attachments = SyncedEmail.where.not(id: id)
       .where(has_attachments: true)
       .joins("INNER JOIN warehouse_documents ON warehouse_documents.metadata->>'synced_email_id' = synced_emails.id::text")
       .where(warehouse_documents: { source_type: 'email_attachment' })
-      .where.not(warehouse_documents: { storage_blob_id: nil })
 
     # Priority 1: Same internet_message_id (exact same email, different mailbox)
     if internet_message_id.present?
@@ -969,24 +970,32 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Copy attachments from another email, linking to same StorageBlobs via WarehouseDocument
+  # Two-step aware (Feb 2026): Also copies blobless metadata docs for later download
   def copy_attachments_from!(source_email)
     source_email.attachment_documents.each do |src_doc|
-      next unless src_doc.storage_blob_id
-
-      # Create new WarehouseDocument linking to same blob via standard service
-      # FRC (Feb 2026): Use linkable (not documentable) - see sync_attachments! comment
-      WarehouseDocumentCreator.create!(
+      # Copy the document - with or without blob (two-step: metadata survives without blob)
+      WarehouseDocumentCreator.find_or_create!(
+        find_by: {
+          source_type: "email_attachment",
+          linkable: self,
+          metadata_match: { "outlook_attachment_id" => src_doc.metadata&.dig("outlook_attachment_id") }.compact
+        },
         filename: src_doc.ui_name,
         source_type: "email_attachment",
         linkable: self,
         storage_blob: src_doc.storage_blob,
         file_size: src_doc.file_size,
         content_type: src_doc.content_type,
-        metadata: { "synced_email_id" => id.to_s, "mailbox" => mailbox_owner_email }.compact
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "mailbox" => mailbox_owner_email,
+          "outlook_attachment_id" => src_doc.metadata&.dig("outlook_attachment_id"),
+          "blob_status" => src_doc.storage_blob_id.present? ? "downloaded" : "pending"
+        }.compact
       )
 
-      src_doc.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id}"
+      src_doc.storage_blob&.increment!(:reference_count) if src_doc.storage_blob_id.present?
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id || 'pending'}"
     end
 
     # Update attachment count
@@ -1086,9 +1095,12 @@ class SyncedEmail < ApplicationRecord
       return true # Return true to prevent IMAP fallback
     end
 
-    # Step 3: Download only real attachments individually
-    Rails.logger.info "[SyncedEmail] Downloading #{real_attachments.count}/#{attachment_metadata.count} real attachments for email #{id} via Graph (#{used_mailbox})"
-    download_and_store_graph_attachments!(used_client, used_attempt, real_attachments, used_mailbox)
+    # Step 3: Record metadata for all real attachments (fast, no downloads)
+    record_attachment_metadata!(real_attachments, used_mailbox)
+
+    # Step 4: Download blobs for any attachments missing content
+    Rails.logger.info "[SyncedEmail] Downloading pending blobs for email #{id} via Graph (#{used_mailbox})"
+    download_pending_blobs!(used_client, used_attempt, used_mailbox)
     true
   end
 
@@ -1120,52 +1132,102 @@ class SyncedEmail < ApplicationRecord
     false
   end
 
-  # Download and store individual attachments from Graph API (optimized path).
-  # Only downloads attachments that passed the metadata filter (real attachments).
-  # Each attachment is fetched individually to avoid downloading inline images.
-  def download_and_store_graph_attachments!(client, attempt, real_attachments, used_mailbox)
+  # Two-Step Attachment Sync (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════
+  # Step 1: Record metadata for all real attachments WITHOUT downloading content.
+  # This ensures every attachment is tracked locally (SSoT) even if the download fails.
+  # Uses find_or_create! so re-running is idempotent.
+  #
+  # Step 2 (download_pending_blobs!) fetches actual bytes into StorageBlob.
+  # If step 2 fails for an attachment, the metadata survives for retry.
+  # ════════════════════════════════════════════════════════════════════
+
+  # Step 1: Record metadata (fast, no downloads)
+  def record_attachment_metadata!(real_attachments, used_mailbox)
     real_attachments.each do |att_meta|
-      filename = att_meta["name"]
-      content_type = att_meta["contentType"]
-      byte_size = att_meta["size"].to_i
+      filename = att_meta["name"] || "attachment"
       graph_attachment_id = att_meta["id"]
+      byte_size = att_meta["size"].to_i
 
-      # Per-attachment dedup: skip only if THIS attachment already has a blob
-      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
-      next if existing_doc&.storage_blob_id.present?
+      # Detect item attachments (nested emails) - MS Graph returns null contentType for these
+      is_item_attachment = att_meta["@odata.type"] == "#microsoft.graph.itemAttachment"
+      content_type = if is_item_attachment
+                       "message/rfc822"
+                     else
+                       att_meta["contentType"]
+                     end
+      if is_item_attachment && !filename.downcase.end_with?(".eml")
+        filename = "#{filename}.eml"
+      end
 
-      # Download this specific attachment (includes content_id for fileAttachments)
+      WarehouseDocumentCreator.find_or_create!(
+        find_by: {
+          source_type: "email_attachment",
+          linkable: self,
+          metadata_match: { "outlook_attachment_id" => graph_attachment_id }
+        },
+        filename: filename,
+        source_type: "email_attachment",
+        linkable: self,
+        file_size: byte_size.positive? ? byte_size : nil,
+        content_type: content_type,
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "outlook_attachment_id" => graph_attachment_id,
+          "mailbox" => used_mailbox,
+          "blob_status" => "pending"
+        }.compact
+      )
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to record metadata for attachment #{filename}: #{e.message}"
+    end
+
+    # Update attachment count from local SSoT
+    new_count = attachment_documents.reload.count
+    update_column(:attachment_count, new_count)
+  end
+
+  # Step 2: Download blobs for attachments that don't have one yet
+  def download_pending_blobs!(client, attempt, used_mailbox)
+    blobless_docs = attachment_documents.reload.where(storage_blob_id: nil)
+    return if blobless_docs.empty?
+
+    Rails.logger.info "[SyncedEmail] Downloading #{blobless_docs.count} pending blobs for email #{id}"
+
+    blobless_docs.each do |doc|
+      graph_attachment_id = doc.metadata&.dig("outlook_attachment_id")
+      next unless graph_attachment_id.present?
+
       result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
-      next unless result
+      unless result
+        doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+        next
+      end
 
       blob = StorageBlob.find_or_create_for_content!(
         result[:content], filename: result[:filename], content_type: result[:content_type]
       )
 
-      WarehouseDocumentCreator.create!(
-        filename: result[:filename],
-        source_type: "email_attachment",
-        linkable: self,
+      doc.update!(
         storage_blob: blob,
-        file_size: byte_size.positive? ? byte_size : blob.file_size,
+        file_size: blob.file_size,
         content_type: result[:content_type] || blob.content_type,
-        metadata: {
-          "synced_email_id" => id.to_s,
-          "content_id" => result[:content_id],
-          "outlook_attachment_id" => graph_attachment_id,
-          "mailbox" => used_mailbox
-        }.compact
+        metadata: (doc.metadata || {}).merge(
+          "blob_status" => "downloaded",
+          "content_id" => result[:content_id]
+        ).compact
       )
 
       blob.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Synced attachment: #{result[:filename]}"
+      Rails.logger.debug "[SyncedEmail] Downloaded blob for: #{doc.ui_name}"
     rescue StandardError => e
-      Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
+      Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.message}"
+      doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
     end
   end
 
   # Store attachments fetched from Microsoft Graph API (legacy bulk path)
-  # Kept for backward compatibility - new code uses download_and_store_graph_attachments!
+  # Kept for backward compatibility - new code uses two-step: record_attachment_metadata! + download_pending_blobs!
   def store_graph_attachments!(attachments, used_mailbox)
     attachments.each do |att|
       next if att["contentBytes"].blank?

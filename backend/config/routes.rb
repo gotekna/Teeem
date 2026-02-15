@@ -1454,6 +1454,7 @@ Rails.application.routes.draw do
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
           get "attachments/:attachment_id/presigned_url", action: :attachment_presigned_url
+          post "attachments/:attachment_id/download_blob", action: :download_blob
           get :download_eml
         end
       end
