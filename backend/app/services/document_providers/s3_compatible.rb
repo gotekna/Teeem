@@ -315,10 +315,14 @@ module DocumentProviders
         presign_params[:response_content_disposition] = "inline"
       end
 
-      # Use browser-safe client with virtual-hosted style URLs
-      # CORS preflight cannot follow 307 redirects from path-style to virtual-hosted
-      browser_client = build_browser_safe_client
-      signer = Aws::S3::Presigner.new(client: browser_client)
+      # FRC (Feb 2026): Use path-style client for downloads.
+      # Virtual-hosted style (build_browser_safe_client) returns 403 on Wasabi
+      # because the bucket DNS doesn't resolve for virtual-hosted requests.
+      # Path-style works because GET requests don't trigger CORS preflight,
+      # and Wasabi doesn't 307-redirect presigned GET URLs.
+      # The virtual-hosted fix in build_browser_safe_client is for UPLOADS only
+      # (PUT triggers CORS preflight which can't follow 307 redirects).
+      signer = Aws::S3::Presigner.new(client: @client)
       signer.presigned_url(:get_object, presign_params)
     end
 
