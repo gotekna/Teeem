@@ -36,11 +36,11 @@ class XeroAttachmentSyncJob < ApplicationJob
   SAFE_DAILY_LIMIT = 4500
 
   # FRC (Feb 2026): Xero allows 5 concurrent API calls per org.
-  # We use 4 to leave headroom for webhooks/other operations.
-  # Each PDF needs ~3 API calls, so 4 concurrent PDFs = ~12 in-flight
-  # but only 4 concurrent per org (Xero counts concurrent connections, not in-flight).
+  # Reduced from 4→2 to avoid bandwidth contention causing timeouts.
+  # With 4 concurrent downloads, bandwidth splits 4 ways and large PDFs
+  # exceeded the 60s (now 120s) timeout. 2 concurrent is more reliable.
   # Source: https://developer.xero.com/faq/limits
-  CONCURRENT_DOWNLOADS = 4
+  CONCURRENT_DOWNLOADS = 3
 
   # Per-tenant lock TTL (shorter since jobs are smaller now)
   TENANT_LOCK_TTL = 10.minutes
@@ -196,12 +196,14 @@ class XeroAttachmentSyncJob < ApplicationJob
     minute_remaining = usage ? (SAFE_MINUTE_LIMIT - (usage.dig(:minute, :used) || 0)) : SAFE_MINUTE_LIMIT
     daily_remaining = usage ? (SAFE_DAILY_LIMIT - (usage.dig(:daily, :used) || 0)) : SAFE_DAILY_LIMIT
 
-    # Each PDF sync uses ~3 API calls
-    api_calls_per_pdf = 3
-    # FRC (Feb 2026): Increased cap from 20→40. With 4 concurrent downloads,
-    # we process faster per cycle. 40 PDFs × 3 calls = 120 API calls over
-    # ~10 min cycle = ~12/min, well under Xero's 60/min limit.
-    max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, 40)
+    # FRC (Feb 2026): Average API calls per invoice:
+    # - Invoice/Quote/CreditNote: 2 (PDF download + list attachments)
+    # - Bill with HasAttachments=true: 2 (bill record + list attachments)
+    # - Bill with HasAttachments=false: ~0 (local DB only, attachment check skipped)
+    # Weighted average ≈ 2. The per-request throttler (XeroRateLimitTracker)
+    # handles actual pacing, so this is just for batch size estimation.
+    api_calls_per_pdf = 2
+    max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, SAFE_MINUTE_LIMIT)
     max_by_daily = (daily_remaining / api_calls_per_pdf).clamp(0, 500)
 
     limit = [max_by_minute, max_by_daily, options[:limit] || 50].min
@@ -210,9 +212,28 @@ class XeroAttachmentSyncJob < ApplicationJob
       return { processed: 0, success: 0, failed: 0, skipped_rate_limit: true }
     end
 
-    # Find invoices needing PDFs for this tenant
-    invoices = find_invoices_needing_pdfs(limit, tenant_id, options[:invoice_type])
-    invoices_array = invoices.to_a  # Load into memory (already limited)
+    # FRC (Feb 2026): Fair batch splitting — invoices and bills each get half the limit.
+    # Without this, invoices (priority 0, ordered first) monopolize the queue and
+    # bills (priority 1) get starved. If one type has fewer than its half, the other
+    # gets the remainder so no capacity is wasted.
+    if options[:invoice_type].present?
+      # Explicit type requested - use full limit
+      invoices_array = find_invoices_needing_pdfs(limit, tenant_id, options[:invoice_type]).to_a
+    else
+      half = (limit / 2.0).ceil
+      non_bills = find_invoices_needing_pdfs(half, tenant_id, :non_bill).to_a
+      remainder_for_bills = limit - non_bills.length
+      bills = remainder_for_bills > 0 ? find_invoices_needing_pdfs(remainder_for_bills, tenant_id, "bill").to_a : []
+
+      # If bills didn't fill their share, give remainder back to non-bills
+      if bills.length < remainder_for_bills && non_bills.length == half
+        extra_non_bills = find_invoices_needing_pdfs(remainder_for_bills - bills.length, tenant_id, :non_bill)
+                            .where.not(id: non_bills.map(&:id)).to_a
+        non_bills += extra_non_bills
+      end
+
+      invoices_array = non_bills + bills
+    end
 
     results = { processed: 0, success: 0, failed: 0, errors: [] }
 
@@ -255,11 +276,17 @@ class XeroAttachmentSyncJob < ApplicationJob
         elsif tr[:error]
           results[:failed] += 1
           results[:errors] << { invoice_id: tr[:invoice_id], errors: [tr[:error].message] }
-        elsif tr[:result][:errors].empty?
-          results[:success] += 1
-        else
+          # FRC (Feb 2026): Put failed invoices on cooldown so they don't block the queue.
+          # Without this, the same timing-out invoices sit at the front of the queue
+          # (ordered by id ASC) and prevent newer invoices from being processed.
+          add_to_cooldown!(tenant_id, tr[:invoice_id])
+        elsif tr[:result][:errors].any?
           results[:failed] += 1
           results[:errors] << { invoice_id: tr[:invoice_id], errors: tr[:result][:errors] }
+          add_to_cooldown!(tenant_id, tr[:invoice_id])
+        else
+          results[:success] += 1
+          clear_cooldown!(tenant_id, tr[:invoice_id])
         end
       end
 
@@ -342,9 +369,20 @@ class XeroAttachmentSyncJob < ApplicationJob
         .where(source: "xero", xero_org_id: xero_tenant_id)
         .pluck(:contact_id)
       query = query.where(contact_id: contact_ids_for_xero_org)
+
+      # FRC (Feb 2026): Exclude invoices on cooldown (recently failed PDF sync).
+      # Without this, the same timing-out invoices block the front of the queue
+      # and prevent newer invoices from being processed.
+      cooldown_ids = get_cooldown_ids(xero_tenant_id)
+      query = query.where.not(id: cooldown_ids) if cooldown_ids.any?
     end
 
-    query = query.where(invoice_type: invoice_type) if invoice_type.present?
+    # FRC (Feb 2026): Support :non_bill filter for fair batch splitting
+    if invoice_type == :non_bill
+      query = query.where.not(invoice_type: "bill")
+    elsif invoice_type.present?
+      query = query.where(invoice_type: invoice_type)
+    end
 
     query
   end
@@ -434,5 +472,62 @@ class XeroAttachmentSyncJob < ApplicationJob
 
   def release_tenant_lock!(tenant_id)
     Rails.cache.delete(tenant_lock_key(tenant_id))
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # COOLDOWN: Temporarily skip invoices that recently failed PDF sync
+  # ════════════════════════════════════════════════════════════════════════════
+  # FRC (Feb 2026): Without cooldown, the same timing-out invoices sit at the
+  # front of the queue (ordered by id ASC) and block bills from being processed.
+  # Cooldown puts them aside for 30 min so the queue can make progress.
+
+  COOLDOWN_TTL = 30.minutes
+
+  def cooldown_key(tenant_id, invoice_id)
+    "xero:attachment_sync:cooldown:#{tenant_id}:#{invoice_id}"
+  end
+
+  def cooldown_set_key(tenant_id)
+    "xero:attachment_sync:cooldown_set:#{tenant_id}"
+  end
+
+  def add_to_cooldown!(tenant_id, invoice_id)
+    # Individual key for TTL-based expiry
+    Rails.cache.write(cooldown_key(tenant_id, invoice_id), true, expires_in: COOLDOWN_TTL)
+
+    # Maintain a set of cooled-down IDs for bulk lookup
+    set = Rails.cache.read(cooldown_set_key(tenant_id)) || []
+    set = (set + [invoice_id]).uniq
+    Rails.cache.write(cooldown_set_key(tenant_id), set, expires_in: COOLDOWN_TTL)
+  end
+
+  def clear_cooldown!(tenant_id, invoice_id)
+    Rails.cache.delete(cooldown_key(tenant_id, invoice_id))
+
+    set = Rails.cache.read(cooldown_set_key(tenant_id)) || []
+    set.delete(invoice_id)
+    if set.any?
+      Rails.cache.write(cooldown_set_key(tenant_id), set, expires_in: COOLDOWN_TTL)
+    else
+      Rails.cache.delete(cooldown_set_key(tenant_id))
+    end
+  end
+
+  def get_cooldown_ids(tenant_id)
+    set = Rails.cache.read(cooldown_set_key(tenant_id)) || []
+    # Validate each ID is still in cooldown (individual keys may have expired)
+    active = set.select { |id| Rails.cache.read(cooldown_key(tenant_id, id)) }
+
+    # Clean up stale entries from the set
+    if active.length != set.length
+      if active.any?
+        Rails.cache.write(cooldown_set_key(tenant_id), active, expires_in: COOLDOWN_TTL)
+      else
+        Rails.cache.delete(cooldown_set_key(tenant_id))
+      end
+    end
+
+    Rails.logger.info("[XeroAttachmentSync] Excluding #{active.length} cooled-down invoices for #{tenant_id[0..7]}") if active.any?
+    active
   end
 end

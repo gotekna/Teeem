@@ -1625,8 +1625,9 @@ export default function EmailPage() {
       setLastLocalSyncAt(new Date());
 
       // Refresh the email list and account timestamps
-      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
-      fetchEmails();
+      // FRC (Feb 2026): Must use force=true to bypass debounce after sync
+      // Without force, fetchEmails() may be skipped if called within FETCH_DEBOUNCE_MS (1500ms)
+      fetchEmails(1, true);
       fetchAccounts();
     } catch (error) {
       console.error("Failed to sync:", error);

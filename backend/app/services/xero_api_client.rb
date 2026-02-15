@@ -1123,6 +1123,12 @@ class XeroApiClient
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
     url = "#{BASE_URL}/#{endpoint}"
 
+    # FRC (Feb 2026): Track timeout retries separately from auth retries.
+    # Timeouts deserve their own retry because they're transient network issues,
+    # not auth problems. Without this, a Net::ReadTimeout bubbled up as an
+    # unhandled StandardError and killed the entire thread.
+    timeout_retried = false
+
     loop do
       attempts += 1
 
@@ -1135,8 +1141,20 @@ class XeroApiClient
         "Accept" => accept_type
       }
 
-      # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants (binary downloads)
-      response = HTTParty.get(url, headers: headers, timeout: XERO_FILE_TIMEOUT)
+      begin
+        # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants (binary downloads)
+        response = HTTParty.get(url, headers: headers, timeout: XERO_FILE_TIMEOUT)
+      rescue Net::ReadTimeout, Net::OpenTimeout => e
+        # FRC (Feb 2026): Retry once on timeout before giving up.
+        # PDF downloads can be slow for large invoices or when Xero is under load.
+        if !timeout_retried
+          timeout_retried = true
+          Rails.logger.warn("[Xero] Binary request timeout for #{endpoint}, retrying once...")
+          next
+        end
+        Rails.logger.error("[Xero] Binary request timeout for #{endpoint} after retry: #{e.message}")
+        return { success: false, error: "Download timeout (#{XERO_FILE_TIMEOUT}s)" }
+      end
 
       # Track the API request for rate limiting visibility
       XeroRateLimitTracker.record_request(request_tenant_id)

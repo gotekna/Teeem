@@ -59,7 +59,9 @@ module XeroConstants
   XERO_DEFAULT_TIMEOUT = 30
 
   # Extended timeout for file operations (attachments, PDFs)
-  XERO_FILE_TIMEOUT = 60
+  # FRC (Feb 2026): Increased from 60→120. With concurrent downloads sharing
+  # bandwidth, 60s was too tight for large PDFs (Xero generates on-the-fly).
+  XERO_FILE_TIMEOUT = 120
 
   # Short timeout for token operations
   XERO_TOKEN_TIMEOUT = 10
