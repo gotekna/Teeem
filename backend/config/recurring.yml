@@ -365,6 +365,15 @@ email_storage_upload:
   args: [{ batch_size: 500 }]
   schedule: every 5 minutes
 
+# Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
+# IMAP emails use uid + folder_name to fetch raw .eml from IMAP server
+# FRC (Feb 2026): Was a one-off backfill job, now recurring to handle new IMAP emails
+imap_email_storage_upload:
+  class: BackfillImapEmailBlobsJob
+  queue: default
+  args: [{ batch_size: 100 }]
+  schedule: every 5 minutes
+
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped
 # Email attachments now stored directly in WarehouseDocument with source_type='email_attachment'
 
