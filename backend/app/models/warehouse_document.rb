@@ -583,6 +583,10 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Invalidate folder counts for affected paths
+  # FRC (Feb 2026): Runs inline instead of via background job.
+  # WarehouseFolderCount.invalidate_path is a single indexed SQL UPDATE (<1ms).
+  # Creating a background job per document was flooding the queue during bulk imports
+  # (10,000+ jobs for trivial SQL).
   def invalidate_folder_counts
     return unless tenant_id.present?
     return unless saved_change_to_folder_path? || destroyed?
@@ -596,7 +600,9 @@ class WarehouseDocument < ApplicationRecord
     # Invalidate new path (if created or changed)
     paths_to_invalidate << folder_path if folder_path.present? && !destroyed?
 
-    InvalidateFolderCountsJob.perform_later(tenant_id, paths_to_invalidate.compact.uniq) if paths_to_invalidate.any?
+    paths_to_invalidate.compact.uniq.each do |path|
+      WarehouseFolderCount.invalidate_path(tenant_id, path)
+    end
   rescue StandardError => e
     Rails.logger.debug "[WarehouseDocument] invalidate_folder_counts failed: #{e.message}"
   end
