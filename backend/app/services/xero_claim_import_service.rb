@@ -5,12 +5,11 @@
 class XeroClaimImportService
   include XeroConstants
 
-  TRACKING_CATEGORY_NAME = "Job".freeze
-
   attr_reader :stats
 
   def initialize
     @client = XeroApiClient.new
+    @tracking_category_name = XeroConstants.tracking_category_name
     @tracking_category_id = nil
     @stats = {
       imported: 0,
@@ -29,7 +28,7 @@ class XeroClaimImportService
     unless @tracking_category_id
       return {
         success: false,
-        error: "No '#{TRACKING_CATEGORY_NAME}' tracking category found in Xero",
+        error: "No '#{@tracking_category_name}' tracking category found in Xero",
         stats: @stats
       }
     end
@@ -71,7 +70,7 @@ class XeroClaimImportService
     return nil unless result[:success]
 
     categories = result[:data]["TrackingCategories"] || []
-    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    job_category = categories.find { |c| c["Name"] == @tracking_category_name }
     job_category&.dig("TrackingCategoryID")
   end
 

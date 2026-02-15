@@ -42,8 +42,11 @@ class XeroAttachmentSyncJob < ApplicationJob
   # Source: https://developer.xero.com/faq/limits
   CONCURRENT_DOWNLOADS = 3
 
-  # Per-tenant lock TTL (shorter since jobs are smaller now)
-  TENANT_LOCK_TTL = 10.minutes
+  # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
+  TENANT_LOCK_TTL = 12.minutes
+
+  # Max runtime before yielding to scheduler (leaves 2 min before next scheduler run)
+  MAX_RUNTIME_SECONDS = 8 * 60
 
   # Sync attachments for a single invoice or batch
   # - No args: Scheduler mode - queue parallel jobs for all tenants
@@ -145,23 +148,54 @@ class XeroAttachmentSyncJob < ApplicationJob
     XeroSyncStatus.start_sync!("pdfs", tenant_id: tenant_id)
 
     begin
-      results = process_tenant_batch(tenant_id, options)
+      # FRC (Feb 2026): Loop within same job execution until rate limit or time limit.
+      # Previously processed 50 invoices then exited (300/hr max). Now processes
+      # continuous batches of 50 until Xero rate limit is exhausted (~1,500/hr).
+      # Same pattern as UploadEmailsToStorageJob.
+      started_at = Time.current
+      total_results = { processed: 0, success: 0, failed: 0, errors: [], batches: 0 }
+
+      loop do
+        # Time limit: stop before next scheduler run (leaves 2 min headroom)
+        elapsed = Time.current - started_at
+        if elapsed > MAX_RUNTIME_SECONDS
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Time limit reached (#{elapsed.round}s), yielding")
+          break
+        end
+
+        # Rate limit check before each batch
+        if should_pause_for_rate_limit?(tenant_id)
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit approaching, pausing")
+          break
+        end
+
+        batch_results = process_tenant_batch(tenant_id, options)
+        total_results[:processed] += batch_results[:processed]
+        total_results[:success] += batch_results[:success]
+        total_results[:failed] += batch_results[:failed]
+        total_results[:errors].concat(batch_results[:errors] || [])
+        total_results[:batches] += 1
+
+        # Nothing processed in this batch — no more work or rate limited
+        break if batch_results[:processed] == 0
+        break if batch_results[:skipped_rate_limit]
+        break if batch_results[:aborted_lockout]
+
+        Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Batch #{total_results[:batches]} done (#{batch_results[:success]}/#{batch_results[:processed]}), continuing...")
+      end
 
       # Update status
       remaining = count_remaining_invoices_for_tenant(tenant_id)
       XeroSyncStatus.complete_sync!(
         "pdfs",
         tenant_id: tenant_id,
-        records_synced: results[:success],
+        records_synced: total_results[:success],
         next_sync_at: 10.minutes.from_now
       )
 
-      Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Processed #{results[:success]}/#{results[:processed]}, #{remaining} remaining")
+      Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Total #{total_results[:success]}/#{total_results[:processed]} in #{total_results[:batches]} batches, #{remaining} remaining")
 
-      # NO FOLLOW-UP JOBS - Let the scheduler handle re-queuing
-      # This prevents chain starvation and ensures fair scheduling
-
-      results
+      total_results
     rescue XeroApiClient::RateLimitError => e
       retry_after = extract_retry_after(e.message)
       XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: tenant_id)
@@ -238,7 +272,7 @@ class XeroAttachmentSyncJob < ApplicationJob
     results = { processed: 0, success: 0, failed: 0, errors: [] }
 
     # FRC (Feb 2026): Process PDFs concurrently using threads.
-    # Xero allows 5 concurrent API calls per org — we use 4 (CONCURRENT_DOWNLOADS).
+    # Xero allows 5 concurrent API calls per org — we use CONCURRENT_DOWNLOADS (3).
     # Ruby threads are ideal for IO-bound work (HTTP calls to Xero API).
     # Each thread gets its own DB connection via connection_pool.with_connection.
     # Source: https://developer.xero.com/faq/limits

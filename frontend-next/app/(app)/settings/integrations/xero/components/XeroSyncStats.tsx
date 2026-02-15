@@ -26,6 +26,7 @@ import {
   HardDrive,
   ChevronDown,
   ChevronUp,
+  Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,7 @@ import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
+import { XeroJobImportModal } from "@/components/xero/XeroJobImportModal";
 
 // Card height for virtual scrolling (estimated average)
 const CARD_HEIGHT = 420;
@@ -383,6 +385,7 @@ export function XeroSyncStats() {
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
   const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
+  const [jobImportOpen, setJobImportOpen] = React.useState(false);
 
   // Search/filter state for large tenant lists (Scale to 15k feature)
   const [searchQuery, setSearchQuery] = React.useState("");

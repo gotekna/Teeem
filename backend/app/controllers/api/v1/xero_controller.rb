@@ -954,6 +954,63 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/tracking_categories_preview
+      # Preview tracking categories with parsed job data, client info, and couple detection
+      def tracking_categories_preview
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
+          end
+
+          service = XeroTrackingImportService.new
+          result = service.preview
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero tracking_categories_preview auth error: #{e.message}")
+          render_error("Not authenticated with Xero", status: :unauthorized)
+        rescue StandardError => e
+          Rails.logger.error("Xero tracking_categories_preview error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render_error("Failed to preview tracking categories: #{e.message}", status: :internal_server_error)
+        end
+      end
+
+      # POST /api/v1/xero/import_jobs
+      # Import selected tracking options as Jobs with address parsing and client linking
+      # Body: { option_ids: ["id1", "id2", ...] } - if empty, imports all
+      def import_jobs
+        begin
+          client = XeroApiClient.new
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
+          end
+
+          service = XeroTrackingImportService.new
+          option_ids = params[:option_ids]
+
+          result = if option_ids.present? && option_ids.is_a?(Array) && option_ids.any?
+            service.import_selected(option_ids)
+          else
+            service.import_all
+          end
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_jobs auth error: #{e.message}")
+          render_error("Not authenticated with Xero", status: :unauthorized)
+        rescue StandardError => e
+          Rails.logger.error("Xero import_jobs error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render_error("Failed to import jobs: #{e.message}", status: :internal_server_error)
+        end
+      end
+
       # POST /api/v1/xero/import_all_bills
       # Import all Xero bills as Purchase Orders
       def import_all_bills

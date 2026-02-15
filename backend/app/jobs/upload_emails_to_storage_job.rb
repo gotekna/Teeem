@@ -133,13 +133,21 @@ class UploadEmailsToStorageJob < ApplicationJob
         # 2. Nothing was processed (all remaining are unfetchable/missing outlook_id)
         break if uploaded == 0 && skipped == 0
 
-        # 3. Time limit reached
+        # 3. Circuit breaker: if no uploads and ALL are errors, stop looping.
+        # FRC (Feb 2026): Without this, broken emails loop forever (500 errors/batch,
+        # skipped=500 so condition #2 doesn't trigger), consuming memory until R14 crash.
+        if uploaded == 0 && errors.count > 0 && errors.count >= skipped
+          Rails.logger.warn "[UploadEmailsToStorageJob] Circuit breaker: batch #{batch_number} had #{errors.count} errors and 0 uploads, stopping"
+          break
+        end
+
+        # 4. Time limit reached
         unless time_remaining?
           Rails.logger.info "[UploadEmailsToStorageJob] Time limit reached (#{MAX_RUNTIME_SECONDS}s), yielding to scheduler"
           break
         end
 
-        # 4. Check if there are actually more processable emails (tenant-scoped, proper filters)
+        # 5. Check if there are actually more processable emails (tenant-scoped, proper filters)
         remaining = SyncedEmail
           .where(storage_path: [nil, ""])
           .where(storage_email_path: [nil, ""])

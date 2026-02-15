@@ -3,7 +3,7 @@
 # Service to import bills from Xero as Purchase Orders for a job
 # Matches bills by Xero Tracking Category (Job)
 class XeroBillImportService
-  TRACKING_CATEGORY_NAME = "Job".freeze
+  include XeroConstants
 
   class Error < StandardError; end
   class NotConnectedError < Error; end
@@ -12,6 +12,7 @@ class XeroBillImportService
   def initialize(job)
     @job = job
     @client = XeroApiClient.new
+    @tracking_category_name = XeroConstants.tracking_category_name
     @imported_count = 0
     @skipped_count = 0
     @errors = []
@@ -49,7 +50,7 @@ class XeroBillImportService
     return [] unless result[:success]
 
     categories = result[:data]["TrackingCategories"] || []
-    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    job_category = categories.find { |c| c["Name"] == @tracking_category_name }
 
     return [] unless job_category
 
@@ -127,7 +128,7 @@ class XeroBillImportService
     @tracking_category_id ||= begin
       result = @client.get("TrackingCategories")
       categories = result[:data]["TrackingCategories"] || []
-      job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+      job_category = categories.find { |c| c["Name"] == @tracking_category_name }
       job_category&.dig("TrackingCategoryID")
     end
   end

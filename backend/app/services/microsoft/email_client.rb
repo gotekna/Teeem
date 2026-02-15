@@ -517,7 +517,14 @@ module Microsoft
             # MIME content is in the body
             results[key] = resp["body"]
           else
-            error_msg = resp.dig("body", "error", "message") || "HTTP #{resp['status']}"
+            # FRC (Feb 2026): Graph API may return string body on error (raw text, not JSON).
+            # String doesn't have #dig, so guard against TypeError.
+            error_msg = if resp["body"].is_a?(Hash)
+                          resp.dig("body", "error", "message")
+                        else
+                          resp["body"].to_s.truncate(200)
+                        end
+            error_msg = error_msg.presence || "HTTP #{resp['status']}"
             Rails.logger.warn "[Microsoft::EmailClient] Batch MIME failed for #{key}: #{error_msg}"
             results[key] = { error: error_msg, status: resp["status"] }
           end

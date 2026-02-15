@@ -2560,6 +2560,8 @@ Rails.application.routes.draw do
           get :accounts
           get :search_contacts
           post :import_tracking_categories
+          get :tracking_categories_preview
+          post :import_jobs
           post :import_all_bills
           post :import_all_claims
           post :full_import

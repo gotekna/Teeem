@@ -9,6 +9,23 @@
 #
 module XeroConstants
   # ============================================
+  # TRACKING CATEGORY (SSoT)
+  # ============================================
+
+  # Default tracking category name - configurable per tenant via TenantSetting
+  DEFAULT_TRACKING_CATEGORY_NAME = "Job".freeze
+
+  # Lookup the tracking category name for the current tenant
+  # Falls back to "Job" if no tenant or no custom setting
+  def self.tracking_category_name
+    tenant = ActsAsTenant.current_tenant
+    return DEFAULT_TRACKING_CATEGORY_NAME unless tenant
+
+    setting = tenant.tenant_setting
+    setting&.xero_tracking_category_name.presence || DEFAULT_TRACKING_CATEGORY_NAME
+  end
+
+  # ============================================
   # API BASE URLS (SSoT)
   # ============================================
   XERO_API_BASE_URL = "https://api.xero.com/api.xro/2.0".freeze
