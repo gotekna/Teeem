@@ -139,7 +139,7 @@ namespace :warehouse do
     puts "🔄 Syncing Teeem documents to File Warehouse..."
     puts ""
 
-    # Set tenant context (required for StorageConfiguration)
+    # Set tenant context (required for WarehouseProvider)
     tenant = Tenant.first
     ActsAsTenant.current_tenant = tenant
     puts "Using tenant: #{tenant.name}"
@@ -187,7 +187,7 @@ namespace :warehouse do
 
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
-        config = StorageConfiguration.instance rescue nil
+        config = WarehouseProvider.instance rescue nil
         next unless config
 
         puts "Tenant: #{tenant.name}"
@@ -282,12 +282,12 @@ namespace :warehouse do
               next
             end
 
-            # Compute folder path from StorageConfiguration
+            # Compute folder path from WarehouseProvider
             # SSoT: Same logic as SmTaskAttachment#compute_task_folder_path
             # FRC (Jan 2026): No hardcoded fallback - fail fast if config is wrong
-            config = StorageConfiguration.instance rescue nil
+            config = WarehouseProvider.instance rescue nil
             unless config
-              puts "  ⚠️  SmTaskAttachment ##{att.id}: No StorageConfiguration found"
+              puts "  ⚠️  SmTaskAttachment ##{att.id}: No WarehouseProvider found"
               errors += 1
               next
             end
