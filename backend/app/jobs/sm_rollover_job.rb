@@ -30,6 +30,7 @@
 #   SmRolloverJob.perform_now(job_id: 123) # Run for specific job
 #
 class SmRolloverJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform(options = {})

@@ -1,4 +1,5 @@
 class CheckYesterdayRainJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Check yesterday's weather for all active jobs

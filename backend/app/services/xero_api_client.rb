@@ -1072,6 +1072,12 @@ class XeroApiClient
       rescue AuthenticationError => e
         # Re-raise auth errors without retry (already tried in response handling)
         raise e
+      rescue RateLimitError => e
+        # FRC (Feb 2026): RateLimitError MUST propagate to callers so they can
+        # handle rate limits properly (record lockout, schedule retry, etc).
+        # Previously caught by `rescue StandardError` below and converted to ApiError,
+        # which broke rate limit handling in XeroContactBatchFetchJob and others.
+        raise e
       rescue Net::ReadTimeout => e
         Rails.logger.error("Xero API timeout: #{e.message}")
         raise ApiError, "Request timeout"

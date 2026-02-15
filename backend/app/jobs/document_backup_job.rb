@@ -14,6 +14,7 @@
 #   :all   - Full sync of all documents (catch any missed)
 #
 class DocumentBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Batch size for processing

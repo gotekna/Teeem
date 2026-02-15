@@ -11,6 +11,7 @@
 class XeroInvoiceSyncJob < ApplicationJob
   include XeroJobBase
   include CacheConstants
+  include DeduplicatableJob
 
   queue_as :xero_sync
 
