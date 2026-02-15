@@ -35,6 +35,13 @@ class XeroAttachmentSyncJob < ApplicationJob
   SAFE_MINUTE_LIMIT = 50
   SAFE_DAILY_LIMIT = 4500
 
+  # FRC (Feb 2026): Xero allows 5 concurrent API calls per org.
+  # We use 4 to leave headroom for webhooks/other operations.
+  # Each PDF needs ~3 API calls, so 4 concurrent PDFs = ~12 in-flight
+  # but only 4 concurrent per org (Xero counts concurrent connections, not in-flight).
+  # Source: https://developer.xero.com/faq/limits
+  CONCURRENT_DOWNLOADS = 4
+
   # Per-tenant lock TTL (shorter since jobs are smaller now)
   TENANT_LOCK_TTL = 10.minutes
 
@@ -191,7 +198,10 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     # Each PDF sync uses ~3 API calls
     api_calls_per_pdf = 3
-    max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, 20)
+    # FRC (Feb 2026): Increased cap from 20→40. With 4 concurrent downloads,
+    # we process faster per cycle. 40 PDFs × 3 calls = 120 API calls over
+    # ~10 min cycle = ~12/min, well under Xero's 60/min limit.
+    max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, 40)
     max_by_daily = (daily_remaining / api_calls_per_pdf).clamp(0, 500)
 
     limit = [max_by_minute, max_by_daily, options[:limit] || 50].min
@@ -202,34 +212,60 @@ class XeroAttachmentSyncJob < ApplicationJob
 
     # Find invoices needing PDFs for this tenant
     invoices = find_invoices_needing_pdfs(limit, tenant_id, options[:invoice_type])
+    invoices_array = invoices.to_a  # Load into memory (already limited)
 
     results = { processed: 0, success: 0, failed: 0, errors: [] }
 
-    invoices.find_each do |invoice|
+    # FRC (Feb 2026): Process PDFs concurrently using threads.
+    # Xero allows 5 concurrent API calls per org — we use 4 (CONCURRENT_DOWNLOADS).
+    # Ruby threads are ideal for IO-bound work (HTTP calls to Xero API).
+    # Each thread gets its own DB connection via connection_pool.with_connection.
+    # Source: https://developer.xero.com/faq/limits
+    invoices_array.each_slice(CONCURRENT_DOWNLOADS) do |batch|
       break if should_pause_for_rate_limit?(tenant_id)
 
-      results[:processed] += 1
+      # Spawn threads for concurrent downloads
+      threads = batch.map do |invoice|
+        Thread.new(invoice) do |inv|
+          ActiveRecord::Base.connection_pool.with_connection do
+            begin
+              service = XeroAttachmentSyncService.new(inv)
+              result = service.sync!
+              { invoice_id: inv.id, result: result, error: nil }
+            rescue XeroApiClient::RateLimitError => e
+              { invoice_id: inv.id, result: nil, error: e, rate_limited: true }
+            rescue StandardError => e
+              Rails.logger.error("[XeroAttachmentSync] Invoice #{inv.id} failed: #{e.message}")
+              { invoice_id: inv.id, result: nil, error: e }
+            end
+          end
+        end
+      end
 
-      begin
-        service = XeroAttachmentSyncService.new(invoice)
-        result = service.sync!
+      # Wait for all threads in this batch to complete
+      thread_results = threads.map(&:value)
 
-        if result[:errors].empty?
+      # Collect results (back on main thread — no concurrency issues)
+      thread_results.each do |tr|
+        results[:processed] += 1
+
+        if tr[:rate_limited]
+          # Re-raise so sync_tenant records the lockout and stops
+          raise tr[:error]
+        elsif tr[:error]
+          results[:failed] += 1
+          results[:errors] << { invoice_id: tr[:invoice_id], errors: [tr[:error].message] }
+        elsif tr[:result][:errors].empty?
           results[:success] += 1
         else
           results[:failed] += 1
-          results[:errors] << { invoice_id: invoice.id, errors: result[:errors] }
+          results[:errors] << { invoice_id: tr[:invoice_id], errors: tr[:result][:errors] }
         end
-      rescue XeroApiClient::RateLimitError
-        raise # Re-raise to trigger lockout recording
-      rescue StandardError => e
-        results[:failed] += 1
-        results[:errors] << { invoice_id: invoice.id, errors: [e.message] }
-        Rails.logger.error("[XeroAttachmentSync] Invoice #{invoice.id} failed: #{e.message}")
       end
 
-      # Small delay to spread requests
-      sleep(XERO_ATTACHMENT_SYNC_DELAY_SEC)
+      # Brief pause between batches to avoid burst-hammering Xero
+      # (much shorter than old 1s-per-invoice — this is 0.3s per batch of 4)
+      sleep(0.3)
     end
 
     results
