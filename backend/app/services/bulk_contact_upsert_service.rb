@@ -56,10 +56,15 @@ class BulkContactUpsertService
     now = Time.current
 
     # Build insert records
+    # FRC (Feb 2026): insert_all! bypasses ActiveRecord callbacks.
+    # Contact model has before_create :ensure_contact_code_for_insert that sets
+    # contact_code, but insert_all! skips it. Must set temp codes here, then
+    # update to canonical "C#{id}" format after insert returns IDs.
     records = operations.map do |op|
       op[:attrs].merge(
         tenant_id: @teeem_tenant_id,
         is_active: true,
+        contact_code: "C-TEMP-#{SecureRandom.hex(6)}",
         created_at: now,
         updated_at: now
       )
@@ -73,6 +78,10 @@ class BulkContactUpsertService
     # Use insert_all! with returning to get IDs
     # Note: insert_all doesn't run validations - we validate in the processor job
     result = Contact.insert_all!(records, returning: [:id])
+
+    # Set canonical contact_codes ("C#{id}") now that we have IDs
+    id_code_pairs = result.rows.map { |row| { id: row[0], contact_code: "C#{row[0]}" } }
+    Contact.upsert_all(id_code_pairs, unique_by: :id) if id_code_pairs.any?
 
     # Map back to xero_contact_id for link creation
     result.rows.zip(operations).map do |row, op|
