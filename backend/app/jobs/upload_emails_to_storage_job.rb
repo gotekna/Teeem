@@ -30,7 +30,7 @@
 class UploadEmailsToStorageJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :low
+  queue_as :default
 
   # Max runtime before yielding back to the scheduler (Heroku dynos have 30min limit,
   # but we want to leave headroom for other jobs on the low queue)
