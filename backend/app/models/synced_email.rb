@@ -1191,12 +1191,17 @@ class SyncedEmail < ApplicationRecord
     update_column(:attachment_count, new_count)
   end
 
-  # Step 2: Download blobs for attachments that don't have one yet
+  # Step 2: Download blobs for attachments that don't have one yet.
+  # Tries ALL pending blobs (don't stop at first failure).
+  # Raises after attempting all if any failed - ensures visibility while
+  # maximizing data recovery per run.
   def download_pending_blobs!(client, attempt, used_mailbox)
     blobless_docs = attachment_documents.reload.where(storage_blob_id: nil)
     return if blobless_docs.empty?
 
     Rails.logger.info "[SyncedEmail] Downloading #{blobless_docs.count} pending blobs for email #{id}"
+
+    failed_docs = []
 
     blobless_docs.each do |doc|
       graph_attachment_id = doc.metadata&.dig("outlook_attachment_id")
@@ -1205,6 +1210,7 @@ class SyncedEmail < ApplicationRecord
       result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
       unless result
         doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+        failed_docs << { doc_id: doc.id, error: "Download returned nil" }
         next
       end
 
@@ -1228,7 +1234,11 @@ class SyncedEmail < ApplicationRecord
       Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.class}: #{e.message}"
       Rails.logger.error e.backtrace.first(3).join("\n")
       doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
-      raise # Fail fast - don't silently skip blob downloads
+      failed_docs << { doc_id: doc.id, error: "#{e.class}: #{e.message.truncate(100)}" }
+    end
+
+    if failed_docs.any?
+      raise "Failed to download #{failed_docs.count}/#{blobless_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
     end
   end
 
