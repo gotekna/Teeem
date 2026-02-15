@@ -62,8 +62,13 @@ class BulkContactUpsertService
         is_active: true,
         created_at: now,
         updated_at: now
-      ).compact
+      )
     end
+
+    # FRC (Feb 2026): insert_all! requires all hashes to have identical keys.
+    # build_contact_attrs returns varying keys (some contacts have phone, some don't).
+    # Normalize: ensure every record has the union of all keys (nil for missing).
+    records = normalize_keys(records)
 
     # Use insert_all! with returning to get IDs
     # Note: insert_all doesn't run validations - we validate in the processor job
@@ -105,15 +110,20 @@ class BulkContactUpsertService
     now = Time.current
 
     # Build upsert records (must include id)
+    # FRC (Feb 2026): upsert_all requires all hashes to have identical keys.
+    # For updates, we MUST NOT pass nil for missing attrs (would overwrite existing
+    # data with NULL). Instead, group records by key set and upsert each group.
     records = operations.map do |op|
-      op[:attrs].merge(
+      op[:attrs].compact.merge(
         id: op[:contact_id],
         updated_at: now
-      ).compact
+      )
     end
 
-    # upsert_all with unique_by: :id for updates
-    Contact.upsert_all(records, unique_by: :id)
+    # Group by key set, upsert each group separately
+    records.group_by { |r| r.keys.sort }.each_value do |group|
+      Contact.upsert_all(group, unique_by: :id)
+    end
 
     operations.size
   end
@@ -142,7 +152,7 @@ class BulkContactUpsertService
         last_verified_at: now,
         created_at: now,
         updated_at: now
-      }.compact
+      }
     end
 
     # Use upsert_all to handle existing links
@@ -186,6 +196,16 @@ class BulkContactUpsertService
         needs_review: op[:needs_review] || false
       }
     end
+  end
+
+  # Normalize array of hashes to all have the same keys.
+  # Required by insert_all!/upsert_all which demand identical key sets.
+  # Missing keys get nil (→ SQL NULL).
+  def normalize_keys(records)
+    return records if records.empty?
+
+    all_keys = records.flat_map(&:keys).uniq
+    records.map { |r| all_keys.each_with_object({}) { |k, h| h[k] = r[k] } }
   end
 
   # Fallback for individual create with duplicate handling

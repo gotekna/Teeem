@@ -1038,22 +1038,30 @@ class SyncedEmail < ApplicationRecord
   private
 
   # Fetch attachments via Microsoft Graph API.
-  # Tries legacy fields first, then SyncedEmailMailbox appearances.
-  # Returns true if attachments were found and processed, false if no Graph path worked.
+  # Two-step approach (Feb 2026 optimization):
+  #   1) List attachment metadata only (~1KB) to check for real attachments
+  #   2) Download only real attachments individually (skip inline signature images)
+  # This avoids downloading ~300KB+ of base64 content for emails with only signature images.
   def sync_attachments_via_graph!
     graph_attempts = build_graph_credential_attempts
     return false if graph_attempts.empty?
 
-    attachments = nil
+    used_client = nil
     used_mailbox = nil
+    used_attempt = nil
+    attachment_metadata = nil
+
+    # Step 1: Find a working credential and list attachment metadata (fast)
     graph_attempts.each do |attempt|
       cred = MicrosoftCredential.find_by(id: attempt[:credential_id])
       next unless cred&.status == "connected"
 
       begin
         client = MicrosoftAppGraphClient.new(cred)
-        attachments = client.get_email_attachments(attempt[:mailbox], attempt[:outlook_id])
+        attachment_metadata = client.list_email_attachments(attempt[:mailbox], attempt[:outlook_id])
+        used_client = client
         used_mailbox = attempt[:mailbox]
+        used_attempt = attempt
         break
       rescue Microsoft::BaseClient::ApiError => e
         if e.message.include?("404")
@@ -1064,10 +1072,23 @@ class SyncedEmail < ApplicationRecord
       end
     end
 
-    return false unless attachments&.any?
+    return false unless attachment_metadata&.any?
 
-    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id} via Graph (#{used_mailbox})"
-    store_graph_attachments!(attachments, used_mailbox)
+    # Step 2: Filter to real attachments only (skip inline signature images)
+    real_attachments = attachment_metadata.reject do |att|
+      att["isInline"] && att["contentType"]&.start_with?("image/") && att["size"].to_i < 100_000
+    end
+
+    if real_attachments.empty?
+      # Only inline images - mark email so we don't re-check
+      Rails.logger.debug "[SyncedEmail] Email #{id} has only inline images (#{attachment_metadata.count} skipped)"
+      update_column(:has_attachments, false)
+      return true # Return true to prevent IMAP fallback
+    end
+
+    # Step 3: Download only real attachments individually
+    Rails.logger.info "[SyncedEmail] Downloading #{real_attachments.count}/#{attachment_metadata.count} real attachments for email #{id} via Graph (#{used_mailbox})"
+    download_and_store_graph_attachments!(used_client, used_attempt, real_attachments, used_mailbox)
     true
   end
 
@@ -1099,7 +1120,53 @@ class SyncedEmail < ApplicationRecord
     false
   end
 
-  # Store attachments fetched from Microsoft Graph API
+  # Download and store individual attachments from Graph API (optimized path).
+  # Only downloads attachments that passed the metadata filter (real attachments).
+  # Each attachment is fetched individually to avoid downloading inline images.
+  def download_and_store_graph_attachments!(client, attempt, real_attachments, used_mailbox)
+    real_attachments.each do |att_meta|
+      filename = att_meta["name"]
+      content_type = att_meta["contentType"]
+      byte_size = att_meta["size"].to_i
+      content_id = att_meta["contentId"]
+      graph_attachment_id = att_meta["id"]
+
+      # Per-attachment dedup: skip only if THIS attachment already has a blob
+      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
+      next if existing_doc&.storage_blob_id.present?
+
+      # Download this specific attachment
+      result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
+      next unless result
+
+      blob = StorageBlob.find_or_create_for_content!(
+        result[:content], filename: result[:filename], content_type: result[:content_type]
+      )
+
+      WarehouseDocumentCreator.create!(
+        filename: result[:filename],
+        source_type: "email_attachment",
+        linkable: self,
+        storage_blob: blob,
+        file_size: byte_size.positive? ? byte_size : blob.file_size,
+        content_type: result[:content_type] || blob.content_type,
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "content_id" => content_id,
+          "outlook_attachment_id" => graph_attachment_id,
+          "mailbox" => used_mailbox
+        }.compact
+      )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[SyncedEmail] Synced attachment: #{result[:filename]}"
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
+    end
+  end
+
+  # Store attachments fetched from Microsoft Graph API (legacy bulk path)
+  # Kept for backward compatibility - new code uses download_and_store_graph_attachments!
   def store_graph_attachments!(attachments, used_mailbox)
     attachments.each do |att|
       next if att["contentBytes"].blank?
@@ -1122,8 +1189,6 @@ class SyncedEmail < ApplicationRecord
         content, filename: filename, content_type: content_type
       )
 
-      # FRC (Feb 2026): Use linkable (not documentable) because has_one :warehouse_document
-      # reserves documentable for the email body doc. Attachments are tracked via metadata.
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",

@@ -46,11 +46,22 @@ module Microsoft
       patch(endpoint, { isRead: is_read })
     end
 
-    # Get email attachments
+    # Get email attachments (full content - expensive, ~300KB+ per email)
+    # Prefer list_email_attachments + download_email_attachment for selective fetching.
     def get_email_attachments(user_identifier, message_id)
       endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments"
       Rails.logger.info "[Microsoft::EmailClient] get_email_attachments - endpoint: #{endpoint}"
       Rails.logger.info "[Microsoft::EmailClient] get_email_attachments - credential tenant: #{@credential.tenant_id}"
+      response = get(endpoint)
+      response["value"] || []
+    end
+
+    # List email attachment metadata only (no contentBytes - fast, ~1KB response)
+    # Returns array of { id, name, contentType, size, isInline, contentId, @odata.type }
+    # Use this to check if an email has real attachments before downloading them.
+    def list_email_attachments(user_identifier, message_id)
+      endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments" \
+                 "?$select=id,name,contentType,size,isInline,contentId"
       response = get(endpoint)
       response["value"] || []
     end

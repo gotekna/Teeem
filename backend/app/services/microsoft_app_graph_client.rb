@@ -124,6 +124,10 @@ class MicrosoftAppGraphClient
     @email.get_email_attachments(user_identifier, message_id)
   end
 
+  def list_email_attachments(user_identifier, message_id)
+    @email.list_email_attachments(user_identifier, message_id)
+  end
+
   def download_email_attachment(user_identifier, message_id, attachment_id)
     @email.download_email_attachment(user_identifier, message_id, attachment_id)
   end
