@@ -291,6 +291,54 @@ class XeroRateLimitTracker
       end
     end
 
+    # Pre-request throttle check - call before making ANY Xero API request.
+    # Proactively waits if we're near the per-minute limit (60 req/min)
+    # instead of blasting requests until we get a 429.
+    #
+    # Returns immediately if plenty of headroom.
+    # Sleeps briefly if approaching limit.
+    # Waits for minute reset if at limit.
+    #
+    # Max wait capped at 60s (one minute window) to avoid blocking threads.
+    THROTTLE_SOFT_LIMIT = 50   # Start slowing at 50/60
+    THROTTLE_HARD_LIMIT = 58   # Stop at 58/60 (leave 2 for safety)
+
+    def throttle_before_request!(tenant_id)
+      return unless tenant_id.present?
+
+      # Check for Xero-enforced lockout first
+      lockout = current_lockout(tenant_id: tenant_id)
+      if lockout
+        remaining = lockout_remaining_seconds(tenant_id: tenant_id)
+        if remaining > 0 && remaining <= 60
+          Rails.logger.info("[XeroRateLimitTracker] Pre-request: locked out, waiting #{remaining}s")
+          sleep(remaining)
+        elsif remaining > 60
+          # Don't block thread for >60s, let the job retry logic handle it
+          raise XeroApiClient::RateLimitError, "Rate limit exceeded. Retry after #{remaining} seconds"
+        end
+        return
+      end
+
+      usage = usage_for(tenant_id)
+      return unless usage
+
+      minute_used = usage.dig(:minute, :used) || 0
+
+      if minute_used >= THROTTLE_HARD_LIMIT
+        # At hard limit - wait for minute reset
+        wait = [60 - Time.current.sec, 1].max
+        Rails.logger.info("[XeroRateLimitTracker] Pre-request: at #{minute_used}/60, waiting #{wait}s for minute reset")
+        sleep(wait)
+      elsif minute_used >= THROTTLE_SOFT_LIMIT
+        # Approaching limit - add progressive delay (100ms-1s)
+        delay = ((minute_used - THROTTLE_SOFT_LIMIT).to_f / (THROTTLE_HARD_LIMIT - THROTTLE_SOFT_LIMIT)) * 1.0
+        delay = [[delay, 0.1].max, 1.0].min
+        sleep(delay)
+      end
+      # Below soft limit - no delay, full speed
+    end
+
     # Reset counters for a tenant (for testing)
     def reset_for(tenant_id)
       Rails.cache.delete(minute_key_for(tenant_id))

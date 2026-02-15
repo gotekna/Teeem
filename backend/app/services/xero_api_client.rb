@@ -1030,6 +1030,10 @@ class XeroApiClient
       attempts += 1
 
       begin
+        # Pre-request throttle: proactively wait if near minute limit (50+/60)
+        # instead of blasting requests until Xero returns 429
+        XeroRateLimitTracker.throttle_before_request!(request_tenant_id)
+
         headers = {
           "Authorization" => "Bearer #{credential.access_token}",
           "Xero-tenant-id" => request_tenant_id,
@@ -1115,6 +1119,9 @@ class XeroApiClient
 
     loop do
       attempts += 1
+
+      # Pre-request throttle: proactively wait if near minute limit (50+/60)
+      XeroRateLimitTracker.throttle_before_request!(request_tenant_id)
 
       headers = {
         "Authorization" => "Bearer #{credential.access_token}",

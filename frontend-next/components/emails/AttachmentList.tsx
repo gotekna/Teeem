@@ -453,11 +453,12 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
               )}
               <span
                 className={cn(
-                  "truncate max-w-[200px]",
+                  "truncate max-w-[200px] cursor-pointer hover:underline",
                   isLoading && "opacity-50",
                   needsDownload && !isFailed && "text-muted-foreground"
                 )}
                 title={needsDownload ? `${attachment.name} (not yet downloaded)` : attachment.name}
+                onClick={() => hasId && !isLoading && handlePreviewModal(attachment)}
               >
                 {attachment.name}
               </span>
