@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Briefcase,
+  FileSpreadsheet,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
 import { XeroJobImportModal } from "@/components/xero/XeroJobImportModal";
+import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
 
 // Card height for virtual scrolling (estimated average)
 const CARD_HEIGHT = 420;
@@ -386,6 +388,7 @@ export function XeroSyncStats() {
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
   const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
   const [jobImportOpen, setJobImportOpen] = React.useState(false);
+  const [databuildImportOpen, setDatabuildImportOpen] = React.useState(false);
 
   // Search/filter state for large tenant lists (Scale to 15k feature)
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -707,6 +710,14 @@ export function XeroSyncStats() {
             >
               <Briefcase className="h-4 w-4 mr-2" />
               Import Jobs from Tracking
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setDatabuildImportOpen(true)}
+              disabled={syncing !== null}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Import from Databuild
             </Button>
           </div>
         </CardContent>
@@ -1348,6 +1359,13 @@ export function XeroSyncStats() {
       <XeroJobImportModal
         isOpen={jobImportOpen}
         onClose={() => setJobImportOpen(false)}
+        onImportComplete={fetchData}
+      />
+
+      {/* Databuild Import Modal */}
+      <DatabuildImportModal
+        isOpen={databuildImportOpen}
+        onClose={() => setDatabuildImportOpen(false)}
         onImportComplete={fetchData}
       />
     </div>

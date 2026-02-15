@@ -321,6 +321,8 @@ Rails.application.routes.draw do
 
       # CSV Import routes
       post "csv_imports/job_with_pos", to: "csv_imports#import_job_with_pos"
+      post "csv_imports/databuild_preview", to: "csv_imports#databuild_preview"
+      post "csv_imports/databuild_import", to: "csv_imports#databuild_import"
 
       # Email to Contacts extraction
       resources :email_to_contacts, only: [] do

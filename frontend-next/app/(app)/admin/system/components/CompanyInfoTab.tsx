@@ -95,6 +95,7 @@ interface TradingName {
 
 interface XeroTenant {
   id: number;
+  tenant_id: string;
   tenant_name: string;
   is_primary: boolean;
   status: string;
@@ -286,7 +287,7 @@ export default function CompanyInfoTab() {
     }
   };
 
-  const setPrimaryXero = async (tenantId: number) => {
+  const setPrimaryXero = async (tenantId: string) => {
     setSavingXero(true);
     try {
       await api.post("/api/v1/xero/set_primary", { tenant_id: tenantId });
@@ -421,8 +422,8 @@ export default function CompanyInfoTab() {
             </div>
           ) : xeroTenants.length > 0 ? (
             <Select
-              value={xeroTenants.find(t => t.is_primary)?.id?.toString() || ""}
-              onValueChange={(value) => setPrimaryXero(parseInt(value))}
+              value={xeroTenants.find(t => t.is_primary)?.tenant_id || ""}
+              onValueChange={(value) => setPrimaryXero(value)}
               disabled={savingXero}
             >
               <SelectTrigger className="w-full max-w-md">
@@ -430,7 +431,7 @@ export default function CompanyInfoTab() {
               </SelectTrigger>
               <SelectContent>
                 {xeroTenants.map((tenant) => (
-                  <SelectItem key={tenant.id} value={tenant.id.toString()}>
+                  <SelectItem key={tenant.id} value={tenant.tenant_id}>
                     <div className="flex items-center gap-2">
                       <span>{tenant.tenant_name}</span>
                       {tenant.is_primary && (

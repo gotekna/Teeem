@@ -322,6 +322,14 @@ class XeroApiClient
                         XeroCredential.all  # Fallback for backward compatibility
                       end
 
+    # FRC (Feb 2026): Derive primary from tenant-scoped set, NOT global XeroCredential.current
+    # Bug: XeroCredential.current is unscoped - returns Tekna Homes even on Pilgrim tenant
+    # Same priority logic as XeroCredential.current but scoped to this tenant's credentials
+    tenant_primary = all_credentials.primary.connected.first ||
+                     all_credentials.primary.first ||
+                     all_credentials.connected.order(created_at: :desc).first ||
+                     all_credentials.order(created_at: :desc).first
+
     if all_credentials.empty?
       return {
         connected: false,
@@ -370,7 +378,7 @@ class XeroApiClient
       }
     elsif needs_attention_count > 0
       # Some working but needs attention - orange (degraded but functional)
-      primary = XeroCredential.current
+      primary = tenant_primary
       {
         connected: true,
         status: "degraded",
@@ -384,7 +392,7 @@ class XeroApiClient
       }
     elsif rate_limited_count > 0
       # FRC: Some working but rate limited - orange (syncing paused)
-      primary = XeroCredential.current
+      primary = tenant_primary
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
       {
         connected: true,
@@ -400,7 +408,7 @@ class XeroApiClient
       }
     else
       # Credentials all good - now check sync health for orange indicator
-      primary = XeroCredential.current
+      primary = tenant_primary
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
 
       # SSoT: Check sync health - show orange if any sync is stalled

@@ -109,6 +109,70 @@ module Api
           details: e.message
         }, status: :internal_server_error
       end
+
+      # POST /api/v1/csv_imports/databuild_preview
+      # Preview a Databuild CSV import (auto-detects format)
+      # Params: csv_file (multipart), job_id (required)
+      def databuild_preview
+        job = find_job_for_databuild
+        return unless job
+
+        csv_content = read_csv_file
+        return unless csv_content
+
+        service = Importers::DatabuildBoqImportService.new(job)
+        result = service.preview(csv_content)
+
+        render json: result
+      rescue StandardError => e
+        Rails.logger.error "Databuild preview error: #{e.message}"
+        render_error("Preview failed: #{e.message}", status: :internal_server_error)
+      end
+
+      # POST /api/v1/csv_imports/databuild_import
+      # Import a Databuild CSV (auto-detects format: cost centres, loads, or line items)
+      # Params: csv_file (multipart), job_id (required)
+      def databuild_import
+        job = find_job_for_databuild
+        return unless job
+
+        csv_content = read_csv_file
+        return unless csv_content
+
+        service = Importers::DatabuildBoqImportService.new(job)
+        result = service.import_auto(csv_content)
+
+        render json: result
+      rescue StandardError => e
+        Rails.logger.error "Databuild import error: #{e.message}"
+        render_error("Import failed: #{e.message}", status: :internal_server_error)
+      end
+
+      private
+
+      def find_job_for_databuild
+        unless params[:job_id].present?
+          render_error("job_id is required", status: :unprocessable_entity)
+          return nil
+        end
+
+        job = Job.find_by(id: params[:job_id])
+        unless job
+          render_error("Job not found", status: :not_found)
+          return nil
+        end
+
+        job
+      end
+
+      def read_csv_file
+        unless params[:csv_file].present?
+          render_error("CSV file is required", status: :unprocessable_entity)
+          return nil
+        end
+
+        params[:csv_file].read
+      end
     end
   end
 end

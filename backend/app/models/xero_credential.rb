@@ -59,10 +59,12 @@ class XeroCredential < ApplicationRecord
   end
 
   # Set this credential as the primary one (and unset others for this tenant)
+  # FRC (Feb 2026): Use update_column instead of update! to avoid re-validating
+  # encrypted fields (access_token, refresh_token) which can fail during validation
   def set_as_primary!
     transaction do
       XeroCredential.where(teeem_tenant_id: teeem_tenant_id).update_all(is_primary: false)
-      update!(is_primary: true)
+      update_column(:is_primary, true)
     end
   end
 
