@@ -281,7 +281,7 @@ function generateModernLight(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<table cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif; border-left: 4px solid ${brandColor};">
+<table cellpadding="0" cellspacing="0" border="0" style="background-color: ${EMAIL_SIGNATURE_COLORS.background}; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif; border-left: 4px solid ${brandColor};">
   <tr>
     <td style="padding: 16px 20px;">
       <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
@@ -296,7 +296,7 @@ ${SIGNATURE_MARKER}
           </td>
           <td style="vertical-align: top; text-align: right; width: 100px;">
             ${logoHtml}
-            <div style="color: #999999; font-size: 11px; margin-top: 8px;">${website}</div>
+            <div style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 11px; margin-top: 8px;">${website}</div>
           </td>
         </tr>
       </table>
@@ -315,11 +315,11 @@ function generateMinimal(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<span style="color: #888888;">  •  ${user.job_title}</span>`
+    ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.muted};">  •  ${user.job_title}</span>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? ` | <span style="color: #333333;">${user.mobile_phone}</span>`
+    ? ` | <span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.mobile_phone}</span>`
     : "";
 
   const website = company?.website || DEFAULT_COMPANY.website;
@@ -328,12 +328,12 @@ function generateMinimal(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<div style="font-family: Arial, sans-serif; color: #333333; font-size: 13px; border-top: 1px solid #e0e0e0; padding-top: 12px; max-width: 400px;">
+<div style="font-family: Arial, sans-serif; color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 13px; border-top: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; padding-top: 12px; max-width: 400px;">
   <div style="font-weight: 600; color: ${brandColor};">${user.name}${jobTitleLine}</div>
   <div style="margin-top: 4px;">
-    <span style="color: #333333;">${user.email}</span>${mobileLine}
+    <span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.email}</span>${mobileLine}
   </div>
-  <div style="margin-top: 4px; color: #888888; font-size: 12px;">${website}</div>
+  <div style="margin-top: 4px; color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px;">${website}</div>
 </div>
 `.trim();
 }
@@ -347,7 +347,7 @@ function generateClassic(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-style: italic;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-style: italic;">${user.job_title}</div>`
     : "";
 
   const contactLines = [user.email, user.mobile_phone]
@@ -367,7 +367,7 @@ ${SIGNATURE_MARKER}
     <div style="font-weight: bold; color: ${brandColor}; font-size: 15px;">${user.name}</div>
     ${jobTitleLine}
   </div>
-  <div style="color: #333333; line-height: 1.6;">
+  <div style="color: ${EMAIL_SIGNATURE_COLORS.heading}; line-height: 1.6;">
     <div>${contactLines}</div>
     <div style="margin-top: 4px;">${address}, ${cityState}</div>
     <div style="margin-top: 2px;"><a href="https://${website}" style="color: ${brandColor}; text-decoration: none;">${website}</a></div>

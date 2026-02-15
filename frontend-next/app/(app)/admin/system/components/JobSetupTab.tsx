@@ -71,6 +71,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { JobType, JobStatus, JobStage } from '@/lib/types';
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 interface ScheduleMasterTemplate {
   id: number;
@@ -143,7 +144,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
 
   const [formData, setFormData] = React.useState({
     name: "",
-    color: "#3B82F6",
+    color: TAILWIND_COLORS.blue[500],
     sm_schedule_master_template_id: null as number | null,
   });
 
@@ -169,16 +170,16 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   // SSoT: Claim stages removed - now managed via Schedule Master CLAIM tasks
 
   const COLORS = [
-    "#3B82F6", // Blue
-    "#10B981", // Green
-    "#F59E0B", // Amber
-    "#EF4444", // Red
-    "#8B5CF6", // Purple
-    "#EC4899", // Pink
-    "#06B6D4", // Cyan
-    "#F97316", // Orange
-    "#6366F1", // Indigo
-    "#84CC16", // Lime
+    TAILWIND_COLORS.blue[500],
+    TAILWIND_COLORS.emerald[500],
+    TAILWIND_COLORS.amber[500],
+    TAILWIND_COLORS.red[500],
+    TAILWIND_COLORS.violet[500],
+    TAILWIND_COLORS.pink[500],
+    TAILWIND_COLORS.cyan[500],
+    TAILWIND_COLORS.orange[500],
+    TAILWIND_COLORS.indigo[500],
+    "#84CC16", // Lime - not in TAILWIND_COLORS, keep as-is
   ];
 
   React.useEffect(() => {
@@ -212,24 +213,24 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       console.error("Failed to load data:", error);
       // Mock data
       setJobTypes([
-        { id: 1, name: "New Build", color: "#3B82F6", position: 1, active: true },
-        { id: 2, name: "Renovation", color: "#10B981", position: 2, active: true },
-        { id: 3, name: "Extension", color: "#F59E0B", position: 3, active: true },
+        { id: 1, name: "New Build", color: TAILWIND_COLORS.blue[500], position: 1, active: true },
+        { id: 2, name: "Renovation", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
+        { id: 3, name: "Extension", color: TAILWIND_COLORS.amber[500], position: 3, active: true },
       ]);
       setJobStatuses([
-        { id: 1, name: "Quote", color: "#8B5CF6", position: 1, active: true },
-        { id: 2, name: "Won", color: "#10B981", position: 2, active: true },
-        { id: 3, name: "In Progress", color: "#3B82F6", position: 3, active: true },
+        { id: 1, name: "Quote", color: TAILWIND_COLORS.violet[500], position: 1, active: true },
+        { id: 2, name: "Won", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
+        { id: 3, name: "In Progress", color: TAILWIND_COLORS.blue[500], position: 3, active: true },
         { id: 4, name: "Complete", color: "#84CC16", position: 4, active: true },
-        { id: 5, name: "Lost", color: "#EF4444", position: 5, active: true },
+        { id: 5, name: "Lost", color: TAILWIND_COLORS.red[500], position: 5, active: true },
       ]);
       setJobStages([
-        { id: 1, name: "Pre-Construction", color: "#F59E0B", position: 1, active: true },
-        { id: 2, name: "Foundation", color: "#6366F1", position: 2, active: true },
-        { id: 3, name: "Frame", color: "#06B6D4", position: 3, active: true },
-        { id: 4, name: "Lock Up", color: "#8B5CF6", position: 4, active: true },
-        { id: 5, name: "Fit Out", color: "#EC4899", position: 5, active: true },
-        { id: 6, name: "Handover", color: "#10B981", position: 6, active: true },
+        { id: 1, name: "Pre-Construction", color: TAILWIND_COLORS.amber[500], position: 1, active: true },
+        { id: 2, name: "Foundation", color: TAILWIND_COLORS.indigo[500], position: 2, active: true },
+        { id: 3, name: "Frame", color: TAILWIND_COLORS.cyan[500], position: 3, active: true },
+        { id: 4, name: "Lock Up", color: TAILWIND_COLORS.violet[500], position: 4, active: true },
+        { id: 5, name: "Fit Out", color: TAILWIND_COLORS.pink[500], position: 5, active: true },
+        { id: 6, name: "Handover", color: TAILWIND_COLORS.emerald[500], position: 6, active: true },
       ]);
     } finally {
       setLoading(false);

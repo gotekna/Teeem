@@ -1335,7 +1335,7 @@ export function TakeoffCanvas({
           left: lastPt.x + 15,
           top: lastPt.y + 10,
           fontSize: 11,
-          fill: "#6B7280",
+          fill: TAILWIND_COLORS.gray[500],
           backgroundColor: "rgba(255,255,255,0.85)",
           selectable: false,
         }) as FabricObjectWithData;
@@ -1384,7 +1384,7 @@ export function TakeoffCanvas({
           left: fp.x + 26,
           top: fp.y - 10,
           fontSize: 13,
-          fill: "#fff",
+          fill: COLORS.white,
           fontWeight: "bold",
           backgroundColor: color,
           padding: 4,
@@ -1397,7 +1397,7 @@ export function TakeoffCanvas({
         left: fp.x - (isNearFirstPoint ? 8 : 5),
         top: fp.y - (isNearFirstPoint ? 8 : 5),
         radius: isNearFirstPoint ? 8 : 5,
-        fill: isNearFirstPoint ? `${color}44` : "#fff",
+        fill: isNearFirstPoint ? `${color}44` : COLORS.white,
         stroke: color,
         strokeWidth: isNearFirstPoint ? 3 : 2,
         selectable: false,
@@ -1717,7 +1717,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label="Cal A"
-              color="#F59E0B"
+              color={TAILWIND_COLORS.amber[500]}
               preferSide="left"
               onSelect={(newPoint) => {
                 void onCalibrate({
@@ -1736,7 +1736,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label="Cal B"
-              color="#F59E0B"
+              color={TAILWIND_COLORS.amber[500]}
               preferSide={isVerticalCal ? "left" : "right"}
               onSelect={(newPoint) => {
                 void onCalibrate({
@@ -1763,7 +1763,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label={pageScale?.calibrated ? "Verify A" : "New A"}
-              color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
+              color={pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.blue[500]}
               preferSide="left"
               onSelect={(newPoint) => {
                 setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
@@ -1777,7 +1777,7 @@ export function TakeoffCanvas({
                 pageWidth={pageWidth}
                 pageHeight={pageHeight}
                 label={pageScale?.calibrated ? "Verify B" : "New B"}
-                color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
+                color={pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.blue[500]}
                 preferSide={isVerticalActive ? "left" : "right"}
                 onSelect={(newPoint) => {
                   setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
@@ -1799,7 +1799,7 @@ export function TakeoffCanvas({
           : isAcceptable
           ? "bg-amber-500"
           : "bg-green-500";
-        const vColor = isProblem ? "#ef4444" : isAcceptable ? "#f59e0b" : "#22c55e";
+        const vColor = isProblem ? TAILWIND_COLORS.red[500] : isAcceptable ? TAILWIND_COLORS.amber[500] : TAILWIND_COLORS.green[500];
         const displayMm = `${Math.round(v.computedMm).toLocaleString()}mm`;
         const expectedDisplay = `${Math.round(v.expectedMm).toLocaleString()}mm`;
         const vIsVertical = Math.abs(v.line.end.y - v.line.start.y) > Math.abs(v.line.end.x - v.line.start.x);

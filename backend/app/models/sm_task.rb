@@ -20,7 +20,8 @@ class SmTask < ApplicationRecord
 
   # SSoT: Task attachments use SmTaskAttachment → SyncedEmail → attachment_documents (WarehouseDocument)
 
-  # Status enum
+  # SSoT: Status enum values (use these in services/queries)
+  # Rails enum allows string comparisons: task.status == SmTask::STATUS_COMPLETED
   enum :status, {
     not_started: "not_started",
     started: "started",
@@ -28,6 +29,13 @@ class SmTask < ApplicationRecord
     waiting_for_info: "waiting_for_info",
     completed: "completed"
   }, prefix: true
+
+  # String constants for use in queries and service objects
+  STATUS_NOT_STARTED = "not_started".freeze
+  STATUS_STARTED = "started".freeze
+  STATUS_WAITING_FOR_RESPONSE = "waiting_for_response".freeze
+  STATUS_WAITING_FOR_INFO = "waiting_for_info".freeze
+  STATUS_COMPLETED = "completed".freeze
 
   # Confirm status enum
   enum :confirm_status, {
