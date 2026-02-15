@@ -140,38 +140,34 @@ class XeroContactBatchProcessJob < ApplicationJob
     end
   end
 
+  # FRC (Feb 2026): Used invalid column names (xero_updated_at, phone, mobile_phone,
+  # fax, street, country, is_supplier, is_customer). Contact model doesn't have these.
+  # Root cause: attrs were written from Xero API field names, not Contact column names.
+  # Fix: Map to actual Contact columns (direct_line, address, is_supplier_cached, etc.)
   def build_contact_attrs(xero_contact)
     attrs = {
       display_name: xero_contact['Name'],
-      abn: normalize_abn(xero_contact['TaxNumber']),
-      xero_updated_at: Time.current
+      abn: normalize_abn(xero_contact['TaxNumber'])
     }
 
-    # Extract primary email
-    email = xero_contact['EmailAddress']
-
-    # Extract phone numbers
+    # Extract phone numbers → direct_line (Contact's phone column)
     phones = xero_contact['Phones'] || []
     default_phone = phones.find { |p| p['PhoneType'] == 'DEFAULT' }
     mobile_phone = phones.find { |p| p['PhoneType'] == 'MOBILE' }
-    fax_phone = phones.find { |p| p['PhoneType'] == 'FAX' }
 
-    attrs[:phone] = format_phone(default_phone || mobile_phone) if default_phone || mobile_phone
-    attrs[:mobile_phone] = format_phone(mobile_phone) if mobile_phone
-    attrs[:fax] = format_phone(fax_phone) if fax_phone
+    attrs[:direct_line] = format_phone(default_phone || mobile_phone) if default_phone || mobile_phone
 
-    # Extract address
+    # Extract address → Contact columns: address, city, state, postcode
     addresses = xero_contact['Addresses'] || []
     street_address = addresses.find { |a| a['AddressType'] == 'STREET' }
     postal_address = addresses.find { |a| a['AddressType'] == 'POBOX' }
 
     addr = street_address || postal_address
     if addr
-      attrs[:street] = [addr['AddressLine1'], addr['AddressLine2'], addr['AddressLine3'], addr['AddressLine4']].compact.join(', ').presence
+      attrs[:address] = [addr['AddressLine1'], addr['AddressLine2'], addr['AddressLine3'], addr['AddressLine4']].compact.join(', ').presence
       attrs[:city] = addr['City']
       attrs[:state] = addr['Region']
       attrs[:postcode] = addr['PostalCode']
-      attrs[:country] = addr['Country']
     end
 
     # Bank details (if available)
@@ -180,12 +176,16 @@ class XeroContactBatchProcessJob < ApplicationJob
       attrs[:bank_account_number] = xero_contact['BankAccountDetails']
     end
 
-    # Contact status
-    attrs[:is_supplier] = xero_contact['IsSupplier'] == true
-    attrs[:is_customer] = xero_contact['IsCustomer'] == true
+    # Contact status → cached columns
+    attrs[:is_supplier_cached] = xero_contact['IsSupplier'] == true
+    attrs[:is_customer_cached] = xero_contact['IsCustomer'] == true
 
     # Website
     attrs[:website] = xero_contact['Website'] if xero_contact['Website'].present?
+
+    # Xero-specific metadata
+    attrs[:xero_contact_number] = xero_contact['ContactNumber'] if xero_contact['ContactNumber'].present?
+    attrs[:xero_account_number] = xero_contact['AccountNumber'] if xero_contact['AccountNumber'].present?
 
     attrs.compact
   end
