@@ -1181,7 +1181,9 @@ class SyncedEmail < ApplicationRecord
         }.compact
       )
     rescue StandardError => e
-      Rails.logger.error "[SyncedEmail] Failed to record metadata for attachment #{filename}: #{e.message}"
+      Rails.logger.error "[SyncedEmail] Failed to record metadata for attachment '#{filename}' on email #{id}: #{e.class}: #{e.message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
+      raise # Fail fast - don't silently skip attachments
     end
 
     # Update attachment count from local SSoT
@@ -1223,8 +1225,10 @@ class SyncedEmail < ApplicationRecord
       blob.increment!(:reference_count)
       Rails.logger.debug "[SyncedEmail] Downloaded blob for: #{doc.ui_name}"
     rescue StandardError => e
-      Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.message}"
+      Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.class}: #{e.message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
       doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+      raise # Fail fast - don't silently skip blob downloads
     end
   end
 

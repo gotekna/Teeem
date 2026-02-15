@@ -700,6 +700,14 @@ export function XeroSyncStats() {
               )}
               Full Import (Contacts + Invoices)
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setJobImportOpen(true)}
+              disabled={syncing !== null}
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Import Jobs from Tracking
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -1334,6 +1342,13 @@ export function XeroSyncStats() {
         tenants={safeTenants}
         totalContacts={global.totals.contacts_with_links}
         onLinkChanged={fetchData}
+      />
+
+      {/* Job Import Modal */}
+      <XeroJobImportModal
+        isOpen={jobImportOpen}
+        onClose={() => setJobImportOpen(false)}
+        onImportComplete={fetchData}
       />
     </div>
   );

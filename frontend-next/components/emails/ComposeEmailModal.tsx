@@ -446,6 +446,7 @@ export function ComposeEmailModal({
 
     const fetchForwardAttachments = async () => {
       const fetchedFiles: File[] = [];
+      const failedAttachments: string[] = [];
 
       for (const att of forwardAttachments) {
         if (cancelled) break;
@@ -454,6 +455,7 @@ export function ComposeEmailModal({
           const attachmentId = att.id || att.outlook_attachment_id;
           if (!attachmentId) {
             console.warn(`[Compose] No attachment ID for: ${att.name}, skipping`);
+            failedAttachments.push(att.name);
             continue;
           }
 
@@ -481,14 +483,23 @@ export function ComposeEmailModal({
           if (blob && !cancelled) {
             const file = new File([blob], att.name, { type: att.content_type || blob.type });
             fetchedFiles.push(file);
+          } else if (!blob) {
+            failedAttachments.push(att.name);
           }
         } catch (err) {
           console.error(`[Compose] Failed to fetch forward attachment: ${att.name}`, err);
+          failedAttachments.push(att.name);
         }
       }
 
       if (!cancelled && fetchedFiles.length > 0) {
         setAttachments(prev => [...prev, ...fetchedFiles]);
+      }
+
+      // FRC (Feb 2026): Show error if any attachments failed to load
+      // Previously silent - user saw attachments in UI metadata but they weren't actually loaded
+      if (!cancelled && failedAttachments.length > 0) {
+        setError(`Failed to load ${failedAttachments.length} attachment(s): ${failedAttachments.join(", ")}. These will NOT be included when you send.`);
       }
     };
 
