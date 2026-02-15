@@ -231,6 +231,8 @@ interface OrgDataStats {
     with_blob: number;
     with_file: number;
     missing: number | null; // How many still need files (null if no target)
+    unique_blobs?: number;  // Distinct storage blobs (deduplication count)
+    duplicates?: number;    // with_blob minus unique_blobs (shared blob references)
     unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
     file_rate: number;
     tenant_breakdown?: Array<{
@@ -1572,6 +1574,13 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
+                          {(row.duplicates ?? 0) > 0 ? (
+                            <span className="text-blue-600 dark:text-blue-400">{(row.duplicates ?? 0).toLocaleString()}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
                           {row.unfetchable && row.unfetchable > 0 ? (
                             <span className="text-orange-600 dark:text-orange-400">{row.unfetchable.toLocaleString()}</span>
                           ) : (
@@ -1603,6 +1612,7 @@ export function DataWarehouseTab() {
                               <span className="text-green-600/80 dark:text-green-400/80">-</span>
                             )}
                           </TableCell>
+                          <TableCell className="text-right text-muted-foreground">-</TableCell>
                           <TableCell className="text-right text-muted-foreground">-</TableCell>
                         </TableRow>
                       ))}
@@ -1645,6 +1655,7 @@ export function DataWarehouseTab() {
                       </TableCell>
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">-</TableCell>
                     </TableRow>
                   );
                 })()}
@@ -1658,10 +1669,11 @@ export function DataWarehouseTab() {
                       inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
                       withFile: acc.withFile + (row.with_file || 0),
                       missing: acc.missing + (hasTarget ? (row.missing ?? 0) : 0),
+                      duplicates: acc.duplicates + (row.duplicates ?? 0),
                       unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
                     };
                   },
-                  { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, unfetchable: 0 }
+                  { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, duplicates: 0, unfetchable: 0 }
                 );
                 const totalWhDocs = stats.documents.total_documents;
                 const grandInWarehouse = totalWhDocs;
@@ -1685,6 +1697,13 @@ export function DataWarehouseTab() {
                           <span className="text-red-600 dark:text-red-400">{grandMissing.toLocaleString()}</span>
                         ) : (
                           <span className="text-green-600 dark:text-green-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rowTotals.duplicates > 0 ? (
+                          <span className="text-blue-600 dark:text-blue-400">{rowTotals.duplicates.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
