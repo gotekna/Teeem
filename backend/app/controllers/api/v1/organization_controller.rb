@@ -875,6 +875,9 @@ module Api
         # StorageBlob totals (deduplicated file storage)
         blob_stats = if defined?(StorageBlob)
           total_blobs = StorageBlob.count
+          verified_blobs = StorageBlob.where.not(verified_at: nil).count
+          unverified_blobs = total_blobs - verified_blobs
+          orphan_blobs = StorageBlob.left_joins(:warehouse_documents).where(warehouse_documents: { id: nil }).count
           total_bytes = StorageBlob.sum(:file_size) || 0
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
@@ -888,6 +891,9 @@ module Api
 
           {
             total_blobs: total_blobs,
+            verified_blobs: verified_blobs,
+            unverified_blobs: unverified_blobs,
+            orphan_blobs: orphan_blobs,
             total_bytes: total_bytes,
             blobs_format: blobs_path,
             legacy_format: emails_path,

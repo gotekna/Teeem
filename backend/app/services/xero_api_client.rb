@@ -494,6 +494,7 @@ class XeroApiClient
     begin
       auth_header = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
 
+      # SSoT: Use XERO_TOKEN_TIMEOUT constant from XeroConstants
       response = HTTParty.post(
         XERO_REVOCATION_URL,
         headers: {
@@ -501,7 +502,7 @@ class XeroApiClient
           "Content-Type" => "application/x-www-form-urlencoded"
         },
         body: "token=#{token}",
-        timeout: 10
+        timeout: XERO_TOKEN_TIMEOUT
       )
 
       if response.code == 200
@@ -857,11 +858,12 @@ class XeroApiClient
 
     Rails.logger.info("[Xero] Uploading attachment #{filename} to #{entity_type}/#{entity_id}")
 
+    # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants
     response = HTTParty.put(
       url,
       headers: headers,
       body: file_content,
-      timeout: 60
+      timeout: XERO_FILE_TIMEOUT
     )
 
     if response.success?
@@ -1035,13 +1037,14 @@ class XeroApiClient
           "Accept" => "application/json"
         }
 
+        # SSoT: Use XERO_DEFAULT_TIMEOUT constant from XeroConstants
         response = case method
         when :get
-          HTTParty.get(url, headers: headers, query: data, timeout: 30)
+          HTTParty.get(url, headers: headers, query: data, timeout: XERO_DEFAULT_TIMEOUT)
         when :post
-          HTTParty.post(url, headers: headers, body: data.to_json, timeout: 30)
+          HTTParty.post(url, headers: headers, body: data.to_json, timeout: XERO_DEFAULT_TIMEOUT)
         when :put
-          HTTParty.put(url, headers: headers, body: data.to_json, timeout: 30)
+          HTTParty.put(url, headers: headers, body: data.to_json, timeout: XERO_DEFAULT_TIMEOUT)
         else
           raise ArgumentError, "Unsupported HTTP method: #{method}"
         end
@@ -1119,7 +1122,8 @@ class XeroApiClient
         "Accept" => accept_type
       }
 
-      response = HTTParty.get(url, headers: headers, timeout: 60)
+      # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants (binary downloads)
+      response = HTTParty.get(url, headers: headers, timeout: XERO_FILE_TIMEOUT)
 
       # Track the API request for rate limiting visibility
       XeroRateLimitTracker.record_request(request_tenant_id)

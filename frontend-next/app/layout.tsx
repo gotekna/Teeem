@@ -14,6 +14,7 @@ import { DynamicTitle } from "@/components/dynamic-title";
 import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
 import { OfflineProvider } from "@/components/providers/offline-provider";
 import type { Metadata, Viewport } from "next";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: TAILWIND_COLORS.indigo[600],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

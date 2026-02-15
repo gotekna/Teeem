@@ -1,4 +1,4 @@
- 
+
 "use client";
 
 import { useMemo, ElementType } from "react";
@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // ============================================
 // Types & Interfaces
@@ -176,7 +177,7 @@ export function ProgressRing({
   value,
   size = 120,
   strokeWidth = 8,
-  color = "#3b82f6",
+  color = TAILWIND_COLORS.blue[500],
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
@@ -361,7 +362,7 @@ export function TrendChart({
         <path
           d={chartData.pathD}
           fill="none"
-          stroke="#3b82f6"
+          stroke={TAILWIND_COLORS.blue[500]}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -375,7 +376,7 @@ export function TrendChart({
             cy={p.y}
             r="4"
             fill="currentColor"
-            stroke="#3b82f6"
+            stroke={TAILWIND_COLORS.blue[500]}
             strokeWidth="2"
             className="text-background"
           />
@@ -384,8 +385,8 @@ export function TrendChart({
         {/* Gradient definition */}
         <defs>
           <linearGradient id="trend-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor={TAILWIND_COLORS.blue[500]} />
+            <stop offset="100%" stopColor={TAILWIND_COLORS.blue[500]} stopOpacity="0" />
           </linearGradient>
         </defs>
       </svg>

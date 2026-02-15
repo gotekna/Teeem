@@ -142,10 +142,14 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   const [editingItem, setEditingItem] = React.useState<JobType | JobStatus | JobStage | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<{
+    name: string;
+    color: string;
+    sm_schedule_master_template_id: number | null;
+  }>({
     name: "",
     color: TAILWIND_COLORS.blue[500],
-    sm_schedule_master_template_id: null as number | null,
+    sm_schedule_master_template_id: null,
   });
 
   // Schedule Master Templates state

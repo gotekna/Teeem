@@ -52,6 +52,19 @@ module XeroConstants
   XERO_RATE_LIMIT_WARNING_THRESHOLD = 80
 
   # ============================================
+  # HTTP TIMEOUTS (SSoT)
+  # ============================================
+
+  # Default timeout for most Xero API requests (seconds)
+  XERO_DEFAULT_TIMEOUT = 30
+
+  # Extended timeout for file operations (attachments, PDFs)
+  XERO_FILE_TIMEOUT = 60
+
+  # Short timeout for token operations
+  XERO_TOKEN_TIMEOUT = 10
+
+  # ============================================
   # NON-XERO CONSTANTS
   # ============================================
 

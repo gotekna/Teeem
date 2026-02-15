@@ -56,6 +56,7 @@ import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
 import { DATE_ISO } from "@/lib/constants/date-formats";
 import { API } from "@/lib/constants/api-endpoints";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -1131,7 +1132,7 @@ export function ComposeEmailModal({
             )}
 
             {/* Subject - Outlook style underlined */}
-            <div className="flex items-center border-b px-4 py-2">
+            <div className="flex items-center border-b px-4 py-2" style={{ borderColor: TAILWIND_COLORS.gray[200] }}>
               <SmartInput
                 placeholder="Add a subject"
                 value={formData.subject}
@@ -1143,7 +1144,7 @@ export function ComposeEmailModal({
 
             {/* Attachments bar - shows both regular and pre-uploaded attachments */}
             {(attachments.length > 0 || preUploadedAttachments.length > 0) && (
-              <div className="flex flex-wrap gap-2 px-4 py-2 border-b bg-muted/30">
+              <div className="flex flex-wrap gap-2 px-4 py-2 border-b" style={{ backgroundColor: TAILWIND_COLORS.gray[500] }}>
                 {/* Regular file attachments */}
                 {attachments.map((file, index) => (
                   <Badge

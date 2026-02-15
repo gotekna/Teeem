@@ -13,6 +13,7 @@
  */
 
 import { api } from "@/lib/api";
+import { DEBOUNCE_SHORT_MS, POLLING_FAST_MS, SYNC_RETRY_LONG_MS } from "@/lib/constants/timeout-constants";
 import {
   getPendingPhotos,
   getErrorPhotos,
@@ -29,7 +30,7 @@ import {
 const MAX_SYNC_ATTEMPTS = 3;
 
 // Delay between sync attempts (exponential backoff)
-const SYNC_RETRY_DELAYS = [1000, 5000, 15000]; // 1s, 5s, 15s
+const SYNC_RETRY_DELAYS = [DEBOUNCE_SHORT_MS * 10, POLLING_FAST_MS, SYNC_RETRY_LONG_MS]; // 1s, 5s, 15s
 
 // =============================================================================
 // Types

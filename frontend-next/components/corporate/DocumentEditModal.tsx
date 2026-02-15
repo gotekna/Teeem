@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import ClassificationPanel from "@/components/documents/ClassificationPanel";
 import type { ClassificationData, ClassificationDocumentType, ClassificationCompany as Company } from "@/lib/types/classification-types";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // ── Local Types ──
 
@@ -288,7 +289,7 @@ export default function DocumentEditModal({
         } catch (error) {
           console.error("Failed to poll document status:", error);
         }
-      }, 2000);
+      }, RETRY_DELAY_MS);
     }
 
     return () => {

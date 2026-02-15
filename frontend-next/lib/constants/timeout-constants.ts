@@ -218,6 +218,30 @@ export const POLLING_SLOW_MS = 60000;
 export const POLLING_XERO_SYNC_MS = 10000;
 
 /**
+ * Xero connection timeout (5 minutes).
+ * Maximum time to wait for Xero connection to complete.
+ */
+export const XERO_CONNECTION_TIMEOUT_MS = 300000;
+
+/**
+ * Geolocation timeout (10 seconds).
+ * Maximum time to wait for geolocation API.
+ */
+export const GEOLOCATION_TIMEOUT_MS = 10000;
+
+/**
+ * Geolocation cache age (60 seconds).
+ * How long to cache geolocation results.
+ */
+export const GEOLOCATION_CACHE_MS = 60000;
+
+/**
+ * Sync retry delay (15 seconds).
+ * Long delay for final retry attempts.
+ */
+export const SYNC_RETRY_LONG_MS = 15000;
+
+/**
  * Chat message polling interval (5 seconds for entity chat, 3 seconds for guest chat).
  * Used for real-time chat updates.
  */

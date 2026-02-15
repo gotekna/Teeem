@@ -16,6 +16,7 @@ import {
   NodeChange,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 import {
   User,
   Building2,
@@ -104,32 +105,32 @@ interface CaseRelationshipChartProps {
 
 // Relationship type styling
 const RELATIONSHIP_STYLES: Record<string, { color: string; bgColor: string; icon: typeof User }> = {
-  client: { color: "#3b82f6", bgColor: "bg-blue-500", icon: User },
-  accountant: { color: "#22c55e", bgColor: "bg-green-500", icon: Calculator },
-  lawyer: { color: "#a855f7", bgColor: "bg-purple-500", icon: Scale },
-  previous_accountant: { color: "#6b7280", bgColor: "bg-muted0", icon: Calculator },
-  advisor: { color: "#14b8a6", bgColor: "bg-teal-500", icon: Users },
-  opposing_party: { color: "#f97316", bgColor: "bg-orange-500", icon: AlertTriangle },
-  witness: { color: "#eab308", bgColor: "bg-yellow-500", icon: User },
-  ato_officer: { color: "#ef4444", bgColor: "bg-red-500", icon: Landmark },
-  director: { color: "#6366f1", bgColor: "bg-indigo-500", icon: Briefcase },
-  shareholder: { color: "#ec4899", bgColor: "bg-pink-500", icon: Users },
-  bank_manager: { color: "#06b6d4", bgColor: "bg-cyan-500", icon: Building2 },
-  insurer: { color: "#10b981", bgColor: "bg-emerald-500", icon: Shield },
-  broker: { color: "#8b5cf6", bgColor: "bg-violet-500", icon: BadgeDollarSign },
-  related_party: { color: "#78716c", bgColor: "bg-stone-500", icon: UserCog },
+  client: { color: TAILWIND_COLORS.blue[500], bgColor: "bg-blue-500", icon: User },
+  accountant: { color: TAILWIND_COLORS.green[500], bgColor: "bg-green-500", icon: Calculator },
+  lawyer: { color: TAILWIND_COLORS.purple[500], bgColor: "bg-purple-500", icon: Scale },
+  previous_accountant: { color: TAILWIND_COLORS.gray[500], bgColor: "bg-muted0", icon: Calculator },
+  advisor: { color: TAILWIND_COLORS.teal[500], bgColor: "bg-teal-500", icon: Users },
+  opposing_party: { color: TAILWIND_COLORS.orange[500], bgColor: "bg-orange-500", icon: AlertTriangle },
+  witness: { color: TAILWIND_COLORS.yellow[500], bgColor: "bg-yellow-500", icon: User },
+  ato_officer: { color: TAILWIND_COLORS.red[500], bgColor: "bg-red-500", icon: Landmark },
+  director: { color: TAILWIND_COLORS.indigo[500], bgColor: "bg-indigo-500", icon: Briefcase },
+  shareholder: { color: TAILWIND_COLORS.pink[500], bgColor: "bg-pink-500", icon: Users },
+  bank_manager: { color: TAILWIND_COLORS.cyan[500], bgColor: "bg-cyan-500", icon: Building2 },
+  insurer: { color: TAILWIND_COLORS.emerald[500], bgColor: "bg-emerald-500", icon: Shield },
+  broker: { color: TAILWIND_COLORS.violet[500], bgColor: "bg-violet-500", icon: BadgeDollarSign },
+  related_party: { color: "#78716c", bgColor: "bg-stone-500", icon: UserCog }, // Keep stone as-is
 };
 
-const DEFAULT_STYLE = { color: "#6b7280", bgColor: "bg-muted0", icon: User };
+const DEFAULT_STYLE = { color: TAILWIND_COLORS.gray[500], bgColor: "bg-muted0", icon: User };
 
 // Alignment styles - which side the contact is on
 const ALIGNMENT_STYLES: Record<string, { color: string; borderColor: string; label: string }> = {
-  friendly: { color: "#22c55e", borderColor: "border-green-500", label: "Friendly" },
-  neutral: { color: "#6b7280", borderColor: "border-border", label: "Neutral" },
-  opposing: { color: "#ef4444", borderColor: "border-red-500", label: "Opposing" },
+  friendly: { color: TAILWIND_COLORS.green[500], borderColor: "border-green-500", label: "Friendly" },
+  neutral: { color: TAILWIND_COLORS.gray[500], borderColor: "border-border", label: "Neutral" },
+  opposing: { color: TAILWIND_COLORS.red[500], borderColor: "border-red-500", label: "Opposing" },
 };
 
-const DEFAULT_ALIGNMENT = { color: "#6b7280", borderColor: "border-border", label: "Neutral" };
+const DEFAULT_ALIGNMENT = { color: TAILWIND_COLORS.gray[500], borderColor: "border-border", label: "Neutral" };
 
 // Custom node component for case (central node)
 function CaseNode({ data }: { data: CaseNodeData }) {
@@ -648,7 +649,7 @@ export default function CaseRelationshipChart({
           fontSize: 11,
         },
         labelBgStyle: {
-          fill: "#ffffff",
+          fill: COLORS.white,
           fillOpacity: 0.9,
         },
         labelBgPadding: [4, 4] as [number, number],
@@ -727,16 +728,16 @@ export default function CaseRelationshipChart({
         maxZoom={1.5}
         defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
       >
-        <Background color="#e5e7eb" gap={20} />
+        <Background color={TAILWIND_COLORS.gray[200]} gap={20} />
         <Controls />
         <MiniMap
           nodeColor={(node) => {
-            if (node.type === "case") return "#64748b";
-            if (node.type === "parent_case") return "#3b82f6"; // blue
-            if (node.type === "child_case") return "#94a3b8"; // slate
-            if (node.type === "company") return "#818cf8";
-            if (node.type === "company_group") return "#6366f1"; // indigo for company groups
-            if (node.type === "job") return "#fbbf24";
+            if (node.type === "case") return TAILWIND_COLORS.slate[500];
+            if (node.type === "parent_case") return TAILWIND_COLORS.blue[500]; // blue
+            if (node.type === "child_case") return TAILWIND_COLORS.slate[400]; // slate
+            if (node.type === "company") return TAILWIND_COLORS.indigo[400];
+            if (node.type === "company_group") return TAILWIND_COLORS.indigo[500]; // indigo for company groups
+            if (node.type === "job") return TAILWIND_COLORS.yellow[400];
 
             // For contacts, use relationship type color
             const nodeData = node.data as unknown as ContactNodeData;

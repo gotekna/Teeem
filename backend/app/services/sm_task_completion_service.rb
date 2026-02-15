@@ -31,6 +31,7 @@ class SmTaskCompletionService
   # This handles double-clicks, multi-tab usage, network retries gracefully.
   def complete(passed: nil, also_complete_task_ids: [])
     # Idempotent: already completed = success (no work to do)
+    # SSoT: Use SmTask::STATUS_COMPLETED constant
     if task.status_completed?
       Rails.logger.info("[SmTaskCompletionService] Task #{task.id} already completed - returning idempotent success")
       return idempotent_success_result
@@ -120,8 +121,9 @@ class SmTaskCompletionService
   end
 
   def complete_task!(passed)
+    # SSoT: Use SmTask::STATUS_COMPLETED constant
     attrs = {
-      status: "completed",
+      status: SmTask::STATUS_COMPLETED,
       completed_at: Time.current,
       updated_by: user
     }
@@ -159,8 +161,9 @@ class SmTaskCompletionService
       next unless linked_task.can_complete?
 
       # Complete the linked task
+      # SSoT: Use SmTask::STATUS_COMPLETED constant
       linked_task.update!(
-        status: "completed",
+        status: SmTask::STATUS_COMPLETED,
         completed_at: Time.current,
         updated_by: user
       )
@@ -369,6 +372,7 @@ class SmTaskCompletionService
                 end
 
     # SSoT: Multi-tenancy - set tenant_id from parent task (background job has no tenant context)
+    # SSoT: Use SmTask::STATUS_NOT_STARTED constant
     spawned = SmTask.create!(
       construction_id: task.job_id,
       parent_task_id: task.id,
@@ -377,7 +381,7 @@ class SmTaskCompletionService
       start_date: Date.current,
       end_date: Date.current + (attrs[:duration_days] || 1) - 1,
       duration_days: attrs[:duration_days] || 1,
-      status: "not_started",
+      status: SmTask::STATUS_NOT_STARTED,
       created_by: user,
       tenant_id: task&.tenant_id,
       **attrs.except(:spawn_type).merge(name: task_name)

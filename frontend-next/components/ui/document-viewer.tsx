@@ -26,6 +26,7 @@ import { WordDocumentPreview } from "@/components/ui/word-document-preview";
 import { cn } from "@/lib/utils";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 import {
   Dialog,
   DialogContent,
@@ -1241,14 +1242,14 @@ export function DocumentViewer({
                     <circle
                       cx="50" cy="50" r="40"
                       fill="none"
-                      stroke={isDark ? "#374151" : "#e5e7eb"}
+                      stroke={isDark ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[200]}
                       strokeWidth="8"
                     />
                     {/* Progress circle */}
                     <circle
                       cx="50" cy="50" r="40"
                       fill="none"
-                      stroke="#3b82f6"
+                      stroke={TAILWIND_COLORS.blue[500]}
                       strokeWidth="8"
                       strokeLinecap="round"
                       strokeDasharray={`${pdfLoadProgress * 2.51} 251`}

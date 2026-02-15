@@ -3,6 +3,9 @@ class ExternalInvoiceSyncService
 
   attr_reader :stats
 
+  # SSoT: Safety limit for paginated fetches (prevents infinite loops)
+  MAX_PAGES = 100
+
   def initialize(source: "xero", tenant_id: nil)
     @source = source
     @xero_tenant_id = tenant_id  # Xero org UUID (used for API calls)
@@ -229,7 +232,7 @@ class ExternalInvoiceSyncService
   def fetch_all_invoices(tenant_id, fetch_details: false)
     all_invoices = []
     page = 1
-    max_pages = 100 # Safety limit
+    # SSoT: Use MAX_PAGES constant
 
     loop do
       Rails.logger.info("Fetching #{@source} invoices page #{page}")
@@ -252,7 +255,7 @@ class ExternalInvoiceSyncService
       Rails.logger.info("Page #{page}: #{invoices_page.length} invoices (total: #{all_invoices.length})")
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
       # Rate limit protection
       sleep(XERO_API_SLEEP_MS / 1000.0)
@@ -776,7 +779,7 @@ class ExternalInvoiceSyncService
   def fetch_all_credit_notes(tenant_id)
     all_credit_notes = []
     page = 1
-    max_pages = 50
+    # SSoT: Use MAX_PAGES constant (safety limit for pagination)
 
     loop do
       Rails.logger.info("Fetching #{@source} credit notes page #{page}")
@@ -798,7 +801,7 @@ class ExternalInvoiceSyncService
       @stats[:pages_fetched] += 1
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
@@ -894,7 +897,7 @@ class ExternalInvoiceSyncService
       @stats[:pages_fetched] += 1
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end

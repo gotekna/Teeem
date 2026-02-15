@@ -48,7 +48,7 @@ import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadPhoto } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
-import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
+import { UI_ANIMATION_STANDARD_MS, POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -674,7 +674,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       // Refresh after a delay to show results
       setTimeout(() => {
         fetchPlans();
-      }, 3000);
+      }, POLLING_DELAY_MS);
     } else {
       toast({
         title: "Error",

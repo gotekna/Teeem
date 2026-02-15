@@ -25,6 +25,7 @@ import {
   type PendingPhoto,
   type PhotoCacheStats,
 } from "./photo-cache";
+import { GEOLOCATION_TIMEOUT_MS, GEOLOCATION_CACHE_MS, POLLING_FAST_MS, POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 import {
   syncAllPendingPhotos,
   retryFailedPhotos,
@@ -144,8 +145,8 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000, // Cache for 1 minute
+        timeout: GEOLOCATION_TIMEOUT_MS,
+        maximumAge: GEOLOCATION_CACHE_MS, // Cache for 1 minute
       }
     );
   }, [requestLocation]);
@@ -365,7 +366,7 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
         if (cleaned > 0) {
         }
         await loadPhotos();
-      }, 5000);
+      }, POLLING_FAST_MS);
 
       await loadPhotos();
     } catch (err) {
@@ -374,7 +375,7 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
       // Clear progress after delay
       setTimeout(() => {
         setSyncProgress(null);
-      }, 3000);
+      }, POLLING_DELAY_MS);
     }
   }, [isOnline, loadPhotos]);
 

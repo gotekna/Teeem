@@ -57,6 +57,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants/route-paths";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 
 // Microsoft 365 icon component
@@ -313,7 +314,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     // Poll every 30 seconds for unread count
     const interval = setInterval(() => {
       fetchUnreadCount();
-    }, 30000);
+    }, POLLING_INTERVAL_MS);
     return () => {
       clearInterval(interval);
       fetchingRef.current = false;

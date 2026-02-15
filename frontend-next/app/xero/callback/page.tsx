@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 import { api } from "@/lib/api";
+import { MODAL_RESET_DELAY_MS, POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 interface Status {
   loading: boolean;
@@ -41,7 +42,7 @@ function XeroCallbackContent() {
       setTimeout(() => {
         const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
         window.location.href = returnUrl;
-      }, 500);
+      }, MODAL_RESET_DELAY_MS);
       return;
     }
 
@@ -57,8 +58,8 @@ function XeroCallbackContent() {
         setTimeout(() => {
           const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
-        }, 500);
-      }, 3000);
+        }, MODAL_RESET_DELAY_MS);
+      }, POLLING_DELAY_MS);
       return;
     }
 
@@ -74,8 +75,8 @@ function XeroCallbackContent() {
         setTimeout(() => {
           const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
-        }, 500);
-      }, 3000);
+        }, MODAL_RESET_DELAY_MS);
+      }, POLLING_DELAY_MS);
       return;
     }
 
@@ -118,7 +119,7 @@ function XeroCallbackContent() {
           // Still here? Redirect to integrations page
           const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
-        }, 500);
+        }, MODAL_RESET_DELAY_MS);
       }, 1500);
     } catch (err) {
       setStatus({
@@ -132,8 +133,8 @@ function XeroCallbackContent() {
         setTimeout(() => {
           const returnUrl = sessionStorage.getItem(SESSION_STORAGE_KEYS.XERO_RETURN_URL) || "/settings/integrations/xero";
           window.location.href = returnUrl;
-        }, 500);
-      }, 3000);
+        }, MODAL_RESET_DELAY_MS);
+      }, POLLING_DELAY_MS);
     }
   };
 

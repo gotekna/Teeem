@@ -245,6 +245,9 @@ interface OrgDataStats {
   }>;
   blob_stats?: {
     total_blobs: number;
+    verified_blobs?: number;
+    unverified_blobs?: number;
+    orphan_blobs?: number;
     total_bytes: number;
     blobs_format: number;
     legacy_format: number;
@@ -1372,7 +1375,15 @@ export function DataWarehouseTab() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.documents.total_documents.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Total Documents</p>
+                <p className="text-xs text-muted-foreground">WH Documents</p>
+                {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (() => {
+                  const expectedTotal = stats.warehouse_breakdown.reduce((sum, row) => sum + (row.total || 0), 0);
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      of <span className="font-medium text-foreground">{expectedTotal.toLocaleString()}</span> expected
+                    </p>
+                  );
+                })()}
               </div>
             </div>
           </CardContent>
@@ -1576,55 +1587,122 @@ export function DataWarehouseTab() {
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-              <TableFooter>
+                {/* Unclassified row — WH docs not in any breakdown row */}
                 {(() => {
-                  const totals = stats.warehouse_breakdown.reduce(
-                    (acc, row) => ({
-                      expected: acc.expected + (row.total || 0),
-                      inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
-                      withFile: acc.withFile + (row.with_file || 0),
-                      missing: acc.missing + (row.missing ?? 0),
-                      unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
-                    }),
-                    { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, unfetchable: 0 }
-                  );
-                  const totalRate = totals.expected > 0 ? ((totals.withFile / totals.expected) * 100).toFixed(1) : "0";
+                  const rowWhTotal = stats.warehouse_breakdown.reduce((sum, row) => sum + (row.in_warehouse || 0), 0);
+                  const unclassified = stats.documents.total_documents - rowWhTotal;
+                  if (unclassified <= 0) return null;
                   return (
+                    <TableRow className="text-muted-foreground">
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <TooltipProvider>
+                            <Tooltip delayDuration={300}>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unclassified</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">
+                                <p className="max-w-xs text-xs">WarehouseDocuments with no warehouse_type or a type not in the breakdown above. May need cleanup.</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">{unclassified.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">-</TableCell>
+                    </TableRow>
+                  );
+                })()}
+              </TableBody>
+              {(() => {
+                const rowTotals = stats.warehouse_breakdown.reduce(
+                  (acc, row) => ({
+                    expected: acc.expected + (row.total || 0),
+                    inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
+                    withFile: acc.withFile + (row.with_file || 0),
+                    missing: acc.missing + (row.missing ?? 0),
+                    unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
+                  }),
+                  { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, unfetchable: 0 }
+                );
+                const totalWhDocs = stats.documents.total_documents;
+                const grandInWarehouse = totalWhDocs;
+                const grandWithFile = rowTotals.withFile;
+                const grandExpected = rowTotals.expected;
+                const grandMissing = rowTotals.missing;
+                const totalRate = grandExpected > 0 ? ((grandWithFile / grandExpected) * 100).toFixed(1) : "0";
+                return (
+                  <TableFooter>
                     <TableRow className="font-medium">
                       <TableCell>Total</TableCell>
-                      <TableCell className="text-right">{totals.expected.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">{totals.inWarehouse.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{grandExpected.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{grandInWarehouse.toLocaleString()}</TableCell>
                       <TableCell className="text-right text-green-600 dark:text-green-400">
-                        {totals.withFile.toLocaleString()}
+                        {grandWithFile.toLocaleString()}
                         <span className="text-xs text-muted-foreground ml-1">({totalRate}%)</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {totals.missing > 0 ? (
-                          <span className="text-red-600 dark:text-red-400">{totals.missing.toLocaleString()}</span>
+                        {grandMissing > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">{grandMissing.toLocaleString()}</span>
                         ) : (
                           <span className="text-green-600 dark:text-green-400">-</span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {totals.unfetchable > 0 ? (
-                          <span className="text-orange-600 dark:text-orange-400">{totals.unfetchable.toLocaleString()}</span>
+                        {rowTotals.unfetchable > 0 ? (
+                          <span className="text-orange-600 dark:text-orange-400">{rowTotals.unfetchable.toLocaleString()}</span>
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
                       </TableCell>
                     </TableRow>
-                  );
-                })()}
-              </TableFooter>
+                  </TableFooter>
+                );
+              })()}
             </Table>
             {/* Blob Storage Summary */}
             {stats.blob_stats && (
-              <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-sm text-muted-foreground">
+              <div className="mt-4 pt-4 border-t flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
                 <div>
                   <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
                   unique blobs
                 </div>
+                <div>
+                  <span className="font-medium text-green-600 dark:text-green-400">
+                    {(stats.blob_stats.verified_blobs ?? stats.blob_stats.total_blobs).toLocaleString()}
+                  </span>{" "}
+                  verified
+                </div>
+                {(stats.blob_stats.unverified_blobs ?? 0) > 0 && (
+                  <div>
+                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                      {(stats.blob_stats.unverified_blobs ?? 0).toLocaleString()}
+                    </span>{" "}
+                    unverified
+                  </div>
+                )}
+                {(stats.blob_stats.orphan_blobs ?? 0) > 0 && (
+                  <div>
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <span className="font-medium text-red-600 dark:text-red-400">
+                              {(stats.blob_stats.orphan_blobs ?? 0).toLocaleString()}
+                            </span>{" "}
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">orphans</span>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Blobs not linked to any WarehouseDocument. May be safe to clean up.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                )}
                 <div>
                   <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
                   total storage

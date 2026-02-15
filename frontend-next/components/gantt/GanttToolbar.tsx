@@ -13,6 +13,7 @@ import { SearchInput } from '@/components/ui/search-input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { TAILWIND_COLORS } from '@/lib/constants/color-constants';
 import {
   ZoomIn,
   ZoomOut,
@@ -441,16 +442,16 @@ export function GanttToolbar({
                 <h4 className="font-medium text-sm mb-1.5">Dependency Lines</h4>
                 <div className="grid gap-1.5 text-xs">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #fbbf24 3px, #fbbf24 6px)' }} />
+                    <div className="w-8 h-[3px]" style={{ background: `repeating-linear-gradient(90deg, #000 0px, #000 3px, ${TAILWIND_COLORS.yellow[400]} 3px, ${TAILWIND_COLORS.yellow[400]} 6px)` }} />
                     <span className="text-muted-foreground">Predecessor (on click)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #60a5fa 3px, #60a5fa 6px)' }} />
+                    <div className="w-8 h-[3px]" style={{ background: `repeating-linear-gradient(90deg, #000 0px, #000 3px, ${TAILWIND_COLORS.blue[400]} 3px, ${TAILWIND_COLORS.blue[400]} 6px)` }} />
                     <span className="text-muted-foreground">Successor (on click)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center">
-                      <div className="w-6 h-[3px]" style={{ background: 'repeating-linear-gradient(90deg, #000 0px, #000 3px, #ef4444 3px, #ef4444 6px)' }} />
+                      <div className="w-6 h-[3px]" style={{ background: `repeating-linear-gradient(90deg, #000 0px, #000 3px, ${TAILWIND_COLORS.red[500]} 3px, ${TAILWIND_COLORS.red[500]} 6px)` }} />
                       <span className="text-red-500 dark:text-red-400 text-[10px] font-bold">✕</span>
                     </div>
                     <span className="text-muted-foreground">Broken dependency</span>
@@ -467,14 +468,14 @@ export function GanttToolbar({
                   </div>
                   <div className="flex items-center gap-2">
                     <svg width="16" height="12" viewBox="0 0 16 12">
-                      <polygon points="8,1 15,6 8,11 1,6" fill="#ea580c" stroke="#9a3412" strokeWidth="1" />
+                      <polygon points="8,1 15,6 8,11 1,6" fill={TAILWIND_COLORS.orange[600]} stroke={TAILWIND_COLORS.orange[800]} strokeWidth="1" />
                       <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">O</text>
                     </svg>
                     <span className="text-muted-foreground">Order task (spawned)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <svg width="16" height="12" viewBox="0 0 16 12">
-                      <polygon points="8,1 15,6 8,11 1,6" fill="#2563eb" stroke="#1e40af" strokeWidth="1" />
+                      <polygon points="8,1 15,6 8,11 1,6" fill={TAILWIND_COLORS.blue[600]} stroke={TAILWIND_COLORS.blue[800]} strokeWidth="1" />
                       <text x="8" y="7" textAnchor="middle" fontSize="6" fill="white" fontWeight="bold">C</text>
                     </svg>
                     <span className="text-muted-foreground">Call task (spawned)</span>
@@ -482,13 +483,13 @@ export function GanttToolbar({
                   <div className="flex items-center gap-2">
                     <svg width="16" height="12" viewBox="0 0 16 12">
                       {/* Camera body */}
-                      <rect x="2" y="3" width="12" height="8" rx="1.5" fill="#9333ea" stroke="#7c3aed" strokeWidth="0.5" />
+                      <rect x="2" y="3" width="12" height="8" rx="1.5" fill={TAILWIND_COLORS.purple[600]} stroke={TAILWIND_COLORS.violet[600]} strokeWidth="0.5" />
                       {/* Viewfinder bump */}
-                      <rect x="6" y="1" width="4" height="2" rx="0.5" fill="#9333ea" />
+                      <rect x="6" y="1" width="4" height="2" rx="0.5" fill={TAILWIND_COLORS.purple[600]} />
                       {/* Lens outer */}
                       <circle cx="8" cy="7" r="3" fill="white" />
                       {/* Lens inner */}
-                      <circle cx="8" cy="7" r="1.5" fill="#9333ea" />
+                      <circle cx="8" cy="7" r="1.5" fill={TAILWIND_COLORS.purple[600]} />
                     </svg>
                     <span className="text-muted-foreground">Photo task (spawned)</span>
                   </div>

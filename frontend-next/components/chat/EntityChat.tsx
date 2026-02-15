@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { Job } from "@/lib/types";
+import { POLLING_CHAT_ENTITY_MS } from "@/lib/constants/timeout-constants";
 
 interface Message {
   id: number;
@@ -118,9 +119,9 @@ export function EntityChat({
   useEffect(() => {
     loadMessages();
     // Poll for new messages every 5 seconds
-    const interval = setInterval(loadMessages, 5000);
+    const interval = setInterval(loadMessages, POLLING_CHAT_ENTITY_MS);
     return () => clearInterval(interval);
-     
+
   }, [entityType, entityId]);
 
   useEffect(() => {

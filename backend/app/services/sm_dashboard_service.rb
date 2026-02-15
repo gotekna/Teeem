@@ -24,8 +24,9 @@ class SmDashboardService
     on_hold = tasks.where(is_hold_task: true).where.not(status: "completed").count
 
     # Calculate schedule health
-    overdue = tasks.where("end_date < ? AND status != ?", Date.current, "completed").count
-    due_this_week = tasks.where(end_date: Date.current..(Date.current + 7.days)).where.not(status: "completed").count
+    # SSoT: Use SmTask::STATUS_COMPLETED constant
+    overdue = tasks.where("end_date < ? AND status != ?", Date.current, SmTask::STATUS_COMPLETED).count
+    due_this_week = tasks.where(end_date: Date.current..(Date.current + 7.days)).where.not(status: SmTask::STATUS_COMPLETED).count
 
     {
       task_counts: {

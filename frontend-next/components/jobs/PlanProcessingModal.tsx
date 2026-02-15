@@ -21,6 +21,7 @@ import {
   FileCheck,
 } from "lucide-react";
 import { api } from "@/lib/api"
+import { DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
 
 // =============================================================================
 // PlanProcessingModal - Unified progress modal for ALL batch operations
@@ -134,7 +135,7 @@ export function PlanProcessingModal({
           pollIntervalRef.current = null
         }
       }
-    }, 1500)
+    }, DEMO_LOADING_MS)
 
     return () => {
       if (pollIntervalRef.current) {

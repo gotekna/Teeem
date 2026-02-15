@@ -19,6 +19,7 @@ import {
   SelectionMode,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 import { nodeTypes } from "./nodes";
 import { NodePalette } from "./panels/NodePalette";
@@ -125,11 +126,11 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
       type: MarkerType.ArrowClosed,
       width: 20,
       height: 20,
-      color: e.conditionExpression ? "#3b82f6" : "#64748b",
+      color: e.conditionExpression ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.slate[500],
     },
     style: {
       strokeWidth: 2,
-      stroke: e.conditionExpression ? "#3b82f6" : "#64748b",
+      stroke: e.conditionExpression ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.slate[500],
     },
     data: {
       edgeKey: e.edgeKey || e.id,
@@ -222,11 +223,11 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
           type: MarkerType.ArrowClosed,
           width: 20,
           height: 20,
-          color: "#64748b",
+          color: TAILWIND_COLORS.slate[500],
         },
         style: {
           strokeWidth: 2,
-          stroke: "#64748b",
+          stroke: TAILWIND_COLORS.slate[500],
         },
         data: {
           edgeKey: `edge_${Date.now()}`,
@@ -311,7 +312,7 @@ function BpmnDesignerInner({ process, onSave, onPublish }: BpmnDesignerProps) {
   const handleEdgeUpdate = useCallback(
     (edgeId: string, data: Record<string, unknown>) => {
       const hasCondition = !!data.conditionExpression;
-      const edgeColor = hasCondition ? "#3b82f6" : "#64748b";
+      const edgeColor = hasCondition ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.slate[500];
       setEdges((eds) =>
         eds.map((edge) =>
           edge.id === edgeId

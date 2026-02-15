@@ -62,7 +62,7 @@ import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
-import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS } from "@/lib/constants/timeout-constants";
+import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS, POLLING_DELAY_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 interface OrgStatus {
   loading: boolean;
@@ -720,7 +720,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         // automatically on page navigation.
         setTimeout(() => {
           loadAllFiles();
-        }, 3000);
+        }, POLLING_DELAY_MS);
         return true;
       } else {
         throw new Error(result.error || "Upload failed");
@@ -785,7 +785,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // Also do a delayed refresh to ensure storage has indexed all files
       setTimeout(() => {
         loadAllFiles();
-      }, 5000);
+      }, POLLING_FAST_MS);
     } else if (successCount === 1) {
       setMessage({ type: "success", text: "Photo uploaded successfully!" });
       loadAllFiles();
@@ -2908,7 +2908,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       } catch {
         // Ignore polling errors
       }
-    }, 3000); // Poll every 3 seconds
+    }, POLLING_DELAY_MS); // Poll every 3 seconds
 
     return () => clearInterval(pollInterval);
   }, [storageFolderStatus, jobId]);

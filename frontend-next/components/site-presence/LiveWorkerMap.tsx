@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 import {
   MapPin,
   Users,
@@ -366,8 +367,8 @@ export function LiveWorkerMap({
                   center={[site.latitude, site.longitude]}
                   radius={site.radius_meters}
                   pathOptions={{
-                    color: "#3b82f6",
-                    fillColor: "#3b82f6",
+                    color: TAILWIND_COLORS.blue[500],
+                    fillColor: TAILWIND_COLORS.blue[500],
                     fillOpacity: 0.1,
                     weight: 2,
                   }}
@@ -422,7 +423,7 @@ export function LiveWorkerMap({
                 <Polyline
                   positions={selectedPath.points.map((p) => [p.latitude, p.longitude] as [number, number])}
                   pathOptions={{
-                    color: "#10b981",
+                    color: TAILWIND_COLORS.emerald[500],
                     weight: 3,
                     opacity: 0.8,
                   }}

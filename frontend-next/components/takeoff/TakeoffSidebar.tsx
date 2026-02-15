@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 import {
   Collapsible,
   CollapsibleContent,
@@ -188,7 +189,7 @@ export function TakeoffSidebar({
           {measurementsByLayer[-1]?.length > 0 && !layers.some(l => l.id === -1) && (
             <LayerGroup
               key={-1}
-              layer={{ id: -1, name: "Unassigned", color: "#6B7280", display_order: 999, visible: true, locked: false, measurement_count: measurementsByLayer[-1].length }}
+              layer={{ id: -1, name: "Unassigned", color: TAILWIND_COLORS.gray[500], display_order: 999, visible: true, locked: false, measurement_count: measurementsByLayer[-1].length }}
               measurements={measurementsByLayer[-1]}
               isExpanded={expandedLayers.has(-1)}
               onToggle={() => toggleLayer(-1)}

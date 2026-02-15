@@ -22,6 +22,7 @@ import { api } from '@/lib/api';
 import { Workflow, Play, CheckCircle } from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
 import { Spinner } from "@/components/ui/spinner";
+import { DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
 
 interface BpmnProcess {
   id: number;
@@ -128,7 +129,7 @@ export function StartWorkflowButton({ jobId, jobName }: StartWorkflowButtonProps
           setSuccess(false);
           setSelectedProcess(null);
           setSelectedTrigger(null);
-        }, 1500);
+        }, DEMO_LOADING_MS);
       }
     } catch (err) {
       console.error('Failed to start workflow:', err);

@@ -29,6 +29,7 @@ import { usePathTabs } from "@/hooks/usePathTabs";
 import { cn } from "@/lib/utils";
 import type { EmailMigration, MigrationStatus } from "@/lib/email-reseller-types";
 import { formatFileSize } from "@/utils/formatters";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 const STATUS_COLORS: Record<MigrationStatus, string> = {
   pending: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400",
@@ -81,7 +82,7 @@ export default function MigrationsPage() {
       if (activeTab === "active") {
         fetchActiveMigrations();
       }
-    }, 30000);
+    }, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [activeTab, fetchActiveMigrations]);
 

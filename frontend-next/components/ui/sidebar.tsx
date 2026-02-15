@@ -35,7 +35,7 @@ import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS, DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Popover,
@@ -679,7 +679,7 @@ export function Sidebar() {
       // Defer badge counts to let page content load first (FRC: was 100ms, blocking page paint)
       const initialDelay = setTimeout(() => {
         loadBadgeCounts();
-      }, 1500);
+      }, DEMO_LOADING_MS);
 
       // Refresh every 60 seconds
       const interval = setInterval(loadBadgeCounts, 60000);

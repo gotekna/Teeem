@@ -1927,7 +1927,7 @@ export function TakeoffCanvas({
                   y1={repositioning.originalPoint.y * zoom}
                   x2={repositionPreview.x * zoom}
                   y2={repositionPreview.y * zoom}
-                  stroke="#3B82F6"
+                  stroke={TAILWIND_COLORS.blue[500]}
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   opacity={0.7}
@@ -1937,9 +1937,9 @@ export function TakeoffCanvas({
                   cx={repositionPreview.x * zoom}
                   cy={repositionPreview.y * zoom}
                   r={isCountType ? drawingStyle.markerSize / 2 : 6}
-                  fill="#3B82F6"
+                  fill={TAILWIND_COLORS.blue[500]}
                   fillOpacity={0.6}
-                  stroke="#fff"
+                  stroke={COLORS.white}
                   strokeWidth={2}
                 />
                 {/* Point number label — only for count markers */}
@@ -1949,7 +1949,7 @@ export function TakeoffCanvas({
                     y={repositionPreview.y * zoom}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fill="#fff"
+                    fill={COLORS.white}
                     fontWeight="bold"
                     fontSize={drawingStyle.fontSize}
                     style={{ pointerEvents: "none" }}

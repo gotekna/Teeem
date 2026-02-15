@@ -5237,12 +5237,12 @@ export class GanttCanvas {
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 10pt;
-            color: #333;
+            color: ${TAILWIND_COLORS.gray[700]};
           }
           .header {
             text-align: center;
             margin-bottom: 20px;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid ${TAILWIND_COLORS.gray[700]};
             padding-bottom: 10px;
           }
           .header h1 {
@@ -5250,7 +5250,7 @@ export class GanttCanvas {
             font-size: 18pt;
           }
           .header .dates {
-            color: #666;
+            color: ${TAILWIND_COLORS.gray[500]};
             font-size: 9pt;
           }
           .task-table {
@@ -5260,27 +5260,27 @@ export class GanttCanvas {
           }
           .task-table th,
           .task-table td {
-            border: 1px solid #ddd;
+            border: 1px solid ${TAILWIND_COLORS.gray[300]};
             padding: 6px 8px;
             text-align: left;
           }
           .task-table th {
-            background: #f5f5f5;
+            background: ${TAILWIND_COLORS.gray[100]};
             font-weight: 600;
           }
           .task-table tr:nth-child(even) {
-            background: #fafafa;
+            background: ${TAILWIND_COLORS.gray[50]};
           }
           .progress-bar {
             width: 100px;
             height: 12px;
-            background: #eee;
+            background: ${TAILWIND_COLORS.gray[200]};
             border-radius: 6px;
             overflow: hidden;
           }
           .progress-fill {
             height: 100%;
-            background: #4CAF50;
+            background: ${TAILWIND_COLORS.green[500]};
           }
           .status-badge {
             display: inline-block;
@@ -5288,16 +5288,16 @@ export class GanttCanvas {
             border-radius: 4px;
             font-size: 8pt;
           }
-          .status-not-started { background: #e0e0e0; }
-          .status-in-progress { background: #bbdefb; color: #1565c0; }
-          .status-completed { background: #c8e6c9; color: #2e7d32; }
-          .status-on-hold { background: #fff9c4; color: #f57f17; }
-          .status-at-risk { background: #ffcdd2; color: #c62828; }
+          .status-not-started { background: ${TAILWIND_COLORS.gray[200]}; }
+          .status-in-progress { background: ${TAILWIND_COLORS.blue[200]}; color: ${TAILWIND_COLORS.blue[800]}; }
+          .status-completed { background: ${TAILWIND_COLORS.green[200]}; color: ${TAILWIND_COLORS.green[800]}; }
+          .status-on-hold { background: ${TAILWIND_COLORS.amber[100]}; color: ${TAILWIND_COLORS.amber[800]}; }
+          .status-at-risk { background: ${TAILWIND_COLORS.red[200]}; color: ${TAILWIND_COLORS.red[800]}; }
           .footer {
             text-align: center;
             font-size: 8pt;
-            color: #666;
-            border-top: 1px solid #ddd;
+            color: ${TAILWIND_COLORS.gray[500]};
+            border-top: 1px solid ${TAILWIND_COLORS.gray[300]};
             padding-top: 10px;
             margin-top: 20px;
           }
@@ -7102,7 +7102,7 @@ export class GanttCanvas {
     const {
       width = this.canvas.width,
       height = this.canvas.height,
-      backgroundColor = '#ffffff',
+      backgroundColor = COLORS.white,
       scale = 1
     } = options;
 
@@ -11019,11 +11019,11 @@ export class GanttCanvas {
     // Background
     ctx.fillStyle = this.config.darkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)';
     ctx.fillRect(x, y, modalWidth, modalHeight);
-    ctx.strokeStyle = this.config.darkMode ? '#444' : '#ccc';
+    ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[600] : TAILWIND_COLORS.gray[300];
     ctx.strokeRect(x, y, modalWidth, modalHeight);
 
     // Title
-    ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+    ctx.fillStyle = this.config.darkMode ? COLORS.white : COLORS.black;
     ctx.font = 'bold 16px system-ui';
     ctx.fillText('Keyboard Shortcuts', x + 20, y + 30);
 

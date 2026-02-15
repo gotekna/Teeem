@@ -81,6 +81,7 @@ import type {
   ChartType,
 } from "@/lib/teeem-powerpoint";
 import { Job } from "@/lib/types";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // Types
 interface TeeemPresentation {
@@ -314,7 +315,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
       <div
         style={{
           ...style,
-          backgroundColor: "#f3f4f6",
+          backgroundColor: TAILWIND_COLORS.gray[100],
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -332,7 +333,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
       <div
         style={{
           ...style,
-          backgroundColor: "#f3f4f6",
+          backgroundColor: TAILWIND_COLORS.gray[100],
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1159,7 +1160,7 @@ export default function TeeemPowerPointPage() {
       w: 2,
       h: 2,
       options: {
-        fill: { color: "#4A90D9" },
+        fill: { color: "#4A90D9" }, // Keep custom brand color
       },
     };
     updateCurrentSlide({ elements: [...currentSlide.elements, newElement] });
