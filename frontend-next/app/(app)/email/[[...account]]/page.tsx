@@ -1916,7 +1916,7 @@ ${originalBody}
       body: forwardBody,
       fromAccountId: selectedAccount,
       forwardEmailId: email.id,
-      forwardAttachments: email.attachments?.filter(a => !a.content_id && !a.is_inline) || [],
+      forwardAttachments: email.attachments?.filter(a => !a.is_inline) || [],
     });
     setComposeOpen(true);
   }, [sanitizeEmailHtml, selectedAccount, setComposeOpen]);
