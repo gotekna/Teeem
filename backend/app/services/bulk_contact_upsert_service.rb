@@ -112,29 +112,23 @@ class BulkContactUpsertService
   end
 
   # Bulk update contacts
-  # Uses upsert_all for efficiency
+  # FRC (Feb 2026): Use update_all per contact instead of upsert_all.
+  # upsert_all generates INSERT...ON CONFLICT which requires ALL NOT NULL
+  # columns (including contact_code) even when the ON CONFLICT path is taken.
+  # Since we KNOW these records exist (IDs from ContactMatcher), plain UPDATE
+  # is correct, simpler, and avoids NOT NULL issues entirely.
   def bulk_update(operations)
     return 0 if operations.empty?
 
     now = Time.current
+    updated = 0
 
-    # Build upsert records (must include id)
-    # FRC (Feb 2026): upsert_all requires all hashes to have identical keys.
-    # For updates, we MUST NOT pass nil for missing attrs (would overwrite existing
-    # data with NULL). Instead, group records by key set and upsert each group.
-    records = operations.map do |op|
-      op[:attrs].compact.merge(
-        id: op[:contact_id],
-        updated_at: now
-      )
+    operations.each do |op|
+      attrs = op[:attrs].compact.merge(updated_at: now)
+      updated += Contact.where(id: op[:contact_id]).update_all(attrs)
     end
 
-    # Group by key set, upsert each group separately
-    records.group_by { |r| r.keys.sort }.each_value do |group|
-      Contact.upsert_all(group, unique_by: :id)
-    end
-
-    operations.size
+    updated
   end
 
   # Bulk create/update contact external links
