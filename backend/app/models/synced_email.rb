@@ -1073,8 +1073,10 @@ class SyncedEmail < ApplicationRecord
         used_attempt = attempt
         break
       rescue Microsoft::BaseClient::ApiError => e
-        if e.message.include?("404")
-          Rails.logger.debug "[SyncedEmail] 404 for email #{id} via cred #{attempt[:credential_id]} / #{attempt[:mailbox]} - trying next"
+        # 404 = mailbox not found in tenant, 403 = credential can't access mailbox
+        # Both mean "wrong credential for this mailbox" - try next one from join table
+        if e.message.include?("404") || e.message.include?("403")
+          Rails.logger.debug "[SyncedEmail] #{e.message[0..3]} for email #{id} via cred #{attempt[:credential_id]} / #{attempt[:mailbox]} - trying next"
           next
         end
         raise

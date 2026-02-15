@@ -11,6 +11,16 @@
 # instance in the queue at a time. If a job of the same class is already queued
 # and unfinished, the new enqueue is silently skipped.
 #
+# ⚠️ DO NOT SIMPLIFY already_queued? to just check finished_at (Feb 2026)
+# ════════════════════════════════════════════
+# Why: SolidQueue never sets finished_at on failed jobs. When a Heroku dyno dies
+# during deploy, SolidQueue creates a FailedExecution with ProcessPrunedError but
+# leaves finished_at NULL. The old check (finished_at: nil) would permanently block
+# ALL future scheduled enqueues for that job class until manual DB cleanup.
+# ❌ WRONG: .where(finished_at: nil).exists? — blocks on dead/failed jobs forever
+# ✅ CORRECT: Check for ReadyExecution OR ClaimedExecution (genuinely active jobs)
+# ════════════════════════════════════════════
+#
 # Usage:
 #   class MyRecurringJob < ApplicationJob
 #     include DeduplicatableJob
@@ -29,15 +39,43 @@ module DeduplicatableJob
         Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} - already queued"
         throw :abort
       end
+
+      # Clean up dead predecessors so they don't accumulate
+      self.class.cleanup_dead_predecessors!
     end
   end
 
   class_methods do
     def already_queued?
-      SolidQueue::Job
+      # Only block if a job is genuinely active (ready to run or currently executing).
+      # Jobs that failed (FailedExecution) or are orphaned should NOT block new instances.
+      unfinished = SolidQueue::Job.where(finished_at: nil).where(class_name: name)
+
+      has_ready = SolidQueue::ReadyExecution
+        .where(job_id: unfinished.select(:id))
+        .exists?
+
+      has_claimed = SolidQueue::ClaimedExecution
+        .where(job_id: unfinished.select(:id))
+        .exists?
+
+      has_ready || has_claimed
+    end
+
+    def cleanup_dead_predecessors!
+      dead_job_ids = SolidQueue::Job
         .where(finished_at: nil)
         .where(class_name: name)
-        .exists?
+        .where.not(id: SolidQueue::ReadyExecution.select(:job_id))
+        .where.not(id: SolidQueue::ClaimedExecution.select(:job_id))
+        .pluck(:id)
+
+      return if dead_job_ids.empty?
+
+      Rails.logger.info "[DeduplicatableJob] Cleaning up #{dead_job_ids.count} dead #{name} job(s): #{dead_job_ids}"
+
+      SolidQueue::FailedExecution.where(job_id: dead_job_ids).delete_all
+      SolidQueue::Job.where(id: dead_job_ids).update_all(finished_at: Time.current)
     end
   end
 end
