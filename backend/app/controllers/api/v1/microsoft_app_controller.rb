@@ -335,6 +335,13 @@ class Api::V1::MicrosoftAppController < ApplicationController
           credential.mark_admin_consent!(admin_email || "unknown")
           Rails.logger.info "[MicrosoftApp] Admin consent granted for #{credential.name} (tenant: #{tenant})"
 
+          # Auto-trigger initial email sync after successful connection
+          # Without this, emails won't appear until the next scheduled sync (up to 15 min)
+          if credential.sync_config&.dig("sync_all") || credential.sync_config&.dig("user_emails")&.any?
+            OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
+            Rails.logger.info "[MicrosoftApp] Auto-queued email sync for #{credential.name} after admin consent"
+          end
+
           redirect_to "#{frontend_url}/settings/integrations/microsoft?app_consent_success=true&org=#{CGI.escape(credential.name || '')}", allow_other_host: true
         else
           Rails.logger.error "[MicrosoftApp] Admin consent granted but connection test failed: #{credential.last_error}"

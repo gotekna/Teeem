@@ -211,6 +211,21 @@ module Api
         # 8. Application-level backlog (remaining work, not queue jobs)
         backlog = compute_backlog
 
+        # 9. Database connections
+        db_connections = compute_db_connections
+
+        # 10. Memory usage
+        memory = compute_memory_usage
+
+        # 11. Uptime
+        uptime = compute_uptime
+
+        # 12. Xero rate limit status
+        xero_rate_limits = compute_xero_rate_limits
+
+        # 13. Throughput history (last hour, 5-min buckets)
+        throughput_history = compute_throughput_history
+
         render json: {
           success: true,
           data: {
@@ -228,7 +243,12 @@ module Api
             pausedQueues: paused_queues,
             topFailed: top_failed,
             watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds),
-            backlog: backlog
+            backlog: backlog,
+            dbConnections: db_connections,
+            memory: memory,
+            uptime: uptime,
+            xeroRateLimits: xero_rate_limits,
+            throughputHistory: throughput_history
           }
         }
       rescue StandardError => e
@@ -478,6 +498,109 @@ module Api
         items
       rescue StandardError => e
         Rails.logger.debug "[SystemController] compute_backlog failed: #{e.message}"
+        []
+      end
+
+      def compute_db_connections
+        active = ActiveRecord::Base.connection.execute(
+          "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()"
+        ).first["count"].to_i
+        max = ActiveRecord::Base.connection.execute(
+          "SHOW max_connections"
+        ).first["max_connections"].to_i
+        { active: active, max: max }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_db_connections failed: #{e.message}"
+        nil
+      end
+
+      def compute_memory_usage
+        rss_kb = `ps -o rss= -p #{Process.pid}`.strip.to_i
+        used_mb = rss_kb / 1024
+        # Heroku dyno memory limits (or use env var override)
+        max_mb = ENV.fetch("DYNO_MEMORY_MB", 1024).to_i
+        { usedMb: used_mb, maxMb: max_mb }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_memory_usage failed: #{e.message}"
+        nil
+      end
+
+      # Boot time recorded once when this class is first loaded
+      BOOT_TIME = Time.current
+      private_constant :BOOT_TIME
+
+      def compute_uptime
+        uptime_seconds = (Time.current - BOOT_TIME).to_i
+        {
+          bootedAt: BOOT_TIME.iso8601,
+          uptimeSeconds: uptime_seconds,
+          uptimeHuman: humanize_duration(uptime_seconds)
+        }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_uptime failed: #{e.message}"
+        nil
+      end
+
+      def humanize_duration(seconds)
+        days = seconds / 86400
+        hours = (seconds % 86400) / 3600
+        mins = (seconds % 3600) / 60
+        parts = []
+        parts << "#{days}d" if days > 0
+        parts << "#{hours}h" if hours > 0
+        parts << "#{mins}m" if mins > 0
+        parts.empty? ? "<1m" : parts.join(" ")
+      end
+
+      def compute_xero_rate_limits
+        credentials = XeroCredential.where(status: %w[connected degraded])
+        credentials.map do |cred|
+          lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
+          remaining_s = lockout ? XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: cred.tenant_id) : 0
+          usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
+
+          # Count synced docs for this org
+          org = cred.organization
+          invoice_count = org ? ExternalInvoice.where(organization_id: org.id).count : 0
+          synced_count = org ? WarehouseDocument.where(source_type: "xero")
+            .joins("JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id AND warehouse_documents.documentable_type = 'ExternalInvoice'")
+            .where("external_invoices.organization_id = ?", org.id)
+            .joins(:storage_blob)
+            .where("storage_blobs.verified_at IS NOT NULL")
+            .count : 0
+
+          {
+            tenantName: cred.tenant_name,
+            lockedOut: lockout.present?,
+            remainingSeconds: remaining_s,
+            lockedUntil: lockout&.dig(:locked_until),
+            dailyUsed: usage&.dig(:daily, :used) || 0,
+            dailyLimit: usage&.dig(:daily, :limit) || 5000,
+            minuteUsed: usage&.dig(:minute, :used) || 0,
+            invoiceCount: invoice_count,
+            syncedCount: synced_count
+          }
+        end.sort_by { |o| o[:lockedOut] ? 1 : 0 } # Active orgs first
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_xero_rate_limits failed: #{e.message}"
+        []
+      end
+
+      def compute_throughput_history
+        # 12 buckets of 5 minutes = last 60 minutes
+        now = Time.current
+        buckets = 12.times.map do |i|
+          bucket_end = now - (i * 5).minutes
+          bucket_start = bucket_end - 5.minutes
+          count = SolidQueue::Job.where(finished_at: bucket_start..bucket_end).count
+          {
+            minutesAgo: i * 5,
+            count: count
+          }
+        end.reverse
+        buckets
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_throughput_history failed: #{e.message}"
         []
       end
 
