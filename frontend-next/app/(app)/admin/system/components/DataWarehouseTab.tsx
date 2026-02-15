@@ -1543,7 +1543,7 @@ export function DataWarehouseTab() {
                               const IconComponent = getIcon(
                                 row.source_type === "email_body" ? "mail"
                                 : row.source_type === "email_attachment" ? "paperclip"
-                                : row.source_type === "xero" ? "file-text"
+                                : row.source_type === "unclassified" ? "alert-circle"
                                 : row.icon || "folder"
                               );
                               return <IconComponent className="h-4 w-4 text-muted-foreground" />;
@@ -1587,77 +1587,11 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                       </TableRow>
-                      {/* Per-tenant breakdown for Xero */}
-                      {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
-                        <TableRow key={tenant.tenant_id} className="bg-muted/30">
-                          <TableCell className="pl-8 text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground/50">└</span>
-                              {tenant.tenant_name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{tenant.in_warehouse.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
-                            {tenant.with_file.toLocaleString()}
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({tenant.file_rate}%)
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {tenant.missing > 0 ? (
-                              <span className="text-red-600/80 dark:text-red-400/80">{tenant.missing.toLocaleString()}</span>
-                            ) : (
-                              <span className="text-green-600/80 dark:text-green-400/80">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">-</TableCell>
-                          <TableCell className="text-right text-muted-foreground">-</TableCell>
-                        </TableRow>
-                      ))}
+                      {/* Xero docs now count under their warehouse_type (contact/corporate) — no separate row */}
                     </React.Fragment>
                   );
                 })}
-                {/* Unclassified row — WH docs not in any breakdown row */}
-                {(() => {
-                  const unclassified = stats.blob_stats?.unclassified_total ?? (stats.documents.total_documents - stats.warehouse_breakdown.reduce((sum, row) => sum + (row.in_warehouse || 0), 0));
-                  if (unclassified <= 0) return null;
-                  const unclassifiedWithFile = stats.blob_stats?.unclassified_with_file ?? 0;
-                  const unclassifiedRate = unclassified > 0 ? ((unclassifiedWithFile / unclassified) * 100).toFixed(1) : "0";
-                  return (
-                    <TableRow className="text-muted-foreground">
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <TooltipProvider>
-                            <Tooltip delayDuration={300}>
-                              <TooltipTrigger asChild>
-                                <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unclassified</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top">
-                                <p className="max-w-xs text-xs">WarehouseDocuments with no warehouse_type or a type not in the breakdown above. May need cleanup.</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">-</TableCell>
-                      <TableCell className="text-right">{unclassified.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">
-                        {unclassifiedWithFile > 0 ? (
-                          <span className="text-green-600/80 dark:text-green-400/80">
-                            {unclassifiedWithFile.toLocaleString()}
-                            <span className="text-xs text-muted-foreground ml-1">({unclassifiedRate}%)</span>
-                          </span>
-                        ) : (
-                          <span>-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">-</TableCell>
-                      <TableCell className="text-right">-</TableCell>
-                      <TableCell className="text-right">-</TableCell>
-                    </TableRow>
-                  );
-                })()}
+                {/* Unclassified row is now sent as a proper breakdown row from backend */}
               </TableBody>
               {(() => {
                 const rowTotals = stats.warehouse_breakdown.reduce(
@@ -1674,13 +1608,11 @@ export function DataWarehouseTab() {
                   },
                   { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, duplicates: 0, unfetchable: 0 }
                 );
-                // Include unclassified in totals so footer = sum of all visible rows
-                const unclassifiedWh = stats.blob_stats?.unclassified_total ?? 0;
-                const unclassifiedFile = stats.blob_stats?.unclassified_with_file ?? 0;
+                // Unclassified is now a proper breakdown row — no manual addition needed
                 const grandExpected = rowTotals.expected;
-                const grandInWarehouse = rowTotals.inWarehouse + unclassifiedWh;
-                const grandWithFile = rowTotals.withFile + unclassifiedFile;
-                const grandMissing = rowTotals.missing + Math.max(unclassifiedWh - unclassifiedFile, 0);
+                const grandInWarehouse = rowTotals.inWarehouse;
+                const grandWithFile = rowTotals.withFile;
+                const grandMissing = rowTotals.missing;
                 const totalRate = grandInWarehouse > 0 ? ((grandWithFile / grandInWarehouse) * 100).toFixed(1) : "0";
                 return (
                   <TableFooter>

@@ -789,10 +789,9 @@ module Api
           }
 
           # Pre-compute all warehouse_type counts in 4 queries (not N+1)
-          # Exclude source_type='xero' — Xero docs get their own row with Expected target,
-          # but are stored with warehouse_type='contact'/'corporate'. Excluding prevents
-          # double-counting and keeps Contact/Corporate showing only non-Xero docs.
-          base_wt_scope = WarehouseDocument.where.not(warehouse_type: [nil, ""]).where.not(source_type: "xero")
+          # Groups by warehouse_type (WHERE docs are stored), not source_type (WHERE they came from).
+          # Xero docs are stored under contact/corporate, so they count there — no exclusion needed.
+          base_wt_scope = WarehouseDocument.where.not(warehouse_type: [nil, ""])
           by_wt = base_wt_scope.group(:warehouse_type).count
           blob_by_wt = base_wt_scope.where.not(storage_blob_id: nil).group(:warehouse_type).count
           file_by_wt = base_wt_scope
@@ -849,37 +848,8 @@ module Api
               next
             end
 
-            # Xero (corporate type, source_type=xero): separate row with tenant breakdown
-            if wt.code == "corporate" && defined?(ExternalInvoice)
-              xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
-              xero_scope = WarehouseDocument.where(source_type: "xero")
-              if xero_total > 0
-                row = build_row.call("xero", "Xero Invoices", xero_scope, expected: xero_total)
-
-                # Per-tenant breakdown
-                tenant_breakdown = []
-                if defined?(XeroCredential)
-                  xero_cred_scope = if current_tenant&.master_tenant?
-                                      XeroCredential.where.not(tenant_id: nil)
-                                    else
-                                      XeroCredential.for_teeem_tenant(current_tenant).where.not(tenant_id: nil)
-                                    end
-                  xero_cred_scope.find_each do |cred|
-                    t_total = ExternalInvoice.where(tenant_id: cred.tenant_id).where.not(status: "draft").where.not(contact_id: nil).count
-                    next if t_total == 0
-                    t_ids = ExternalInvoice.where(tenant_id: cred.tenant_id).pluck(:id)
-                    t_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: t_ids)
-                    t_row = build_row.call("xero", cred.tenant_name || "Unknown", t_scope, expected: t_total)
-                    tenant_breakdown << t_row.merge(tenant_id: cred.tenant_id, tenant_name: cred.tenant_name || "Unknown")
-                  end
-                end
-
-                row[:tenant_breakdown] = tenant_breakdown.sort_by { |t| -t[:total] }
-                results << row
-              end
-            end
-
             # Standard row for this warehouse type
+            # Xero docs are stored under contact/corporate warehouse_type — they count there naturally.
             in_warehouse = by_wt[wt.code] || 0
             expected = expected_counts[wt.code]
             has_target = expected.present?
@@ -900,6 +870,15 @@ module Api
               missing: has_target ? [total - w_file, 0].max : [in_warehouse - w_file, 0].max,
               file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
             }
+          end
+
+          # ── Unclassified: docs with warehouse_type nil/empty (safety net) ──
+          # These are invisible to the warehouse_type grouping above.
+          # Without this row, orphaned docs silently disappear from the dashboard.
+          unclassified_scope = WarehouseDocument.where(warehouse_type: [nil, ""])
+          unclassified_count = unclassified_scope.count
+          if unclassified_count > 0
+            results << build_row.call("unclassified", "Unclassified", unclassified_scope)
           end
 
           results
