@@ -878,6 +878,17 @@ module Api
           verified_blobs = StorageBlob.where.not(verified_at: nil).count
           unverified_blobs = total_blobs - verified_blobs
           orphan_blobs = StorageBlob.left_joins(:warehouse_documents).where(warehouse_documents: { id: nil }).count
+          # How many WH docs have a verified file (across ALL docs, not just breakdown rows)
+          docs_with_file = WarehouseDocument.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
+          # Unclassified: docs NOT covered by any breakdown row
+          # Breakdown rows use mixed scoping (source_type for email/xero, warehouse_type for others),
+          # so we compute unclassified as total minus sum of breakdown rows' in_warehouse
+          breakdown_in_warehouse = warehouse_breakdown.sum { |r| r[:in_warehouse] || 0 }
+          breakdown_with_file = warehouse_breakdown.sum { |r| r[:with_file] || 0 }
+          total_wh_docs = WarehouseDocument.count
+          unclassified_total = [total_wh_docs - breakdown_in_warehouse, 0].max
+          # Cap with_file at total — can't have more files than documents
+          unclassified_with_file = [[docs_with_file - breakdown_with_file, 0].max, unclassified_total].min
           total_bytes = StorageBlob.sum(:file_size) || 0
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
@@ -894,6 +905,9 @@ module Api
             verified_blobs: verified_blobs,
             unverified_blobs: unverified_blobs,
             orphan_blobs: orphan_blobs,
+            docs_with_file: docs_with_file,
+            unclassified_total: unclassified_total,
+            unclassified_with_file: unclassified_with_file,
             total_bytes: total_bytes,
             blobs_format: blobs_path,
             legacy_format: emails_path,

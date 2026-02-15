@@ -248,6 +248,9 @@ interface OrgDataStats {
     verified_blobs?: number;
     unverified_blobs?: number;
     orphan_blobs?: number;
+    docs_with_file?: number;
+    unclassified_total?: number;
+    unclassified_with_file?: number;
     total_bytes: number;
     blobs_format: number;
     legacy_format: number;
@@ -1589,9 +1592,10 @@ export function DataWarehouseTab() {
                 })}
                 {/* Unclassified row — WH docs not in any breakdown row */}
                 {(() => {
-                  const rowWhTotal = stats.warehouse_breakdown.reduce((sum, row) => sum + (row.in_warehouse || 0), 0);
-                  const unclassified = stats.documents.total_documents - rowWhTotal;
+                  const unclassified = stats.blob_stats?.unclassified_total ?? (stats.documents.total_documents - stats.warehouse_breakdown.reduce((sum, row) => sum + (row.in_warehouse || 0), 0));
                   if (unclassified <= 0) return null;
+                  const unclassifiedWithFile = stats.blob_stats?.unclassified_with_file ?? 0;
+                  const unclassifiedRate = unclassified > 0 ? ((unclassifiedWithFile / unclassified) * 100).toFixed(1) : "0";
                   return (
                     <TableRow className="text-muted-foreground">
                       <TableCell>
@@ -1610,7 +1614,16 @@ export function DataWarehouseTab() {
                       </TableCell>
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">{unclassified.toLocaleString()}</TableCell>
-                      <TableCell className="text-right">-</TableCell>
+                      <TableCell className="text-right">
+                        {unclassifiedWithFile > 0 ? (
+                          <span className="text-green-600/80 dark:text-green-400/80">
+                            {unclassifiedWithFile.toLocaleString()}
+                            <span className="text-xs text-muted-foreground ml-1">({unclassifiedRate}%)</span>
+                          </span>
+                        ) : (
+                          <span>-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-right">-</TableCell>
                       <TableCell className="text-right">-</TableCell>
                     </TableRow>
@@ -1630,7 +1643,8 @@ export function DataWarehouseTab() {
                 );
                 const totalWhDocs = stats.documents.total_documents;
                 const grandInWarehouse = totalWhDocs;
-                const grandWithFile = rowTotals.withFile;
+                // Use docs_with_file from backend (includes ALL docs, not just classified rows)
+                const grandWithFile = stats.blob_stats?.docs_with_file ?? rowTotals.withFile;
                 const grandExpected = rowTotals.expected;
                 const grandMissing = rowTotals.missing;
                 const totalRate = grandExpected > 0 ? ((grandWithFile / grandExpected) * 100).toFixed(1) : "0";
@@ -1668,20 +1682,40 @@ export function DataWarehouseTab() {
               <div className="mt-4 pt-4 border-t flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
                 <div>
                   <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
-                  unique blobs
+                  <TooltipProvider>
+                    <Tooltip delayDuration={300}>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help border-b border-dotted border-muted-foreground/50">unique files</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="max-w-xs text-xs">StorageBlob records — deduplicated physical files in Wasabi. One file can serve multiple documents.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
-                <div>
-                  <span className="font-medium text-green-600 dark:text-green-400">
-                    {(stats.blob_stats.verified_blobs ?? stats.blob_stats.total_blobs).toLocaleString()}
-                  </span>{" "}
-                  verified
-                </div>
+                {stats.blob_stats.docs_with_file != null && (
+                  <div>
+                    <span className="font-medium text-green-600 dark:text-green-400">
+                      {stats.blob_stats.docs_with_file.toLocaleString()}
+                    </span>{" "}
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">docs with files</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Total WarehouseDocuments linked to a verified file (all types, including unclassified).</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                )}
                 {(stats.blob_stats.unverified_blobs ?? 0) > 0 && (
                   <div>
                     <span className="font-medium text-orange-600 dark:text-orange-400">
                       {(stats.blob_stats.unverified_blobs ?? 0).toLocaleString()}
                     </span>{" "}
-                    unverified
+                    unverified files
                   </div>
                 )}
                 {(stats.blob_stats.orphan_blobs ?? 0) > 0 && (
@@ -1693,11 +1727,11 @@ export function DataWarehouseTab() {
                             <span className="font-medium text-red-600 dark:text-red-400">
                               {(stats.blob_stats.orphan_blobs ?? 0).toLocaleString()}
                             </span>{" "}
-                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">orphans</span>
+                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">orphan files</span>
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Blobs not linked to any WarehouseDocument. May be safe to clean up.</p>
+                          <p className="max-w-xs text-xs">Files not linked to any WarehouseDocument. May be safe to clean up.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>

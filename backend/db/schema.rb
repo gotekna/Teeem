@@ -7132,7 +7132,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_15_100001) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -10327,9 +10328,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_15_100001) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
+    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
