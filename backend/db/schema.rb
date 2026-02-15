@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_15_200002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_15_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9846,6 +9846,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_15_200002) do
     t.jsonb "ticket_sla_resolution_hours", default: {"low"=>168, "high"=>24, "medium"=>72, "urgent"=>4}, comment: "SLA resolution time by priority (hours)"
     t.jsonb "ticket_priorities", default: ["urgent", "high", "medium", "low"], comment: "Available ticket priority levels"
     t.jsonb "ticket_categories", default: ["bug", "feature_request", "question", "onboarding", "billing", "other"], comment: "Available ticket categories"
+    t.jsonb "contact_roles", default: ["Employee", "sales", "land_agent", "Director", "Company_Secretary", "Public_Officer", "CEO", "GM", "Owner"], comment: "Valid contact roles for job assignments"
+    t.jsonb "contact_entity_types", default: ["person", "company", "trust", "sole_trader", "price_only"], comment: "Valid contact entity types"
+    t.jsonb "contact_employment_statuses", default: ["active", "contractor", "inactive"], comment: "Valid contact employment statuses"
+    t.jsonb "email_template_categories", default: {"other"=>"Other", "quote"=>"Quote/Proposal", "formal"=>"Formal", "invoice"=>"Invoice", "meeting"=>"Meeting", "follow_up"=>"Follow-up", "quick_reply"=>"Quick Reply"}, comment: "Email template categories (key => display label)"
+    t.jsonb "relationship_type_metadata", comment: "Custom relationship types (overrides ContactRelationship defaults)"
+    t.jsonb "email_star_colors", default: {"red"=>{"hex"=>"#EF4444", "label"=>"Red"}, "blue"=>{"hex"=>"#3B82F6", "label"=>"Blue"}, "green"=>{"hex"=>"#22C55E", "label"=>"Green"}, "orange"=>{"hex"=>"#F97316", "label"=>"Orange"}, "purple"=>{"hex"=>"#A855F7", "label"=>"Purple"}, "yellow"=>{"hex"=>"#EAB308", "label"=>"Yellow"}}, comment: "Star color options for email states"
+    t.jsonb "email_priority_levels", default: {"low"=>{"icon"=>"arrow-down", "label"=>"Low"}, "high"=>{"icon"=>"alert-circle", "label"=>"High"}, "normal"=>{"icon"=>"minus", "label"=>"Normal"}}, comment: "Email priority levels with display metadata"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

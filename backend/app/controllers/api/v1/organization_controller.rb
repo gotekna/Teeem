@@ -929,7 +929,10 @@ module Api
             # Deduplication
             total_references: total_refs,
             duplicates_avoided: dupes_avoided,
-            bytes_saved: bytes_saved
+            bytes_saved: bytes_saved,
+            # Xero invoice sync status
+            xero_total: defined?(ExternalInvoice) ? ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count : 0,
+            xero_with_pdf: defined?(ExternalInvoice) ? WarehouseDocument.where(source_type: "xero").joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count : 0
           }
         else
           { total_blobs: 0, total_bytes: 0, blobs_format: 0, legacy_format: 0, migration_rate: 0 }

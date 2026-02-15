@@ -15,13 +15,13 @@ class EmailUserState < ApplicationRecord
   alias_method :synced_email, :email_warehouse
   alias_method :synced_email=, :email_warehouse=
 
-  # Constants (for validation)
-  STAR_COLOR_VALUES = %w[red orange yellow green blue purple].freeze
-  PRIORITY_VALUES = %w[high normal low].freeze
+  # SSoT: Configurable per tenant via TenantSetting (Feb 2026)
+  DEFAULT_STAR_COLOR_VALUES = %w[red orange yellow green blue purple].freeze
+  DEFAULT_PRIORITY_VALUES = %w[high normal low].freeze
 
-  # Validations
-  validates :star_color, inclusion: { in: STAR_COLOR_VALUES }, allow_blank: true
-  validates :priority, inclusion: { in: PRIORITY_VALUES }, allow_blank: true
+  # Validations (read from TenantSetting with fallback)
+  validates :star_color, inclusion: { in: -> { TenantSetting.email_star_colors.keys rescue EmailUserState::DEFAULT_STAR_COLOR_VALUES } }, allow_blank: true
+  validates :priority, inclusion: { in: -> { TenantSetting.email_priority_levels.keys rescue EmailUserState::DEFAULT_PRIORITY_VALUES } }, allow_blank: true
 
   # Callbacks - Real-time sync via ActionCable
   after_update_commit :broadcast_state_change
@@ -36,22 +36,33 @@ class EmailUserState < ApplicationRecord
   scope :for_user, ->(user) { where(user: user) }
   scope :high_priority, -> { where(priority: "high") }
 
-  # Star colors with their display names
-  STAR_COLORS = {
-    red: { hex: "#EF4444", label: "Red" },
-    orange: { hex: "#F97316", label: "Orange" },
-    yellow: { hex: "#EAB308", label: "Yellow" },
-    green: { hex: "#22C55E", label: "Green" },
-    blue: { hex: "#3B82F6", label: "Blue" },
-    purple: { hex: "#A855F7", label: "Purple" }
+  # SSoT: Display metadata - configurable per tenant via TenantSetting (Feb 2026)
+  DEFAULT_STAR_COLORS = {
+    "red" => { "hex" => "#EF4444", "label" => "Red" },
+    "orange" => { "hex" => "#F97316", "label" => "Orange" },
+    "yellow" => { "hex" => "#EAB308", "label" => "Yellow" },
+    "green" => { "hex" => "#22C55E", "label" => "Green" },
+    "blue" => { "hex" => "#3B82F6", "label" => "Blue" },
+    "purple" => { "hex" => "#A855F7", "label" => "Purple" }
   }.freeze
 
-  # Priority levels
-  PRIORITIES = {
-    high: { label: "High", icon: "alert-circle" },
-    normal: { label: "Normal", icon: "minus" },
-    low: { label: "Low", icon: "arrow-down" }
+  DEFAULT_PRIORITIES = {
+    "high" => { "label" => "High", "icon" => "alert-circle" },
+    "normal" => { "label" => "Normal", "icon" => "minus" },
+    "low" => { "label" => "Low", "icon" => "arrow-down" }
   }.freeze
+
+  def self.star_colors
+    TenantSetting.email_star_colors
+  rescue StandardError
+    DEFAULT_STAR_COLORS
+  end
+
+  def self.priorities
+    TenantSetting.email_priority_levels
+  rescue StandardError
+    DEFAULT_PRIORITIES
+  end
 
   # Class methods
 

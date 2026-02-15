@@ -1223,7 +1223,7 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        invalid_roles = roles - Contact::ROLES
+        invalid_roles = roles - Contact.roles
         if invalid_roles.any?
           return render json: {
             success: false,
@@ -1665,19 +1665,19 @@ module Api
 
         render json: {
           success: true,
-          entity_types: Contact::ENTITY_TYPES,
-          metadata: Contact::ENTITY_TYPES.map { |type| entity_type_metadata[type] }
+          entity_types: Contact.entity_types,
+          metadata: Contact.entity_types.map { |type| entity_type_metadata[type] }
         }
       end
 
       # GET /api/v1/contacts/employment_statuses
-      # SSoT: Returns valid employment statuses from Contact::EMPLOYMENT_STATUSES
+      # SSoT: Returns valid employment statuses from Contact.employment_statuses
 
       def employment_statuses
         render json: {
           success: true,
-          employment_statuses: Contact::EMPLOYMENT_STATUSES,
-          metadata: Contact::EMPLOYMENT_STATUSES.map { |status|
+          employment_statuses: Contact.employment_statuses,
+          metadata: Contact.employment_statuses.map { |status|
             {
               value: status,
               label: status.titleize
@@ -1687,13 +1687,13 @@ module Api
       end
 
       # GET /api/v1/contacts/roles
-      # SSoT: Returns valid roles from Contact::ROLES
+      # SSoT: Returns valid roles from Contact.roles
 
       def roles
         render json: {
           success: true,
-          roles: Contact::ROLES,
-          metadata: Contact::ROLES.map { |role|
+          roles: Contact.roles,
+          metadata: Contact.roles.map { |role|
             {
               value: role,
               label: role.titleize.gsub("_", " ")

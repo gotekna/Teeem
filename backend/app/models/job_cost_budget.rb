@@ -9,10 +9,8 @@
 # profitability dashboards and margin alerts.
 #
 class JobCostBudget < ApplicationRecord
-  # Alert statuses
+  # ⚠️ STATE MACHINE CONSTANTS - Code branches on these values. Not tenant-configurable.
   ALERT_STATUSES = %w[ok warning critical over_budget].freeze
-
-  # Calculation statuses
   CALCULATION_STATUSES = %w[pending calculating completed error].freeze
 
   # Associations

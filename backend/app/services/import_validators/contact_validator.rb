@@ -22,7 +22,9 @@ module ImportValidators
       abn contact_type primary_company_name
     ].freeze
 
-    VALID_ENTITY_TYPES = %w[person company trust sole_trader].freeze
+    # SSoT: Use Contact.entity_types (reads from TenantSetting with fallback)
+    # Exclude 'price_only' from import - it's a system/legacy type
+    IMPORT_EXCLUDED_TYPES = %w[price_only].freeze
 
     def initialize(rows, options = {})
       super
@@ -38,8 +40,9 @@ module ImportValidators
       entity_type = row['entity_type']&.to_s&.downcase&.strip
 
       # Validate entity type
-      unless VALID_ENTITY_TYPES.include?(entity_type)
-        add_error(row_number, "Invalid entity_type: #{entity_type}. Must be one of: #{VALID_ENTITY_TYPES.join(', ')}", column: 'entity_type', value: entity_type)
+      valid_import_types = Contact.entity_types - IMPORT_EXCLUDED_TYPES
+      unless valid_import_types.include?(entity_type)
+        add_error(row_number, "Invalid entity_type: #{entity_type}. Must be one of: #{valid_import_types.join(', ')}", column: 'entity_type', value: entity_type)
         return
       end
 

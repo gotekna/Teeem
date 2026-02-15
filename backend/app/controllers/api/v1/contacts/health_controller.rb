@@ -41,7 +41,7 @@ module Api
         # GET /api/v1/contacts/health/invalid_entity_types
         # Find contacts with invalid or nil entity_type
         def invalid_entity_types
-          valid_types = Contact::ENTITY_TYPES
+          valid_types = Contact.entity_types
           invalid = Contact.where.not(entity_type: valid_types)
             .or(Contact.where(entity_type: nil))
 

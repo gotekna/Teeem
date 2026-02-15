@@ -167,16 +167,30 @@ class Contact < ApplicationRecord
 
   # TFN for directors is stored in Corporate.tfn (not on Contact)
 
-  # Constants
-  ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
-  # SSoT: Valid entity_type values
-  # - person: Individual person
-  # - company: Business entity
-  # - trust: Trust entity
-  # - sole_trader: Individual trading business
-  # - price_only: Contact used only for pricebook pricing data (legacy suppliers with no other info)
-  ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
-  EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+  # SSoT: Configurable per tenant via TenantSetting (Feb 2026)
+  # DEFAULT_ constants kept as fallbacks only
+  DEFAULT_ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
+  DEFAULT_ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
+  DEFAULT_EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+
+  # Class methods to read from TenantSetting with fallback
+  def self.roles
+    TenantSetting.contact_roles
+  rescue StandardError
+    DEFAULT_ROLES
+  end
+
+  def self.entity_types
+    TenantSetting.contact_entity_types
+  rescue StandardError
+    DEFAULT_ENTITY_TYPES
+  end
+
+  def self.employment_statuses
+    TenantSetting.contact_employment_statuses
+  rescue StandardError
+    DEFAULT_EMPLOYMENT_STATUSES
+  end
 
   # Alias name to display_name for backwards compatibility
   # Many parts of the codebase reference contact.name but the column is 'display_name'
@@ -503,9 +517,9 @@ class Contact < ApplicationRecord
   # Validations
   validate :roles_must_be_valid
 
-  # Entity type validation
+  # Entity type validation (SSoT: TenantSetting.contact_entity_types)
   validates :entity_type, presence: { message: "must be selected" },
-                          inclusion: { in: ENTITY_TYPES, allow_nil: true }
+                          inclusion: { in: -> { Contact.entity_types }, allow_nil: true }
 
   # SSoT: Unique company display_name (prevents duplicates from concurrent syncs)
   # DB-enforced via partial unique index: idx_contacts_unique_company_name
@@ -1675,7 +1689,7 @@ class Contact < ApplicationRecord
     role_list = roles.is_a?(String) ? (JSON.parse(roles) rescue []) : roles
     return if role_list.blank?
 
-    invalid_roles = role_list - ROLES
+    invalid_roles = role_list - Contact.roles
     if invalid_roles.any?
       errors.add(:roles, "contains invalid roles: #{invalid_roles.join(', ')}")
     end

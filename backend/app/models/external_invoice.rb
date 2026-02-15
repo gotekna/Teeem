@@ -23,15 +23,15 @@ class ExternalInvoice < ApplicationRecord
 
   # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS defined in ExternalSyncConstants concern
 
+  # ⚠️ STRUCTURAL CONSTANTS - DO NOT make tenant-configurable
+  # These are normalized mappings for external accounting system types/statuses.
+  # They MUST match what external APIs (Xero, MYOB, QuickBooks) send/expect.
+  # Changing these breaks integration. Add new values only when supporting new external systems.
+
   # Normalized invoice types (across all systems)
-  # - sales_invoice: Customer-facing invoice (Xero ACCREC)
-  # - bill: Supplier bill/purchase invoice (Xero ACCPAY)
-  # - credit_note: Credit note (Xero ACCRECREDIT or ACCPAYCREDIT)
-  # - quote: Quote/Estimate (Xero Quote)
   INVOICE_TYPES = %w[sales_invoice bill credit_note quote].freeze
 
   # Normalized statuses (across all systems)
-  # Note: quotes have their own status set: draft, sent, accepted, declined, invoiced
   STATUSES = %w[draft submitted approved paid voided deleted sent accepted declined invoiced].freeze
 
   validates :source, presence: true, inclusion: { in: ACCOUNTING_SYSTEMS }
@@ -88,7 +88,7 @@ class ExternalInvoice < ApplicationRecord
     where("tracking_data @> ?", [ { "Option" => tracking_name } ].to_json)
   }
 
-  # Status mappings from Xero to normalized
+  # ⚠️ EXTERNAL API MAPPINGS - Must match Xero API exactly. Not tenant-configurable.
   XERO_STATUS_MAP = {
     "DRAFT" => "draft",
     "SUBMITTED" => "submitted",

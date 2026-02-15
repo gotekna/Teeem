@@ -37,8 +37,8 @@ class ContactQualityActionService
   private
 
   def convert_person_to_company!
-    # SSoT: Use Contact::ENTITY_TYPES constant values
-    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact::ENTITY_TYPES[0]  # "person"
+    # SSoT: Use Contact.entity_types constant values
+    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact.entity_types[0]  # "person"
 
     ActiveRecord::Base.transaction do
       # Determine company name from ABR or existing data
@@ -46,7 +46,7 @@ class ContactQualityActionService
 
       # Update entity type and company fields
       @contact.update!(
-        entity_type: Contact::ENTITY_TYPES[1],  # "company"
+        entity_type: Contact.entity_types[1],  # "company"
         company_name_or_trust: company_name,
         # Keep person fields for reference but they won't be used for display
         # Clear them if we have good company data
@@ -87,8 +87,8 @@ class ContactQualityActionService
   def link_to_existing_company!
     company = @review.suggested_company
     raise ActionError, "No suggested company to link" unless company
-    # SSoT: Use Contact::ENTITY_TYPES constant
-    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact::ENTITY_TYPES[0]  # "person"
+    # SSoT: Use Contact.entity_types constant
+    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact.entity_types[0]  # "person"
 
     ActiveRecord::Base.transaction do
       # Create employee_of relationship (SSoT: ContactRelationship)
@@ -112,8 +112,8 @@ class ContactQualityActionService
   end
 
   def create_company_and_link!
-    # SSoT: Use Contact::ENTITY_TYPES constant
-    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact::ENTITY_TYPES[0]  # "person"
+    # SSoT: Use Contact.entity_types constant
+    raise ActionError, "Contact is not a person" unless @contact.entity_type == Contact.entity_types[0]  # "person"
 
     # Derive company name before transaction (needed in rescue)
     company_name = @review.derived_company_name.presence ||
@@ -125,9 +125,9 @@ class ContactQualityActionService
     ActiveRecord::Base.transaction do
 
       # SSoT: Use find_or_create_by! to prevent duplicates (DB unique index enforces)
-      # SSoT: Use Contact::ENTITY_TYPES constant
+      # SSoT: Use Contact.entity_types constant
       company = Contact.find_or_create_by!(
-        entity_type: Contact::ENTITY_TYPES[1],  # "company"
+        entity_type: Contact.entity_types[1],  # "company"
         display_name: company_name.strip
       ) do |c|
         c.company_name_or_trust = company_name
@@ -155,8 +155,8 @@ class ContactQualityActionService
   rescue ActiveRecord::RecordNotUnique => e
     # SSoT: DB unique index caught a race condition - find existing company and link
     Rails.logger.warn "Quality action: Duplicate company caught by DB constraint, finding existing: #{e.message}"
-    # SSoT: Use Contact::ENTITY_TYPES constant
-    company = Contact.find_by(entity_type: Contact::ENTITY_TYPES[1], display_name: company_name&.strip, is_active: true)  # "company"
+    # SSoT: Use Contact.entity_types constant
+    company = Contact.find_by(entity_type: Contact.entity_types[1], display_name: company_name&.strip, is_active: true)  # "company"
     raise ActionError, "Company '#{company_name}' already exists but could not be found" unless company
 
     # Link to the existing company

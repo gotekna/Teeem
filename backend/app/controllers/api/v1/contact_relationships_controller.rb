@@ -16,7 +16,7 @@ module Api
             outgoing: outgoing.map { |rel| serialize_relationship(rel, "outgoing") },
             incoming: incoming.map { |rel| serialize_relationship(rel, "incoming") }
           },
-          relationship_types: ContactRelationship::RELATIONSHIP_TYPES,
+          relationship_types: ContactRelationship.relationship_types,
           relationship_types_metadata: ContactRelationship.relationship_types_with_metadata,
           valid_types_for_entity: ContactRelationship.valid_types_for(
             source_entity_type: @contact.entity_type,

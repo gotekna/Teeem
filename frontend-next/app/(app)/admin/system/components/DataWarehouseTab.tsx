@@ -225,7 +225,7 @@ interface OrgDataStats {
     source_type: string;
     label: string;
     icon?: string;          // Icon name from WarehouseType (DB-driven)
-    has_target?: boolean;   // true if Expected is a meaningful target (email/xero)
+    has_target?: boolean;   // true if Expected is a meaningful target (email)
     total: number;          // Expected target (if has_target) or same as in_warehouse
     in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
@@ -236,16 +236,6 @@ interface OrgDataStats {
     unfetchable?: number;   // Emails that can never be fetched (deleted mailbox, content_unavailable, no outlook_id)
     no_outlook_id?: number;  // Subset: emails without outlook_id/mailbox (can't fetch from Microsoft)
     file_rate: number;
-    tenant_breakdown?: Array<{
-      tenant_id: string;
-      tenant_name: string;
-      total: number;
-      in_warehouse: number;
-      with_blob: number;
-      with_file: number;
-      missing: number;
-      file_rate: number;
-    }>;
   }>;
   blob_stats?: {
     total_blobs: number;
@@ -263,6 +253,9 @@ interface OrgDataStats {
     total_references?: number;
     duplicates_avoided?: number;
     bytes_saved?: number;
+    // Xero sync status
+    xero_total?: number;
+    xero_with_pdf?: number;
   };
   last_updated: string;
 }
@@ -1385,12 +1378,12 @@ export function DataWarehouseTab() {
                 <p className="text-xs text-muted-foreground">WH Documents</p>
                 {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (() => {
                   const targetTotal = stats.warehouse_breakdown
-                    .filter((row) => row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero"))
+                    .filter((row) => row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment"))
                     .reduce((sum, row) => sum + (row.total || 0), 0);
                   if (targetTotal <= 0) return null;
                   return (
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{targetTotal.toLocaleString()}</span> target (emails + invoices)
+                      <span className="font-medium text-foreground">{targetTotal.toLocaleString()}</span> target (emails)
                     </p>
                   );
                 })()}
@@ -1533,7 +1526,7 @@ export function DataWarehouseTab() {
               <TableBody>
                 {stats.warehouse_breakdown.map((row) => {
                   const missing = row.missing ?? 0;
-                  const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero");
+                  const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment");
                   return (
                     <React.Fragment key={row.source_type}>
                       <TableRow>
@@ -1596,7 +1589,7 @@ export function DataWarehouseTab() {
               {(() => {
                 const rowTotals = stats.warehouse_breakdown.reduce(
                   (acc, row) => {
-                    const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero");
+                    const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment");
                     return {
                       expected: acc.expected + (hasTarget ? (row.total || 0) : 0),
                       inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
@@ -1650,94 +1643,91 @@ export function DataWarehouseTab() {
                 );
               })()}
             </Table>
-            {/* Blob Storage Summary */}
+            {/* Storage Summary — two distinct counts */}
             {stats.blob_stats && (
-              <div className="mt-4 pt-4 border-t flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted-foreground">
-                <div>
-                  <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
-                  <TooltipProvider>
-                    <Tooltip delayDuration={300}>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help border-b border-dotted border-muted-foreground/50">unique files</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <p className="max-w-xs text-xs">StorageBlob records — deduplicated physical files in Wasabi. One file can serve multiple documents.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+              <div className="mt-4 pt-4 border-t space-y-2 text-sm text-muted-foreground">
+                {/* Row 1: Physical files in Wasabi (StorageBlob) */}
+                <div className="flex flex-wrap gap-x-1">
+                  <span className="text-muted-foreground/70 mr-1">Wasabi:</span>
+                  <span>
+                    <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span> files
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{(stats.blob_stats.verified_blobs ?? stats.blob_stats.total_blobs).toLocaleString()}</span> verified
+                  </span>
+                  {(stats.blob_stats.unverified_blobs ?? 0) > 0 && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>
+                        <span className="font-medium text-orange-600 dark:text-orange-400">{(stats.blob_stats.unverified_blobs ?? 0).toLocaleString()}</span> unverified
+                      </span>
+                    </>
+                  )}
+                  {(stats.blob_stats.orphan_blobs ?? 0) > 0 && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <TooltipProvider>
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">
+                              <span className="font-medium text-red-600 dark:text-red-400">{(stats.blob_stats.orphan_blobs ?? 0).toLocaleString()}</span>{" "}
+                              <span className="border-b border-dotted border-muted-foreground/50">orphans</span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="max-w-xs text-xs">Files in Wasabi not linked to any WarehouseDocument. May be safe to clean up.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </>
+                  )}
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>
+                    <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>
+                  </span>
                 </div>
-                {stats.blob_stats.docs_with_file != null && (
-                  <div>
-                    <span className="font-medium text-green-600 dark:text-green-400">
-                      {stats.blob_stats.docs_with_file.toLocaleString()}
-                    </span>{" "}
-                    <TooltipProvider>
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">docs with files</span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Total WarehouseDocuments linked to a verified file (all types, including unclassified).</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
+                {/* Row 2: Deduplication savings */}
+                {stats.blob_stats.duplicates_avoided != null && stats.blob_stats.duplicates_avoided > 0 && (
+                  <div className="flex flex-wrap gap-x-1">
+                    <span className="text-muted-foreground/70 mr-1">Dedup:</span>
+                    <span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">{stats.blob_stats.duplicates_avoided.toLocaleString()}</span> duplicates avoided
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>
+                      <span className="font-medium text-green-600 dark:text-green-400">{formatFileSize(stats.blob_stats.bytes_saved || 0)}</span> saved
+                    </span>
                   </div>
                 )}
-                {(stats.blob_stats.unverified_blobs ?? 0) > 0 && (
-                  <div>
-                    <span className="font-medium text-orange-600 dark:text-orange-400">
-                      {(stats.blob_stats.unverified_blobs ?? 0).toLocaleString()}
-                    </span>{" "}
-                    unverified files
-                  </div>
-                )}
-                {(stats.blob_stats.orphan_blobs ?? 0) > 0 && (
-                  <div>
-                    <TooltipProvider>
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
+                {/* Row 3: Xero invoice sync status */}
+                {(stats.blob_stats.xero_total ?? 0) > 0 && (() => {
+                  const total = stats.blob_stats.xero_total ?? 0;
+                  const synced = stats.blob_stats.xero_with_pdf ?? 0;
+                  const pending = total - synced;
+                  const pct = total > 0 ? ((synced / total) * 100).toFixed(1) : "0";
+                  return (
+                    <div className="flex flex-wrap gap-x-1">
+                      <span className="text-muted-foreground/70 mr-1">Xero:</span>
+                      <span>
+                        <span className="font-medium text-foreground">{total.toLocaleString()}</span> invoices
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>
+                        <span className="font-medium text-green-600 dark:text-green-400">{synced.toLocaleString()}</span> synced
+                        <span className="text-xs text-muted-foreground ml-1">({pct}%)</span>
+                      </span>
+                      {pending > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
                           <span>
-                            <span className="font-medium text-red-600 dark:text-red-400">
-                              {(stats.blob_stats.orphan_blobs ?? 0).toLocaleString()}
-                            </span>{" "}
-                            <span className="cursor-help border-b border-dotted border-muted-foreground/50">orphan files</span>
+                            <span className="font-medium text-red-600 dark:text-red-400">{pending.toLocaleString()}</span> need sync
                           </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Files not linked to any WarehouseDocument. May be safe to clean up.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                )}
-                <div>
-                  <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
-                  total storage
-                </div>
-                {stats.blob_stats.duplicates_avoided && stats.blob_stats.duplicates_avoided > 0 && (
-                  <>
-                    <div>
-                      <span className="font-medium text-blue-600 dark:text-blue-400">
-                        {stats.blob_stats.duplicates_avoided.toLocaleString()}
-                      </span>{" "}
-                      duplicates avoided
+                        </>
+                      )}
                     </div>
-                    <div>
-                      <span className="font-medium text-green-600 dark:text-green-400">
-                        {formatFileSize(stats.blob_stats.bytes_saved || 0)}
-                      </span>{" "}
-                      saved via dedup
-                    </div>
-                  </>
-                )}
-                {stats.blob_stats.legacy_format > 0 && (
-                  <div>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
-                      {stats.blob_stats.legacy_format.toLocaleString()}
-                    </span>{" "}
-                    legacy format
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             )}
           </CardContent>

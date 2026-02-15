@@ -2,12 +2,13 @@ class ContactRelationship < ApplicationRecord
   belongs_to :source_contact, class_name: "Contact"
   belongs_to :related_contact, class_name: "Contact"
 
-  # Relationship type options with metadata
+  # SSoT: Configurable per tenant via TenantSetting.relationship_type_metadata (Feb 2026)
+  # DEFAULT_ constant kept as fallback
   # source_types: what entity types can BE this relationship
   # target_types: what entity types can be the TARGET of this relationship
   # category: grouping for UI display
   # bidirectional: if true, automatically creates reverse relationship (A→B also creates B→A)
-  RELATIONSHIP_TYPE_METADATA = {
+  DEFAULT_RELATIONSHIP_TYPE_METADATA = {
     # Employment - Person works for Company/Trust
     "employee_of" => {
       label: "Employee",
@@ -167,28 +168,43 @@ class ContactRelationship < ApplicationRecord
     }
   }.freeze
 
+  # Class method to get effective metadata (TenantSetting override or default)
+  def self.relationship_type_metadata
+    TenantSetting.relationship_type_metadata
+  rescue StandardError
+    DEFAULT_RELATIONSHIP_TYPE_METADATA
+  end
+
   # Simple list for validation (backwards compatible)
-  RELATIONSHIP_TYPES = RELATIONSHIP_TYPE_METADATA.keys.freeze
+  def self.relationship_types
+    relationship_type_metadata.keys
+  end
 
   # Helper method to get valid relationship types for a source → target combination
   # If target_entity_type is nil, returns all types where source matches
   def self.valid_types_for(source_entity_type:, target_entity_type: nil)
-    RELATIONSHIP_TYPE_METADATA.select do |_type, meta|
-      source_match = source_entity_type.nil? || meta[:source_types].include?(source_entity_type)
-      target_match = target_entity_type.nil? || meta[:target_types].include?(target_entity_type)
+    relationship_type_metadata.select do |_type, meta|
+      meta = meta.symbolize_keys if meta.is_a?(Hash)
+      source_match = source_entity_type.nil? || (meta[:source_types] || []).include?(source_entity_type)
+      target_match = target_entity_type.nil? || (meta[:target_types] || []).include?(target_entity_type)
       source_match && target_match
     end.keys
   end
 
   # Helper method to get relationship types by category
   def self.types_by_category
-    RELATIONSHIP_TYPE_METADATA.group_by { |_type, meta| meta[:category] }
-      .transform_values { |pairs| pairs.map(&:first) }
+    relationship_type_metadata.group_by { |_type, meta|
+      meta = meta.symbolize_keys if meta.is_a?(Hash)
+      meta[:category]
+    }.transform_values { |pairs| pairs.map(&:first) }
   end
 
   # Check if a relationship type is bidirectional (auto-creates reverse)
   def self.bidirectional?(relationship_type)
-    RELATIONSHIP_TYPE_METADATA.dig(relationship_type, :bidirectional) == true
+    meta = relationship_type_metadata[relationship_type]
+    return false unless meta
+    meta = meta.symbolize_keys if meta.is_a?(Hash)
+    meta[:bidirectional] == true
   end
 
   # Instance method wrapper
@@ -198,7 +214,8 @@ class ContactRelationship < ApplicationRecord
 
   # Get metadata as array for API responses
   def self.relationship_types_with_metadata
-    RELATIONSHIP_TYPE_METADATA.map do |type, meta|
+    relationship_type_metadata.map do |type, meta|
+      meta = meta.symbolize_keys if meta.is_a?(Hash)
       {
         value: type,
         label: meta[:label],
@@ -212,7 +229,7 @@ class ContactRelationship < ApplicationRecord
   end
 
   # Validations
-  validates :relationship_type, presence: true, inclusion: { in: RELATIONSHIP_TYPES }
+  validates :relationship_type, presence: true, inclusion: { in: -> { ContactRelationship.relationship_types } }
   validates :source_contact_id, presence: true
   validates :related_contact_id, presence: true
   validate :cannot_relate_to_self
@@ -290,7 +307,7 @@ class ContactRelationship < ApplicationRecord
   def validate_entity_types_for_relationship
     return if relationship_type.blank? || source_contact.blank? || related_contact.blank?
 
-    metadata = RELATIONSHIP_TYPE_METADATA[relationship_type]
+    metadata = self.class.relationship_type_metadata[relationship_type]
     return unless metadata # Skip for unknown relationship types
 
     source_types = metadata[:source_types]

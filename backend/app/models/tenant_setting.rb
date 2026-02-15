@@ -567,6 +567,79 @@ class TenantSetting < ApplicationRecord
     instance.ticket_categories.presence || DEFAULT_TICKET_CATEGORIES
   end
 
+  # =============================================================================
+  # Contact Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_CONTACT_ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
+  DEFAULT_CONTACT_ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
+  DEFAULT_CONTACT_EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+
+  def self.contact_roles
+    instance.contact_roles.presence || DEFAULT_CONTACT_ROLES
+  end
+
+  def self.contact_entity_types
+    instance.contact_entity_types.presence || DEFAULT_CONTACT_ENTITY_TYPES
+  end
+
+  def self.contact_employment_statuses
+    instance.contact_employment_statuses.presence || DEFAULT_CONTACT_EMPLOYMENT_STATUSES
+  end
+
+  # =============================================================================
+  # Email Template Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_EMAIL_TEMPLATE_CATEGORIES = {
+    "quick_reply" => "Quick Reply",
+    "formal" => "Formal",
+    "follow_up" => "Follow-up",
+    "meeting" => "Meeting",
+    "quote" => "Quote/Proposal",
+    "invoice" => "Invoice",
+    "other" => "Other"
+  }.freeze
+
+  def self.email_template_categories
+    instance.email_template_categories.presence || DEFAULT_EMAIL_TEMPLATE_CATEGORIES
+  end
+
+  # =============================================================================
+  # Contact Relationship Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  def self.relationship_type_metadata
+    instance.relationship_type_metadata.presence || ContactRelationship::DEFAULT_RELATIONSHIP_TYPE_METADATA
+  end
+
+  # =============================================================================
+  # Email UI Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_EMAIL_STAR_COLORS = {
+    "red" => { "hex" => "#EF4444", "label" => "Red" },
+    "orange" => { "hex" => "#F97316", "label" => "Orange" },
+    "yellow" => { "hex" => "#EAB308", "label" => "Yellow" },
+    "green" => { "hex" => "#22C55E", "label" => "Green" },
+    "blue" => { "hex" => "#3B82F6", "label" => "Blue" },
+    "purple" => { "hex" => "#A855F7", "label" => "Purple" }
+  }.freeze
+
+  DEFAULT_EMAIL_PRIORITY_LEVELS = {
+    "high" => { "label" => "High", "icon" => "alert-circle" },
+    "normal" => { "label" => "Normal", "icon" => "minus" },
+    "low" => { "label" => "Low", "icon" => "arrow-down" }
+  }.freeze
+
+  def self.email_star_colors
+    instance.email_star_colors.presence || DEFAULT_EMAIL_STAR_COLORS
+  end
+
+  def self.email_priority_levels
+    instance.email_priority_levels.presence || DEFAULT_EMAIL_PRIORITY_LEVELS
+  end
+
   private
 
   def set_defaults

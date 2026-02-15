@@ -144,7 +144,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
     render json: {
       success: true,
       data: {
-        colors: EmailUserState::STAR_COLORS.map { |k, v| { key: k.to_s, hex: v[:hex], label: v[:label] } }
+        colors: EmailUserState.star_colors.map { |k, v| { key: k.to_s, hex: v["hex"] || v[:hex], label: v["label"] || v[:label] } }
       }
     }
   end

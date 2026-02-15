@@ -111,14 +111,14 @@ module HealthChecks
 
     # Contacts with invalid entity_type
     def check_invalid_entity_type
-      # Use Contact::ENTITY_TYPES as SSoT for valid values
-      valid_types = Contact::ENTITY_TYPES + [ nil ]
+      # Use Contact.entity_types as SSoT for valid values
+      valid_types = Contact.entity_types + [ nil ]
       contacts = Contact.all
                        .where.not(entity_type: valid_types)
 
       build_result(
         name: "Contacts with Invalid Entity Type",
-        description: "Contacts with entity_type not in: #{Contact::ENTITY_TYPES.join(', ')}.",
+        description: "Contacts with entity_type not in: #{Contact.entity_types.join(', ')}.",
         severity: :warning,
         items: contacts,
         icon: "alert-triangle",
@@ -548,7 +548,7 @@ module HealthChecks
         ) - [ rel.relationship_type ] # Exclude the current (invalid) type
 
         valid_type_options = valid_types.map do |t|
-          meta = ContactRelationship::RELATIONSHIP_TYPE_METADATA[t]
+          meta = ContactRelationship.relationship_type_metadata[t]
           { value: t, label: meta[:label] }
         end
 

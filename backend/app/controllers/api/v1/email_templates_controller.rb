@@ -53,7 +53,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
       success: true,
       data: {
         templates: templates.map(&:as_json),
-        categories: EmailTemplate::CATEGORIES,
+        categories: EmailTemplate.categories,
         system_variables: EmailTemplate::SYSTEM_VARIABLES
       }
     }
@@ -195,7 +195,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
     render json: {
       success: true,
       data: {
-        categories: EmailTemplate::CATEGORIES.map { |k, v| { value: k.to_s, label: v } }
+        categories: EmailTemplate.categories.map { |k, v| { value: k.to_s, label: v } }
       }
     }
   end

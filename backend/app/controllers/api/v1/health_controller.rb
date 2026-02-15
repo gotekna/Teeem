@@ -938,7 +938,7 @@ module Api
         when "change_relationship_type"
           return { success: false, error: "new_value is required for change_relationship_type" } if new_value.blank?
 
-          unless ContactRelationship::RELATIONSHIP_TYPES.include?(new_value)
+          unless ContactRelationship.relationship_types.include?(new_value)
             return { success: false, error: "Invalid relationship type: #{new_value}" }
           end
 
