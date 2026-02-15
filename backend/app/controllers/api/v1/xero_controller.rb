@@ -2262,10 +2262,11 @@ module Api
                               end
 
             # Create or update ContactExternalLink
+            # FRC (Feb 2026): Column is xero_org_id, not tenant_id
             link = ContactExternalLink.find_or_initialize_by(
               source: "xero",
               external_contact_id: xero_contact_id,
-              tenant_id: effective_tenant_id
+              xero_org_id: effective_tenant_id
             )
 
             link.assign_attributes(

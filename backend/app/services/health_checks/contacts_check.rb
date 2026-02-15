@@ -609,7 +609,7 @@ module HealthChecks
       personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com bigpond.com optusnet.com.au]
 
       # Build SQL conditions for business prefixes (SQL injection safe - using sanitize_sql_array)
-      prefix_conditions = business_prefixes.map { |p| sanitize_sql_array(["email ILIKE ?", "#{p}@%"]) }.join(" OR ")
+      prefix_conditions = business_prefixes.map { |p| ActiveRecord::Base.sanitize_sql_array(["email ILIKE ?", "#{p}@%"]) }.join(" OR ")
       domain_exclusions = personal_domains.map { |d| ActiveRecord::Base.connection.quote(d) }.join(", ")
 
       contacts = Contact.where(entity_type: "person")
