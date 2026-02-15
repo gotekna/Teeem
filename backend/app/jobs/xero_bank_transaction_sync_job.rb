@@ -176,11 +176,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
     schedule_retry(options, retry_after + 60)
   end
 
-  # Extract retry_after seconds from RateLimitError message
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 
   def process_transaction(txn, tenant_id)
     xero_id = txn["BankTransactionID"]

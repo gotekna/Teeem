@@ -32,24 +32,33 @@ class XeroRateLimitTracker
     # FRC (Feb 2026): Each Xero org has its OWN rate limit - don't use global lockout!
     # Previously wrote to both global and per-tenant keys, which blocked ALL orgs
     # when any single org hit its limit. Now only writes per-tenant lockouts.
+    # FRC (Feb 2026): Cap lockout to MAX_LOCKOUT_DURATION at record time.
+    # Xero's per-minute limit resets in 60s, so locking for 1 hour is absurd.
+    # If still rate limited after cap, we'll get another 429 and wait again.
+    # Previously stored raw retry_after (up to 3600s default) with cache
+    # expires_in matching, so lockouts persisted for a full hour even though
+    # MAX_LOCKOUT_AGE (5 min) was supposed to self-heal them. The self-heal
+    # was lazy (only triggered on next current_lockout call), so between sync
+    # cycles nobody cleared them.
+    MAX_LOCKOUT_DURATION = 2.minutes
+
     def record_lockout!(retry_after, tenant_id: nil)
-      lockout_until = Time.current + retry_after.seconds
+      # Cap at MAX_LOCKOUT_DURATION - don't store unreasonable values
+      capped_retry = [retry_after, MAX_LOCKOUT_DURATION.to_i].min
+      lockout_until = Time.current + capped_retry.seconds
       lockout_data = {
         locked_until: lockout_until.iso8601,
-        retry_after_seconds: retry_after,
+        retry_after_seconds: capped_retry,
         recorded_at: Time.current.iso8601,
         tenant_id: tenant_id
       }
 
-      # FRC (Feb 2026): Only store per-tenant lockout - each Xero org has independent limits
-      # Global lockout was blocking all 10 orgs when only 1 hit its limit
       if tenant_id.present?
-        Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: retry_after.seconds + 60)
-        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Tenant #{tenant_id} rate limited for #{retry_after} seconds (until #{lockout_until})")
+        Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: capped_retry.seconds + 30)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Tenant #{tenant_id} for #{capped_retry}s (requested #{retry_after}s, capped)")
       else
-        # Fallback: Only use global if no tenant_id (shouldn't happen in normal operation)
-        Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: retry_after.seconds + 60)
-        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Global rate limit for #{retry_after} seconds (until #{lockout_until})")
+        Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: capped_retry.seconds + 30)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Global for #{capped_retry}s (requested #{retry_after}s, capped)")
       end
 
       lockout_data

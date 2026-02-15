@@ -182,10 +182,7 @@ class XeroContactSyncJob < ApplicationJob
     self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id, use_legacy_sync: true))
   end
 
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 
   # ============================================
   # SINGLE CONTACT SYNC (for webhooks)

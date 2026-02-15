@@ -205,4 +205,14 @@ module XeroJobBase
       records_processed: @records_processed || 0
     )
   end
+
+  # SSoT: Extract retry_after seconds from RateLimitError message.
+  # Previously duplicated across 6 jobs with a 3600s (1 hour!) default.
+  # Xero's per-minute limit resets in 60s, so 120s default is plenty.
+  # record_lockout! also caps at MAX_LOCKOUT_DURATION as a safety net.
+  def extract_retry_after(message)
+    match = message.to_s.match(/retry after (\d+)/i)
+    match ||= message.to_s.match(/(\d+)\s*seconds?/i)
+    match ? match[1].to_i : 120
+  end
 end

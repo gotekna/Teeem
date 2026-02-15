@@ -397,10 +397,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       (usage.dig(:daily, :percentage) || 0) >= 90
   end
 
-  def extract_retry_after(message)
-    match = message.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 
   # ════════════════════════════════════════════════════════════════════════════
   # PER-TENANT LOCKING (replaces global batch lock)

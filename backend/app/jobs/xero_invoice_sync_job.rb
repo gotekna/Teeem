@@ -194,9 +194,5 @@ class XeroInvoiceSyncJob < ApplicationJob
     self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id))
   end
 
-  # Extract retry_after seconds from RateLimitError message
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 end

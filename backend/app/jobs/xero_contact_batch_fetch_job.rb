@@ -155,12 +155,12 @@ class XeroContactBatchFetchJob < ApplicationJob
     )
   end
 
+  # FRC (Feb 2026): Default reduced from 3600s to 120s across all Xero jobs.
+  # Xero's per-minute limit resets in 60s - locking for 1 hour was absurd.
+  # SSoT version is in XeroJobBase concern (this job doesn't include it).
   def extract_retry_after(error_message)
-    # Try to extract retry-after from error message
-    if match = error_message.match(/(\d+)\s*seconds?/i)
-      match[1].to_i
-    else
-      60  # Default to 60 seconds
-    end
+    match = error_message.to_s.match(/retry after (\d+)/i)
+    match ||= error_message.to_s.match(/(\d+)\s*seconds?/i)
+    match ? match[1].to_i : 120
   end
 end
