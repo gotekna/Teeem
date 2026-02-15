@@ -225,11 +225,12 @@ interface OrgDataStats {
     source_type: string;
     label: string;
     icon?: string;          // Icon name from WarehouseType (DB-driven)
-    total: number;          // Expected: count from source table (how many SHOULD exist)
+    has_target?: boolean;   // true if Expected is a meaningful target (email/xero)
+    total: number;          // Expected target (if has_target) or same as in_warehouse
     in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
     with_file: number;
-    missing: number;        // How many still need files
+    missing: number | null; // How many still need files (null if no target)
     unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
     file_rate: number;
     tenant_breakdown?: Array<{
@@ -1380,10 +1381,13 @@ export function DataWarehouseTab() {
                 <p className="text-2xl font-bold">{stats.documents.total_documents.toLocaleString()}</p>
                 <p className="text-xs text-muted-foreground">WH Documents</p>
                 {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (() => {
-                  const expectedTotal = stats.warehouse_breakdown.reduce((sum, row) => sum + (row.total || 0), 0);
+                  const targetTotal = stats.warehouse_breakdown
+                    .filter((row) => row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero"))
+                    .reduce((sum, row) => sum + (row.total || 0), 0);
+                  if (targetTotal <= 0) return null;
                   return (
                     <p className="text-xs text-muted-foreground">
-                      of <span className="font-medium text-foreground">{expectedTotal.toLocaleString()}</span> expected
+                      <span className="font-medium text-foreground">{targetTotal.toLocaleString()}</span> target (emails + invoices)
                     </p>
                   );
                 })()}
@@ -1456,7 +1460,7 @@ export function DataWarehouseTab() {
                           <span className="cursor-help border-b border-dotted border-muted-foreground/50">Expected</span>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Total records in the source table (e.g. SyncedEmail, Job, Contact). How many SHOULD have files.</p>
+                          <p className="max-w-xs text-xs">Target count for types with 1:1 relationship (emails, invoices). Shows &quot;-&quot; for types where one record can have multiple documents.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -1501,6 +1505,18 @@ export function DataWarehouseTab() {
                     <TooltipProvider>
                       <Tooltip delayDuration={300}>
                         <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Dupes</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Duplicate blob references — multiple documents sharing the same file. Saves storage via deduplication.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
                           <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unfetchable</span>
                         </TooltipTrigger>
                         <TooltipContent side="top">
@@ -1514,6 +1530,7 @@ export function DataWarehouseTab() {
               <TableBody>
                 {stats.warehouse_breakdown.map((row) => {
                   const missing = row.missing ?? 0;
+                  const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero");
                   return (
                     <React.Fragment key={row.source_type}>
                       <TableRow>
@@ -1532,7 +1549,7 @@ export function DataWarehouseTab() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {row.total.toLocaleString()}
+                          {hasTarget ? row.total.toLocaleString() : <span className="text-muted-foreground/50">-</span>}
                         </TableCell>
                         <TableCell className="text-right">
                           {row.in_warehouse.toLocaleString()}
@@ -1546,7 +1563,9 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {missing > 0 ? (
+                          {!hasTarget ? (
+                            <span className="text-muted-foreground/50">-</span>
+                          ) : missing > 0 ? (
                             <span className="text-red-600 dark:text-red-400">{missing.toLocaleString()}</span>
                           ) : (
                             <span className="text-green-600 dark:text-green-400">-</span>
@@ -1632,13 +1651,16 @@ export function DataWarehouseTab() {
               </TableBody>
               {(() => {
                 const rowTotals = stats.warehouse_breakdown.reduce(
-                  (acc, row) => ({
-                    expected: acc.expected + (row.total || 0),
-                    inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
-                    withFile: acc.withFile + (row.with_file || 0),
-                    missing: acc.missing + (row.missing ?? 0),
-                    unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
-                  }),
+                  (acc, row) => {
+                    const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment" || row.source_type === "xero");
+                    return {
+                      expected: acc.expected + (hasTarget ? (row.total || 0) : 0),
+                      inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
+                      withFile: acc.withFile + (row.with_file || 0),
+                      missing: acc.missing + (hasTarget ? (row.missing ?? 0) : 0),
+                      unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
+                    };
+                  },
                   { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, unfetchable: 0 }
                 );
                 const totalWhDocs = stats.documents.total_documents;
@@ -1647,7 +1669,7 @@ export function DataWarehouseTab() {
                 const grandWithFile = stats.blob_stats?.docs_with_file ?? rowTotals.withFile;
                 const grandExpected = rowTotals.expected;
                 const grandMissing = rowTotals.missing;
-                const totalRate = grandExpected > 0 ? ((grandWithFile / grandExpected) * 100).toFixed(1) : "0";
+                const totalRate = grandInWarehouse > 0 ? ((grandWithFile / grandInWarehouse) * 100).toFixed(1) : "0";
                 return (
                   <TableFooter>
                     <TableRow className="font-medium">

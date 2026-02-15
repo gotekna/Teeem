@@ -393,11 +393,12 @@ class SyncedEmail < ApplicationRecord
 
   # SSoT: Get attachment documents for this email via WarehouseDocument (Jan 2026)
   # Returns WarehouseDocument records linked to this email
-  # FRC (Feb 2026): Fixed query to match actual storage format from sync_attachments!
-  # Attachments are stored with source_type='email_attachment' and metadata key 'synced_email_id'
+  # SSoT (Feb 2026): linkable FK is THE ONE way to link attachments to emails.
+  # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
+  # linkable is a proper polymorphic FK with index — faster and Rails-standard.
+  # metadata['synced_email_id'] is kept as audit data, not for querying.
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment')
-                     .where("metadata->>'synced_email_id' = ?", id.to_s)
+    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)

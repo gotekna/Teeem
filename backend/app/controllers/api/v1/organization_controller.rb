@@ -773,31 +773,35 @@ module Api
             in_warehouse = scope.count
             w_blob = scope.where.not(storage_blob_id: nil).count
             w_file = count_with_file.call(scope)
+            unique_blobs = scope.where.not(storage_blob_id: nil).distinct.count(:storage_blob_id)
+            has_target = expected.present?
             total = expected || in_warehouse
             {
               source_type: source_type, label: label,
+              has_target: has_target,
               total: total, in_warehouse: in_warehouse,
               with_blob: w_blob, with_file: w_file,
-              missing: [total - w_file, 0].max,
-              file_rate: total > 0 ? ((w_file.to_f / total) * 100).round(1) : 0
+              unique_blobs: unique_blobs,
+              duplicates: w_blob > unique_blobs ? w_blob - unique_blobs : 0,
+              missing: has_target ? [total - w_file, 0].max : nil,
+              file_rate: has_target && total > 0 ? ((w_file.to_f / total) * 100).round(1) : (in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0)
             }
           }
 
-          # Pre-compute all warehouse_type counts in 3 queries (not N+1)
+          # Pre-compute all warehouse_type counts in 4 queries (not N+1)
           by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).group(:warehouse_type).count
           blob_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""]).where.not(storage_blob_id: nil).group(:warehouse_type).count
           file_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""])
             .joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL")
             .group(:warehouse_type).count
+          unique_by_wt = WarehouseDocument.where.not(warehouse_type: [nil, ""])
+            .where.not(storage_blob_id: nil)
+            .group(:warehouse_type).distinct.count(:storage_blob_id)
 
-          # Expected counts from source tables (only for types with a source_model)
-          expected_counts = {
-            "job" => (Job.count rescue 0),
-            "corporate" => (defined?(Corporate) ? Corporate.count : 0),
-            "contact" => (Contact.count rescue 0),
-            "user" => (User.count rescue 0),
-            "task" => (defined?(SmTask) ? SmTask.count : 0)
-          }
+          # Expected counts: ONLY for types with a meaningful 1:1 target
+          # (e.g., every email should have an .eml, every invoice should have a PDF)
+          # NOT for types like job/contact/user where 1 record can have 0 or many docs
+          expected_counts = {}
 
           # ── Iterate all warehouse types from DB ────────────────────────────
           WarehouseType.enabled.ordered.each do |wt|
@@ -852,18 +856,23 @@ module Api
             # Standard row for this warehouse type
             in_warehouse = by_wt[wt.code] || 0
             expected = expected_counts[wt.code]
+            has_target = expected.present?
             total = expected || in_warehouse
             next if in_warehouse == 0 && (expected.nil? || expected == 0)
 
             w_blob = blob_by_wt[wt.code] || 0
             w_file = file_by_wt[wt.code] || 0
+            w_unique = unique_by_wt[wt.code] || 0
             results << {
               source_type: wt.code, label: wt.display_name,
               icon: wt.icon_name,
+              has_target: has_target,
               total: total, in_warehouse: in_warehouse,
               with_blob: w_blob, with_file: w_file,
-              missing: [total - w_file, 0].max,
-              file_rate: total > 0 ? ((w_file.to_f / total) * 100).round(1) : 0
+              unique_blobs: w_unique,
+              duplicates: w_blob > w_unique ? w_blob - w_unique : 0,
+              missing: has_target ? [total - w_file, 0].max : nil,
+              file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
             }
           end
 
