@@ -1012,21 +1012,27 @@ class SyncedEmail < ApplicationRecord
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
 
-    # SSoT: Try linking existing attachments first (don't re-download)
-    link_existing_attachments!
+    # FRC (Feb 2026): StorageBlob.upload_to_storage! needs tenant context to find
+    # the storage provider (Wasabi/S3). Without this, blob creation fails with
+    # "Tenant context required" when called from rake tasks or background jobs.
+    # SyncedEmail acts_as_tenant :tenant, so self.tenant is always available.
+    ActsAsTenant.with_tenant(tenant) do
+      # SSoT: Try linking existing attachments first (don't re-download)
+      link_existing_attachments!
 
-    # Try Microsoft Graph first, then IMAP fallback
-    if sync_attachments_via_graph!
-      update_column(:attachment_count, attachment_documents.reload.count)
-      return
+      # Try Microsoft Graph first, then IMAP fallback
+      if sync_attachments_via_graph!
+        update_column(:attachment_count, attachment_documents.reload.count)
+        return
+      end
+
+      if sync_attachments_via_imap!
+        update_column(:attachment_count, attachment_documents.reload.count)
+        return
+      end
+
+      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no working credential (Graph or IMAP)"
     end
-
-    if sync_attachments_via_imap!
-      update_column(:attachment_count, attachment_documents.reload.count)
-      return
-    end
-
-    Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no working credential (Graph or IMAP)"
   end
 
   private
