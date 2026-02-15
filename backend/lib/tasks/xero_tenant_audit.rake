@@ -137,12 +137,35 @@ namespace :xero do
         if dry_run
           puts "    (dry run - no changes made)"
         else
-          # Also need to clear contact_id since contacts belong to different tenant
-          wrong_invoices.update_all(
-            tenant_id: expected_tenant_id,
-            contact_id: nil  # Will need re-linking in new tenant
-          )
-          puts "    ✅ Fixed #{count} invoices (contact_id cleared for re-linking)"
+          # FRC: Unique constraint on (source, tenant_id, external_id) means we can't
+          # just update_all - some invoices already exist in the target tenant.
+          # Strategy: Delete duplicates that already exist in target, then move the rest.
+          moved = 0
+          deleted_dupes = 0
+
+          wrong_invoices.find_each do |invoice|
+            # Check if this invoice already exists in the target tenant
+            existing = ExternalInvoice.unscoped.find_by(
+              source: invoice.source,
+              tenant_id: expected_tenant_id,
+              external_id: invoice.external_id
+            )
+
+            if existing
+              # Duplicate - delete the misassigned one (target already has it)
+              invoice.destroy
+              deleted_dupes += 1
+            else
+              # Safe to move - update tenant_id and clear contact_id
+              invoice.update_columns(
+                tenant_id: expected_tenant_id,
+                contact_id: nil
+              )
+              moved += 1
+            end
+          end
+
+          puts "    ✅ Moved #{moved}, deleted #{deleted_dupes} duplicates"
         end
 
         fixed_count += count
