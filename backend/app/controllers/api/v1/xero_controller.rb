@@ -2033,7 +2033,12 @@ module Api
         begin
           # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
           # This ensures counts match the status page exactly
+          # FRC (Feb 2026): Also filter by xero_org_id to prevent cross-tenant data leaks.
+          # acts_as_tenant scopes by tenant_id, but if invoices were imported with the wrong
+          # tenant_id (e.g., Pilgrim invoices stamped as Tekna), they'd leak through.
+          xero_org_ids = current_tenant_xero_org_ids
           unlinked = ExternalInvoice.needs_contact_linking
+            .where(xero_org_id: xero_org_ids)
             .group(:contact_name, :external_contact_id)
             .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
             .order("invoice_count DESC")
@@ -2282,12 +2287,16 @@ module Api
             link.save!
 
             # Update all invoices with this Xero contact ID to point to the TEEEM contact
+            # FRC (Feb 2026): Also filter by xero_org_id to avoid updating cross-tenant invoices
+            xero_org_ids = current_tenant_xero_org_ids
             updated_count = ExternalInvoice.where(external_contact_id: xero_contact_id)
+              .where(xero_org_id: xero_org_ids)
               .update_all(contact_id: @contact.id)
 
             # Also update by name if we have it (for invoices that might have the name but not the ID)
             if xero_contact_name.present?
               name_updated = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+                .where(xero_org_id: xero_org_ids)
                 .update_all(contact_id: @contact.id)
               updated_count += name_updated
             end
@@ -2319,8 +2328,12 @@ module Api
           skipped_count = 0
           results = []
 
-          # Get all unique unlinked contact names
+          # FRC (Feb 2026): Filter by xero_org_id to prevent cross-tenant auto-matching
+          xero_org_ids = current_tenant_xero_org_ids
+
+          # Get all unique unlinked contact names (scoped to this tenant's Xero orgs)
           unlinked = ExternalInvoice.where(contact_id: nil)
+            .where(xero_org_id: xero_org_ids)
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .distinct
             .pluck(:contact_name)
@@ -2338,8 +2351,9 @@ module Api
             teeem_contact ||= match_scope.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
 
             if teeem_contact
-              # Link all invoices with this name
+              # Link all invoices with this name (scoped to this tenant's Xero orgs)
               count = ExternalInvoice.where(contact_id: nil, contact_name: xero_name)
+                .where(xero_org_id: xero_org_ids)
                 .update_all(contact_id: teeem_contact.id)
 
               matched_count += 1
@@ -2975,6 +2989,16 @@ module Api
       end
 
       private
+
+      # SSoT: Get Xero org UUIDs belonging to the current TEEEM tenant's XeroCredentials
+      # FRC (Feb 2026): Prevents cross-tenant data leaks where invoices from another
+      # tenant's Xero org were imported with the wrong tenant_id.
+      # Master tenants see only their own orgs (not all) to prevent data confusion.
+      def current_tenant_xero_org_ids
+        @current_tenant_xero_org_ids ||= XeroCredential
+          .for_teeem_tenant(current_tenant)
+          .pluck(:tenant_id)
+      end
 
       # Compute sync stats using batch queries (XeroSyncStatsService)
       # This reduces query count from O(n) to O(1) for per-tenant stats
