@@ -828,10 +828,9 @@ module Api
               row[:missing] = [email_body_total - row[:with_file] - email_body_unfetchable - email_body_no_outlook, 0].max
               results << row if email_body_total > 0
 
-              # Email Attachments
-              email_attach_target = SyncedEmail.where(has_attachments: true).count
+              # Email Attachments — no 1:1 target (one email can have many attachments)
               email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
-              results << build_row.call("email_attachment", "Email Attachments", email_attach_scope, expected: email_attach_target) if email_attach_target > 0 || email_attach_scope.exists?
+              results << build_row.call("email_attachment", "Email Attachments", email_attach_scope) if email_attach_scope.exists?
               next
             end
 

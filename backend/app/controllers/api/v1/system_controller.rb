@@ -419,31 +419,54 @@ module Api
       end
 
       # Application-level backlog: remaining work across subsystems
-      # These are NOT queue jobs - they're records still needing processing
+      # SSoT: Uses SAME formulas as Data Warehouse dashboard (organization_controller#data_warehouse)
+      # so the numbers always match. If you change one, change both.
       def compute_backlog
         items = []
 
-        # Email uploads remaining (SSoT: matches EmailStorageUploadService filters)
-        email_remaining = SyncedEmail.unscoped
-          .where(storage_path: [nil, ""])
-          .where(storage_email_path: [nil, ""])
-          .where.not(outlook_id: [nil, ""])
-          .where.not(mailbox_owner_email: [nil, ""])
-          .where(content_unavailable: false)
-          .count
+        # ── Email Bodies ──
+        # SSoT formula: total - with_verified_file - unfetchable - no_outlook
+        email_total = SyncedEmail.unscoped.count
+        if email_total > 0
+          email_with_file = WarehouseDocument
+            .where(source_type: "email", documentable_type: "SyncedEmail")
+            .joins(:storage_blob)
+            .where("storage_blobs.verified_at IS NOT NULL")
+            .count
+          email_unfetchable = SyncedEmail.unscoped.where("storage_path LIKE ?", "UNFETCHABLE%").count +
+                              SyncedEmail.unscoped.where(content_unavailable: true).count
+          email_no_outlook = SyncedEmail.unscoped
+            .where(outlook_id: [nil, ""])
+            .or(SyncedEmail.unscoped.where(mailbox_owner_email: [nil, ""]))
+            .count
+          email_missing = [email_total - email_with_file - email_unfetchable - email_no_outlook, 0].max
+          items << { key: "email_uploads", label: "Email uploads", remaining: email_missing } if email_missing > 0
+        end
 
-        items << { key: "email_uploads", label: "Email uploads", remaining: email_remaining } if email_remaining > 0
+        # ── Xero Invoices ──
+        # SSoT formula: total non-draft invoices with contact - with_verified_file
+        if defined?(ExternalInvoice)
+          xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
+          if xero_total > 0
+            xero_with_file = WarehouseDocument
+              .where(source_type: "xero")
+              .joins(:storage_blob)
+              .where("storage_blobs.verified_at IS NOT NULL")
+              .count
+            xero_missing = [xero_total - xero_with_file, 0].max
+            items << { key: "xero_invoices", label: "Xero invoices", remaining: xero_missing } if xero_missing > 0
+          end
+        end
 
-        # Xero contacts pending review (unscoped - cross-tenant)
+        # ── Xero contacts pending review ──
         xero_pending = if MvXeroSyncStat.available?
           MvXeroSyncStat.sum(:pending_review).to_i
         else
           0
         end
-
         items << { key: "xero_contacts", label: "Xero contacts pending", remaining: xero_pending } if xero_pending > 0
 
-        # Xero active sync sessions
+        # ── Xero active sync sessions ──
         xero_active = XeroSyncSession.active.count
         items << { key: "xero_sync", label: "Xero sync sessions", remaining: xero_active } if xero_active > 0
 
