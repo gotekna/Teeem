@@ -891,7 +891,11 @@ module Api
           total_blobs = StorageBlob.count
           verified_blobs = StorageBlob.where.not(verified_at: nil).count
           unverified_blobs = total_blobs - verified_blobs
-          orphan_blobs = StorageBlob.left_joins(:warehouse_documents).where(warehouse_documents: { id: nil }).count
+          # FRC (Feb 2026): Previous query only checked warehouse_documents, missing 15+ other
+          # models (ChatMessage, PdfGeneration, email_attachments, etc.) — showed 6K+ false orphans.
+          # BlobReferenceScanner is THE SSoT for all blob references across 20+ sources.
+          referenced_count = BlobReferenceScanner.all_referenced_blob_ids.size
+          orphan_blobs = [total_blobs - referenced_count, 0].max
           # How many WH docs have a verified file (across ALL docs, not just breakdown rows)
           docs_with_file = WarehouseDocument.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
           # Unclassified: docs NOT covered by any breakdown row
