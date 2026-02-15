@@ -49,6 +49,8 @@ class BlobReferenceScanner
       next unless Object.const_defined?(model_name)
 
       klass = model_name.constantize
+      next unless table_exists?(klass)
+
       scope = klass.respond_to?(:unscoped) ? klass.unscoped : klass
       ids = scope.where.not(column => nil).distinct.pluck(column)
       all_ids.merge(ids)
@@ -56,7 +58,7 @@ class BlobReferenceScanner
     end
 
     # PricebookItem has 3 blob columns
-    if Object.const_defined?("PricebookItem")
+    if Object.const_defined?("PricebookItem") && table_exists?(PricebookItem)
       PRICEBOOK_BLOB_COLUMNS.each do |col|
         ids = PricebookItem.where.not(col => nil).distinct.pluck(col)
         all_ids.merge(ids)
@@ -87,11 +89,13 @@ class BlobReferenceScanner
       next unless Object.const_defined?(model_name)
 
       klass = model_name.constantize
+      next unless table_exists?(klass)
+
       scope = klass.respond_to?(:unscoped) ? klass.unscoped : klass
       count += scope.where(column => blob_id).count
     end
 
-    if Object.const_defined?("PricebookItem")
+    if Object.const_defined?("PricebookItem") && table_exists?(PricebookItem)
       PRICEBOOK_BLOB_COLUMNS.each do |col|
         count += PricebookItem.where(col => blob_id).count
       end
@@ -111,5 +115,14 @@ class BlobReferenceScanner
   # Total number of reference sources being checked
   def self.source_count
     REFERENCE_SOURCES.count + PRICEBOOK_BLOB_COLUMNS.count + LEGACY_TABLES.count
+  end
+
+  # Check if a model's table exists in the database.
+  # FRC (Feb 2026): ContactDocument model exists but table doesn't yet.
+  # const_defined? passes but querying crashes with PG::UndefinedTable.
+  def self.table_exists?(klass)
+    klass.connection.table_exists?(klass.table_name)
+  rescue StandardError
+    false
   end
 end
