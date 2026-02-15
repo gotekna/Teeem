@@ -783,8 +783,8 @@ module Api
               with_blob: w_blob, with_file: w_file,
               unique_blobs: unique_blobs,
               duplicates: w_blob > unique_blobs ? w_blob - unique_blobs : 0,
-              missing: has_target ? [total - w_file, 0].max : nil,
-              file_rate: has_target && total > 0 ? ((w_file.to_f / total) * 100).round(1) : (in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0)
+              missing: has_target ? [total - w_file, 0].max : [in_warehouse - w_file, 0].max,
+              file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
             }
           }
 
@@ -871,7 +871,7 @@ module Api
               with_blob: w_blob, with_file: w_file,
               unique_blobs: w_unique,
               duplicates: w_blob > w_unique ? w_blob - w_unique : 0,
-              missing: has_target ? [total - w_file, 0].max : nil,
+              missing: has_target ? [total - w_file, 0].max : [in_warehouse - w_file, 0].max,
               file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
             }
           end

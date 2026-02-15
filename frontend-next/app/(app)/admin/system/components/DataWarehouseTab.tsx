@@ -230,7 +230,7 @@ interface OrgDataStats {
     in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
     with_file: number;
-    missing: number | null; // How many still need files (null if no target)
+    missing: number; // Docs without files (Expected - Has File for targets, WH Docs - Has File for others)
     unique_blobs?: number;  // Distinct storage blobs (deduplication count)
     duplicates?: number;    // with_blob minus unique_blobs (shared blob references)
     unfetchable?: number;   // Emails from deleted mailboxes (will never have file)
@@ -1498,7 +1498,7 @@ export function DataWarehouseTab() {
                           <span className="cursor-help border-b border-dotted border-muted-foreground/50">Missing</span>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          <p className="max-w-xs text-xs">Expected minus Has File. Records that still need files uploaded to Wasabi.</p>
+                          <p className="max-w-xs text-xs">Warehouse docs without files. For types with Expected targets, this is Expected minus Has File.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -1565,9 +1565,7 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {!hasTarget ? (
-                            <span className="text-muted-foreground/50">-</span>
-                          ) : missing > 0 ? (
+                          {missing > 0 ? (
                             <span className="text-red-600 dark:text-red-400">{missing.toLocaleString()}</span>
                           ) : (
                             <span className="text-green-600 dark:text-green-400">-</span>
@@ -1668,7 +1666,7 @@ export function DataWarehouseTab() {
                       expected: acc.expected + (hasTarget ? (row.total || 0) : 0),
                       inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
                       withFile: acc.withFile + (row.with_file || 0),
-                      missing: acc.missing + (hasTarget ? (row.missing ?? 0) : 0),
+                      missing: acc.missing + (row.missing ?? 0),
                       duplicates: acc.duplicates + (row.duplicates ?? 0),
                       unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
                     };
