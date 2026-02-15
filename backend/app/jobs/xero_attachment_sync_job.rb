@@ -264,11 +264,19 @@ class XeroAttachmentSyncJob < ApplicationJob
   def find_invoices_needing_pdfs(limit, xero_tenant_id = nil, invoice_type = nil)
     # ⚠️ DO NOT use .pluck() here - it loads ALL synced IDs into Ruby memory (Feb 2026)
     # Use a SQL subquery instead to keep filtering in PostgreSQL
+    #
+    # FRC (Feb 2026): Two definitions of "already synced":
+    # 1. Invoices/quotes/credit notes: WarehouseDocument with storage_blob (has actual PDF)
+    # 2. Bills: WarehouseDocument exists at all (bills have no auto-PDF, just a record)
+    #
+    # ⚠️ DO NOT SIMPLIFY to just "WarehouseDocument exists" — that would skip invoices
+    # where the WarehouseDocument was created but PDF download failed (storage_blob_id nil).
+    # Those invoices SHOULD be retried. Bills should NOT (they never get a blob).
     already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
       .where("metadata->>'is_primary' = ?", "true")
-      .where.not(storage_blob_id: nil)
+      .where("storage_blob_id IS NOT NULL OR metadata->>'is_bill_record' = 'true'")
       .select(:documentable_id)
 
     # FRC (Feb 2026): Invoice types and their PDF availability:
@@ -280,6 +288,9 @@ class XeroAttachmentSyncJob < ApplicationJob
     #
     # Bills ARE included - they don't have auto-PDFs but can have attachments.
     # The sync service handles this by skipping PDF download for bills.
+    # FRC (Feb 2026): Order matters — process invoices/quotes/credit notes FIRST
+    # (they have actual Xero-generated PDFs), then bills (only have attachments).
+    # Without ordering, bills could monopolize the per-cycle limit.
     query = ExternalInvoice
       .active
       .where.not(status: "draft")       # Draft invoices have no PDF
@@ -287,6 +298,7 @@ class XeroAttachmentSyncJob < ApplicationJob
       .where.not(tenant_id: nil)
       .where.not(contact_id: nil)
       .where("external_invoices.id NOT IN (?)", already_synced_subquery)
+      .order(Arel.sql("CASE WHEN invoice_type = 'bill' THEN 1 ELSE 0 END, id"))
       .limit(limit)
 
     if xero_tenant_id.present?
@@ -305,11 +317,13 @@ class XeroAttachmentSyncJob < ApplicationJob
     return 0 unless xero_tenant_id.present?
 
     # ⚠️ DO NOT use .pluck() here - keeps all IDs in Ruby memory (Feb 2026)
+    # FRC (Feb 2026): Must match find_invoices_needing_pdfs subquery exactly
+    # Bills with WarehouseDocument (is_bill_record) are "synced" even without storage_blob
     already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
       .where("metadata->>'is_primary' = ?", "true")
-      .where.not(storage_blob_id: nil)
+      .where("storage_blob_id IS NOT NULL OR metadata->>'is_bill_record' = 'true'")
       .select(:documentable_id)
 
     contact_ids_subquery = ContactExternalLink

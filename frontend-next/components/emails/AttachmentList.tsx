@@ -445,9 +445,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
               className="flex items-center gap-1.5 text-sm"
             >
               {isFailed ? (
-                <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" title="Download failed - click to retry" />
+                <span title="Download failed - click to retry"><AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /></span>
               ) : needsDownload ? (
-                <CloudDownload className="h-4 w-4 text-blue-500 shrink-0" title="Click to download from email server" />
+                <span title="Click to download from email server"><CloudDownload className="h-4 w-4 text-blue-500 shrink-0" /></span>
               ) : (
                 <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
               )}
