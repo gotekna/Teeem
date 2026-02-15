@@ -1658,7 +1658,70 @@ class Api::V1::SyncedEmailsController < ApplicationController
       return doc if doc&.storage_blob.present?
     end
 
+    # 4. On-demand sync from MS365 - attachment exists in Outlook but wasn't synced to Wasabi
+    # This handles attachments discovered by build_attachments_list supplementary fetch
+    if attachment_id.present? && !attachment_id.to_s.match?(/\A\d+\z/) && @email.outlook_id.present?
+      doc = sync_attachment_on_demand(attachment_id)
+      return doc if doc&.storage_blob.present?
+    end
+
     nil
+  end
+
+  # Fetch a single attachment from MS365 and store in Wasabi on-demand.
+  # Called when user tries to download an attachment that was shown via the
+  # supplementary MS365 fetch but wasn't synced during initial email sync.
+  def sync_attachment_on_demand(outlook_attachment_id)
+    credential = find_email_credential(@email)
+    return nil unless credential&.valid_credential?
+
+    mailbox = @email.mailbox_owner_email
+    return nil unless mailbox.present?
+
+    client = MicrosoftAppGraphClient.new(credential)
+    result = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
+    return nil unless result
+
+    ActsAsTenant.with_tenant(@email.tenant) do
+      blob = StorageBlob.find_or_create_for_content!(
+        result[:content], filename: result[:filename], content_type: result[:content_type]
+      )
+
+      doc = WarehouseDocumentCreator.create!(
+        filename: result[:filename],
+        source_type: "email_attachment",
+        linkable: @email,
+        storage_blob: blob,
+        file_size: result[:content].bytesize,
+        content_type: result[:content_type] || blob.content_type,
+        metadata: {
+          "synced_email_id" => @email.id.to_s,
+          "content_id" => result[:content_id],
+          "outlook_attachment_id" => outlook_attachment_id,
+          "mailbox" => mailbox,
+          "synced_on_demand" => true
+        }.compact
+      )
+
+      blob.increment!(:reference_count)
+      Rails.logger.info "[SyncedEmail] On-demand synced attachment: #{result[:filename]} for email #{@email.id}"
+      doc
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] On-demand sync failed for attachment #{outlook_attachment_id}: #{e.message}"
+    nil
+  end
+
+  # Find a working MS365 credential for an email
+  def find_email_credential(email)
+    if email.microsoft_credential_id.present?
+      MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                         .find_by(id: email.microsoft_credential_id) ||
+      MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+    else
+      MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                         .refreshable_app.first
+    end
   end
 
   def set_email
@@ -1891,18 +1954,21 @@ class Api::V1::SyncedEmailsController < ApplicationController
       ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
 
       # Filter out embedded images/signatures - be conservative to not lose real attachments
-      # Only filter if: isInline=true, OR (has contentId AND is small image = signature)
-      # FRC (Feb 2026): Previous filter was too aggressive - rejected any attachment with contentId
+      # Must match sync filter logic (synced_email.rb line ~1078) to avoid inconsistencies.
+      # FRC (Feb 2026): Previous filter rejected any isInline attachment, which incorrectly
+      # hid PDFs and other non-image attachments that MS Graph sometimes marks as isInline.
+      # Fix: Only reject small inline IMAGES (signatures/logos), never non-image attachments.
       filtered = ms_attachments.reject do |att|
-        is_inline = att["isInline"] == true
         content_type = att["contentType"]&.to_s&.downcase || ""
         file_size = att["size"].to_i
-        has_content_id = att["contentId"].present?
         is_image = content_type.start_with?("image/")
         is_small = file_size < 100_000  # 100KB threshold
+        is_inline = att["isInline"] == true
+        has_content_id = att["contentId"].present?
 
-        # Reject if explicitly inline, OR if it's a small image with contentId (signature)
-        is_inline || (has_content_id && is_image && is_small)
+        # Only reject small inline images (signatures/logos)
+        # Never reject non-image files (PDFs, EMLs, etc.) regardless of isInline flag
+        is_image && is_small && (is_inline || has_content_id)
       end
 
       # Add MS365 attachments that aren't already synced locally
@@ -1933,8 +1999,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
       end
 
       # SSoT: Update attachment_count when we discover actual count from Outlook
-      # Count non-inline attachments (real documents)
-      real_attachment_count = result.reject { |a| a[:content_id].present? }.size
+      # Count non-inline attachments (real documents visible to users)
+      # FRC: Use is_inline flag, not content_id - PDFs can have content_id from MS Graph
+      real_attachment_count = result.reject { |a| a[:is_inline] }.size
       if real_attachment_count > 0 && email.attachment_count.to_i != real_attachment_count
         email.update_column(:attachment_count, real_attachment_count)
       end

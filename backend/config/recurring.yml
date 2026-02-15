@@ -577,6 +577,20 @@ tenant_backup_dispatcher:
   schedule: every 15 minutes
 
 # ============================================
+# STORAGE BLOB MAINTENANCE
+# ============================================
+
+# Weekly orphan blob audit - safety net for blobs created without WarehouseDocuments
+# FRC (Feb 2026): 38 of 39 blob-creating callers bypass WarehouseDocumentCreator,
+# creating blobs without WarehouseDocument entries. This catches those orphans.
+# Does NOT auto-delete — logs findings for manual review via 'rails blob:cleanup:orphaned'
+orphan_blob_audit:
+  class: OrphanBlobAuditJob
+  queue: low
+  args: [{ min_age_days: 7 }]
+  schedule: every Sunday at 6am
+
+# ============================================
 # SSOT COMPLIANCE
 # ============================================
 

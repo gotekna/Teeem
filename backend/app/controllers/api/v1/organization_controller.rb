@@ -907,12 +907,9 @@ module Api
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
 
-          # Deduplication stats (attachments save most storage)
-          total_refs = StorageBlob.sum(:reference_count)
-          dupes_avoided = total_refs - total_blobs
-          # Estimate bytes saved: avg file size * dupes avoided
+          # Deduplication stats — SSoT: derived from warehouse_breakdown rows (not separate query)
+          # Computed after blob_stats hash is built, see below
           avg_size = total_blobs > 0 ? (total_bytes.to_f / total_blobs) : 0
-          bytes_saved = (avg_size * dupes_avoided).to_i
 
           {
             total_blobs: total_blobs,
@@ -926,10 +923,9 @@ module Api
             blobs_format: blobs_path,
             legacy_format: emails_path,
             migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0,
-            # Deduplication
-            total_references: total_refs,
-            duplicates_avoided: dupes_avoided,
-            bytes_saved: bytes_saved,
+            # Deduplication — placeholders, filled from warehouse_breakdown SSoT below
+            duplicates_avoided: 0,
+            bytes_saved: 0,
             # Xero invoice sync status
             xero_total: defined?(ExternalInvoice) ? ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count : 0,
             xero_with_pdf: defined?(ExternalInvoice) ? WarehouseDocument.where(source_type: "xero").joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count : 0
@@ -959,6 +955,14 @@ module Api
           by_entity_type: entity_type_breakdown,
           health_rate: total_companies > 0 ? (((total_companies - missing_abn - overdue_review).to_f / total_companies) * 100).round(1) : 100
         }
+
+        # SSoT: Dedup stats derived from warehouse_breakdown rows (THE ONE source)
+        if blob_stats.is_a?(Hash) && warehouse_breakdown.is_a?(Array)
+          dupes_total = warehouse_breakdown.sum { |r| r[:duplicates] || 0 }
+          blob_avg_size = blob_stats[:total_blobs].to_i > 0 ? (blob_stats[:total_bytes].to_f / blob_stats[:total_blobs]) : 0
+          blob_stats[:duplicates_avoided] = dupes_total
+          blob_stats[:bytes_saved] = (blob_avg_size * dupes_total).to_i
+        end
 
         result = {
           success: true,
