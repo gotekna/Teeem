@@ -1128,14 +1128,13 @@ class SyncedEmail < ApplicationRecord
       filename = att_meta["name"]
       content_type = att_meta["contentType"]
       byte_size = att_meta["size"].to_i
-      content_id = att_meta["contentId"]
       graph_attachment_id = att_meta["id"]
 
       # Per-attachment dedup: skip only if THIS attachment already has a blob
       existing_doc = attachment_documents.find { |d| d.original_filename == filename }
       next if existing_doc&.storage_blob_id.present?
 
-      # Download this specific attachment
+      # Download this specific attachment (includes content_id for fileAttachments)
       result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
       next unless result
 
@@ -1152,7 +1151,7 @@ class SyncedEmail < ApplicationRecord
         content_type: result[:content_type] || blob.content_type,
         metadata: {
           "synced_email_id" => id.to_s,
-          "content_id" => content_id,
+          "content_id" => result[:content_id],
           "outlook_attachment_id" => graph_attachment_id,
           "mailbox" => used_mailbox
         }.compact

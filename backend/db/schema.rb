@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_15_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_15_200002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9842,6 +9842,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_15_100001) do
     t.jsonb "config_sync_table_timestamps", default: {}
     t.string "monitored_mailbox_esignature"
     t.boolean "esignature_require_email_verification", default: true, null: false
+    t.jsonb "ticket_sla_response_hours", default: {"low"=>24, "high"=>4, "medium"=>8, "urgent"=>1}, comment: "SLA response time by priority (hours)"
+    t.jsonb "ticket_sla_resolution_hours", default: {"low"=>168, "high"=>24, "medium"=>72, "urgent"=>4}, comment: "SLA resolution time by priority (hours)"
+    t.jsonb "ticket_priorities", default: ["urgent", "high", "medium", "low"], comment: "Available ticket priority levels"
+    t.jsonb "ticket_categories", default: ["bug", "feature_request", "question", "onboarding", "billing", "other"], comment: "Available ticket categories"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

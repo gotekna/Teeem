@@ -542,6 +542,31 @@ class TenantSetting < ApplicationRecord
     stripe_customer_id.present?
   end
 
+  # =============================================================================
+  # Ticket / SLA Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_SLA_RESPONSE_HOURS = { "urgent" => 1, "high" => 4, "medium" => 8, "low" => 24 }.freeze
+  DEFAULT_SLA_RESOLUTION_HOURS = { "urgent" => 4, "high" => 24, "medium" => 72, "low" => 168 }.freeze
+  DEFAULT_TICKET_PRIORITIES = %w[urgent high medium low].freeze
+  DEFAULT_TICKET_CATEGORIES = %w[bug feature_request question onboarding billing other].freeze
+
+  def self.sla_response_hours
+    instance.ticket_sla_response_hours.presence || DEFAULT_SLA_RESPONSE_HOURS
+  end
+
+  def self.sla_resolution_hours
+    instance.ticket_sla_resolution_hours.presence || DEFAULT_SLA_RESOLUTION_HOURS
+  end
+
+  def self.ticket_priorities
+    instance.ticket_priorities.presence || DEFAULT_TICKET_PRIORITIES
+  end
+
+  def self.ticket_categories
+    instance.ticket_categories.presence || DEFAULT_TICKET_CATEGORIES
+  end
+
   private
 
   def set_defaults

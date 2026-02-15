@@ -57,11 +57,13 @@ module Microsoft
     end
 
     # List email attachment metadata only (no contentBytes - fast, ~1KB response)
-    # Returns array of { id, name, contentType, size, isInline, contentId, @odata.type }
+    # Returns array of { id, name, contentType, size, isInline, @odata.type }
     # Use this to check if an email has real attachments before downloading them.
+    # Note: contentId is only on fileAttachment subtype, not base attachment type,
+    # so we can't include it in $select (causes 400 error). Get it on individual download.
     def list_email_attachments(user_identifier, message_id)
       endpoint = "/users/#{CGI.escape(user_identifier)}/messages/#{message_id}/attachments" \
-                 "?$select=id,name,contentType,size,isInline,contentId"
+                 "?$select=id,name,contentType,size,isInline"
       response = get(endpoint)
       response["value"] || []
     end
@@ -80,7 +82,8 @@ module Microsoft
         {
           content: Base64.decode64(attachment["contentBytes"]),
           filename: attachment["name"] || "attachment",
-          content_type: attachment["contentType"] || "application/octet-stream"
+          content_type: attachment["contentType"] || "application/octet-stream",
+          content_id: attachment["contentId"]
         }
       elsif attachment["@odata.type"] == "#microsoft.graph.itemAttachment"
         # Item attachments are nested messages (emails attached to emails)

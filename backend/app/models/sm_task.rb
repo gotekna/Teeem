@@ -561,31 +561,23 @@ class SmTask < ApplicationRecord
   # Support Ticket Methods
   # ============================================
 
-  # SLA defaults by priority (in hours)
-  SLA_RESPONSE_HOURS = {
-    "urgent" => 1,
-    "high" => 4,
-    "medium" => 8,
-    "low" => 24
-  }.freeze
+  # SSoT: SLA/ticket settings are tenant-configurable via TenantSetting (Feb 2026)
+  # Defaults kept as fallbacks for backward compatibility
+  DEFAULT_SLA_RESPONSE_HOURS = { "urgent" => 1, "high" => 4, "medium" => 8, "low" => 24 }.freeze
+  DEFAULT_SLA_RESOLUTION_HOURS = { "urgent" => 4, "high" => 24, "medium" => 72, "low" => 168 }.freeze
+  DEFAULT_TICKET_PRIORITIES = %w[urgent high medium low].freeze
+  DEFAULT_TICKET_CATEGORIES = %w[bug feature_request question onboarding billing other].freeze
 
-  SLA_RESOLUTION_HOURS = {
-    "urgent" => 4,
-    "high" => 24,
-    "medium" => 72,
-    "low" => 168  # 7 days
-  }.freeze
-
-  TICKET_PRIORITIES = %w[urgent high medium low].freeze
-  TICKET_CATEGORIES = %w[bug feature_request question onboarding billing other].freeze
-
-  # Set SLA deadlines based on priority
+  # Set SLA deadlines based on priority (reads from TenantSetting SSoT)
   def set_sla_deadlines!
     return unless is_ticket && ticket_priority.present?
 
+    response_hours = TenantSetting.sla_response_hours
+    resolution_hours = TenantSetting.sla_resolution_hours
+
     base_time = created_at || Time.current
-    self.sla_response_due_at = base_time + SLA_RESPONSE_HOURS[ticket_priority].hours
-    self.sla_resolution_due_at = base_time + SLA_RESOLUTION_HOURS[ticket_priority].hours
+    self.sla_response_due_at = base_time + (response_hours[ticket_priority] || 24).hours
+    self.sla_resolution_due_at = base_time + (resolution_hours[ticket_priority] || 168).hours
     save!
   end
 
