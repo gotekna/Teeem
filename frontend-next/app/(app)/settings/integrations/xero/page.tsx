@@ -69,6 +69,10 @@ interface XeroTenant {
   status_display?: 'connected' | 'warning' | 'expired' | 'disconnected';
   expires_in_human?: string;  // "28m", "1h 15m", "Expired"
   needs_attention?: boolean;
+  last_refreshed_at?: string; // ISO8601 timestamp of last token refresh
+  daily_used?: number;        // API calls used today (out of 5000)
+  daily_limit?: number;       // 5000 per day per org
+  daily_resets_at?: string;   // ISO8601 - midnight UTC = 10:00 AM Brisbane
 }
 
 interface CompanyXeroConnection {
@@ -338,6 +342,43 @@ export default function XeroIntegrationPage() {
     });
   };
 
+  // Format last refresh time as relative time ago
+  const formatLastRefreshed = (tenant: XeroTenant) => {
+    if (!tenant.last_refreshed_at) return null;
+    const date = new Date(tenant.last_refreshed_at);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ${diffMins % 60}m ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
+  };
+
+  // Format daily API usage and reset time
+  const formatDailyUsage = (tenant: XeroTenant) => {
+    if (tenant.daily_used == null || tenant.daily_limit == null) return null;
+    const pct = Math.round((tenant.daily_used / tenant.daily_limit) * 100);
+    return { used: tenant.daily_used, limit: tenant.daily_limit, pct };
+  };
+
+  // Format time until daily reset (Xero resets at midnight UTC = 10:00 AM Brisbane)
+  const formatResetTime = (tenant: XeroTenant) => {
+    if (!tenant.daily_resets_at) return null;
+    const resetDate = new Date(tenant.daily_resets_at);
+    const now = new Date();
+    const diffMs = resetDate.getTime() - now.getTime();
+    if (diffMs <= 0) return "resetting now";
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    if (hours > 0) return `resets in ${hours}h ${mins}m`;
+    return `resets in ${mins}m`;
+  };
+
   // SSoT: Use backend status_display for determining if expired
   // Falls back to expired field for backwards compatibility
   const isExpired = (tenant: XeroTenant) => {
@@ -584,6 +625,23 @@ export default function XeroIntegrationPage() {
                             <span>
                               Token: {formatTokenExpiry(tenant)}
                             </span>
+                            {formatLastRefreshed(tenant) && (
+                              <>
+                                <span className="text-muted-foreground/50">|</span>
+                                <span>Refreshed: {formatLastRefreshed(tenant)}</span>
+                              </>
+                            )}
+                            {formatDailyUsage(tenant) && (
+                              <>
+                                <span className="text-muted-foreground/50">|</span>
+                                <span className={formatDailyUsage(tenant)!.pct >= 90 ? "text-red-500 dark:text-red-400 font-medium" : formatDailyUsage(tenant)!.pct >= 70 ? "text-amber-500 dark:text-amber-400" : ""}>
+                                  API: {formatDailyUsage(tenant)!.used.toLocaleString()}/{formatDailyUsage(tenant)!.limit.toLocaleString()} ({formatDailyUsage(tenant)!.pct}%)
+                                </span>
+                                {formatDailyUsage(tenant)!.pct >= 80 && formatResetTime(tenant) && (
+                                  <span className="text-muted-foreground/70">({formatResetTime(tenant)})</span>
+                                )}
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

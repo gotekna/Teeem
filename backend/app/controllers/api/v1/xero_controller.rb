@@ -121,6 +121,7 @@ module Api
                       end
 
         tenants = credentials.map do |cred|
+          usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
           {
             id: cred.id,
             tenant_id: cred.tenant_id,
@@ -136,7 +137,12 @@ module Api
             # Frontend should use these instead of calculating from expires_at
             status_display: cred.status_for_display,      # 'connected', 'warning', 'expired', 'disconnected'
             expires_in_human: cred.time_until_expiry_human, # "28m", "1h 15m", "Expired"
-            needs_attention: cred.needs_attention?          # true if user action required
+            needs_attention: cred.needs_attention?,         # true if user action required
+            last_refreshed_at: cred.last_refresh_at&.iso8601,
+            # Daily API usage and reset time (Xero resets at midnight UTC = 10:00 AM Brisbane)
+            daily_used: usage&.dig(:daily, :used) || 0,
+            daily_limit: usage&.dig(:daily, :limit) || 5000,
+            daily_resets_at: usage&.dig(:resets, :daily)&.iso8601
           }
         end
 
