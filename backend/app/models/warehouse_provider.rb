@@ -49,25 +49,9 @@ class WarehouseProvider < ApplicationRecord
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
 
-  # Warehouse types (SSoT - renamed from SCOPES)
-  # Valid warehouse types that can have storage enabled
-  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
-  # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
-  # SSoT: All valid warehouse types for File Warehouse
-  WAREHOUSE_TYPES = %w[
-    corporate job document contact email email_body email_attachments warehouse
-    task task_attachments task_responses
-    case case_documents case_emails
-    asset asset_expenses asset_service asset_readings
-    compliance bank_statement template
-    template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
-    esignature esignature_pending esignature_completed
-    plan
-    xero user
-  ].freeze
-
-  # LIM (Jan 2026): scope_warehouse_folders is now a method that returns simple mapping
-  # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
+  # SSoT: warehouse_types table is THE ONE source for valid warehouse types (Feb 2026)
+  # See WarehouseType model + /api/v1/warehouse_types endpoint
+  # WAREHOUSE_TYPES constant removed - use WarehouseType.enabled_codes instead
 
   # Validations
   # SSoT: WarehouseProvider validates TENANT (not organization) - Jan 2026 fix

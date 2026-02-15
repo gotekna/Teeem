@@ -29,42 +29,7 @@ class Column < ApplicationRecord
   validates :name, presence: true
   validates :column_name, presence: true, uniqueness: { scope: :foundation_id }
   validates :column_type, presence: true, inclusion: {
-    in: %w[
-      single_line_text
-      email
-      phone
-      mobile
-      url
-      multiple_lines_text
-      date
-      date_and_time
-      choice
-      lookup
-      boolean
-      number
-      percentage
-      currency
-      whole_number
-      computed
-      user
-      multiple_lookups
-      gps_coordinates
-      color_picker
-      file_upload
-      action_buttons
-      structured_data
-      array_of_items
-      searchable_text
-      abn
-      acn
-      bsb
-      bank_account
-      postcode
-      tfn
-      time
-      uuid
-      array_of_integers
-    ]
+    in: -> { ColumnTypeDefinition.pluck(:type_key) }
   }
 
   # Reserved column names that conflict with Rails auto-generated columns
