@@ -96,6 +96,38 @@ interface TenantUser {
   email: string;
 }
 
+interface MailboxStat {
+  email: string;
+  email_count: number;
+  unread_count: number;
+  attachment_count: number;
+  last_synced_at: string | null;
+  last_email_received_at: string | null;
+}
+
+interface OrgSyncStats {
+  id: number;
+  type: string;
+  name: string;
+  total_emails: number;
+  mailboxes: MailboxStat[];
+}
+
+function formatRelativeTime(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHrs = Math.floor(diffMin / 60);
+  if (diffHrs < 24) return `${diffHrs}h ago`;
+  const diffDays = Math.floor(diffHrs / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
 // Health dashboard data for 4-square display
 interface HealthDashboard {
   overall_status: "healthy" | "warning" | "critical" | "disconnected";
@@ -783,6 +815,35 @@ function OrganizationCard({
   const [sharePointResult, setSharePointResult] = React.useState<{ success: boolean; message: string; sites?: { name: string; url: string }[] } | null>(null);
   const [syncResult, setSyncResult] = React.useState<{ success: boolean; message: string } | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [mailboxStats, setMailboxStats] = React.useState<OrgSyncStats | null>(null);
+  const [loadingMailboxStats, setLoadingMailboxStats] = React.useState(false);
+  const mailboxStatsLoadedRef = React.useRef(false);
+
+  // Auto-load mailbox stats when card opens (for connected orgs)
+  React.useEffect(() => {
+    if (open && org.status === "connected" && !mailboxStatsLoadedRef.current) {
+      mailboxStatsLoadedRef.current = true;
+      handleLoadMailboxStats();
+    }
+  }, [open, org.status]);
+
+  const handleLoadMailboxStats = async () => {
+    setLoadingMailboxStats(true);
+    try {
+      const response = await api.get<{ total_emails: number; total_mailboxes: number; organizations: OrgSyncStats[] }>(
+        "/api/v1/synced_emails/sync_dashboard"
+      );
+      // Find the matching org by id
+      const orgStats = response?.organizations?.find(o => o.id === org.id);
+      if (orgStats) {
+        setMailboxStats(orgStats);
+      }
+    } catch (err) {
+      console.error("Failed to load mailbox stats:", err);
+    } finally {
+      setLoadingMailboxStats(false);
+    }
+  };
 
   const handleRetryConsent = async () => {
     setRetrying(true);
@@ -1116,6 +1177,79 @@ function OrganizationCard({
                       </Table>
                     </div>
                   )}
+                </div>
+
+                {/* Mailbox Sync Status */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-sm flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Mailbox Sync Status
+                      {mailboxStats && (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          ({mailboxStats.mailboxes.filter(m => m.email_count > 0).length}
+                          {tenantUsers.length > 0 ? `/${tenantUsers.length}` : ""} synced)
+                        </span>
+                      )}
+                    </h4>
+                    <Button variant="outline" size="sm" onClick={handleLoadMailboxStats} disabled={loadingMailboxStats}>
+                      {loadingMailboxStats ? <Spinner size={12} /> : <RefreshCw className="h-3 w-3" />}
+                    </Button>
+                  </div>
+                  {loadingMailboxStats && !mailboxStats && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Spinner size={14} />
+                      <span>Loading mailbox stats...</span>
+                    </div>
+                  )}
+                  {mailboxStats && (() => {
+                    // Build combined list: synced mailboxes + pending (from tenant users not yet synced)
+                    const syncedEmails = new Set(mailboxStats.mailboxes.map(m => m.email.toLowerCase()));
+                    const pendingUsers = tenantUsers
+                      .filter(u => u.email && !syncedEmails.has(u.email.toLowerCase()))
+                      .sort((a, b) => a.email.localeCompare(b.email));
+
+                    return (
+                      <>
+                        <div className="max-h-64 overflow-y-auto border rounded-lg">
+                          <Table className="w-full text-sm">
+                            <TableHeader className="bg-muted sticky top-0">
+                              <TableRow>
+                                <TableHead className="text-left p-2 font-medium">Mailbox</TableHead>
+                                <TableHead className="text-right p-2 font-medium">Emails</TableHead>
+                                <TableHead className="text-right p-2 font-medium">Last Synced</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {mailboxStats.mailboxes.map((m) => (
+                                <TableRow key={m.email} className="border-t">
+                                  <TableCell className="p-2 font-mono text-xs">{m.email}</TableCell>
+                                  <TableCell className="p-2 text-right tabular-nums">{m.email_count.toLocaleString()}</TableCell>
+                                  <TableCell className="p-2 text-right text-muted-foreground text-xs">
+                                    {formatRelativeTime(m.last_synced_at)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {pendingUsers.map((u) => (
+                                <TableRow key={u.email} className="border-t">
+                                  <TableCell className="p-2 font-mono text-xs text-muted-foreground">{u.email}</TableCell>
+                                  <TableCell className="p-2 text-right text-muted-foreground">-</TableCell>
+                                  <TableCell className="p-2 text-right">
+                                    <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
+                                      Pending
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Total: {mailboxStats.total_emails.toLocaleString()} emails across {mailboxStats.mailboxes.filter(m => m.email_count > 0).length} mailboxes
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {sharePointResult && (
