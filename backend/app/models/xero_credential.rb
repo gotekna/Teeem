@@ -67,13 +67,16 @@ class XeroCredential < ApplicationRecord
   end
 
   # Set this credential as the primary one (and unset others for this tenant)
-  # FRC (Feb 2026): Use update_column instead of update! to avoid re-validating
-  # encrypted fields (access_token, refresh_token) which can fail during validation
+  # FRC (Feb 2026): Uses update_all for BOTH operations to avoid optimistic locking conflict.
+  # Bug found: update_all increments lock_version, then update_column uses stale lock_version
+  # from in-memory object → WHERE clause matches 0 rows → silently fails.
+  # Also avoids update!/update_column to bypass encrypted field re-validation.
   def set_as_primary!
     transaction do
-      XeroCredential.where(teeem_tenant_id: teeem_tenant_id).update_all(is_primary: false)
-      update_column(:is_primary, true)
+      XeroCredential.where(teeem_tenant_id: teeem_tenant_id).where.not(id: id).update_all(is_primary: false)
+      XeroCredential.where(id: id).update_all(is_primary: true)
     end
+    reload
   end
 
   # Check if the access token is expired or about to expire (within 5 minutes)
