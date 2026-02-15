@@ -1254,8 +1254,9 @@ module Api
       # Returns PDF sync progress and health status for the Xero integration dashboard
       def pdf_sync_status
         begin
-          # Filter by tenant_id if provided (for per-organization view)
-          tenant_id = params[:tenant_id]
+          # Filter by xero_org_id if provided (for per-organization view)
+          # Frontend passes Xero UUID as "tenant_id" param
+          xero_org_id = params[:tenant_id]
 
           # ============================================
           # STAGE 1: Invoice DATA Sync (Xero -> Database)
@@ -1263,19 +1264,19 @@ module Api
           # SSoT: Exclude drafts from both Stage 1 and Stage 2 for consistent denominator
           # Drafts can't have PDFs (Xero only generates PDFs for finalized invoices)
           # Total ALL invoices (including voided/deleted) for display
-          all_invoices_scope = tenant_id.present? ? ExternalInvoice.xero.where(tenant_id: tenant_id) : ExternalInvoice.xero
+          all_invoices_scope = xero_org_id.present? ? ExternalInvoice.xero.for_xero_org(xero_org_id) : ExternalInvoice.xero
           total_all_invoices = all_invoices_scope.count
           voided_deleted_count = all_invoices_scope.where(status: %w[voided deleted]).count
 
-          base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
+          base_scope = xero_org_id.present? ? ExternalInvoice.active.for_xero_org(xero_org_id) : ExternalInvoice.active
           base_scope_no_drafts = base_scope.where.not(status: "draft")
           total_invoices_in_db = base_scope_no_drafts.count
           invoices_with_contacts = base_scope_no_drafts.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
           # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
           # Apply tenant filter if specified
-          needs_linking_scope = tenant_id.present? ?
-            ExternalInvoice.needs_contact_linking.where(tenant_id: tenant_id) :
+          needs_linking_scope = xero_org_id.present? ?
+            ExternalInvoice.needs_contact_linking.for_xero_org(xero_org_id) :
             ExternalInvoice.needs_contact_linking
           invoices_without_contacts = needs_linking_scope.count
 
@@ -1283,9 +1284,9 @@ module Api
           # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
           # Webhooks update global record; old scheduled jobs updated per-tenant records
           invoice_sync_status_query = XeroSyncStatus.where(sync_type: "invoices")
-          if tenant_id.present?
+          if xero_org_id.present?
             # Check both tenant-specific and global, take most recent
-            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [tenant_id, nil])
+            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           invoice_sync_status = invoice_sync_status_query.order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || base_scope.maximum(:last_synced_at)
@@ -1338,9 +1339,8 @@ module Api
                                        .where.not(external_invoices: { status: "draft" })
                                        .where.not(external_invoices: { status: %w[voided deleted] })
 
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-            pdf_query = pdf_query.where(external_invoices: { xero_org_id: tenant_id })
+          if xero_org_id.present?
+            pdf_query = pdf_query.where(external_invoices: { xero_org_id: xero_org_id })
           end
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
@@ -1351,8 +1351,8 @@ module Api
           # SSoT: Use XeroSyncStatus for last sync time
           # Jan 2026: Check both tenant-specific AND global records, use most recent
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
-          if tenant_id.present?
-            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [tenant_id, nil])
+          if xero_org_id.present?
+            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
@@ -1360,10 +1360,9 @@ module Api
                                            .where.not(storage_blob_id: nil)
                                            .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                            .where(documentable_type: "ExternalInvoice")
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                           .where(external_invoices: { xero_org_id: tenant_id })
+                                           .where(external_invoices: { xero_org_id: xero_org_id })
           end
           last_pdf_sync = pdf_sync_status&.last_synced_at || pdf_docs_query.maximum(:created_at)
 
@@ -1373,10 +1372,9 @@ module Api
                                          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("warehouse_documents.created_at > ?", 24.hours.ago)
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                     .where(external_invoices: { xero_org_id: tenant_id })
+                                                     .where(external_invoices: { xero_org_id: xero_org_id })
           end
           pdfs_last_24h = pdfs_last_24h_query.count
 
@@ -1390,8 +1388,8 @@ module Api
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           # Jan 2026: Check both tenant-specific AND global records, use most recent
           sharepoint_sync_status_query = XeroSyncStatus.where(sync_type: "sharepoint")
-          if tenant_id.present?
-            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [tenant_id, nil])
+          if xero_org_id.present?
+            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           sharepoint_sync_status = sharepoint_sync_status_query.order(last_synced_at: :desc).first
 
@@ -1400,10 +1398,9 @@ module Api
           sharepoint_docs_query = WarehouseDocument.where(source_type: "xero")
                                                    .where(documentable_type: "ExternalInvoice")
                                                    .where.not(storage_blob_id: nil)
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                         .where(external_invoices: { xero_org_id: tenant_id })
+                                                         .where(external_invoices: { xero_org_id: xero_org_id })
           end
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || sharepoint_docs_query.maximum(:updated_at)
 
@@ -1423,8 +1420,7 @@ module Api
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          bills_query = bills_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          bills_query = bills_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
@@ -1437,8 +1433,7 @@ module Api
                                          .where(external_invoices: { invoice_type: "sales_invoice" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          sales_query = sales_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          sales_query = sales_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           sales_with_pdfs = sales_query.distinct.count("warehouse_documents.documentable_id")
 
           quotes_total = pdf_eligible_invoices.quotes.count
@@ -1451,8 +1446,7 @@ module Api
                                           .where(external_invoices: { invoice_type: "quote" })
                                           .where.not(external_invoices: { status: "draft" })
                                           .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          quotes_query = quotes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          quotes_query = quotes_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           quotes_with_pdfs = quotes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Credit notes breakdown
@@ -1466,8 +1460,7 @@ module Api
                                                 .where(external_invoices: { invoice_type: "credit_note" })
                                                 .where.not(external_invoices: { status: "draft" })
                                                 .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           credit_notes_with_pdfs = credit_notes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
@@ -3257,23 +3250,21 @@ module Api
       # ============================================
 
       # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
+      # FRC (Feb 2026): Query by xero_org_id directly, NOT via contact_ids.
+      # The old contact_ids approach broke because:
+      # 1. ExternalInvoice.active applies acts_as_tenant (filters to logged-in tenant)
+      # 2. Invoices for a Xero org may span multiple TEEEM tenants
+      # 3. Using contact_ids leaked cross-tenant counts
       def count_remaining_for_tenant(xero_tenant_id)
-        # Get all invoices for this Xero org via ContactExternalLink
-        contact_ids = ContactExternalLink
-          .where(source: "xero", xero_org_id: xero_tenant_id)
-          .pluck(:contact_id)
-
-        # FRC (Feb 2026): Xero only generates PDFs for certain invoice types:
+        # Xero only generates PDFs for certain invoice types:
         # - sales_invoice, quote, credit_note: YES (Xero auto-generates PDF)
         # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices)
-        # Without excluding bills, the percentage is misleading (shows ~50% when actually complete)
-        total_scope = ExternalInvoice.active
-          .where(contact_id: contact_ids)
-          .where.not(status: "draft")
+        total = ExternalInvoice.unscoped
+          .where(xero_org_id: xero_tenant_id)
           .where.not(status: %w[voided deleted])
-          .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
-
-        total = total_scope.count
+          .where.not(status: "draft")
+          .where.not(invoice_type: "bill")
+          .count
 
         # Count invoices WITH synced PDFs
         synced = WarehouseDocument
@@ -3283,10 +3274,10 @@ module Api
           .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
           .where(documentable_type: "ExternalInvoice")
           .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-          .where(external_invoices: { contact_id: contact_ids })
+          .where(external_invoices: { xero_org_id: xero_tenant_id })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
-          .where.not(external_invoices: { invoice_type: "bill" })  # Match total_scope
+          .where.not(external_invoices: { invoice_type: "bill" })
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max
