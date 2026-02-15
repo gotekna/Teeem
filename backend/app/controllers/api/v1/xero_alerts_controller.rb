@@ -94,7 +94,9 @@ module Api
             # SSoT: Daily rate limit reset time
             resets_at: brisbane_reset.iso8601,
             resets_at_display: resets_at_display,
-            tenants: usage[:per_tenant].map do |tenant|
+            # FRC (Feb 2026): Filter per_tenant list to only visible orgs
+            # aggregate_usage returns ALL orgs from rate tracker - must filter by tenant scope
+            tenants: usage[:per_tenant].select { |t| credentials_by_tenant.key?(t[:tenant_id]) }.map do |tenant|
               credential = credentials_by_tenant[tenant[:tenant_id]]
               {
                 tenant_id: tenant[:tenant_id],

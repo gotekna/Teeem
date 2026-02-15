@@ -74,6 +74,13 @@ class XeroInvoiceSyncJob < ApplicationJob
         # Xero rate limits are per-connection, not global. If tenant A is rate-limited,
         # tenants B-Z should still sync. Critical for 10-15K connection scaling.
         next
+      rescue XeroApiClient::AuthenticationError => e
+        # FRC (Feb 2026): Mark credential as disconnected so sync jobs stop queuing it.
+        # Without this, a dead token causes failed API calls every sync cycle forever.
+        Rails.logger.warn("XeroInvoiceSyncJob: Auth failed for #{credential.tenant_name}, marking disconnected")
+        credential.mark_disconnected!
+        combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Auth failed - marked disconnected" }
+        next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
       end

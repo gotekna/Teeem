@@ -522,34 +522,19 @@ export function XeroSyncStats() {
     }
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-48">
-          <Spinner size={32} className="text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
+  // ⚠️ DO NOT SIMPLIFY - Hooks must be called before early returns (Feb 2026)
+  // ════════════════════════════════════════════
+  // Why: React Rules of Hooks require hooks to be called in the same order
+  //      every render. Moving useMemo/useVirtualizer/useCallback after early
+  //      returns caused "Rendered more hooks than during the previous render"
+  //      crash on the Stats tab.
+  // ❌ WRONG: Early return for loading/error, THEN call useMemo/useVirtualizer
+  // ✅ CORRECT: Call ALL hooks first with safe defaults, THEN early return
+  // ════════════════════════════════════════════
 
-  if (error || !data) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
-          <AlertTriangle className="h-8 w-8 text-amber-500" />
-          <p className="text-muted-foreground">{error || "No data available"}</p>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { global: rawGlobal, tenants } = data;
-
-  // Defensive: ensure tenants is always an array
+  // Destructure data with safe defaults (hooks below depend on these)
+  const rawGlobal = data?.global;
+  const tenants = data?.tenants;
   const safeTenants = Array.isArray(tenants) ? tenants : [];
 
   // Defensive: ensure global has all required properties with safe defaults
@@ -627,6 +612,32 @@ export function XeroSyncStats() {
       return next;
     });
   }, []);
+
+  // Now safe to early return - all hooks have been called
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-48">
+          <Spinner size={32} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
+          <AlertTriangle className="h-8 w-8 text-amber-500" />
+          <p className="text-muted-foreground">{error || "No data available"}</p>
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -814,8 +825,8 @@ export function XeroSyncStats() {
       {/* Sync Status & Storage Health - Global stats (single API call) */}
       {(() => {
         // Use global stats from first tenant (stored there by fetchData)
-        const globalTotals = tenants[0]?.totals_summary;
-        const globalBlobHealth = tenants[0]?.blob_health;
+        const globalTotals = safeTenants[0]?.totals_summary;
+        const globalBlobHealth = safeTenants[0]?.blob_health;
 
         // Only show if we have data
         if (!globalTotals && !globalBlobHealth) return null;
@@ -979,15 +990,15 @@ export function XeroSyncStats() {
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Xero Organizations</h3>
-            <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
-            {searchQuery && filteredTenants.length !== tenants.length && (
+            <Badge className="bg-muted text-muted-foreground">{safeTenants.length} connected</Badge>
+            {searchQuery && filteredTenants.length !== safeTenants.length && (
               <Badge variant="outline" className="text-xs">
                 {filteredTenants.length} shown
               </Badge>
             )}
           </div>
           {/* Search input for large tenant lists */}
-          {tenants.length > 5 && (
+          {safeTenants.length > 5 && (
             <SearchInput
               className="w-64"
               placeholder="Search organizations..."
@@ -1317,7 +1328,7 @@ export function XeroSyncStats() {
       <XeroOrgContactsDrilldownSheet
         isOpen={contactsDrilldownOpen}
         onClose={() => setContactsDrilldownOpen(false)}
-        tenants={tenants}
+        tenants={safeTenants}
         totalContacts={global.totals.contacts_with_links}
         onLinkChanged={fetchData}
       />

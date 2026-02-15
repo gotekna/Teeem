@@ -116,6 +116,12 @@ class XeroContactSyncJob < ApplicationJob
         combined_result[:success] = false
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Rate limited" }
         next
+      rescue XeroApiClient::AuthenticationError => e
+        # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+        Rails.logger.warn("XeroContactSyncJob: Auth failed for #{credential.tenant_name}, marking disconnected")
+        credential.mark_disconnected!
+        combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Auth failed - marked disconnected" }
+        next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
       end

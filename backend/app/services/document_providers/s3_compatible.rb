@@ -56,16 +56,22 @@ module DocumentProviders
     # This prevents the "backup credential picked over primary" bug that occurs when
     # multiple credentials exist (e.g., Wasabi primary + Backblaze B2 backup).
     # Fallback search only runs when credential_id is not configured (backward compat).
+    #
+    # Multi-tenancy (Feb 2026): The credential lookup is NOT tenant-scoped because
+    # WarehouseProvider IS already tenant-scoped (the security boundary).
+    # Multiple tenants can share ONE credential with different buckets.
+    # e.g., Tekna→teeem-tekna, TEEEM→teeem-teeem, Pilgrim→teeem-pilgrim, all using cred #1.
     def self.find_credential_for_tenant(tenant)
       return nil unless defined?(S3CompatibleCredential)
       return nil unless tenant
 
       # SSoT: Check WarehouseProvider for explicit credential_id first
+      # WarehouseProvider is tenant-scoped, so this is already secure.
+      # No additional tenant filter on the credential - shared credentials are valid.
       config = WarehouseProvider.for_tenant(tenant)
       explicit_id = config&.connection_config&.dig("credential_id")
       if explicit_id.present?
-        # Tenant-scoped credential lookup (security)
-        cred = S3CompatibleCredential.where(tenant_id: tenant.id).find_by(id: explicit_id)
+        cred = S3CompatibleCredential.unscoped.find_by(id: explicit_id)
         if cred&.is_active? && cred&.decryptable?
           return cred
         else

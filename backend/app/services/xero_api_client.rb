@@ -1194,6 +1194,19 @@ class XeroApiClient
       retry_after = response.headers["Retry-After"] || 60
       Rails.logger.warn("Xero API rate limit hit. Retry after: #{retry_after}s")
       raise RateLimitError, "Rate limit exceeded. Retry after #{retry_after} seconds"
+    when 403
+      # FRC (Feb 2026): 403 with "AuthenticationUnsuccessful" means the Xero org's
+      # OAuth token is dead. Must mark credential as disconnected so sync jobs skip it
+      # instead of retrying every cycle and wasting API calls.
+      error_body = JSON.parse(response.body) rescue {}
+      error_detail = error_body["Detail"] || error_body["message"] || "Forbidden"
+      if error_detail.include?("AuthenticationUnsuccessful")
+        Rails.logger.error("Xero API 403 AuthenticationUnsuccessful - marking credential as needing re-auth")
+        raise AuthenticationError, error_detail
+      end
+      # Non-auth 403s fall through to generic client error handling
+      Rails.logger.error("Xero API forbidden (403): #{error_detail}")
+      raise ApiError, error_detail
     when 400..499
       # Client error
       error_body = JSON.parse(response.body) rescue {}

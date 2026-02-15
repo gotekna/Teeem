@@ -161,6 +161,13 @@ class XeroAttachmentSyncJob < ApplicationJob
       Rails.logger.warn("[XeroAttachmentSync] #{tenant_name}: Rate limited for #{retry_after}s")
       XeroSyncStatus.fail_sync!("pdfs", tenant_id: tenant_id, error: "Rate limited - retry in #{retry_after}s")
       { processed: 0, rate_limited: true, retry_after: retry_after }
+    rescue XeroApiClient::AuthenticationError => e
+      # FRC (Feb 2026): Mark credential as disconnected so scheduler stops queuing it.
+      # Without this, a dead token wastes API calls and worker capacity every cycle.
+      Rails.logger.warn("[XeroAttachmentSync] #{tenant_name}: Auth failed, marking disconnected")
+      credential&.mark_disconnected!
+      XeroSyncStatus.fail_sync!("pdfs", tenant_id: tenant_id, error: "Auth failed - credential disconnected")
+      { processed: 0, auth_failed: true }
     rescue StandardError => e
       Rails.logger.error("[XeroAttachmentSync] #{tenant_name}: Failed - #{e.message}")
       XeroSyncStatus.fail_sync!("pdfs", tenant_id: tenant_id, error: e.message)
