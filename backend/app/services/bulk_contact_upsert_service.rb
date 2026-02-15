@@ -170,11 +170,15 @@ class BulkContactUpsertService
     end
 
     # Use upsert_all to handle existing links
+    # FRC (Feb 2026): Do NOT include :updated_at in update_only.
+    # Rails 8 auto-adds updated_at to ON CONFLICT DO UPDATE SET clause.
+    # Including it in update_only causes PG::SyntaxError "multiple
+    # assignments to same column updated_at".
     ContactExternalLink.upsert_all(
       records,
       unique_by: [:source, :xero_org_id, :external_contact_id],
       on_duplicate: :update,
-      update_only: [:external_name, :match_type, :match_confidence, :last_synced_at, :xero_contact_status, :last_verified_at, :updated_at]
+      update_only: [:external_name, :match_type, :match_confidence, :last_synced_at, :xero_contact_status, :last_verified_at]
     )
 
     records.size
