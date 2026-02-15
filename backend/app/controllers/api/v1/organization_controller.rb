@@ -825,7 +825,22 @@ module Api
               row = build_row.call("email_body", "Email Bodies", email_body_scope, expected: email_body_total)
               row[:unfetchable] = email_body_unfetchable
               row[:no_outlook_id] = email_body_no_outlook
-              row[:missing] = [email_body_total - row[:with_file] - email_body_unfetchable - email_body_no_outlook, 0].max
+              # ⚠️ DO NOT SIMPLIFY - Overlap correction required (Feb 2026)
+              # ════════════════════════════════════════════
+              # Why: no_outlook and unfetchable emails CAN have verified files (e.g., uploaded
+              #      before mailbox was removed). Naive subtraction double-counts these overlaps.
+              # ❌ WRONG: total - with_file - unfetchable - no_outlook (double-subtracts overlaps)
+              # ✅ CORRECT: Only subtract unfetchable/no_outlook that DON'T already have files
+              # ════════════════════════════════════════════
+              email_with_file_ids = email_body_scope.joins(:storage_blob)
+                .where("storage_blobs.verified_at IS NOT NULL").pluck(:documentable_id)
+              email_unfetchable_without_file = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%")
+                .or(SyncedEmail.where(content_unavailable: true))
+                .where.not(id: email_with_file_ids).count
+              email_no_outlook_without_file = SyncedEmail.where(outlook_id: [nil, ""])
+                .or(SyncedEmail.where(mailbox_owner_email: [nil, ""]))
+                .where.not(id: email_with_file_ids).count
+              row[:missing] = [email_body_total - row[:with_file] - email_unfetchable_without_file - email_no_outlook_without_file, 0].max
               results << row if email_body_total > 0
 
               # Email Attachments — no 1:1 target (one email can have many attachments)

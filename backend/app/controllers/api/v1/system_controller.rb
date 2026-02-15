@@ -425,21 +425,26 @@ module Api
         items = []
 
         # ── Email Bodies ──
-        # SSoT formula: total - with_verified_file - unfetchable - no_outlook
+        # SSoT formula: total - with_file - unfetchable_without_file - no_outlook_without_file
+        # Must exclude overlaps: no_outlook/unfetchable emails that already have verified files
+        # (See organization_controller#data_warehouse for matching formula)
         email_total = SyncedEmail.unscoped.count
         if email_total > 0
-          email_with_file = WarehouseDocument
+          email_scope = WarehouseDocument
             .where(source_type: "email", documentable_type: "SyncedEmail")
-            .joins(:storage_blob)
+          email_with_file_ids = email_scope.joins(:storage_blob)
             .where("storage_blobs.verified_at IS NOT NULL")
-            .count
-          email_unfetchable = SyncedEmail.unscoped.where("storage_path LIKE ?", "UNFETCHABLE%").count +
-                              SyncedEmail.unscoped.where(content_unavailable: true).count
-          email_no_outlook = SyncedEmail.unscoped
+            .pluck(:documentable_id)
+          email_with_file = email_with_file_ids.count
+          email_unfetchable_without_file = SyncedEmail.unscoped
+            .where("storage_path LIKE ?", "UNFETCHABLE%")
+            .or(SyncedEmail.unscoped.where(content_unavailable: true))
+            .where.not(id: email_with_file_ids).count
+          email_no_outlook_without_file = SyncedEmail.unscoped
             .where(outlook_id: [nil, ""])
             .or(SyncedEmail.unscoped.where(mailbox_owner_email: [nil, ""]))
-            .count
-          email_missing = [email_total - email_with_file - email_unfetchable - email_no_outlook, 0].max
+            .where.not(id: email_with_file_ids).count
+          email_missing = [email_total - email_with_file - email_unfetchable_without_file - email_no_outlook_without_file, 0].max
           items << { key: "email_uploads", label: "Email uploads", remaining: email_missing } if email_missing > 0
         end
 

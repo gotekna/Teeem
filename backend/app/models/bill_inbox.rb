@@ -248,7 +248,7 @@ class BillInbox < ApplicationRecord
 
     create_warehouse_document!(
       tenant_id: tenant_id,
-      source_type: "warehouse",
+      source_type: "financial",
       display_name: display_name,
       original_filename: invoice_file_filename,
       storage_blob: storage_blob,

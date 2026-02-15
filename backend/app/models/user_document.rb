@@ -12,6 +12,8 @@
 class UserDocument < ApplicationRecord
   include StorableDocument
   include DocumentStorageConstants
+  include WarehouseDocumentable
+  warehouse_type :user
 
   # SSoT: Default storage scope (overridden by effective_storage_scope)
   storage_scope :users
@@ -24,8 +26,7 @@ class UserDocument < ApplicationRecord
   # Same file = same StorageBlob, deduplication via content_hash
   belongs_to :storage_blob, optional: true
 
-  # Phase 3: Universal warehouse metadata (SSoT for ui_name, download_name, folder)
-  has_one :warehouse_document, as: :documentable, dependent: :destroy
+  # NOTE: has_one :warehouse_document is provided by WarehouseDocumentable concern
 
   # SSoT: Categories map to storage scopes in WarehouseProvider
   CATEGORIES = {
