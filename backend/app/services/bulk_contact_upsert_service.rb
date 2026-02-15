@@ -120,13 +120,24 @@ class BulkContactUpsertService
   def bulk_update(operations)
     return 0 if operations.empty?
 
-    now = Time.current
     updated = 0
+    contact_ids = []
 
     operations.each do |op|
-      attrs = op[:attrs].compact.merge(updated_at: now)
+      # FRC (Feb 2026): Do NOT include updated_at in attrs hash.
+      # update_all with explicit updated_at causes PG::SyntaxError
+      # "multiple assignments to same column" — Rails auto-appends it.
+      # Touch separately via touch_all after all updates complete.
+      attrs = op[:attrs].compact
+      attrs.delete(:updated_at)
+      attrs.delete("updated_at")
+      next if attrs.empty?
+
       updated += Contact.where(id: op[:contact_id]).update_all(attrs)
+      contact_ids << op[:contact_id]
     end
+
+    Contact.where(id: contact_ids).touch_all if contact_ids.any?
 
     updated
   end
