@@ -249,24 +249,24 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       console.error("Failed to load data:", error);
       // Mock data
       setJobTypes([
-        { id: 1, name: "New Build", color: TAILWIND_COLORS.blue[500], position: 1, active: true },
-        { id: 2, name: "Renovation", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
-        { id: 3, name: "Extension", color: TAILWIND_COLORS.amber[500], position: 3, active: true },
+        { id: 1, name: "New Build", color: TAILWIND_COLORS.blue[500], position: 1, is_active: true },
+        { id: 2, name: "Renovation", color: TAILWIND_COLORS.emerald[500], position: 2, is_active: true },
+        { id: 3, name: "Extension", color: TAILWIND_COLORS.amber[500], position: 3, is_active: true },
       ]);
       setJobStatuses([
-        { id: 1, name: "Quote", color: TAILWIND_COLORS.violet[500], position: 1, active: true },
-        { id: 2, name: "Won", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
-        { id: 3, name: "In Progress", color: TAILWIND_COLORS.blue[500], position: 3, active: true },
-        { id: 4, name: "Complete", color: "#84CC16", position: 4, active: true },
-        { id: 5, name: "Lost", color: TAILWIND_COLORS.red[500], position: 5, active: true },
+        { id: 1, name: "Quote", color: TAILWIND_COLORS.violet[500], position: 1, is_active: true },
+        { id: 2, name: "Won", color: TAILWIND_COLORS.emerald[500], position: 2, is_active: true },
+        { id: 3, name: "In Progress", color: TAILWIND_COLORS.blue[500], position: 3, is_active: true },
+        { id: 4, name: "Complete", color: "#84CC16", position: 4, is_active: true },
+        { id: 5, name: "Lost", color: TAILWIND_COLORS.red[500], position: 5, is_active: true },
       ]);
       setJobStages([
-        { id: 1, name: "Pre-Construction", color: TAILWIND_COLORS.amber[500], position: 1, active: true },
-        { id: 2, name: "Foundation", color: TAILWIND_COLORS.indigo[500], position: 2, active: true },
-        { id: 3, name: "Frame", color: TAILWIND_COLORS.cyan[500], position: 3, active: true },
-        { id: 4, name: "Lock Up", color: TAILWIND_COLORS.violet[500], position: 4, active: true },
-        { id: 5, name: "Fit Out", color: TAILWIND_COLORS.pink[500], position: 5, active: true },
-        { id: 6, name: "Handover", color: TAILWIND_COLORS.emerald[500], position: 6, active: true },
+        { id: 1, name: "Pre-Construction", color: TAILWIND_COLORS.amber[500], position: 1, is_active: true },
+        { id: 2, name: "Foundation", color: TAILWIND_COLORS.indigo[500], position: 2, is_active: true },
+        { id: 3, name: "Frame", color: TAILWIND_COLORS.cyan[500], position: 3, is_active: true },
+        { id: 4, name: "Lock Up", color: TAILWIND_COLORS.violet[500], position: 4, is_active: true },
+        { id: 5, name: "Fit Out", color: TAILWIND_COLORS.pink[500], position: 5, is_active: true },
+        { id: 6, name: "Handover", color: TAILWIND_COLORS.emerald[500], position: 6, is_active: true },
       ]);
     } finally {
       setLoading(false);
@@ -443,9 +443,10 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       await api.delete(`${endpoints[type]}/${id}`);
       toast({ title: "Success", description: "Item deleted successfully" });
       loadData();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete:", error);
-      toast({ title: "Error", description: "Failed to delete item", variant: "destructive" });
+      const message = error?.message || "Failed to delete item";
+      toast({ title: "Cannot Delete", description: message, variant: "destructive" });
     }
   };
 
@@ -582,7 +583,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={Briefcase}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => !!item.active}
+                getIsActive={(item) => !!item.is_active}
                 onAdd={() => handleOpenAddDialog("type")}
                 onEdit={(item) => handleOpenEditDialog(item, "type")}
                 onDelete={(item) => handleDelete(item.id, "type")}
@@ -595,7 +596,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={ListChecks}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => !!item.active}
+                getIsActive={(item) => !!item.is_active}
                 onAdd={() => handleOpenAddDialog("status")}
                 onEdit={(item) => handleOpenEditDialog(item, "status")}
                 onDelete={(item) => handleDelete(item.id, "status")}
@@ -608,7 +609,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={Layers}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => !!item.active}
+                getIsActive={(item) => !!item.is_active}
                 onAdd={() => handleOpenAddDialog("stage")}
                 onEdit={(item) => handleOpenEditDialog(item, "stage")}
                 onDelete={(item) => handleDelete(item.id, "stage")}
