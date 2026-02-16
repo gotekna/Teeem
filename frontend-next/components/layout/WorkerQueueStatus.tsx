@@ -15,6 +15,7 @@ import {
   Check,
   Mail,
   FileText,
+  CircleAlert,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
@@ -193,6 +194,54 @@ const BACKLOG_ICONS: Record<string, typeof Mail> = {
   xero_invoices: FileText,
 };
 
+/** Module-level history so it persists across popover open/close */
+interface HistoryPoint { timestamp: number; remaining: number }
+const backlogHistory = new Map<string, HistoryPoint[]>();
+const MAX_HISTORY_AGE_MS = 90 * 60_000; // keep 90 min of data
+
+function recordBacklogSnapshot(backlog: Array<{ key: string; remaining: number }>) {
+  const now = Date.now();
+  for (const item of backlog) {
+    const points = backlogHistory.get(item.key) || [];
+    points.push({ timestamp: now, remaining: item.remaining });
+    // Prune old entries
+    const cutoff = now - MAX_HISTORY_AGE_MS;
+    const pruned = points.filter((p) => p.timestamp >= cutoff);
+    backlogHistory.set(item.key, pruned);
+  }
+}
+
+function getHourlyProgress(key: string): { processed: number; stalled: boolean; hasData: boolean } {
+  const points = backlogHistory.get(key);
+  if (!points || points.length < 2) return { processed: 0, stalled: false, hasData: false };
+
+  const now = Date.now();
+  const oneHourAgo = now - 60 * 60_000;
+
+  // Find the oldest point within the last hour (or the oldest we have)
+  const oldest = points.find((p) => p.timestamp >= oneHourAgo) || points[0];
+  const latest = points[points.length - 1];
+
+  if (oldest === latest) return { processed: 0, stalled: false, hasData: false };
+
+  const processed = oldest.remaining - latest.remaining;
+
+  // Check if stalled: no change in last 5 minutes (at least 3 data points needed)
+  const fiveMinAgo = now - 5 * 60_000;
+  const recentPoints = points.filter((p) => p.timestamp >= fiveMinAgo);
+  const stalled = recentPoints.length >= 2 &&
+    recentPoints.every((p) => p.remaining === latest.remaining) &&
+    latest.remaining > 0;
+
+  return { processed, stalled, hasData: true };
+}
+
+function formatProcessed(processed: number): string {
+  if (processed <= 0) return "";
+  if (processed >= 1000) return `${(processed / 1000).toFixed(1)}k`;
+  return processed.toLocaleString();
+}
+
 function ResourceBar({
   label,
   used,
@@ -293,6 +342,9 @@ export function WorkerQueueStatus() {
         setData(response.data);
         setStatus(response.data.status);
         setLastFetched(new Date());
+        if (response.data.backlog) {
+          recordBacklogSnapshot(response.data.backlog);
+        }
       }
     } catch (error) {
       console.debug("Failed to fetch queue status:", error);
@@ -425,6 +477,8 @@ export function WorkerQueueStatus() {
                   {data.backlog.filter((b) => b.remaining > 0).map((item) => {
                     const Icon = BACKLOG_ICONS[item.key] || FileText;
                     const eta = formatEta(item.remaining, data.completedPerMin);
+                    const hourly = getHourlyProgress(item.key);
+                    const processedText = formatProcessed(hourly.processed);
                     return (
                       <div key={item.key}>
                         <div className="flex justify-between text-xs items-center">
@@ -439,15 +493,28 @@ export function WorkerQueueStatus() {
                         <div className="mt-1 flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                             <div
-                              className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all animate-pulse"
-                              style={{ width: "15%" }}
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                hourly.stalled
+                                  ? "bg-orange-500 dark:bg-orange-400"
+                                  : "bg-blue-500 dark:bg-blue-400 animate-pulse"
+                              )}
+                              style={{ width: hourly.stalled ? "100%" : "15%" }}
                             />
                           </div>
-                          {eta && (
-                            <span className="text-[10px] text-muted-foreground shrink-0 tabular-nums">
-                              {eta}
-                            </span>
-                          )}
+                          <span className="text-[10px] shrink-0 tabular-nums">
+                            {hourly.stalled ? (
+                              <span className="text-orange-500 dark:text-orange-400 flex items-center gap-0.5">
+                                <CircleAlert className="h-3 w-3" /> stalled
+                              </span>
+                            ) : hourly.hasData && processedText ? (
+                              <span className="text-green-600 dark:text-green-400">
+                                {processedText}/hr
+                              </span>
+                            ) : eta ? (
+                              <span className="text-muted-foreground">{eta}</span>
+                            ) : null}
+                          </span>
                         </div>
                       </div>
                     );
