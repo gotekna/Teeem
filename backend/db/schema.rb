@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10029,18 +10029,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
-  create_table "units_of_measure", force: :cascade do |t|
-    t.string "code", limit: 20, null: false
-    t.string "name", limit: 50, null: false
-    t.string "description", limit: 100
-    t.integer "sort_order", default: 0
-    t.boolean "is_active", default: true
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
-    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
-  end
-
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -10384,11 +10372,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
-    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
-    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
@@ -10998,6 +10984,19 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
     t.datetime "updated_at", null: false
     t.index ["sync_type", "tenant_id"], name: "index_xero_sync_statuses_on_sync_type_and_tenant_id", unique: true
     t.index ["tenant_id"], name: "index_xero_sync_statuses_on_tenant_id"
+  end
+
+  create_table "xero_tracking_options", force: :cascade do |t|
+    t.string "xero_tracking_option_id", null: false
+    t.string "xero_tracking_category_id"
+    t.string "name", null: false
+    t.string "status", default: "ACTIVE"
+    t.bigint "tenant_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "index_xero_tracking_options_on_tenant_id_and_name"
+    t.index ["tenant_id"], name: "index_xero_tracking_options_on_tenant_id"
+    t.index ["xero_tracking_option_id"], name: "index_xero_tracking_options_on_xero_tracking_option_id", unique: true
   end
 
   add_foreign_key "account_mappings", "accounting_integrations"
@@ -12042,4 +12041,5 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
   add_foreign_key "xero_job_tracking_links", "tenants"
   add_foreign_key "xero_sync_events", "xero_credentials"
   add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
+  add_foreign_key "xero_tracking_options", "tenants"
 end
