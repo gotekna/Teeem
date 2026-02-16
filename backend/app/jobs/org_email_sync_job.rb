@@ -134,6 +134,9 @@ class OrgEmailSyncJob < ApplicationJob
       errors = []
       sync_started_at = Time.current
 
+      # Broadcast sync_started to all tenant users via WebSocket
+      broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
+
       user_emails.each do |user_email|
         # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
         # Without this, 56 mailboxes x 15 years exceeds Heroku's 30-min dyno timeout,
@@ -168,6 +171,11 @@ class OrgEmailSyncJob < ApplicationJob
       @credential.update_columns(last_sync_at: Time.current)
 
       Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+
+      # Broadcast sync_completed to all tenant users via WebSocket
+      duration = (Time.current - sync_started_at).round
+      broadcast_sync_status_to_tenant(tenant, :completed,
+        new_count: total_synced, updated_count: 0, duration_seconds: duration)
 
       { total_synced: total_synced, errors: errors }
     end # ActsAsTenant.with_tenant
@@ -444,6 +452,12 @@ class OrgEmailSyncJob < ApplicationJob
       teeem_user = find_teeem_user(owner_email)
       email.synced_by_user_id = teeem_user&.id
     end
+
+    # FRC (Feb 2026): Set ssot_owner_id for WebSocket broadcasts
+    # Root cause: broadcast_new_email (after_create_commit) returned early because
+    # ssot_owner_id was never set. set_ssot_owner! was defined but never called.
+    # Fix: Set ssot_owner_id during upsert using synced_by_user_id as default.
+    email.ssot_owner_id ||= email.synced_by_user_id
 
     is_new_record = email.new_record?
     email.save!
@@ -771,5 +785,23 @@ class OrgEmailSyncJob < ApplicationJob
   # SSoT: Use user_roles join table (user.role column was removed in Dec 2025)
   def find_org_admin_user
     @org_admin_user ||= User.with_role("admin").first
+  end
+
+  # Broadcast sync status to all users in the tenant via WebSocket
+  # ActionCable only delivers to users with active EmailChannel subscriptions
+  def broadcast_sync_status_to_tenant(tenant, status, **kwargs)
+    tenant.users.select(:id).find_each do |user|
+      case status
+      when :started
+        EmailChannel.broadcast_sync_started(user, sync_type: kwargs[:sync_type] || "incremental")
+      when :completed
+        EmailChannel.broadcast_sync_completed(user,
+          new_count: kwargs[:new_count] || 0,
+          updated_count: kwargs[:updated_count] || 0,
+          duration_seconds: kwargs[:duration_seconds] || 0)
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to broadcast sync #{status}: #{e.message}"
   end
 end

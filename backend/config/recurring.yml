@@ -95,7 +95,7 @@ all_orgs_email_sync:
 # This runs every 15 minutes as a safety net. The XeroContactSyncJob is idempotent.
 xero_contact_sync_backup:
   class: XeroContactSyncJob
-  queue: default
+  queue: xero_sync
   schedule: every 15 minutes
 
 # SELF-HEALING: Health monitor catches sync failures and triggers recovery
@@ -107,13 +107,13 @@ xero_contact_sync_backup:
 # - Logs comprehensive health metrics for visibility
 xero_health_monitor:
   class: XeroHealthMonitorJob
-  queue: default
+  queue: xero_sync
   schedule: every 5 minutes
 
 # Bank transaction sync (no webhook available for bank transactions)
 xero_bank_transaction_sync:
   class: XeroBankTransactionSyncJob
-  queue: low
+  queue: xero_sync
   schedule: every 6 hours at minute 30
 
 # Cleanup stale Xero external links (7+ days old)
@@ -267,7 +267,7 @@ warehouse_daily_snapshot:
 # Syncs all connected tenants every 5 minutes
 xero_invoice_data_sync:
   class: XeroInvoiceSyncJob
-  queue: default
+  queue: xero_sync
   args: [{}]
   schedule: every 5 minutes
 
@@ -277,7 +277,7 @@ xero_invoice_data_sync:
 # Changed to every 10 minutes with self-healing batch lock
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
-  queue: low
+  queue: xero_bulk
   args: [null, { limit: 50 }]
   schedule: every 10 minutes
 

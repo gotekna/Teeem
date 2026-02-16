@@ -799,7 +799,7 @@ export default function XeroIntegrationPage() {
                     <div>
                       <div className="font-medium text-sm">Stage 1: Xero Data</div>
                       <div className="text-xs text-muted-foreground">
-                        {pdfSyncHealth?.stage1_data.linked.toLocaleString()} / {pdfSyncHealth?.stage1_data.total.toLocaleString()} linked
+                        {(pdfSyncHealth?.stage1_data?.linked ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage1_data?.total ?? 0).toLocaleString()} linked
                       </div>
                     </div>
                   </div>
@@ -834,7 +834,7 @@ export default function XeroIntegrationPage() {
                     <div>
                       <div className="font-medium text-sm">Stage 2: PDF Download</div>
                       <div className="text-xs text-muted-foreground">
-                        {pdfSyncHealth?.stage2_data.downloaded.toLocaleString()} / {pdfSyncHealth?.stage2_data.total.toLocaleString()} downloaded
+                        {(pdfSyncHealth?.stage2_data?.downloaded ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage2_data?.total ?? 0).toLocaleString()} downloaded
                       </div>
                     </div>
                   </div>
@@ -869,7 +869,7 @@ export default function XeroIntegrationPage() {
                     <div>
                       <div className="font-medium text-sm">Stage 3: SharePoint Upload</div>
                       <div className="text-xs text-muted-foreground">
-                        {pdfSyncHealth?.stage3_data.uploaded.toLocaleString()} / {pdfSyncHealth?.stage3_data.total.toLocaleString()} uploaded
+                        {(pdfSyncHealth?.stage3_data?.uploaded ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage3_data?.total ?? 0).toLocaleString()} uploaded
                       </div>
                     </div>
                   </div>

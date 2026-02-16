@@ -437,7 +437,7 @@ export function WorkerQueueStatus() {
                           </span>
                           <span className="shrink-0 ml-2 text-[10px] flex items-center gap-1.5">
                             <span className="text-muted-foreground tabular-nums">
-                              {org.syncedCount.toLocaleString()}/{org.invoiceCount.toLocaleString()}
+                              {(org.syncedCount ?? 0).toLocaleString()}/{(org.invoiceCount ?? 0).toLocaleString()}
                             </span>
                             {org.lockedOut ? (
                               <span className="text-orange-500 dark:text-orange-400 w-6 text-right">
@@ -488,7 +488,7 @@ export function WorkerQueueStatus() {
                   >
                     <span className="text-foreground">{item.label}</span>
                     <span className="text-blue-500 dark:text-blue-400 shrink-0 ml-2 tabular-nums">
-                      {item.remaining.toLocaleString()}
+                      {(item.remaining ?? 0).toLocaleString()}
                     </span>
                   </div>
                 ))}

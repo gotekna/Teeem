@@ -977,13 +977,24 @@ export default function EmailPage() {
     fetchAccounts();
     // Update local sync time for immediate UI feedback
     setLastLocalSyncAt(new Date());
+
+    // FRC (Feb 2026): Refresh email list after sync completes
+    // Root cause: Sync is async (perform_later), so the fetchEmails() in handleSync
+    // runs BEFORE the sync job finishes. This fetchEmails() runs AFTER sync is done,
+    // ensuring the user sees newly synced emails without manual page refresh.
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      fetchEmails(1, true);
+    }
+
     if (stats.new_count > 0) {
       toast({
         title: "Sync complete",
         description: `${stats.new_count} new email${stats.new_count > 1 ? 's' : ''} synced`,
       });
     }
-  }, [toast]);
+  }, [toast, viewMode, splitInbox, fetchEmails]);
 
   const { isConnected, isSyncing: wsIsSyncing, newEmailCount } = useEmailWebSocket({
     onNewEmail: handleNewEmail,

@@ -744,9 +744,9 @@ export function XeroSyncStats() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">{global.totals.contacts_with_links.toLocaleString()}</span>
+                <span className="text-2xl font-bold">{(global.totals?.contacts_with_links ?? 0).toLocaleString()}</span>
                 <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                  {global.totals.total_links.toLocaleString()} links
+                  {(global.totals?.total_links ?? 0).toLocaleString()} links
                 </Badge>
               </div>
               <div className="space-y-1 text-sm">
@@ -776,7 +776,7 @@ export function XeroSyncStats() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">{global.totals.all_documents.toLocaleString()}</span>
+                <span className="text-2xl font-bold">{(global.totals?.all_documents ?? 0).toLocaleString()}</span>
                 <Badge className="bg-status-success text-status-success-foreground">
                   {global.recent_activity.invoice_syncs_24h} synced today
                 </Badge>
@@ -784,15 +784,15 @@ export function XeroSyncStats() {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Invoices</span>
-                  <span className="font-medium">{global.totals.invoices.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.invoices ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bills</span>
-                  <span className="font-medium">{global.totals.bills.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.bills ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Quotes</span>
-                  <span className="font-medium">{global.totals.quotes.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.quotes ?? 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -1121,7 +1121,7 @@ export function XeroSyncStats() {
                       <div className="text-sm font-medium">Xero Data</div>
                       <Progress value={100} className="h-1.5 mt-1 [&>div]:bg-green-500" />
                       <div className="text-xs text-muted-foreground mt-1">
-                        {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
+                        {(tenant.documents?.total ?? 0).toLocaleString()} / {(tenant.documents?.total ?? 0).toLocaleString()}
                       </div>
                       {/* Stage 1 Timing */}
                       {tenant.data_sync && (
