@@ -604,6 +604,14 @@ module Api
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
 
+        # Pre-load Databuild BOQ line items (SmScheduleMaster records linked to cost centres)
+        cc_ids = cost_budgets.filter_map { |b| b.cost_centre&.id }
+        sm_by_cc = if cc_ids.any?
+          SmScheduleMaster.where(cost_centre: cc_ids).group_by(&:cost_centre)
+        else
+          {}
+        end
+
         # Build cost centre lookup for PO matching
         cc_lookup = {}
         cost_budgets.each do |budget|
@@ -628,33 +636,84 @@ module Api
           end
         end
 
-        # Build BOQGroup[] - one group per cost centre budget
+        # Build BOQGroup[] - one group per PO (cost_centre + load number)
+        # Databuild items are grouped by Ld (load number) within each cost centre.
+        # Each load becomes a separate PO group: "102 - Engineering 1", "102 - Engineering 2", etc.
         boq_groups = if cost_budgets.any?
-          cost_budgets.sort_by { |b| b.cost_centre&.code || "" }.map do |budget|
+          groups = []
+
+          cost_budgets.sort_by { |b| b.cost_centre&.code || "" }.each do |budget|
             cc = budget.cost_centre
             matched_pos = po_by_cc[budget.id] || []
             cc_name = cc ? "#{cc.code} - #{cc.name}" : "Budget ##{budget.id}"
 
-            # Build items: budget line + any matched PO line items
-            items = []
+            databuild_items = sm_by_cc[cc&.id] || []
+            if databuild_items.any?
+              # Group Databuild items by load number (Ld) → one BOQ group per load = one PO
+              by_load = databuild_items.group_by do |sm|
+                d = sm.po_line_items.is_a?(Hash) ? sm.po_line_items : {}
+                d["load_number"] || 0
+              end
 
-            # Add a budget summary line
-            items << {
-              id: "budget-#{budget.id}",
-              description: "Budget allocation",
-              quantity: 1,
-              unitPrice: (budget.total_budget || 0).to_f,
-              gstCode: "BUD",
-              subtotal: (budget.total_budget || 0).to_f,
-              pricebookItemCode: nil
-            }
+              by_load.sort_by { |load_num, _| load_num.to_i }.each do |load_num, load_items|
+                items = load_items.map do |sm|
+                  line_data = sm.po_line_items.is_a?(Hash) ? sm.po_line_items : {}
+                  {
+                    id: "sm-#{sm.id}",
+                    description: sm.name,
+                    quantity: (line_data["quantity"] || 1).to_f,
+                    unitPrice: (line_data["unit_price"] || 0).to_f,
+                    gstCode: "BUD",
+                    subtotal: (line_data["total_price"] || 0).to_f,
+                    pricebookItemCode: line_data["code"]
+                  }
+                end
 
-            # Add matched PO line items
+                po_name = load_num.to_i > 0 ? "#{cc_name} #{load_num}" : cc_name
+
+                groups << {
+                  id: "cc-#{budget.id}-ld-#{load_num}",
+                  name: po_name,
+                  supplierId: nil,
+                  supplierName: nil,
+                  taskName: nil,
+                  tradeName: nil,
+                  stageName: nil,
+                  stagePosition: nil,
+                  costCentreName: cc_name,
+                  items: items
+                }
+              end
+            else
+              # Fallback: single budget allocation line when no Databuild line items
+              groups << {
+                id: "cc-#{budget.id}",
+                name: cc_name,
+                supplierId: nil,
+                supplierName: nil,
+                taskName: nil,
+                tradeName: nil,
+                stageName: nil,
+                stagePosition: nil,
+                costCentreName: cc_name,
+                items: [{
+                  id: "budget-#{budget.id}",
+                  description: "Budget allocation",
+                  quantity: 1,
+                  unitPrice: (budget.total_budget || 0).to_f,
+                  gstCode: "BUD",
+                  subtotal: (budget.total_budget || 0).to_f,
+                  pricebookItemCode: nil
+                }]
+              }
+            end
+
+            # Add matched PO line items as their own group
             matched_pos.each do |po|
-              po.line_items.sort_by(&:line_number).each do |item|
-                items << {
+              items = po.line_items.sort_by(&:line_number).map do |item|
+                {
                   id: item.id,
-                  description: "#{po.purchase_order_number}: #{item.description}",
+                  description: item.description,
                   quantity: item.quantity.to_f,
                   unitPrice: item.unit_price.to_f,
                   gstCode: item.gst_code || "GST",
@@ -662,21 +721,23 @@ module Api
                   pricebookItemCode: item.pricebook_item&.item_code
                 }
               end
-            end
 
-            {
-              id: "cc-#{budget.id}",
-              name: cc_name,
-              supplierId: nil,
-              supplierName: nil,
-              taskName: nil,
-              tradeName: nil,
-              stageName: nil,
-              stagePosition: nil,
-              costCentreName: cc_name,
-              items: items
-            }
+              groups << {
+                id: "po-#{po.id}",
+                name: po.purchase_order_number || "PO-#{po.id}",
+                supplierId: po.supplier_id,
+                supplierName: po.supplier&.display_name,
+                taskName: po.description,
+                tradeName: nil,
+                stageName: nil,
+                stagePosition: nil,
+                costCentreName: cc_name,
+                items: items
+              }
+            end
           end
+
+          groups
         else
           # Fallback: PO-only mode (no cost budgets)
           purchase_orders.map do |po|
@@ -1331,7 +1392,9 @@ module Api
           :plan_date,
           :spec_date,
           :practical_completion_date,
-          :warranty_end_date
+          :warranty_end_date,
+          # Profit centre
+          :default_profit_centre_id
         )
       end
 

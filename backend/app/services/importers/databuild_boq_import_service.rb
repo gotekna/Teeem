@@ -223,6 +223,14 @@ module Importers
       normalized = raw_rows.filter_map do |row|
         next nil if row.length < data_start + 8
 
+        # Extract Databuild section total from after data+comments columns
+        # Layout: [...data(8)...],[comments],[Total label],[total value]
+        section_total = nil
+        total_label = row[data_start + 9]&.to_s&.strip
+        if total_label&.start_with?("Total")
+          section_total = row[data_start + 10]&.to_s&.strip
+        end
+
         {
           "Item" => row[data_start]&.to_s&.strip,
           "Description" => row[data_start + 1]&.to_s&.strip,
@@ -232,7 +240,8 @@ module Importers
           "Amount" => row[data_start + 5]&.to_s&.strip,
           "Lvl" => row[data_start + 6]&.to_s&.strip,
           "Ld" => row[data_start + 7]&.to_s&.strip,
-          "Section" => row[section_col]&.to_s&.strip
+          "Section" => row[section_col]&.to_s&.strip,
+          "SectionTotal" => section_total
         }
       end
 
@@ -559,11 +568,12 @@ module Importers
 
       cost_centres = sections.map do |section|
         existing = CostCentre.find_by(code: section[:code])
+        items_total = section[:items].sum { |i| i[:total_price] || 0 }
         {
           code: section[:code],
           name: section[:name],
           item_count: section[:items].length,
-          total_amount: section[:items].sum { |i| i[:total_price] || 0 },
+          total_amount: section[:csv_total].present? && section[:csv_total] > 0 ? section[:csv_total] : items_total,
           status: existing ? "exists" : "new"
         }
       end
@@ -647,7 +657,10 @@ module Importers
           # 3. Create JobCostBudget linking cost centre to job
           existing_budget = JobCostBudget.find_by(job: @job, cost_centre: cost_centre)
           unless existing_budget
-            section_total = section[:items].sum { |i| i[:total_price] || 0 }
+            # Use Databuild's authoritative section total when available,
+            # fall back to summing individual items
+            items_total = section[:items].sum { |i| i[:total_price] || 0 }
+            section_total = section[:csv_total].present? && section[:csv_total] > 0 ? section[:csv_total] : items_total
             if section_total > 0
               JobCostBudget.create!(
                 job: @job,
@@ -681,11 +694,13 @@ module Importers
         code = find_header_value(row, ["Code", "Item"])
         description = row["Description"]&.strip
         section_label = row["Section"]&.to_s&.strip.presence  # Crystal Reports format
+        section_total_str = row["SectionTotal"]  # Crystal Reports: Databuild section total
 
         next if code.blank? && description.blank?
 
         # Detect new section
         new_section = false
+        is_section_header = false
         cc_code = nil
         cc_name = nil
 
@@ -701,22 +716,30 @@ module Importers
           cc_code = extract_cost_centre_code(code)
           cc_name = description
           new_section = true if cc_code.present?
+          is_section_header = true
         end
 
         if new_section && cc_code.present?
+          # Use Databuild's authoritative section total when available
+          csv_total = parse_money(section_total_str)
+
           current_section = {
             code: cc_code,
             name: cc_name.presence || "Cost Centre #{cc_code}",
             raw_code: code,
-            items: []
+            items: [],
+            csv_total: csv_total
           }
           sections << current_section
-          # If Lvl -1, this row is just a section header - skip adding as line item
-          next if level.present? && level < 0
+          # Standard BOQ: the Lvl -1 row that created the section IS the header - skip it
+          next if is_section_header
         end
 
-        # Skip section header rows (Lvl -1) that didn't create a new section
-        next if level.present? && level < 0
+        # Update section total from any row (every Crystal Reports row carries it)
+        if current_section && section_total_str.present?
+          csv_total = parse_money(section_total_str)
+          current_section[:csv_total] = csv_total if csv_total && csv_total > 0
+        end
 
         # Add line item to current section
         next unless current_section && code.present? && description.present?
@@ -725,7 +748,7 @@ module Importers
         unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"])) || 0
         total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"])) || 0
 
-        # Skip zero-value items (likely totals or empty rows)
+        # Skip zero-value items (headers, totals, empty rows)
         next if quantity.zero? && total_price.zero?
 
         current_section[:items] << {
