@@ -316,36 +316,38 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete, preSel
         {step === "select" && (
           <>
             <div className="space-y-4">
-              {/* Job selector */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Select Job</label>
-                {loadingJobs ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Spinner size={14} />
-                    Loading jobs...
-                  </div>
-                ) : (
-                  <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose a job..." />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-60">
-                      {jobs.map((job) => (
-                        <SelectItem key={job.id} value={String(job.id)}>
-                          <span className="flex items-center gap-2">
-                            {job.job_code && (
-                              <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
-                                {job.job_code}
-                              </span>
-                            )}
-                            <span className="truncate">{job.name}</span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+              {/* Job selector - hidden when pre-selected from job page */}
+              {!preSelectedJobId && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Select Job</label>
+                  {loadingJobs ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Spinner size={14} />
+                      Loading jobs...
+                    </div>
+                  ) : (
+                    <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose a job..." />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {jobs.map((job) => (
+                          <SelectItem key={job.id} value={String(job.id)}>
+                            <span className="flex items-center gap-2">
+                              {job.job_code && (
+                                <span className="font-mono text-xs bg-muted px-1 py-0.5 rounded">
+                                  {job.job_code}
+                                </span>
+                              )}
+                              <span className="truncate">{job.name}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
 
               {/* File upload drop zone */}
               <div className="space-y-2">
