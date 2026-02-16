@@ -72,7 +72,7 @@ class OrgEmailSyncJob < ApplicationJob
 
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
-  def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil)
+  def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil, target_mailbox: nil)
     # Performance: Thread-safe caches for parallel folder sync
     @user_cache = Concurrent::Map.new
     @blacklist_cache = nil
@@ -128,7 +128,40 @@ class OrgEmailSyncJob < ApplicationJob
         return
       end
 
-      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} users (tenant: #{tenant.name})"
+      # FRC (Feb 2026): Target a single mailbox for quick inline sync from the UI.
+      # Root cause: Full credential sync iterates all mailboxes (56 for Pilgrim Homes),
+      # making it too slow for inline execution and too large for background when threads
+      # are occupied. When target_mailbox is set, we only sync that one mailbox (~2-3 seconds).
+      if target_mailbox.present?
+        target = target_mailbox.to_s.downcase.strip
+        if user_emails.map(&:downcase).include?(target)
+          user_emails = [target_mailbox]
+          Rails.logger.info "[OrgEmailSync] Targeted sync for single mailbox: #{target_mailbox}"
+        else
+          Rails.logger.warn "[OrgEmailSync] Target mailbox #{target_mailbox} not found in configured mailboxes"
+          return
+        end
+      end
+
+      # ⚠️ FRC (Feb 2026): Per-mailbox sync tracking fixes TWO bugs:
+      # ════════════════════════════════════════════
+      # Bug 1 (Starvation): list_users() returns the same order every time. With
+      #   PER_CREDENTIAL_TIMEOUT=10min, only the first ~15 mailboxes get processed.
+      #   The remaining 41 are STARVED FOREVER.
+      # Bug 2 (Wrong since date): last_sync_at is credential-level (shared by all mailboxes).
+      #   Once one mailbox syncs, the incremental `since` becomes ~15min ago for ALL mailboxes,
+      #   even ones never synced. So unsynced mailboxes only get last 24h, not full history.
+      # Fix: Track per-mailbox sync timestamps. Sort unsynced-first. Use per-mailbox since dates.
+      # ════════════════════════════════════════════
+      mailbox_synced_at = sync_config["mailbox_synced_at"] || {}
+
+      # Sort: never-synced mailboxes FIRST, then oldest-synced first
+      # This ensures new mailboxes get priority within the time budget
+      user_emails.sort_by! { |email| mailbox_synced_at[email.downcase] || "0000-00-00" }
+
+      synced_count = user_emails.count { |e| mailbox_synced_at[e.downcase].present? }
+      unsynced_count = user_emails.count - synced_count
+      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} mailboxes (#{synced_count} synced, #{unsynced_count} unsynced) (tenant: #{tenant.name})"
 
       total_synced = 0
       errors = []
@@ -149,15 +182,16 @@ class OrgEmailSyncJob < ApplicationJob
         end
 
         begin
-          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
+          # Use per-mailbox last_synced_at for accurate since date
+          mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced)
           total_synced += synced
           Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
 
-          # FRC (Feb 2026): Update last_sync_at after EACH successful mailbox
-          # Root cause: If the job dies mid-sync (Heroku timeout, OOM), last_sync_at stays nil
-          # and subsequent incremental syncs re-process everything from scratch.
-          # Updating incrementally ensures progress is tracked even on partial completion.
-          @credential.update_columns(last_sync_at: Time.current)
+          # Update per-mailbox sync timestamp
+          mailbox_synced_at[user_email.downcase] = Time.current.iso8601
+          updated_config = sync_config.merge("mailbox_synced_at" => mailbox_synced_at)
+          @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
           Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
           errors << { user: user_email, error: e.message }
@@ -183,7 +217,7 @@ class OrgEmailSyncJob < ApplicationJob
 
   private
 
-  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil)
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil)
     client = MicrosoftAppGraphClient.new(@credential)
 
     # Determine since date - prefer sync_days over sync_years if both are set
@@ -201,11 +235,17 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               lookback_time
     else
-              # ⚠️ ULTRA FIX: Never trust last_sync_at exactly - always add overlap
-              # This ensures emails aren't lost due to timing issues or transient failures
-              if @credential.last_sync_at
+              # ⚠️ FRC (Feb 2026): Use PER-MAILBOX last_synced_at, not credential-level
+              # Root cause: credential.last_sync_at is shared by all 56 mailboxes. Once
+              # one mailbox syncs, the `since` becomes ~15min ago for ALL mailboxes —
+              # even never-synced ones that need 15 years of history. Per-mailbox tracking
+              # ensures unsynced mailboxes get full lookback, while synced ones get incremental.
+              # ❌ WRONG: mailbox_last_synced_at || @credential.last_sync_at
+              #    → Falls back to credential-level, defeating the whole purpose
+              # ✅ CORRECT: Only use mailbox-level. If nil, this mailbox was never synced → full lookback.
+              if mailbox_last_synced_at
                 # Use last_sync_at minus overlap buffer, but never less than minimum lookback
-                buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
+                buffered_time = mailbox_last_synced_at - SYNC_OVERLAP_BUFFER
                 minimum_time = SYNC_MINIMUM_LOOKBACK.ago
                 [buffered_time, minimum_time].min  # Use the OLDER of the two (larger window)
               else

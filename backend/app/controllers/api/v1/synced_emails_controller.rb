@@ -518,16 +518,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
   # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
-  # FRC (Jan 2026): Push to :default queue instead of perform_now or :low queue
-  # Root cause: perform_now blocks web worker causing cascading timeouts.
-  # Using :low queue puts it behind 80+ background jobs, useless for manual refresh.
-  # Solution: :default queue = highest priority, processes immediately, non-blocking.
+  # ⚠️ FRC (Feb 2026): Two modes - targeted (inline) and full (async)
+  # ════════════════════════════════════════════════════════════════
+  # Problem: Background worker has only 3 threads. Recurring Pilgrim Homes sync
+  # (56 mailboxes, 3 credentials) occupies all threads for 10+ min every 15 min.
+  # Manual sync jobs (even on :critical queue) can't run when all threads are blocked.
+  #
+  # Solution: When user views a specific mailbox, run sync INLINE on web dyno.
+  # One mailbox incremental sync = ~2-3 seconds (just fetch delta from Graph API).
+  # Full tenant sync still goes async for background refresh.
+  # ════════════════════════════════════════════════════════════════
   def sync
-    # FRC (Feb 2026): Tenant-scope manual sync to current tenant only.
-    # Root cause: Without tenant scoping, pressing sync for Tekna also queues
-    # Pilgrim Homes (56 mailboxes, 3 credentials). Those jobs monopolize all
-    # worker threads for 10+ minutes, so Tekna's sync never runs.
-    # Fix: Only sync current tenant's credentials (same pattern as sync_dashboard).
     connected_orgs = MicrosoftCredential.refreshable_app
                                          .where(organization_id: tenant_organization_ids)
 
@@ -538,11 +539,32 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
-    # FRC (Feb 2026): Use :critical queue so manual sync jumps ahead of recurring jobs.
-    # Root cause: AllOrgsEmailSyncJob queues Pilgrim Homes (56 mailboxes, 3 credentials)
-    # on :default every 15 min. Those jobs take 10+ min each and occupy all 3 worker threads.
-    # Tekna's manual sync jobs sit in :default behind them and never run promptly.
-    # Fix: Worker processes [critical, default, ...] so :critical runs first.
+    # Targeted sync: specific mailbox, run inline for instant results
+    if params[:mailbox_email].present?
+      mailbox = params[:mailbox_email].to_s.downcase.strip
+      cred = connected_orgs.detect do |c|
+        config = c.sync_config || {}
+        mailbox_access = config["user_mailbox_access"] || {}
+        all_mailboxes = mailbox_access.values.flatten.compact.map(&:downcase)
+        all_mailboxes.include?(mailbox)
+      end
+
+      unless cred
+        return render json: { success: false, message: "Mailbox not found in any connected organization" }
+      end
+
+      result = OrgEmailSyncJob.perform_now("incremental", credential_id: cred.id, target_mailbox: mailbox)
+      total = result.is_a?(Hash) ? (result[:total_synced] || 0) : 0
+
+      return render json: {
+        success: true,
+        message: "Synced #{total} email(s) for #{mailbox}",
+        total_synced: total,
+        inline: true
+      }
+    end
+
+    # Full tenant sync: async via worker (fallback for "all accounts" view)
     connected_orgs.each do |cred|
       OrgEmailSyncJob.set(queue: :critical).perform_later("incremental", credential_id: cred.id)
     end

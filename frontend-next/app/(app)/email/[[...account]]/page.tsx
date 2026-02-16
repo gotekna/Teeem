@@ -1609,9 +1609,13 @@ export default function EmailPage() {
             ).catch(() => ({}));
             if (imapResult) results.push(imapResult);
           } else if (account.type === "outlook" || account.type === "ms365") {
-            // Sync specific Office 365 account
+            // FRC (Feb 2026): Pass mailbox_email for targeted inline sync.
+            // Root cause: Async worker has only 3 threads, often all blocked by
+            // Pilgrim Homes recurring sync. Passing mailbox_email triggers inline
+            // sync on the web dyno for just this one mailbox (~2-3 seconds).
             const ms365Result = await api.post<{ total_synced?: number; message?: string }>(
-              "/api/v1/synced_emails/sync"
+              "/api/v1/synced_emails/sync",
+              { mailbox_email: account.email_address }
             ).catch(() => ({}));
             if (ms365Result) results.push(ms365Result);
           }
@@ -1632,20 +1636,23 @@ export default function EmailPage() {
       // Update local sync time immediately for visual feedback
       setLastLocalSyncAt(new Date());
 
-      // FRC (Feb 2026): MS365 sync is ASYNC (perform_later). The API returns immediately
-      // but the job hasn't finished yet. Don't show "No new emails" — we don't know yet.
-      // WebSocket handleSyncCompleted will show the real count when the job finishes.
-      // Fallback: re-fetch emails after delays in case WebSocket is disconnected.
-      toast({ title: "Syncing..." });
-
-      // Immediate fetch (catches already-synced emails)
-      fetchEmails(1, true);
-      fetchAccounts();
-
-      // Fallback re-fetches at 3s and 8s in case WebSocket doesn't fire
-      // If WebSocket IS connected, handleSyncCompleted also fetches (harmless duplicate)
-      setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 3000);
-      setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 8000);
+      // Check if any result was inline (targeted mailbox sync)
+      const inlineResult = results.find((r: Record<string, unknown>) => r && (r as Record<string, unknown>).inline);
+      if (inlineResult) {
+        // Inline sync: results are immediate, just refresh the email list
+        const total = (inlineResult as Record<string, unknown>).total_synced as number || 0;
+        toast({ title: total > 0 ? `Synced ${total} new email(s)` : "No new emails" });
+        fetchEmails(1, true);
+        fetchAccounts();
+      } else {
+        // Async sync: results will arrive via WebSocket
+        toast({ title: "Syncing..." });
+        fetchEmails(1, true);
+        fetchAccounts();
+        // Fallback re-fetches in case WebSocket doesn't fire
+        setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 3000);
+        setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 8000);
+      }
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
