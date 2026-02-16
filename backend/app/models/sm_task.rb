@@ -97,6 +97,7 @@ class SmTask < ApplicationRecord
 
   belongs_to :assigned_user, class_name: "User", optional: true
   belongs_to :supplier, class_name: "Contact", optional: true
+  belongs_to :po_supplier, class_name: "Contact", optional: true
   belongs_to :checklist, class_name: "SupervisorChecklistTemplate", optional: true
   belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
   belongs_to :spawn_scan_task, class_name: "SmScheduleMaster", optional: true

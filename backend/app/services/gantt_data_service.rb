@@ -387,8 +387,8 @@ class GanttDataService
       broken_successor_ids: @broken_successors_map&.dig(record.task_number) || [],
       # PO-related fields
       po_required: record.po_required || false,
-      supplier_id: (record.class.column_names.include?("supplier_id") ? record.supplier_id : nil) || (record.class.column_names.include?("po_supplier_id") ? record.po_supplier_id : nil),
-      supplier_name: (record.class.column_names.include?("supplier_id") ? record.supplier&.name : nil) || (record.class.column_names.include?("po_supplier_id") ? record.po_supplier&.name : nil),
+      supplier_id: (record.respond_to?(:supplier_id) ? record.supplier_id : nil) || record&.po_supplier_id,
+      supplier_name: (record.respond_to?(:supplier) ? record.supplier&.name : nil) || record&.po_supplier&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Claim-related fields
       is_claim_task: record.respond_to?(:is_claim_task?) ? record.is_claim_task? : false,
