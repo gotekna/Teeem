@@ -159,7 +159,10 @@ class XeroTrackingImportService
     all_linked_jobs = Job.joins(:xero_tracking_links).distinct
 
     fixed = 0
+    enriched = 0
+    geocoded_count = 0
     clients_linked = 0
+    geocoder = JobAddressService.new
     all_linked_jobs.find_each do |job|
       primary_link = job.xero_tracking_links.find_by(is_primary: true) || job.xero_tracking_links.first
       next unless primary_link
@@ -189,6 +192,31 @@ class XeroTrackingImportService
         end
       end
 
+      # Enrich: look up postcode/council from Suburb table if missing
+      if job.suburb.present? && job.postcode.blank?
+        suburb_record = Suburb.unscoped.find_by("LOWER(name) = ?", job.suburb.downcase)
+        if suburb_record
+          enrich_attrs = {}
+          enrich_attrs[:postcode] = suburb_record.postcode if suburb_record.postcode.present?
+          enrich_attrs[:council] = suburb_record.council if suburb_record.council.present? && job.council.blank?
+          if enrich_attrs.any?
+            job.update!(enrich_attrs)
+            enriched += 1
+          end
+        end
+      end
+
+      # Geocode: get lat/lng from Mapbox if missing
+      if job.latitude.blank? && job.street_number.present? && job.street_name.present?
+        address = "#{job.street_number} #{job.street_name} #{job.street_type}, #{job.suburb} QLD"
+        result = geocoder.geocode_address(address)
+        if result && result[:latitude].present?
+          job.update!(latitude: result[:latitude], longitude: result[:longitude])
+          geocoded_count += 1
+          sleep(0.2) # Respect Mapbox rate limits
+        end
+      end
+
       # Link client if not already linked (for ALL jobs, not just re-parsed ones)
       if job.job_contacts.where(role: "client").none?
         tracking_options = job.xero_tracking_links.map do |link|
@@ -203,8 +231,8 @@ class XeroTrackingImportService
       @stats[:errors] << "Error processing job ##{job.id}: #{e.message}"
     end
 
-    Rails.logger.info("Re-parse complete: #{fixed} addresses fixed, #{clients_linked} clients linked (#{all_linked_jobs.count} total jobs)")
-    { success: true, fixed: fixed, clients_linked: clients_linked, total_jobs: all_linked_jobs.count, stats: @stats }
+    Rails.logger.info("Re-parse complete: #{fixed} addresses fixed, #{enriched} postcodes enriched, #{geocoded_count} geocoded, #{clients_linked} clients linked (#{all_linked_jobs.count} total jobs)")
+    { success: true, fixed: fixed, enriched: enriched, geocoded: geocoded_count, clients_linked: clients_linked, total_jobs: all_linked_jobs.count, stats: @stats }
   end
 
   # Fetch all tracking options for the configured category
