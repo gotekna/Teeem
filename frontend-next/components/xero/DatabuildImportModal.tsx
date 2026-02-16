@@ -365,7 +365,7 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
                 <ul className="list-disc pl-4 space-y-0.5">
                   <li><span className="font-medium">Cost Centre Summary</span> &mdash; Code, Cost Centre, Bill Amount, Budget</li>
                   <li><span className="font-medium">Load Summary</span> &mdash; Load, Amount, Supplier, Order Date</li>
-                  <li><span className="font-medium">Line Item Detail</span> &mdash; Code, Description, Quantity, Unit Price, Price, Load</li>
+                  <li><span className="font-medium">Line Item Detail / BOQ</span> &mdash; Code/Item, Description, Quantity, Rate/Price, Amount, Load/Ld</li>
                 </ul>
               </div>
 

@@ -35,11 +35,13 @@ module Importers
       @job = job
       @stats = {
         cost_centres_created: 0,
+        cost_centres_updated: 0,
         cost_centres_skipped: 0,
         purchase_orders_created: 0,
         purchase_orders_skipped: 0,
         line_items_created: 0,
         budgets_created: 0,
+        budgets_updated: 0,
         errors: []
       }
     end
@@ -173,11 +175,12 @@ module Importers
     end
 
     def line_item_headers?(headers)
-      # "Code", "Description", "Quantity", "Unit Price" or "Price"
-      has_code = headers.any? { |h| h == "code" }
+      # "Code"/"Item", "Description", "Quantity", "Unit Price"/"Price"/"Rate"
+      # Databuild BOQ exports use "Item" instead of "Code", and "Rate"/"Amount" instead of "Price"
+      has_code = headers.any? { |h| h == "code" || h == "item" }
       has_description = headers.any? { |h| h == "description" }
       has_quantity = headers.any? { |h| h == "quantity" || h == "qty" }
-      has_price = headers.any? { |h| h.include?("price") || h == "rate" }
+      has_price = headers.any? { |h| h.include?("price") || h == "rate" || h == "amount" }
       has_code && has_description && has_quantity && has_price
     end
 
@@ -362,15 +365,18 @@ module Importers
 
     def preview_line_items(rows)
       items = rows.map do |row|
-        code = row["Code"]&.strip
+        code = find_header_value(row, ["Code", "Item"])
         description = row["Description"]&.strip
-        quantity = row["Quantity"]&.to_f || row["Qty"]&.to_f
+        quantity = (find_header_value(row, ["Quantity", "Qty"]))&.to_f || 0
         unit = find_header_value(row, ["Units", "Unit", "UOM"])
         unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"]))
         total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"]))
-        load_num = row["Load"]&.strip
+        load_num = find_header_value(row, ["Load", "Ld"])
+        level = find_header_value(row, ["Lvl", "Level"])&.to_i
 
         next if code.blank? || description.blank?
+        # Skip section headers (Lvl -1) and zero-value header rows from BOQ exports
+        next if level.present? && level < 0
 
         {
           code: code,
@@ -400,14 +406,17 @@ module Importers
       by_load = {}
 
       rows.each do |row|
-        code = row["Code"]&.strip
+        code = find_header_value(row, ["Code", "Item"])
         description = row["Description"]&.strip
-        quantity = (row["Quantity"] || row["Qty"])&.to_f || 1
+        quantity = (find_header_value(row, ["Quantity", "Qty"]))&.to_f || 1
         unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"])) || 0
         total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"])) || 0
-        load_num = row["Load"]&.strip
+        load_num = find_header_value(row, ["Load", "Ld"])
+        level = find_header_value(row, ["Lvl", "Level"])&.to_i
 
         next if code.blank? || description.blank?
+        # Skip section headers (Lvl -1) from BOQ exports
+        next if level.present? && level < 0
         next if load_num.blank?
 
         by_load[load_num] ||= []
