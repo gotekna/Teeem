@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import MultipleSelector, { Option as MultipleSelectorOption } from "@/components/ui/multiple-selector";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
 // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
@@ -1712,15 +1713,16 @@ export default function JobDetailPage() {
                   <div className="space-y-2">
                     <Label>Xero Job Categories</Label>
                     {isEditing ? (
-                      <ComboboxDropdown
-                        items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
-                        selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
-                        onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
+                      <MultipleSelector
+                        options={xeroTrackingOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        value={currentXeroOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        onChange={(selected) => handleLinkXeroMulti(selected.map(s => ({ value: s.value, label: s.label })))}
                         placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
                         disabled={linkingXero}
+                        hidePlaceholderWhenSelected
                       />
                     ) : (
-                      <Input value={currentXeroOptions[0]?.name || job.xero_tracking_option_name || ""} readOnly />
+                      <Input value={currentXeroOptions.map(o => o.name).join(", ") || job.xero_tracking_option_name || ""} readOnly />
                     )}
                     {isEditing && currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">
