@@ -11,6 +11,10 @@ import {
   RefreshCw,
   AlertTriangle,
   X,
+  ChevronRight,
+  Check,
+  Mail,
+  FileText,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
@@ -174,6 +178,21 @@ function friendlyJobName(className: string): { name: string; hint: string } {
   };
 }
 
+function formatEta(remaining: number, ratePerMin: number): string {
+  if (ratePerMin <= 0 || remaining <= 0) return "";
+  const minutes = remaining / ratePerMin;
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `~${Math.round(minutes)} min`;
+  if (minutes < 1440) return `~${Math.round(minutes / 60)} hrs`;
+  return `~${Math.round(minutes / 1440)} days`;
+}
+
+/** Map backlog keys to user-friendly labels and icons */
+const BACKLOG_ICONS: Record<string, typeof Mail> = {
+  email_uploads: Mail,
+  xero_invoices: FileText,
+};
+
 function ResourceBar({
   label,
   used,
@@ -295,6 +314,8 @@ export function WorkerQueueStatus() {
     if (isOpen) fetchQueueStatus();
   }, [isOpen, fetchQueueStatus]);
 
+  const [systemDetailsOpen, setSystemDetailsOpen] = useState(false);
+
   const processEntries = data?.processes
     ? Object.entries(data.processes).sort(([a], [b]) =>
         a.localeCompare(b)
@@ -303,6 +324,8 @@ export function WorkerQueueStatus() {
 
   const hasQueueDepth =
     data?.queueDepth && data.queueDepth.some((q) => q.count > 0);
+
+  const hasBacklog = data?.backlog && data.backlog.some((b) => b.remaining > 0);
 
   // Worker dead banner - portal to body so it renders above everything
   const showBanner = status === "error" && !bannerDismissed;
@@ -367,7 +390,7 @@ export function WorkerQueueStatus() {
         {/* Header */}
         <div className="p-3 border-b border-border flex items-center justify-between">
           <div>
-            <h4 className="font-medium text-sm">Worker Queue</h4>
+            <h4 className="font-medium text-sm">Background Tasks</h4>
             <p className="text-xs text-muted-foreground">
               {data?.statusMessage || "Loading..."}
             </p>
