@@ -1712,7 +1712,7 @@ module Api
         # Get email addresses the user has sent to most frequently
         # Use tenant_id for multi-tenancy
         email_counts = SyncedEmail
-          .where(tenant_id: current_user&.tenant_id)
+          .where(tenant_id: current_tenant&.id)
           .where(direction: "sent")
           .where.not(to_emails: nil)
           .pluck(:to_emails, :cc_emails)

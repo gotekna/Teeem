@@ -907,7 +907,7 @@ class Api::V1::MicrosoftAppController < ApplicationController
             email: email,
             password: SecureRandom.hex(16),
             contact: contact,
-            tenant_id: current_user.tenant_id
+            tenant_id: current_tenant.id
           )
           user.save!
 

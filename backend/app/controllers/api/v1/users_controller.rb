@@ -17,7 +17,7 @@ class Api::V1::UsersController < ApplicationController
       # Create user with contact and tenant
       @user = User.new(create_user_params)
       @user.contact = contact
-      @user.tenant_id = current_user.tenant_id  # Inherit tenant from admin
+      @user.tenant_id = current_tenant.id  # Inherit tenant (respects tenant switcher)
 
       if @user.save
         # Assign roles if provided
