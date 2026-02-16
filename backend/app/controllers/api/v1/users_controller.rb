@@ -436,11 +436,15 @@ class Api::V1::UsersController < ApplicationController
       ActiveRecord::Base.transaction do
         name = m365_user[:name].to_s.strip
         email = m365_user[:email].to_s.strip
-        parts = name.split(/\s+/)
+
+        # M365 often formats names as "FirstName @ Company" - strip the @ suffix
+        clean_name = name.sub(/\s*@\s.*$/, "").strip
+        clean_name = email.split("@").first.capitalize if clean_name.blank?
+        parts = clean_name.split(/\s+/)
 
         # Create contact
         contact = Contact.create!(
-          display_name: name,
+          display_name: clean_name,
           first_name: parts[0],
           last_name: parts.length > 1 ? parts[1..].join(" ") : nil,
           entity_type: "person",
@@ -456,7 +460,7 @@ class Api::V1::UsersController < ApplicationController
 
         # Create user with random password (they'll use invite/reset flow)
         user = User.new(
-          name: name,
+          name: clean_name,
           email: email,
           password: SecureRandom.urlsafe_base64(16) + "!A1",
           tenant_id: current_tenant.id

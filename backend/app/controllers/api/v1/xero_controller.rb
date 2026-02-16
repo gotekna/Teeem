@@ -940,6 +940,9 @@ module Api
             return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
+          # Clear cached tracking options so fresh data is fetched
+          XeroBillImportService.clear_tracking_options_cache
+
           service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           result = service.import_all
 

@@ -44,26 +44,58 @@ class XeroBillImportService
   # Fetch all tracking categories and their options from Xero
   # Cached for 1 hour to avoid hitting Xero rate limits on every job page load
   # Returns empty array if Xero is not configured (graceful degradation for local dev)
+  #
+  # ⚠️ DO NOT cache empty results - a failed API call should not poison the cache
+  # for 1 hour. Only successful results with actual options get cached.
   def self.fetch_tracking_options
     tracking_category_name = XeroConstants.tracking_category_name
 
-    Rails.cache.fetch("xero_tracking_options/#{tracking_category_name}", expires_in: 1.hour) do
-      client = XeroApiClient.new
-      result = client.get("TrackingCategories")
+    # Check cache first
+    cached = Rails.cache.read("xero_tracking_options/#{tracking_category_name}")
+    return cached if cached.present?
 
-      next [] unless result[:success]
+    # Fetch from Xero API
+    client = XeroApiClient.new
+    result = client.get("TrackingCategories")
 
-      categories = result[:data]["TrackingCategories"] || []
-      job_category = categories.find { |c| c["Name"] == tracking_category_name }
-
-      next [] unless job_category
-
-      job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+    unless result[:success]
+      Rails.logger.warn("[Xero] TrackingCategories API call failed: #{result[:error]}")
+      return []
     end
+
+    categories = result[:data]["TrackingCategories"] || []
+    job_category = categories.find { |c| c["Name"] == tracking_category_name }
+
+    unless job_category
+      available = categories.map { |c| c["Name"] }.join(", ")
+      Rails.logger.warn("[Xero] Tracking category '#{tracking_category_name}' not found. Available: #{available}")
+      return []
+    end
+
+    options = job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+
+    # Only cache non-empty results so failed calls don't poison the cache
+    if options.any?
+      Rails.cache.write("xero_tracking_options/#{tracking_category_name}", options, expires_in: 1.hour)
+      Rails.logger.info("[Xero] Cached #{options.length} tracking options for '#{tracking_category_name}'")
+    else
+      Rails.logger.warn("[Xero] Category '#{tracking_category_name}' found but has no active options")
+    end
+
+    options
   rescue XeroApiClient::AuthenticationError => e
-    # Graceful degradation: return empty if Xero not configured (common in local dev)
     Rails.logger.info("[Xero] Not configured: #{e.message}")
     []
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching tracking options: #{e.class}: #{e.message}")
+    []
+  end
+
+  # Clear the cached tracking options (call after import or manual refresh)
+  def self.clear_tracking_options_cache
+    tracking_category_name = XeroConstants.tracking_category_name
+    Rails.cache.delete("xero_tracking_options/#{tracking_category_name}")
+    Rails.logger.info("[Xero] Cleared tracking options cache for '#{tracking_category_name}'")
   end
 
   # Match a job to a Xero tracking option by name/address
