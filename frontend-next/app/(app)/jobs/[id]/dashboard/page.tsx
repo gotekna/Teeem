@@ -46,6 +46,7 @@ import {
   HorizontalBarChart,
   CostBreakdownTable,
 } from "@/components/ui/gantt";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // ============================================
 // Types
@@ -525,7 +526,7 @@ export default function SmDashboardPage() {
                     <ProgressRing
                       value={projectSummary.progress.percentage}
                       size={160}
-                      color={projectSummary.progress.percentage >= 80 ? "#22c55e" : "#3b82f6"}
+                      color={projectSummary.progress.percentage >= 80 ? TAILWIND_COLORS.green[500] : TAILWIND_COLORS.blue[500]}
                     />
                   </div>
                   <div className="mt-4 text-center text-sm text-muted-foreground">
@@ -546,17 +547,17 @@ export default function SmDashboardPage() {
                       {
                         label: "Completed",
                         value: projectSummary.task_counts.completed,
-                        color: "#22c55e",
+                        color: TAILWIND_COLORS.green[500],
                       },
                       {
                         label: "In Progress",
                         value: projectSummary.task_counts.in_progress,
-                        color: "#3b82f6",
+                        color: TAILWIND_COLORS.blue[500],
                       },
                       {
                         label: "Not Started",
                         value: projectSummary.task_counts.not_started,
-                        color: "#9ca3af",
+                        color: TAILWIND_COLORS.gray[400],
                       },
                     ]}
                     size={120}
@@ -576,10 +577,10 @@ export default function SmDashboardPage() {
                       size={120}
                       color={
                         projectSummary.schedule_health.health_score >= 80
-                          ? "#22c55e"
+                          ? TAILWIND_COLORS.green[500]
                           : projectSummary.schedule_health.health_score >= 50
-                            ? "#f59e0b"
-                            : "#ef4444"
+                            ? TAILWIND_COLORS.amber[500]
+                            : TAILWIND_COLORS.red[500]
                       }
                     />
                   </div>

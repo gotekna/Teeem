@@ -212,8 +212,8 @@ async function convertElementToDocx(
         if (imageRun) {
           return new Paragraph({ children: [imageRun] });
         }
-      } catch (e) {
-        console.warn("Failed to convert image:", e);
+      } catch (error) {
+        console.error("Export error:", error);
       }
     }
     return null;
@@ -254,7 +254,8 @@ async function extractTextRuns(
               : undefined,
             strike: inheritedStyle.strike,
             color: inheritedStyle.color,
-            highlight: inheritedStyle.highlight as any,
+            // docx library expects specific highlight enum, cast for compatibility
+            highlight: inheritedStyle.highlight as unknown as ConstructorParameters<typeof TextRun>[0] extends Record<string, unknown> ? ConstructorParameters<typeof TextRun>[0]['highlight'] : string,
           })
         );
       }
@@ -425,8 +426,8 @@ async function createImageFromDataUrl(dataUrl: string): Promise<ImageRun | null>
         height: 300,
       },
     });
-  } catch (e) {
-    console.warn("Failed to create image:", e);
+  } catch (error) {
+    console.error("Export error:", error);
     return null;
   }
 }

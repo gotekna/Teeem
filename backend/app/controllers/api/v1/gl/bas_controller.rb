@@ -306,9 +306,9 @@ module Api
             message: lodgement.lodged? ? "BAS lodged to ATO successfully" : "BAS lodgement failed"
           }
         rescue Sbr::BasLodger::ValidationError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue Sbr::BasLodger::AlreadyLodgedError => e
-          render json: { success: false, error: e.message }, status: :conflict
+          render_error(e.message, status: :conflict)
         rescue NotImplementedError => e
           render json: {
             success: false,

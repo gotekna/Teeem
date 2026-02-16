@@ -62,7 +62,6 @@ export interface UseTableHandlersProps {
   searchAllColumns: boolean;
 
   /** Server-side search callback (optional) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onServerSearch?: (search: string, searchAllOrMode?: any) => void;
 
   /** Set column order state */

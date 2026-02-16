@@ -2,8 +2,8 @@ require "net/http"
 require "json"
 
 class AsicLookupService
-  # ABN Lookup API (Free) - https://abr.business.gov.au/
-  ABR_API_URL = "https://abr.business.gov.au/json"
+  # ABN Lookup API (Free) - SSoT: AbrApiService::ABR_JSON_URL
+  ABR_API_URL = AbrApiService::ABR_JSON_URL
 
   # GUID is required for ABR API access - obtain from https://abr.business.gov.au/Tools/WebServices
   # Store in environment variable

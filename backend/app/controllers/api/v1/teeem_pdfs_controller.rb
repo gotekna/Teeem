@@ -43,10 +43,7 @@ module Api
             data: pdf_detail(pdf)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: pdf.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(pdf)
         end
       end
 
@@ -63,10 +60,7 @@ module Api
             data: pdf_detail(@pdf)
           }
         else
-          render json: {
-            success: false,
-            error: @pdf.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@pdf)
         end
       end
 
@@ -81,7 +75,7 @@ module Api
       def set_pdf
         @pdf = current_user.teeem_pdfs.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "PDF not found" }, status: :not_found
+        render_error("PDF not found", status: :not_found)
       end
 
       def pdf_params

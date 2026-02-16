@@ -92,7 +92,7 @@ module Api
           users: users.map { |u| { id: u.id, name: u.name, email: u.email } }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Role not found" }, status: :not_found
+        render_error("Role not found", status: :not_found)
       end
 
       # PATCH /api/v1/permissions/roles/:id
@@ -135,7 +135,7 @@ module Api
             }
           }
         else
-          render json: { success: false, errors: role.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(role)
         end
       end
 
@@ -147,18 +147,12 @@ module Api
         # SSoT: Use user_roles join table (role.users) not legacy role column
         users_count = role.users.count
         if users_count > 0
-          return render json: {
-            success: false,
-            error: "Cannot delete role '#{role.display_name}' - #{users_count} user(s) are assigned to it"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete role '#{role.display_name}' - #{users_count} user(s) are assigned to it", status: :unprocessable_entity)
         end
 
         # Prevent deleting system roles
         if %w[user admin].include?(role.name)
-          return render json: {
-            success: false,
-            error: "Cannot delete system role '#{role.display_name}'"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete system role '#{role.display_name}'", status: :unprocessable_entity)
         end
 
         role.destroy
@@ -172,12 +166,12 @@ module Api
         display_name = role_params[:display_name]&.strip || role_params[:name]&.strip&.titleize
 
         if name.blank?
-          return render json: { success: false, error: "Role name is required" }, status: :unprocessable_entity
+          return render_error("Role name is required", status: :unprocessable_entity)
         end
 
         # Check if role already exists
         if Role.exists?(name: name)
-          return render json: { success: false, error: "Role '#{name}' already exists" }, status: :unprocessable_entity
+          return render_error("Role '#{name}' already exists", status: :unprocessable_entity)
         end
 
         # Get next position
@@ -202,10 +196,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: role.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(role)
         end
       end
 

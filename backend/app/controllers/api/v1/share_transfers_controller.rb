@@ -51,10 +51,7 @@ module Api
             data: serialize_transfer(@share_transfer)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @share_transfer.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@share_transfer)
         end
       end
 
@@ -66,10 +63,7 @@ module Api
             data: serialize_transfer(@share_transfer)
           }
         else
-          render json: {
-            success: false,
-            errors: @share_transfer.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@share_transfer)
         end
       end
 

@@ -172,17 +172,19 @@ class DocumentStorageService
   # Create a shareable link for a document
   #
   # SSoT Architecture (Jan 2026):
-  #   - S3/Wasabi: Returns long-lived presigned URL (7 days default)
+  #   - S3/Wasabi: Returns long-lived presigned URL (uses TenantSetting.link_expiry_seconds)
   #   - SharePoint: Creates persistent anonymous sharing link
   #
   # @param record [ActiveRecord::Base] Document with storage_path or storage_reference
-  # @param expires_in [Integer] Expiry in seconds for S3 URLs (default: 7 days)
+  # @param expires_in [Integer] Expiry in seconds for S3 URLs (default: TenantSetting configured days)
   # @param type [String] SharePoint link type: "view" or "edit" (default: "view")
   # @param scope [String] SharePoint scope: "anonymous" or "organization" (default: "anonymous")
   # @param disposition [Symbol] :attachment (download) or :inline (view in browser)
   # @return [Hash] { success: true, share_url: "...", provider: :s3/:sharepoint }
   #                or { success: false, error: "..." }
-  def create_share_link(record, expires_in: 604800, type: "view", scope: "anonymous", disposition: :attachment)
+  def create_share_link(record, expires_in: nil, type: "view", scope: "anonymous", disposition: :attachment)
+    # Default to tenant-configured link expiry for user-facing share links
+    expires_in ||= TenantSetting.link_expiry_seconds
     return error_result("No record provided") unless record
 
     # SSoT Priority:
@@ -269,10 +271,10 @@ class DocumentStorageService
   #   This enables files to rename on download based on configured templates
   #
   # @param record [ActiveRecord::Base] Document model
-  # @param expires_in [Integer] URL expiry in seconds (default: 3600)
+  # @param expires_in [Integer] URL expiry in seconds (default: 1 hour)
   # @param disposition [Symbol] :attachment (download) or :inline (view in browser)
   # @return [Hash] { success: true, url: "...", filename: "..." }
-  def download_url(record, expires_in: 3600, disposition: :attachment)
+  def download_url(record, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :attachment)
     return error_result("No record provided", status: :bad_request) unless record
 
     # SSoT: Phase 3 WarehouseDocument.storage_blob is THE ONE source for file paths
@@ -736,16 +738,17 @@ class DocumentStorageService
   end
 
   # Get a credential that can fetch this email
-  # Priority: credential that synced this email > any connected credential
+  # Priority: credential that synced this email > any connected credential (tenant-scoped for security)
   def get_credential_for_email(email)
     # Try the credential that synced this email first
     if email.microsoft_credential_id.present?
-      cred = MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+      cred = MicrosoftCredential.where(tenant_id: @tenant.id)
+                                .find_by(id: email.microsoft_credential_id)
       return cred if cred&.connected?
     end
 
-    # Fall back to any connected app credential
-    MicrosoftCredential.active_credential
+    # Fall back to any connected app credential from this tenant (security)
+    MicrosoftCredential.where(tenant_id: @tenant.id).refreshable_app.first
   end
 
   # Create WarehouseDocument for email via standard service

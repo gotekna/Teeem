@@ -2,7 +2,7 @@ module Api
   module V1
     class CorporateLoansController < ApplicationController
       before_action :set_company, only: [ :index, :show, :create, :update, :destroy ]
-      before_action :set_loan, only: [ :show, :update, :destroy ]
+      before_action :set_loan, only: [ :show, :update, :destroy, :record_payment ]
 
       # GET /api/v1/companies/:company_id/loans
       # Shows loans where company is either lender or borrower
@@ -72,10 +72,7 @@ module Api
             data: serialize_loan(@loan)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @loan.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@loan)
         end
       end
 
@@ -87,10 +84,7 @@ module Api
             data: serialize_loan(@loan)
           }
         else
-          render json: {
-            success: false,
-            errors: @loan.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@loan)
         end
       end
 

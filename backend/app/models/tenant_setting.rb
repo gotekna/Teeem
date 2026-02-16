@@ -26,6 +26,13 @@ class TenantSetting < ApplicationRecord
   encrypts :twilio_auth_token
 
   # ========================================
+  # SSoT Defaults (used as fallbacks when tenant has no config)
+  # ========================================
+  DEFAULT_TIMEZONE = "Australia/Brisbane".freeze
+  DEFAULT_LOCALE = "en-AU".freeze
+  DEFAULT_CURRENCY = "AUD".freeze
+
+  # ========================================
   # API Environment Configuration (SSoT)
   # ========================================
   VALID_API_ENVIRONMENTS = %w[production beta staging].freeze
@@ -60,9 +67,9 @@ class TenantSetting < ApplicationRecord
   # Get or create settings for a tenant (THE ONE way to access tenant settings)
   def self.for_tenant(tenant)
     find_or_create_by!(tenant: tenant) do |setting|
-      setting.timezone ||= "Australia/Brisbane"
-      setting.locale ||= "en-AU"
-      setting.currency ||= "AUD"
+      setting.timezone ||= DEFAULT_TIMEZONE
+      setting.locale ||= DEFAULT_LOCALE
+      setting.currency ||= DEFAULT_CURRENCY
       # corporate_group_id is NOT NULL in schema, derive from tenant
       setting.company_group_id ||= tenant.company_groups.first&.id
     end
@@ -81,9 +88,9 @@ class TenantSetting < ApplicationRecord
         setting.tenant_id ||= fallback_tenant&.id
         # company_group_id is NOT NULL in schema
         setting.company_group_id ||= fallback_tenant&.company_groups&.first&.id || CompanyGroup.first&.id
-        setting.timezone ||= "Australia/Brisbane"
-        setting.locale ||= "en-AU"
-        setting.currency ||= "AUD"
+        setting.timezone ||= DEFAULT_TIMEZONE
+        setting.locale ||= DEFAULT_LOCALE
+        setting.currency ||= DEFAULT_CURRENCY
       end
     end
   end
@@ -114,7 +121,7 @@ class TenantSetting < ApplicationRecord
 
   # Get the company timezone string (SSoT)
   def self.timezone
-    instance.timezone || "Australia/Brisbane"
+    instance.timezone || DEFAULT_TIMEZONE
   end
 
   # =============================================================================
@@ -460,7 +467,7 @@ class TenantSetting < ApplicationRecord
       }
     # Dev Heroku apps (teeem-sam-dev, teeem-rob-dev) should not redirect
     # They're for isolated testing and shouldn't route to other environments
-    elsif ENV["HEROKU_APP_NAME"]&.include?("-dev")
+    elsif InfrastructureUrls.dev_instance?
       {
         environment: "dev",
         api_url: nil,
@@ -481,7 +488,7 @@ class TenantSetting < ApplicationRecord
 
   # Get the timezone for this tenant (default: Brisbane)
   def effective_timezone
-    timezone.presence || "Australia/Brisbane"
+    timezone.presence || DEFAULT_TIMEZONE
   end
 
   # Get the locale for this tenant (default: en-AU)
@@ -535,11 +542,109 @@ class TenantSetting < ApplicationRecord
     stripe_customer_id.present?
   end
 
+  # =============================================================================
+  # Ticket / SLA Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_SLA_RESPONSE_HOURS = { "urgent" => 1, "high" => 4, "medium" => 8, "low" => 24 }.freeze
+  DEFAULT_SLA_RESOLUTION_HOURS = { "urgent" => 4, "high" => 24, "medium" => 72, "low" => 168 }.freeze
+  DEFAULT_TICKET_PRIORITIES = %w[urgent high medium low].freeze
+  DEFAULT_TICKET_CATEGORIES = %w[bug feature_request question onboarding billing other].freeze
+
+  def self.sla_response_hours
+    instance.ticket_sla_response_hours.presence || DEFAULT_SLA_RESPONSE_HOURS
+  end
+
+  def self.sla_resolution_hours
+    instance.ticket_sla_resolution_hours.presence || DEFAULT_SLA_RESOLUTION_HOURS
+  end
+
+  def self.ticket_priorities
+    instance.ticket_priorities.presence || DEFAULT_TICKET_PRIORITIES
+  end
+
+  def self.ticket_categories
+    instance.ticket_categories.presence || DEFAULT_TICKET_CATEGORIES
+  end
+
+  # =============================================================================
+  # Contact Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_CONTACT_ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
+  DEFAULT_CONTACT_ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
+  DEFAULT_CONTACT_EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+
+  def self.contact_roles
+    instance.contact_roles.presence || DEFAULT_CONTACT_ROLES
+  end
+
+  def self.contact_entity_types
+    instance.contact_entity_types.presence || DEFAULT_CONTACT_ENTITY_TYPES
+  end
+
+  def self.contact_employment_statuses
+    instance.contact_employment_statuses.presence || DEFAULT_CONTACT_EMPLOYMENT_STATUSES
+  end
+
+  # =============================================================================
+  # Email Template Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_EMAIL_TEMPLATE_CATEGORIES = {
+    "quick_reply" => "Quick Reply",
+    "formal" => "Formal",
+    "follow_up" => "Follow-up",
+    "meeting" => "Meeting",
+    "quote" => "Quote/Proposal",
+    "invoice" => "Invoice",
+    "other" => "Other"
+  }.freeze
+
+  def self.email_template_categories
+    instance.email_template_categories.presence || DEFAULT_EMAIL_TEMPLATE_CATEGORIES
+  end
+
+  # =============================================================================
+  # Contact Relationship Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  def self.relationship_type_metadata
+    instance.relationship_type_metadata.presence || ContactRelationship::DEFAULT_RELATIONSHIP_TYPE_METADATA
+  end
+
+  # =============================================================================
+  # Email UI Configuration (SSoT - configurable per tenant)
+  # =============================================================================
+
+  DEFAULT_EMAIL_STAR_COLORS = {
+    "red" => { "hex" => "#EF4444", "label" => "Red" },
+    "orange" => { "hex" => "#F97316", "label" => "Orange" },
+    "yellow" => { "hex" => "#EAB308", "label" => "Yellow" },
+    "green" => { "hex" => "#22C55E", "label" => "Green" },
+    "blue" => { "hex" => "#3B82F6", "label" => "Blue" },
+    "purple" => { "hex" => "#A855F7", "label" => "Purple" }
+  }.freeze
+
+  DEFAULT_EMAIL_PRIORITY_LEVELS = {
+    "high" => { "label" => "High", "icon" => "alert-circle" },
+    "normal" => { "label" => "Normal", "icon" => "minus" },
+    "low" => { "label" => "Low", "icon" => "arrow-down" }
+  }.freeze
+
+  def self.email_star_colors
+    instance.email_star_colors.presence || DEFAULT_EMAIL_STAR_COLORS
+  end
+
+  def self.email_priority_levels
+    instance.email_priority_levels.presence || DEFAULT_EMAIL_PRIORITY_LEVELS
+  end
+
   private
 
   def set_defaults
-    self.timezone ||= "Australia/Brisbane"
-    self.locale ||= "en-AU"
-    self.currency ||= "AUD"
+    self.timezone ||= DEFAULT_TIMEZONE
+    self.locale ||= DEFAULT_LOCALE
+    self.currency ||= DEFAULT_CURRENCY
   end
 end

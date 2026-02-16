@@ -83,7 +83,7 @@ module Api
           data: serialize_transaction(transaction, include_details: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Transaction not found" }, status: :not_found
+        render_error("Transaction not found", status: :not_found)
       end
 
       # GET /api/v1/xero_bank_transactions/bank_accounts
@@ -170,10 +170,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Bank transaction sync trigger failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Sync failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Sync failed: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/xero_bank_transactions/download_report
@@ -191,7 +188,7 @@ module Api
         )
       rescue StandardError => e
         Rails.logger.error("PDF report generation failed: #{e.message}")
-        render json: { success: false, error: "Failed to generate report: #{e.message}" }, status: :internal_server_error
+        render_error("Failed to generate report: #{e.message}", status: :internal_server_error)
       end
 
       private

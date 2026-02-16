@@ -12,10 +12,7 @@ module Api
         # Check for existing active reextraction
         existing = @job.plan_reextractions.active.first
         if existing
-          render json: {
-            success: false,
-            error: "A re-extraction is already in progress"
-          }, status: :conflict
+          render_error("A re-extraction is already in progress", status: :conflict)
           return
         end
 

@@ -50,6 +50,7 @@ import {
   type PhotoCacheStats,
   type PhotoSyncProgress,
 } from "@/lib/offline";
+import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 export function OfflineSyncManager() {
   const {
@@ -93,7 +94,7 @@ export function OfflineSyncManager() {
       setPhotoSyncProgress(progress);
     });
     await loadPhotoStats();
-    setTimeout(() => setPhotoSyncProgress(null), 3000);
+    setTimeout(() => setPhotoSyncProgress(null), UI_SUCCESS_MESSAGE_MS);
   };
 
   // Clear photo cache

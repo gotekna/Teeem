@@ -10,7 +10,7 @@ module HealthChecks
   #   - Price mismatches between current_price and latest history (warning)
   #
   class PricebookCheck < BaseCheck
-    FOUNDATION_SLUG = "pricebook-items"
+    FOUNDATION_SLUG = "pricebook-items".freeze
 
     def self.check_type
       "pricebook"
@@ -80,7 +80,7 @@ module HealthChecks
             display: "#{item.item_code} - #{item.item_name}",
             item_code: item.item_code,
             item_name: item.item_name,
-            category: item.try(:category)
+            category: item&.category
           }
         else
           super

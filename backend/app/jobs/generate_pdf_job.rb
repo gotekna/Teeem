@@ -12,6 +12,8 @@
 #   - form43_certificate: Form43CertificateGenerator (Grover)
 #
 class GeneratePdfJob < ApplicationJob
+  include MimeTypes
+
   queue_as :default
 
   def perform(pdf_generation_id)
@@ -25,7 +27,7 @@ class GeneratePdfJob < ApplicationJob
     blob = StorageBlob.find_or_create_for_content!(
       pdf_content,
       filename: filename,
-      content_type: "application/pdf"
+      content_type: PDF
     )
 
     pdf_gen.update!(
@@ -230,7 +232,7 @@ class GeneratePdfJob < ApplicationJob
     blob = StorageBlob.find_or_create_for_content!(
       result[:pdf_content],
       filename: result[:filename],
-      content_type: "application/pdf"
+      content_type: PDF
     )
 
     warehouse_doc = WarehouseDocumentCreator.create!(
@@ -239,7 +241,7 @@ class GeneratePdfJob < ApplicationJob
       linkable: job,
       storage_blob: blob,
       file_size: result[:pdf_content].bytesize,
-      content_type: "application/pdf",
+      content_type: PDF,
       metadata: {
         "document_type_id" => document_type.id,
         "document_type" => document_type.name,

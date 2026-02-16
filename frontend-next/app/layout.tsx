@@ -14,6 +14,7 @@ import { DynamicTitle } from "@/components/dynamic-title";
 import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
 import { OfflineProvider } from "@/components/providers/offline-provider";
 import type { Metadata, Viewport } from "next";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -23,8 +24,8 @@ const hedvigSerif = Hedvig_Letters_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Teeem",
-  description: "Project management for construction",
+  title: "TEEEM",
+  description: "Project management platform for construction - manage jobs, contacts, documents, and workflows",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -34,10 +35,11 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  keywords: ["construction management", "project management", "job tracking", "construction software"],
 };
 
 export const viewport: Viewport = {
-  themeColor: "#4f46e5",
+  themeColor: TAILWIND_COLORS.indigo[600],
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

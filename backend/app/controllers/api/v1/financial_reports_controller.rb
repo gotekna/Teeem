@@ -16,15 +16,9 @@ module Api
           report: report
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       rescue FinancialReportingService::ReportError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_reports/profit_loss
@@ -46,15 +40,9 @@ module Api
           report: report
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       rescue FinancialReportingService::ReportError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_reports/job_profitability
@@ -76,15 +64,9 @@ module Api
           report: report
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       rescue FinancialReportingService::ReportError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_reports/account_balances
@@ -100,10 +82,7 @@ module Api
           as_of_date: as_of_date.iso8601
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/financial_reports/trial_balance
@@ -118,10 +97,7 @@ module Api
           trial_balance: result
         }
       rescue Date::Error => e
-        render json: {
-          success: false,
-          error: "Invalid date format: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       private
@@ -146,10 +122,7 @@ module Api
                     current_user.company
         end
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Company not found"
-        }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
     end
   end

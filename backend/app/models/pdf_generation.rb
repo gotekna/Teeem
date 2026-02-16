@@ -10,11 +10,8 @@ class PdfGeneration < ApplicationRecord
   belongs_to :tenant, optional: true
   belongs_to :storage_blob, optional: true
 
-  validates :generator_type, presence: true
-  validates :status, inclusion: { in: %w[pending processing completed failed] }
-
-  scope :recent, -> { where("created_at > ?", 24.hours.ago) }
-
+  # Constants
+  STATUSES = %w[pending processing completed failed].freeze
   GENERATOR_TYPES = %w[
     tekna_document
     invoice
@@ -24,6 +21,11 @@ class PdfGeneration < ApplicationRecord
     financial_report
     form43_certificate
   ].freeze
+
+  validates :generator_type, presence: true
+  validates :status, inclusion: { in: STATUSES }
+
+  scope :recent, -> { where("created_at > ?", 24.hours.ago) }
 
   def completed?
     status == "completed"
@@ -37,7 +39,7 @@ class PdfGeneration < ApplicationRecord
     status.in?(%w[pending processing])
   end
 
-  def download_url(expires_in: 3600)
+  def download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless completed? && storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(tenant)

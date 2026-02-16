@@ -29,15 +29,15 @@ class IntercompanyBalance < ApplicationRecord
 
   # Class methods
   def self.latest_as_of_date
-    maximum(:as_of_date) || Date.today
+    maximum(:as_of_date) || Date.current
   end
 
-  def self.for_company_pair(company_a_id, company_b_id, as_of_date: Date.today)
+  def self.for_company_pair(company_a_id, company_b_id, as_of_date: Date.current)
     between_companies(company_a_id, company_b_id).as_of(as_of_date)
   end
 
   # Sync balances from loan register for a company group
-  def self.sync_from_loans(company_group, as_of_date: Date.today)
+  def self.sync_from_loans(company_group, as_of_date: Date.current)
     company_ids = company_group.corporate_companies.pluck(:id)
 
     # Find all active loans between companies in the group

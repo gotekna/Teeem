@@ -11,7 +11,7 @@ class Api::V1::EmailsController < ApplicationController
     elsif params[:unassigned]
       emails = emails.where(job_id: nil)
     else
-      emails = emails.limit(50)
+      emails = emails.limit(EmailConstants::DEFAULT_PER_PAGE)
     end
 
     render json: { success: true, emails: emails.as_json }
@@ -57,7 +57,7 @@ class Api::V1::EmailsController < ApplicationController
     if @email.save
       render json: { success: true, email: @email.as_json }, status: :created
     else
-      render json: { success: false, errors: @email.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@email)
     end
   end
 
@@ -69,7 +69,7 @@ class Api::V1::EmailsController < ApplicationController
     if @email.update(update_params)
       render json: { success: true, email: @email.as_json }
     else
-      render json: { success: false, errors: @email.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@email)
     end
   end
 
@@ -87,14 +87,14 @@ class Api::V1::EmailsController < ApplicationController
     job_id = params[:job_id]
 
     if job_id.blank?
-      render json: { success: false, error: "job_id is required" }, status: :unprocessable_entity
+      render_error("job_id is required", status: :unprocessable_entity)
       return
     end
 
     if @email.update(job_id: job_id)
       render json: { success: true, email: @email.as_json }
     else
-      render json: { success: false, errors: @email.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@email)
     end
   end
 
@@ -129,7 +129,7 @@ class Api::V1::EmailsController < ApplicationController
     if @email.save
       render json: { success: true, email_id: @email.id, matched: @email.job_id.present? }
     else
-      render json: { success: false, errors: @email.errors.full_messages }, status: :unprocessable_entity
+      render_validation_errors(@email)
     end
   end
 

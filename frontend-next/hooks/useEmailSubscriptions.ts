@@ -283,6 +283,8 @@ export function useEmailMigrations() {
       throw new Error("Failed to fetch migrations");
     } catch (err) {
       console.error("Failed to fetch migrations:", err);
+      const message = err instanceof Error ? err.message : "Failed to fetch migrations";
+      toast({ title: "Error", description: message, variant: "destructive" });
       return [];
     } finally {
       setLoading(false);
@@ -423,6 +425,7 @@ export function useProfitReport() {
 export function useEmailPricing() {
   const [pricing, setPricing] = useState<EmailPricing | null>(null);
   const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
 
   const fetchPricing = useCallback(async () => {
     setLoading(true);
@@ -438,11 +441,13 @@ export function useEmailPricing() {
       return null;
     } catch (err) {
       console.error("Failed to fetch pricing:", err);
+      const message = err instanceof Error ? err.message : "Failed to fetch pricing";
+      toast({ title: "Error", description: message, variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   return {
     pricing,
@@ -456,6 +461,7 @@ export function useEmailPricing() {
 // ============================================================================
 
 export function useDashboardStats() {
+  const { toast } = useToast();
   const [stats, setStats] = useState<EmailResellerDashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -473,11 +479,13 @@ export function useDashboardStats() {
       return null;
     } catch (err) {
       console.error("Failed to fetch dashboard stats:", err);
+      const message = err instanceof Error ? err.message : "Failed to fetch dashboard stats";
+      toast({ title: "Error", description: message, variant: "destructive" });
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   return {
     stats,

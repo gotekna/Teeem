@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import MultipleSelector, { Option as MultipleSelectorOption } from "@/components/ui/multiple-selector";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
 // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
@@ -71,6 +72,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { DocumentItem } from "@/components/warehouse/types";
+import type { Job, JobType, JobStatus, JobStage } from "@/lib/types";
 
 // =============================================================================
 // LAZY LOADED TAB COMPONENTS - Performance optimization
@@ -170,7 +172,6 @@ const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/Warehouse
 // Wrapper: Job warehouse tab - contextual view showing ALL related records
 // Shows Job folders for THIS job + Contact folders for contacts on this job +
 // Task folders for tasks on this job, etc.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function JobWarehouseTab(props: any) {
   const warehouseRouter = useRouter();
   const clickTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -245,7 +246,6 @@ const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
 // Special tabs (overview, whs, plans) have inline JSX and are excluded.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "contract": JobContractTab,
   "specifications": SpecificationBuilder,
@@ -295,99 +295,6 @@ interface JobContact {
     company_name_or_trust?: string;
   };
 }
-
-interface Job {
-  id: number;
-  name: string;
-  status: string;
-  stage: string;
-  job_code?: string;
-  job_type?: { id: number; name: string; icon?: string };
-  job_type_id?: number;
-  job_status?: { id: number; name: string; color?: string };
-  job_status_id?: number;
-  job_stage?: { id: number; name: string };
-  job_stage_id?: number;
-  contract_value: number;
-  live_profit: number;
-  profit_percentage: number;
-  certifier_job_no?: string;
-  xero_tracking_option_id?: string;
-  xero_tracking_option_name?: string;
-  start_date?: string;
-  location?: string;
-  latitude?: number;
-  longitude?: number;
-  lot_number?: string;
-  street_number?: string;
-  street_name?: string;
-  street_type?: string;
-  suburb?: string;
-  postcode?: string;
-  state?: string;
-  council?: string;
-  site_supervisor_name?: string;
-  site_supervisor_email?: string;
-  site_supervisor_phone?: string;
-  // Contract fields
-  plan_number?: string;
-  contract_price?: number;
-  deposit?: number;
-  prime_cost?: number;
-  provisional_sums?: number;
-  contract_date?: string;
-  // Build schedule
-  build_period?: string;
-  stage_slab?: string;
-  stage_frame?: string;
-  stage_enclosed?: string;
-  stage_fixing?: string;
-  stage_practical?: string;
-  stage_weather?: string;
-  weekend_work?: string;
-  // Important dates
-  plan_date?: string;
-  spec_date?: string;
-  practical_completion_date?: string;
-  warranty_end_date?: string;
-  contacts?: JobContact[];
-  estimator_analysis?: {
-    job_summary?: string;
-    key_points?: string[];
-    estimated_scope?: {
-      complexity?: string;
-      duration_estimate?: string;
-      key_trades?: string[];
-      major_materials?: string[];
-      potential_challenges?: string[];
-    };
-    recommendations?: string[];
-    source?: string;
-  };
-  // Construction details
-  level?: string;
-  dwelling_type?: string;
-  // Storage folder status
-  storage_folder_status?: "not_requested" | "pending" | "processing" | "completed" | "failed";
-}
-
-interface JobType {
-  id: number;
-  name: string;
-  icon?: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-  color?: string;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-}
-
 
 function getStageBadgeVariant(stage: string): "default" | "secondary" | "outline" {
   switch (stage?.toLowerCase()) {
@@ -862,9 +769,12 @@ export default function JobDetailPage() {
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
 
-  // Xero tracking category state
+  // Job designs state (for ComboboxDropdown)
+  const [jobDesigns, setJobDesigns] = React.useState<{id: number, name: string}[]>([]);
+
+  // Xero tracking category state (multi-link)
   const [xeroTrackingOptions, setXeroTrackingOptions] = React.useState<{id: string, name: string}[]>([]);
-  const [currentXeroOption, setCurrentXeroOption] = React.useState<{id: string, name: string} | null>(null);
+  const [currentXeroOptions, setCurrentXeroOptions] = React.useState<{id: string, name: string, variant?: string, is_primary?: boolean}[]>([]);
   const [suggestedXeroMatch, setSuggestedXeroMatch] = React.useState<{id: string, name: string} | null>(null);
   const [linkingXero, setLinkingXero] = React.useState(false);
 
@@ -1057,7 +967,6 @@ export default function JobDetailPage() {
 
       // Check if cached promise is stale (older than TTL)
       if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
-        console.warn(`Clearing stale job request cache for ${cacheKey}`);
         jobRequestCache.delete(cacheKey);
       }
 
@@ -1071,12 +980,14 @@ export default function JobDetailPage() {
         jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
-      const data = await requestPromise;
+      const response = await requestPromise;
 
       // Clean up cache after request completes
       jobRequestCache.delete(cacheKey);
 
-      setJob(data);
+      // API returns { success: true, data: {...} } envelope
+      const jobData = (response as unknown as { data?: Job })?.data || response;
+      setJob(jobData as Job);
     } catch (error) {
       // Clean up cache on error too
       jobRequestCache.delete(`job-${jobId}`);
@@ -1112,13 +1023,14 @@ export default function JobDetailPage() {
       const response = await api.get<{
         success: boolean;
         tracking_options: {id: string, name: string}[];
+        current_options: {id: string, name: string, variant?: string, is_primary?: boolean}[];
         current_option: {id: string, name: string} | null;
         suggested_match: {id: string, name: string} | null;
       }>(`/api/v1/jobs/${jobId}/xero_tracking_options`);
 
       if (response?.success) {
         setXeroTrackingOptions(response.tracking_options || []);
-        setCurrentXeroOption(response.current_option);
+        setCurrentXeroOptions(response.current_options || []);
         setSuggestedXeroMatch(response.suggested_match);
       }
     } catch (error) {
@@ -1126,17 +1038,46 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
-  // Link job to Xero tracking option
-  const handleLinkXero = async (optionId: string, optionName: string) => {
+  // Load job designs for ComboboxDropdown
+  const loadJobDesigns = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; designs: { id: number; name: string }[] }>(
+        "/api/v1/job_designs?active=true"
+      );
+      if (response?.success) {
+        setJobDesigns(response.designs || []);
+      }
+    } catch (error) {
+      console.error("Failed to load job designs:", error);
+    }
+  }, []);
+
+  // Link job to multiple Xero tracking options
+  const handleLinkXeroMulti = async (selected: {value: string, label: string}[]) => {
     if (!job) return;
     setLinkingXero(true);
     try {
-      await api.post(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
-        tracking_option_id: optionId,
-        tracking_option_name: optionName,
+      const trackingOptions = selected.map((opt, idx) => ({
+        id: opt.value,
+        name: opt.label,
+        is_primary: idx === 0, // First selected is primary
+      }));
+
+      const response = await api.post<{
+        success: boolean;
+        current_options: {id: string, name: string, variant?: string, is_primary?: boolean}[];
+      }>(`/api/v1/jobs/${job.id}/link_xero_tracking`, {
+        tracking_options: trackingOptions,
       });
-      setCurrentXeroOption({ id: optionId, name: optionName });
-      setJob({ ...job, xero_tracking_option_id: optionId, xero_tracking_option_name: optionName });
+
+      if (response?.success && response.current_options) {
+        setCurrentXeroOptions(response.current_options);
+        // Update job with primary option for backward compat
+        const primary = response.current_options.find(o => o.is_primary) || response.current_options[0];
+        if (primary) {
+          setJob({ ...job, xero_tracking_option_id: primary.id, xero_tracking_option_name: primary.name });
+        }
+      }
     } catch (error) {
       console.error("Failed to link Xero tracking:", error);
     } finally {
@@ -1244,9 +1185,10 @@ export default function JobDetailPage() {
     if (jobId) {
       loadJob();
       loadXeroTrackingOptions();
+      loadJobDesigns();
       loadChoiceColumns();
     }
-  }, [jobId, loadJob, loadXeroTrackingOptions, loadChoiceColumns]);
+  }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
@@ -1260,6 +1202,8 @@ export default function JobDetailPage() {
         name: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
+        design_name: job.design_name,
+        job_design_id: job.job_design_id || job.job_design?.id || null,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
@@ -1286,6 +1230,8 @@ export default function JobDetailPage() {
         name: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
+        design_name: job.design_name,
+        job_design_id: job.job_design_id || job.job_design?.id || null,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
@@ -1313,10 +1259,11 @@ export default function JobDetailPage() {
     if (!job) return;
     setSaving(true);
     try {
-      const updatedJob = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
+      const response = await api.patch<{ success: boolean; data: Job }>(`/api/v1/jobs/${job.id}`, {
         job: editForm,
       });
-      setJob({ ...job, ...updatedJob });
+      const updatedJob = response?.data || response;
+      setJob({ ...job, ...(updatedJob as Job) });
       setIsEditing(false);
       setEditForm({});
       // Reload to get fresh data with associations
@@ -1528,7 +1475,7 @@ export default function JobDetailPage() {
                           href={`/contacts/${o.contact_id}?returnTo=${encodeURIComponent(`/jobs/${jobId}/${activeParentTab}${activeChildTab ? `/${activeChildTab}` : ''}`)}`}
                           className="font-medium text-primary hover:underline"
                         >
-                          {o.contact.display_name}
+                          {o.contact?.display_name}
                         </Link>
                       </span>
                     ))}
@@ -1689,7 +1636,7 @@ export default function JobDetailPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Job Code</Label>
-                      <Input value={`J${job.id}`} readOnly className="bg-muted/50 font-mono" />
+                      <Input value={job.job_code || `J${job.id}`} readOnly className="bg-muted/50 font-mono" />
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -1744,19 +1691,40 @@ export default function JobDetailPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Xero Job Category</Label>
-                    {xeroTrackingOptions.length > 0 ? (
+                    <Label>Design Name</Label>
+                    {isEditing ? (
                       <ComboboxDropdown
-                        items={xeroTrackingOptions.map((opt) => ({ id: opt.id, label: opt.name }))}
-                        selectedItem={currentXeroOption ? { id: currentXeroOption.id, label: currentXeroOption.name } : undefined}
-                        onSelect={(item) => handleLinkXero(item.id, item.label)}
-                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero job..."}
-                        disabled={linkingXero}
+                        items={jobDesigns.map(d => ({ id: String(d.id), label: d.name }))}
+                        selectedItem={editForm.job_design_id ? {
+                          id: String(editForm.job_design_id),
+                          label: jobDesigns.find(d => d.id === editForm.job_design_id)?.name || editForm.design_name || ""
+                        } : undefined}
+                        onSelect={(item) => setEditForm({
+                          ...editForm,
+                          job_design_id: Number(item.id),
+                          design_name: item.label,
+                        })}
+                        placeholder="Select design..."
                       />
                     ) : (
-                      <Input value={currentXeroOption?.name || "Loading..."} readOnly />
+                      <Input value={job.job_design?.name || job.design_name || ""} readOnly />
                     )}
-                    {!currentXeroOption && suggestedXeroMatch && (
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Xero Job Categories</Label>
+                    {isEditing ? (
+                      <MultipleSelector
+                        options={xeroTrackingOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        value={currentXeroOptions.map(opt => ({ value: opt.id, label: opt.name }))}
+                        onChange={(selected) => handleLinkXeroMulti(selected.map(s => ({ value: s.value, label: s.label })))}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
+                        disabled={linkingXero}
+                        hidePlaceholderWhenSelected
+                      />
+                    ) : (
+                      <Input value={currentXeroOptions.map(o => o.name).join(", ") || job.xero_tracking_option_name || ""} readOnly />
+                    )}
+                    {isEditing && currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">
                         Suggested match: {suggestedXeroMatch.name}
                       </p>
@@ -1783,11 +1751,8 @@ export default function JobDetailPage() {
                 council={job.council}
                 onLocationUpdate={(data) => {
                   // Update job state with new location data using functional update
-                  console.log("Job page received location update:", data);
                   setJob((prevJob) => {
-                    console.log("Previous job location:", prevJob?.location);
                     const newJob = prevJob ? { ...prevJob, ...data } : prevJob;
-                    console.log("New job location:", newJob?.location);
                     return newJob;
                   });
                 }}

@@ -25,8 +25,8 @@ class DocumentInboxEmailIngestJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   # Configuration
-  SYNC_LOOKBACK_DAYS = 7 # For incremental, look back 7 days
-  SYNC_FULL_DAYS = 90    # For full sync, look back 90 days
+  SYNC_LOOKBACK_DAYS = (EmailConstants::INCREMENTAL_SYNC_LOOKBACK / 1.day).to_i # For incremental, look back 7 days
+  SYNC_FULL_DAYS = (EmailConstants::FULL_SYNC_LOOKBACK / 1.day).to_i    # For full sync, look back 90 days
 
   def perform(sync_type = 'incremental')
     # Get docsort mailbox from TenantSettings (SSoT)

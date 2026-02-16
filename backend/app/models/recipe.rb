@@ -46,8 +46,8 @@ class Recipe < ApplicationRecord
   }
 
   # Callbacks
-  before_save :update_cached_total
-  after_save :create_version_if_changed
+  before_save :update_cached_total, if: :recipe_changed?
+  after_save :create_version_if_changed, if: :saved_changes?
 
   # Calculate total from all items
   def calculate_total
@@ -154,6 +154,16 @@ class Recipe < ApplicationRecord
   end
 
   private
+
+  # Callback condition helper
+  def recipe_changed?
+    # Only recalculate if recipe items changed, pricing fields changed, or new record
+    new_record? ||
+      will_save_change_to_name? ||
+      will_save_change_to_recipe_type? ||
+      will_save_change_to_default_supplier_id? ||
+      recipe_items.any? { |item| item.changed? || item.marked_for_destruction? || item.new_record? }
+  end
 
   def update_cached_total
     self.cached_total = calculate_total

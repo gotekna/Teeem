@@ -37,19 +37,13 @@ export function WarehouseTablesTab({ activeSubTab = "warehouse_types", basePath 
   return (
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="h-9 bg-muted/50">
-          <TabsTrigger
-            value="warehouse_types"
-            className="h-7 px-3 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-          >
-            <Database className="h-3.5 w-3.5 mr-1.5" />
+        <TabsList>
+          <TabsTrigger value="warehouse_types" className="gap-1.5">
+            <Database className="h-4 w-4" />
             Warehouse Types
           </TabsTrigger>
-          <TabsTrigger
-            value="warehouse_folders"
-            className="h-7 px-3 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
-          >
-            <FolderOpen className="h-3.5 w-3.5 mr-1.5" />
+          <TabsTrigger value="warehouse_folders" className="gap-1.5">
+            <FolderOpen className="h-4 w-4" />
             Warehouse Folders
           </TabsTrigger>
         </TabsList>

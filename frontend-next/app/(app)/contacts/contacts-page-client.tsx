@@ -8,28 +8,16 @@ import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { Plus } from "lucide-react";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import type { ViewData } from "@/lib/server/foundation-api";
+import type { Contact } from "@/lib/types";
 
 // Lazy load heavy modals - they're only needed when user triggers merge/transfer
 const MergeModal = lazy(() => import("@/components/table/MergeModal").then(m => ({ default: m.MergeModal })));
 const XeroLinkTransferModal = lazy(() => import("@/components/contacts/XeroLinkTransferModal").then(m => ({ default: m.XeroLinkTransferModal })));
-
-interface Contact {
-  id: number;
-  display_name: string;
-  email: string | null;
-  phone?: string;
-  mobile_phone: string | null;
-  office_phone: string | null;
-  entity_type: string | null;
-  xero_id: string | null;
-  completeness_score?: number;
-  jobs_count?: number;
-  purchase_orders_count?: number;
-}
 
 interface ContactsPageClientProps {
   // SSR data from server component
@@ -159,7 +147,7 @@ export default function ContactsPageClient({
   return (
     <TablePage data-tour="contacts-table">
       <TeeemTableView
-        foundationId="contacts"
+        foundationId={FOUNDATION_SLUGS.CONTACTS}
         tableName="Contacts"
         enableExport
         enableImport
@@ -200,7 +188,7 @@ export default function ContactsPageClient({
             open={mergeModalOpen}
             onOpenChange={setMergeModalOpen}
             selectedIds={selectedForMerge.map(c => c.id)}
-            foundationId="contacts"
+            foundationId={FOUNDATION_SLUGS.CONTACTS}
             records={selectedForMerge as unknown as Record<string, unknown>[]}
             displayColumn="display_name"
             secondaryColumns={["email", "phone"]}

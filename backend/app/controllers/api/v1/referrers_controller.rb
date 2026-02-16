@@ -65,7 +65,7 @@ module Api
         if @referrer.update(referrer_params)
           render json: { success: true, data: referrer_json(@referrer, full: true) }
         else
-          render json: { success: false, error: @referrer.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          render_validation_errors(@referrer)
         end
       end
 

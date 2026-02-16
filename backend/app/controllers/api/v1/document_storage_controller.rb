@@ -5,6 +5,7 @@ module Api
     # RENAMED: OrganizationOnedriveController → OrganizationSharepointController → DocumentStorageController
     class DocumentStorageController < ApplicationController
       include DocumentProviderAware
+      include CacheConstants
 
       # Skip auth for OAuth callback (comes from Microsoft, not our frontend)
       # Skip auth for download previews (thumbnails) - uses browser caching, file IDs are unguessable
@@ -158,7 +159,7 @@ module Api
         code = params[:code]
 
         unless code
-          return render json: { error: "Authorization code not provided" }, status: :bad_request
+          return render_error("Authorization code not provided", status: :bad_request)
         end
 
         begin
@@ -295,7 +296,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         # If folder_id is provided, use direct selection (from folder browser)
@@ -306,24 +307,24 @@ module Api
         folder_path = params[:folder_name]
 
         if folder_path.blank?
-          return render json: { error: "Folder name or folder_id is required" }, status: :bad_request
+          return render_error("Folder name or folder_id is required", status: :bad_request)
         end
 
         # Validate folder path to prevent path traversal attacks
         # Allow forward slashes for nested paths, but block ".." and backslashes
         if folder_path.include?("..") || folder_path.include?("\\")
-          return render json: { error: 'Invalid folder path. Folder paths cannot contain ".." or "\\" characters.' }, status: :bad_request
+          return render_error('Invalid folder path. Folder paths cannot contain ".." or "\\" characters.', status: :bad_request)
         end
 
         # Validate length
         if folder_path.length > 1000
-          return render json: { error: "Folder path is too long (maximum 1000 characters)" }, status: :bad_request
+          return render_error("Folder path is too long (maximum 1000 characters)", status: :bad_request)
         end
 
         # Validate each path segment
         path_segments = folder_path.split("/")
         if path_segments.any?(&:blank?)
-          return render json: { error: "Invalid folder path. Empty path segments are not allowed." }, status: :bad_request
+          return render_error("Invalid folder path. Empty path segments are not allowed.", status: :bad_request)
         end
 
         # Sanitize each path segment (allow alphanumeric, spaces, hyphens, underscores)
@@ -332,7 +333,7 @@ module Api
         end
 
         if sanitized_segments.any?(&:blank?)
-          return render json: { error: "Folder path contains invalid characters" }, status: :bad_request
+          return render_error("Folder path contains invalid characters", status: :bad_request)
         end
 
         sanitized_path = sanitized_segments.join("/")
@@ -392,13 +393,13 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to change root folder: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to change root folder: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -409,7 +410,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
@@ -422,12 +423,12 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to list SharePoint sites: #{e.message}"
-          render json: { error: "Failed to list sites: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to list sites: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -438,7 +439,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
@@ -479,10 +480,10 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error "Failed to switch to personal drive: #{e.message}"
-          render json: { error: "Failed to switch: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to switch: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -493,13 +494,13 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         site_name = params[:site_name]
 
         if site_name.blank?
-          return render json: { error: "Site name is required" }, status: :bad_request
+          return render_error("Site name is required", status: :bad_request)
         end
 
         begin
@@ -528,12 +529,12 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to switch SharePoint site: #{e.message}"
-          render json: { error: "Failed to switch site: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to switch site: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -545,7 +546,7 @@ module Api
       def browse_folders
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         folder_id = params[:folder_id] # Optional - if not provided, browse root
@@ -571,7 +572,7 @@ module Api
             storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
-              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
+              return render_error("SharePoint not configured")
             end
 
             drive_id = storage_config.drive_id
@@ -674,18 +675,18 @@ module Api
           }
 
           # Cache for 2 minutes
-          Rails.cache.write(cache_key, result, expires_in: 2.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_SHORT)
 
           render json: result.merge(from_cache: false)
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to browse folders: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to browse folders: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to browse folders: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -697,13 +698,13 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         folder_name = params[:folder_name]
 
         if folder_name.blank?
-          return render json: { error: "Folder name is required" }, status: :bad_request
+          return render_error("Folder name is required", status: :bad_request)
         end
 
         begin
@@ -724,7 +725,7 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
           # If folder already exists, that's fine - return success
           if e.message.include?("nameAlreadyExists")
@@ -733,12 +734,12 @@ module Api
               message: "Folder '#{folder_name}' already exists"
             }
           else
-            render json: { error: "Failed to create folder: #{e.message}" }, status: :bad_gateway
+            render_error("Failed to create folder: #{e.message}", status: :bad_gateway)
           end
         rescue StandardError => e
           Rails.logger.error "Failed to create root folder: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to create folder: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to create folder: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -750,7 +751,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
@@ -775,10 +776,10 @@ module Api
           render json: result
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error "Failed to validate folder: #{e.message}"
-          render json: { error: "Failed to validate folder: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to validate folder: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -852,7 +853,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
+          return render_error("Storage not connected: #{e.message}", status: :unauthorized)
         end
 
         # Skip cache if explicitly requested
@@ -907,18 +908,18 @@ module Api
           }
 
           # Cache for 5 minutes
-          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_MEDIUM)
 
           render json: result.merge(from_cache: false)
 
         rescue DocumentProviders::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue DocumentProviders::Error => e
-          render json: { error: "Storage error: #{e.message}" }, status: :bad_gateway
+          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to list items: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
-          render json: { error: "Failed to list items: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to list items: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -930,18 +931,18 @@ module Api
 
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         uploaded_file = params[:file]
         folder_id = params[:folder_id]
 
         unless uploaded_file
-          return render json: { error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         unless folder_id
-          return render json: { error: "No folder_id provided" }, status: :bad_request
+          return render_error("No folder_id provided", status: :bad_request)
         end
 
         begin
@@ -970,12 +971,12 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to upload file: #{e.message}"
-          render json: { error: "Failed to upload file: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to upload file: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -990,7 +991,7 @@ module Api
 
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         # Skip cache if explicitly requested
@@ -1077,17 +1078,17 @@ module Api
           }
 
           # Cache for 5 minutes
-          Rails.cache.write(cache_key, result, expires_in: 5.minutes)
+          Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_MEDIUM)
 
           render json: result.merge(from_cache: false)
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to get folder contents: #{e.message}"
-          render json: { error: "Failed to get folder contents: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to get folder contents: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1097,13 +1098,13 @@ module Api
       def search
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         query = params[:q] || params[:query]
 
         unless query.present?
-          return render json: { error: "Search query is required (use ?q=searchterm)" }, status: :bad_request
+          return render_error("Search query is required (use ?q=searchterm)", status: :bad_request)
         end
 
         begin
@@ -1136,12 +1137,12 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to search: #{e.message}"
-          render json: { error: "Failed to search: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to search: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1154,13 +1155,13 @@ module Api
 
         # Require user auth for actual downloads, allow preview without auth
         unless is_preview || current_user
-          return render json: { error: "Authentication required for downloads" }, status: :unauthorized
+          return render_error("Authentication required for downloads", status: :unauthorized)
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render json: { error: "No file_id provided" }, status: :bad_request
+          return render_error("No file_id provided", status: :bad_request)
         end
 
         begin
@@ -1185,17 +1186,17 @@ module Api
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { error: "File not found: #{e.message}" }, status: :not_found
+          render_error("File not found: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { error: "Storage not connected: #{e.message}" }, status: :unauthorized
+          render_error("Storage not connected: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to download file: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
-          render json: { error: "Failed to download file: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to download file: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1214,16 +1215,16 @@ module Api
         if document_id.present?
           document = WarehouseDocument.find_by(id: document_id)
           unless document
-            return render json: { success: false, error: "Document not found" }, status: :not_found
+            return render_error("Document not found", status: :not_found)
           end
 
           # SSoT: Use storage_path from storage_blob
           file_id = document.storage_blob&.storage_path || document.storage_path
           unless file_id.present?
-            return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+            return render_error("Document has no storage reference", status: :unprocessable_entity)
           end
         elsif !file_id.present?
-          return render json: { success: false, error: "No file_id or document_id provided" }, status: :bad_request
+          return render_error("No file_id or document_id provided", status: :bad_request)
         end
 
         begin
@@ -1237,16 +1238,16 @@ module Api
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+          render_error("File not found: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unauthorized
+          render_error("Storage not connected: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to get presigned URL: #{e.message}"
-          render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to get presigned URL: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1256,13 +1257,13 @@ module Api
       def delete_file
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { success: false, error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         file_id = params[:file_id]
 
         unless file_id
-          return render json: { success: false, error: "No file_id provided" }, status: :bad_request
+          return render_error("No file_id provided", status: :bad_request)
         end
 
         begin
@@ -1272,7 +1273,7 @@ module Api
           # App credentials use different API methods than delegated
           if sharepoint_credential.credential_type == "app"
             unless config&.connected?
-              return render json: { success: false, error: "SharePoint not configured" }, status: :unprocessable_entity
+              return render_error("SharePoint not configured", status: :unprocessable_entity)
             end
 
             client.delete_drive_item(
@@ -1298,12 +1299,12 @@ module Api
           render json: { success: true, message: "File deleted successfully" }
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { success: false, error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { success: false, error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to delete file: #{e.message}"
-          render json: { success: false, error: "Failed to delete file: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to delete file: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1315,13 +1316,13 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         file_id = params[:file_id]
 
         unless file_id.present?
-          return render json: { error: "No file_id provided" }, status: :bad_request
+          return render_error("No file_id provided", status: :bad_request)
         end
 
         begin
@@ -1334,7 +1335,7 @@ module Api
             storage_config = WarehouseProvider.instance
 
             unless storage_config&.connected?
-              return render json: { error: "SharePoint not configured" }, status: :unprocessable_entity
+              return render_error("SharePoint not configured")
             end
 
             # Get file metadata with download URL
@@ -1392,12 +1393,12 @@ module Api
           end
 
         rescue MicrosoftGraphClient::AuthenticationError, MicrosoftAppGraphClient::NotConnectedError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError, MicrosoftAppGraphClient::ApiError => e
-          render json: { error: "SharePoint API error: #{e.message}" }, status: :bad_gateway
+          render_error("SharePoint API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "[DownloadURL] Failed to get download URL: #{e.message}"
-          render json: { error: "Failed to get download URL: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to get download URL: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1408,7 +1409,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
@@ -1421,7 +1422,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "Failed to preview private folders: #{e.message}"
-          render json: { error: "Failed to preview: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to preview: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1435,7 +1436,7 @@ module Api
       def copy_files
         # SSoT: Use helper methods for credential and client
         unless sharepoint_connected?
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         foundation_id = params[:foundation_id]
@@ -1444,7 +1445,7 @@ module Api
         new_folder_name = params[:new_folder_name]
 
         if record_ids.empty?
-          return render json: { error: "No records selected" }, status: :bad_request
+          return render_error("No records selected", status: :bad_request)
         end
 
         begin
@@ -1473,14 +1474,14 @@ module Api
           target_folder_id = folder_id || storage_root_folder_id
 
           unless target_folder_id
-            return render json: { error: "No target folder specified and no root folder configured" }, status: :bad_request
+            return render_error("No target folder specified and no root folder configured", status: :bad_request)
           end
 
           # Get the model class for the foundation
           model_class = get_model_for_foundation(foundation_id)
 
           unless model_class
-            return render json: { error: "Unknown foundation: #{foundation_id}" }, status: :bad_request
+            return render_error("Unknown foundation: #{foundation_id}", status: :bad_request)
           end
 
           # Get records and their attachments
@@ -1568,13 +1569,13 @@ module Api
           }
 
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "Failed to copy files: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to copy files: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to copy files: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1585,7 +1586,7 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
@@ -1600,7 +1601,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "Failed to create private folders: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to create folders: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to create folders: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1614,7 +1615,7 @@ module Api
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
           Rails.logger.warn "[OneDrive Corporate Sync] No valid credential found"
-          return render json: { error: "SharePoint not connected. Please connect in Settings first." }, status: :unauthorized
+          return render_error("SharePoint not connected. Please connect in Settings first.", status: :unauthorized)
         end
 
         folder_path = params[:folder_path] || "Corporate File"
@@ -1652,7 +1653,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error "[OneDrive Corporate Sync] Exception occurred: #{e.message}"
           Rails.logger.error "[OneDrive Corporate Sync] Backtrace:\n#{e.backtrace.join("\n")}"
-          render json: { error: "Failed to sync corporate documents: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to sync corporate documents: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1749,7 +1750,7 @@ module Api
         job = parent_doc.linkable if parent_doc.linkable_type == "Job"
 
         unless job
-          return render json: { success: false, error: "Document not linked to a job" }, status: :unprocessable_entity
+          return render_error("Document not linked to a job", status: :unprocessable_entity)
         end
 
         # Validate the document supports versioning (check metadata)
@@ -1772,13 +1773,13 @@ module Api
 
         credential = get_onedrive_credential
         unless credential
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         begin
           file = params[:file]
           unless file
-            return render json: { error: "No file provided" }, status: :bad_request
+            return render_error("No file provided", status: :bad_request)
           end
 
           client = MicrosoftGraphClient.new(credential)
@@ -1868,15 +1869,15 @@ module Api
           }
 
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue MicrosoftGraphClient::AuthenticationError => e
-          render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Authentication failed: #{e.message}", status: :unauthorized)
         rescue MicrosoftGraphClient::APIError => e
-          render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+          render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "[Upload Signed Version] Exception: #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
-          render json: { error: "Failed to upload signed version: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to upload signed version: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1898,7 +1899,7 @@ module Api
         force = params[:force].to_s == 'true'
 
         unless job_id.present?
-          return render json: { error: "job_id is required" }, status: :bad_request
+          return render_error("job_id is required", status: :bad_request)
         end
 
         job = Job.find(job_id)
@@ -1916,10 +1917,10 @@ module Api
           full_details_count: result[:details].size
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       rescue => e
         Rails.logger.error("[BulkCategorize] Error: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/documents/documents_needing_review
@@ -1979,7 +1980,7 @@ module Api
         action = params[:action]
 
         unless %w[approve reject].include?(action)
-          return render json: { error: "action must be 'approve' or 'reject'" }, status: :bad_request
+          return render_error("action must be 'approve' or 'reject'", status: :bad_request)
         end
 
         if action == "reject"
@@ -2004,14 +2005,14 @@ module Api
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         # Determine the new name
         new_name = params[:custom_name].presence || document.meta("ai_proposed_name")
 
         unless new_name.present?
-          return render json: { error: "No proposed name available" }, status: :bad_request
+          return render_error("No proposed name available", status: :bad_request)
         end
 
         # Determine the document type
@@ -2055,13 +2056,13 @@ module Api
 
         rescue MicrosoftGraphClient::APIError => e
           Rails.logger.error "[Approve Rename] OneDrive API error: #{e.message}"
-          render json: { error: "Failed to rename in OneDrive: #{e.message}" }, status: :bad_gateway
+          render_error("Failed to rename in OneDrive: #{e.message}", status: :bad_gateway)
         rescue StandardError => e
           Rails.logger.error "[Approve Rename] Error: #{e.message}"
-          render json: { error: "Failed to rename: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to rename: #{e.message}", status: :internal_server_error)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       # POST /api/v1/documents/bulk_approve_renames
@@ -2073,14 +2074,14 @@ module Api
         document_ids = params[:document_ids] || []
 
         if document_ids.empty?
-          return render json: { error: "No document IDs provided" }, status: :bad_request
+          return render_error("No document IDs provided", status: :bad_request)
         end
 
         credential = MicrosoftCredential.sharepoint_credential
 
         # Use valid_access_token which auto-refreshes expired tokens
         unless credential&.valid_access_token
-          return render json: { error: "SharePoint not connected" }, status: :unauthorized
+          return render_error("SharePoint not connected", status: :unauthorized)
         end
 
         documents = WarehouseDocument.where(id: document_ids)
@@ -2151,7 +2152,7 @@ module Api
         is_preview = params[:preview] == "true"
 
         unless document_id.present?
-          return render json: { error: "document_id is required" }, status: :bad_request
+          return render_error("document_id is required", status: :bad_request)
         end
 
         # FRC (Feb 2026): This endpoint skips auth (skip_before_action :authorize_request)
@@ -2161,7 +2162,7 @@ module Api
         document = ActsAsTenant.without_tenant { WarehouseDocument.find_by(id: document_id) }
 
         unless document
-          return render json: { error: "Document not found" }, status: :not_found
+          return render_error("Document not found", status: :not_found)
         end
 
         # Set tenant from document for all downstream operations
@@ -2171,7 +2172,7 @@ module Api
 
         blob = document.storage_blob
         unless blob&.storage_path.present?
-          return render json: { error: "Document has no storage reference" }, status: :unprocessable_entity
+          return render_error("Document has no storage reference", status: :unprocessable_entity)
         end
 
         begin
@@ -2201,17 +2202,17 @@ module Api
           when "sharepoint"
             download_from_sharepoint_warehouse(document, is_preview)
           else
-            render json: { error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
+            render_error("Unknown storage provider: #{doc_provider}", status: :bad_request)
           end
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { error: "File not found in storage: #{e.message}" }, status: :not_found
+          render_error("File not found in storage: #{e.message}", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { error: "Storage provider not connected: #{e.message}" }, status: :service_unavailable
+          render_error("Storage provider not connected: #{e.message}", status: :service_unavailable)
         rescue StandardError => e
           Rails.logger.error "[WarehouseDocumentDownload] Error downloading document #{document_id}: #{e.message}"
           Rails.logger.error e.backtrace.first(5).join("\n")
-          render json: { error: "Failed to download: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to download: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2228,18 +2229,18 @@ module Api
         document_id = params[:document_id]
 
         unless document_id.present?
-          return render json: { success: false, error: "document_id is required" }, status: :bad_request
+          return render_error("document_id is required", status: :bad_request)
         end
 
         document = WarehouseDocument.find_by(id: document_id)
 
         unless document
-          return render json: { success: false, error: "Document not found" }, status: :not_found
+          return render_error("Document not found", status: :not_found)
         end
 
         blob = document.storage_blob
         unless blob&.storage_path.present?
-          return render json: { success: false, error: "Document has no storage reference" }, status: :unprocessable_entity
+          return render_error("Document has no storage reference", status: :unprocessable_entity)
         end
 
         begin
@@ -2270,7 +2271,7 @@ module Api
           when "sharepoint"
             url = get_sharepoint_download_url_warehouse(document)
           else
-            return render json: { success: false, error: "Unknown storage provider: #{doc_provider}" }, status: :bad_request
+            return render_error("Unknown storage provider: #{doc_provider}", status: :bad_request)
           end
 
           filename = document.original_filename || document.ui_name
@@ -2280,16 +2281,16 @@ module Api
             storage_provider: doc_provider,
             file_name: filename,
             mime_type: document.content_type || blob&.content_type,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
 
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found in storage" }, status: :not_found
+          render_error("File not found in storage", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage provider not connected" }, status: :service_unavailable
+          render_error("Storage provider not connected", status: :service_unavailable)
         rescue StandardError => e
           Rails.logger.error "[WarehouseDocumentUrl] Error getting URL for document #{document_id}: #{e.message}"
-          render json: { success: false, error: "Failed to get download URL" }, status: :internal_server_error
+          render_error("Failed to get download URL", status: :internal_server_error)
         end
       end
 
@@ -2343,12 +2344,12 @@ module Api
         end
 
         provider = DocumentProviders::S3Compatible.new(credential)
-        url = provider.download_url(s3_key, expires_in: 900)  # 15 minutes
+        url = provider.download_url(s3_key, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT)  # 15 minutes
 
         render json: {
           success: true,
           url: url,
-          expires_in: 900
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
         }
       end
 
@@ -2385,7 +2386,7 @@ module Api
         render json: {
           success: true,
           url: download_url_value,
-          expires_in: 1800  # SharePoint URLs typically valid ~30 min
+          expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_MEDIUM  # SharePoint URLs typically valid ~30 min
         }
       end
 
@@ -2680,7 +2681,7 @@ module Api
           raise DocumentProviders::NotFoundError, "No storage reference for document"
         end
 
-        provider.download_url(storage_ref, expires_in: 3600)
+        provider.download_url(storage_ref, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
       end
 
       # Get SharePoint download URL for a document
@@ -2762,13 +2763,13 @@ module Api
         }
 
       rescue MicrosoftGraphClient::AuthenticationError => e
-        render json: { error: "Authentication failed: #{e.message}" }, status: :unauthorized
+        render_error("Authentication failed: #{e.message}", status: :unauthorized)
       rescue MicrosoftGraphClient::APIError => e
-        render json: { error: "OneDrive API error: #{e.message}" }, status: :bad_gateway
+        render_error("OneDrive API error: #{e.message}", status: :bad_gateway)
       rescue StandardError => e
         Rails.logger.error "Failed to change root folder by ID: #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
-        render json: { error: "Failed to change root folder: #{e.message}" }, status: :internal_server_error
+        render_error("Failed to change root folder: #{e.message}", status: :internal_server_error)
       end
 
       # ============================================================================
@@ -2965,13 +2966,13 @@ module Api
       def list_all_job_files_recursive(client, credential, root_folder_id, max_depth: 5, max_time: 25)
         files = []
         folders_to_process = [ [ root_folder_id, 0, "" ] ] # [folder_id, depth, path]
-        start_time = Time.now
+        start_time = Time.current
         # SSoT: Get drive_id from WarehouseProvider
         storage_drive_id = WarehouseProvider.instance&.drive_id
 
         while folders_to_process.any?
           # Check if we've exceeded the time limit
-          if Time.now - start_time > max_time
+          if Time.current - start_time > max_time
             Rails.logger.warn("[Job All Files] Recursive listing timed out after #{max_time}s with #{files.length} files found")
             break
           end
@@ -3018,7 +3019,7 @@ module Api
           end
         end
 
-        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.now - start_time).round(2)}s")
+        Rails.logger.info("[Job All Files] Listing completed: #{files.length} files in #{(Time.current - start_time).round(2)}s")
 
         # Sort by folder path then name
         files.sort_by { |f| [ f[:folder_path].to_s.downcase, f[:name].downcase ] }
@@ -3162,7 +3163,7 @@ module Api
         end
 
         # Final fallback to environment variable
-        frontend_url = ENV["FRONTEND_URL"] || "https://teeem.vercel.app"
+        frontend_url = InfrastructureUrls.frontend_url
         Rails.logger.info "Using frontend URL from ENV (fallback): #{frontend_url}"
         frontend_url
       end

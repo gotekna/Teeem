@@ -25,17 +25,10 @@ import {
   ArrowRightLeft,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  entity_type: string | null;
-  email: string | null;
-  xero_linked_count?: number;
-  xero_tenant_names?: string[];
-}
+import type { Contact } from "@/lib/types";
 
 interface XeroLinkToContactSheetProps {
   isOpen: boolean;
@@ -122,7 +115,7 @@ export function XeroLinkToContactSheet({
         const response = await api.get<{
           success: boolean;
           contacts: Contact[];
-        }>(`/api/v1/contacts?search=${encodeURIComponent(value)}`);
+        }>(`${API.contacts.list}?search=${encodeURIComponent(value)}`);
 
         if (response?.success && response?.contacts) {
           // Filter out the currently linked contact
@@ -246,7 +239,7 @@ export function XeroLinkToContactSheet({
       const createResponse = await api.post<{
         success: boolean;
         contact: { id: number; display_name: string };
-      }>("/api/v1/contacts", {
+      }>(API.contacts.create, {
         contact: {
           display_name: xeroName,
           company_name_or_trust: xeroName, // Required for company entity_type
@@ -297,7 +290,7 @@ export function XeroLinkToContactSheet({
       const createResponse = await api.post<{
         success: boolean;
         contact: { id: number; display_name: string };
-      }>("/api/v1/contacts", {
+      }>(API.contacts.create, {
         contact: {
           display_name: xeroName,
           company_name_or_trust: xeroName,
@@ -330,7 +323,7 @@ export function XeroLinkToContactSheet({
 
       // 3. Update the current person's primary_company_id to the new company
       const updatePersonResponse = await api.patch<{ success: boolean }>(
-        `/api/v1/contacts/${localContactId}`,
+        API.contacts.update(localContactId),
         {
           contact: {
             primary_company_id: newCompanyId,

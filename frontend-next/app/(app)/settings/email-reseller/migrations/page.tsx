@@ -25,9 +25,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useEmailMigrations } from "@/hooks/useEmailSubscriptions";
+import { usePathTabs } from "@/hooks/usePathTabs";
 import { cn } from "@/lib/utils";
 import type { EmailMigration, MigrationStatus } from "@/lib/email-reseller-types";
 import { formatFileSize } from "@/utils/formatters";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 const STATUS_COLORS: Record<MigrationStatus, string> = {
   pending: "bg-gray-500/10 text-gray-600 dark:bg-gray-500/20 dark:text-gray-400",
@@ -60,7 +62,14 @@ export default function MigrationsPage() {
   } = useEmailMigrations();
 
   const [refreshing, setRefreshing] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState<"active" | "completed">("active");
+  // URL is SSoT for tab state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
+  const [activeTab, setActiveTab] = usePathTabs(
+    "/settings/email-reseller/migrations",
+    "active",
+    ["active", "completed"],
+    { redirectToDefault: true }
+  );
 
   // Fetch migrations on mount
   React.useEffect(() => {
@@ -73,7 +82,7 @@ export default function MigrationsPage() {
       if (activeTab === "active") {
         fetchActiveMigrations();
       }
-    }, 30000);
+    }, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [activeTab, fetchActiveMigrations]);
 
@@ -140,7 +149,7 @@ export default function MigrationsPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "completed")}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="active" className="gap-2">
             Active

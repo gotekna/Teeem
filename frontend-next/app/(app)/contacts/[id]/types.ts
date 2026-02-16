@@ -1,7 +1,7 @@
 // Contact Detail Page Types - SSoT for all contact-related interfaces
 
 export interface ContactPerson {
-  id: number;
+  id?: number;
   first_name: string;
   last_name: string;
   email: string | null;
@@ -9,6 +9,7 @@ export interface ContactPerson {
   role: string | null;
   is_primary: boolean;
   include_in_emails: boolean;
+  _destroy?: boolean;
 }
 
 export interface ContactGroup {
@@ -363,6 +364,7 @@ export interface Contact {
   xero_linked_count?: number;
   xero_tenant_names?: string[];
   sync_with_xero: boolean;
+  last_synced_at?: string | null;
   created_at: string;
   updated_at: string;
   contact_persons: ContactPerson[];
@@ -436,6 +438,8 @@ export interface Contact {
   bill_due_type?: string | null;
   sales_due_day?: number | null;
   sales_due_type?: string | null;
+  invoices_count?: number | null;
+  xero_links_count?: number | null;
   // ABN verification fields
   abn_valid?: boolean | null;
   abn_entity_name?: string | null;
@@ -445,6 +449,17 @@ export interface Contact {
   // Supplier team configuration (for auto-calculating task duration)
   team_size?: number | null;
   daily_rate_per_person?: number | null;
+  // Company-aware contact search - company name for person contacts
+  employer_name?: string; // Alias for primary_company?.name in search results
+  // Phone alias for backwards compatibility
+  phone?: string; // Generic phone alias (usually mobile_phone)
+  // Completeness score for data quality
+  completeness_score?: number | null;
+  // Portal access fields
+  portal_enabled?: boolean;
+  portal_last_login?: string | null;
+  // Related jobs for display
+  related_jobs?: Array<{ id: number; job_code: string; job_name?: string }>;
 }
 
 // Helper function types

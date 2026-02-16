@@ -25,19 +25,7 @@ import { TaskAssignmentField } from './TaskAssignmentField';
 import { AttachmentPicker, PendingAttachment } from './AttachmentPicker';
 import { useToast } from '@/components/ui/use-toast';
 import { Spinner } from "@/components/ui/spinner";
-
-interface Job {
-  id: number;
-  name: string;
-  client_name?: string;
-  employee_names?: string[];
-  matched_contact?: { name: string; role: string };
-}
-
-interface User {
-  id: number;
-  name: string;
-}
+import type { User, Job } from '@/lib/types';
 
 interface CreateTaskDialogProps {
   open: boolean;
@@ -220,7 +208,6 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           for (const attachment of pendingAttachments) {
             if (attachment.type === 'upload' && attachment.file) {
               // TODO: Implement file upload to SharePoint first, then attach
-              console.log('File upload not yet implemented:', attachment.file.name);
             } else if (attachment.id) {
               // Attach existing email/document
               try {

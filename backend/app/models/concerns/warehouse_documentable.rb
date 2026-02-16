@@ -16,18 +16,25 @@
 # This automatically:
 # - Creates has_one :warehouse_document association
 # - Creates WarehouseDocument entry on create (if storage_blob present)
+# - Creates WarehouseDocument entry on update (if blob added after create)
 # - Computes folder path from WarehouseProvider templates
 # - Computes display name from model attributes
 #
+# Override hooks (optional):
+#   warehouse_display_name   - Custom display name (default: tries title/name/subject/file_name)
+#   warehouse_entry_metadata - Custom metadata hash (default: {})
+#
 # Supported warehouse types (must exist in warehouse_folders table):
 #   :asset           - Asset expenses, odometer readings, service
-#   :financial       - Financial transactions
+#   :financial       - Financial transactions, bill inbox
 #   :compliance      - Document tasks (permits, certifications)
 #   :contact         - Contact/people documents
 #   :job             - Job documents
 #   :task            - Task attachments
 #   :corporate       - Corporate documents
 #   :email           - Email warehouse
+#   :warehouse       - User-created docs (TeeemDocument, chat attachments)
+#   :user            - User documents (photos, contracts, personal docs)
 #
 # SSoT (Feb 2026): warehouse_folders table is THE ONE source of truth for path templates
 #
@@ -64,9 +71,9 @@ module WarehouseDocumentable
     return nil unless storage_blob_id.present?
 
     if warehouse_document.present?
-      update_warehouse_document!
+      update_existing_warehouse_doc!
     else
-      create_warehouse_document!
+      build_warehouse_doc_entry!
     end
   end
 
@@ -81,9 +88,11 @@ module WarehouseDocumentable
   end
 
   # Get computed display name for warehouse
+  # Override in models for custom display names
   # @return [String] The display name
   def warehouse_display_name
     # Try common attribute names in order of preference
+    return display_name if respond_to?(:display_name) && try(:display_name).present?
     return title if respond_to?(:title) && title.present?
     return name if respond_to?(:name) && name.present?
     return subject if respond_to?(:subject) && subject.present?
@@ -93,6 +102,12 @@ module WarehouseDocumentable
 
     # Fallback to descriptive name
     "#{self.class.name.titleize} ##{id}"
+  end
+
+  # Override in models to attach custom metadata to WarehouseDocument
+  # @return [Hash] Metadata hash (stored as JSONB)
+  def warehouse_entry_metadata
+    {}
   end
 
   private
@@ -106,18 +121,26 @@ module WarehouseDocumentable
   end
 
   def should_update_warehouse_entry?
-    warehouse_document.present? && saved_change_to_storage_blob_id?
+    saved_change_to_storage_blob_id? && storage_blob_id.present?
   end
 
   def create_warehouse_entry
-    create_warehouse_document!
+    build_warehouse_doc_entry!
   rescue StandardError => e
     Rails.logger.error "[WarehouseDocumentable] Failed to create warehouse entry for #{self.class.name} #{id}: #{e.message}"
     # Don't raise - warehouse visibility shouldn't block document creation
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Handles blob-added-after-create (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Models like UserDocument may set storage_blob AFTER initial create.
+  #      The after_create callback skips if no blob yet, so after_update must
+  #      handle both creating a NEW warehouse entry and updating an existing one.
+  # ❌ WRONG: Only update (fails if warehouse_document doesn't exist yet)
+  # ✅ CORRECT: Use sync_to_warehouse! which handles both create and update
+  # ════════════════════════════════════════════
   def update_warehouse_entry
-    update_warehouse_document!
+    sync_to_warehouse!
   rescue StandardError => e
     Rails.logger.error "[WarehouseDocumentable] Failed to update warehouse entry for #{self.class.name} #{id}: #{e.message}"
   end
@@ -126,7 +149,13 @@ module WarehouseDocumentable
   # Warehouse Document Creation
   # ========================================
 
-  def create_warehouse_document!
+  # ⚠️ DO NOT RENAME to create_warehouse_document! (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: has_one :warehouse_document generates a Rails method called
+  #      create_warehouse_document!. Using the same name would shadow
+  #      the Rails method and cause infinite recursion.
+  # ════════════════════════════════════════════
+  def build_warehouse_doc_entry!
     return nil unless storage_blob_id.present?
 
     tenant = resolve_tenant_for_documentable
@@ -135,24 +164,28 @@ module WarehouseDocumentable
       return nil
     end
 
-    create_warehouse_document!(
+    doc = build_warehouse_document(
       tenant_id: tenant.id,
       source_type: warehouse_source_type,
       storage_blob_id: storage_blob_id,
-      ui_name: warehouse_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
+      ui_name: warehouse_display_name,
       original_filename: storage_blob&.original_filename,
-      content_type: storage_blob&.content_type
+      content_type: storage_blob&.content_type,
+      metadata: warehouse_entry_metadata
     )
+    doc.save!
+    doc
   end
 
-  def update_warehouse_document!
+  def update_existing_warehouse_doc!
     return nil unless warehouse_document.present?
 
     warehouse_document.update!(
       storage_blob_id: storage_blob_id,
-      ui_name: warehouse_display_name,  # SSoT: display_name renamed to ui_name (Feb 2026)
+      ui_name: warehouse_display_name,
       original_filename: storage_blob&.original_filename,
-      content_type: storage_blob&.content_type
+      content_type: storage_blob&.content_type,
+      metadata: warehouse_entry_metadata
     )
     warehouse_document
   end

@@ -9,7 +9,7 @@ module Api
       # GET /api/v1/notebooks/:notebook_id/sections
       def index
         unless @notebook.accessible_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         sections = @notebook.sections.active.ordered.includes(:pages)
@@ -23,7 +23,7 @@ module Api
       # GET /api/v1/notebooks/:notebook_id/sections/:id
       def show
         unless @notebook.accessible_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         render json: {
@@ -35,7 +35,7 @@ module Api
       # POST /api/v1/notebooks/:notebook_id/sections
       def create
         unless @notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         section = @notebook.sections.new(section_params)
@@ -54,17 +54,14 @@ module Api
             section: section_json(section)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: section.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(section)
         end
       end
 
       # PATCH /api/v1/notebooks/:notebook_id/sections/:id
       def update
         unless @notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         if @section.update(section_params)
@@ -81,17 +78,14 @@ module Api
             section: section_json(@section)
           }
         else
-          render json: {
-            success: false,
-            errors: @section.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@section)
         end
       end
 
       # DELETE /api/v1/notebooks/:notebook_id/sections/:id
       def destroy
         unless @notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         section_name = @section.name
@@ -110,7 +104,7 @@ module Api
       # POST /api/v1/notebooks/:notebook_id/sections/:id/reorder
       def reorder
         unless @notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         new_position = params[:position].to_i

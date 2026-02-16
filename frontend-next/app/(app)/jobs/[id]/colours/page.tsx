@@ -22,6 +22,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { Job } from "@/lib/types";
 
 // Types
 interface PricebookItem {
@@ -61,13 +62,6 @@ interface ColourSelectionTemplate {
   job_type_name?: string;
   categories: TemplateCategory[];
   is_default: boolean;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  job_type?: { id: number; name: string };
-  job_type_id?: number;
 }
 
 // Colour Swatch Component

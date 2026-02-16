@@ -16,13 +16,13 @@ module Api
         attachment_doc = email.attachment_documents.find_by(id: params[:attachment_id])
 
         unless attachment_doc
-          return render json: { success: false, error: "Attachment not found" }, status: :not_found
+          return render_error("Attachment not found", status: :not_found)
         end
 
         # Download the attachment content
         content = fetch_attachment_content(email, attachment_doc)
         unless content.present?
-          return render json: { success: false, error: "Could not download attachment" }, status: :unprocessable_entity
+          return render_error("Could not download attachment", status: :unprocessable_entity)
         end
 
         # Parse with TeeemXl
@@ -70,7 +70,7 @@ module Api
           }, status: :created
         rescue TeeemXl::Error => e
           Rails.logger.error "[TeeemSpreadsheet] Import failed: #{e.message}"
-          render json: { success: false, error: "Failed to parse spreadsheet: #{e.message}" }, status: :unprocessable_entity
+          render_error("Failed to parse spreadsheet: #{e.message}", status: :unprocessable_entity)
         ensure
           temp_file&.close
           temp_file&.unlink
@@ -115,10 +115,7 @@ module Api
             data: spreadsheet_detail(spreadsheet)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: spreadsheet.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(spreadsheet)
         end
       end
 
@@ -130,10 +127,7 @@ module Api
             data: spreadsheet_detail(@spreadsheet)
           }
         else
-          render json: {
-            success: false,
-            error: @spreadsheet.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@spreadsheet)
         end
       end
 
@@ -182,7 +176,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[TeeemSpreadsheet] Save to warehouse failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         ensure
           temp_file&.close
           temp_file&.unlink
@@ -224,7 +218,7 @@ module Api
       def set_spreadsheet
         @spreadsheet = current_user.teeem_spreadsheets.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Spreadsheet not found" }, status: :not_found
+        render_error("Spreadsheet not found", status: :not_found)
       end
 
       def spreadsheet_params

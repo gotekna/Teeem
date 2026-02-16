@@ -70,6 +70,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -90,6 +91,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 interface ColumnType {
   columnName: string;
@@ -692,15 +694,11 @@ function GoldStandardDataTab() {
   };
 
   const handleBulkDelete = async (ids: (number | string)[]) => {
-    console.log("[GoldStandardTab] handleBulkDelete called with ids:", ids);
     if (!(await confirm(`Are you sure you want to delete ${ids.length} item(s)?`))) {
-      console.log("[GoldStandardTab] Delete cancelled by user");
       return;
     }
     try {
-      console.log("[GoldStandardTab] Calling bulk_delete API...");
       const response = await api.post("/api/v1/gold_standard_table/bulk_delete", { ids });
-      console.log("[GoldStandardTab] Bulk delete response:", response);
       setEntries((prev) => prev.filter((e) => !ids.includes(e.id)));
       toast({ title: "Success", description: `${ids.length} item(s) deleted successfully` });
     } catch (error) {
@@ -818,14 +816,14 @@ function GoldStandardDataTab() {
               <Input
                 id={col.column_name}
                 type="color"
-                value={String(value || "#000000")}
+                value={String(value || COLORS.black)}
                 onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
                 className="w-16 h-10 p-1"
               />
               <Input
                 value={String(value || "")}
                 onChange={(e) => setFormData({ ...formData, [col.column_name]: e.target.value })}
-                placeholder="#000000"
+                placeholder={COLORS.black}
                 className="flex-1"
               />
             </div>
@@ -872,7 +870,7 @@ function GoldStandardDataTab() {
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         totalCount={entries.length}
-        foundationId="gold_standard_table"
+        foundationId={FOUNDATION_SLUGS.GOLD_STANDARD_TABLE}
         foundationIdNumeric={foundationNumericId || undefined}  // Enables view URL sync
         tableName="Gold Standard Table"
         // SSoT: onView, onEdit, onDelete (Add/Edit/View/Delete buttons) are now auto-enabled
@@ -1282,7 +1280,7 @@ function GoldDocumentTypeEditor() {
   const [documentTypes, setDocumentTypes] = React.useState<Array<{ id: number; name: string; abbreviation?: string; scope?: string }>>([]);
   const [selectedId, setSelectedId] = React.useState<number | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [documentType, setDocumentType] = React.useState<any>(null);
+  const [documentType, setDocumentType] = React.useState<Record<string, any> | null>(null);
   const [saving, setSaving] = React.useState(false);
 
   // Drag and drop state
@@ -1342,10 +1340,10 @@ function GoldDocumentTypeEditor() {
   const loadDocumentTypes = async () => {
     try {
       setLoading(true);
-      const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+      const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
       if (response.success && Array.isArray(response.data)) {
         const sorted = response.data
-          .map((dt: any) => ({ id: dt.id, name: dt.name, abbreviation: dt.abbreviation, scope: dt.scope || "company" }))
+          .map((dt: Record<string, unknown>) => ({ id: Number(dt.id), name: String(dt.name), abbreviation: dt.abbreviation ? String(dt.abbreviation) : undefined, scope: (dt.scope as string) || "company" }))
           .sort((a, b) => a.name.localeCompare(b.name));
         setDocumentTypes(sorted);
         // Select first one by default
@@ -1362,16 +1360,16 @@ function GoldDocumentTypeEditor() {
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<any>('/api/v1/companies');
-      const companiesData = response.data?.companies || response.companies || response.data || response;
+      const response = await api.get<Record<string, unknown>>('/api/v1/companies');
+      const companiesData = (response.data as { companies?: unknown })?.companies || (response as { companies?: unknown }).companies || (response.data as unknown) || response;
       if (Array.isArray(companiesData)) {
-        const corporateLinkedCompanies = companiesData.filter((c: any) => c.company_group_id != null);
-        setCompanies(corporateLinkedCompanies);
+        const corporateLinkedCompanies = companiesData.filter((c: Record<string, unknown>) => c.company_group_id != null);
+        setCompanies(corporateLinkedCompanies as Array<{id: number; name: string; code: string}>);
         if (corporateLinkedCompanies.length > 0) {
-          const teeemHomes = corporateLinkedCompanies.find((c: any) =>
-            c.code === "TH" || c.name?.toLowerCase().includes("teeem")
-          );
-          setPreviewCompanyId(teeemHomes ? teeemHomes.id : corporateLinkedCompanies[0].id);
+          const teeemHomes = corporateLinkedCompanies.find((c: Record<string, unknown>) =>
+            c.code === "TH" || (typeof c.name === 'string' && c.name?.toLowerCase().includes("teeem"))
+          ) as { id: number; name: string; code: string } | undefined;
+          setPreviewCompanyId(teeemHomes ? teeemHomes.id : (corporateLinkedCompanies[0] as { id: number }).id);
         }
       }
     } catch (error) {
@@ -1388,14 +1386,14 @@ function GoldDocumentTypeEditor() {
 
   const loadDocumentType = async (id: number) => {
     try {
-      const response = await api.get<{ data: any }>(`/api/v1/document_types/${id}`);
+      const response = await api.get<{ data: Record<string, unknown> }>(`/api/v1/document_types/${id}`);
       setDocumentType(response.data);
     } catch (error) {
       console.error("Failed to load document type:", error);
     }
   };
 
-  const updateField = (field: string, value: any) => {
+  const updateField = (field: string, value: unknown) => {
     if (!documentType) return;
     setDocumentType({ ...documentType, [field]: value });
   };
@@ -1478,7 +1476,7 @@ function GoldDocumentTypeEditor() {
 
     if (placeholderSearch.trim()) {
       const search = placeholderSearch.toLowerCase();
-      return placeholders.filter((p: any) =>
+      return placeholders.filter((p) =>
         p.code.toLowerCase().includes(search) ||
         p.longCode?.toLowerCase().includes(search) ||
         p.example?.toLowerCase().includes(search)
@@ -1747,7 +1745,7 @@ function GoldDocumentTypeEditor() {
                     <div>LONG</div>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5 max-h-[400px] overflow-y-auto">
-                    {getAvailablePlaceholders().map((p: any, idx: number) => (
+                    {getAvailablePlaceholders().map((p: { code: string; longCode?: string; example?: string; longExample?: string; color?: string; label?: string }, idx: number) => (
                       <React.Fragment key={`${p.code}-${idx}`}>
                         <div
                           draggable
@@ -1768,7 +1766,7 @@ function GoldDocumentTypeEditor() {
                         {p.longCode ? (
                           <div
                             draggable
-                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode)}
+                            onDragStart={(e) => handleDragStartFromSource(e, p.longCode!)}
                             onDragEnd={handleDragEnd}
                             className={cn(
                               "cursor-grab px-1.5 py-1 rounded border text-[10px]",
@@ -2090,13 +2088,13 @@ interface SetupItem {
 
 function SetupTableDemo() {
   const [items, setItems] = React.useState<SetupItem[]>([
-    { id: 1, name: "House", color: "#3b82f6", active: true },
-    { id: 2, name: "Duplex", color: "#3b82f6", active: true },
-    { id: 3, name: "Townhouse", color: "#3b82f6", active: true },
-    { id: 4, name: "Micro Apartment", color: "#3b82f6", active: true },
-    { id: 5, name: "Co Living", color: "#3b82f6", active: true },
-    { id: 6, name: "NDIS House", color: "#3b82f6", active: true },
-    { id: 7, name: "NDIS Units", color: "#3b82f6", active: false },
+    { id: 1, name: "House", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 2, name: "Duplex", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 3, name: "Townhouse", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 4, name: "Micro Apartment", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 5, name: "Co Living", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 6, name: "NDIS House", color: TAILWIND_COLORS.blue[500], active: true },
+    { id: 7, name: "NDIS Units", color: TAILWIND_COLORS.blue[500], active: false },
   ]);
 
   const [editingItem, setEditingItem] = React.useState<SetupItem | null>(null);
@@ -2112,7 +2110,7 @@ function SetupTableDemo() {
       const newItem: SetupItem = {
         id: Math.max(...items.map(i => i.id)) + 1,
         name: newItemName.trim(),
-        color: "#3b82f6",
+        color: TAILWIND_COLORS.blue[500],
         active: true,
       };
       setItems([...items, newItem]);

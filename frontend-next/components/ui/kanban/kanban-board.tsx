@@ -136,7 +136,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
     });
 
     // Convert to swimlane objects
-    let lanes: Swimlane<T>[] = Array.from(groups.entries()).map(
+    const lanes: Swimlane<T>[] = Array.from(groups.entries()).map(
       ([key, groupItems]) => ({
         id: key,
         label: key === "__ungrouped__" ? ungroupedLabel : (getLabel?.(key) ?? key),
@@ -256,17 +256,7 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
           effectiveTargetIndex = targetIndex;
         }
 
-        console.log('[KanbanBoard] Same column reorder:', {
-          activeColumnId,
-          fromIndex,
-          targetIndex,
-          effectiveTargetIndex,
-          activeId: active.id,
-          overId: over.id,
-        });
-
         if (fromIndex !== effectiveTargetIndex && fromIndex !== -1) {
-          console.log('[KanbanBoard] Calling onCardReorder');
           onCardReorder?.({
             item: activeItemData,
             columnId: activeColumnId,
@@ -276,11 +266,6 @@ function KanbanBoardInner<T extends KanbanItem = KanbanItem>({
         }
       } else {
         // Different column - move
-        console.log('[KanbanBoard] Cross-column move:', {
-          fromColumnId: activeColumnId,
-          toColumnId: targetColumnId,
-          toIndex: targetIndex,
-        });
         onCardMove?.({
           item: activeItemData,
           fromColumnId: activeColumnId,

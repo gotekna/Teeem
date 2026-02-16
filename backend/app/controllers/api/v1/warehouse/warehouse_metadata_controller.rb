@@ -21,7 +21,7 @@ module Api
 
         metadata = all_views[view_name]
         unless metadata
-          render json: { success: false, error: "View '#{view_name}' not found" }, status: :not_found
+          render_error("View '#{view_name}' not found", status: :not_found)
           return
         end
 

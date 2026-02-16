@@ -3,6 +3,8 @@
 import * as React from "react";
 import type { SnapPoint } from "./useSnapPoints";
 import { findPdfJunctions } from "./useSnapPoints";
+import { Z_TOOLTIP } from "@/lib/constants/z-index-constants";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 // =============================================================================
 // Helpers
@@ -55,19 +57,19 @@ export function SnapIndicator({ point, snapType, zoom, isSnapped }: SnapIndicato
   const getColor = () => {
     switch (snapType) {
       case "endpoint":
-        return "#22c55e"; // Green
+        return TAILWIND_COLORS.green[500]; // Green
       case "midpoint":
-        return "#3b82f6"; // Blue
+        return TAILWIND_COLORS.blue[500]; // Blue
       case "intersection":
-        return "#f97316"; // Orange
+        return TAILWIND_COLORS.orange[500]; // Orange
       case "perpendicular":
-        return "#a855f7"; // Purple
+        return TAILWIND_COLORS.purple[500]; // Purple
       case "edge":
-        return "#06b6d4"; // Cyan
+        return TAILWIND_COLORS.cyan[500]; // Cyan
       case "pdf-edge":
-        return "#ec4899"; // Magenta/pink — visually distinct from all other snap types
+        return TAILWIND_COLORS.pink[500]; // Magenta/pink — visually distinct from all other snap types
       default:
-        return "#6b7280"; // Gray
+        return TAILWIND_COLORS.gray[500]; // Gray
     }
   };
 
@@ -233,19 +235,19 @@ export function SnapPointsLayer({ snapPoints, zoom, showAll = false }: SnapPoint
 function getSnapPointColor(type: SnapPoint["type"]): string {
   switch (type) {
     case "endpoint":
-      return "#22c55e";
+      return TAILWIND_COLORS.green[500];
     case "midpoint":
-      return "#3b82f6";
+      return TAILWIND_COLORS.blue[500];
     case "intersection":
-      return "#f97316";
+      return TAILWIND_COLORS.orange[500];
     case "perpendicular":
-      return "#a855f7";
+      return TAILWIND_COLORS.purple[500];
     case "edge":
-      return "#06b6d4";
+      return TAILWIND_COLORS.cyan[500];
     case "pdf-edge":
-      return "#ec4899";
+      return TAILWIND_COLORS.pink[500];
     default:
-      return "#6b7280";
+      return TAILWIND_COLORS.gray[500];
   }
 }
 
@@ -344,7 +346,7 @@ export function PinnedMagnifier({
       const mx = ((c.x - centerX + cropSize / 2) / cropSize) * PINNED_MAG_SIZE;
       const my = ((c.y - centerY + cropSize / 2) / cropSize) * PINNED_MAG_SIZE;
       const isActive = Math.abs(c.x - activePoint.x) < 0.5 && Math.abs(c.y - activePoint.y) < 0.5;
-      const cColor = isActive ? "#22c55e" : "#ec4899";
+      const cColor = isActive ? TAILWIND_COLORS.green[500] : TAILWIND_COLORS.pink[500];
       const armLen = 16;
 
       // Crosshair
@@ -364,7 +366,7 @@ export function PinnedMagnifier({
       ctx.fill();
       ctx.beginPath();
       ctx.arc(mx, my, 1.2, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = COLORS.white;
       ctx.fill();
 
       // Number label
@@ -375,7 +377,7 @@ export function PinnedMagnifier({
         ctx.arc(lbX, lbY, 7, 0, Math.PI * 2);
         ctx.fillStyle = cColor;
         ctx.fill();
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = COLORS.white;
         ctx.font = "bold 9px system-ui";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -401,7 +403,7 @@ export function PinnedMagnifier({
     ctx.beginPath();
     ctx.rect(lx, ly, lw, lh);
     ctx.fill();
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = COLORS.white;
     ctx.font = "bold 10px system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -449,7 +451,7 @@ export function PinnedMagnifier({
           width: PINNED_MAG_SIZE,
           height: PINNED_MAG_SIZE + 20,
           pointerEvents: "none",
-          zIndex: 50, // Must be above Fabric.js upper canvas AND calibration overlays (z-10)
+          zIndex: Z_TOOLTIP, // Must be above Fabric.js upper canvas AND calibration overlays
         }}
       >
         <canvas
@@ -610,7 +612,7 @@ function MagnifierInteractiveOverlay({
               top: my - 10,
               width: 20,
               height: 20,
-              border: isActive ? "2px solid #22c55e" : "1px solid rgba(236,72,153,0.4)",
+              border: isActive ? `2px solid ${TAILWIND_COLORS.green[500]}` : `1px solid rgba(236,72,153,0.4)`,
               background: isActive ? "rgba(34,197,94,0.15)" : "transparent",
               pointerEvents: "none", // parent overlay handles all pointer events
             }}
@@ -690,7 +692,7 @@ export function SnapMagnifier({
       const mx = ((c.x - centerX + cropSize / 2) / cropSize) * MAG_SIZE;
       const my = ((c.y - centerY + cropSize / 2) / cropSize) * MAG_SIZE;
       const isActive = c.x === activeCandidate.x && c.y === activeCandidate.y;
-      const color = isActive ? "#22c55e" : "#ec4899";
+      const color = isActive ? TAILWIND_COLORS.green[500] : TAILWIND_COLORS.pink[500];
       const armLen = 18;
 
       // Precise crosshair lines showing exact snap point
@@ -716,7 +718,7 @@ export function SnapMagnifier({
       ctx.fill();
       ctx.beginPath();
       ctx.arc(mx, my, 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = COLORS.white;
       ctx.fill();
 
       // Number label offset to upper-right
@@ -727,7 +729,7 @@ export function SnapMagnifier({
         ctx.arc(labelX, labelY, 8, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.fillStyle = "#fff";
+        ctx.fillStyle = COLORS.white;
         ctx.font = "bold 10px system-ui";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -754,7 +756,7 @@ export function SnapMagnifier({
     ctx.beginPath();
     ctx.rect(labelX, labelY, labelW, labelH);
     ctx.fill();
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = COLORS.white;
     ctx.font = "bold 10px system-ui";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
@@ -786,7 +788,7 @@ export function SnapMagnifier({
         width: MAG_SIZE,
         height: MAG_SIZE + 24,
         pointerEvents: "none",
-        zIndex: 50, // Must be above Fabric.js upper canvas AND calibration overlays (z-10)
+        zIndex: Z_TOOLTIP, // Must be above Fabric.js upper canvas AND calibration overlays
       }}
     >
       <canvas
@@ -813,7 +815,7 @@ export function SnapMagnifier({
         className="text-xs font-medium text-center"
         style={{
           marginTop: 4,
-          color: "#ec4899",
+          color: TAILWIND_COLORS.pink[500],
           pointerEvents: "none",
         }}
       >

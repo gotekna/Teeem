@@ -10,9 +10,12 @@ class CorporateDirector < ApplicationRecord
   alias_method :company, :corporate  # Alias for convenience
   belongs_to :contact
 
-  # Validations
+  # Constants
   # Positions: director, secretary, public_officer, corporate_officer, chairman, and combinations
-  validates :position, inclusion: { in: %w[director secretary public_officer corporate_officer director_secretary director_public_officer director_corporate_officer secretary_public_officer secretary_corporate_officer director_secretary_public_officer director_secretary_corporate_officer chairman] }, allow_blank: true
+  POSITIONS = %w[director secretary public_officer corporate_officer director_secretary director_public_officer director_corporate_officer secretary_public_officer secretary_corporate_officer director_secretary_public_officer director_secretary_corporate_officer chairman].freeze
+
+  # Validations
+  validates :position, inclusion: { in: POSITIONS, allow_blank: true }
   validates :contact_id, uniqueness: { scope: :company_id, conditions: -> { where(is_current: true) },
                                        message: "is already a current director/officer of this company" }
   validate :resignation_date_after_appointment
@@ -40,7 +43,7 @@ class CorporateDirector < ApplicationRecord
   # Instance methods
   def active_duration
     start_date = appointment_date || created_at.to_date
-    end_date = resignation_date || Date.today
+    end_date = resignation_date || Date.current
     (end_date - start_date).to_i
   end
 
@@ -51,7 +54,7 @@ class CorporateDirector < ApplicationRecord
   private
 
   def update_current_status
-    if resignation_date.present? && resignation_date <= Date.today
+    if resignation_date.present? && resignation_date <= Date.current
       self.is_current = false
     end
   end
@@ -145,7 +148,7 @@ class CorporateDirector < ApplicationRecord
         relationship_type: "director_of"
       )
       if rel
-        rel.update!(is_active: false, end_date: resignation_date || Date.today)
+        rel.update!(is_active: false, end_date: resignation_date || Date.current)
       end
     end
   rescue StandardError => e

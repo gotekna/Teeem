@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import {
   Paperclip,
   FileText,
@@ -9,12 +9,16 @@ import {
   File,
   Download,
   Eye,
-  ExternalLink,
+  CloudDownload,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { formatFileSize } from "@/utils/formatters";
+import { BLOB_URL_CLEANUP_DELAY_MS } from "@/lib/constants/timeout-constants";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 // File type detection helpers
 function isSpreadsheetFile(name: string, contentType?: string): boolean {
@@ -38,6 +42,12 @@ function isWordDocFile(name: string, contentType?: string): boolean {
   );
 }
 
+function isEmailFile(name: string, contentType?: string): boolean {
+  const ext = name?.split(".").pop()?.toLowerCase() || "";
+  const type = contentType?.toLowerCase() || "";
+  return ext === "eml" || ext === "msg" || type.includes("message/rfc822");
+}
+
 // Cache for presigned URLs (attachment key -> url)
 const presignedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
@@ -58,6 +68,10 @@ export interface Attachment {
   inline_url?: string;
   // Flag: true if this is an inline image (signature) that shouldn't show in attachment list
   is_inline?: boolean;
+  // Two-step sync (Feb 2026): Whether StorageBlob exists for this attachment
+  has_blob?: boolean;
+  // Two-step sync: "pending" | "downloaded" | "failed" | "unknown"
+  blob_status?: string;
 }
 
 interface AttachmentListProps {
@@ -91,6 +105,10 @@ function isSignatureAttachment(attachment: Attachment): boolean {
 
 export function AttachmentList({ attachments, emailId, className }: AttachmentListProps) {
   const [loading, setLoading] = useState<string | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Filter out signature/embedded images
   const visibleAttachments = attachments?.filter(a => !isSignatureAttachment(a)) || [];
@@ -100,6 +118,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
   }
 
   // Get presigned URL for attachment (with caching)
+  // Two-step aware: If attachment has no blob, triggers on-demand download via download_blob endpoint
   const getPresignedUrl = useCallback(async (attachment: Attachment): Promise<string | null> => {
     const attachmentId = attachment.id || attachment.outlook_attachment_id;
     if (!emailId || !attachmentId) return null;
@@ -113,13 +132,31 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
     }
 
     try {
-      // Try to get presigned URL (fast path - direct S3 download)
+      // If we know there's no blob, use the download_blob endpoint to fetch it first
+      if (attachment.has_blob === false && attachment.id) {
+        const downloadResponse = await api.post(
+          `/api/v1/synced_emails/${emailId}/attachments/${attachment.id}/download_blob`
+        ) as { success?: boolean; url?: string; blob_status?: string };
+
+        if (downloadResponse.success && downloadResponse.url) {
+          presignedUrlCache.set(cacheKey, {
+            url: downloadResponse.url,
+            expiresAt: Date.now() + 900 * 1000,
+          });
+          // Update the attachment's blob status in-place
+          attachment.has_blob = true;
+          attachment.blob_status = "downloaded";
+          return downloadResponse.url;
+        }
+        return null;
+      }
+
+      // Normal path: get presigned URL (backend handles on-demand download if needed)
       const response = await api.get(
         `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(attachment.name)}`
-      ) as { success?: boolean; url?: string; expires_in?: number; fallback_to_proxy?: boolean };
+      ) as { success?: boolean; url?: string; expires_in?: number; blob_status?: string };
 
       if (response.success && response.url) {
-        // Cache the presigned URL
         const expiresIn = response.expires_in || 900;
         presignedUrlCache.set(cacheKey, {
           url: response.url,
@@ -127,18 +164,14 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
         });
         return response.url;
       }
-    } catch (err) {
-      console.warn("[AttachmentList] Presigned URL failed, will use proxy:", err);
-    }
+    } catch (_) { /* Presigned URL failure - returns null fallback */ }
 
     return null;
   }, [emailId]);
 
-  // Fetch attachment content (presigned URL or proxy fallback)
+  // Fetch attachment content via presigned URL (direct S3 download)
   const fetchAttachmentBlob = useCallback(async (attachment: Attachment): Promise<Blob> => {
-    const attachmentId = attachment.id || attachment.outlook_attachment_id;
-
-    // Step 1: Try presigned URL (fast path - no double transfer!)
+    // Get presigned URL from backend (checks Wasabi storage)
     const presignedUrl = await getPresignedUrl(attachment);
     if (presignedUrl && isPresignedUrl(presignedUrl)) {
       const response = await fetch(presignedUrl);
@@ -147,12 +180,75 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       }
     }
 
-    // Step 2: Fall back to api.getBlob() proxy (slow path)
-    console.log("[AttachmentList] Using proxy fallback for:", attachment.name);
-    return api.getBlob(
-      `/api/v1/synced_emails/${emailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(attachment.name)}`
-    );
+    // No presigned URL = attachment not in storage (both endpoints check same storage)
+    throw new Error("Attachment not in storage - sync may have failed for this email");
   }, [emailId, getPresignedUrl]);
+
+  // Clean up blob URL when preview closes
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  // Open preview modal using DocumentViewer in modal mode (single-click action)
+  const handlePreviewModal = async (attachment: Attachment) => {
+    const attachmentId = attachment.id || attachment.outlook_attachment_id;
+    if (!emailId || !attachmentId) return;
+
+    // For spreadsheets/word docs, fall through to new window (opens in TeeemXL/TeeemWord editors)
+    // EML files use the DocumentViewer modal which has a built-in email parser
+    if (isSpreadsheetFile(attachment.name, attachment.content_type) ||
+        isWordDocFile(attachment.name, attachment.content_type)) {
+      handleOpenInNewWindow(attachment);
+      return;
+    }
+
+    // Clean up previous blob URL
+    if (previewUrl) {
+      window.URL.revokeObjectURL(previewUrl);
+    }
+
+    setPreviewAttachment(attachment);
+
+    try {
+      const blob = await fetchAttachmentBlob(attachment);
+      const url = window.URL.createObjectURL(blob);
+      setPreviewUrl(url);
+      setPreviewOpen(true);
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewOpen(false);
+    setTimeout(() => {
+      if (previewUrl) {
+        window.URL.revokeObjectURL(previewUrl);
+      }
+      setPreviewAttachment(null);
+      setPreviewUrl(null);
+    }, 300);
+  };
+
+  // Handle eye button: single click = modal, double click = new window
+  const handleEyeClick = (attachment: Attachment) => {
+    if (clickTimerRef.current) {
+      // Double click detected - cancel single click and open new window
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      handleOpenInNewWindow(attachment);
+    } else {
+      // Start single click timer
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        handlePreviewModal(attachment);
+      }, 250);
+    }
+  };
 
   // Open attachment in new window (double-click action)
   // For spreadsheets: Opens in TeeemXL
@@ -184,7 +280,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           const blob = await fetchAttachmentBlob(attachment);
           const url = window.URL.createObjectURL(blob);
           window.open(url, "_blank");
-          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+          setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
         }
         return;
       }
@@ -211,7 +307,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
 
           if (docResponse?.success && docResponse.data?.id) {
             // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("teeem_word_import", JSON.stringify({
+            sessionStorage.setItem(SESSION_STORAGE_KEYS.TEEEM_WORD_IMPORT, JSON.stringify({
               base64,
               fileName,
               documentId: docResponse.data.id,
@@ -223,10 +319,20 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
             // Fallback to blob preview
             const url = window.URL.createObjectURL(blob);
             window.open(url, "_blank");
-            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+            setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
           }
         };
         reader.readAsDataURL(blob);
+        return;
+      }
+
+      // Email files (.eml): Open in /view page which has an eml parser/renderer
+      if (isEmailFile(attachment.name, attachment.content_type)) {
+        const blob = await fetchAttachmentBlob(attachment);
+        const url = window.URL.createObjectURL(blob);
+        const fileName = encodeURIComponent(attachment.name || "message.eml");
+        window.open(`/view?url=${encodeURIComponent(url)}&name=${fileName}`, "_blank");
+        setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
         return;
       }
 
@@ -234,105 +340,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
       const blob = await fetchAttachmentBlob(attachment);
       const url = window.URL.createObjectURL(blob);
       window.open(url, "_blank");
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+      setTimeout(() => window.URL.revokeObjectURL(url), BLOB_URL_CLEANUP_DELAY_MS);
     } catch (error) {
       console.error("Failed to open attachment:", error);
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  // Preview attachment in popup (single-click action)
-  // For spreadsheets: Opens in TeeemXL
-  // For Word docs: Opens in TeeemWord
-  // For others: Opens in popup window
-  const handlePreviewInPopup = async (attachment: Attachment) => {
-    const attachmentId = attachment.id || attachment.outlook_attachment_id;
-    if (!emailId || !attachmentId) return;
-
-    setLoading(attachment.name);
-    try {
-      // Check if it's a spreadsheet - import to TeeemXL via backend
-      if (isSpreadsheetFile(attachment.name, attachment.content_type)) {
-        const response = await api.post<{
-          success: boolean;
-          data?: { id: number };
-          error?: string;
-        }>("/api/v1/teeem_spreadsheets/import_from_attachment", {
-          email_id: emailId,
-          attachment_id: attachmentId,
-        });
-
-        if (response?.success && response.data?.id) {
-          // Open TeeemXL with the imported spreadsheet in popup
-          window.open(
-            `/admin/system/teeem-xl/${response.data.id}`,
-            "preview",
-            "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
-          );
-        } else {
-          console.error("Failed to import spreadsheet:", response?.error);
-          // Fallback to blob preview
-          const blob = await fetchAttachmentBlob(attachment);
-          const url = window.URL.createObjectURL(blob);
-          window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-          setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-        }
-        return;
-      }
-
-      // Check if it's a Word doc - download blob and navigate to TeeemWord
-      if (isWordDocFile(attachment.name, attachment.content_type)) {
-        const blob = await fetchAttachmentBlob(attachment);
-
-        // Store the blob in sessionStorage as base64 for TeeemWord to import
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result as string;
-          const fileName = attachment.name;
-
-          // Create a new TeeemDocument first
-          const docResponse = await api.post<{
-            success: boolean;
-            data?: { id: number };
-          }>("/api/v1/teeem_documents", {
-            teeem_document: {
-              name: fileName.replace(/\.(docx?|doc)$/i, ""),
-            },
-          });
-
-          if (docResponse?.success && docResponse.data?.id) {
-            // Store the file data for TeeemWord to pick up
-            sessionStorage.setItem("teeem_word_import", JSON.stringify({
-              base64,
-              fileName,
-              documentId: docResponse.data.id,
-            }));
-
-            // Open TeeemWord in popup - it will detect the import data and auto-import
-            window.open(
-              `/admin/system/teeem-word/${docResponse.data.id}?import=true`,
-              "preview",
-              "width=1200,height=800,menubar=no,toolbar=no,location=no,status=no"
-            );
-          } else {
-            // Fallback to blob preview
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-            setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-          }
-        };
-        reader.readAsDataURL(blob);
-        return;
-      }
-
-      // Default: Open blob in popup window
-      const blob = await fetchAttachmentBlob(attachment);
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, "preview", "width=900,height=700,menubar=no,toolbar=no,location=no,status=no");
-      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-    } catch (error) {
-      console.error("Failed to preview attachment:", error);
     } finally {
       setLoading(null);
     }
@@ -426,19 +436,29 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           const Icon = getFileIcon(attachment.content_type, attachment.name);
           const isLoading = loading === attachment.name;
           const hasId = emailId && (attachment.id || attachment.outlook_attachment_id);
+          const needsDownload = attachment.has_blob === false;
+          const isFailed = needsDownload && attachment.blob_status === "failed";
 
           return (
             <div
               key={attachment.id || idx}
               className="flex items-center gap-1.5 text-sm"
             >
-              <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+              {isFailed ? (
+                <span title="Download failed - click to retry"><AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" /></span>
+              ) : needsDownload ? (
+                <span title="Click to download from email server"><CloudDownload className="h-4 w-4 text-blue-500 shrink-0" /></span>
+              ) : (
+                <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
               <span
                 className={cn(
-                  "truncate max-w-[200px]",
-                  isLoading && "opacity-50"
+                  "truncate max-w-[200px] cursor-pointer hover:underline",
+                  isLoading && "opacity-50",
+                  needsDownload && !isFailed && "text-muted-foreground"
                 )}
-                title={attachment.name}
+                title={needsDownload ? `${attachment.name} (not yet downloaded)` : attachment.name}
+                onClick={() => hasId && !isLoading && handlePreviewModal(attachment)}
               >
                 {attachment.name}
               </span>
@@ -448,9 +468,9 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                     variant="ghost"
                     size="sm"
                     className="h-5 w-5 p-0"
-                    onClick={() => handlePreviewInPopup(attachment)}
+                    onClick={() => handleEyeClick(attachment)}
                     disabled={isLoading}
-                    title="Preview"
+                    title={needsDownload ? "Download from email server and preview" : "Click to preview, double-click to open in new window"}
                   >
                     <Eye className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-pulse")} />
                   </Button>
@@ -460,7 +480,7 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
                     className="h-5 w-5 p-0"
                     onClick={(e) => handleDownload(attachment, e)}
                     disabled={isLoading}
-                    title="Download"
+                    title={needsDownload ? "Download from email server" : "Download"}
                   >
                     <Download className={cn("h-3.5 w-3.5 text-muted-foreground hover:text-foreground", isLoading && "animate-spin")} />
                   </Button>
@@ -475,6 +495,17 @@ export function AttachmentList({ attachments, emailId, className }: AttachmentLi
           );
         })}
       </div>
+
+      {/* Preview Modal - DocumentViewer in modal mode (SSoT) */}
+      {previewUrl && previewAttachment && (
+        <DocumentViewer
+          modal
+          url={previewUrl}
+          fileName={previewAttachment.name}
+          open={previewOpen}
+          onOpenChange={(open) => { if (!open) closePreview(); }}
+        />
+      )}
     </div>
   );
 }

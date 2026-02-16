@@ -9,7 +9,7 @@
 #   InvalidateFolderCountsJob.perform_later(tenant_id, ["Job/Active/J-001/Photo"])
 #
 class InvalidateFolderCountsJob < ApplicationJob
-  queue_as :default
+  queue_as :low
 
   def perform(tenant_id, folder_paths)
     return if folder_paths.blank?

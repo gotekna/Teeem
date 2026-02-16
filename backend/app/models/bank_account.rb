@@ -26,11 +26,14 @@ class BankAccount < ApplicationRecord
   belongs_to :corporate, foreign_key: "company_id"
   has_many :bank_transactions, dependent: :nullify
 
+  # Constants
+  STATUSES = %w[active closed].freeze
+
   # Validations
   validates :institution_name, presence: true
   validates :bsb, format: { with: /\A\d{6}\z/, message: "must be 6 digits", allow_blank: true }
   validates :account_number, presence: true
-  validates :status, inclusion: { in: %w[active closed] }
+  validates :status, inclusion: { in: STATUSES }
   validate :date_closed_after_opened
 
   # Callbacks - auto-detect bank_code from institution_name

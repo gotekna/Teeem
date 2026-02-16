@@ -172,7 +172,6 @@ export async function openCachedDocument(
   try {
     const cached = await getDocumentFromCache(jobId, documentId);
     if (!cached) {
-      console.warn("[CachedDocument] Document not in cache:", documentId);
       return false;
     }
 
@@ -189,7 +188,6 @@ export async function openCachedDocument(
       return true;
     } else {
       revokeBlobUrl(blobUrl);
-      console.warn("[CachedDocument] Popup blocked");
       return false;
     }
   } catch (error) {

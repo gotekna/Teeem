@@ -9,8 +9,10 @@
 # - Catches XeroApiClient::RateLimitError and records lockout
 #
 class XeroBankTransactionSyncJob < ApplicationJob
+  include XeroConstants  # For BANK_TRANSACTION_SYNC_DELAY_SEC
   include XeroJobBase
-  queue_as :default
+  include DeduplicatableJob
+  queue_as :xero_sync
 
   # FRC (Jan 2026): Updated to sync ALL connected XeroCredentials, not just primary
   # Bug: Was only syncing primary + CorporateXeroConnection, missing 9 of 10 orgs
@@ -83,6 +85,13 @@ class XeroBankTransactionSyncJob < ApplicationJob
     rescue XeroApiClient::RateLimitError => e
       handle_rate_limit_error(tenant_id, e, options)
       { success: false, rate_limited: true }
+    rescue XeroApiClient::AuthenticationError => e
+      # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+      credential = XeroCredential.find_by(tenant_id: tenant_id)
+      Rails.logger.warn("[BankTransactionSync] Auth failed for #{credential&.tenant_name}, marking disconnected")
+      credential&.mark_disconnected!
+      result[:errors] << { tenant_id: tenant_id, error: "Auth failed - marked disconnected" }
+      { success: false, auth_failed: true }
     end
   end
 
@@ -142,7 +151,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       page += 1
 
       # Small delay to spread requests
-      sleep(0.5)
+      sleep(BANK_TRANSACTION_SYNC_DELAY_SEC)
     end
 
     tenant_result[:success] = true unless tenant_result[:rate_limited]
@@ -168,11 +177,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
     schedule_retry(options, retry_after + 60)
   end
 
-  # Extract retry_after seconds from RateLimitError message
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 
   def process_transaction(txn, tenant_id)
     xero_id = txn["BankTransactionID"]
@@ -209,7 +214,7 @@ class XeroBankTransactionSyncJob < ApplicationJob
       sub_total: txn["SubTotal"],
       total_tax: txn["TotalTax"],
       total: txn["Total"],
-      currency_code: txn["CurrencyCode"] || "AUD",
+      currency_code: txn["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       line_items: line_items,
       has_attachments: txn["HasAttachments"] || false,
       xero_updated_at: parse_xero_date(txn["UpdatedDateUTC"]),

@@ -302,53 +302,53 @@ class TeknaDocumentGenerator
 
   def build_job_context(job)
     street_address = [
-      job.try(:street_number),
-      job.try(:street_name),
-      job.try(:street_type)
+      job&.street_number,
+      job&.street_name,
+      job&.street_type
     ].compact.reject(&:blank?).join(" ")
 
     {
       id: job.id,
-      job_number: job.try(:job_number) || job.id.to_s,
+      job_number: job&.job_number || job.id.to_s,
       name: job.name,
-      title: job.try(:title) || job.name,
+      title: job&.title || job.name,
 
       # Address
       address: street_address,
       street_address: street_address,
-      suburb: job.try(:suburb),
-      state: job.try(:state),
-      postcode: job.try(:postcode),
-      full_address: [ street_address, job.try(:suburb), job.try(:state), job.try(:postcode) ].compact.reject(&:blank?).join(", "),
+      suburb: job&.suburb,
+      state: job&.state,
+      postcode: job&.postcode,
+      full_address: [ street_address, job&.suburb, job&.state, job&.postcode ].compact.reject(&:blank?).join(", "),
 
       # Property details
-      lot_number: job.try(:lot_number),
-      plan_number: job.try(:plan_number),
-      council: job.try(:council),
+      lot_number: job&.lot_number,
+      plan_number: job&.plan_number,
+      council: job&.council,
 
       # Contract details
       # SSoT: contract_price is THE ONE
-      contract_price: format_currency(job.try(:contract_price)),
-      contract_price_raw: job.try(:contract_price),
-      contract_price_ex_gst: format_currency(job.try(:contract_price_ex_gst)),
-      gst_amount: format_currency(job.try(:gst_amount)),
-      deposit: format_currency(job.try(:deposit)),
-      deposit_percentage: job.try(:deposit_percentage),
-      build_period: job.try(:build_period),
-      build_period_weeks: job.try(:build_period_weeks),
+      contract_price: format_currency(job&.contract_price),
+      contract_price_raw: job&.contract_price,
+      contract_price_ex_gst: format_currency(job&.contract_price_ex_gst),
+      gst_amount: format_currency(job&.gst_amount),
+      deposit: format_currency(job&.deposit),
+      deposit_percentage: job&.deposit_percentage,
+      build_period: job&.build_period,
+      build_period_weeks: job&.build_period_weeks,
 
       # Dates
-      contract_date: format_date(job.try(:contract_date)),
-      contract_date_long: job.try(:contract_date)&.strftime("%d %B %Y"),
-      site_start_date: format_date(job.try(:site_start_date)),
-      practical_completion_date: format_date(job.try(:practical_completion_date)),
+      contract_date: format_date(job&.contract_date),
+      contract_date_long: job&.contract_date&.strftime("%d %B %Y"),
+      site_start_date: format_date(job&.site_start_date),
+      practical_completion_date: format_date(job&.practical_completion_date),
 
       # Builder info
-      site_supervisor_name: job.try(:site_supervisor_name),
-      site_supervisor_phone: job.try(:site_supervisor_phone),
+      site_supervisor_name: job&.site_supervisor_name,
+      site_supervisor_phone: job&.site_supervisor_phone,
 
       # Status
-      status: job.try(:job_status)&.name || job.try(:status)&.humanize
+      status: job&.job_status&.name || job&.status&.humanize
     }
   end
 
@@ -359,34 +359,34 @@ class TeknaDocumentGenerator
       id: contact.id,
       display_name: contact.display_name,
       full_name: contact.display_name,
-      first_name: contact.try(:first_name),
-      last_name: contact.try(:last_name),
+      first_name: contact&.first_name,
+      last_name: contact&.last_name,
 
       # Entity type
-      entity_type: contact.try(:entity_type),
-      is_company: contact.try(:entity_type) == "company",
-      is_person: contact.try(:entity_type) == "person",
+      entity_type: contact&.entity_type,
+      is_company: contact&.entity_type == "company",
+      is_person: contact&.entity_type == "person",
 
       # Contact details
-      email: contact.try(:email),
-      phone: contact.try(:office_phone) || contact.try(:mobile_phone),
-      mobile: contact.try(:mobile_phone),
+      email: contact&.email,
+      phone: contact&.office_phone || contact&.mobile_phone,
+      mobile: contact&.mobile_phone,
 
       # Business details
-      company_name: contact.try(:company_name_or_trust),
-      abn: contact.try(:abn),
-      abn_formatted: format_abn(contact.try(:abn)),
+      company_name: contact&.company_name_or_trust,
+      abn: contact&.abn,
+      abn_formatted: format_abn(contact&.abn),
 
       # Address
-      address: contact.try(:address),
-      suburb: contact.try(:city),
-      state: contact.try(:state),
-      postcode: contact.try(:postcode),
+      address: contact&.address,
+      suburb: contact&.city,
+      state: contact&.state,
+      postcode: contact&.postcode,
       full_address: build_full_address(contact),
 
       # Owner (for companies)
-      owner_name: contact.try(:employees)&.first&.display_name,
-      owner_first_name: contact.try(:employees)&.first&.first_name
+      owner_name: contact&.employees&.first&.display_name,
+      owner_first_name: contact&.employees&.first&.first_name
     }
   end
 
@@ -405,7 +405,7 @@ class TeknaDocumentGenerator
       email: settings.email,
       phone: settings.phone,
       phone_formatted: format_phone(settings.phone),
-      website: settings.try(:website),
+      website: settings&.website,
 
       address: settings.address,
       address_line_1: address_parts[:line_1],
@@ -431,9 +431,9 @@ class TeknaDocumentGenerator
       {
         id: supplier.id,
         name: supplier.display_name,
-        email: supplier.try(:email),
-        phone: supplier.try(:office_phone) || supplier.try(:mobile_phone),
-        address: supplier.try(:address)
+        email: supplier&.email,
+        phone: supplier&.office_phone || supplier&.mobile_phone,
+        address: supplier&.address
       }
     else
       {}
@@ -443,9 +443,9 @@ class TeknaDocumentGenerator
     job = po.job
     site_supervisor = if job
       {
-        name: job.try(:site_supervisor_name),
-        email: job.try(:site_supervisor_email),
-        phone: job.try(:site_supervisor_phone)
+        name: job&.site_supervisor_name,
+        email: job&.site_supervisor_email,
+        phone: job&.site_supervisor_phone
       }
     else
       {}
@@ -464,9 +464,9 @@ class TeknaDocumentGenerator
         gst_code: item.gst_code || "GST",
         notes: item.notes,
         # SSoT: colour comes from pricebook item or line item override
-        colour: item.try(:colour) || item.pricebook_item&.try(:colour),
-        colour_code: item.try(:colour_code) || item.pricebook_item&.try(:colour_code),
-        colour_brand: item.try(:colour_brand) || item.pricebook_item&.try(:colour_brand),
+        colour: item&.colour || item.pricebook_item&.colour,
+        colour_code: item&.colour_code || item.pricebook_item&.colour_code,
+        colour_brand: item&.colour_brand || item.pricebook_item&.colour_brand,
         pricebook_code: item.pricebook_item&.item_code
       }
     end
@@ -490,7 +490,7 @@ class TeknaDocumentGenerator
       created_at: format_date(po.created_at),
 
       # Delivery
-      delivery_address: po.delivery_address || job&.try(:full_address),
+      delivery_address: po.delivery_address || job&.full_address,
       special_instructions: po.special_instructions,
 
       # Financial
@@ -622,7 +622,7 @@ class TeknaDocumentGenerator
 
     filename.gsub!("{date}", Date.current.strftime("%Y%m%d"))
     filename.gsub!("{job_name}", job&.name.to_s.parameterize.presence || purchase_order&.job&.name.to_s.parameterize.presence || "draft")
-    filename.gsub!("{job_number}", job&.try(:job_number).to_s)
+    filename.gsub!("{job_number}", job&.job_number.to_s)
     filename.gsub!("{variation_number}", extra_data.dig(:variation, :number).to_s)
     filename.gsub!("{po_number}", purchase_order&.purchase_order_number.to_s)
     # SSoT: Task name from linked SmTask (for Purchase Orders)
@@ -751,8 +751,8 @@ class TeknaDocumentGenerator
   end
 
   def build_full_address(contact)
-    parts = [ contact.try(:address) ]
-    parts << [ contact.try(:city), contact.try(:state), contact.try(:postcode) ].compact.reject(&:blank?).join(" ")
+    parts = [ contact&.address ]
+    parts << [ contact&.city, contact&.state, contact&.postcode ].compact.reject(&:blank?).join(" ")
     parts.compact.reject(&:blank?).join(", ")
   end
 

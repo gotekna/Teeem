@@ -30,7 +30,7 @@
 class DirectorChangeService
   class GenerationError < StandardError; end
 
-  TEMPLATE_BASE = "tekna_documents/templates/asic"
+  TEMPLATE_BASE = "tekna_documents/templates/asic".freeze
 
   attr_reader :company, :ceasing_directors, :new_appointments, :user
 

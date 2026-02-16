@@ -25,10 +25,7 @@ class Api::V1::EmailBlacklistController < ApplicationController
         message: "Blacklist pattern added successfully"
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: item.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(item)
     end
   end
 
@@ -41,10 +38,7 @@ class Api::V1::EmailBlacklistController < ApplicationController
         message: "Blacklist pattern updated successfully"
       }
     else
-      render json: {
-        success: false,
-        errors: @item.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@item)
     end
   end
 

@@ -58,9 +58,11 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
+import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS, POLLING_DELAY_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 interface OrgStatus {
   loading: boolean;
@@ -336,7 +338,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         if (response.success && response.download_url) {
           return response.download_url;
         }
-        console.warn("Failed to get S3 URL, falling back to web_url:", response.error);
       }
 
       // Default: use web_url for SharePoint documents (or as fallback)
@@ -481,7 +482,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         link.click();
         document.body.removeChild(link);
         // Small delay between downloads to avoid browser blocking
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, UI_ANIMATION_MEDIUM_MS));
       }
       setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
     } else if (action === "delete") {
@@ -708,7 +709,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         warehouseFolderId: category?.id,
         onProgress: (progress: UploadProgress) => {
           // Could add progress UI here in the future
-          console.log(`[PhotoUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
@@ -720,7 +720,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         // automatically on page navigation.
         setTimeout(() => {
           loadAllFiles();
-        }, 3000);
+        }, POLLING_DELAY_MS);
         return true;
       } else {
         throw new Error(result.error || "Upload failed");
@@ -785,7 +785,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       // Also do a delayed refresh to ensure storage has indexed all files
       setTimeout(() => {
         loadAllFiles();
-      }, 5000);
+      }, POLLING_FAST_MS);
     } else if (successCount === 1) {
       setMessage({ type: "success", text: "Photo uploaded successfully!" });
       loadAllFiles();
@@ -1109,7 +1109,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         folderPath: derivedPath,  // For S3 fallback
         filename: file.name,
         onProgress: (progress: UploadProgress) => {
-          console.log(`[FileUpload] ${progress.status}: ${progress.percentage}%`);
         },
       });
 
@@ -1197,7 +1196,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       setError(null);
       // Always request recursive=true to get all files from all subfolders
       const url = `/api/v1/documents/legacy_files?job_id=${jobId}&recursive=true`;
-      console.log('[Legacy Import] Fetching:', url);
 
       const response = await api.get<{
         success: boolean;
@@ -1208,10 +1206,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         error?: string;
       }>(url);
 
-      console.log('[Legacy Import] Response:', response);
 
       if (response?.success) {
-        console.log('[Legacy Import] Found', response.items?.length || 0, 'files');
         setLegacyItems(response.items || []);
         setSelectedLegacyFiles([]);
       } else {
@@ -1275,12 +1271,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
 
   // Toggle file selection (files only, not folders)
   const toggleFileSelection = useCallback((fileId: string) => {
-    console.log('[Legacy Import] toggleFileSelection called with:', fileId);
     setSelectedLegacyFiles((prev) => {
       const newSelection = prev.includes(fileId)
         ? prev.filter((id) => id !== fileId)
         : [...prev, fileId];
-      console.log('[Legacy Import] Selection updated:', newSelection.length, 'files');
       return newSelection;
     });
   }, []);
@@ -1372,13 +1366,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         total_unanalyzed?: number;
       }>(`/api/v1/documents/analyze_job_documents`, {
         job_id: jobId,
-        limit: 25,
+        limit: API_PAGE_SIZES.SMALL_LIST,
       });
 
       if (response?.success) {
         setMessage({ type: "success", text: response.message });
         // Refresh after a short delay to see updated data
-        setTimeout(loadAllFiles, 2000);
+        setTimeout(loadAllFiles, RETRY_DELAY_MS);
       }
     } catch (err) {
       console.error("Failed to start AI analysis:", err);
@@ -1456,7 +1450,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         if (!dryRun && totalChanged > 0) {
           setMessage({ type: "success", text: `Categorized ${totalChanged} documents` });
           // Refresh file list to show updated data
-          setTimeout(loadAllFiles, 1000);
+          setTimeout(loadAllFiles, COUNTDOWN_TICK_MS);
         }
       }
     } catch (err) {
@@ -1530,12 +1524,11 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               if (cat) setSelectedCategory(cat);
             }}
           >
-            <TabsList className="w-full justify-start overflow-x-auto bg-muted/50 p-1">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
               {documentCategories.map((cat) => (
                 <TabsTrigger
                   key={cat.id}
                   value={String(cat.id)}
-                  className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
                 >
                   {cat.name}
                 </TabsTrigger>
@@ -1553,7 +1546,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               if (subCat) setSelectedSubCategory(subCat);
             }}
           >
-            <TabsList className="w-full justify-start overflow-x-auto h-auto flex-wrap gap-1 bg-transparent p-0">
+            <TabsList className="w-full justify-start overflow-x-auto flex-wrap h-auto gap-1">
               {selectedCategory.children.map((subCat) => {
                 // Check if this sub-tab matches the initialCategory
                 const isActiveByInitial = initialCategory && subCat.name &&
@@ -1565,7 +1558,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                     key={subCat.id}
                     value={String(subCat.id)}
                     data-state={isActive ? "active" : "inactive"}
-                    className="border border-border bg-muted text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   >
                     {subCat.name}
                   </TabsTrigger>
@@ -2916,7 +2908,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       } catch {
         // Ignore polling errors
       }
-    }, 3000); // Poll every 3 seconds
+    }, POLLING_DELAY_MS); // Poll every 3 seconds
 
     return () => clearInterval(pollInterval);
   }, [storageFolderStatus, jobId]);
@@ -3294,7 +3286,6 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
               </div>
             ) : previewDocument?.mimeType?.startsWith('image/') ? (
               <div className="h-full flex items-center justify-center bg-black/5 dark:bg-black/20 p-4">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={previewDocument.url}
                   alt={previewDocument.name}

@@ -29,6 +29,16 @@ export interface Column {
   lookup_display_column?: string;
   available_choices?: { id: number; value: string }[] | string[];
   searchable?: boolean;
+  // Additional column metadata
+  header_align?: "left" | "center" | "right";
+  data_align?: "left" | "center" | "right";
+  column_group?: string;
+  formula?: string;
+  // UI presentation fields
+  key?: string; // Alias for column_name in some contexts
+  label?: string; // Alias for name in some contexts
+  choices?: { id: number; value: string }[] | string[]; // Alias for available_choices
+  required?: boolean;
 }
 
 interface ColumnsCacheEntry {

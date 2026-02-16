@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Node, Edge } from "@xyflow/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

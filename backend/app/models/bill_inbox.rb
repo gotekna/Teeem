@@ -2,6 +2,12 @@
 
 class BillInbox < ApplicationRecord
   include StorageUploadable
+  include MimeTypes
+  include WarehouseDocumentable
+  warehouse_type :financial
+
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/BillInbox".freeze
 
   # ⚠️ CRITICAL SECURITY FIX (Feb 2026): Multi-tenancy scoping
   # FRC: BillInbox was leaking data across tenants - users could see other tenants' bills
@@ -23,18 +29,16 @@ class BillInbox < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
-  # Bill Inbox documents appear under Warehousing/BillInbox folder in File Warehouse
-  has_one :warehouse_document, as: :documentable, dependent: :destroy
+  # NOTE: has_one :warehouse_document is provided by WarehouseDocumentable concern
 
   has_many :bill_payments, dependent: :destroy
 
   # Allowed content types (used by upload validation in services)
-  ALLOWED_INVOICE_TYPES = %w[application/pdf image/jpeg image/png image/tiff].freeze
-  ALLOWED_SUPPORTING_TYPES = %w[
-    application/pdf image/jpeg image/png image/tiff
-    application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-    application/vnd.ms-excel text/csv
+  ALLOWED_INVOICE_TYPES = [PDF, JPEG, PNG, "image/tiff"].freeze
+  ALLOWED_SUPPORTING_TYPES = [
+    PDF, JPEG, PNG, "image/tiff",
+    XLSX,
+    "application/vnd.ms-excel", CSV
   ].freeze
 
   # Validations
@@ -62,7 +66,6 @@ class BillInbox < ApplicationRecord
   # Callbacks
   before_validation :set_defaults, on: :create
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
-  after_create :create_warehouse_entry
 
   # Instance methods
   def extract_invoice_data!
@@ -153,11 +156,11 @@ class BillInbox < ApplicationRecord
   # SSoT: Reads from WarehouseProvider.path_for(:bill_inbox)
   # Configure at: /settings/company/warehouse-config → Warehouse Folders
   def virtual_folder_path
-    return "Warehousing/BillInbox/Unknown" unless tenant_id
+    return FALLBACK_FOLDER_PATH unless tenant_id
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:bill_inbox)
-    return "Warehousing/BillInbox/Unknown" unless template
+    return FALLBACK_FOLDER_PATH unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
@@ -172,9 +175,20 @@ class BillInbox < ApplicationRecord
     result
   end
 
-  # Display name for File Warehouse
+  # Display name for File Warehouse (used by WarehouseDocumentable concern)
   def display_name
     invoice_number.presence || supplier&.display_name || "Bill #{id}"
+  end
+
+  # WarehouseDocumentable: custom metadata for warehouse entry
+  def warehouse_entry_metadata
+    {
+      bill_inbox_id: id,
+      status: status,
+      invoice_number: invoice_number,
+      supplier_id: supplier_id,
+      total_amount: total_amount
+    }
   end
 
   def has_invoice_file?
@@ -191,10 +205,10 @@ class BillInbox < ApplicationRecord
     # Return stored mime type or detect from filename
     return nil unless has_invoice_file?
     case invoice_file_filename&.downcase
-    when /\.pdf$/ then "application/pdf"
-    when /\.png$/ then "image/png"
-    when /\.jpe?g$/ then "image/jpeg"
-    else "application/octet-stream"
+    when /\.pdf$/ then PDF
+    when /\.png$/ then PNG
+    when /\.jpe?g$/ then JPEG
+    else OCTET_STREAM
     end
   end
 
@@ -226,45 +240,13 @@ class BillInbox < ApplicationRecord
     nil
   end
 
-  # SSoT: Folder path for File Warehouse Doc Tree
-  # Produces: "Warehousing/BillInbox/{Status}/{Year}/{Month}"
-  def warehouse_folder_path
-    s = status&.titleize || "Unknown"
-    date = created_at || Time.current
-    "Warehousing/BillInbox/#{s}/#{date.strftime('%Y/%m')}"
-  end
-
   private
-
-  # Create WarehouseDocument entry for this bill inbox item
-  # SSoT (Feb 2026): Uses direct tenant_id association (acts_as_tenant)
-  def create_warehouse_entry
-    return unless storage_blob
-    return unless tenant_id # Guaranteed by acts_as_tenant + NOT NULL constraint
-
-    create_warehouse_document!(
-      tenant_id: tenant_id,
-      source_type: "warehouse",
-      display_name: display_name,
-      original_filename: invoice_file_filename,
-      storage_blob: storage_blob,
-      metadata: {
-        bill_inbox_id: id,
-        status: status,
-        invoice_number: invoice_number,
-        supplier_id: supplier_id,
-        total_amount: total_amount
-      }
-    )
-  rescue StandardError => e
-    Rails.logger.error("[BillInbox] ##{id}: Failed to create warehouse entry: #{e.message}")
-  end
 
   def set_defaults
     self.source ||= "email"
     self.status ||= "pending"
     self.match_status ||= "unmatched"
-    self.currency ||= "AUD"
+    self.currency ||= TenantSetting::DEFAULT_CURRENCY
   end
 
   def should_upload_to_storage?

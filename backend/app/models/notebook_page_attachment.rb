@@ -12,6 +12,9 @@ class NotebookPageAttachment < ApplicationRecord
   include BlobStorable  # SSoT: provides download_file, has_file?, base attach_file
   warehouse_type :file
 
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/Notes".freeze
+
   # Associations
   belongs_to :page, class_name: "NotebookPage"
   belongs_to :uploaded_by, class_name: "User", optional: true
@@ -83,10 +86,10 @@ class NotebookPageAttachment < ApplicationRecord
   # Model callbacks run without ActsAsTenant context set
   def warehouse_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Notes/Unknown" unless tenant
+    return FALLBACK_FOLDER_PATH unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
-    return "Warehousing/Notes/Unknown" unless config
+    return FALLBACK_FOLDER_PATH unless config
 
     config.resolve_warehouse_path(self, scope: :notes)
   end
@@ -97,11 +100,11 @@ class NotebookPageAttachment < ApplicationRecord
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Notes/Unknown" unless tenant
+    return FALLBACK_FOLDER_PATH unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:notebook)
-    return "Warehousing/Notes/Unknown" unless template
+    return FALLBACK_FOLDER_PATH unless template
 
     year = (created_at || Time.current).year.to_s
     notebook_name = notebook&.name || "General"

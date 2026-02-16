@@ -38,10 +38,7 @@ module Api
             data: config_json(config)
           }
         else
-          render json: {
-            success: false,
-            error: config.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(config)
         end
       end
 
@@ -53,43 +50,28 @@ module Api
         backup_type = params[:type]&.to_s
 
         unless %w[database documents mirror].include?(backup_type)
-          return render json: {
-            success: false,
-            error: "Invalid backup type. Use 'database', 'documents', or 'mirror'."
-          }, status: :unprocessable_entity
+          return render_error("Invalid backup type. Use 'database', 'documents', or 'mirror'.", status: :unprocessable_entity)
         end
 
         unless config.enabled?
-          return render json: {
-            success: false,
-            error: "Backups are disabled. Enable backups first."
-          }, status: :unprocessable_entity
+          return render_error("Backups are disabled. Enable backups first.", status: :unprocessable_entity)
         end
 
         # Queue the appropriate job
         case backup_type
         when "database"
           unless config.secondary_credential
-            return render json: {
-              success: false,
-              error: "B2 (secondary) storage credential not configured. Database dumps go directly to B2."
-            }, status: :unprocessable_entity
+            return render_error("B2 (secondary) storage credential not configured. Database dumps go directly to B2.", status: :unprocessable_entity)
           end
           TenantDatabaseBackupJob.perform_later(config.tenant_id)
         when "documents"
           unless config.primary_credential
-            return render json: {
-              success: false,
-              error: "Primary storage credential not configured."
-            }, status: :unprocessable_entity
+            return render_error("Primary storage credential not configured.", status: :unprocessable_entity)
           end
           TenantDocumentBackupJob.perform_later(config.tenant_id)
         when "mirror"
           unless config.mirror_enabled? && config.secondary_credential
-            return render json: {
-              success: false,
-              error: "Mirror is not enabled or secondary credential not configured."
-            }, status: :unprocessable_entity
+            return render_error("Mirror is not enabled or secondary credential not configured.", status: :unprocessable_entity)
           end
           full_sync = ActiveModel::Type::Boolean.new.cast(params[:full_sync])
           BackupMirrorJob.perform_later(config.tenant_id, "documents", { full_sync: full_sync })
@@ -211,10 +193,7 @@ module Api
 
       def ensure_tenant_context
         unless ActsAsTenant.current_tenant
-          render json: {
-            success: false,
-            error: "Tenant context not available"
-          }, status: :unprocessable_entity
+          render_error("Tenant context not available", status: :unprocessable_entity)
         end
       end
     end

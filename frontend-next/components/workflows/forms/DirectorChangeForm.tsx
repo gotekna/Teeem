@@ -45,6 +45,7 @@ import {
 import { format } from "date-fns";
 import { api } from "@/lib/api";
 import type { TaskFormProps } from "@/lib/workflow-task-forms";
+import { DATE_DISPLAY, DATE_ISO } from "@/lib/constants/date-formats";
 
 // --- Types ---
 
@@ -157,7 +158,7 @@ function DatePickerInput({
           )}
         >
           <CalendarIcon className="mr-2 h-3.5 w-3.5" />
-          {parsed ? format(parsed, "dd/MM/yyyy") : placeholder}
+          {parsed ? format(parsed, DATE_DISPLAY) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -166,7 +167,7 @@ function DatePickerInput({
           selected={parsed}
           onSelect={(date) => {
             if (date) {
-              onChange(format(date, "yyyy-MM-dd"));
+              onChange(format(date, DATE_ISO));
               setOpen(false);
             }
           }}
@@ -346,7 +347,7 @@ export default function DirectorChangeForm({
           name: officer.contact?.display_name || "Unknown",
           position: officer.position,
           positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
-          cessation_date: format(new Date(), "yyyy-MM-dd"),
+          cessation_date: format(new Date(), DATE_ISO),
           has_dob: hasDob,
           has_address: hasAddress,
           dob,
@@ -383,7 +384,7 @@ export default function DirectorChangeForm({
     async (contact: ContactSearchResult) => {
       if (newAppointments.some((a) => a.contact_id === contact.id)) return;
 
-      const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), "yyyy-MM-dd");
+      const defaultDate = ceasingDirectors[0]?.cessation_date || format(new Date(), DATE_ISO);
 
       let hasDob = !!contact.date_of_birth;
       let hasAddress = false;
@@ -655,7 +656,7 @@ export default function DirectorChangeForm({
                       </div>
                       {cd.has_dob && !cd.editing_dob ? (
                         <p className="text-sm">
-                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                          {cd.dob ? format(new Date(cd.dob + "T00:00:00"), DATE_DISPLAY) : "On file"}
                         </p>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -945,7 +946,7 @@ export default function DirectorChangeForm({
                       </div>
                       {appt.has_dob && !appt.editing_dob ? (
                         <p className="text-sm">
-                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), "dd/MM/yyyy") : "On file"}
+                          {appt.dob ? format(new Date(appt.dob + "T00:00:00"), DATE_DISPLAY) : "On file"}
                         </p>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -1200,7 +1201,7 @@ export default function DirectorChangeForm({
                       </Badge>
                       <span className="text-sm">{cd.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        ({cd.positions.join(", ")}) — {format(new Date(cd.cessation_date + "T00:00:00"), "dd/MM/yyyy")}
+                        ({cd.positions.join(", ")}) — {format(new Date(cd.cessation_date + "T00:00:00"), DATE_DISPLAY)}
                       </span>
                     </div>
                   ))}
@@ -1217,7 +1218,7 @@ export default function DirectorChangeForm({
                       </Badge>
                       <span className="text-sm">{appt.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        ({appt.positions.join(", ")}) — {format(new Date(appt.appointment_date + "T00:00:00"), "dd/MM/yyyy")}
+                        ({appt.positions.join(", ")}) — {format(new Date(appt.appointment_date + "T00:00:00"), DATE_DISPLAY)}
                       </span>
                     </div>
                   ))}

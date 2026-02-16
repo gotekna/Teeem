@@ -39,7 +39,7 @@ module Api
             task_auto_completed: auto_completed
           }, status: :created
         else
-          render json: { success: false, errors: photo.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(photo)
         end
       end
 
@@ -60,7 +60,7 @@ module Api
 
         # Only allow deletion by uploader or admin
         unless photo.uploaded_by_id == current_user&.id || current_user&.admin?
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         photo.destroy
@@ -169,7 +169,7 @@ module Api
             voice_note: voice_note_json(voice_note)
           }, status: :created
         else
-          render json: { success: false, errors: voice_note.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(voice_note)
         end
       end
 

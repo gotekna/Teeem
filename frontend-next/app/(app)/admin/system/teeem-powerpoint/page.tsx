@@ -80,6 +80,8 @@ import type {
   ChartData,
   ChartType,
 } from "@/lib/teeem-powerpoint";
+import { Job } from "@/lib/types";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // Types
 interface TeeemPresentation {
@@ -91,11 +93,6 @@ interface TeeemPresentation {
   jobName?: string;
   updatedAt: string;
   createdAt: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 // Slide canvas dimensions (16:9 aspect ratio in inches)
@@ -318,7 +315,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
       <div
         style={{
           ...style,
-          backgroundColor: "#f3f4f6",
+          backgroundColor: TAILWIND_COLORS.gray[100],
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -336,7 +333,7 @@ function ThumbnailElement({ element }: { element: SlideElement }) {
       <div
         style={{
           ...style,
-          backgroundColor: "#f3f4f6",
+          backgroundColor: TAILWIND_COLORS.gray[100],
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1038,21 +1035,12 @@ export default function TeeemPowerPointPage() {
         const formData = new FormData();
         formData.append("file", pptxBlob, `${name}.pptx`);
 
-        // Send to backend - use fetch since api.post doesn't handle FormData well
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL}/api/v1/teeem_presentations/${presentation.id}/save_to_warehouse`,
-          {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-          }
+        // Send to backend - api utility auto-detects FormData
+        await api.post(
+          `/api/v1/teeem_presentations/${presentation.id}/save_to_warehouse`,
+          formData
         );
-
-        if (!response.ok) {
-          console.warn("Failed to save to warehouse:", await response.text());
-        }
       } catch (warehouseError) {
-        console.warn("Failed to save to warehouse:", warehouseError);
         // Don't fail the whole save - database save succeeded
       }
 
@@ -1172,7 +1160,7 @@ export default function TeeemPowerPointPage() {
       w: 2,
       h: 2,
       options: {
-        fill: { color: "#4A90D9" },
+        fill: { color: "#4A90D9" }, // Keep custom brand color
       },
     };
     updateCurrentSlide({ elements: [...currentSlide.elements, newElement] });

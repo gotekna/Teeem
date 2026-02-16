@@ -137,8 +137,8 @@ export class ScreenShareManager {
     if (!this.pc) return;
     try {
       await this.pc.addIceCandidate(new RTCIceCandidate(candidate));
-    } catch (err) {
-      console.warn("[ScreenShareManager] Failed to add ICE candidate:", err);
+    } catch (error) {
+      console.error("Screen share error:", error);
     }
   }
 
@@ -215,11 +215,9 @@ export class ScreenShareManager {
     if (!this.dataChannel) return;
 
     this.dataChannel.onopen = () => {
-      console.log("[ScreenShareManager] DataChannel open");
     };
 
     this.dataChannel.onclose = () => {
-      console.log("[ScreenShareManager] DataChannel closed");
     };
 
     // Only the sharer processes incoming control events
@@ -228,8 +226,8 @@ export class ScreenShareManager {
         try {
           const controlEvent: RemoteControlEvent = JSON.parse(event.data);
           this.replayControlEvent(controlEvent);
-        } catch (err) {
-          console.warn("[ScreenShareManager] Failed to parse control event:", err);
+        } catch (error) {
+          console.error("Screen share error:", error);
         }
       };
     }

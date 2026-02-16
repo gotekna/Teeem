@@ -14,12 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  [key: string]: unknown;
-}
+import type { Contact } from "@/lib/types";
 
 interface XeroLink {
   id: number;

@@ -15,6 +15,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { FileText, Loader2 } from "lucide-react";
 import { DocumentViewer, ViewerFile, QAPair } from "@/components/ui/document-viewer";
+import { getApiBaseUrl } from "@/lib/api";
 
 // Context structure from API
 interface ViewerContext {
@@ -40,18 +41,8 @@ function ViewerContent() {
 
     const fetchContext = async () => {
       try {
-        // Detect environment from current URL to use matching backend
-        // SSoT: Links created on staging should fetch from staging, production from production
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-        let apiBase: string;
-        if (hostname.includes('staging')) {
-          apiBase = 'https://teeem-staging-d60a657ed68a.herokuapp.com';
-        } else if (hostname.includes('beta')) {
-          apiBase = 'https://teeem-beta-6e3e9cb59225.herokuapp.com';
-        } else {
-          // Production or localhost - use env var or production default
-          apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-production-121159e1ff9d.herokuapp.com';
-        }
+        const apiBase = getApiBaseUrl();
+        // Keep as raw fetch - public/unauthenticated endpoint (no auth headers)
         const response = await fetch(`${apiBase}/api/v1/viewer_contexts/${contextId}`);
         const data = await response.json();
 

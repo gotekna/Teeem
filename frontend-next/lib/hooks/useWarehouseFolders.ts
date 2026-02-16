@@ -134,7 +134,6 @@ export function useWarehouseFolders(options: UseWarehouseFoldersOptions): UseWar
       const cachedRequest = requestCache.get(cacheKey);
 
       if (cachedRequest && now - cachedRequest.timestamp > REQUEST_CACHE_TTL_MS) {
-        console.warn(`Clearing stale warehouse folders request cache for ${cacheKey}`);
         requestCache.delete(cacheKey);
       }
 

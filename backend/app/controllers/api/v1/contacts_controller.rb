@@ -696,6 +696,7 @@ module Api
           employees_from_relationships = employee_relationships
             .map { |rel| rel.source_contact }
             .compact
+            .select { |c| c.is_active }
 
           # Create a map of employee_id => display_order for later use
           employee_display_order = employee_relationships.each_with_object({}) do |rel, hash|
@@ -706,6 +707,7 @@ module Api
           employees_from_primary = Contact
             .where(primary_company_id: @contact.id)
             .where(entity_type: "person")
+            .where(is_active: true)
             .where.not(id: employees_from_relationships.map(&:id))  # Exclude duplicates
 
           # Combine both sources (relationships already sorted, primary at end)
@@ -884,7 +886,7 @@ module Api
       rescue StandardError => e
         Rails.logger.error "[ContactCreate] Exception: #{e.class.name} - #{e.message}"
         Rails.logger.error e.backtrace.first(10).join("\n")
-        render json: { success: false, error: "#{e.class.name}: #{e.message}" }, status: :internal_server_error
+        render_error("#{e.class.name}: #{e.message}", status: :internal_server_error)
       end
 
       # PATCH /api/v1/contacts/:id
@@ -1221,7 +1223,7 @@ module Api
           }, status: :unprocessable_entity
         end
 
-        invalid_roles = roles - Contact::ROLES
+        invalid_roles = roles - Contact.roles
         if invalid_roles.any?
           return render json: {
             success: false,
@@ -1663,19 +1665,19 @@ module Api
 
         render json: {
           success: true,
-          entity_types: Contact::ENTITY_TYPES,
-          metadata: Contact::ENTITY_TYPES.map { |type| entity_type_metadata[type] }
+          entity_types: Contact.entity_types,
+          metadata: Contact.entity_types.map { |type| entity_type_metadata[type] }
         }
       end
 
       # GET /api/v1/contacts/employment_statuses
-      # SSoT: Returns valid employment statuses from Contact::EMPLOYMENT_STATUSES
+      # SSoT: Returns valid employment statuses from Contact.employment_statuses
 
       def employment_statuses
         render json: {
           success: true,
-          employment_statuses: Contact::EMPLOYMENT_STATUSES,
-          metadata: Contact::EMPLOYMENT_STATUSES.map { |status|
+          employment_statuses: Contact.employment_statuses,
+          metadata: Contact.employment_statuses.map { |status|
             {
               value: status,
               label: status.titleize
@@ -1685,13 +1687,13 @@ module Api
       end
 
       # GET /api/v1/contacts/roles
-      # SSoT: Returns valid roles from Contact::ROLES
+      # SSoT: Returns valid roles from Contact.roles
 
       def roles
         render json: {
           success: true,
-          roles: Contact::ROLES,
-          metadata: Contact::ROLES.map { |role|
+          roles: Contact.roles,
+          metadata: Contact.roles.map { |role|
             {
               value: role,
               label: role.titleize.gsub("_", " ")
@@ -1710,7 +1712,7 @@ module Api
         # Get email addresses the user has sent to most frequently
         # Use tenant_id for multi-tenancy
         email_counts = SyncedEmail
-          .where(tenant_id: current_user&.tenant_id)
+          .where(tenant_id: current_tenant&.id)
           .where(direction: "sent")
           .where.not(to_emails: nil)
           .pluck(:to_emails, :cc_emails)
@@ -1778,7 +1780,7 @@ module Api
         # Note: :corporate_group removed - Contact uses :company_groups_via_membership (has_many through)
         eager_load_associations = if action_name == "show"
           [:contact_emails, :contact_phones, :contact_persons, :contact_addresses,
-           :contact_groups, :portal_user]
+           :contact_groups, :portal_user, primary_company: [:contact_emails, :contact_phones]]
         else
           []
         end
@@ -1812,7 +1814,7 @@ module Api
           raise ActiveRecord::RecordNotFound, "Contact not found with slug: #{id_or_slug}" unless @contact
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # sync_addresses_from_xero extracted to: concerns/contacts/xero_sync.rb

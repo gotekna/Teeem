@@ -33,31 +33,31 @@ module Api
 
         # Task attachment counts - documents uploaded against task IDs
         # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
-        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue 0
+        task_doc_count = SmTaskAttachment.where(attachable_type: 'WarehouseDocument').distinct.count(:attachable_id) rescue (Rails.logger.warn("[Documents] SmTaskAttachment count failed: #{$!.message}"); 0)
 
         # Document templates (Word/Excel templates stored in storage)
-        template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue 0
+        template_count = DocumentTemplate.where.not(storage_path: [nil, ""]).count rescue (Rails.logger.warn("[Documents] DocumentTemplate count failed: #{$!.message}"); 0)
 
         # Pricebook images (product photos)
-        pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue 0
+        pricebook_image_count = PricebookItem.where.not(image_file_id: nil).count rescue (Rails.logger.warn("[Documents] PricebookItem count failed: #{$!.message}"); 0)
 
         # Active Storage REMOVED (Jan 2026) - SSoT is now StorageBlob
         active_storage_count = 0  # Legacy field for API compatibility
 
         # Notes attachments (notebook page files)
-        notes_count = NotebookPageAttachment.count rescue 0
+        notes_count = NotebookPageAttachment.count rescue (Rails.logger.warn("[Documents] NotebookPageAttachment count failed: #{$!.message}"); 0)
 
         # Excel spreadsheets (TeeemXL)
-        excel_count = TeeemSpreadsheet.count rescue 0
+        excel_count = TeeemSpreadsheet.count rescue (Rails.logger.warn("[Documents] TeeemSpreadsheet count failed: #{$!.message}"); 0)
 
         # Word documents (TeeemWord)
-        word_count = TeeemDocument.count rescue 0
+        word_count = TeeemDocument.count rescue (Rails.logger.warn("[Documents] TeeemDocument count failed: #{$!.message}"); 0)
 
         # PowerPoint presentations (TeeemPowerPoint)
-        powerpoint_count = TeeemPresentation.count rescue 0
+        powerpoint_count = TeeemPresentation.count rescue (Rails.logger.warn("[Documents] TeeemPresentation count failed: #{$!.message}"); 0)
 
         # PDF documents (TeeemPdf)
-        pdf_count = TeeemPdf.count rescue 0
+        pdf_count = TeeemPdf.count rescue (Rails.logger.warn("[Documents] TeeemPdf count failed: #{$!.message}"); 0)
 
         # Warehouse total (all Teeem document types stored in S3/Warehouse)
         warehousing_count = excel_count + word_count + powerpoint_count + pdf_count + notes_count
@@ -76,7 +76,10 @@ module Api
           0
         end
 
-        total = job_count + corp_count + people_count + email_eml_count + email_attachment_count + task_doc_count + template_count + pricebook_image_count + notes_count + excel_count + word_count + powerpoint_count + pdf_count
+        # SSoT: WarehouseDocument.count is THE ONE total (Phase 3)
+        # Previously this was a manual sum of categories which missed source_types
+        # like warehouse, asset, financial, compliance, xero, notebook, user, etc.
+        total = warehouse_total
 
         # Fetch task documents with their task associations
         # SSoT (Jan 2026): SmTaskAttachment only references WarehouseDocument now
@@ -209,7 +212,7 @@ module Api
 
         # Get folder counts for this query
         folder_counts = WarehouseDocument.where(source_type: params[:source_type])
-                                         .where.not(folder_path: [nil, ""])
+                                         .in_folder
                                          .group(:folder_path)
                                          .count
 
@@ -415,7 +418,7 @@ module Api
         # SSoT (Jan 2026): Uses WarehouseDocument.folder_path for corporate documents
         folders = if sources == ["corporate"]
           folder_counts = WarehouseDocument.where(source_type: "corporate")
-                                           .where.not(folder_path: [nil, ""])
+                                           .in_folder
                                            .group(:folder_path)
                                            .count
           folder_counts.keys.sort.map.with_index do |folder_name, index|
@@ -445,7 +448,7 @@ module Api
       # SSoT: Paths match WarehouseProvider.SCOPE_FOLDERS (Users/MyDocs, Users/Photos, etc.)
       def create
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         file = params[:file]
@@ -490,7 +493,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[Documents] Upload failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -524,7 +527,7 @@ module Api
             # Generate presigned URL for download
             # SSoT: Method is download_url (not presigned_url) on all document providers
             url = if file_key.present?
-              provider.download_url(file_key, expires_in: 3600) rescue item[:web_url]
+              provider.download_url(file_key, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT) rescue item[:web_url]
             else
               item[:web_url]
             end
@@ -548,7 +551,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error "[Documents] User files list failed for '#{s3_path}': #{e.message}"
-          render json: { success: false, error: e.message, files: [], folder: folder, path: s3_path }, status: :ok
+          render_error(e.message, files: [], folder: folder, path: s3_path, status: :ok)
         end
       end
 
@@ -612,7 +615,7 @@ module Api
           # SSoT (Feb 2026): Root folders built purely from folder_path column
           # No config dependency - shows exactly what exists in the data
           root_counts = base_scope
-            .where.not(folder_path: [nil, ""])
+            .in_folder
             .group(Arel.sql("split_part(folder_path, '/', 1)"))
             .count
 
@@ -794,12 +797,12 @@ module Api
         scope = params[:scope] || "corporate"
 
         unless folder_id.present?
-          return render json: { success: false, error: "warehouse_folder_id required", files: [] }, status: :bad_request
+          return render_error("warehouse_folder_id required", files: [], status: :bad_request)
         end
 
         warehouse_folder = WarehouseFolder.find_by(id: folder_id)
         unless warehouse_folder
-          return render json: { success: false, error: "WarehouseFolder not found", files: [] }, status: :not_found
+          return render_error("WarehouseFolder not found", files: [], status: :not_found)
         end
 
         files = case scope.to_s.downcase
@@ -902,7 +905,7 @@ module Api
           result = service.download(@document)
 
           unless result[:success]
-            return render json: { success: false, error: result[:error] || "File not available" }, status: result[:status] || :not_found
+            return render_error(result[:error] || "File not available", status: result[:status] || :not_found)
           end
 
           # Determine content type from file extension or stored mime type
@@ -922,7 +925,7 @@ module Api
         url = generate_download_url(@document)
 
         unless url.present?
-          return render json: { success: false, error: "File not available" }, status: :not_found
+          return render_error("File not available", status: :not_found)
         end
 
         redirect_to url, allow_other_host: true
@@ -937,7 +940,7 @@ module Api
         result = service.download(@document)
 
         unless result[:success]
-          return render json: { success: false, error: result[:error] }, status: result[:status] || :not_found
+          return render_error(result[:error], status: result[:status] || :not_found)
         end
 
         file_content = result[:content]
@@ -961,9 +964,9 @@ module Api
             }
           }
         rescue UniversalDocumentReader::UnsupportedFileTypeError => e
-          render json: { success: false, error: e.message, type: "unsupported" }, status: :unprocessable_entity
+          render_error(e.message, type: "unsupported", status: :unprocessable_entity)
         rescue UniversalDocumentReader::ReadError => e
-          render json: { success: false, error: e.message, type: "read_error" }, status: :unprocessable_entity
+          render_error(e.message, type: "read_error", status: :unprocessable_entity)
         ensure
           temp_file&.unlink
         end
@@ -973,7 +976,7 @@ module Api
       # Preview an uploaded file (for email attachments, etc.)
       def preview_upload
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         file = params[:file]
@@ -998,7 +1001,7 @@ module Api
           }
         }
       rescue UniversalDocumentReader::ReadError => e
-        render json: { success: false, error: e.message, type: "read_error" }, status: :unprocessable_entity
+        render_error(e.message, type: "read_error", status: :unprocessable_entity)
       end
 
       # POST /api/v1/documents/analyze
@@ -1050,13 +1053,13 @@ module Api
         new_name = params[:new_name]
 
         unless path.present? && new_name.present?
-          return render json: { success: false, error: "Missing path or new_name parameter" }, status: :bad_request
+          return render_error("Missing path or new_name parameter", status: :bad_request)
         end
 
         # Sanitize new filename (remove dangerous characters)
         safe_new_name = new_name.gsub(/[<>:"|?*\\\/]/, "_").strip
         if safe_new_name.blank?
-          return render json: { success: false, error: "Invalid filename" }, status: :bad_request
+          return render_error("Invalid filename", status: :bad_request)
         end
 
         begin
@@ -1082,10 +1085,10 @@ module Api
             file: result
           }
         rescue DocumentProviders::NotFoundError => e
-          render json: { success: false, error: "File not found: #{e.message}" }, status: :not_found
+          render_error("File not found: #{e.message}", status: :not_found)
         rescue StandardError => e
           Rails.logger.error "[Documents] Rename failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -1096,7 +1099,7 @@ module Api
         new_folder_path = params[:folder_path]
 
         unless new_folder_path.present?
-          return render json: { success: false, error: "Missing folder_path parameter" }, status: :bad_request
+          return render_error("Missing folder_path parameter", status: :bad_request)
         end
 
         begin
@@ -1108,10 +1111,10 @@ module Api
             document: document_to_json(@document)
           }
         rescue ActiveRecord::RecordInvalid => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error "[Documents] Move failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -1130,12 +1133,12 @@ module Api
         category = action_item_id.present? ? "response" : (params[:category] || "info")
 
         unless task_id.present?
-          return render json: { success: false, error: "Missing task_id parameter" }, status: :bad_request
+          return render_error("Missing task_id parameter", status: :bad_request)
         end
 
         task = SmTask.find_by(id: task_id)
         unless task
-          return render json: { success: false, error: "Task not found" }, status: :not_found
+          return render_error("Task not found", status: :not_found)
         end
 
         # Validate action_item belongs to this task (if provided)
@@ -1143,7 +1146,7 @@ module Api
         if action_item_id.present?
           action_item = TaskActionItem.find_by(id: action_item_id, sm_task_id: task.id)
           unless action_item
-            return render json: { success: false, error: "Question not found on this task" }, status: :not_found
+            return render_error("Question not found on this task", status: :not_found)
           end
         end
 
@@ -1203,10 +1206,10 @@ module Api
             warehouse_document_id: attachment.warehouse_document&.id
           }
         rescue ActiveRecord::RecordInvalid => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error "[Documents] Link to task failed: #{e.message}"
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -1416,7 +1419,7 @@ module Api
         scope.map do |wd|
           blob = wd.storage_blob
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+            provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
           end
 
           {
@@ -1464,7 +1467,7 @@ module Api
       # in warehouse_types_controller.rb instead — FK-based, no path matching.
       def build_generic_folder_tree(scope, path_segments)
         # SSoT: source_type scopes documents, folder_path provides tree structure
-        base = WarehouseDocument.where(source_type: scope).where.not(folder_path: [nil, ""])
+        base = WarehouseDocument.where(source_type: scope).in_folder
 
         # Root prefix = first segment of folder_path (set by WarehousePathComputer from template)
         # e.g., "Job" for job docs, "Contacts" for contact docs
@@ -1814,7 +1817,7 @@ module Api
       # @return [Hash] { folders: [{ name, path, count }...], total_files: Integer }
       def build_virtual_folder_tree(documents, base_path)
         # Get all unique folder paths
-        all_folders = documents.where.not(folder_path: [nil, ""])
+        all_folders = documents.in_folder
                                .distinct
                                .pluck(:folder_path)
 
@@ -2400,7 +2403,7 @@ module Api
         download_url = if blob&.storage_path.present?
           # SSoT (Jan 2026): Use tenant for storage provider
           provider = DocumentProviders.for_tenant(current_tenant)
-          provider&.download_url(blob.storage_path, expires_in: 3600, filename: wd.download_filename) rescue nil
+          provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
         end
 
         # Get parent context from WarehouseDocument (SSoT: uses linkable + metadata)

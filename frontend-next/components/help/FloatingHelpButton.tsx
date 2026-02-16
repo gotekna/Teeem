@@ -13,18 +13,17 @@ import { getHelpForPage, getPageHelp } from "@/lib/helpMapping";
 import { getTourForRoute } from "@/lib/tours/tour-definitions";
 import { usePageTour } from "./PageTour";
 import { cn } from "@/lib/utils";
-
-// LocalStorage key for help button visibility preference
-const HELP_BUTTON_HOVER_ONLY_KEY = "teeem_help_button_hover_only";
+import { STORAGE_KEYS } from "@/lib/storage-utils";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 export function getHelpButtonHoverOnly(): boolean {
   if (typeof window === "undefined") return false;
-  return localStorage.getItem(HELP_BUTTON_HOVER_ONLY_KEY) === "true";
+  return localStorage.getItem(STORAGE_KEYS.HELP_BUTTON_HOVER_ONLY) === "true";
 }
 
 export function setHelpButtonHoverOnly(value: boolean): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(HELP_BUTTON_HOVER_ONLY_KEY, value ? "true" : "false");
+  localStorage.setItem(STORAGE_KEYS.HELP_BUTTON_HOVER_ONLY, value ? "true" : "false");
 }
 
 interface FloatingHelpButtonProps {
@@ -53,7 +52,7 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
 
   const handleStartTour = () => {
     setIsOpen(false); // Close popover
-    setTimeout(() => startTour(), 100); // Small delay for popover to close
+    setTimeout(() => startTour(), UI_ANIMATION_SHORT_MS); // Small delay for popover to close
   };
 
   const handleOpenDocs = () => {
@@ -112,8 +111,8 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                     Quick Tips
                   </div>
                   <ul className="space-y-1">
-                    {pageHelp.tips.map((tip, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                    {pageHelp.tips.map((tip) => (
+                      <li key={tip} className="text-xs text-muted-foreground flex gap-2">
                         <span className="text-amber-500">•</span>
                         {tip}
                       </li>
@@ -130,8 +129,8 @@ export function FloatingHelpButton({ inline = false }: FloatingHelpButtonProps) 
                     What you can do here
                   </div>
                   <ul className="space-y-1">
-                    {pageHelp.tasks.map((task, i) => (
-                      <li key={i} className="text-xs text-muted-foreground flex gap-2">
+                    {pageHelp.tasks.map((task) => (
+                      <li key={task} className="text-xs text-muted-foreground flex gap-2">
                         <span className="text-green-500">•</span>
                         {task}
                       </li>

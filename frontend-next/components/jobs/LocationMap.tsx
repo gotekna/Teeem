@@ -544,10 +544,6 @@ export function LocationMap({
   };
 
   const handleSuburbSelect = async (suburb: SuburbSearchResult) => {
-    console.log("Suburb selected:", suburb);
-    console.log("Setting postcode to:", suburb.postcode);
-    console.log("Setting state to:", suburb.state);
-    console.log("Setting council to:", suburb.council);
     setFormSuburb(suburb.name);
     setFormPostcode(suburb.postcode);
     setFormState(suburb.state);

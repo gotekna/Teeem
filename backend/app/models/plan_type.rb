@@ -111,7 +111,7 @@ class PlanType < ApplicationRecord
       category: plan_categories.first&.name || "Contract Drawings",
       category_code: plan_categories.first&.code || "ConD",
       rev: "A",
-      date: Date.today.strftime("%Y%m%d"),
+      date: Date.current.strftime("%Y%m%d"),
       variant: "a"
     )
   end

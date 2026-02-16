@@ -53,12 +53,6 @@ export default function CascadeDependenciesModal({
     // The locked dependencies will be broken (unticked) to avoid conflicts
     const allUnlockedIds = unlockedSuccessors.map(s => s.task.id)
 
-    console.log('🔓 Initialized with locked successor dependencies UNTICKED (breaks links to avoid conflicts):', Object.fromEntries(
-      Object.entries(initialLockedSuccessors).map(([k, v]) => [k, Array.from(v)])
-    ))
-    console.log('✅ Auto-selected ALL unlocked tasks for cascading:', allUnlockedIds)
-    console.log('🔒 Directly locked tasks to break dependencies:', Array.from(initialDirectlyLockedToBreak))
-
     // Batch state updates together
     setLockedSuccessorsToKeep(initialLockedSuccessors)
     setSelectedTaskIds(allUnlockedIds)
@@ -125,7 +119,6 @@ export default function CascadeDependenciesModal({
           const newMap = { ...prevLocked }
           // Clear all locked successors for this task (untick them all)
           newMap[taskId] = new Set()
-          console.log(`✅ Auto-unchecked all locked successors for task #${taskId} because cascade was selected`)
           return newMap
         })
       }
@@ -149,16 +142,13 @@ export default function CascadeDependenciesModal({
       if (currentSet.has(lockedSuccessorId)) {
         // Currently keeping, so user wants to break it - remove from keep set
         currentSet.delete(lockedSuccessorId)
-        console.log(`🔓 Unchecked: Will now BREAK dependency from #${parentTaskId} to #${lockedSuccessorId}`)
       } else {
         // Currently breaking, so user wants to keep it - add to keep set
         currentSet.add(lockedSuccessorId)
-        console.log(`🔒 Checked: Will now KEEP dependency from #${parentTaskId} to #${lockedSuccessorId}`)
 
         // Auto-uncheck the parent cascade checkbox because you can't cascade while keeping locked dependencies
         setSelectedTaskIds(prevSelected => {
           if (prevSelected.includes(parentTaskId)) {
-            console.log(`✅ Auto-unchecked cascade for task #${parentTaskId} because locked dependency was selected to keep`)
             return prevSelected.filter(id => id !== parentTaskId)
           }
           return prevSelected
@@ -166,9 +156,6 @@ export default function CascadeDependenciesModal({
       }
 
       newMap[parentTaskId] = currentSet
-      console.log('📊 Updated lockedSuccessorsToKeep:', Object.fromEntries(
-        Object.entries(newMap).map(([k, v]) => [k, Array.from(v)])
-      ))
       return newMap
     })
   }
@@ -451,7 +438,6 @@ export default function CascadeDependenciesModal({
                                   // requiredStart is a Date object
                                   const moveDate = new Date(successor.requiredStart)
                                   moveDate.setHours(0, 0, 0, 0)
-                                  console.log(`📅 Modal display - Task #${task.id}: requiredStart=${successor.requiredStart}, moveDate=${moveDate.toISOString().split('T')[0]}, formatted=${moveDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })}`)
                                   return moveDate.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
                                 })()}
                               </span>

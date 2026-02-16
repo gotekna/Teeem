@@ -12,7 +12,7 @@ import {
   Star,
   X,
   Users,
-  User,
+  User as UserIcon,
   Building2,
   Wrench,
   Calculator,
@@ -32,22 +32,7 @@ import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { INTERNAL_ROLE_KEYS } from "@/lib/constants/job-roles";
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  company_name?: string;
-  company_name_or_trust?: string;
-  email?: string;
-  mobile_phone?: string;
-  phone?: string;
-  office_phone?: string;
-  address?: string;
-  postcode?: string;
-  entity_type?: string;
-  abn?: string;
-  acn?: string;
-}
+import type { Contact, User } from "@/lib/types";
 
 interface RelatedJob {
   id: number;
@@ -78,12 +63,6 @@ interface JobContact {
   related_jobs_count?: number;
 }
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
 interface JobPeopleTabProps {
   jobId: string | number;
   onUpdate?: () => void;
@@ -97,16 +76,16 @@ const ROLE_GROUPS = [
     icon: Building2,
     roles: [
       { key: "client", label: "Client", icon: Building2, color: "indigo" },
-      { key: "client_representative", label: "Client Representative", icon: User, color: "blue" },
-      { key: "client_broker", label: "Client Broker", icon: User, color: "cyan" },
+      { key: "client_representative", label: "Client Representative", icon: UserIcon, color: "blue" },
+      { key: "client_broker", label: "Client Broker", icon: UserIcon, color: "cyan" },
       { key: "client_bank", label: "Client Bank", icon: Building2, color: "slate" },
     ],
   },
   {
     key: "referral",
     label: "Referral",
-    icon: User,
-    roles: [{ key: "referral", label: "Referral", icon: User, color: "green" }],
+    icon: UserIcon,
+    roles: [{ key: "referral", label: "Referral", icon: UserIcon, color: "green" }],
   },
   {
     key: "external",
@@ -132,7 +111,7 @@ const ROLE_TYPES = ROLE_GROUPS.flatMap((g) => g.roles);
 const INTERNAL_ROLES = INTERNAL_ROLE_KEYS;
 
 const getRoleConfig = (roleKey: string) => {
-  return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: User, color: "gray" };
+  return ROLE_TYPES.find((r) => r.key === roleKey) || { label: roleKey || "Contact", icon: UserIcon, color: "gray" };
 };
 
 const getRoleBadgeClasses = (color: string) => {
@@ -228,23 +207,18 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
 
     try {
       setSearching(true);
-      console.log("[JobPeopleTab] Searching contacts with query:", query);
       // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
       const response = await api.get<{ contacts?: Contact[] }>("/api/v1/contacts", {
         params: { search: query, per_page: PAGE_SIZE_AUTOCOMPLETE },
         dedupe: false, // Disable deduplication for search
       });
 
-      console.log("[JobPeopleTab] API response:", response);
-      console.log("[JobPeopleTab] Contacts returned:", response.contacts?.length || 0);
 
       const existingForRole = contacts.filter((c) => c.role === addingRole).map((c) => c.contact_id);
-      console.log("[JobPeopleTab] Existing contacts for role", addingRole, ":", existingForRole);
 
       const filtered = (response.contacts || []).filter(
         (contact) => !existingForRole.includes(contact.id)
       );
-      console.log("[JobPeopleTab] Filtered results:", filtered.length);
       setSearchResults(filtered);
       setHasSearched(true); // Mark that a search has completed
     } catch (err) {
@@ -603,7 +577,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                 const displayName =
                   contact.contact?.display_name || contact.contact?.company_name || "Unknown";
                 const email = contact.contact?.email;
-                const mobile = contact.contact?.phone || contact.contact?.mobile_phone;
+                const mobile = contact.contact?.mobile_phone;
                 const isPrimary = contact.primary;
 
                 return (
@@ -694,7 +668,7 @@ export function JobPeopleTab({ jobId, onUpdate }: JobPeopleTabProps) {
                           {/* Contact Details */}
                           <div>
                             <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
-                              <User className="h-4 w-4" />
+                              <UserIcon className="h-4 w-4" />
                               Contact Details
                             </h4>
                             <Card>

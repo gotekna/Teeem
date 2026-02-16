@@ -48,10 +48,11 @@ import { cachePdf, getCachedPdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadPhoto } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
+import { UI_ANIMATION_STANDARD_MS, POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { EmailPlansModal } from "@/components/plans/EmailPlansModal";
 import { PlanProcessingModal, OperationType } from "@/components/jobs/PlanProcessingModal";
 import { useToast } from "@/components/ui/use-toast";
-import { TeeemDocumentView } from "@/components/ui/teeem-document-view";
+import { DocumentListView } from "@/components/ui/document-list-view";
 import { Spinner } from "@/components/ui/spinner";
 // Layout mode is handled by parent page wrapper (TabbedDetailPage)
 // This tab uses EdgeToEdgeTabContent for internal padding
@@ -344,20 +345,10 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       try {
         // Get presigned URL for faster download
-        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
-        if (!token) return false;
-
-        const presignedResponse = await fetch(
-          `${getApiBaseUrl()}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-            credentials: "include",
-            mode: "cors",
-          }
+        const data = await api.get<{ success: boolean; url?: string }>(
+          `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
         );
 
-        if (!presignedResponse.ok) return false;
-        const data = await presignedResponse.json();
         if (!data.success || !data.url) return false;
 
         // Fetch PDF from presigned URL (direct from S3 - fast)
@@ -401,12 +392,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       }
 
       if (!cancelled && loaded > 0) {
-        console.log(`[Plans] Preloaded ${loaded}/${plansToPreload.length} plans`);
       }
     };
 
     // Start preloading after a short delay to let the selected plan load first
-    const timeoutId = setTimeout(preloadAll, 500);
+    const timeoutId = setTimeout(preloadAll, UI_ANIMATION_STANDARD_MS);
 
     return () => {
       cancelled = true;
@@ -660,7 +650,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
     }
   };
 
-  // Handle re-extract single plan from PDF (uses PdfTextExtractionService SSoT)
+  // Handle re-extract single plan from PDF (uses OcrTextExtractorService SSoT)
   const handleReprocess = async (plan: JobPlan) => {
     const fileId = plan.current_revision?.storage_item_id || plan.current_revision?.storage_file_id;
     if (!fileId) {
@@ -684,7 +674,7 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
       // Refresh after a delay to show results
       setTimeout(() => {
         fetchPlans();
-      }, 3000);
+      }, POLLING_DELAY_MS);
     } else {
       toast({
         title: "Error",
@@ -1004,9 +994,9 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       {/* Action bar removed - plan name already shown in sidebar, actions available via right-click */}
 
-      {/* TeeemDocumentView - fills entire container */}
+      {/* DocumentListView - fills entire container */}
       <div className="absolute inset-0">
-        <TeeemDocumentView
+        <DocumentListView
           documents={filteredPlans}
           title=""
           getDocumentId={(p) => p.id}

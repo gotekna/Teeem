@@ -23,6 +23,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
@@ -204,7 +205,7 @@ export default function PublicHolidaysPage() {
     <TablePage>
       <TeeemTableView
         entries={holidays}
-        foundationId="public_holidays"
+        foundationId={FOUNDATION_SLUGS.PUBLIC_HOLIDAYS}
         tableName="Public Holidays"
         onRefresh={loadHolidays}
         leftActions={filterControls}

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Zap, Check, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 export interface QuickWin {
   id: string;
@@ -43,7 +44,7 @@ export function QuickWinsCard({ quickWins, onFix, loading }: QuickWinsCardProps)
       setTimeout(() => {
         setJustFixed(null);
         setEarnedPoints(null);
-      }, 2000);
+      }, RETRY_DELAY_MS);
     } catch (error) {
       console.error("Failed to fix:", error);
     } finally {

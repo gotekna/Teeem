@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeadStatusBadge } from "@/components/leads/lead-status-badge";
+import { formatDateWithFallback } from "@/utils/formatters";
 import { LeadForm } from "@/components/leads/lead-form";
 import { GenerateContractModal } from "@/components/contracts/generate-contract-modal";
 import {
@@ -72,8 +73,7 @@ export default function LeadDetailPage() {
       setLead(response);
     } catch (error) {
       console.error("Failed to load lead:", error);
-      // Mock data for development
-      setLead(getMockLead(parseInt(leadId)));
+      setLead(null);
     }
   };
 
@@ -93,10 +93,7 @@ export default function LeadDetailPage() {
       await loadLead();
     } catch (error) {
       console.error("Failed to update lead:", error);
-      // For demo: update local state
-      if (lead) {
-        setLead({ ...lead, ...data, updated_at: new Date().toISOString() });
-      }
+      toast({ title: "Error", description: "Failed to update lead. Please try again.", variant: "destructive" });
     }
   };
 
@@ -123,14 +120,6 @@ export default function LeadDetailPage() {
     loadLead();
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "Not set";
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   // SSoT: Show skeleton layout during loading to prevent flash/CLS
   if (loading) {
@@ -265,7 +254,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Expected Start</span>
             </div>
             <div className="text-lg font-medium mt-1">
-              {formatDate(lead.expected_start_date)}
+              {formatDateWithFallback(lead.expected_start_date, "Not set")}
             </div>
           </CardContent>
         </Card>
@@ -276,7 +265,7 @@ export default function LeadDetailPage() {
               <span className="text-xs">Created</span>
             </div>
             <div className="text-lg font-medium mt-1">
-              {formatDate(lead.created_at)}
+              {formatDateWithFallback(lead.created_at, "Not set")}
             </div>
           </CardContent>
         </Card>
@@ -451,7 +440,7 @@ export default function LeadDetailPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Last Updated</p>
-                    <p className="font-medium">{formatDate(lead.updated_at)}</p>
+                    <p className="font-medium">{formatDateWithFallback(lead.updated_at, "Not set")}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -563,60 +552,3 @@ export default function LeadDetailPage() {
   );
 }
 
-// Mock data for development
-function getMockLead(id: number): Lead | null {
-  const leads: Lead[] = [
-    {
-      id: 1,
-      lead_number: "LEAD-2024-001",
-      title: "Smith Residence - New Build",
-      status: "qualified",
-      source: "referral",
-      client_name: "John Smith",
-      client_email: "john.smith@email.com",
-      client_phone: "+61 412 345 678",
-      site_address: "45 Riverside Drive",
-      site_suburb: "Hamilton",
-      site_state: "QLD",
-      site_postcode: "4007",
-      project_type: "new_dwelling",
-      dwelling_type: "detached_house",
-      number_of_storeys: 2,
-      estimated_floor_area: 320,
-      estimated_value: 850000,
-      expected_start_date: "2025-03-01",
-      decision_timeline: "2_weeks",
-      notes:
-        "Client is keen to proceed. Has financing approved. Looking at premium finishes throughout.",
-      created_at: "2024-11-15T10:00:00Z",
-      updated_at: "2024-11-28T14:30:00Z",
-    },
-    {
-      id: 4,
-      lead_number: "LEAD-2024-004",
-      title: "Davis Duplex Development",
-      status: "contract_sent",
-      source: "repeat_client",
-      client_name: "Emma Davis",
-      client_email: "emma.davis@outlook.com",
-      client_phone: "+61 434 567 890",
-      site_address: "22 Marina Way",
-      site_suburb: "Bulimba",
-      site_state: "QLD",
-      site_postcode: "4171",
-      lot_plan_number: "Lot 5 SP456789",
-      project_type: "new_dwelling",
-      dwelling_type: "duplex",
-      number_of_storeys: 2,
-      estimated_floor_area: 400,
-      estimated_value: 1200000,
-      expected_start_date: "2025-02-15",
-      decision_timeline: "immediate",
-      notes: "Repeat client - previously built their first home with us.",
-      created_at: "2024-10-01T10:00:00Z",
-      updated_at: "2024-11-25T16:00:00Z",
-    },
-  ];
-
-  return leads.find((l) => l.id === id) || leads[0];
-}

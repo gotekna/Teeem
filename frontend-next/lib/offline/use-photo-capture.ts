@@ -25,6 +25,7 @@ import {
   type PendingPhoto,
   type PhotoCacheStats,
 } from "./photo-cache";
+import { GEOLOCATION_TIMEOUT_MS, GEOLOCATION_CACHE_MS, POLLING_FAST_MS, POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 import {
   syncAllPendingPhotos,
   retryFailedPhotos,
@@ -132,7 +133,6 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
 
     // Check if geolocation is available
     if (!("geolocation" in navigator)) {
-      console.log("[PhotoCapture] Geolocation not available");
       return;
     }
 
@@ -142,12 +142,11 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
         setLocation(position.coords);
       },
       (err) => {
-        console.warn("[PhotoCapture] Geolocation error:", err.message);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 60000, // Cache for 1 minute
+        timeout: GEOLOCATION_TIMEOUT_MS,
+        maximumAge: GEOLOCATION_CACHE_MS, // Cache for 1 minute
       }
     );
   }, [requestLocation]);
@@ -304,7 +303,6 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
         // Refresh photos list
         await loadPhotos();
 
-        console.log(`[PhotoCapture] Captured photo: ${photo.fileName}`);
         return photo;
       } catch (err) {
         console.error("[PhotoCapture] Capture failed:", err);
@@ -332,7 +330,6 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
         });
 
         await loadPhotos();
-        console.log(`[PhotoCapture] Selected photo: ${photo.fileName}`);
         return photo;
       } catch (err) {
         console.error("[PhotoCapture] Select failed:", err);
@@ -349,7 +346,6 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
 
   const syncPhotos = useCallback(async () => {
     if (!isOnline) {
-      console.log("[PhotoCapture] Cannot sync while offline");
       return;
     }
 
@@ -368,10 +364,9 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
       setTimeout(async () => {
         const cleaned = await cleanupSyncedPhotos();
         if (cleaned > 0) {
-          console.log(`[PhotoCapture] Cleaned up ${cleaned} synced photos`);
         }
         await loadPhotos();
-      }, 5000);
+      }, POLLING_FAST_MS);
 
       await loadPhotos();
     } catch (err) {
@@ -380,14 +375,13 @@ export function usePhotoCapture(options: UsePhotoCaptureOptions): UsePhotoCaptur
       // Clear progress after delay
       setTimeout(() => {
         setSyncProgress(null);
-      }, 3000);
+      }, POLLING_DELAY_MS);
     }
   }, [isOnline, loadPhotos]);
 
   // Auto-sync when coming online
   useEffect(() => {
     if (autoSync && isOnline && cacheStats.pendingCount > 0) {
-      console.log(`[PhotoCapture] Auto-syncing ${cacheStats.pendingCount} pending photos`);
       syncPhotos();
     }
   }, [autoSync, isOnline, cacheStats.pendingCount, syncPhotos]);

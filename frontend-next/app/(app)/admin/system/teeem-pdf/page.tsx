@@ -39,6 +39,7 @@ import { ESignaturePdfEditor } from "@/components/e-signature/e-signature-pdf-ed
 import type { Signer, SignatureField } from "@/components/ui/pdf-editor/types";
 import { SIGNER_COLORS } from "@/components/ui/pdf-editor/types";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { Job } from "@/lib/types";
 
 // Types
 interface TeeemPdf {
@@ -63,11 +64,6 @@ interface PdfData {
   // E-signature data
   signers?: Signer[];
   signatureFields?: SignatureField[];
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 export default function TeeemPdfPage() {
@@ -370,7 +366,7 @@ export default function TeeemPdfPage() {
     }
   };
 
-  // Download current PDF
+  // Download current PDF (blob URL - keep using fetch for local blob URLs)
   const handleDownload = async () => {
     if (!pdfUrl) return;
 

@@ -8,10 +8,10 @@
 #
 # QUEUE PRIORITY ORDER (first = highest priority):
 # - critical: SmRolloverJob, time-sensitive operations
-# - default: BPMN workflows, user-triggered jobs, email sync
+# - default: BPMN workflows, user-triggered jobs, email sync, email storage uploads
 # - solid_queue_recurring: SolidQueue's internal recurring task scheduler
-# - xero_sync: Xero contact/invoice sync operations
-# - xero_bulk: Xero API bulk operations (rate-limited)
+# - xero_sync: Xero sync operations (invoice, contact, bank txn, tracking, health)
+# - xero_bulk: Xero batch operations (contact batch fetch/process, attachment sync)
 # - low: Background analytics, warehouse jobs (can wait)
 # - low_priority: Long-running backfill, non-urgent maintenance
 #
@@ -19,6 +19,11 @@
 # (MV refresh, backups, email uploads) cannot starve user-facing jobs.
 # Previous config had 3 threads on a single worker listening to only 4 queues,
 # silently ignoring critical, xero_sync, and low_priority queues entirely.
+#
+# FRC (Feb 2026): Moved ALL Xero jobs off :default queue onto :xero_sync/:xero_bulk.
+# Previously 9 Xero job types were on :default (3 threads) while Worker 2 (6 threads)
+# sat idle for those jobs. Now Worker 2 handles all Xero work, freeing Worker 1
+# for user-facing operations.
 
 production:
   workers:
@@ -29,8 +34,13 @@ production:
       polling_interval: 0.1
 
     # Background worker: analytics, bulk ops, maintenance
+    # FRC (Feb 2026): Increased from 2→6 threads. Each xero_bulk job spawns
+    # 4 concurrent download threads (IO-bound HTTP to Xero API), so more
+    # SolidQueue threads = more orgs syncing PDFs simultaneously.
+    # Standard-2X dyno (1GB) handles this easily for IO-bound work.
+    # DB pool (RAILS_MAX_THREADS) must be >= total_threads + max_child_threads.
     - queues: [xero_sync, xero_bulk, low, low_priority]
-      threads: 2
+      threads: 6
       processes: 1
       polling_interval: 1
 

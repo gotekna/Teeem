@@ -151,7 +151,7 @@ export default function DocsPage() {
     return parts.map((part, i) => {
       if (part.startsWith('`') && part.endsWith('`')) {
         return (
-          <code key={i} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
+          <code key={`code-${part}-${i}`} className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono">
             {part.slice(1, -1)}
           </code>
         );
@@ -279,7 +279,7 @@ export default function DocsPage() {
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {searchResults.map((result, idx) => (
                 <button
-                  key={idx}
+                  key={`search-${result.chapter}-${idx}`}
                   onClick={() => navigateToChapter(result.chapter)}
                   className="w-full text-left p-3 bg-background rounded-lg border hover:border-indigo-500 transition-colors"
                 >
@@ -324,19 +324,19 @@ export default function DocsPage() {
                   {content.split("\n").map((line, i) => {
                     // Handle horizontal rules
                     if (line.trim() === "---") {
-                      return <hr key={i} className="my-8 border-border" />;
+                      return <hr key={`hr-${i}`} className="my-8 border-border" />;
                     }
                     // Handle headers
                     if (line.startsWith("## ")) {
                       return (
-                        <h2 key={i} className="text-xl font-semibold mt-8 mb-4 text-foreground">
+                        <h2 key={`h2-${line.substring(0, 20)}-${i}`} className="text-xl font-semibold mt-8 mb-4 text-foreground">
                           {line.replace("## ", "")}
                         </h2>
                       );
                     }
                     if (line.startsWith("### ")) {
                       return (
-                        <h3 key={i} className="text-lg font-medium mt-6 mb-3 text-foreground">
+                        <h3 key={`h3-${line.substring(0, 20)}-${i}`} className="text-lg font-medium mt-6 mb-3 text-foreground">
                           {line.replace("### ", "")}
                         </h3>
                       );
@@ -348,7 +348,7 @@ export default function DocsPage() {
                       const isSeparator = line.includes("---");
                       if (isSeparator) return null;
                       return (
-                        <div key={i} className={cn(
+                        <div key={`table-${i}`} className={cn(
                           "grid gap-4 py-2 px-3 border-b border-border text-sm",
                           isHeader && "bg-muted/50 font-medium"
                         )} style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
@@ -361,7 +361,7 @@ export default function DocsPage() {
                     // Handle bullet points
                     if (line.startsWith("- ")) {
                       return (
-                        <li key={i} className="ml-6 text-muted-foreground">
+                        <li key={`li-${i}-${line.substring(0, 20)}`} className="ml-6 text-muted-foreground">
                           {formatInlineMarkdown(line.replace("- ", ""))}
                         </li>
                       );
@@ -369,18 +369,18 @@ export default function DocsPage() {
                     // Handle numbered lists
                     if (/^\d+\.\s/.test(line)) {
                       return (
-                        <li key={i} className="ml-6 list-decimal text-muted-foreground">
+                        <li key={`num-${i}-${line.substring(0, 20)}`} className="ml-6 list-decimal text-muted-foreground">
                           {formatInlineMarkdown(line.replace(/^\d+\.\s/, ""))}
                         </li>
                       );
                     }
                     // Regular paragraph
                     return line.trim() ? (
-                      <p key={i} className="mb-3 text-muted-foreground leading-relaxed">
+                      <p key={`p-${i}-${line.substring(0, 20)}`} className="mb-3 text-muted-foreground leading-relaxed">
                         {formatInlineMarkdown(line)}
                       </p>
                     ) : (
-                      <div key={i} className="h-2" />
+                      <div key={`space-${i}`} className="h-2" />
                     );
                   })}
                 </div>

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { execSync } from "child_process";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // @ts-expect-error - next-pwa has incomplete types
 import withPWA from "next-pwa";
@@ -27,6 +28,7 @@ try {
 const buildTime = new Date().toISOString();
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   devIndicators: false,
   // Empty turbopack config to silence warning (PDF viewer uses dynamic import with ssr: false)
   turbopack: {},
@@ -130,4 +132,15 @@ const analyzedConfig = withBundleAnalyzer({
   enabled: process.env.ANALYZE === "true",
 })(nextConfig);
 
-export default pwaConfig(analyzedConfig);
+export default withSentryConfig(pwaConfig(analyzedConfig), {
+  // Suppress source map upload warnings in development
+  silent: true,
+
+  // Don't upload source maps (keeps build fast, enable later if needed)
+  sourcemaps: {
+    disable: true,
+  },
+
+  // Automatically tree-shake Sentry logger in production
+  disableLogger: true,
+});

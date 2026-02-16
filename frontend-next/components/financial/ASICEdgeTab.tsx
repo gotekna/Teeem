@@ -130,7 +130,7 @@ export default function ASICEdgeTab() {
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [showLodgeDialog, setShowLodgeDialog] = useState(false);
   const [selectedForm, setSelectedForm] = useState<typeof ASIC_FORMS[0] | null>(null);
-  const [lodgementHistory] = useState<LodgementHistoryItem[]>([]);
+  const lodgementHistory: LodgementHistoryItem[] = [];
 
   const handleCompanyLookup = useCallback(async () => {
     if (!acnInput.trim()) return;

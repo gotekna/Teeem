@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Quote as QuoteIcon } from "lucide-react";
 import { api } from "@/lib/api";
+import { POLLING_QUOTE_REFRESH_MS } from "@/lib/constants/timeout-constants";
 
 interface Quote {
   quote: string;
@@ -16,8 +17,8 @@ export function InspiringBanner() {
   React.useEffect(() => {
     loadDailyQuote();
 
-    // Refresh quote every hour (3600000ms)
-    const interval = setInterval(loadDailyQuote, 3600000);
+    // Refresh quote every hour
+    const interval = setInterval(loadDailyQuote, POLLING_QUOTE_REFRESH_MS);
     return () => clearInterval(interval);
   }, []);
 

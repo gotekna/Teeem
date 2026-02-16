@@ -58,26 +58,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  status?: string;
-  last_login_at?: string;
-  last_seen_at?: string;
-  last_email_sync_at?: string;
-  presence_status?: 'online' | 'away' | 'offline';
-  integrations?: string[];
-  integrations_count?: number;
-  created_at?: string;
-  // For UserDetailSheet
-  mobile_phone?: string;
-  role_ids?: Array<{ id: number; display_value: string; name: string }>;
-  preferred_theme?: string;
-  [key: string]: unknown;
-}
+import type { User } from "@/lib/types";
 
 // Format relative time (e.g., "2 hours ago", "Yesterday", "Dec 3")
 function formatRelativeTime(dateString: string): string {

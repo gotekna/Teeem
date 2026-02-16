@@ -52,6 +52,7 @@ import {
   type CellFormat,
   type ErrorValue,
 } from "@/lib/teeem-xl/formula-engine";
+import { Job } from "@/lib/types";
 
 // Grid configuration
 const DEFAULT_ROWS = 100;
@@ -106,11 +107,6 @@ interface Spreadsheet {
   jobName?: string;
   updatedAt: string;
   createdAt: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 interface Selection {
@@ -463,7 +459,6 @@ export default function TeeemXLPage() {
       try {
         await api.post(`/api/v1/teeem_spreadsheets/${spreadsheet.id}/save_to_warehouse`);
       } catch (warehouseError) {
-        console.warn("Failed to save to warehouse:", warehouseError);
         // Don't fail the whole save - database save succeeded
       }
 

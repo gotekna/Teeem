@@ -59,12 +59,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
-
-interface Contact {
-  id: number;
-  name: string;
-  email?: string;
-}
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import type { Contact } from "@/lib/types";
 
 interface PortalToken {
   id: number;
@@ -192,7 +188,7 @@ export default function CustomerPortalTab() {
   const handleCopy = async (url: string, tokenId: string) => {
     await copyToClipboard(url);
     setCopiedToken(tokenId);
-    setTimeout(() => setCopiedToken(null), 2000);
+    setTimeout(() => setCopiedToken(null), UI_COPY_FEEDBACK_MS);
   };
 
   const handleGenerateToken = async () => {
@@ -541,7 +537,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{token.contact?.name || "-"}</span>
+                          <span>{token.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
@@ -681,7 +677,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{statement.contact?.name || "-"}</span>
+                          <span>{statement.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -769,7 +765,7 @@ export default function CustomerPortalTab() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span>{mandate.contact?.name || "-"}</span>
+                          <span>{mandate.contact?.display_name || "-"}</span>
                         </div>
                       </TableCell>
                       <TableCell>

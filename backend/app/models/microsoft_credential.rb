@@ -17,6 +17,8 @@
 # SSoT (Feb 2026): Uses Tenant for isolation, Organization deprecated.
 #
 class MicrosoftCredential < ApplicationRecord
+  include CacheConstants
+
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
   # DEPRECATED: Organization - kept for backwards compatibility during migration
@@ -110,6 +112,10 @@ class MicrosoftCredential < ApplicationRecord
   # DEPRECATED: Use for_tenant instead
   scope :for_org, ->(org) { where(tenant_id: org.respond_to?(:tenant_id) ? org.tenant_id : org.id) }
 
+  # Filter scopes (extracted from controllers)
+  scope :for_organization, ->(org_ids) { where(organization_id: Array(org_ids)) if org_ids.present? }
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+
   # Refreshable = can get a valid token (even if current token is expired)
   # - App credentials: always refreshable (just need client_id/secret)
   # - Delegated credentials: refreshable if refresh_token not dead
@@ -181,7 +187,7 @@ class MicrosoftCredential < ApplicationRecord
       form: {
         client_id: client_id,
         client_secret: client_secret,
-        scope: "https://graph.microsoft.com/.default",
+        scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
         grant_type: "client_credentials"
       }
     )
@@ -237,7 +243,7 @@ class MicrosoftCredential < ApplicationRecord
     return false if refresh_token_dead?
 
     response = HTTP.post(
-      "https://login.microsoftonline.com/#{azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
+      "https://login.microsoftonline.com/#{azure_tenant_id.presence || MicrosoftGraphBase::AZURE_DEFAULT_TENANT}/oauth2/v2.0/token",
       form: {
         client_id: ENV["OUTLOOK_CLIENT_ID"],
         client_secret: ENV["OUTLOOK_CLIENT_SECRET"],
@@ -507,11 +513,11 @@ class MicrosoftCredential < ApplicationRecord
     if app_credential?
       return false unless fetch_app_token!
       # App credentials: test with /organization endpoint (works without user context)
-      test_url = "https://graph.microsoft.com/v1.0/organization"
+      test_url = "#{MicrosoftGraphBase::GRAPH_API_BASE}/organization"
     else
       return false unless valid_access_token
       # Delegated credentials: test with /me endpoint (requires user context)
-      test_url = "https://graph.microsoft.com/v1.0/me"
+      test_url = "#{MicrosoftGraphBase::GRAPH_API_BASE}/me"
     end
 
     response = HTTP.auth("Bearer #{access_token}").get(test_url)
@@ -530,7 +536,7 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Get list of users in the tenant (for sync configuration and mailbox access)
-  # Returns array of { id:, name:, email: } hashes
+  # Returns array of { id:, name:, email:, account_enabled:, has_license:, license_names:, mailbox_type: } hashes
   # PERFORMANCE: Cached for 1 hour to avoid slow Graph API calls on every navigation request
   # Tenant user lists rarely change, and cache is cleared when tenant is modified
   def list_tenant_users
@@ -539,34 +545,58 @@ class MicrosoftCredential < ApplicationRecord
     # Cache tenant users for 1 hour - tenant user list rarely changes
     # This fixes slow navigation requests (was 2-4 seconds due to Graph API latency)
     # P95 was 3.8s when cache expired every 10 min; 1 hour reduces cache miss frequency 6x
-    cache_key = "microsoft_credential:#{id}:tenant_users"
-    Rails.cache.fetch(cache_key, expires_in: 1.hour) do
+    cache_key = "microsoft_credential:#{id}:tenant_users:v5"
+    Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_HOURLY) do
       fetch_tenant_users_from_api
     end
   end
 
   # Clear the cached tenant users (call when tenant changes)
   def clear_tenant_users_cache
-    Rails.cache.delete("microsoft_credential:#{id}:tenant_users")
+    Rails.cache.delete("microsoft_credential:#{id}:tenant_users:v5")
   end
 
   private
+
+  # Common Microsoft 365 license SKU GUIDs → friendly names
+  MICROSOFT_LICENSE_SKUS = {
+    "6fd2c87f-b296-42f0-b197-1e91e994b900" => "E3",
+    "c7df2760-2c81-4ef7-b578-5b5392b571df" => "E5",
+    "18181a46-0d4e-45cd-891e-60aabd171b4e" => "E1",
+    "3b555118-da6a-4418-894f-7df1e2096870" => "Business Basic",
+    "f245ecc8-75af-4f8e-b61f-27d8114de5f3" => "Business Standard",
+    "cbdc14ab-d96c-4c30-b9f4-6ada7cdc1d46" => "Business Premium",
+    "4b585984-651b-4235-8c1f-00b8f0e4c18d" => "Exchange Online Plan 2",
+    "19ec0d23-8335-4cbd-94ac-6050e30712fa" => "Exchange Online Plan 1",
+    "05e9a617-0261-4cee-bb44-138d3ef5d965" => "E3 (no Teams)",
+    "1f2f344a-700d-42c9-9427-5cea45d7c179" => "Business Basic (Teams)",
+    "4ef96642-f096-40de-a3e9-d83fb2f90211" => "Defender for Office 365 P1",
+    "a403ebcc-fae0-4ca2-8c8c-7a907fd6c235" => "Power BI Free",
+    "dcb1a3ae-b33f-4487-846a-a640262fadf4" => "Power BI Pro",
+  }.freeze
 
   def fetch_tenant_users_from_api
     token = valid_access_token
     return [] if token.blank?
 
     response = HTTP.auth("Bearer #{token}")
-                   .get("https://graph.microsoft.com/v1.0/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses&$top=999")
+                   .get("#{MicrosoftGraphBase::GRAPH_API_BASE}/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses,accountEnabled&$top=999")
 
     if response.status.success?
       data = response.parse
       data["value"].map do |user|
+        raw_licenses = user["assignedLicenses"] || []
+        license_names = resolve_license_names(raw_licenses)
+        account_enabled = user["accountEnabled"] == true
+
         {
           id: user["id"],
           name: user["displayName"],
           email: user["mail"] || user["userPrincipalName"],
-          has_license: user["assignedLicenses"].present? && user["assignedLicenses"].any?
+          account_enabled: account_enabled,
+          has_license: raw_licenses.any?,
+          license_names: license_names,
+          mailbox_type: detect_mailbox_type(user, raw_licenses)
         }
       end
     else
@@ -576,6 +606,28 @@ class MicrosoftCredential < ApplicationRecord
   rescue StandardError => e
     Rails.logger.error "[MicrosoftCredential] Error listing users for #{name}: #{e.message}"
     []
+  end
+
+  def resolve_license_names(assigned_licenses)
+    return [] if assigned_licenses.blank?
+
+    assigned_licenses.filter_map do |lic|
+      MICROSOFT_LICENSE_SKUS[lic["skuId"]]
+    end.uniq
+  end
+
+  def detect_mailbox_type(user, raw_licenses)
+    # Shared mailboxes in M365: no licenses + accountEnabled=false + has mail.
+    # They can't be signed into directly, so Azure AD disables them.
+    # Active users with no licenses (e.g. Riyan) keep accountEnabled=true → "user".
+    account_disabled = user["accountEnabled"] == false
+    has_mail = user["mail"].present?
+
+    if raw_licenses.empty? && account_disabled && has_mail
+      "shared"
+    else
+      "user"
+    end
   end
 
   def extract_error_code(error_message)

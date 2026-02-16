@@ -1,6 +1,7 @@
 module Api
   module V1
     class OrganizationController < ApplicationController
+      include CacheConstants
       # Note: authorize_request is already called by ApplicationController
       # Security: Stats endpoints expose org-wide data, require admin
       before_action :require_admin, only: %i[microsoft_org_stats data_stats]
@@ -30,7 +31,7 @@ module Api
         if config.update(templates: templates)
           render json: { success: true, message: "Settings updated successfully" }
         else
-          render json: { success: false, errors: config.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(config)
         end
       end
 
@@ -369,39 +370,27 @@ module Api
         credential_id = params[:document_provider_credential_id]
 
         unless Organization::DOCUMENT_PROVIDERS.include?(provider)
-          return render json: {
-            success: false,
-            error: "Invalid provider. Must be one of: #{Organization::DOCUMENT_PROVIDERS.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid provider. Must be one of: #{Organization::DOCUMENT_PROVIDERS.join(', ')}", status: :unprocessable_entity)
         end
 
         # Validate credential if switching to S3
         credential = nil
         if provider == "s3_compatible"
           if credential_id.blank?
-            return render json: {
-              success: false,
-              error: "Please select an S3 credential to use"
-            }, status: :unprocessable_entity
+            return render_error("Please select an S3 credential to use", status: :unprocessable_entity)
           end
 
           # FRC (Feb 2026): Must be tenant-scoped
           credential = S3CompatibleCredential.for_tenant(current_tenant).find_by(id: credential_id)
           unless credential&.status == "connected"
-            return render json: {
-              success: false,
-              error: "Selected S3 credential is not connected. Please test the connection first."
-            }, status: :unprocessable_entity
+            return render_error("Selected S3 credential is not connected. Please test the connection first.", status: :unprocessable_entity)
           end
         end
 
         # SSoT: WarehouseProvider is THE ONE source - update it directly
         warehouse_provider = WarehouseProvider.instance
         unless warehouse_provider
-          return render json: {
-            success: false,
-            error: "Storage configuration not found"
-          }, status: :not_found
+          return render_error("Storage configuration not found", status: :not_found)
         end
 
         old_provider = warehouse_provider.provider_type
@@ -432,10 +421,7 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            errors: warehouse_provider.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(warehouse_provider)
         end
       end
 
@@ -458,10 +444,7 @@ module Api
         delete_source = params[:delete_source] == true || params[:delete_source] == "true"
 
         unless from_provider.present? && to_provider.present?
-          return render json: {
-            success: false,
-            error: "Both from_provider and to_provider are required"
-          }, status: :unprocessable_entity
+          return render_error("Both from_provider and to_provider are required", status: :unprocessable_entity)
         end
 
         result = DocumentMigrationService.start_migration(
@@ -476,10 +459,7 @@ module Api
             data: result
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -514,7 +494,7 @@ module Api
         from_provider = params[:from_provider]
 
         unless from_provider.present?
-          return render json: { success: false, error: "from_provider parameter required" }, status: :bad_request
+          return render_error("from_provider parameter required", status: :bad_request)
         end
 
         result = DocumentMigrationService.estimate_migration(from: from_provider)
@@ -531,7 +511,7 @@ module Api
       def data_stats
         # Skip cache only for admins (prevents DoS via forced cache refresh)
         skip_cache = params[:refresh] == "true" && current_user&.admin?
-        cache_key = "organization:data_stats"
+        cache_key = "organization:data_stats:tenant_#{current_tenant&.id || 'none'}"
 
         # Try to get from cache first (10 minute TTL - stats don't change often)
         unless skip_cache
@@ -775,157 +755,133 @@ module Api
         }
 
         # Phase 3: Warehouse Document Breakdown (SSoT for all stored files)
-        # Shows documents by source_type with storage status
-        # Special handling: Split "email" into email_body vs email_attachment
+        # DB-driven from WarehouseType — no hardcoded source_type mapping.
+        # Email warehouse_type is split into email_body + email_attachment rows.
+        # Xero gets special handling for per-tenant breakdown.
         warehouse_breakdown = if defined?(WarehouseDocument) && defined?(StorageBlob)
           results = []
 
-          # Helper to count docs with verified file in StorageBlob (Jan 2026)
-          # Uses verified_at timestamp - set when file confirmed to exist in storage
+          # Helper: count docs with verified file in StorageBlob
           count_with_file = ->(scope) {
             scope.joins(:storage_blob)
                  .where("storage_blobs.verified_at IS NOT NULL")
                  .count
           }
 
-          # Email bodies (SyncedEmail) - SSoT: Total from SyncedEmail, not WarehouseDocument
-          # This shows the REAL total of emails in the system that need to be synced
-          email_body_total = SyncedEmail.count
-          email_body_unfetchable = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
-          email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
-          email_body_linked = email_body_scope.count
-          email_body_with_blob = email_body_scope.where.not(storage_blob_id: nil).count
-          email_body_with_file = count_with_file.call(email_body_scope)
-          if email_body_total > 0
-            results << {
-              source_type: "email_body",
-              label: "Email Bodies",
-              total: email_body_total,
-              with_blob: email_body_linked,  # "LINKED" = has WarehouseDocument
-              with_file: email_body_with_file,
-              without_blob: email_body_total - email_body_linked - email_body_unfetchable,
-              unfetchable: email_body_unfetchable,  # Emails from deleted mailboxes
-              storage_rate: ((email_body_linked.to_f / email_body_total) * 100).round(1),
-              file_rate: ((email_body_with_file.to_f / email_body_total) * 100).round(1)
+          # Helper: build a row hash with consistent columns
+          build_row = ->(source_type, label, scope, expected: nil) {
+            in_warehouse = scope.count
+            w_blob = scope.where.not(storage_blob_id: nil).count
+            w_file = count_with_file.call(scope)
+            unique_blobs = scope.where.not(storage_blob_id: nil).distinct.count(:storage_blob_id)
+            has_target = expected.present?
+            total = expected || in_warehouse
+            {
+              source_type: source_type, label: label,
+              has_target: has_target,
+              total: total, in_warehouse: in_warehouse,
+              with_blob: w_blob, with_file: w_file,
+              unique_blobs: unique_blobs,
+              duplicates: w_blob > unique_blobs ? w_blob - unique_blobs : 0,
+              missing: has_target ? [total - w_file, 0].max : [in_warehouse - w_file, 0].max,
+              file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
             }
-          end
+          }
 
-          # Email attachments - SSoT (Jan 2026): WarehouseDocument with source_type='email_attachment'
-          email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
-          email_attach_total = email_attach_scope.count
-          email_attach_with_blob = email_attach_scope.where.not(storage_blob_id: nil).count
-          email_attach_with_file = count_with_file.call(email_attach_scope)
-          if email_attach_total > 0
-            results << {
-              source_type: "email_attachment",
-              label: "Email Attachments",
-              total: email_attach_total,
-              with_blob: email_attach_with_blob,
-              with_file: email_attach_with_file,
-              without_blob: email_attach_total - email_attach_with_blob,
-              storage_rate: ((email_attach_with_blob.to_f / email_attach_total) * 100).round(1),
-              file_rate: ((email_attach_with_file.to_f / email_attach_total) * 100).round(1)
-            }
-          end
+          # Pre-compute all warehouse_type counts in 4 queries (not N+1)
+          # Groups by warehouse_type (WHERE docs are stored), not source_type (WHERE they came from).
+          # Xero docs are stored under contact/corporate, so they count there — no exclusion needed.
+          base_wt_scope = WarehouseDocument.where.not(warehouse_type: [nil, ""])
+          by_wt = base_wt_scope.group(:warehouse_type).count
+          blob_by_wt = base_wt_scope.where.not(storage_blob_id: nil).group(:warehouse_type).count
+          file_by_wt = base_wt_scope
+            .joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL")
+            .group(:warehouse_type).count
+          unique_by_wt = base_wt_scope
+            .where.not(storage_blob_id: nil)
+            .group(:warehouse_type).distinct.count(:storage_blob_id)
 
-          # Other source types (exclude "email" and "xero" since we handle them specially)
-          by_source = WarehouseDocument.where.not(source_type: %w[email xero]).group(:source_type).count
-          with_blob = WarehouseDocument.where.not(source_type: %w[email xero]).where.not(storage_blob_id: nil).group(:source_type).count
-          # Count with verified file per source type (Jan 2026 - uses verified_at)
-          with_file_by_source = WarehouseDocument.where.not(source_type: %w[email xero])
-            .joins(:storage_blob)
-            .where("storage_blobs.verified_at IS NOT NULL")
-            .group(:source_type)
-            .count
+          # Expected counts: ONLY for types with a meaningful 1:1 target
+          # (e.g., every email should have an .eml, every invoice should have a PDF)
+          # NOT for types like job/contact/user where 1 record can have 0 or many docs
+          expected_counts = {}
 
-          by_source.each do |source_type, total|
-            next if source_type.blank? || total == 0
-            with_storage = with_blob[source_type] || 0
-            with_file_count = with_file_by_source[source_type] || 0
-            results << {
-              source_type: source_type,
-              label: WarehouseProvider.label_for(source_type),  # SSoT: Use centralized labels
-              total: total,
-              with_blob: with_storage,
-              with_file: with_file_count,
-              without_blob: total - with_storage,
-              storage_rate: total > 0 ? ((with_storage.to_f / total) * 100).round(1) : 0,
-              file_rate: total > 0 ? ((with_file_count.to_f / total) * 100).round(1) : 0
-            }
-          end
+          # ── Iterate all warehouse types from DB ────────────────────────────
+          WarehouseType.enabled.ordered.each do |wt|
+            # Email type: split into body + attachment rows
+            if wt.code == "email"
+              # Email Bodies
+              email_body_total = SyncedEmail.count
+              # SSoT: Two sources of "unfetchable" emails:
+              # 1. Legacy: storage_path starts with "UNFETCHABLE" (old pattern)
+              # 2. Current: content_unavailable=true (EmailStorageUploadService marks these)
+              email_body_unfetchable_legacy = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%").count
+              email_body_content_unavailable = SyncedEmail.where(content_unavailable: true).count
+              email_body_unfetchable = email_body_unfetchable_legacy + email_body_content_unavailable
+              # Also count emails missing outlook_id or mailbox (can never be fetched)
+              email_body_no_outlook = SyncedEmail.where(outlook_id: [nil, ""]).or(SyncedEmail.where(mailbox_owner_email: [nil, ""])).count
+              email_body_scope = WarehouseDocument.where(source_type: "email", documentable_type: "SyncedEmail")
+              row = build_row.call("email_body", "Email Bodies", email_body_scope, expected: email_body_total)
+              row[:unfetchable] = email_body_unfetchable
+              row[:no_outlook_id] = email_body_no_outlook
+              # ⚠️ DO NOT SIMPLIFY - Overlap correction required (Feb 2026)
+              # ════════════════════════════════════════════
+              # Why: no_outlook and unfetchable emails CAN have verified files (e.g., uploaded
+              #      before mailbox was removed). Naive subtraction double-counts these overlaps.
+              # ❌ WRONG: total - with_file - unfetchable - no_outlook (double-subtracts overlaps)
+              # ✅ CORRECT: Only subtract unfetchable/no_outlook that DON'T already have files
+              # ════════════════════════════════════════════
+              email_with_file_ids = email_body_scope.joins(:storage_blob)
+                .where("storage_blobs.verified_at IS NOT NULL").pluck(:documentable_id)
+              email_unfetchable_without_file = SyncedEmail.where("storage_path LIKE ?", "UNFETCHABLE%")
+                .or(SyncedEmail.where(content_unavailable: true))
+                .where.not(id: email_with_file_ids).count
+              email_no_outlook_without_file = SyncedEmail.where(outlook_id: [nil, ""])
+                .or(SyncedEmail.where(mailbox_owner_email: [nil, ""]))
+                .where.not(id: email_with_file_ids).count
+              row[:missing] = [email_body_total - row[:with_file] - email_unfetchable_without_file - email_no_outlook_without_file, 0].max
+              results << row if email_body_total > 0
 
-          # SSoT: Xero - Total from external_invoices table, synced from WarehouseDocument
-          # This shows the TRUE count of invoices/bills that should have PDFs
-          if defined?(ExternalInvoice)
-            # Total invoices/bills that can have PDFs (exclude drafts - Xero doesn't generate PDFs for drafts)
-            # SSoT: Match Xero Sync page - only count invoices with contacts (PDF-eligible)
-            xero_total = ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count
-            # How many have PDFs synced (WarehouseDocument with storage_blob)
-            xero_with_blob = WarehouseDocument.where(source_type: "xero").where.not(storage_blob_id: nil).count
-            # SSoT: Match Xero Sync page - use content_hash (not verified_at) to confirm file exists
-            xero_with_file = WarehouseDocument.where(source_type: "xero")
-              .where.not(storage_blob_id: nil)
-              .joins(:storage_blob)
-              .where.not(storage_blobs: { content_hash: nil })
-              .count
-            xero_linked = WarehouseDocument.where(source_type: "xero").count
-
-            # Per-tenant breakdown
-            tenant_breakdown = []
-            if defined?(XeroCredential)
-              # FRC (Feb 2026): Must be tenant-scoped
-              xero_cred_scope = if current_tenant&.master_tenant?
-                                  XeroCredential.where.not(tenant_id: nil)
-                                else
-                                  XeroCredential.for_teeem_tenant(current_tenant).where.not(tenant_id: nil)
-                                end
-              xero_cred_scope.find_each do |cred|
-                tenant_id = cred.tenant_id
-                tenant_name = cred.tenant_name || "Unknown"
-
-                # Count from external_invoices (SSoT) - match Xero Sync page (only with contacts)
-                tenant_total = ExternalInvoice.where(tenant_id: tenant_id).where.not(status: "draft").where.not(contact_id: nil).count
-                next if tenant_total == 0
-
-                # Count PDFs synced for this tenant
-                # WarehouseDocument links to ExternalInvoice via documentable
-                tenant_invoice_ids = ExternalInvoice.where(tenant_id: tenant_id).pluck(:id)
-                tenant_warehouse_scope = WarehouseDocument.where(source_type: "xero", documentable_type: "ExternalInvoice", documentable_id: tenant_invoice_ids)
-                tenant_with_blob = tenant_warehouse_scope.where.not(storage_blob_id: nil).count
-                tenant_with_file = tenant_warehouse_scope.where.not(storage_blob_id: nil).joins(:storage_blob).where.not(storage_blobs: { content_hash: nil }).count
-                tenant_linked = tenant_warehouse_scope.count
-
-                tenant_breakdown << {
-                  tenant_id: tenant_id,
-                  tenant_name: tenant_name,
-                  total: tenant_total,
-                  with_blob: tenant_with_blob,
-                  with_file: tenant_with_file,
-                  linked: tenant_linked,
-                  missing: tenant_total - tenant_with_file,
-                  file_rate: tenant_total > 0 ? ((tenant_with_file.to_f / tenant_total) * 100).round(1) : 0
-                }
-              end
+              # Email Attachments — no 1:1 target (one email can have many attachments)
+              email_attach_scope = WarehouseDocument.where(source_type: "email_attachment")
+              results << build_row.call("email_attachment", "Email Attachments", email_attach_scope) if email_attach_scope.exists?
+              next
             end
 
-            if xero_total > 0
-              results << {
-                source_type: "xero",
-                label: "Xero",
-                total: xero_total,  # SSoT: From external_invoices table
-                with_blob: xero_with_blob,
-                with_file: xero_with_file,
-                linked: xero_linked,  # WarehouseDocument records created
-                without_blob: xero_total - xero_with_blob,
-                missing: xero_total - xero_with_file,  # Missing PDFs
-                storage_rate: ((xero_with_blob.to_f / xero_total) * 100).round(1),
-                file_rate: ((xero_with_file.to_f / xero_total) * 100).round(1),
-                tenant_breakdown: tenant_breakdown.sort_by { |t| -t[:total] }  # Sort by total descending
-              }
-            end
+            # Standard row for this warehouse type
+            # Xero docs are stored under contact/corporate warehouse_type — they count there naturally.
+            in_warehouse = by_wt[wt.code] || 0
+            expected = expected_counts[wt.code]
+            has_target = expected.present?
+            total = expected || in_warehouse
+            next if in_warehouse == 0 && (expected.nil? || expected == 0)
+
+            w_blob = blob_by_wt[wt.code] || 0
+            w_file = file_by_wt[wt.code] || 0
+            w_unique = unique_by_wt[wt.code] || 0
+            results << {
+              source_type: wt.code, label: wt.display_name,
+              icon: wt.icon_name,
+              has_target: has_target,
+              total: total, in_warehouse: in_warehouse,
+              with_blob: w_blob, with_file: w_file,
+              unique_blobs: w_unique,
+              duplicates: w_blob > w_unique ? w_blob - w_unique : 0,
+              missing: has_target ? [total - w_file, 0].max : [in_warehouse - w_file, 0].max,
+              file_rate: in_warehouse > 0 ? ((w_file.to_f / in_warehouse) * 100).round(1) : 0
+            }
           end
 
-          results.sort_by { |r| -r[:total] }  # Sort by total descending
+          # ── Unclassified: docs with warehouse_type nil/empty (safety net) ──
+          # These are invisible to the warehouse_type grouping above.
+          # Without this row, orphaned docs silently disappear from the dashboard.
+          unclassified_scope = WarehouseDocument.where(warehouse_type: [nil, ""])
+          unclassified_count = unclassified_scope.count
+          if unclassified_count > 0
+            results << build_row.call("unclassified", "Unclassified", unclassified_scope)
+          end
+
+          results
         else
           []
         end
@@ -933,27 +889,50 @@ module Api
         # StorageBlob totals (deduplicated file storage)
         blob_stats = if defined?(StorageBlob)
           total_blobs = StorageBlob.count
+          verified_blobs = StorageBlob.where.not(verified_at: nil).count
+          unverified_blobs = total_blobs - verified_blobs
+          # FRC (Feb 2026): Orphan count must be fast (runs on every page load) and accurate.
+          # - BlobReferenceScanner (20-table scan) is too slow for dashboard — use for weekly audit only
+          # - In-flight blobs (two-step email sync) look like orphans for days — exclude recent blobs
+          # Use reference_count=0 + 30-day age filter. Weekly OrphanBlobAuditJob catches any mismatches.
+          orphan_blobs = StorageBlob.where(reference_count: 0).where("created_at < ?", 30.days.ago).count
+          # How many WH docs have a verified file (across ALL docs, not just breakdown rows)
+          docs_with_file = WarehouseDocument.joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count
+          # Unclassified: docs NOT covered by any breakdown row
+          # Breakdown rows use mixed scoping (source_type for email/xero, warehouse_type for others),
+          # so we compute unclassified as total minus sum of breakdown rows' in_warehouse
+          breakdown_in_warehouse = warehouse_breakdown.sum { |r| r[:in_warehouse] || 0 }
+          breakdown_with_file = warehouse_breakdown.sum { |r| r[:with_file] || 0 }
+          total_wh_docs = WarehouseDocument.count
+          unclassified_total = [total_wh_docs - breakdown_in_warehouse, 0].max
+          # Cap with_file at total — can't have more files than documents
+          unclassified_with_file = [[docs_with_file - breakdown_with_file, 0].max, unclassified_total].min
           total_bytes = StorageBlob.sum(:file_size) || 0
           blobs_path = StorageBlob.where("storage_path LIKE 'Blobs/%'").count
           emails_path = StorageBlob.where("storage_path LIKE 'Emails/%'").count
 
-          # Deduplication stats (attachments save most storage)
-          total_refs = StorageBlob.sum(:reference_count)
-          dupes_avoided = total_refs - total_blobs
-          # Estimate bytes saved: avg file size * dupes avoided
+          # Deduplication stats — SSoT: derived from warehouse_breakdown rows (not separate query)
+          # Computed after blob_stats hash is built, see below
           avg_size = total_blobs > 0 ? (total_bytes.to_f / total_blobs) : 0
-          bytes_saved = (avg_size * dupes_avoided).to_i
 
           {
             total_blobs: total_blobs,
+            verified_blobs: verified_blobs,
+            unverified_blobs: unverified_blobs,
+            orphan_blobs: orphan_blobs,
+            docs_with_file: docs_with_file,
+            unclassified_total: unclassified_total,
+            unclassified_with_file: unclassified_with_file,
             total_bytes: total_bytes,
             blobs_format: blobs_path,
             legacy_format: emails_path,
             migration_rate: total_blobs > 0 ? ((blobs_path.to_f / total_blobs) * 100).round(1) : 0,
-            # Deduplication
-            total_references: total_refs,
-            duplicates_avoided: dupes_avoided,
-            bytes_saved: bytes_saved
+            # Deduplication — placeholders, filled from warehouse_breakdown SSoT below
+            duplicates_avoided: 0,
+            bytes_saved: 0,
+            # Xero invoice sync status
+            xero_total: defined?(ExternalInvoice) ? ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count : 0,
+            xero_with_pdf: defined?(ExternalInvoice) ? WarehouseDocument.where(source_type: "xero").joins(:storage_blob).where("storage_blobs.verified_at IS NOT NULL").count : 0
           }
         else
           { total_blobs: 0, total_bytes: 0, blobs_format: 0, legacy_format: 0, migration_rate: 0 }
@@ -981,6 +960,14 @@ module Api
           health_rate: total_companies > 0 ? (((total_companies - missing_abn - overdue_review).to_f / total_companies) * 100).round(1) : 100
         }
 
+        # SSoT: Dedup stats derived from warehouse_breakdown rows (THE ONE source)
+        if blob_stats.is_a?(Hash) && warehouse_breakdown.is_a?(Array)
+          dupes_total = warehouse_breakdown.sum { |r| r[:duplicates] || 0 }
+          blob_avg_size = blob_stats[:total_blobs].to_i > 0 ? (blob_stats[:total_bytes].to_f / blob_stats[:total_blobs]) : 0
+          blob_stats[:duplicates_avoided] = dupes_total
+          blob_stats[:bytes_saved] = (blob_avg_size * dupes_total).to_i
+        end
+
         result = {
           success: true,
           data: {
@@ -1003,7 +990,7 @@ module Api
         }
 
         # Cache for 10 minutes
-        Rails.cache.write(cache_key, result, expires_in: 10.minutes)
+        Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_LONG)
 
         render json: result.merge(from_cache: false)
       end
@@ -1044,7 +1031,7 @@ module Api
         when "sharepoint"
           return {} unless ms_credential
           {
-            site_url: ms_credential.site_url || "https://#{ms_credential.azure_tenant_id}.sharepoint.com",
+            site_url: "https://#{ms_credential.azure_tenant_id}.sharepoint.com",
             site_id: storage_config&.site_id,
             drive_id: storage_config&.drive_id,
             # SSoT: drive_name comes from WarehouseProvider - no hardcoded fallback

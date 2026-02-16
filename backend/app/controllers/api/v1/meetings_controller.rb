@@ -46,10 +46,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: meeting.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: meeting.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(meeting)
     end
   end
 
@@ -67,10 +64,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: @meeting.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @meeting.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@meeting)
     end
   end
 
@@ -82,10 +76,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: { message: "Meeting deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete meeting"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete meeting", status: :unprocessable_entity)
     end
   end
 
@@ -97,10 +88,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: @meeting.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot start meeting"
-      }, status: :unprocessable_entity
+      render_error("Cannot start meeting", status: :unprocessable_entity)
     end
   end
 
@@ -112,10 +100,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: @meeting.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot complete meeting"
-      }, status: :unprocessable_entity
+      render_error("Cannot complete meeting", status: :unprocessable_entity)
     end
   end
 
@@ -127,10 +112,7 @@ class Api::V1::MeetingsController < ApplicationController
         data: @meeting.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot cancel meeting"
-      }, status: :unprocessable_entity
+      render_error("Cannot cancel meeting", status: :unprocessable_entity)
     end
   end
 

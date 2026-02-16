@@ -1,10 +1,11 @@
 require "fuzzy_match"
 
 class XeroContactSyncService
+  include XeroConstants
+
   attr_reader :stats
 
   SIMILARITY_THRESHOLD = 0.85
-  RATE_LIMIT_SLEEP = 1200 # milliseconds between API calls (1.2s) to avoid Xero rate limits (60 requests per minute)
 
   def initialize(tenant_id: nil)
     @xero_client = XeroApiClient.new
@@ -300,7 +301,7 @@ class XeroContactSyncService
           end
 
           # Small delay to avoid rate limits
-          sleep(RATE_LIMIT_SLEEP / 1000.0)
+          sleep(XERO_API_SLEEP_MS / 1000.0)
         rescue StandardError => e
           error_msg = "Error processing Xero contact #{xero_contact['Name']}: #{e.message}"
           Rails.logger.error(error_msg)
@@ -337,7 +338,7 @@ class XeroContactSyncService
             matched_teeem_ids.add(teeem_contact.id)
           end
 
-          sleep(RATE_LIMIT_SLEEP / 1000.0)
+          sleep(XERO_API_SLEEP_MS / 1000.0)
         rescue StandardError => e
           error_msg = "Error exporting TEEEM contact #{teeem_contact.display_name}: #{e.message}"
           Rails.logger.error(error_msg)

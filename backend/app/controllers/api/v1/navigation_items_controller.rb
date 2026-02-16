@@ -24,7 +24,7 @@ module Api
         if @item.save
           render json: { success: true, navigation_item: full_item_json(@item) }, status: :created
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -33,7 +33,7 @@ module Api
         if @item.update(item_params)
           render json: { success: true, navigation_item: full_item_json(@item) }
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -62,7 +62,7 @@ module Api
         if @item.update(navigation_group_id: group_id, position: new_position)
           render json: { success: true, navigation_item: full_item_json(@item) }
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 
@@ -73,7 +73,7 @@ module Api
         if @item.update(parent_id: parent_id)
           render json: { success: true, navigation_item: full_item_json(@item) }
         else
-          render json: { success: false, errors: @item.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@item)
         end
       end
 

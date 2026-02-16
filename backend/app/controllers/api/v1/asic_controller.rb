@@ -6,7 +6,7 @@ module Api
         abn = params[:abn]
 
         if abn.blank?
-          return render json: { success: false, error: "ABN is required" }, status: :bad_request
+          return render_error("ABN is required", status: :bad_request)
         end
 
         service = AsicLookupService.new
@@ -24,7 +24,7 @@ module Api
         acn = params[:acn]
 
         if acn.blank?
-          return render json: { success: false, error: "ACN is required" }, status: :bad_request
+          return render_error("ACN is required", status: :bad_request)
         end
 
         service = AsicLookupService.new
@@ -42,7 +42,7 @@ module Api
         name = params[:name]
 
         if name.blank?
-          return render json: { success: false, error: "Name is required" }, status: :bad_request
+          return render_error("Name is required", status: :bad_request)
         end
 
         service = AsicLookupService.new
@@ -60,7 +60,7 @@ module Api
         abn = params[:abn]
 
         if abn.blank?
-          return render json: { success: false, error: "ABN is required" }, status: :bad_request
+          return render_error("ABN is required", status: :bad_request)
         end
 
         valid = AsicLookupService.valid_abn?(abn)
@@ -72,7 +72,7 @@ module Api
         acn = params[:acn]
 
         if acn.blank?
-          return render json: { success: false, error: "ACN is required" }, status: :bad_request
+          return render_error("ACN is required", status: :bad_request)
         end
 
         valid = AsicLookupService.valid_acn?(acn)
@@ -86,7 +86,7 @@ module Api
         acn = params[:acn]
 
         if abn.blank? && acn.blank?
-          return render json: { success: false, error: "ABN or ACN is required" }, status: :bad_request
+          return render_error("ABN or ACN is required", status: :bad_request)
         end
 
         service = AsicLookupService.new

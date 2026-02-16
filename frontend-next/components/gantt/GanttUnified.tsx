@@ -29,6 +29,7 @@ import { GanttContextMenu, ContextMenuState } from './GanttContextMenu';
 import { Spinner } from '@/components/ui/spinner';
 import api from '@/lib/api';
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 // =============================================================================
 // Types
@@ -270,7 +271,6 @@ export function GanttUnified({
           onTaskClickRef.current?.(task, event);
         },
         onTaskDoubleClick: (task) => {
-          console.log('[GanttUnified] onTaskDoubleClick callback:', task.id, task.name);
           onTaskDoubleClickRef.current?.(task);
         },
         onColumnsChange: (newColumns) => {
@@ -292,7 +292,6 @@ export function GanttUnified({
           }
         },
         onDependencyClick: (task) => {
-          console.log('[GanttUnified] Dependency clicked:', task.id);
           // Open the Dependency Editor for this task (same as old Gantt behavior)
           if (onEditDependencies && ganttEngineRef.current) {
             const visibleTasks = ganttEngineRef.current.getVisibleTasks();
@@ -300,15 +299,12 @@ export function GanttUnified({
           }
         },
         onTaskDrag: (task, newStartDate) => {
-          console.log('[GanttUnified] Task dragged:', task.id, 'to', newStartDate);
           onTaskDrag?.(task, newStartDate);
         },
         onTaskResize: (task, newStartDate, newEndDate) => {
-          console.log('[GanttUnified] Task resized:', task.id, 'from', newStartDate, 'to', newEndDate);
           onTaskResize?.(task, newStartDate, newEndDate);
         },
         onContextMenu: (task, x, y, _event) => {
-          console.log('[GanttUnified] Context menu:', task?.id, 'at', x, y);
           setContextMenu({
             isOpen: true,
             x,
@@ -317,15 +313,12 @@ export function GanttUnified({
           });
         },
         onDependencyCreate: (fromId, toId, type) => {
-          console.log('[GanttUnified] Dependency created:', fromId, '->', toId, 'type:', type);
           onDependencyCreate?.(fromId, toId, type);
         },
         onProgressChange: (task, newProgress) => {
-          console.log('[GanttUnified] Progress changed:', task.id, 'to', newProgress);
           onProgressChange?.(task.id, newProgress);
         },
         onDependencyPopupShow: (fromTaskId, toTaskId, x, y) => {
-          console.log('[GanttUnified] Dependency popup show:', fromTaskId, '->', toTaskId, 'at', x, y);
           setDependencyPopup({
             isOpen: true,
             x,
@@ -335,11 +328,9 @@ export function GanttUnified({
           });
         },
         onDependencyPopupHide: () => {
-          console.log('[GanttUnified] Dependency popup hide');
           setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
         },
         onCellEdit: (task, columnId, field, currentValue, cellRect) => {
-          console.log('[GanttUnified] Cell edit requested:', task.id, columnId, field, currentValue);
           setInlineEdit({
             isOpen: true,
             taskId: task.id,
@@ -386,12 +377,9 @@ export function GanttUnified({
                 name: 'Public Holiday',
               };
             });
-            console.log('[GanttUnified] Loaded holidays from API:', holidays.length, holidays.slice(0, 3));
             engine.addHolidays(holidays);
           }
-        } catch (err) {
-          console.warn('[GanttUnified] Failed to load holidays from API:', err);
-        }
+        } catch (_) { /* Holiday fetch failure is non-critical */ }
       };
       loadHolidays();
 
@@ -577,7 +565,6 @@ export function GanttUnified({
   }, []);
 
   const handleContextMenuEdit = React.useCallback((task: GanttTask) => {
-    console.log('[GanttUnified] Context menu edit:', task.id);
     onTaskDoubleClick?.(task);
   }, [onTaskDoubleClick]);
 
@@ -611,12 +598,10 @@ export function GanttUnified({
   }, []);
 
   const handleContextMenuResetManualPosition = React.useCallback((task: GanttTask) => {
-    console.log('[GanttUnified] Reset manual position:', task.id);
     onResetManualPosition?.(task);
   }, [onResetManualPosition]);
 
   const handleContextMenuEditDependencies = React.useCallback((task: GanttTask) => {
-    console.log('[GanttUnified] Edit dependencies:', task.id);
     if (onEditDependencies && ganttEngineRef.current) {
       const visibleTasks = ganttEngineRef.current.getVisibleTasks();
       onEditDependencies(task, visibleTasks);
@@ -634,7 +619,6 @@ export function GanttUnified({
   // Column reorder handler
   const handleColumnReorder = React.useCallback(
     (fromIndex: number, toIndex: number) => {
-      console.log('[GanttUnified] Column reorder:', fromIndex, '->', toIndex);
       ganttEngineRef.current?.reorderColumns(fromIndex, toIndex);
     },
     []
@@ -643,7 +627,6 @@ export function GanttUnified({
   // Dependency popup handlers
   const handleDependencyPopupSelectType = React.useCallback(
     (type: 'FS' | 'SS' | 'FF' | 'SF') => {
-      console.log('[GanttUnified] Dependency type selected:', type);
       ganttEngineRef.current?.completeDependencyCreation(type);
       setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
     },
@@ -651,7 +634,6 @@ export function GanttUnified({
   );
 
   const handleDependencyPopupCancel = React.useCallback(() => {
-    console.log('[GanttUnified] Dependency creation cancelled');
     ganttEngineRef.current?.cancelDependencyCreation();
     setDependencyPopup((prev) => ({ ...prev, isOpen: false }));
   }, []);
@@ -662,7 +644,6 @@ export function GanttUnified({
 
     const newValue = parseInt(inlineEdit.value, 10);
     if (!isNaN(newValue) && newValue > 0) {
-      console.log('[GanttUnified] Inline edit submit:', inlineEdit.taskId, inlineEdit.field, newValue);
 
       // Update canvas immediately for visual feedback
       ganttEngineRef.current?.updateTaskField(inlineEdit.taskId, inlineEdit.field, newValue);
@@ -738,7 +719,6 @@ export function GanttUnified({
         // Undo the first selected task
         const firstSelectedId = Array.from(selectedTaskIds)[0];
         if (firstSelectedId && onUndo) {
-          console.log('[GanttUnified] Undo requested for task:', firstSelectedId);
           onUndo(firstSelectedId);
         }
       }
@@ -754,6 +734,7 @@ export function GanttUnified({
 
   // Always render canvas structure (so refs are available), but show overlays for loading/error states
   return (
+    <ErrorBoundary>
     <div
       className={cn(
         'flex flex-col h-full overflow-hidden bg-background border-l border-border',
@@ -809,7 +790,6 @@ export function GanttUnified({
           className="absolute inset-0"
           style={{ touchAction: 'none' }} // Prevent browser touch gestures
           onDoubleClick={(e) => {
-            console.log('[GanttUnified] React onDoubleClick fired at', e.nativeEvent.offsetX, e.nativeEvent.offsetY);
           }}
         />
 
@@ -902,6 +882,7 @@ export function GanttUnified({
         />
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 

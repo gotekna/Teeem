@@ -54,7 +54,7 @@ module Api
           if result
             render json: { success: true, data: result }
           else
-            render json: { success: false, error: 'Customer not found' }, status: :not_found
+            render_error('Customer not found', status: :not_found)
           end
         end
 
@@ -117,7 +117,7 @@ module Api
           if result
             render json: { success: true, data: result }
           else
-            render json: { success: false, error: 'Supplier not found' }, status: :not_found
+            render_error('Supplier not found', status: :not_found)
           end
         end
 

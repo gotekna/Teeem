@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Check, ArrowRight, Building2, Server } from "lucide-react";
 import api from "@/lib/api";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 
 interface Tier {
   id: string;
@@ -38,7 +39,7 @@ export default function PlanSelectionPage() {
 
   useEffect(() => {
     // Get tenant info from session storage
-    const storedTenant = sessionStorage.getItem("signup_tenant");
+    const storedTenant = sessionStorage.getItem(SESSION_STORAGE_KEYS.SIGNUP_TENANT);
     if (!storedTenant) {
       router.push("/get-started");
       return;
@@ -101,7 +102,7 @@ export default function PlanSelectionPage() {
 
   const handleContinue = () => {
     // Store selected tier
-    sessionStorage.setItem("signup_tier", selectedTier);
+    sessionStorage.setItem(SESSION_STORAGE_KEYS.SIGNUP_TIER, selectedTier);
     router.push("/get-started/templates");
   };
 

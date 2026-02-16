@@ -3,7 +3,7 @@
 class DirectorDocumentUploadService
   include StorageUploadable
 
-  DIRECTOR_IDS_FOLDER = "Director IDs"
+  DIRECTOR_IDS_FOLDER = "Director IDs".freeze
 
   DOCUMENT_TYPES = {
     "drivers_licence_front" => "Drivers Licence Front",

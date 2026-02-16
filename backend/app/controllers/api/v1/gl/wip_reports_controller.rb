@@ -45,7 +45,7 @@ module Api
 
           render json: { success: true, data: @wip_report }, status: :created
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # PATCH/PUT /api/v1/gl/wip_reports/:id
@@ -53,15 +53,14 @@ module Api
           if @wip_report.update(wip_report_params)
             render json: { success: true, data: @wip_report }
           else
-            render json: { success: false, error: @wip_report.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(@wip_report.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
         # DELETE /api/v1/gl/wip_reports/:id
         def destroy
           if @wip_report.status == "final"
-            render json: { success: false, error: "Cannot delete finalized report" }, status: :unprocessable_entity
+            render_error("Cannot delete finalized report", status: :unprocessable_entity)
             return
           end
 
@@ -80,8 +79,7 @@ module Api
           if @wip_report.finalize!
             render json: { success: true, data: @wip_report, message: "WIP report finalized" }
           else
-            render json: { success: false, error: "Report already finalized or cannot be finalized" },
-                   status: :unprocessable_entity
+            render_error("Report already finalized or cannot be finalized", status: :unprocessable_entity)
           end
         end
 
@@ -99,9 +97,9 @@ module Api
 
           render json: { success: true, data: wip_job }
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Job not found" }, status: :not_found
+          render_error("Job not found", status: :not_found)
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # GET /api/v1/gl/wip_reports/summary

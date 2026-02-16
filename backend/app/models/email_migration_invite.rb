@@ -44,7 +44,7 @@ class EmailMigrationInvite < ApplicationRecord
 
   # Generate portal URL
   def portal_url
-    base_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
+    base_url = InfrastructureUrls.frontend_url
     "#{base_url}/migrate/#{token}"
   end
 

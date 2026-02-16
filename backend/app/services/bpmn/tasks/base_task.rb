@@ -31,7 +31,7 @@ module Bpmn
         # Replace {{subject.field}} patterns
         result.gsub!(/\{\{subject\.(\w+)\}\}/) do |_match|
           field_name = Regexp.last_match(1)
-          @subject.try(field_name) || ""
+          @subject&.send(field_name) || ""
         end
 
         result

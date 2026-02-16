@@ -81,7 +81,7 @@ class TrialInvitation < ApplicationRecord
 
   # Generate signup URL with invitation token
   def signup_url
-    frontend_url = ENV['FRONTEND_URL'] || 'http://localhost:3000'
+    frontend_url = InfrastructureUrls.frontend_url
     "#{frontend_url}/get-started?invite_token=#{token}"
   end
 
@@ -98,7 +98,7 @@ class TrialInvitation < ApplicationRecord
 
   # Get the sender's email for email FROM field
   def sender_email
-    effective_sender&.email || ENV['SMTP_USERNAME'] || 'hello@teeem.com.au'
+    effective_sender&.email || ENV['SMTP_USERNAME'] || InfrastructureUrls::HELLO_EMAIL
   end
 
   private

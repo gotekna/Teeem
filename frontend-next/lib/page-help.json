@@ -1,8 +1,8 @@
 {
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
-    "lastUpdated": "2026-01-31",
-    "totalPages": 185,
+    "lastUpdated": "2026-02-14",
+    "totalPages": 186,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -822,11 +822,17 @@
       "tips": ["Run custom queries on your data", "Export reports to Excel", "Schedule automated reports"],
       "tasks": ["Run data query", "Export to Excel", "Create scheduled report", "View data statistics"]
     },
+    "/feature-requests": {
+      "title": "Feature Requests & Suggestions",
+      "description": "Submit feature requests, vote on ideas, and track what's being built. Shared across all companies.",
+      "tips": ["Follow requests you care about to track progress", "Requests are sorted by status: In Progress, Planned, Submitted", "Your submissions are auto-followed", "Completed features show release notes"],
+      "tasks": ["Submit a new feature request", "Follow requests you want", "View what's currently being built", "Check status updates on your requests"]
+    },
     "/system-health": {
       "title": "System Health",
-      "description": "Monitor system status, background jobs, and performance.",
-      "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention"],
-      "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage"]
+      "description": "Monitor system status, background jobs, performance, and error tracking.",
+      "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention", "The Sentry tab shows live production errors from Sentry"],
+      "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage", "Review and resolve Sentry errors"]
     },
     "/system-performance": {
       "title": "System Performance",
@@ -980,9 +986,9 @@
     },
     "/settings/company": {
       "title": "Company Settings",
-      "description": "Configure organization-wide settings and branding.",
-      "tips": ["Brand colors affect buttons and accents throughout the app", "Document templates use company letterhead", "Holidays affect scheduling calculations"],
-      "tasks": ["Update company information", "Configure brand colors", "Manage document templates", "Set public holidays"]
+      "description": "Configure organization-wide settings, branding, and monitor data health.",
+      "tips": ["Brand colors affect buttons and accents throughout the app", "Document templates use company letterhead", "Holidays affect scheduling calculations", "Data Health tab shows system-wide health score and quick fixes"],
+      "tasks": ["Update company information", "Configure brand colors", "Manage document templates", "Set public holidays", "Review data health and fix issues"]
     },
     "/settings/corporate": {
       "title": "Corporate Settings",

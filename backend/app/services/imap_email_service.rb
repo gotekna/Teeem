@@ -32,7 +32,7 @@ class ImapEmailService
 
       # Fetch email data in batches
       # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
-      message_ids.each_slice(50) do |batch|
+      message_ids.each_slice(EmailConstants::IMAP_FETCH_BATCH_SIZE) do |batch|
         fetch_data = imap.fetch(batch, [
           "UID",
           "BODY.PEEK[]",
@@ -52,6 +52,29 @@ class ImapEmailService
   rescue => e
     Rails.logger.error "[ImapEmailService] Error fetching emails: #{e.message}"
     raise
+  end
+
+  # Fetch attachments for a single email by UID.
+  # Used by SyncedEmail#sync_attachments! for IMAP-only mailboxes (Gmail, Webcentral, etc.)
+  # @param uid [Integer] IMAP UID of the email
+  # @param folder [String] IMAP folder containing the email
+  # @return [Array<Hash>, nil] Array of { filename:, content_type:, content:, size: } or nil
+  def fetch_attachments_by_uid(uid, folder: "INBOX")
+    with_imap_connection do |imap|
+      imap.select(folder)
+
+      fetch_data = imap.uid_fetch([uid.to_i], ["BODY.PEEK[]"])
+      return nil unless fetch_data&.any?
+
+      raw = fetch_data.first.attr["BODY[]"] || fetch_data.first.attr["RFC822"]
+      return nil unless raw
+
+      mail = Mail.read_from_string(raw)
+      extract_attachments(mail)
+    end
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error fetching attachments by UID #{uid}: #{e.message}"
+    nil
   end
 
   # Fetch emails incrementally using UID
@@ -77,7 +100,7 @@ class ImapEmailService
 
       # Fetch email data
       # Use BODY.PEEK[] instead of RFC822 to avoid marking emails as read
-      message_ids.each_slice(50) do |batch|
+      message_ids.each_slice(EmailConstants::IMAP_FETCH_BATCH_SIZE) do |batch|
         fetch_data = imap.uid_fetch(batch, [
           "UID",
           "BODY.PEEK[]",
@@ -202,6 +225,78 @@ class ImapEmailService
   rescue => e
     Rails.logger.error "[ImapEmailService] Error sending email: #{e.message}"
     raise
+  end
+
+  # Drafts folder name variants (different servers use different names)
+  DRAFT_FOLDERS = ["Drafts", "INBOX.Drafts", "Draft"].freeze
+
+  # Save a draft to the IMAP Drafts folder
+  # Builds a Mail::Message and APPENDs it to the Drafts folder with \Draft flag
+  # @return [Integer, nil] UID of the appended draft, or nil on failure
+  def save_draft(to: [], subject: "", body: "", cc: [], bcc: [], from_address: nil, attachments: [], reply_to_message_id: nil)
+    sender_address = from_address.presence || credential.email_address
+
+    mail = build_draft_message(
+      from: sender_address, to: to, subject: subject, body: body,
+      cc: cc, bcc: bcc, attachments: attachments,
+      reply_to_message_id: reply_to_message_id
+    )
+
+    with_imap_connection do |imap|
+      drafts_folder = find_drafts_folder(imap)
+      response = imap.append(drafts_folder, mail.to_s, [:Draft, :Seen], Time.current)
+
+      # Extract UID from APPENDUID response if available
+      extract_append_uid(response)
+    end
+  rescue => e
+    Rails.logger.error "[ImapEmailService] Error saving draft: #{e.message}"
+    nil
+  end
+
+  # Update an existing draft (delete old, append new)
+  # IMAP doesn't support in-place update, so we replace: delete old UID, append new message
+  # @return [Integer, nil] New UID of the updated draft
+  def update_draft(uid:, **draft_params)
+    # Delete the old draft first
+    delete_draft(uid: uid)
+
+    # Append new version
+    save_draft(**draft_params)
+  end
+
+  # Delete a draft by UID from the Drafts folder
+  # @return [Boolean] Success status
+  def delete_draft(uid:)
+    with_imap_connection do |imap|
+      drafts_folder = find_drafts_folder(imap)
+      imap.select(drafts_folder)
+      imap.uid_store(uid, "+FLAGS", [:Deleted])
+      imap.expunge
+    end
+    true
+  rescue => e
+    Rails.logger.warn "[ImapEmailService] Error deleting draft (UID: #{uid}): #{e.message}"
+    # Treat as success if draft is already gone (like MS365 404 pattern)
+    true
+  end
+
+  # Send email via SMTP and delete the draft from IMAP Drafts folder
+  # This is the seamless "send draft" flow: user clicks Send, we SMTP send + clean up draft
+  # @return [Mail::Message] The sent message
+  def send_and_delete_draft(uid:, to:, subject:, body:, cc: [], bcc: [], attachments: [], reply_to_message_id: nil, from_address: nil)
+    # Send via existing SMTP method (handles append to Sent + warehouse log)
+    mail = send_email(
+      to: to, subject: subject, body: body,
+      cc: cc, bcc: bcc, attachments: attachments,
+      reply_to_message_id: reply_to_message_id,
+      from_address: from_address
+    )
+
+    # Delete the draft from Drafts folder (best effort - don't fail if draft already gone)
+    delete_draft(uid: uid)
+
+    mail
   end
 
   # List available IMAP folders
@@ -345,15 +440,15 @@ class ImapEmailService
         since_date = if sync_all_mode
                        nil  # No date limit - sync all emails
                      elsif full_sync
-                       90.days.ago
+                       EmailConstants::FULL_SYNC_LOOKBACK.ago
                      else
                        # For incremental, sync emails from last sync time minus 1 hour buffer
                        # The buffer handles timezone issues and any emails that arrived just before last sync
                        # Duplicates are handled by internet_message_id uniqueness check
-                       (credential.last_synced_at || 7.days.ago) - 1.hour
+                       (credential.last_synced_at || EmailConstants::INCREMENTAL_SYNC_LOOKBACK.ago) - 1.hour
                      end
         # sync_all mode: no limit. full_sync: 500. incremental: 250
-        limit = sync_all_mode ? nil : (full_sync ? 500 : 250)
+        limit = sync_all_mode ? nil : (full_sync ? EmailConstants::SYNC_LIMIT_FULL : EmailConstants::SYNC_LIMIT_INCREMENTAL)
         emails = fetch_emails(folder: folder, since: since_date, limit: limit)
         all_emails.concat(emails)
       rescue => e
@@ -368,6 +463,17 @@ class ImapEmailService
           if existing
             # Update read status from server (in case it changed)
             existing.update!(is_read: email_data[:is_read]) if existing.is_read != email_data[:is_read]
+
+            # FRC (Feb 2026): Always ensure mailbox appearance exists for IMAP emails
+            # Previously skipped entirely, leaving join table empty for existing emails
+            existing.ensure_mailbox_appearance(
+              mailbox_email: credential.email_address,
+              uid: email_data[:uid],
+              folder_name: email_data[:folder_name],
+              is_read: email_data[:is_read] || false,
+              imap_credential_id: credential.id
+            )
+
             results[:skipped] += 1
             next
           end
@@ -398,6 +504,16 @@ class ImapEmailService
             synced_by_user: credential.user,
             # SSoT: Multi-tenancy - set tenant_id from credential's user
             tenant_id: credential.user&.tenant_id
+          )
+
+          # FRC (Feb 2026): Populate the SyncedEmailMailbox join table
+          # This enables sync_attachments! to find IMAP credentials for backfill
+          email.ensure_mailbox_appearance(
+            mailbox_email: credential.email_address,
+            uid: email_data[:uid],
+            folder_name: email_data[:folder_name],
+            is_read: email_data[:is_read] || false,
+            imap_credential_id: credential.id
           )
 
           # Attach files if present
@@ -688,6 +804,83 @@ class ImapEmailService
     # Don't raise - rules failing shouldn't stop sync
   end
 
+  # Build a Mail::Message for a draft (same structure as send_email but without delivery)
+  def build_draft_message(from:, to: [], subject: "", body: "", cc: [], bcc: [], attachments: [], reply_to_message_id: nil)
+    mail = Mail.new do |m|
+      m.from    from
+      m.to      Array(to) if to.present?
+      m.cc      Array(cc) if cc.present?
+      m.bcc     Array(bcc) if bcc.present?
+      m.subject subject
+
+      if reply_to_message_id.present?
+        m.in_reply_to = reply_to_message_id
+        m.references = reply_to_message_id
+      end
+
+      if body.include?("<") && body.include?(">")
+        m.html_part do
+          content_type "text/html; charset=UTF-8"
+          body body
+        end
+        m.text_part do
+          body ActionController::Base.helpers.strip_tags(body)
+        end
+      else
+        m.body body
+      end
+    end
+
+    # Add attachments
+    attachments.each do |attachment|
+      mail.add_file(
+        filename: attachment[:filename],
+        content: attachment[:content]
+      )
+    end
+
+    mail
+  end
+
+  # Find the Drafts folder on this IMAP server
+  # Different servers use different names (Drafts, INBOX.Drafts, Draft)
+  def find_drafts_folder(imap)
+    folder = DRAFT_FOLDERS.find do |f|
+      imap.list("", f)&.any?
+    end
+
+    unless folder
+      # Create "Drafts" as fallback
+      folder = "Drafts"
+      imap.create(folder) rescue nil
+    end
+
+    folder
+  end
+
+  # Extract UID from IMAP APPEND response
+  # Response format varies by server; some return APPENDUID, some don't
+  def extract_append_uid(response)
+    return nil unless response
+
+    # Try to extract from APPENDUID response code
+    # Format: [APPENDUID <uidvalidity> <uid>]
+    if response.respond_to?(:data) && response.data.respond_to?(:code)
+      code = response.data.code
+      if code.respond_to?(:name) && code.name == "APPENDUID" && code.respond_to?(:data)
+        # data is "uidvalidity uid"
+        parts = code.data.to_s.split
+        return parts.last.to_i if parts.size >= 2
+      end
+    end
+
+    # Fallback: return nil (draft saved but UID unknown)
+    nil
+  rescue => e
+    Rails.logger.debug "[ImapEmailService] Could not extract APPEND UID: #{e.message}"
+    nil
+  end
+
   def append_to_sent_folder(mail)
     with_imap_connection do |imap|
       # Find which Sent folder exists on this server
@@ -708,6 +901,10 @@ class ImapEmailService
   end
 
   def save_sent_email_to_warehouse(mail)
+    # FRC (Feb 2026): Count attachments from the mail object so sent emails
+    # show correct attachment info immediately (before IMAP sync replaces the record).
+    att_count = mail.attachments.size
+
     SyncedEmail.create!(
       internet_message_id: mail.message_id.gsub(/[<>]/, ""),
       source_type: "imap",
@@ -726,6 +923,8 @@ class ImapEmailService
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: credential.user,
+      has_attachments: att_count > 0,
+      attachment_count: att_count,
       # SSoT: Multi-tenancy - set tenant_id from user
       tenant_id: credential.user&.tenant_id
     )

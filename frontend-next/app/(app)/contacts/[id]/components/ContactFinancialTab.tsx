@@ -619,7 +619,7 @@ function BillsSubTab({ contactId, handleViewInvoiceDetail, xeroLink }: BillsSubT
 // ================================
 
 function JobsSubTab({ contact }: { contact: Contact }) {
-  const relatedJobs = (contact as any).related_jobs;
+  const relatedJobs = contact.related_jobs;
 
   return (
     <Card>

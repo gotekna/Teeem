@@ -43,6 +43,7 @@ import {
   type BOQGroup,
   type BOQSavePayload,
 } from "@/components/ui/bill-of-quantities";
+import { formatCurrency } from "@/utils/formatters";
 
 // Types matching backend JSON response
 interface TemplateLineItem {
@@ -91,14 +92,6 @@ interface TemplatePack {
   items: TemplateItem[];
 }
 
-function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "$0.00";
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
 
 export function PoTemplatesTab() {
   const [packs, setPacks] = useState<TemplatePack[]>([]);
@@ -291,7 +284,6 @@ export function PoTemplatesTab() {
             supplier_id: group.supplierId,
           }).catch((err: unknown) => {
             // Non-critical: log but don't fail the save
-            console.warn("[PoTemplatesTab] Failed to add supplier price history:", err);
           })
         );
       }
@@ -385,13 +377,13 @@ export function PoTemplatesTab() {
         className="flex flex-col h-full"
       >
         <div className="flex items-center justify-between px-2 shrink-0">
-          <TabsList className="h-9">
-            <TabsTrigger value="templates" className="text-sm gap-1.5">
-              <Package className="h-3.5 w-3.5" />
+          <TabsList>
+            <TabsTrigger value="templates" className="gap-1.5">
+              <Package className="h-4 w-4" />
               Templates
             </TabsTrigger>
-            <TabsTrigger value="boq" className="text-sm gap-1.5">
-              <ClipboardList className="h-3.5 w-3.5" />
+            <TabsTrigger value="boq" className="gap-1.5">
+              <ClipboardList className="h-4 w-4" />
               Bill of Quantities
             </TabsTrigger>
           </TabsList>

@@ -12,7 +12,7 @@
  * - Status badge if status column present
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { ChevronDown, ChevronRight, MoreVertical, Eye, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -321,7 +321,7 @@ function TableCard({
 
       {/* Key Fields */}
       <div className="space-y-2">
-        {visibleKeyColumns.map(column => (
+        {visibleKeyColumns.map((column) => (
           <div key={column.key} className="flex justify-between items-start gap-2 text-sm">
             <span className="text-muted-foreground shrink-0">{column.label}</span>
             <span className="text-right truncate font-medium">
@@ -406,8 +406,9 @@ export function TableCardView({
   if (loading) {
     return (
       <div className="space-y-3 p-4">
-        {[1, 2, 3].map(i => (
-          <div key={i} className="bg-card border rounded-lg p-4 animate-pulse">
+        {/* Static skeleton rows - index is appropriate here */}
+        {[1, 2, 3].map((i) => (
+          <div key={`skeleton-${i}`} className="bg-card border rounded-lg p-4 animate-pulse">
             <div className="h-5 bg-muted rounded w-3/4 mb-3" />
             <div className="h-4 bg-muted rounded w-1/4 mb-3" />
             <div className="space-y-2">

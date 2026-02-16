@@ -149,7 +149,7 @@ namespace :email do
         exit 1
       end
 
-      storage_config = StorageConfiguration.instance
+      storage_config = WarehouseProvider.instance
 
       stats = { repaired: 0, skipped: 0, errors: [] }
 

@@ -16,7 +16,6 @@
  *   AFTER:  displayCell(value, column) or formatValue(value, 'abn')
  */
 
-import React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +25,7 @@ import { CheckCircle2, Circle, ExternalLink, Check, ShieldCheck } from "lucide-r
 import type { TableColumn, TableRow } from "../../types";
 import { formatValue } from "@/lib/formatters/display-formatters";
 import { isTypeDefinitionsLoaded } from "@/lib/column-type-registry";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -228,7 +228,7 @@ export function displayDate(value: unknown): React.ReactNode {
   try {
     const date = new Date(String(value));
     if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
-    return <span className="text-[11px]">{format(date, "dd/MM/yyyy")}</span>;
+    return <span className="text-[11px]">{format(date, DATE_DISPLAY)}</span>;
   } catch {
     return <span className="text-[11px]">{String(value)}</span>;
   }
@@ -243,7 +243,7 @@ export function displayDateTime(value: unknown): React.ReactNode {
   try {
     const date = new Date(String(value));
     if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
-    return <span className="text-[11px]">{format(date, "dd/MM/yyyy HH:mm")}</span>;
+    return <span className="text-[11px]">{format(date, DATETIME_DISPLAY)}</span>;
   } catch {
     return <span className="text-[11px]">{String(value)}</span>;
   }
@@ -312,7 +312,6 @@ export function displayLookup(value: unknown): React.ReactNode {
       obj.display_value || obj.display || obj.name || obj.display_name || obj.id || ""
     );
     if (!displayText) {
-      console.warn("[displayLookup] Object without display property:", value);
       return formatEmpty();
     }
   } else {
@@ -364,8 +363,8 @@ export function displayMultipleLookups(value: unknown): React.ReactNode {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.map((item, idx) => (
-                  <span key={idx} className="text-[11px]">{item}</span>
+                {items.map((item) => (
+                  <span key={item} className="text-[11px]">{item}</span>
                 ))}
               </div>
             </TooltipContent>
@@ -480,8 +479,8 @@ export function displayArrayOfItems(value: unknown): React.ReactNode {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="flex flex-col gap-1">
-                {items.map((item, idx) => (
-                  <span key={idx} className="text-[11px]">{item}</span>
+                {items.map((item) => (
+                  <span key={item} className="text-[11px]">{item}</span>
                 ))}
               </div>
             </TooltipContent>
@@ -519,8 +518,8 @@ export function displayActionButtons(value: unknown): React.ReactNode {
 
     return (
       <div className="flex gap-1">
-        {buttons.slice(0, 3).map((btn, idx) => (
-          <Button key={idx} variant="outline" size="sm" className="h-5 text-[10px] px-2">
+        {buttons.slice(0, 3).map((btn) => (
+          <Button key={btn.label} variant="outline" size="sm" className="h-5 text-[10px] px-2">
             {btn.label}
           </Button>
         ))}
@@ -696,9 +695,9 @@ export function displayXeroLinks(
         </div>
         <div className="space-y-1">
           {tenantNames.length > 0 ? (
-            tenantNames.map((name, idx) => (
+            tenantNames.map((name) => (
               <div
-                key={idx}
+                key={name}
                 className="flex items-center gap-2 py-1 px-2 rounded bg-green-50 dark:bg-green-900/20"
               >
                 <Check className="h-3 w-3 text-green-600 dark:text-green-400 flex-shrink-0" />

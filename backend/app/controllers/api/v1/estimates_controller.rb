@@ -27,20 +27,14 @@ module Api
         job_id = params[:job_id]
 
         if job_id.blank?
-          render json: {
-            success: false,
-            error: "job_id is required"
-          }, status: :unprocessable_entity
+          render_error("job_id is required", status: :unprocessable_entity)
           return
         end
 
         job = Job.find_by(id: job_id)
 
         if job.nil?
-          render json: {
-            success: false,
-            error: "Job with ID #{job_id} not found"
-          }, status: :not_found
+          render_error("Job with ID #{job_id} not found", status: :not_found)
           return
         end
 
@@ -74,7 +68,7 @@ module Api
 
       def generate_purchase_orders
         service = EstimateToPurchaseOrderService.new(@estimate)
-        result = service.execute
+        result = service.call
 
         if result[:success]
           render json: result, status: :created
@@ -88,10 +82,7 @@ module Api
       def set_estimate
         @estimate = Estimate.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Estimate not found"
-        }, status: :not_found
+        render_error("Estimate not found", status: :not_found)
       end
 
       def estimate_json(estimate, include_line_items: false)

@@ -94,10 +94,10 @@ class DocumentTypeMatcher
   end
 
   # Strategy 2: Alias match (90% confidence)
+  # SSoT: aliases from DB column only (DEFAULT_ALIASES removed Feb 2026)
   # Uses word boundary matching to prevent false positives like "CT" matching "Directors"
   def try_alias_match(document_type)
     aliases = document_type.aliases || []
-    aliases += DocumentType::DEFAULT_ALIASES[document_type.name] || [] if defined?(DocumentType::DEFAULT_ALIASES)
 
     aliases.each do |alias_term|
       alias_normalized = normalize(alias_term)

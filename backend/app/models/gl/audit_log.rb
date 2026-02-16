@@ -25,7 +25,7 @@ module Gl
     # Log a change
     def self.log!(record, action:, user: nil, changes: nil, source: "web", ip: nil, notes: nil)
       create!(
-        corporate: record.try(:corporate) || Corporate.first,
+        corporate: record&.corporate || Corporate.first,
         user: user,
         auditable_type: record.class.name,
         auditable_id: record.id,

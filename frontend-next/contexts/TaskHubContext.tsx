@@ -289,6 +289,7 @@ export interface TaskHubContextType extends TaskHubState {
 
   // Board priority (for BoardView drag-and-drop ordering)
   reorderBoardTask: (taskId: number, status: string, priority: number | null) => Promise<void>;
+  bulkReorderBoardTasks: (updates: Array<{ taskId: number; status: string; priority: number }>) => Promise<void>;
 
   // View & filter actions
   setActiveView: (view: ViewType) => void;
@@ -358,342 +359,6 @@ const defaultFilters: TaskFilters = {
   showOverdueOnly: false,
   selectedUserId: null,
   includeFollowing: false,
-};
-
-// Mock data for development testing - DISABLED to avoid confusion with real data
-const USE_MOCK_DATA = false;
-
-const generateMockTasks = (currentUserId?: number): SmTask[] => {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const twoDaysAgo = new Date(today);
-  twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const nextWeek = new Date(today);
-  nextWeek.setDate(nextWeek.getDate() + 7);
-  const inTwoWeeks = new Date(today);
-  inTwoWeeks.setDate(inTwoWeeks.getDate() + 14);
-
-  const formatDate = (d: Date) => d.toISOString().split('T')[0];
-
-  return [
-    // GANTT TASKS - Part of job schedules
-    {
-      id: 1001,
-      task_number: 1,
-      name: 'Foundation Pour - Stage 1',
-      description: 'Pour concrete foundation for main building',
-      status: TASK_STATUS.COMPLETED,
-      start_date: formatDate(twoDaysAgo),
-      end_date: formatDate(yesterday),
-      duration_days: 2,
-      progress_percentage: 100,
-      trade: 'Concrete',
-      stage: 'Foundation',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      locked: true,
-      lock_type: 'completed',
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: -1,
-      predecessor_count: 0,
-      successor_count: 2,
-    },
-    {
-      id: 1002,
-      task_number: 2,
-      name: 'Framing - Ground Floor',
-      description: 'Frame ground floor walls and ceiling',
-      status: TASK_STATUS.STARTED,
-      start_date: formatDate(yesterday),
-      end_date: formatDate(tomorrow),
-      duration_days: 3,
-      progress_percentage: 60,
-      trade: 'Carpentry',
-      stage: 'Framing',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      supplier_id: 201,
-      supplier_name: 'ABC Carpentry',
-      locked: true,
-      lock_type: 'started',
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 1,
-      predecessor_count: 1,
-      successor_count: 3,
-    },
-    {
-      id: 1003,
-      task_number: 3,
-      name: 'Electrical Rough-In',
-      description: 'Run electrical wiring before drywall',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(tomorrow),
-      end_date: formatDate(nextWeek),
-      duration_days: 5,
-      progress_percentage: 0,
-      trade: 'Electrical',
-      stage: 'Rough-In',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: 2,
-      assigned_user_name: 'Mike Electrician',
-      supplier_id: 202,
-      supplier_name: 'Spark Electric Co',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 7,
-      predecessor_count: 1,
-      successor_count: 1,
-    },
-    {
-      id: 1004,
-      task_number: 4,
-      name: 'Plumbing Rough-In',
-      description: 'Install water and drain lines',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(tomorrow),
-      end_date: formatDate(nextWeek),
-      duration_days: 4,
-      progress_percentage: 0,
-      trade: 'Plumbing',
-      stage: 'Rough-In',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: 3,
-      assigned_user_name: 'Pete Plumber',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 7,
-      predecessor_count: 1,
-      successor_count: 1,
-    },
-
-    // OVERDUE TASK
-    {
-      id: 1005,
-      task_number: 5,
-      name: 'Site Inspection - Council',
-      description: 'Council building inspector visit',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(twoDaysAgo),
-      end_date: formatDate(yesterday),
-      duration_days: 1,
-      progress_percentage: 0,
-      trade: 'Admin',
-      stage: 'Inspection',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: true,
-      days_until_due: -1,
-      predecessor_count: 0,
-      successor_count: 0,
-    },
-
-    // HOLD TASK
-    {
-      id: 1006,
-      task_number: 6,
-      name: 'HVAC Installation',
-      description: 'Install heating and cooling system',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(nextWeek),
-      end_date: formatDate(inTwoWeeks),
-      duration_days: 5,
-      progress_percentage: 0,
-      trade: 'HVAC',
-      stage: 'Fit-Off',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      assigned_user_id: 4,
-      assigned_user_name: 'Harry HVAC',
-      locked: false,
-      is_hold_task: true,
-      hold_reason: 'Waiting for equipment delivery',
-      is_overdue: false,
-      days_until_due: 14,
-      predecessor_count: 2,
-      successor_count: 1,
-    },
-
-    // SECOND JOB - Different project
-    {
-      id: 2001,
-      task_number: 1,
-      name: 'Demolition',
-      description: 'Remove existing structures',
-      status: TASK_STATUS.COMPLETED,
-      start_date: formatDate(twoDaysAgo),
-      end_date: formatDate(twoDaysAgo),
-      duration_days: 1,
-      progress_percentage: 100,
-      trade: 'Demolition',
-      stage: 'Site Prep',
-      job_id: 102,
-      job_name: 'Johnson Reno - 15 Pine Ave',
-      assigned_user_id: 5,
-      assigned_user_name: 'Demo Dave',
-      locked: true,
-      lock_type: 'completed',
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: -2,
-      predecessor_count: 0,
-      successor_count: 1,
-    },
-    {
-      id: 2002,
-      task_number: 2,
-      name: 'Kitchen Cabinets Install',
-      description: 'Install new kitchen cabinetry',
-      status: TASK_STATUS.STARTED,
-      start_date: formatDate(today),
-      end_date: formatDate(tomorrow),
-      duration_days: 2,
-      progress_percentage: 40,
-      trade: 'Carpentry',
-      stage: 'Fit-Off',
-      job_id: 102,
-      job_name: 'Johnson Reno - 15 Pine Ave',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      supplier_id: 203,
-      supplier_name: 'Kitchen Kings',
-      locked: true,
-      lock_type: 'started',
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 1,
-      predecessor_count: 1,
-      successor_count: 2,
-    },
-
-    // PERSONAL/ADMIN TASKS - Not on Gantt
-    {
-      id: 3001,
-      task_number: 1,
-      name: 'Order materials for next week',
-      description: 'Place orders for timber, nails, and fixtures',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(today),
-      end_date: formatDate(today),
-      duration_days: 1,
-      progress_percentage: 0,
-      trade: 'Admin',
-      job_id: 0, // No job
-      job_name: 'Personal Task',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 0,
-      predecessor_count: 0,
-      successor_count: 0,
-    },
-    {
-      id: 3002,
-      task_number: 2,
-      name: 'Submit timesheet',
-      description: 'Weekly timesheet submission',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(today),
-      end_date: formatDate(today),
-      duration_days: 1,
-      progress_percentage: 0,
-      trade: 'Admin',
-      job_id: 0,
-      job_name: 'Personal Task',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 0,
-      predecessor_count: 0,
-      successor_count: 0,
-    },
-    {
-      id: 3003,
-      task_number: 3,
-      name: 'Call supplier about delay',
-      description: 'Follow up on late material delivery',
-      status: TASK_STATUS.STARTED,
-      start_date: formatDate(yesterday),
-      end_date: formatDate(today),
-      duration_days: 2,
-      progress_percentage: 50,
-      trade: 'Admin',
-      job_id: 0,
-      job_name: 'Personal Task',
-      assigned_user_id: currentUserId,
-      assigned_user_name: 'You',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 0,
-      predecessor_count: 0,
-      successor_count: 0,
-    },
-
-    // UNASSIGNED TASKS
-    {
-      id: 4001,
-      task_number: 7,
-      name: 'Paint - Interior Walls',
-      description: 'First coat of interior paint',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(nextWeek),
-      end_date: formatDate(inTwoWeeks),
-      duration_days: 4,
-      progress_percentage: 0,
-      trade: 'Painting',
-      stage: 'Finishing',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 14,
-      predecessor_count: 3,
-      successor_count: 1,
-    },
-    {
-      id: 4002,
-      task_number: 8,
-      name: 'Flooring - Hardwood Install',
-      description: 'Install hardwood flooring throughout',
-      status: TASK_STATUS.NOT_STARTED,
-      start_date: formatDate(inTwoWeeks),
-      end_date: formatDate(inTwoWeeks),
-      duration_days: 3,
-      progress_percentage: 0,
-      trade: 'Flooring',
-      stage: 'Finishing',
-      job_id: 101,
-      job_name: 'Smith Residence - 42 Oak St',
-      locked: false,
-      is_hold_task: false,
-      is_overdue: false,
-      days_until_due: 14,
-      predecessor_count: 1,
-      successor_count: 0,
-    },
-  ];
 };
 
 const TaskHubContext = createContext<TaskHubContextType | null>(null);
@@ -848,24 +513,13 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
 
       if (response.success && response.tasks && response.tasks.length > 0) {
         setTasks(response.tasks);
-      } else if (USE_MOCK_DATA) {
-        // Use mock data in development when no real tasks exist
-        console.log('[TaskHub] Using mock data for development');
-        setTasks(generateMockTasks(user?.id));
       } else {
         setTasks([]);
       }
     } catch (err) {
       console.error('Failed to load tasks:', err);
-      if (USE_MOCK_DATA) {
-        // Fall back to mock data on error in development
-        console.log('[TaskHub] API error, using mock data for development');
-        setTasks(generateMockTasks(user?.id));
-        setError(null); // Clear error since we have mock data
-      } else {
-        setError('Failed to load tasks');
-        setTasks([]);
-      }
+      setError('Failed to load tasks');
+      setTasks([]);
     } finally {
       setLoading(false);
     }
@@ -1080,12 +734,9 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     status: string,
     priority: number | null
   ) => {
-    console.log('[TaskHubContext] reorderBoardTask called:', { taskId, status, priority });
-
     // Find the current task to get existing board_priority
     const currentTask = tasks.find(t => t.id === taskId);
     if (!currentTask) {
-      console.log('[TaskHubContext] Task not found:', taskId);
       return;
     }
 
@@ -1101,8 +752,6 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
       newPriority[status] = priority;
     }
 
-    console.log('[TaskHubContext] Updating board_priority:', { taskId, newPriority });
-
     // Optimistic update
     const originalTasks = [...tasks];
     setTasks(prev => prev.map(t =>
@@ -1110,15 +759,43 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     ));
 
     try {
-      console.log('[TaskHubContext] Making API call...');
       await api.patch(`/api/v1/sm_tasks/${taskId}`, {
         sm_task: { board_priority: newPriority }
       });
-      console.log('[TaskHubContext] API call successful');
     } catch (err) {
       console.error('[TaskHubContext] Failed to reorder board task:', err);
       setTasks(originalTasks);
       throw err;
+    }
+  }, [tasks]);
+
+  // Bulk board reorder - single optimistic update for all tasks, avoids N re-renders
+  const bulkReorderBoardTasks = useCallback(async (
+    updates: Array<{ taskId: number; status: string; priority: number }>
+  ) => {
+    const originalTasks = [...tasks];
+
+    // Single optimistic update for ALL tasks at once (prevents blur from rapid re-renders)
+    setTasks(prev => prev.map(t => {
+      const update = updates.find(u => u.taskId === t.id);
+      if (!update) return t;
+      const currentPriority = t.board_priority || {};
+      return { ...t, board_priority: { ...currentPriority, [update.status]: update.priority } };
+    }));
+
+    // Fire API calls in background
+    try {
+      await Promise.all(updates.map(({ taskId, status, priority }) => {
+        const currentTask = originalTasks.find(t => t.id === taskId);
+        const currentPriority = currentTask?.board_priority || {};
+        const newPriority = { ...currentPriority, [status]: priority };
+        return api.patch(`/api/v1/sm_tasks/${taskId}`, {
+          sm_task: { board_priority: newPriority }
+        });
+      }));
+    } catch (err) {
+      console.error('[TaskHubContext] Failed to bulk reorder board tasks:', err);
+      setTasks(originalTasks);
     }
   }, [tasks]);
 
@@ -1598,6 +1275,7 @@ export const TaskHubProvider = ({ children, initialJobId }: TaskHubProviderProps
     bulkUpdateStatus,
     bulkAssign,
     reorderBoardTask,
+    bulkReorderBoardTasks,
     setActiveView,
     setFilters,
     clearFilters,

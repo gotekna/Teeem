@@ -10,10 +10,13 @@ class CorporateMinute < ApplicationRecord
   belongs_to :minute_template, optional: true
   alias_method :company, :corporate
 
+  # Constants
+  STATUSES = %w[draft approved signed filed].freeze
+
   # Validations
   validates :title, presence: true
   validates :meeting_date, presence: true
-  validates :status, inclusion: { in: %w[draft approved signed filed] }
+  validates :status, inclusion: { in: STATUSES }
 
   # Scopes
   scope :drafts, -> { where(status: "draft") }
@@ -56,7 +59,7 @@ class CorporateMinute < ApplicationRecord
       abn: company.formatted_abn,
       registered_office: company.registered_office_address,
       meeting_date: meeting_date&.strftime("%d %B %Y"),
-      current_date: Date.today.strftime("%d %B %Y")
+      current_date: Date.current.strftime("%d %B %Y")
     }
 
     self.content = minute_template.generate_content(default_values.merge(values))

@@ -34,10 +34,14 @@ class Asset < ApplicationRecord
     "other" => "OTH"
   }.freeze
 
+  # Constants
+  ASSET_TYPES = %w[vehicle equipment property other].freeze
+  STATUSES = %w[active disposed under_repair].freeze
+
   # Validations
   validates :name, presence: true
-  validates :asset_type, inclusion: { in: %w[vehicle equipment property other] }
-  validates :status, inclusion: { in: %w[active disposed under_repair] }
+  validates :asset_type, inclusion: { in: ASSET_TYPES }
+  validates :status, inclusion: { in: STATUSES }
   validates :purchase_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :current_book_value, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :abbreviation, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
@@ -271,8 +275,8 @@ class Asset < ApplicationRecord
       {
         id: blob.id,
         filename: blob.original_filename,
-        url: blob.presigned_url(expires_in: 3600),
-        thumbnail_url: blob.presigned_url(expires_in: 3600), # No thumbnail processing - use full image
+        url: blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT),
+        thumbnail_url: blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT), # No thumbnail processing - use full image
         content_type: blob.content_type,
         byte_size: blob.file_size,
         created_at: blob.created_at
@@ -290,7 +294,7 @@ class Asset < ApplicationRecord
     first_blob = photo_blobs.first
     return nil unless first_blob
 
-    first_blob.presigned_url(expires_in: 3600)
+    first_blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
   rescue StandardError => e
     Rails.logger.warn "Thumbnail URL failed: #{e.message}"
     nil
@@ -336,7 +340,7 @@ class Asset < ApplicationRecord
   private
 
   def default_url_host
-    ENV["APP_HOST"] || (Rails.env.production? ? "https://teeemlive-ce8e2660a615.herokuapp.com" : "http://localhost:3001")
+    InfrastructureUrls.backend_url
   end
 
   # Create default depreciation profile when asset is created

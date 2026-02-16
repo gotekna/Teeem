@@ -29,6 +29,7 @@ import {
   Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
@@ -772,7 +773,7 @@ export function XeroContactSync() {
       <div className="flex-1 -mx-4">
         <TeeemTableView
           refreshTrigger={refreshKey}
-          foundationId="xero-sync-contacts"
+          foundationId={FOUNDATION_SLUGS.XERO_SYNC_CONTACTS}
           autoFetchRecords={true}
           onRowClick={handleRowClick}
           customCellRenderer={customCellRenderer}

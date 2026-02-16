@@ -30,6 +30,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 interface MeetingType {
   id: number;
@@ -43,14 +44,14 @@ interface MeetingType {
 }
 
 const PRESET_COLORS = [
-  "#3B82F6", // Blue
-  "#10B981", // Green
-  "#F59E0B", // Amber
-  "#EF4444", // Red
-  "#8B5CF6", // Purple
-  "#EC4899", // Pink
-  "#06B6D4", // Cyan
-  "#F97316", // Orange
+  TAILWIND_COLORS.blue[500],
+  TAILWIND_COLORS.emerald[500],
+  TAILWIND_COLORS.amber[500],
+  TAILWIND_COLORS.red[500],
+  TAILWIND_COLORS.violet[500],
+  TAILWIND_COLORS.pink[500],
+  TAILWIND_COLORS.cyan[500],
+  TAILWIND_COLORS.orange[500],
 ];
 
 const DURATION_OPTIONS = [
@@ -73,7 +74,13 @@ export function MeetingTypesTab() {
   const [deleting, setDeleting] = React.useState<number | null>(null);
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
 
-  const [formData, setFormData] = React.useState({
+  const [formData, setFormData] = React.useState<{
+    name: string;
+    description: string;
+    color: string;
+    duration_minutes: number;
+    requires_attendees: boolean;
+  }>({
     name: "",
     description: "",
     color: PRESET_COLORS[0],
@@ -99,7 +106,7 @@ export function MeetingTypesTab() {
           id: 1,
           name: "Site Meeting",
           description: "On-site team coordination meeting",
-          color: "#3B82F6",
+          color: TAILWIND_COLORS.blue[500],
           duration_minutes: 60,
           requires_attendees: true,
           position: 1,
@@ -109,7 +116,7 @@ export function MeetingTypesTab() {
           id: 2,
           name: "Client Meeting",
           description: "Meeting with client to discuss progress",
-          color: "#10B981",
+          color: TAILWIND_COLORS.emerald[500],
           duration_minutes: 90,
           requires_attendees: true,
           position: 2,
@@ -119,7 +126,7 @@ export function MeetingTypesTab() {
           id: 3,
           name: "Daily Standup",
           description: "Quick daily team check-in",
-          color: "#F59E0B",
+          color: TAILWIND_COLORS.amber[500],
           duration_minutes: 15,
           requires_attendees: false,
           position: 3,
@@ -129,7 +136,7 @@ export function MeetingTypesTab() {
           id: 4,
           name: "Safety Briefing",
           description: "WHS safety briefing before work starts",
-          color: "#EF4444",
+          color: TAILWIND_COLORS.red[500],
           duration_minutes: 30,
           requires_attendees: true,
           position: 4,
@@ -139,7 +146,7 @@ export function MeetingTypesTab() {
           id: 5,
           name: "Supplier Call",
           description: "Phone call with suppliers",
-          color: "#8B5CF6",
+          color: TAILWIND_COLORS.violet[500],
           duration_minutes: 30,
           requires_attendees: false,
           position: 5,

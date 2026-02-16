@@ -10,7 +10,7 @@ module Api
           account = current_subcontractor_account
 
           unless account
-            render json: { success: false, error: "No subcontractor account found" }, status: :not_found
+            render_error("No subcontractor account found", status: :not_found)
             return
           end
 
@@ -25,9 +25,9 @@ module Api
             recent_events: account.kudos_events.order(created_at: :desc).limit(10).map { |event| kudos_event_json(event) },
             statistics: {
               total_jobs_completed: account.jobs_completed_count,
-              on_time_arrivals: account.kudos_events.where(event_type: "arrival").where("points_awarded > 0").count,
-              on_time_completions: account.kudos_events.where(event_type: "completion").where("points_awarded > 0").count,
-              fast_quote_responses: account.kudos_events.where(event_type: "quote_response").where("points_awarded >= 75").count,
+              on_time_arrivals: account.kudos_events.on_time_arrivals.count,
+              on_time_completions: account.kudos_events.on_time_completions.count,
+              fast_quote_responses: account.kudos_events.fast_quote_responses.count,
               average_response_time_hours: calculate_average_response_time
             }
           }

@@ -133,6 +133,7 @@ module Api
         teeem_core_tables = %w[foundations columns]
 
         # Get all user-defined foundations from the foundations table
+        # Small lookup table (~50-100 foundations), .all is fine
         user_foundations = Foundation.includes(:columns).all.map do |foundation|
           db_name = foundation.database_table_name.to_s
 
@@ -363,7 +364,7 @@ module Api
           production_data = JSON.parse(response)
 
           unless production_data["tables"]
-            render json: { success: false, error: "No tables data from production" }, status: :unprocessable_entity
+            render_error("No tables data from production", status: :unprocessable_entity)
             return
           end
 
@@ -402,7 +403,7 @@ module Api
           }
         rescue => e
           Rails.logger.error "Failed to sync has_ui from production: #{e.message}"
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 

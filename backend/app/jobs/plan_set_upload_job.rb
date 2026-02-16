@@ -174,7 +174,7 @@ class PlanSetUploadJob < ApplicationJob
       storage_web_url: result[:webUrl] || result[:web_url],
       file_name: "All Plans.pdf",
       file_size: @file_content.bytesize,
-      revision_date: Date.today
+      revision_date: Date.current
     )
 
     # Add to plans_created
@@ -335,7 +335,7 @@ class PlanSetUploadJob < ApplicationJob
       storage_web_url: storage_result[:webUrl] || storage_result[:web_url],
       file_name: "#{display_name}.pdf",
       file_size: file_size,
-      revision_date: Date.today
+      revision_date: Date.current
     )
 
     plan

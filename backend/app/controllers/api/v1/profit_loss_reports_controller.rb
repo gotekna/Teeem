@@ -37,7 +37,7 @@ module Api
           data: serialize_report(report, include_url: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       # POST /api/v1/companies/:company_id/profit_loss_reports/generate
@@ -65,10 +65,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("P&L report generation failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Generation failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Generation failed: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/companies/:company_id/profit_loss_reports/:id/regenerate
@@ -82,7 +79,7 @@ module Api
           error: report.error_message
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       # POST /api/v1/companies/:company_id/profit_loss_reports/generate_historical
@@ -102,10 +99,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Historical P&L generation failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Generation failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Generation failed: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/companies/:company_id/profit_loss_reports/:id/download
@@ -113,12 +107,12 @@ module Api
         report = @company.profit_loss_reports.find(params[:id])
 
         unless report.status == "completed" && report.cloudinary_url.present?
-          return render json: { success: false, error: "Report not available for download" }, status: :unprocessable_entity
+          return render_error("Report not available for download", status: :unprocessable_entity)
         end
 
         redirect_to report.cloudinary_url, allow_other_host: true
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       private
@@ -126,7 +120,7 @@ module Api
       def set_company
         @company = Corporate.find(params[:company_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Company not found" }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
 
       def serialize_report(report, include_url: false)

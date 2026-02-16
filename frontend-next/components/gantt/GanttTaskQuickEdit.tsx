@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X } from "lucide-react";
 import type { GanttTask } from "@/lib/gantt/types";
+import { Z_DEBUG } from "@/lib/constants/z-index-constants";
 
 interface GanttTaskQuickEditProps {
   task: GanttTask;
@@ -99,7 +100,7 @@ export function GanttTaskQuickEdit({ task, position, isOpen, onClose, onSave }: 
     position: "fixed",
     left: Math.min(position.x, window.innerWidth - 340),
     top: Math.min(position.y + 10, window.innerHeight - 450),
-    zIndex: 9999,
+    zIndex: Z_DEBUG,
   };
 
   return (

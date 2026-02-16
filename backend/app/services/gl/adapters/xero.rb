@@ -11,6 +11,7 @@ module Gl
     # - Two-way sync (push changes back to Xero)
     #
     class Xero < Base
+      include XeroConstants  # For XERO_GENERIC_PAUSE_SEC
       # Xero account type mapping
       ACCOUNT_TYPE_MAP = {
         'BANK' => { type: 'asset', class: 'current_asset', is_bank: true },
@@ -429,7 +430,7 @@ module Gl
           retries += 1
           if retries <= max_retries
             log_error("#{operation_name} failed (attempt #{retries}), retrying: #{e.message}")
-            sleep(1) # Brief pause before retry
+            sleep(XERO_GENERIC_PAUSE_SEC) # Brief pause before retry
             retry
           else
             log_error("#{operation_name} failed after #{retries} attempts: #{e.message}")
@@ -491,7 +492,7 @@ module Gl
           is_bank_account: type_info[:is_bank] || false,
           is_system_account: xero_account['SystemAccount'].present?,
           active: xero_account['Status'] == 'ACTIVE',
-          currency_code: xero_account['CurrencyCode'] || 'AUD'
+          currency_code: xero_account['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY
         )
       end
 
@@ -568,7 +569,7 @@ module Gl
           source_number: xero_invoice['InvoiceNumber'],
           entry_date: date,
           description: "Invoice #{xero_invoice['InvoiceNumber']} - #{xero_invoice['Contact']['Name']}",
-          currency_code: xero_invoice['CurrencyCode'] || 'AUD',
+          currency_code: xero_invoice['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY,
           external_created_at: xero_invoice['DateString'],
           status: 'posted'
         )
@@ -634,7 +635,7 @@ module Gl
           source_number: xero_bill['InvoiceNumber'],
           entry_date: date,
           description: "Bill #{xero_bill['InvoiceNumber']} - #{contact_name}",
-          currency_code: xero_bill['CurrencyCode'] || 'AUD',
+          currency_code: xero_bill['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: xero_bill['CurrencyRate']&.to_d || 1.0,
           external_created_at: xero_bill['DateString'],
           status: 'posted'
@@ -710,7 +711,7 @@ module Gl
           source_number: xero_payment['Reference'] || "PMT-#{xero_payment['PaymentID'][0..7]}",
           entry_date: date,
           description: "Payment #{payment_type == 'receive' ? 'from' : 'to'} #{invoice.dig('Contact', 'Name')} - #{invoice['InvoiceNumber']}",
-          currency_code: xero_payment['CurrencyCode'] || 'AUD',
+          currency_code: xero_payment['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY,
           external_created_at: xero_payment['DateString'],
           status: 'posted'
         )
@@ -773,7 +774,7 @@ module Gl
           source_number: reference,
           entry_date: date,
           description: "#{is_receive ? 'Receive' : 'Spend'} - #{contact_name} - #{reference}",
-          currency_code: xero_tx['CurrencyCode'] || 'AUD',
+          currency_code: xero_tx['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: xero_tx['CurrencyRate']&.to_d || 1.0,
           external_created_at: xero_tx['DateString'],
           status: 'posted'
@@ -856,7 +857,7 @@ module Gl
           source_number: xero_cn['CreditNoteNumber'],
           entry_date: date,
           description: "Credit Note #{xero_cn['CreditNoteNumber']} - #{contact_name}",
-          currency_code: xero_cn['CurrencyCode'] || 'AUD',
+          currency_code: xero_cn['CurrencyCode'] || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: xero_cn['CurrencyRate']&.to_d || 1.0,
           external_created_at: xero_cn['DateString'],
           status: 'posted'
@@ -935,7 +936,7 @@ module Gl
           source_number: xero_journal['Narration']&.truncate(20) || "MJ-#{xero_journal['ManualJournalID'][0..7]}",
           entry_date: date,
           description: xero_journal['Narration'] || 'Manual Journal',
-          currency_code: 'AUD',
+          currency_code: TenantSetting::DEFAULT_CURRENCY,
           external_created_at: xero_journal['DateString'],
           status: 'posted'
         )

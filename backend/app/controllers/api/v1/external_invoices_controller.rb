@@ -14,13 +14,13 @@ module Api
         invoices = invoices.where(invoice_type: params[:type]) if params[:type].present?
 
         # Filter by job
-        invoices = invoices.where(job_id: params[:job_id]) if params[:job_id].present?
+        invoices = invoices.for_job(params[:job_id])
 
         # Filter by contact
-        invoices = invoices.where(contact_id: params[:contact_id]) if params[:contact_id].present?
+        invoices = invoices.for_contact(params[:contact_id])
 
         # Filter by status
-        invoices = invoices.where(status: params[:status]) if params[:status].present?
+        invoices = invoices.with_status(params[:status])
 
         # Filter by tenant
         invoices = invoices.where(tenant_id: params[:tenant_id]) if params[:tenant_id].present?
@@ -70,7 +70,7 @@ module Api
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       end
 
       # GET /api/v1/external_invoices/by_external_id/:external_id
@@ -91,7 +91,7 @@ module Api
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       end
 
       # GET /api/v1/external_invoices/by_job/:job_id
@@ -156,7 +156,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       # GET /api/v1/external_invoices/by_tracking
@@ -165,10 +165,7 @@ module Api
         tracking_option_name = params[:tracking_option_name]
 
         unless tracking_option_name.present?
-          return render json: {
-            success: false,
-            error: "tracking_option_name is required"
-          }, status: :bad_request
+          return render_error("tracking_option_name is required", status: :bad_request)
         end
 
         # Find job by tracking option name
@@ -292,7 +289,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # GET /api/v1/external_invoices/sync_status
@@ -335,10 +332,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Sync trigger failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Sync failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Sync failed: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/external_invoices/push_pending
@@ -356,10 +350,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Push pending failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Push failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Push failed: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/external_invoices
@@ -369,7 +360,7 @@ module Api
         push_to_xero = params[:push_to_xero] != false
 
         unless tenant_id.present?
-          return render json: { success: false, error: "tenant_id is required" }, status: :bad_request
+          return render_error("tenant_id is required", status: :bad_request)
         end
 
         # Build invoice attributes from params
@@ -382,7 +373,7 @@ module Api
           contact_id: params[:contact_id],
           job_id: params[:job_id],
           line_items: params[:line_items] || [],
-          currency_code: params[:currency_code] || "AUD",
+          currency_code: params[:currency_code] || TenantSetting::DEFAULT_CURRENCY,
           subtotal: params[:subtotal],
           total_tax: params[:total_tax],
           total: params[:total]
@@ -421,10 +412,7 @@ module Api
         }, status: :created
       rescue StandardError => e
         Rails.logger.error("Create invoice failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Failed to create invoice: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Failed to create invoice: #{e.message}", status: :unprocessable_entity)
       end
 
       # PATCH /api/v1/external_invoices/:id
@@ -458,13 +446,10 @@ module Api
           data: serialize_invoice(invoice, include_details: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       rescue StandardError => e
         Rails.logger.error("Update invoice failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Failed to update invoice: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Failed to update invoice: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/external_invoices/:id/pdf
@@ -499,7 +484,7 @@ module Api
             return
           end
           # Storage fetch failed - return error
-          render json: { success: false, error: "Storage fetch failed for document #{existing_pdf.id}" }, status: :service_unavailable
+          render_error("Storage fetch failed for document #{existing_pdf.id}", status: :service_unavailable)
           return
         end
 
@@ -516,18 +501,18 @@ module Api
                       disposition: "inline"
             return
           end
-          render json: { success: false, error: "Storage fetch failed after Xero sync" }, status: :service_unavailable
+          render_error("Storage fetch failed after Xero sync", status: :service_unavailable)
           return
         end
 
         # Xero sync failed or no storage_reference
         error_msg = result[:errors].first || "PDF not available"
-        render json: { success: false, error: error_msg }, status: :not_found
+        render_error(error_msg, status: :not_found)
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       rescue StandardError => e
         Rails.logger.error("PDF fetch failed: #{e.message}")
-        render json: { success: false, error: "Failed to fetch PDF: #{e.message}" }, status: :internal_server_error
+        render_error("Failed to fetch PDF: #{e.message}", status: :internal_server_error)
       end
 
       # Fetch file content from storage (provider-agnostic)
@@ -616,7 +601,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       end
 
       private

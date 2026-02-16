@@ -19,6 +19,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { isTrust } from "@/lib/entity-types";
+import type { Company, CompanyGroup } from "@/lib/types";
 
 // Shape icons matching the family trust diagram
 const CompanyIcon = ({ className = "h-5 w-5" }: { className?: string }) => (
@@ -74,29 +75,6 @@ function getEntityColor(entityType: string | undefined, isTrustee = false) {
     default:
       return "text-blue-600 dark:text-blue-400";
   }
-}
-
-interface Company {
-  id: number;
-  name: string;
-  code?: string;
-  acn?: string;
-  entity_type?: string;
-  is_trustee?: boolean;
-  trust_name?: string;
-  is_trust_of_trustee?: boolean;
-  ownership_percentage?: number;
-  shareholders?: unknown[];
-  investments?: unknown[];
-  children?: Company[];
-  document_count?: number;
-}
-
-interface CompanyGroup {
-  id: number;
-  name: string;
-  active?: boolean;
-  companies_count?: number;
 }
 
 interface PersonRole {

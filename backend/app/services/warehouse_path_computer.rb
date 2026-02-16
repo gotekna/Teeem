@@ -134,12 +134,10 @@ class WarehousePathComputer
       end
     end
 
-    # Last resort: source_type default (only for truly unmapped docs)
-    {
-      folder_path: doc.source_type_to_root_folder,
-      warehouse_folder_id: nil,
-      path_template_version: 0
-    }
+    # No fallback — every document MUST resolve to a warehouse folder.
+    # If we get here, the config is broken (missing folder, bad source_type, etc.)
+    raise "No warehouse folder found for WarehouseDocument #{doc.id || '(new)'} " \
+          "(source_type=#{doc.source_type}, linkable_type=#{doc.linkable_type})"
   end
 
   # Batch compute folder paths for multiple documents
@@ -256,36 +254,50 @@ class WarehousePathComputer
     nil
   end
 
-  # Map linkable_type (model class name) to warehouse_type code
+  # Map linkable_type (model class name) to warehouse_type code.
+  # SSoT: Uses warehouse_types.source_model column (DB-driven, not hardcoded).
   # @param linkable_type [String] e.g., "Job", "Contact"
   # @return [String, nil] warehouse_type code
   def linkable_type_to_warehouse_type_code(linkable_type)
-    case linkable_type
-    when "Job" then "job"
-    when "Contact" then "contact"
-    when "CorporateCompany" then "corporate"
-    when "SmTask" then "task"
-    when "PricebookItem" then "warehouse"
-    else nil
-    end
+    source_model_map[linkable_type]
   end
 
-  # Map source_type string to warehouse_type code (fallback for docs without linkable)
+  # Map source_type string to warehouse_type code.
+  # SSoT: Looks up which warehouse_type's code matches the source_type.
+  # Most source_types match the warehouse_type code directly (e.g., "job" → "job").
+  # Exceptions are handled by warehouse_type_for_source_type_map.
   # @param source_type [String] e.g., "email", "corporate"
   # @return [String] warehouse_type code
   def source_type_to_warehouse_type_code(source_type)
-    case source_type
-    when "task" then "task"
-    when "email", "email_attachment" then "email"
-    when "corporate", "xero", "financial", "asset" then "corporate"
-    when "job", "compliance" then "job"
-    when "contact", "people" then "contact"
-    when "case" then "case"
-    when "notebook" then "notebook"
-    when "user" then "user"
-    when "warehouse", "template" then "warehouse"
-    when "esignature" then "e_signing"
-    else "unassigned"
+    warehouse_type_for_source_type_map[source_type] || "unassigned"
+  end
+
+  # Cache: source_model → warehouse_type code
+  # e.g., "Job" → "job", "Contact" → "contact", "SmTask" → "task"
+  def source_model_map
+    @source_model_map ||= WarehouseType.enabled
+      .where.not(source_model: [nil, ""])
+      .pluck(:source_model, :code)
+      .to_h
+  end
+
+  # Cache: source_type → warehouse_type code
+  # Most source_types ARE the warehouse_type code (job→job, email→email).
+  # For unmapped source_types, falls back to matching warehouse_type code.
+  def warehouse_type_for_source_type_map
+    @warehouse_type_for_source_type_map ||= begin
+      codes = WarehouseType.enabled.pluck(:code)
+      map = codes.each_with_object({}) { |c, h| h[c] = c }
+      # Email attachments file under the email warehouse type
+      map["email_attachment"] = "email"
+      # Legacy source_types that map to existing warehouse types
+      map["people"] = "contact" if codes.include?("contact")
+      map["compliance"] = "job" if codes.include?("job")
+      map["xero"] = "corporate" if codes.include?("corporate")
+      map["financial"] = "corporate" if codes.include?("corporate")
+      map["esignature"] = "e_signing" if codes.include?("e_signing")
+      map["template"] = "warehouse" if codes.include?("warehouse")
+      map
     end
   end
 

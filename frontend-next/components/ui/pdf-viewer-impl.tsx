@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Button } from "./button";
 import { getCachedPdf, cachePdf } from "@/lib/pdf-cache";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { api } from "@/lib/api";
 
 /**
  * PDF Viewer Implementation - Fast Cached iframe Version
@@ -54,8 +55,7 @@ export function PDFViewerImpl({
   const [isPageTransitioning, setIsPageTransitioning] = React.useState(false);
   const [containerKey, setContainerKey] = React.useState<number>(0);
   // Zoom state: 100 = 100%, "page-fit" = fit to width
-  // Default to 100% for sharp, readable text (page-fit causes blurriness)
-  const [zoom, setZoom] = React.useState<number | "page-fit">(100);
+  const [zoom, setZoom] = React.useState<number | "page-fit">("page-fit");
   // Download progress (0-100) - null when not tracking (e.g., cached or unknown size)
   const [downloadProgress, setDownloadProgress] = React.useState<number | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -131,33 +131,18 @@ export function PDFViewerImpl({
             const fileId = urlObj.searchParams.get("file_id");
 
             if (fileId) {
-              // Get auth token
-              const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+              // Fetch presigned URL from backend (skips Rails streaming) - returns JSON
+              const presignedResponse = await api.get<{ success: boolean; url: string }>(
+                `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
+              );
 
-              if (token) {
-                // Fetch presigned URL from backend (skips Rails streaming)
-                const presignedResponse = await fetch(
-                  `${urlObj.origin}/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
-                  {
-                    headers: { Authorization: `Bearer ${token}` },
-                    credentials: "include",
-                    mode: "cors",
-                  }
-                );
-
-                if (presignedResponse.ok) {
-                  const data = await presignedResponse.json();
-                  if (data.success && data.url) {
-                    fetchUrl = data.url;
-                    isPresignedS3 = true;  // Now we have a presigned URL
-                    console.log("[PDF] Upgraded to presigned URL for faster loading");
-                  }
-                }
+              if (presignedResponse?.success && presignedResponse.url) {
+                fetchUrl = presignedResponse.url;
+                isPresignedS3 = true;  // Now we have a presigned URL
               }
             }
           } catch (e) {
             // Fall back to original URL on any error
-            console.warn("[PDF] Presigned URL upgrade failed, using original:", e);
           }
         }
 
@@ -176,6 +161,8 @@ export function PDFViewerImpl({
         }
 
         // 4. Fetch the PDF with progress tracking
+        // Keep as raw fetch - this fetches the actual PDF blob from presigned S3 URL (external)
+        // or streams from backend. Not a JSON API response.
         const response = await fetch(fetchUrl, {
           // Don't send credentials for cross-origin presigned URLs
           credentials: isPresignedS3 ? "omit" : "include",

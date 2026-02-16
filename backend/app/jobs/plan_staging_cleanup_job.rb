@@ -15,6 +15,7 @@
 #
 # =============================================================================
 class PlanStagingCleanupJob < ApplicationJob
+  include DeduplicatableJob
   include DocumentProviderAware
 
   queue_as :default

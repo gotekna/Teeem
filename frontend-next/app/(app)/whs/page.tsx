@@ -23,6 +23,7 @@ import {
 import { api } from "@/lib/api";
 import { ScrollablePage } from "@/components/ui/page-wrappers";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ROUTES } from "@/lib/constants/route-paths";
 
 interface WHSStats {
   active_swms: number;
@@ -139,11 +140,11 @@ export default function WHSPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => router.push("/whs/incidents")}>
+          <Button variant="outline" onClick={() => router.push(ROUTES.WHS_INCIDENTS)}>
             <AlertTriangle className="h-4 w-4 mr-2" />
             Report Incident
           </Button>
-          <Button onClick={() => router.push("/whs/swms/new")}>
+          <Button onClick={() => router.push(ROUTES.WHS_SWMS_NEW)}>
             <Plus className="h-4 w-4 mr-2" />
             Create SWMS
           </Button>
@@ -154,7 +155,7 @@ export default function WHSPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card
           className="cursor-pointer hover:bg-accent/50 transition-colors"
-          onClick={() => router.push("/whs/swms")}
+          onClick={() => router.push(ROUTES.WHS_SWMS)}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -223,7 +224,7 @@ export default function WHSPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card
           className="cursor-pointer hover:bg-accent/50 transition-colors"
-          onClick={() => router.push("/whs/incidents")}
+          onClick={() => router.push(ROUTES.WHS_INCIDENTS)}
         >
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -296,7 +297,7 @@ export default function WHSPage() {
               <CardTitle>Recent Incidents</CardTitle>
               <CardDescription>Reported safety incidents</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/whs/incidents")}>
+            <Button variant="ghost" size="sm" onClick={() => router.push(ROUTES.WHS_INCIDENTS)}>
               View All
             </Button>
           </CardHeader>
@@ -339,7 +340,7 @@ export default function WHSPage() {
               <CardTitle>Active SWMS</CardTitle>
               <CardDescription>Safe Work Method Statements</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => router.push("/whs/swms")}>
+            <Button variant="ghost" size="sm" onClick={() => router.push(ROUTES.WHS_SWMS)}>
               View All
             </Button>
           </CardHeader>
@@ -378,7 +379,7 @@ export default function WHSPage() {
                 icon={<ClipboardCheck className="h-12 w-12" />}
                 action={{
                   label: "Create SWMS",
-                  onClick: () => router.push("/whs/swms/new"),
+                  onClick: () => router.push(ROUTES.WHS_SWMS_NEW),
                   variant: "outline",
                 }}
                 size="sm"

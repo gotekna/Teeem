@@ -54,7 +54,7 @@ interface ESignaturePdfEditorProps {
   fields: SignatureField[];
   onFieldsChange: (fields: SignatureField[]) => void;
   // Optional signer management callbacks
-  onAddSigner?: (email: string, name?: string) => void;
+  onAddSigner?: (email: string, name?: string, contactId?: number) => void;
   onRemoveSigner?: (signerId: string) => void;
   onReorderSigners?: (signers: Signer[]) => void;
 }
@@ -178,6 +178,59 @@ export function ESignaturePdfEditor({
       setIsDragging(true);
     },
     [pdfDimensions, scale]
+  );
+
+  // Handle drop from signer panel (draggable badge → PDF page)
+  const handlePageDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes("application/x-esign-signer-id")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    }
+  }, []);
+
+  const handlePageDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const signerId = e.dataTransfer.getData("application/x-esign-signer-id");
+      const fieldType = e.dataTransfer.getData("application/x-esign-field-type") as SignatureFieldType;
+      if (!signerId || !fieldType || !pdfDimensions || !pageRef.current) return;
+
+      e.preventDefault();
+      const signer = signers.find((s) => s.id === signerId);
+      if (!signer) return;
+
+      const rect = pageRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const scaledWidth = pdfDimensions.width * scale;
+      const scaledHeight = pdfDimensions.height * scale;
+
+      const xPercent = (x / scaledWidth) * 100;
+      const yPercent = (y / scaledHeight) * 100;
+
+      const dimensions = DEFAULT_FIELD_DIMENSIONS[fieldType];
+
+      const newField: SignatureField = {
+        id: `field-${Date.now()}`,
+        type: fieldType,
+        pageId: `page-${currentPage}`,
+        pageNumber: currentPage,
+        signerId: signer.id,
+        signerEmail: signer.email,
+        signerColor: signer.color,
+        xPercent: Math.max(0, Math.min(100 - dimensions.width, xPercent)),
+        yPercent: Math.max(0, Math.min(100 - dimensions.height, yPercent)),
+        widthPercent: dimensions.width,
+        heightPercent: dimensions.height,
+        required: true,
+      };
+
+      onFieldsChange([...fields, newField]);
+      setSelectedFieldId(newField.id);
+      // Auto-select the signer whose badge was dropped
+      onSelectSigner(signer);
+    },
+    [pdfDimensions, scale, currentPage, fields, onFieldsChange, signers, onSelectSigner]
   );
 
   // Handle field dragging
@@ -358,6 +411,8 @@ export function ESignaturePdfEditor({
               ref={pageRef}
               className="relative inline-block shadow-lg"
               onClick={handlePageClick}
+              onDragOver={handlePageDragOver}
+              onDrop={handlePageDrop}
               style={{ cursor: selectedTool && selectedSigner ? "crosshair" : "default" }}
             >
               <Document

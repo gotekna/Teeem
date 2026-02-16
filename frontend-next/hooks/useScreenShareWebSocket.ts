@@ -149,7 +149,6 @@ export function useScreenShareWebSocket(
     lastFailureTimeRef.current = now;
 
     if (failureCountRef.current >= MAX_FAILURES) {
-      console.warn(`[ScreenShareWS] Too many failures (${failureCountRef.current}), disabling`);
       isDisabledRef.current = true;
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
@@ -172,17 +171,14 @@ export function useScreenShareWebSocket(
           connected() {
             setIsConnected(true);
             failureCountRef.current = 0;
-            console.log("[ScreenShareWS] Connected");
           },
           disconnected() {
             setIsConnected(false);
             trackFailure();
-            console.log("[ScreenShareWS] Disconnected");
           },
           rejected() {
             setIsConnected(false);
             trackFailure();
-            console.warn("[ScreenShareWS] Connection rejected");
           },
           received: handleReceived,
         }
@@ -219,7 +215,6 @@ export function useScreenShareWebSocket(
       payload?: Record<string, unknown>
     ) => {
       if (!subscriptionRef.current) {
-        console.warn("[ScreenShareWS] Cannot send - not connected");
         return;
       }
 

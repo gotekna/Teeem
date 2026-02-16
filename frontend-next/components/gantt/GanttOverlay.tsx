@@ -17,6 +17,7 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CANVAS_COLORS } from '@/lib/constants/color-constants';
 
 // =============================================================================
 // Types (imported from UnifiedGanttCanvas)
@@ -80,8 +81,8 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
       checked: 'bg-emerald-500 dark:bg-emerald-400 border-emerald-500 dark:border-emerald-400',
       unchecked: 'border-border',
     },
-    hexColor: '#10b981',
-    hexBorder: '#10b981',
+    hexColor: CANVAS_COLORS.checkboxes.started,
+    hexBorder: CANVAS_COLORS.checkboxes.started,
   },
   hold: {
     field: 'hold',
@@ -90,8 +91,8 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
       checked: 'bg-amber-500 dark:bg-amber-400 border-amber-500 dark:border-amber-400',
       unchecked: 'border-border',
     },
-    hexColor: '#f59e0b',
-    hexBorder: '#f59e0b',
+    hexColor: CANVAS_COLORS.checkboxes.hold,
+    hexBorder: CANVAS_COLORS.checkboxes.hold,
   },
   confirm: {
     field: 'confirm',
@@ -100,8 +101,8 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
       checked: 'bg-orange-500 dark:bg-orange-400 border-orange-500 dark:border-orange-400',
       unchecked: 'border-border',
     },
-    hexColor: '#f97316',
-    hexBorder: '#f97316',
+    hexColor: CANVAS_COLORS.checkboxes.confirm,
+    hexBorder: CANVAS_COLORS.checkboxes.confirm,
   },
   supplier_confirm: {
     field: 'supplier_confirm',
@@ -110,8 +111,8 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
       checked: 'bg-purple-500 dark:bg-purple-400 border-purple-500 dark:border-purple-400',
       unchecked: 'border-border',
     },
-    hexColor: '#a855f7',
-    hexBorder: '#a855f7',
+    hexColor: CANVAS_COLORS.checkboxes.supplierConfirm,
+    hexBorder: CANVAS_COLORS.checkboxes.supplierConfirm,
   },
   is_completed: {
     field: 'is_completed',
@@ -120,8 +121,8 @@ const CHECKBOX_CONFIGS: Record<string, CheckboxConfig> = {
       checked: 'bg-gray-700 dark:bg-gray-600 border-gray-700 dark:border-gray-600',
       unchecked: 'border-border',
     },
-    hexColor: '#374151',
-    hexBorder: '#374151',
+    hexColor: CANVAS_COLORS.checkboxes.completed,
+    hexBorder: CANVAS_COLORS.checkboxes.completed,
   },
 };
 

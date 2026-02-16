@@ -27,6 +27,11 @@ Rails.application.routes.draw do
         end
       end
 
+      # App Dashboard (main overview page)
+      get "app_dashboard/stats", to: "app_dashboard#stats"
+      get "app_dashboard/activity", to: "app_dashboard#activity"
+      get "app_dashboard/upcoming", to: "app_dashboard#upcoming"
+
       # Async PDF Generation
       resources :pdf_generations, only: [:index, :create, :show] do
         member do
@@ -205,11 +210,13 @@ Rails.application.routes.draw do
       # UserDocuments - personal user documents (My Docs feature)
       resources :user_documents, only: [ :index, :show, :create, :update, :destroy ] do
         member do
+          get :content                # GET /api/v1/user_documents/:id/content - stream bytes (CORS-safe preview)
           get :download               # GET /api/v1/user_documents/:id/download - presigned URL
           post :save_to_job           # POST /api/v1/user_documents/:id/save_to_job - link to job
         end
         collection do
           post :create_folder         # POST /api/v1/user_documents/create_folder - virtual folder
+          delete :delete_folder       # DELETE /api/v1/user_documents/delete_folder - remove empty folder
         end
       end
 
@@ -314,6 +321,8 @@ Rails.application.routes.draw do
 
       # CSV Import routes
       post "csv_imports/job_with_pos", to: "csv_imports#import_job_with_pos"
+      post "csv_imports/databuild_preview", to: "csv_imports#databuild_preview"
+      post "csv_imports/databuild_import", to: "csv_imports#databuild_import"
 
       # Email to Contacts extraction
       resources :email_to_contacts, only: [] do
@@ -383,6 +392,11 @@ Rails.application.routes.draw do
       get "health/pricebook", to: "health#pricebook"
       get "health/pricebook/missing_items", to: "health#missing_items"
       get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
+
+      # Sentry Error Tracking (admin-only proxy)
+      get "sentry/issues", to: "sentry#issues"
+      get "sentry/issues/:id/detail", to: "sentry#detail"
+      post "sentry/issues/:id/resolve", to: "sentry#resolve"
 
       # Performance Observatory - Metrics Ingestion
       post "metrics", to: "metrics#create"              # Receive frontend Web Vitals
@@ -528,7 +542,11 @@ Rails.application.routes.draw do
         end
         member do
           get :preview
+          get :content
           get :download
+          get :classification
+          post :validate
+          post :reclassify
         end
       end
 
@@ -1274,6 +1292,7 @@ Rails.application.routes.draw do
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_delete
+          post :import_from_microsoft
           get :for_select
           get "by_contact/:contact_id/personal_details", action: :personal_details_by_contact
         end
@@ -1424,6 +1443,7 @@ Rails.application.routes.draw do
           get :spam
           post :bulk_delete_spam
           get :rules
+          get :suggest_recipients
         end
         member do
           post :assign_to_job
@@ -1437,9 +1457,12 @@ Rails.application.routes.draw do
           post :link_contact
           post :unlink_contact
           post :quick_create_contact
+          post :send_to_docsort
+          post :send_to_bill_inbox
           get :suggest_contacts
           get "attachments/:attachment_id/download", action: :download_attachment
           get "attachments/:attachment_id/presigned_url", action: :attachment_presigned_url
+          post "attachments/:attachment_id/download_blob", action: :download_blob
           get :download_eml
         end
       end
@@ -1458,6 +1481,7 @@ Rails.application.routes.draw do
           get :spam
           post :bulk_delete_spam
           get :rules
+          get :suggest_recipients
         end
         member do
           post :assign_to_job
@@ -1508,7 +1532,11 @@ Rails.application.routes.draw do
       end
 
       # Email Drafts (work-in-progress emails, synced across devices)
+      # Provider sync: drafts are synced to MS365/IMAP Drafts folder in background
       resources :email_drafts, only: [:index, :show, :create, :update, :destroy] do
+        member do
+          post :send_draft
+        end
         collection do
           delete :destroy_all
         end
@@ -1758,6 +1786,17 @@ Rails.application.routes.draw do
         collection do
           get :daily
           get :random
+        end
+      end
+
+      # Feature Requests & Suggestions (shared across all tenants)
+      resources :feature_requests, only: [:index, :create, :update] do
+        collection do
+          post :scope
+        end
+        member do
+          post :follow
+          delete :follow, action: :unfollow
         end
       end
 
@@ -2411,6 +2450,7 @@ Rails.application.routes.draw do
           post :route
           patch :override
           get :download
+          get :classification
         end
       end
 
@@ -2528,6 +2568,9 @@ Rails.application.routes.draw do
           get :accounts
           get :search_contacts
           post :import_tracking_categories
+          post :reparse_tracking_jobs
+          get :tracking_categories_preview
+          post :import_jobs
           post :import_all_bills
           post :import_all_claims
           post :full_import
@@ -2535,6 +2578,8 @@ Rails.application.routes.draw do
           get :organisation
           get :contacts
           get :tracking_categories
+          get :tracking_options
+          post :sync_tracking_options
           get :validate_contacts
           get :pdf_sync_status
           get :sync_health

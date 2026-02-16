@@ -10,7 +10,7 @@ module HealthChecks
   #   - Missing trade (warning) - affects task assignment
   #
   class SmScheduleMastersCheck < BaseCheck
-    FOUNDATION_SLUG = "sm-schedule-master"
+    FOUNDATION_SLUG = "sm-schedule-master".freeze
 
     def self.check_type
       "sm_schedule_masters"

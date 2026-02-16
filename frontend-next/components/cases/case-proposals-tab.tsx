@@ -626,7 +626,7 @@ function CaseProposalCard({
             </div>
             <ul className="pl-6 list-disc list-inside text-sm text-muted-foreground">
               {data.document_requests.slice(0, 5).map((doc, idx) => (
-                <li key={idx}>{doc}</li>
+                <li key={`doc-${doc}-${idx}`}>{doc}</li>
               ))}
             </ul>
           </div>
@@ -641,7 +641,7 @@ function CaseProposalCard({
             </div>
             <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400">
               {data.missing_info.map((item, idx) => (
-                <li key={idx}>{item}</li>
+                <li key={`missing-${item}-${idx}`}>{item}</li>
               ))}
             </ul>
           </div>

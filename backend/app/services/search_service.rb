@@ -15,7 +15,7 @@
 #
 class SearchService
   VALID_MODES = %w[contains exact starts_with fuzzy regex].freeze
-  DEFAULT_MODE = 'contains'
+  DEFAULT_MODE = 'contains'.freeze
 
   class << self
     # Apply search filter to an ActiveRecord query

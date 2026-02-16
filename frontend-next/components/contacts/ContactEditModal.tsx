@@ -49,55 +49,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { isPerson as isPersonType, isCompany as isCompanyType } from "@/lib/entity-types";
-
-interface ContactPerson {
-  id?: number;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  mobile: string | null;
-  role: string | null;
-  is_primary: boolean;
-  include_in_emails: boolean;
-  _destroy?: boolean;
-}
-
-interface ContactAddress {
-  id?: number;
-  address_type: 'STREET' | 'POBOX' | 'DELIVERY';
-  line1: string;
-  line2: string | null;
-  city: string;
-  region: string;
-  postal_code: string;
-  country: string;
-  is_primary: boolean;
-  _destroy?: boolean;
-}
-
-interface Contact {
-  id: number;
-  display_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  mobile_phone: string | null;
-  office_phone: string | null;
-  website: string | null;
-  abn: string | null;
-  address: string | null; // Legacy - deprecated, use contact_addresses
-  notes: string | null;
-  is_active: boolean;
-  is_family_member: boolean;
-  entity_type: string | null;
-  sync_with_xero: boolean;
-  xero_contact_id: string | null;
-  primary_company_id?: number | null;
-  primary_company?: { id: number; name: string } | null;
-  contact_persons?: ContactPerson[];
-  contact_addresses?: ContactAddress[]; // SSoT for addresses
-  employees?: Array<{ id: number; display_name: string; email: string | null }>;
-}
+import { API } from "@/lib/constants/api-endpoints";
+import type { Contact, ContactPerson, ContactAddress } from "@/lib/types";
 
 interface CompanySearchResult {
   id: number;
@@ -197,7 +150,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
         // Don't filter by entity_type - search all contacts and filter out persons client-side
         // This allows finding companies with blank entity_type (legacy data)
         // SSoT: Uses PAGE_SIZE_SEARCH from pagination-constants.ts
-        const response = await api.get<{ contacts: CompanySearchResult[] }>("/api/v1/contacts", {
+        const response = await api.get<{ contacts: CompanySearchResult[] }>("API.contacts.list", {
           params: { search: companySearchQuery, per_page: PAGE_SIZE_SEARCH },
         });
         // Filter out persons - keep company, trust, and blank entity_type
@@ -226,7 +179,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       setSearchingEmployees(true);
       try {
         // SSoT: Uses PAGE_SIZE_AUTOCOMPLETE from pagination-constants.ts
-        const response = await api.get<{ contacts: CompanySearchResult[] }>("/api/v1/contacts", {
+        const response = await api.get<{ contacts: CompanySearchResult[] }>("API.contacts.list", {
           params: { entity_type: "person", search: employeeSearchQuery, per_page: PAGE_SIZE_AUTOCOMPLETE },
         });
         // Filter out people already linked as employees
@@ -262,8 +215,9 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
 
   const updateContactPerson = (index: number, field: keyof ContactPerson, value: string | boolean | null) => {
     const updated = [...contactPersons];
-     
-    (updated[index] as any)[field] = value;
+
+    // Type-safe assignment using Record type
+    (updated[index] as Record<keyof ContactPerson, string | boolean | null | number | undefined>)[field] = value;
 
     // If setting this one as primary, unset others
     if (field === "is_primary" && value === true) {
@@ -299,7 +253,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const createAndSelectCompany = async () => {
     if (!companySearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; display_name: string } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string } }>(API.contacts.create, {
         contact: {
           display_name: companySearchQuery,
           entity_type: "company",
@@ -327,7 +281,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const addEmployee = async (employee: CompanySearchResult) => {
     if (!contact) return;
     try {
-      await api.patch(`/api/v1/contacts/${employee.id}`, {
+      await api.patch(API.contacts.update(employee.id), {
         contact: { primary_company_id: contact.id },
       });
       setEmployees([...employees, { id: employee.id, display_name: employee.display_name, email: employee.email }]);
@@ -343,7 +297,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
   const createAndAddEmployee = async () => {
     if (!contact || !employeeSearchQuery.trim()) return;
     try {
-      const response = await api.post<{ contact: { id: number; display_name: string; email: string | null } }>("/api/v1/contacts", {
+      const response = await api.post<{ contact: { id: number; display_name: string; email: string | null } }>(API.contacts.create, {
         contact: {
           display_name: employeeSearchQuery,
           entity_type: "person",
@@ -364,7 +318,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
 
   const removeEmployee = async (employeeId: number) => {
     try {
-      await api.patch(`/api/v1/contacts/${employeeId}`, {
+      await api.patch(API.contacts.update(employeeId), {
         contact: { primary_company_id: null },
       });
       setEmployees(employees.filter(e => e.id !== employeeId));
@@ -407,7 +361,7 @@ export function ContactEditModal({ contact, open, onOpenChange, onSaved }: Conta
       // Destructure to exclude legacy address field
       const { address: _unusedAddress, ...restFormData } = formData;
 
-      await api.patch(`/api/v1/contacts/${contact.id}`, {
+      await api.patch(API.contacts.update(contact.id), {
         contact: {
           ...restFormData,
           display_name,

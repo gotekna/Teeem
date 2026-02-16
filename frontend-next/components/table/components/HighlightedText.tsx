@@ -181,11 +181,11 @@ export function HighlightedText({
     <span>
       {parts.map((part, index) =>
         part.isMatch ? (
-          <mark key={index} className={highlightClassName}>
+          <mark key={`${part.text}-${index}`} className={highlightClassName}>
             {part.text}
           </mark>
         ) : (
-          <span key={index}>{part.text}</span>
+          <span key={`${part.text}-${index}`}>{part.text}</span>
         )
       )}
     </span>

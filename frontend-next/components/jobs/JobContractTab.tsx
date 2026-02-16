@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,34 +30,7 @@ import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
-
-interface Job {
-  id: number;
-  name: string;
-  plan_number?: string;
-  contract_price?: number;
-  prime_cost?: number;
-  provisional_sums?: number;
-  external_sales_fee?: number;
-  prime_cost_details?: string;
-  provisional_sums_details?: string;
-  has_special_conditions?: boolean;
-  special_conditions?: string;
-  contract_date?: string;
-  start_date?: string;
-  build_period?: string;
-  construction_days?: number;
-  stage_weather?: string;
-  weekend_work?: string;
-  liquidated_damages?: number;
-  certification_by_owner?: boolean;
-  finance_approval_required?: boolean | null;
-  finance_approval_date?: string;
-  plan_date?: string;
-  spec_date?: string;
-  practical_completion_date?: string;
-  warranty_end_date?: string;
-}
+import { Job } from "@/lib/types";
 
 interface JobContractTabProps {
   job: Job;
@@ -77,7 +50,7 @@ function calculateBuildPeriod(
   }
 
   const startDate = new Date(startDateStr);
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
   let workingDaysCounted = 0;
   let weekendDays = 0;
   let holidayDays = 0;

@@ -4,36 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
 import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
-
-/**
- * API column format (what the backend returns)
- */
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  required?: boolean;
-  is_unique?: boolean;
-}
-
-/**
- * Foundation data from the API
- */
-export interface Foundation {
-  id: number;
-  name: string;
-  table_type: 'system' | 'user';
-  model_class?: string;
-  database_table_name?: string;
-  api_endpoint?: string;
-  columns: ApiColumn[];
-}
+import type { Foundation, ApiColumn } from '@/lib/types';
 
 /**
  * API response shape for foundation
@@ -153,7 +124,7 @@ export function useFoundationData(
         sortable: true,
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
-        choices: col.available_choices,
+        choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
         lookup_foundation_id: col.lookup_foundation_id,
         lookup_display_column: col.lookup_display_column,
         // SSoT: System columns are visible but non-editable (GOLD_STANDARD_TABLE.md)

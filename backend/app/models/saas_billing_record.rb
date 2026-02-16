@@ -10,10 +10,13 @@ class SaasBillingRecord < ApplicationRecord
 
   has_many :referral_commissions, dependent: :destroy
 
+  # Constants
+  STATUSES = %w[pending invoiced paid].freeze
+
   # Validations
   validates :billing_period_start, presence: true
   validates :billing_period_end, presence: true
-  validates :status, presence: true, inclusion: { in: %w[pending invoiced paid] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validate :period_end_after_start
 
   # Scopes

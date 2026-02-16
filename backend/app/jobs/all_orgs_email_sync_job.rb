@@ -29,8 +29,11 @@ class AllOrgsEmailSyncJob < ApplicationJob
 
     # FRC (Feb 2026): Changed from .connected to .refreshable_app for 24/7 availability
     # Token may have expired overnight but can still be refreshed on-demand
-    # Order by last_sync_at so stale credentials get priority
-    connected_credentials = MicrosoftCredential.refreshable_app.order(:last_sync_at)
+    # ⚠️ FRC (Feb 2026): NULLS FIRST - new credentials that have never synced get priority
+    # Root cause: PostgreSQL sorts NULLs last with ORDER BY ASC, so new credentials
+    # (last_sync_at = NULL) were always processed last, starved by the 12-minute time budget,
+    # and could never complete their first sync (Pilgrim Homes synced 2/56 mailboxes in 2 weeks).
+    connected_credentials = MicrosoftCredential.refreshable_app.order(Arel.sql("last_sync_at ASC NULLS FIRST"))
 
     if connected_credentials.empty?
       Rails.logger.info "[AllOrgsEmailSync] No connected MS365 organizations found"

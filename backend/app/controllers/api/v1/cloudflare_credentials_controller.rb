@@ -60,10 +60,7 @@ module Api
             data: credential_json(credential)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(credential)
         end
       end
 
@@ -79,10 +76,7 @@ module Api
             data: credential_json(@credential)
           }
         else
-          render json: {
-            success: false,
-            error: @credential.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@credential)
         end
       end
 
@@ -114,23 +108,14 @@ module Api
         else
           @credential.mark_error!("Connection test failed")
 
-          render json: {
-            success: false,
-            error: "Failed to connect to Cloudflare. Please check your API token."
-          }
+          render_error("Failed to connect to Cloudflare. Please check your API token.")
         end
       rescue CloudflareService::AuthenticationError => e
         @credential.mark_error!(e.message)
-        render json: {
-          success: false,
-          error: "Authentication failed: #{e.message}"
-        }, status: :unauthorized
+        render_error("Authentication failed: #{e.message}", status: :unauthorized)
       rescue CloudflareService::ApiError => e
         @credential.mark_error!(e.message)
-        render json: {
-          success: false,
-          error: "API error: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("API error: #{e.message}", status: :unprocessable_entity)
       end
 
       # GET /api/v1/cloudflare_credentials/zones
@@ -140,10 +125,7 @@ module Api
         credential = CloudflareCredential.active_credential(current_tenant)
 
         unless credential&.status_connected?
-          render json: {
-            success: false,
-            error: "Cloudflare not connected"
-          }, status: :unprocessable_entity
+          render_error("Cloudflare not connected", status: :unprocessable_entity)
           return
         end
 
@@ -162,10 +144,7 @@ module Api
           }
         }
       rescue CloudflareService::ApiError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private
@@ -173,7 +152,7 @@ module Api
       def set_credential
         @credential = CloudflareCredential.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Credential not found" }, status: :not_found
+        render_error("Credential not found", status: :not_found)
       end
 
       def credential_params

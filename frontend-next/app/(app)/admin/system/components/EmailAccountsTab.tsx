@@ -63,6 +63,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { useToast } from "@/components/ui/use-toast";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import {
   Table,
   TableBody,
@@ -84,6 +85,7 @@ import {
 } from "@/lib/email-signature";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 interface ImapCredential {
   id: number;
@@ -571,7 +573,7 @@ function MS365MailboxAccessConfig() {
                       navigator.clipboard.writeText(ms365ConsentUrl);
                       setMs365Copied(true);
                       setMs365Waiting(true);
-                      setTimeout(() => setMs365Copied(false), 3000);
+                      setTimeout(() => setMs365Copied(false), UI_COPY_FEEDBACK_MS);
                     }}
                     className="shrink-0"
                   >
@@ -785,7 +787,7 @@ function MS365MailboxAccessConfig() {
                 <Table className="w-full text-sm">
                   <TableHeader>
                     <TableRow className="border-b">
-                      <TableHead className="text-left py-2 pr-4 font-medium text-muted-foreground">
+                      <TableHead className="text-left py-2 pr-4 font-medium text-muted-foreground sticky left-0 z-10 bg-background">
                         <div className="flex items-center gap-1">
                           <Users className="h-4 w-4" />
                           User
@@ -806,7 +808,7 @@ function MS365MailboxAccessConfig() {
                   <TableBody>
                     {teeemUsers.map(user => (
                       <TableRow key={user.id} className="border-b last:border-b-0 hover:bg-muted/50">
-                        <TableCell className="py-2 pr-4">
+                        <TableCell className="py-2 pr-4 sticky left-0 z-10 bg-background">
                           <div className="font-medium">{user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </TableCell>
@@ -1232,11 +1234,6 @@ export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {
         api.get<{ success: boolean; data: ImapCredential[] }>("/api/v1/imap_credentials"),
         api.get<{ success: boolean; data: Provider[] }>("/api/v1/imap_credentials/providers"),
       ]);
-      // Debug: Log shared_with_users - stringify to see actual values
-      console.log("[EmailAccounts] Raw response:", JSON.stringify(credResponse, null, 2));
-      console.log("[EmailAccounts] Credentials shared_with_users:", credResponse.data?.map(c =>
-        `${c.name}: ${JSON.stringify(c.shared_with_users)}`
-      ));
       setCredentials(credResponse.data || []);
       setProviders(providerResponse.data || []);
     } catch (error) {
@@ -1331,7 +1328,7 @@ export function EmailAccountsTab({ subTab, basePath }: EmailAccountsTabProps = {
     try {
       await api.post(`/api/v1/imap_credentials/${id}/sync`);
       // Refresh after a short delay
-      setTimeout(fetchData, 2000);
+      setTimeout(fetchData, RETRY_DELAY_MS);
     } catch (error) {
       console.error("Failed to trigger sync:", error);
     } finally {

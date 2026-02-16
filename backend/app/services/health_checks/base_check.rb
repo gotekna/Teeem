@@ -77,7 +77,9 @@ module HealthChecks
     # @param check_name [String] Machine-readable check name (e.g., 'duplicate_emails')
     # @param auto_fixable [Boolean] Whether this issue can be auto-fixed (default false)
     # @param fix_type [String] The type of fix to apply (e.g., 'name_casing', 'website_prefix')
-    def build_result(name:, severity:, items:, description: nil, limit: 10, icon: nil, action_path: nil, check_name: nil, auto_fixable: false, fix_type: nil)
+    # @param fix_options [Array<Hash>] Per-item fix options for multi-choice fix dialogs
+    #   Each option: { action: String, label: String, description: String, destructive: Boolean, values: Array }
+    def build_result(name:, severity:, items:, description: nil, limit: 10, icon: nil, action_path: nil, check_name: nil, auto_fixable: false, fix_type: nil, fix_options: nil)
       # Get count efficiently - use count(:all) for relations to avoid issues with custom select
       count = if items.is_a?(Array)
                 items.size
@@ -106,6 +108,7 @@ module HealthChecks
         items: format_items(items_array),
         auto_fixable: auto_fixable,
         fix_type: fix_type,
+        fix_options: fix_options,
         success: true
       }
     rescue StandardError => e
@@ -120,6 +123,7 @@ module HealthChecks
         items: [],
         auto_fixable: false,
         fix_type: nil,
+        fix_options: nil,
         success: false,
         error: e.message
       }

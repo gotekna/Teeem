@@ -3,13 +3,13 @@
 # Service to import ALL sales invoices (ACCREC) from Xero as JobClaims
 # These are invoices sent TO clients for work completed on jobs
 class XeroClaimImportService
-  TRACKING_CATEGORY_NAME = "Job"
-  RATE_LIMIT_SLEEP = 100 # milliseconds between operations
+  include XeroConstants
 
   attr_reader :stats
 
   def initialize
     @client = XeroApiClient.new
+    @tracking_category_name = XeroConstants.tracking_category_name
     @tracking_category_id = nil
     @stats = {
       imported: 0,
@@ -28,7 +28,7 @@ class XeroClaimImportService
     unless @tracking_category_id
       return {
         success: false,
-        error: "No '#{TRACKING_CATEGORY_NAME}' tracking category found in Xero",
+        error: "No '#{@tracking_category_name}' tracking category found in Xero",
         stats: @stats
       }
     end
@@ -39,7 +39,7 @@ class XeroClaimImportService
 
     invoices.each do |invoice|
       import_invoice(invoice)
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_BATCH_SLEEP_MS / 1000.0)
     rescue StandardError => e
       error_msg = "Error importing invoice '#{invoice['InvoiceNumber']}': #{e.message}"
       Rails.logger.error(error_msg)
@@ -70,7 +70,7 @@ class XeroClaimImportService
     return nil unless result[:success]
 
     categories = result[:data]["TrackingCategories"] || []
-    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    job_category = categories.find { |c| c["Name"] == @tracking_category_name }
     job_category&.dig("TrackingCategoryID")
   end
 
@@ -95,7 +95,7 @@ class XeroClaimImportService
       break if invoices.length < 100
 
       # Rate limit between pages
-      sleep(0.5)
+      sleep(XERO_PAGE_SLEEP_SEC)
     end
 
     Rails.logger.info("Found #{all_invoices.length} sales invoices in Xero, fetching full details...")
@@ -106,7 +106,7 @@ class XeroClaimImportService
       Rails.logger.info("Fetching details for invoice #{index + 1}/#{all_invoices.length}...") if (index + 1) % 50 == 0
       detail = fetch_invoice_details(invoice["InvoiceID"])
       # Rate limit between individual fetches - Xero allows ~60 calls/min
-      sleep(1.1)
+      sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
       detail || invoice
     end.compact
   end
@@ -157,8 +157,9 @@ class XeroClaimImportService
       return
     end
 
-    # Find the job linked to this tracking option
-    job = Job.find_by(xero_tracking_option_id: tracking_option_id)
+    # Find the job linked to this tracking option (join table first, then legacy fallback)
+    job = XeroJobTrackingLink.job_for(tracking_option_id) ||
+          Job.find_by(xero_tracking_option_id: tracking_option_id)
     unless job
       Rails.logger.debug("Skipping invoice '#{invoice_number}' - tracking option not linked to any job")
       @stats[:no_job] += 1

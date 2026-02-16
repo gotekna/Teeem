@@ -20,9 +20,12 @@ class TakeoffRoomInstance < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   has_many :slots, class_name: "TakeoffRoomSlot", dependent: :destroy
 
+  # Constants
+  STATUSES = %w[in_progress complete].freeze
+
   # Validations
   validates :name, presence: true
-  validates :status, presence: true, inclusion: { in: %w[in_progress complete] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validate :must_belong_to_plan_or_docsort
 
   # Scopes

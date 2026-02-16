@@ -207,7 +207,10 @@ const handleErrorResponse = async (response: Response, skipAuthRedirect = false)
       return JSON.stringify(err);
     }).join('; ');
   } else {
-    errorMessage = errorData.error || `API request failed with status ${response.status}`;
+    const rawError = errorData.error;
+    errorMessage = typeof rawError === 'string'
+      ? rawError
+      : rawError?.error || rawError?.message || (rawError ? JSON.stringify(rawError) : `API request failed with status ${response.status}`);
   }
 
   const error: ApiError = new Error(errorMessage);
@@ -292,7 +295,6 @@ const withRetry = async <T>(
       const delay = RETRY_DELAY_BASE * Math.pow(2, attempt) + Math.random() * 500;
       await new Promise(resolve => setTimeout(resolve, delay));
 
-      console.warn(`API retry attempt ${attempt + 1}/${maxRetries} after error:`, apiError.message);
     }
   }
 

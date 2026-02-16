@@ -9,7 +9,6 @@
  * @see Phase 4 refactoring - SSoT Cleanup
  */
 
-import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -24,6 +23,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import type { TableColumn } from '../../types';
 import { isLookupColumn, isChoiceColumn, isBooleanColumn } from '@/lib/constants/column-types';
+import { DATE_ISO, DATETIME_ISO } from '@/lib/constants/date-formats';
 
 export interface RowEditingCellProps {
   /** Row entry data */
@@ -168,7 +168,7 @@ export function RowEditingCell({
             )}
           >
             <CalendarIcon className="mr-2 h-3 w-3" />
-            {parsedDate ? format(parsedDate, "yyyy-MM-dd") : "Pick date..."}
+            {parsedDate ? format(parsedDate, DATE_ISO) : "Pick date..."}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
@@ -178,7 +178,7 @@ export function RowEditingCell({
             onSelect={(date) =>
               setEditingData((prev) => ({
                 ...prev,
-                [entry.id]: { ...prev[entry.id], [column.key]: date ? format(date, "yyyy-MM-dd") : null },
+                [entry.id]: { ...prev[entry.id], [column.key]: date ? format(date, DATE_ISO) : null },
               }))
             }
           />
@@ -203,7 +203,7 @@ export function RowEditingCell({
       <Input
         type="datetime-local"
         className="h-7 text-sm"
-        value={parsedDate ? format(parsedDate, "yyyy-MM-dd'T'HH:mm") : ""}
+        value={parsedDate ? format(parsedDate, DATETIME_ISO) : ""}
         onChange={(e) =>
           setEditingData((prev) => ({
             ...prev,

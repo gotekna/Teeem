@@ -1,7 +1,10 @@
 class ExternalInvoiceSyncService
+  include XeroConstants
+
   attr_reader :stats
 
-  RATE_LIMIT_SLEEP = 1200 # milliseconds between API calls (1.2s)
+  # SSoT: Safety limit for paginated fetches (prevents infinite loops)
+  MAX_PAGES = 100
 
   def initialize(source: "xero", tenant_id: nil)
     @source = source
@@ -229,7 +232,7 @@ class ExternalInvoiceSyncService
   def fetch_all_invoices(tenant_id, fetch_details: false)
     all_invoices = []
     page = 1
-    max_pages = 100 # Safety limit
+    # SSoT: Use MAX_PAGES constant
 
     loop do
       Rails.logger.info("Fetching #{@source} invoices page #{page}")
@@ -252,10 +255,10 @@ class ExternalInvoiceSyncService
       Rails.logger.info("Page #{page}: #{invoices_page.length} invoices (total: #{all_invoices.length})")
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
       # Rate limit protection
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     # If we need full details (line items, payments, tracking), fetch each invoice individually
@@ -292,7 +295,7 @@ class ExternalInvoiceSyncService
     nil
   ensure
     # Rate limit protection
-    sleep(RATE_LIMIT_SLEEP / 1000.0)
+    sleep(XERO_API_SLEEP_MS / 1000.0)
   end
 
   # FRC (Feb 2026): Fixed tenant_id confusion
@@ -339,7 +342,7 @@ class ExternalInvoiceSyncService
       total: invoice_data["Total"],
       amount_due: invoice_data["AmountDue"],
       amount_paid: invoice_data["AmountPaid"],
-      currency_code: invoice_data["CurrencyCode"] || "AUD",
+      currency_code: invoice_data["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       external_contact_id: external_contact_id,
       contact_name: invoice_data.dig("Contact", "Name"),
       line_items: invoice_data["LineItems"] || [],
@@ -419,17 +422,30 @@ class ExternalInvoiceSyncService
   def link_to_job(invoice)
     return if invoice.tracking_data.blank?
 
-    # Find job by tracking option name
+    # Find job by tracking option ID (join table first) or name (legacy fallback)
     invoice.tracking_data.each do |tracking|
+      tracking_option_id = tracking["TrackingOptionID"]
       option_name = tracking["Option"]
-      next if option_name.blank?
 
+      # Try join table by tracking option ID first
+      if tracking_option_id.present?
+        job = XeroJobTrackingLink.job_for(tracking_option_id)
+        if job
+          invoice.update!(job: job)
+          @stats[:linked_to_jobs] += 1
+          Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title} via tracking link")
+          return
+        end
+      end
+
+      # Legacy fallback: match by tracking option name
+      next if option_name.blank?
       job = Job.find_by(xero_tracking_option_name: option_name)
       if job
         invoice.update!(job: job)
         @stats[:linked_to_jobs] += 1
-        Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title}")
-        break
+        Rails.logger.info("Linked invoice #{invoice.invoice_number} to job #{job.title} via legacy name match")
+        return
       end
     end
   end
@@ -776,7 +792,7 @@ class ExternalInvoiceSyncService
   def fetch_all_credit_notes(tenant_id)
     all_credit_notes = []
     page = 1
-    max_pages = 50
+    # SSoT: Use MAX_PAGES constant (safety limit for pagination)
 
     loop do
       Rails.logger.info("Fetching #{@source} credit notes page #{page}")
@@ -798,9 +814,9 @@ class ExternalInvoiceSyncService
       @stats[:pages_fetched] += 1
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     all_credit_notes
@@ -894,9 +910,9 @@ class ExternalInvoiceSyncService
       @stats[:pages_fetched] += 1
 
       page += 1
-      break if page > max_pages
+      break if page > MAX_PAGES
 
-      sleep(RATE_LIMIT_SLEEP / 1000.0)
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
     all_quotes
@@ -1034,7 +1050,7 @@ class ExternalInvoiceSyncService
       "Type" => invoice.xero_type,
       "Status" => invoice.xero_status,
       "Reference" => invoice.reference,
-      "CurrencyCode" => invoice.currency_code || "AUD"
+      "CurrencyCode" => invoice.currency_code || TenantSetting::DEFAULT_CURRENCY
     }
 
     # Add invoice number if present (for updates)

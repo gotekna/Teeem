@@ -11,7 +11,7 @@
 # that don't actually exist, preventing runtime NoMethodError crashes.
 
 class SsotAuditor
-  VERSION = "1.0.0"
+  VERSION = "1.0.0".freeze
 
   # Models most likely to have SSoT issues (high traffic, frequently refactored)
   PRIORITY_MODELS = %w[

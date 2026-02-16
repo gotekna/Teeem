@@ -8,10 +8,13 @@ class CorporateXeroAccount < ApplicationRecord
   belongs_to :tenant
   belongs_to :corporate_xero_connection, foreign_key: "corporate_xero_connection_id"
 
+  # Constants
+  STATUSES = %w[ACTIVE ARCHIVED DELETED].freeze
+
   # Validations
   validates :xero_account_id, presence: true, uniqueness: true
   validates :account_name, presence: true
-  validates :status, inclusion: { in: %w[ACTIVE ARCHIVED DELETED] }, allow_blank: true
+  validates :status, inclusion: { in: STATUSES, allow_blank: true }
 
   # Scopes
   scope :active, -> { where(status: "ACTIVE") }

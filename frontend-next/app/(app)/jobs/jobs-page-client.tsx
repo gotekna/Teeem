@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Plus } from "lucide-react";
@@ -67,7 +68,7 @@ export default function JobsPageClient({
   return (
     <TablePage data-tour="jobs-table">
       <TeeemTableView
-        foundationId="jobs"
+        foundationId={FOUNDATION_SLUGS.JOBS}
         tableName="Jobs"
         onView={handleView}
         onEdit={handleEdit}

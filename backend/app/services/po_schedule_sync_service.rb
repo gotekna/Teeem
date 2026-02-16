@@ -33,7 +33,7 @@ class PoScheduleSyncService
 
   # Execute the sync - updates PO from linked task(s)
   # Only updates if sync is available (no blockers)
-  def execute!
+  def call!
     raise SyncBlockedError, "Sync is blocked: #{find_blockers.map { |b| b[:message] }.join(', ')}" unless can_sync?
     raise NoLinkedTasksError, "No linked tasks to sync from" if linked_tasks.empty?
 

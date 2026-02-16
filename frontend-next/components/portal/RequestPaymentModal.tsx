@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/utils/formatters";
 import { portalApi } from "@/lib/portal-api";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
 
 interface PurchaseOrder {
   id: number;
@@ -97,7 +98,7 @@ export default function RequestPaymentModal({
   const handleInvoiceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_UPLOAD_SIZE) {
         setErrors((prev) => ({
           ...prev,
           invoice_file: "File size must be less than 10MB",
@@ -122,7 +123,7 @@ export default function RequestPaymentModal({
       return;
     }
 
-    const oversizedFiles = files.filter((f) => f.size > 10 * 1024 * 1024);
+    const oversizedFiles = files.filter((f) => f.size > MAX_UPLOAD_SIZE);
     if (oversizedFiles.length > 0) {
       setErrors((prev) => ({
         ...prev,

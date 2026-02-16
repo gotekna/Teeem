@@ -410,7 +410,7 @@ module Api
         rescue => e
           Rails.logger.error("Preview employee extraction error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # POST /api/v1/contacts/enrichment/extract_employees
@@ -555,7 +555,7 @@ module Api
         rescue => e
           Rails.logger.error("Extract employees error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         private

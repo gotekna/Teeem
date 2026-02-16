@@ -215,14 +215,8 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
     // Compute visible selected IDs at execution time (SSoT: matches inline behavior)
     const visibleSelectedIds = getVisibleSelectedIds();
 
-    console.log('[useBulkOperations] Starting bulk update...');
-    console.log('[useBulkOperations] Column:', updateColumn);
-    console.log('[useBulkOperations] Value:', updateValue);
-    console.log('[useBulkOperations] Total selected:', selectedIds.length);
-    console.log('[useBulkOperations] Visible selected IDs:', visibleSelectedIds.length);
 
     if (!updateColumn || visibleSelectedIds.length === 0) {
-      console.warn('[useBulkOperations] Aborted - missing column or no visible rows selected');
       return false;
     }
 
@@ -232,7 +226,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
       const selectedCol = columns.find(c => c.key === updateColumn);
       const valueToSend = convertValueForColumn(updateValue, selectedCol);
 
-      console.log('[useBulkOperations] Converted value:', updateValue, '→', valueToSend);
 
       if (foundationId) {
         // Use bulk_update API endpoint
@@ -241,7 +234,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
           updates: { [updateColumn]: valueToSend },
         };
 
-        console.log('[useBulkOperations] Using bulk_update API');
 
         const response = await api.post<{
           success: boolean;
@@ -250,7 +242,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
           errors?: Array<{ id: number; errors: string[] }>;
         }>(`/api/v1/foundations/${foundationId}/records/bulk_update`, payload);
 
-        console.log('[useBulkOperations] API response:', response);
 
         // Check for errors
         if (!response || !response.success || response.updated_count === 0) {
@@ -282,7 +273,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
 
           // If entity_type validation errors, automatically open health report
           if (hasEntityTypeErrors && foundationId) {
-            console.log('[useBulkOperations] Detected entity_type errors, opening health report...');
             errorMessage += '\n\n⚠️ Some records have data quality issues that must be fixed first.';
             errorMessage += '\n\nOpening Health Report to show which records need fixing...';
 
@@ -298,14 +288,11 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
           return false;
         }
 
-        console.log('[useBulkOperations] Success! Updated', response.updated_count, 'records');
       } else if (onRowUpdate) {
         // Fallback to individual updates
-        console.log('[useBulkOperations] Using fallback individual updates');
         for (const id of visibleSelectedIds) {
           await onRowUpdate(id, updateColumn, valueToSend);
         }
-        console.log('[useBulkOperations] Individual updates completed');
       } else {
         console.error('[useBulkOperations] No update mechanism available');
         return false;
@@ -328,7 +315,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
       onSuccess?.();
       onRefresh?.();
 
-      console.log('[useBulkOperations] Complete!');
       return true;
 
     } catch (error) {
@@ -364,7 +350,6 @@ export function useBulkOperations(props: UseBulkOperationsProps): UseBulkOperati
   }, []);
 
   const handleMergeComplete = useCallback((deletedIds: (number | string)[]) => {
-    console.log('[useBulkOperations] Merge completed, deleted IDs:', deletedIds);
 
     // Clear cache
     if (foundationId) {

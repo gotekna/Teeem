@@ -55,10 +55,10 @@ class QuoteRequestNotificationJob < ApplicationJob
   end
 
   def twilio_configured?
-    ENV["TWILIO_ACCOUNT_SID"].present? && ENV["TWILIO_AUTH_TOKEN"].present?
+    TenantSetting.instance&.twilio_enabled?
   end
 
   def portal_url
-    ENV["PORTAL_URL"] || "https://portal.teeem.com"
+    InfrastructureUrls.portal_url
   end
 end

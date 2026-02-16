@@ -194,14 +194,14 @@ module Api
         def set_corporate
           @corporate = Corporate.find(params[:corporate_id] || current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Company not found' }, status: :not_found
+          render_error('Company not found', status: :not_found)
         end
 
         def find_account
           account = scoped_accounts.find_by(id: params[:account_id])
 
           unless account
-            render json: { success: false, error: 'Account not found' }, status: :not_found
+            render_error('Account not found', status: :not_found)
             return nil
           end
 
@@ -212,7 +212,7 @@ module Api
           account = scoped_accounts.find_by(id: params[:account_id], is_bank_account: true)
 
           unless account
-            render json: { success: false, error: 'Bank account not found' }, status: :not_found
+            render_error('Bank account not found', status: :not_found)
             return nil
           end
 

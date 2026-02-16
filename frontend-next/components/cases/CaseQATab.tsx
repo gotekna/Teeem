@@ -340,7 +340,7 @@ export function CaseQATab({
                 {displayFolderSettings.source_folder_paths.length > 0 ? (
                   <div className="space-y-1">
                     {displayFolderSettings.source_folder_paths.map((path, i) => (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={`source-${path}-${i}`} className="flex items-center gap-2">
                         <FolderOpen className="h-4 w-4 text-blue-500 dark:text-blue-400" />
                         <span className="truncate" title={path}>
                           {path.split("/").pop() || path}
@@ -357,7 +357,7 @@ export function CaseQATab({
                 {displayFolderSettings.filing_folder_paths.length > 0 ? (
                   <div className="space-y-1">
                     {displayFolderSettings.filing_folder_paths.map((path, i) => (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={`filing-${path}-${i}`} className="flex items-center gap-2">
                         <FolderInput className="h-4 w-4 text-green-500 dark:text-green-400" />
                         <span className="truncate" title={path}>
                           {path.split("/").pop() || path}
@@ -389,7 +389,7 @@ export function CaseQATab({
                 </Label>
                 <div className="space-y-2">
                   {folderSettings.source_folder_paths.map((path, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={`edit-source-${path}`} className="flex items-center gap-2">
                       <Input value={path} readOnly className="flex-1" />
                       <Button variant="ghost" size="sm" onClick={() => removeSourceFolder(path)}>
                         <XCircle className="h-4 w-4" />
@@ -433,7 +433,7 @@ export function CaseQATab({
                 </Label>
                 <div className="space-y-2">
                   {folderSettings.filing_folder_paths.map((path, i) => (
-                    <div key={i} className="flex items-center gap-2">
+                    <div key={`edit-filing-${path}`} className="flex items-center gap-2">
                       <Input value={path} readOnly className="flex-1" />
                       <Button variant="ghost" size="sm" onClick={() => removeFilingFolder(path)}>
                         <XCircle className="h-4 w-4" />

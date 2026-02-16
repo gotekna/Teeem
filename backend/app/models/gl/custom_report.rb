@@ -373,7 +373,7 @@ module Gl
       value = record
       parts.each do |part|
         break if value.nil?
-        value = value.try(part)
+        value = value&.send(part)
       end
       value
     end

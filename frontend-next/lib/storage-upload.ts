@@ -13,6 +13,7 @@
 
 import { api, getApiBaseUrl } from "./api";
 import { getStorageItem, STORAGE_KEYS } from './storage-utils';
+import { UPLOAD_CHUNK_SIZE, SMALL_FILE_THRESHOLD } from '@/lib/constants/file-size-limits';
 
 interface UploadSessionResponse {
   success: boolean;
@@ -51,9 +52,7 @@ export interface DirectUploadOptions {
 }
 
 // Chunk size: 5MB (must be multiple of 320 KiB per Microsoft Graph API)
-const CHUNK_SIZE = 5 * 1024 * 1024;
-// Small file threshold: 4MB (below this, single PUT is sufficient)
-const SMALL_FILE_THRESHOLD = 4 * 1024 * 1024;
+const CHUNK_SIZE = UPLOAD_CHUNK_SIZE;
 
 /**
  * Upload a file directly to SharePoint, bypassing the backend proxy.
@@ -92,14 +91,6 @@ export async function uploadToSharePointDirect(
       message: "Preparing upload...",
     });
 
-    console.log("[DirectUpload] Requesting upload session:", {
-      filename: filename || file.name,
-      file_size: file.size,
-      folder_path: folderPath,
-      job_id: jobId,
-      warehouse_folder_id: warehouseFolderId,
-    });
-
     let sessionResponse: UploadSessionResponse | null;
     try {
       sessionResponse = await api.post<UploadSessionResponse>(
@@ -113,7 +104,6 @@ export async function uploadToSharePointDirect(
           warehouse_folder_id: warehouseFolderId,
         }
       );
-      console.log("[DirectUpload] Session response:", sessionResponse);
     } catch (apiError) {
       console.error("[DirectUpload] API error:", apiError);
       throw apiError;
@@ -401,7 +391,6 @@ export async function uploadPhoto(
 
   // Check provider type
   const providerType = await getStorageProviderType();
-  console.log("[uploadPhoto] Storage provider:", providerType);
 
   // FRC (Feb 2026): Fail early if no provider configured
   if (!providerType) {

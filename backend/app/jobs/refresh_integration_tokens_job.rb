@@ -7,6 +7,7 @@
 # - ConnectionHealthMonitorJob caches pool status every 5 minutes
 #
 class RefreshIntegrationTokensJob < ApplicationJob
+  include XeroConstants  # For INTEGRATION_TOKEN_REFRESH_DELAY_SEC
   queue_as :default
 
   # Automatic retry on transient connection errors
@@ -133,7 +134,7 @@ class RefreshIntegrationTokensJob < ApplicationJob
 
     credentials_to_refresh.find_each do |credential|
       # Add delay if connection pool is critical
-      sleep(1) if delayed_mode
+      sleep(INTEGRATION_TOKEN_REFRESH_DELAY_SEC) if delayed_mode
 
       Rails.logger.info "[TokenRefresh] Refreshing MicrosoftCredential #{credential.id} (#{credential.credential_type}) via TokenManager"
 

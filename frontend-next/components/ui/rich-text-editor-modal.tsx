@@ -64,7 +64,7 @@ export function RichTextEditorModal({
 }: RichTextEditorModalProps) {
   // Read user's AI writing assistant preference
   const { user } = useAuth();
-  const userAiPreference = (user as any)?.enable_ai_writing_assistant ?? false;
+  const userAiPreference = user?.enable_ai_writing_assistant ?? false;
 
   // Use explicit prop if provided, otherwise use user preference
   const shouldEnableWritingChecker = enableWritingChecker ?? userAiPreference;

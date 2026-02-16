@@ -45,6 +45,7 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { Job } from "@/lib/types";
 
 // Initialize pdf.js worker
 if (typeof window !== "undefined") {
@@ -67,12 +68,6 @@ interface PdfFieldPosition {
   text_align: "left" | "center" | "right";
   pdf_form_field_name: string | null;  // SSoT: PDF form field this data field maps to
   updated_at: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  display_name?: string;
 }
 
 // Detected form field from PDF parsing (AcroForm)
@@ -186,22 +181,12 @@ export function PdfFieldsTab() {
         (p) => p.pdf_form_field_name === clickedDetectedField.name
       );
 
-      console.log("[PDF Dialog] Opening dialog for:", clickedDetectedField.name);
-      console.log("[PDF Dialog] Existing mapping found:", existingMapping ? {
-        field_key: existingMapping.field_key,
-        text_align: existingMapping.text_align,
-        x: existingMapping.x,
-        y: existingMapping.y,
-      } : null);
-
       if (existingMapping) {
-        console.log("[PDF Dialog] Setting alignment from existing:", existingMapping.text_align || "left");
         setDialogHAlign(existingMapping.text_align || "left");
       } else {
         // Smart defaults based on field name
         const fieldName = clickedDetectedField.name.toLowerCase();
         const isCurrency = /(\$|amount|price|cost|total|deposit|fee|payment|value)/.test(fieldName);
-        console.log("[PDF Dialog] No existing mapping, using smart default:", isCurrency ? "right" : "left");
         setDialogHAlign(isCurrency ? "right" : "left");
       }
       setDialogVAlign("middle");
@@ -224,7 +209,6 @@ export function PdfFieldsTab() {
   const addDebugLog = React.useCallback((message: string) => {
     const timestamp = new Date().toLocaleTimeString();
     const logEntry = `[${timestamp}] ${message}`;
-    console.log(`[PdfFieldsTab] ${message}`);
     setDebugLogs((prev) => [...prev.slice(-19), logEntry]);
   }, []);
 
@@ -383,6 +367,7 @@ export function PdfFieldsTab() {
         addDebugLog(`Loading preview: ${selectedTemplate}, job=${selectedJob.id}`);
       }
 
+      // Use raw fetch for blob response (PDF binary data)
       const response = await fetch(url, {
         method: showBlankTemplate ? "GET" : "POST",
         headers: {
@@ -440,7 +425,6 @@ export function PdfFieldsTab() {
         setPositions((prev) =>
           prev.map((p) => (p.id === id ? response.data : p))
         );
-        console.log('[PDF] Box dimensions saved:', response.data.box_width, response.data.box_height);
       }
     } catch (err) {
       console.error('[PDF] Failed to save box dimensions:', err);
@@ -450,20 +434,17 @@ export function PdfFieldsTab() {
   // Save position
   const savePosition = async (id: number, updates: Partial<PdfFieldPosition>) => {
     addDebugLog(`Saving: id=${id}, x=${updates.x}, y=${updates.y}`);
-    console.log("[PDF Save] Starting save...", { id, updates });
     try {
       setSaving(true);
 
       // Log what we're sending
       const requestBody = { pdf_field_position: updates };
-      console.log("[PDF Save] Request body:", JSON.stringify(requestBody, null, 2));
 
       const response = await api.patch<{ success: boolean; data: PdfFieldPosition }>(
         `/api/v1/pdf_field_positions/${id}`,
         requestBody
       );
 
-      console.log("[PDF Save] Response:", response);
       addDebugLog(`API response: ${JSON.stringify(response).substring(0, 200)}`);
 
       if (response.success && response.data) {
@@ -665,7 +646,6 @@ export function PdfFieldsTab() {
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              console.log('[PAGE] Previous clicked, currentPage:', currentPage);
               setCurrentPage((p) => Math.max(1, p - 1));
             }}
             disabled={currentPage <= 1}
@@ -680,7 +660,6 @@ export function PdfFieldsTab() {
             size="icon"
             className="h-8 w-8"
             onClick={() => {
-              console.log('[PAGE] Next clicked, currentPage:', currentPage);
               setCurrentPage((p) => Math.min(totalPages, p + 1));
             }}
             disabled={currentPage >= totalPages}
@@ -1448,15 +1427,6 @@ export function PdfFieldsTab() {
                             : "hover:bg-accent"
                         )}
                         onClick={async () => {
-                          // Log the alignment being saved
-                          console.log("[PDF Map] Saving field with alignment:", {
-                            fieldId: field.id,
-                            fieldKey: field.field_key,
-                            dialogHAlign,
-                            dialogVAlign,
-                            detectedField: clickedDetectedField?.name,
-                          });
-
                           // Use dialog alignment (smart defaults already applied via useEffect)
                           // AWAIT the save so positions state is updated before closing dialog
                           // Save the pdf_form_field_name to establish SSoT mapping

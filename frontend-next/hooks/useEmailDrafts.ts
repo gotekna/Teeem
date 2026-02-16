@@ -7,6 +7,7 @@ import {
   MAX_DRAFTS,
 } from "@/lib/email-constants";
 import type { EmailDraft, AutoSaveConfig } from "@/lib/email-types";
+import type { AccountType } from "@/lib/email-constants";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Re-export types for backwards compatibility
@@ -104,7 +105,6 @@ export function useEmailDrafts() {
         return response.data;
       }
     } catch (err) {
-      console.warn("Failed to load drafts from API, using localStorage:", err);
       // Fall back to localStorage
       const localDrafts = getDraftsFromStorage();
       setDrafts(localDrafts);
@@ -128,7 +128,6 @@ export function useEmailDrafts() {
 
     if (localOnlyDrafts.length === 0) return;
 
-    console.log(`Migrating ${localOnlyDrafts.length} local drafts to API...`);
 
     // Migrate each local draft to API
     for (const draft of localOnlyDrafts) {
@@ -144,8 +143,8 @@ export function useEmailDrafts() {
           reply_to_message_id: draft.reply_to_message_id,
           attachment_names: draft.attachment_names,
         });
-      } catch (err) {
-        console.warn(`Failed to migrate draft ${draft.id}:`, err);
+      } catch (error) {
+        console.error("Draft migration failed:", error);
       }
     }
 
@@ -166,15 +165,17 @@ export function useEmailDrafts() {
 
   /**
    * Save a new or update existing draft
+   * account_type is optional - if provided, enables provider sync (MS365/IMAP Drafts folder)
    */
   const saveDraft = useCallback(async (
     draftData: Omit<EmailDraft, "id" | "created_at" | "updated_at">,
-    existingId?: string
+    existingId?: string,
+    accountType?: AccountType
   ): Promise<string> => {
     const now = new Date().toISOString();
 
     // Prepare API payload
-    const payload = {
+    const payload: Record<string, unknown> = {
       credential_id: draftData.credential_id,
       from_address: draftData.from_address,
       to: draftData.to,
@@ -186,6 +187,14 @@ export function useEmailDrafts() {
       attachment_names: draftData.attachment_names || [],
       status: 'draft',
     };
+
+    // Pass account_type + provider-specific credential for provider sync
+    if (accountType) {
+      payload.account_type = accountType;
+    }
+    if (draftData.microsoft_credential_id) {
+      payload.microsoft_credential_id = draftData.microsoft_credential_id;
+    }
 
     try {
       let response: DraftApiResponse | null;
@@ -211,8 +220,8 @@ export function useEmailDrafts() {
 
         return savedDraft.id;
       }
-    } catch (err) {
-      console.warn("Failed to save draft to API, saving locally:", err);
+    } catch (error) {
+      console.error("Draft save failed:", error);
     }
 
     // Fallback to localStorage only
@@ -244,8 +253,8 @@ export function useEmailDrafts() {
     if (isServerDraftId(id)) {
       try {
         await api.delete<DeleteApiResponse>(`/api/v1/email_drafts/${id}`);
-      } catch (err) {
-        console.warn("Failed to delete draft from API:", err);
+      } catch (error) {
+        console.error("Draft delete failed:", error);
       }
     }
 
@@ -270,12 +279,38 @@ export function useEmailDrafts() {
   const clearAllDrafts = useCallback(async (): Promise<void> => {
     try {
       await api.delete<DeleteApiResponse>("/api/v1/email_drafts/destroy_all");
-    } catch (err) {
-      console.warn("Failed to clear drafts from API:", err);
+    } catch (error) {
+      console.error("Draft clear all failed:", error);
     }
 
     setDrafts([]);
     saveDraftsToStorage([]);
+  }, []);
+
+  /**
+   * Send an existing draft via the provider (MS365 or IMAP)
+   * This triggers provider send + draft cleanup in one call.
+   * Falls back to returning false if draft has no provider_draft_id.
+   */
+  const sendDraft = useCallback(async (id: string): Promise<boolean> => {
+    if (!isServerDraftId(id)) return false;
+
+    try {
+      const response = await api.post<DeleteApiResponse>(`/api/v1/email_drafts/${id}/send_draft`);
+      if (response?.success) {
+        // Remove from local state
+        setDrafts((prev) => {
+          const filtered = prev.filter((d) => d.id !== id);
+          saveDraftsToStorage(filtered);
+          return filtered;
+        });
+        return true;
+      }
+      return false;
+    } catch (err) {
+      console.error("Failed to send draft:", err);
+      return false;
+    }
   }, []);
 
   /**
@@ -288,6 +323,7 @@ export function useEmailDrafts() {
   return {
     drafts,
     saveDraft,
+    sendDraft,
     deleteDraft,
     getDraft,
     clearAllDrafts,
@@ -309,7 +345,7 @@ export function useEmailDrafts() {
  * });
  */
 export function useAutoSaveDraft(config: AutoSaveConfig) {
-  const { enabled, data, existingDraftId, onSave } = config;
+  const { enabled, data, accountType, existingDraftId, onSave } = config;
 
   const [draftId, setDraftId] = useState<string | undefined>(existingDraftId);
   const [lastSavedData, setLastSavedData] = useState<string>("");
@@ -320,6 +356,7 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
   // Serialize data for comparison
   const currentDataString = JSON.stringify({
     credential_id: data.credential_id,
+    microsoft_credential_id: data.microsoft_credential_id,
     from_address: data.from_address,
     to: data.to,
     cc: data.cc,
@@ -349,6 +386,7 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
       const id = await saveDraft(
         {
           credential_id: data.credential_id,
+          microsoft_credential_id: data.microsoft_credential_id,
           from_address: data.from_address,
           to: data.to,
           cc: data.cc,
@@ -358,7 +396,8 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
           reply_to_message_id: data.reply_to_message_id,
           attachment_names: data.attachment_names || [],
         },
-        draftId
+        draftId,
+        accountType
       );
 
       setDraftId(id);
@@ -369,7 +408,7 @@ export function useAutoSaveDraft(config: AutoSaveConfig) {
     } finally {
       setIsSaving(false);
     }
-  }, [data, draftId, saveDraft, hasContent, currentDataString, onSave]);
+  }, [data, draftId, saveDraft, hasContent, currentDataString, onSave, accountType]);
 
   // Discard draft
   const discard = useCallback(async () => {

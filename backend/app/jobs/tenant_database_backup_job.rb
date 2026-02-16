@@ -12,7 +12,7 @@ class TenantDatabaseBackupJob < ApplicationJob
   queue_as :low
 
   # Heroku app name for production database
-  HEROKU_APP = "teeem-production"
+  HEROKU_APP = HerokuPlatformService::PRODUCTION_APP
 
   def perform(tenant_id)
     @tenant = Tenant.find(tenant_id)
@@ -91,7 +91,7 @@ class TenantDatabaseBackupJob < ApplicationJob
   end
 
   def heroku_api_key
-    ENV["HEROKU_API_KEY"]
+    HerokuPlatformService.api_key
   end
 
   def elapsed(start_time)
@@ -99,7 +99,7 @@ class TenantDatabaseBackupJob < ApplicationJob
   end
 
   def fetch_heroku_backup_url
-    return nil unless heroku_api_key.present?
+    return nil unless HerokuPlatformService.api_key?
 
     # Get the database attachment name
     attachment_name = fetch_database_attachment

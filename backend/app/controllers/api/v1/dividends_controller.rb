@@ -45,10 +45,7 @@ module Api
             data: serialize_dividend(@dividend)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @dividend.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@dividend)
         end
       end
 
@@ -60,10 +57,7 @@ module Api
             data: serialize_dividend(@dividend)
           }
         else
-          render json: {
-            success: false,
-            errors: @dividend.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@dividend)
         end
       end
 

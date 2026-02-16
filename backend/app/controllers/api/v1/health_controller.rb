@@ -13,6 +13,7 @@ module Api
     #   - GET /api/v1/health/pricebook
     #
     class HealthController < ApplicationController
+      include CacheConstants
       # GET /api/v1/health/unified
       # Returns unified health data for the new gamified dashboard
       # Supports caching with optional ?refresh=true parameter to force fresh calculation
@@ -96,7 +97,7 @@ module Api
         }
 
         # Cache the fresh results (24 hour expiry)
-        Rails.cache.write("health_check:system", result, expires_in: 24.hours)
+        Rails.cache.write("health_check:system", result, expires_in: CACHE_TTL_DAILY)
 
         render json: result
       end
@@ -109,7 +110,7 @@ module Api
         auto = params[:auto] == true || params[:auto] == "true"
 
         unless fix_type.present?
-          return render json: { success: false, error: "fix_type is required" }, status: :bad_request
+          return render_error("fix_type is required", status: :bad_request)
         end
 
         result = perform_fix(fix_type, item_ids, auto)
@@ -122,10 +123,7 @@ module Api
             message: result[:message]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -562,6 +560,8 @@ module Api
           fix_acn_format(item_ids, auto)
         when "employee_role_cleanup"
           fix_employee_role_cleanup(item_ids, auto)
+        when "relationship_type_fix"
+          fix_relationship_type(item_ids, params[:action], params[:new_value])
         else
           { success: false, error: "Unknown fix type: #{fix_type}" }
         end
@@ -918,6 +918,57 @@ module Api
         }
       end
 
+      # Fix invalid relationship types - supports delete or change type
+      def fix_relationship_type(item_ids, action, new_value)
+        return { success: false, error: "item_ids are required" } if item_ids.blank?
+        return { success: false, error: "action is required" } if action.blank?
+
+        case action.to_s
+        when "delete_relationship"
+          relationships = ContactRelationship.where(id: item_ids)
+          count = relationships.count
+          relationships.destroy_all
+
+          {
+            success: true,
+            fixed_count: count,
+            points_earned: 0,
+            message: "Deleted #{count} invalid relationship#{'s' if count != 1}"
+          }
+        when "change_relationship_type"
+          return { success: false, error: "new_value is required for change_relationship_type" } if new_value.blank?
+
+          unless ContactRelationship.relationship_types.include?(new_value)
+            return { success: false, error: "Invalid relationship type: #{new_value}" }
+          end
+
+          fixed_count = 0
+          ContactRelationship.where(id: item_ids).find_each do |rel|
+            # Validate the new type is actually valid for this entity type pair
+            valid_types = ContactRelationship.valid_types_for(
+              source_entity_type: rel.source_contact&.entity_type,
+              target_entity_type: rel.related_contact&.entity_type
+            )
+
+            if valid_types.include?(new_value)
+              rel.update_column(:relationship_type, new_value)
+              fixed_count += 1
+            else
+              Rails.logger.warn "[HealthController#fix_relationship_type] Type '#{new_value}' not valid for ContactRelationship##{rel.id} (#{rel.source_contact&.entity_type} → #{rel.related_contact&.entity_type})"
+            end
+          end
+
+          {
+            success: true,
+            fixed_count: fixed_count,
+            points_earned: 0,
+            message: "Changed #{fixed_count} relationship#{'s' if fixed_count != 1} to '#{new_value}'"
+          }
+        else
+          { success: false, error: "Unknown action: #{action}" }
+        end
+      end
+
       def format_australian_phone(digits)
         case digits.length
         when 10
@@ -983,8 +1034,9 @@ module Api
         0
       end
 
+      # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
       def get_xero_status
-        credential = XeroCredential.current
+        credential = XeroCredential.current_for(current_tenant)
         return { connected: false } unless credential
 
         # Use the SSoT status field from XeroCredential model

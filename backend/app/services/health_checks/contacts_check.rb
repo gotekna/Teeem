@@ -111,14 +111,14 @@ module HealthChecks
 
     # Contacts with invalid entity_type
     def check_invalid_entity_type
-      # Use Contact::ENTITY_TYPES as SSoT for valid values
-      valid_types = Contact::ENTITY_TYPES + [ nil ]
+      # Use Contact.entity_types as SSoT for valid values
+      valid_types = Contact.entity_types + [ nil ]
       contacts = Contact.all
                        .where.not(entity_type: valid_types)
 
       build_result(
         name: "Contacts with Invalid Entity Type",
-        description: "Contacts with entity_type not in: #{Contact::ENTITY_TYPES.join(', ')}.",
+        description: "Contacts with entity_type not in: #{Contact.entity_types.join(', ')}.",
         severity: :warning,
         items: contacts,
         icon: "alert-triangle",
@@ -538,14 +538,54 @@ module HealthChecks
                            .limit(50)
 
       items = bad_relationships.map do |rel|
+        source_type = rel.source_contact&.entity_type
+        target_type = rel.related_contact&.entity_type
+
+        # Compute valid replacement types for this specific pair of entity types
+        valid_types = ContactRelationship.valid_types_for(
+          source_entity_type: source_type,
+          target_entity_type: target_type
+        ) - [ rel.relationship_type ] # Exclude the current (invalid) type
+
+        valid_type_options = valid_types.map do |t|
+          meta = ContactRelationship.relationship_type_metadata[t]
+          { value: t, label: meta[:label] }
+        end
+
         {
           id: rel.id,
-          display: "#{rel.source_contact&.display_name} → employee_of → #{rel.related_contact&.display_name} (#{rel.related_contact&.entity_type})",
+          display: "#{rel.source_contact&.display_name} → employee_of → #{rel.related_contact&.display_name} (#{target_type})",
           relationship_id: rel.id,
           source_contact_id: rel.source_contact_id,
-          related_contact_id: rel.related_contact_id
+          related_contact_id: rel.related_contact_id,
+          source_contact_name: rel.source_contact&.display_name,
+          related_contact_name: rel.related_contact&.display_name,
+          valid_type_options: valid_type_options
         }
       end
+
+      # Build fix options that the frontend dialog will render
+      fix_options = [
+        {
+          action: "delete_relationship",
+          label: "Delete Relationship",
+          description: "Remove this invalid relationship entirely",
+          destructive: true
+        },
+        {
+          action: "change_relationship_type",
+          label: "Change Type",
+          description: "Change to a valid relationship type for these contacts",
+          requires_value: true,
+          value_field: "valid_type_options"
+        },
+        {
+          action: "open_contact",
+          label: "Open Contact",
+          description: "Navigate to the source contact to review manually",
+          frontend_only: true
+        }
+      ]
 
       build_result(
         name: "Invalid Relationship Types",
@@ -554,7 +594,9 @@ module HealthChecks
         items: items,
         icon: "link-off",
         action_path: nil,
-        check_name: "relationship_type_violations"
+        check_name: "relationship_type_violations",
+        fix_type: "relationship_type_fix",
+        fix_options: fix_options
       )
     end
 
@@ -566,9 +608,9 @@ module HealthChecks
       business_prefixes = %w[admin info sales accounts office reception support contact enquiries billing finance hr operations]
       personal_domains = %w[gmail.com yahoo.com hotmail.com outlook.com icloud.com live.com bigpond.com optusnet.com.au]
 
-      # Build SQL conditions for business prefixes
-      prefix_conditions = business_prefixes.map { |p| "email ILIKE '#{p}@%'" }.join(" OR ")
-      domain_exclusions = personal_domains.map { |d| "'#{d}'" }.join(", ")
+      # Build SQL conditions for business prefixes (SQL injection safe - using sanitize_sql_array)
+      prefix_conditions = business_prefixes.map { |p| ActiveRecord::Base.sanitize_sql_array(["email ILIKE ?", "#{p}@%"]) }.join(" OR ")
+      domain_exclusions = personal_domains.map { |d| ActiveRecord::Base.connection.quote(d) }.join(", ")
 
       contacts = Contact.where(entity_type: "person")
                         .where("email IS NOT NULL AND email != ''")
@@ -717,19 +759,19 @@ module HealthChecks
         elsif item.respond_to?(:display_name)
           display_parts = []
           display_parts << (item.display_name.presence || "Contact ##{item.id}")
-          display_parts << "(#{item.entity_type})" if item.try(:entity_type).present?
+          display_parts << "(#{item.entity_type})" if item&.entity_type.present?
           # Show invalid website in display if present
-          display_parts << "- website: #{item.website}" if item.try(:website).present?
+          display_parts << "- website: #{item.website}" if item&.website.present?
 
           {
             id: item.id,
             display: display_parts.join(" "),
             display_name: item.display_name,
-            first_name: item.try(:first_name),
-            last_name: item.try(:last_name),
-            entity_type: item.try(:entity_type),
-            email: item.try(:email),
-            website: item.try(:website)
+            first_name: item&.first_name,
+            last_name: item&.last_name,
+            entity_type: item&.entity_type,
+            email: item&.email,
+            website: item&.website
           }
         else
           super
@@ -808,8 +850,8 @@ module HealthChecks
             xero_contact_id: c.xero_id,
             xero_id: c.xero_id,
             # Modal needs these counts for merge preview (loaded via SQL subquery for performance)
-            jobs_count: c.try(:jobs_count) || 0,
-            purchase_orders_count: c.try(:purchase_orders_count) || 0,
+            jobs_count: c&.jobs_count || 0,
+            purchase_orders_count: c&.purchase_orders_count || 0,
             # completeness_score is calculated - would need to load full record
             completeness_score: 0
           }

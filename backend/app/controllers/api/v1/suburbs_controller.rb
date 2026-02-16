@@ -57,10 +57,7 @@ module Api
             suburb: suburb_json(@suburb)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @suburb.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@suburb)
         end
       end
 
@@ -72,10 +69,7 @@ module Api
             suburb: suburb_json(@suburb)
           }
         else
-          render json: {
-            success: false,
-            errors: @suburb.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@suburb)
         end
       end
 
@@ -104,7 +98,7 @@ module Api
         council = params[:council]
 
         if suburb_ids.blank?
-          render json: { success: false, error: "No suburbs specified" }, status: :unprocessable_entity
+          render_error("No suburbs specified", status: :unprocessable_entity)
           return
         end
 

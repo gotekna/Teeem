@@ -18,11 +18,12 @@
 
 import { onCLS, onLCP, onINP, onTTFB, type Metric } from "web-vitals";
 import { getApiBaseUrl } from "@/lib/api";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 // Configuration - SSoT: API_URL comes from lib/api.ts
 const METRICS_ENDPOINT = `${getApiBaseUrl()}/api/v1/metrics`;
 const BATCH_SIZE = 5; // Send after collecting this many metrics
-const FLUSH_INTERVAL_MS = 30000; // Flush every 30 seconds regardless
+const FLUSH_INTERVAL_MS = POLLING_INTERVAL_MS; // Flush every 30 seconds regardless
 
 // Generate a session ID for tracking user journeys
 const SESSION_ID =

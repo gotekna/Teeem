@@ -20,14 +20,25 @@ module Api
         model = @foundation.dynamic_model
         query = model.all
 
+        # Performance: Exclude heavy columns (e.g., JSONB metadata) from list queries.
+        # Models opt in via list_view_excluded_columns. Detail views (show) still return all columns.
+        # TOAST-compressed columns are skipped at the PostgreSQL level, avoiding decompression overhead.
+        if model.respond_to?(:list_view_excluded_columns) && model.list_view_excluded_columns.any?
+          columns_to_select = model.column_names - model.list_view_excluded_columns
+          query = query.select(columns_to_select.map { |c| "#{model.table_name}.#{c}" })
+        end
+
         # SSoT: Auto-eager-load ALL associations for ANY table to prevent N+1 queries
         # This works for both system tables and user-created tables
         query = apply_eager_loading(query, model)
 
-        # CRITICAL: Add distinct to prevent duplicates caused by JOINs from eager loading
+        # Add distinct to prevent duplicates caused by JOINs from eager loading
         # When a record has multiple associations (e.g., Contact with multiple external_links),
-        # includes() creates LEFT OUTER JOINs that produce duplicate rows
-        query = query.distinct
+        # includes() creates LEFT OUTER JOINs that produce duplicate rows.
+        # Skip DISTINCT for models using safe_eager_load_associations (belongs_to only = no duplicates)
+        unless model.respond_to?(:safe_eager_load_associations)
+          query = query.distinct
+        end
 
         # Exclude soft-deleted records if the table has a 'deleted' column
         if model.column_names.include?("deleted")
@@ -513,14 +524,24 @@ module Api
         end
 
         # Get count before pagination (skip if using cursor pagination for performance)
-        total_count = params[:cursor].present? ? nil : query.count
+        # For large tables (100K+), use fast approximate count from pg_class stats
+        # to avoid slow COUNT(*) scans. Exact count used for filtered/searched queries.
+        has_active_filters = search.present? || params[:filters].present? || params[:duplicates_only].present? || params[:xero_tenant_id].present? || params[:job_id].present?
+        total_count = if params[:cursor].present?
+          nil
+        elsif !has_active_filters && model.respond_to?(:list_view_excluded_columns)
+          # Unfiltered large table: use PostgreSQL stats (instant, updated by ANALYZE)
+          approx = ActiveRecord::Base.connection.select_value(
+            "SELECT reltuples::bigint FROM pg_class WHERE relname = #{ActiveRecord::Base.connection.quote(model.table_name)}"
+          ).to_i
+          approx > 0 ? approx : query.count
+        else
+          query.count
+        end
 
-        # NOTE: We removed the fields=minimal SELECT hack here.
-        # It was breaking features (cascading filters, column selection, associations).
-        # Performance is achieved through:
-        # 1. Eager loading associations (apply_eager_loading - auto-derived from model)
-        # 2. Proper pagination (offset OR cursor-based)
-        # See: Ultra philosophy - load what the UI needs, optimize HOW we load it
+        # Performance: Heavy columns (e.g., JSONB metadata) are excluded at query level
+        # via model.list_view_excluded_columns (applied above). This is model-opt-in,
+        # not a generic fields=minimal hack. Detail views (show) still return all columns.
 
         # Paginate: Use cursor-based for infinite scroll, offset for traditional pagination
         if params[:cursor].present? || params[:limit].present?
@@ -610,7 +631,7 @@ module Api
 
         render json: response
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/foundations/:foundation_id/records/:id
@@ -623,7 +644,7 @@ module Api
           record: record_to_json(record)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Record not found" }, status: :not_found
+        render_error("Record not found", status: :not_found)
       end
 
       # POST /api/v1/foundations/:foundation_id/records
@@ -648,7 +669,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render_error(e.message)
       end
 
       # PATCH/PUT /api/v1/foundations/:foundation_id/records/:id
@@ -669,9 +690,9 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Record not found" }, status: :not_found
+        render_error("Record not found", status: :not_found)
       rescue => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render_error(e.message)
       end
 
       # DELETE /api/v1/foundations/:foundation_id/records/:id
@@ -704,7 +725,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Record not found" }, status: :not_found
+        render_error("Record not found", status: :not_found)
       end
 
       # POST /api/v1/foundations/:foundation_id/records/bulk_update
@@ -714,11 +735,11 @@ module Api
         updates = params[:updates]&.to_unsafe_h || {}
 
         if record_ids.blank?
-          return render json: { error: "No record IDs provided" }, status: :unprocessable_entity
+          return render_error("No record IDs provided")
         end
 
         if updates.blank?
-          return render json: { error: "No updates provided" }, status: :unprocessable_entity
+          return render_error("No updates provided")
         end
 
         # Get valid column names for this foundation
@@ -732,7 +753,7 @@ module Api
         filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
 
         if filtered_updates.blank?
-          return render json: { error: "No valid columns to update" }, status: :unprocessable_entity
+          return render_error("No valid columns to update")
         end
 
         # Auto-convert lookup IDs to string values for columns where:
@@ -800,7 +821,7 @@ module Api
           errors: errors
         }
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/records/:id/merge
@@ -814,13 +835,13 @@ module Api
 
         # Check for nil, empty string, OR empty array (Rails: [].blank? is false!)
         if secondary_ids.blank? || (secondary_ids.is_a?(Array) && secondary_ids.empty?)
-          return render json: { error: "No secondary record IDs provided. Select at least 2 records to merge." }, status: :unprocessable_entity
+          return render_error("No secondary record IDs provided. Select at least 2 records to merge.")
         end
 
         secondaries = model.where(id: secondary_ids)
 
         if secondaries.empty?
-          return render json: { error: "No valid secondary records found" }, status: :unprocessable_entity
+          return render_error("No valid secondary records found")
         end
 
         service = GenericMergeService.new(primary, secondaries, model)
@@ -833,10 +854,10 @@ module Api
           message: "Successfully merged #{service.merged_count} record(s) into primary record"
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Primary record not found" }, status: :not_found
+        render_error("Primary record not found", status: :not_found)
       rescue => e
         Rails.logger.error "Merge failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-        render json: { error: "Merge failed: #{e.message}" }, status: :unprocessable_entity
+        render_error("Merge failed: #{e.message}")
       end
 
       # POST /api/v1/foundations/:foundation_id/records/bulk_delete
@@ -845,7 +866,7 @@ module Api
         ids = params[:ids]  # Changed from record_ids to ids for consistency with other bulk_delete endpoints
 
         if ids.blank?
-          return render json: { error: "No record IDs provided" }, status: :unprocessable_entity
+          return render_error("No record IDs provided")
         end
 
         deleted_count = 0
@@ -870,7 +891,7 @@ module Api
           errors: errors
         }
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/foundations/:foundation_id/records/bulk_create
@@ -879,11 +900,11 @@ module Api
         records_data = params[:records]
 
         if records_data.blank? || !records_data.is_a?(Array)
-          return render json: { error: "No records provided. Expected { records: [...] }" }, status: :unprocessable_entity
+          return render_error("No records provided. Expected { records: [...] }")
         end
 
         if records_data.size > 1000
-          return render json: { error: "Maximum 1000 records per batch" }, status: :unprocessable_entity
+          return render_error("Maximum 1000 records per batch")
         end
 
         created = []
@@ -921,7 +942,7 @@ module Api
           }, status: :created
         end
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/foundations/:foundation_id/records/export
@@ -934,7 +955,7 @@ module Api
         # Cap export at 50,000 records to prevent memory issues
         total = query.count
         if total > 50_000
-          return render json: { error: "Export limited to 50,000 records. Apply filters to reduce the dataset." }, status: :unprocessable_entity
+          return render_error("Export limited to 50,000 records. Apply filters to reduce the dataset.")
         end
 
         records = query.limit(50_000).to_a
@@ -959,7 +980,7 @@ module Api
           export_csv(records, columns)
         end
       rescue => e
-        render json: { error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       private
@@ -990,7 +1011,7 @@ module Api
           Foundation.includes(:columns).find_by!(slug: params[:foundation_id])
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { error: "Foundation not found" }, status: :not_found
+        render_error("Foundation not found", status: :not_found)
       end
 
       def record_params
@@ -1683,7 +1704,7 @@ module Api
         end
 
         send_data csv_data,
-          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.csv",
+          filename: "#{@foundation.slug}_export_#{Date.current.iso8601}.csv",
           type: "text/csv",
           disposition: "attachment"
       end
@@ -1705,7 +1726,7 @@ module Api
 
         xlsx_data = package.to_stream.read
         send_data xlsx_data,
-          filename: "#{@foundation.slug}_export_#{Date.today.iso8601}.xlsx",
+          filename: "#{@foundation.slug}_export_#{Date.current.iso8601}.xlsx",
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           disposition: "attachment"
       end

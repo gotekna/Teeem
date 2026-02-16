@@ -20,6 +20,7 @@ import { Building2, User, Network, Briefcase, Maximize2, ExternalLink } from "lu
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 // Extended data for ownership chain
 interface OwnershipNode {
@@ -315,24 +316,24 @@ export default function PersonStructureChart({
         type: "smoothstep",
         animated: true,
         style: {
-          stroke: "#f59e0b",
+          stroke: TAILWIND_COLORS.amber[500],
           strokeWidth: 2,
         },
         label: `${node.percentage}%`,
         labelStyle: {
-          fill: "#f59e0b",
+          fill: TAILWIND_COLORS.amber[500],
           fontWeight: 600,
           fontSize: 11,
         },
         labelBgStyle: {
-          fill: "#ffffff",
+          fill: COLORS.white,
           fillOpacity: 0.9,
         },
         labelBgPadding: [4, 2] as [number, number],
         labelBgBorderRadius: 4,
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "#f59e0b",
+          color: TAILWIND_COLORS.amber[500],
         },
       });
 
@@ -418,10 +419,10 @@ export default function PersonStructureChart({
         const y = positionStartY + (index * ySpacing);
 
         // Use purple if Director is present, otherwise blue for Secretary, green for Officer
-        let edgeColor = "#9333ea"; // Default purple
+        let edgeColor = TAILWIND_COLORS.purple[600] as string; // Default purple
         if (!companyData.positions.includes("Director")) {
-          if (companyData.positions.includes("Secretary")) edgeColor = "#2563eb";
-          else if (companyData.positions.includes("Officer")) edgeColor = "#16a34a";
+          if (companyData.positions.includes("Secretary")) edgeColor = TAILWIND_COLORS.blue[600];
+          else if (companyData.positions.includes("Officer")) edgeColor = TAILWIND_COLORS.green[600];
         }
 
         nodes.push({
@@ -636,7 +637,7 @@ function ChartWithControls({
         panOnScroll
         zoomOnScroll={false}
       >
-        <Background color="#e5e7eb" gap={20} />
+        <Background color={TAILWIND_COLORS.gray[200]} gap={20} />
         <Controls showInteractive={false} />
       </ReactFlow>
     </div>

@@ -9,6 +9,7 @@ class SyncedEmail < ApplicationRecord
   acts_as_tenant :tenant
 
   include Searchable
+  include MimeTypes
 
   # Searchable columns for full-text search (GIN index)
   # Note: Uses custom update_searchable_vector callback instead of trigger
@@ -308,18 +309,46 @@ class SyncedEmail < ApplicationRecord
 
   # Get or create mailbox appearance (used during sync)
   # Supports both MS365 (outlook_id, microsoft_credential_id) and IMAP (uid, imap_credential_id)
+  #
+  # ⚠️ FRC (Feb 2026): Don't overwrite credential_id/outlook_id on existing appearances!
+  # Root cause: When multiple credentials share a Microsoft tenant (sync_all: true),
+  # they all sync the same mailboxes. The uniqueness key is (synced_email_id, mailbox_owner_email),
+  # so the LAST credential to run would overwrite the credential_id. This broke the email list
+  # query which filtered by credential_id on the join table.
+  # Fix: Only set credential_id and outlook_id on NEW appearances. For existing ones,
+  # only update folder_name and is_read (which are genuinely per-sync-run values).
   def ensure_mailbox_appearance(mailbox_email:, outlook_id: nil, uid: nil, folder_name: nil, is_read: false, microsoft_credential_id: nil, imap_credential_id: nil)
     appearance = mailbox_appearances.find_or_initialize_by(
       mailbox_owner_email: mailbox_email.downcase
     )
-    appearance.assign_attributes(
-      outlook_id: outlook_id,
-      uid: uid,
-      folder_name: folder_name,
-      is_read: is_read,
-      microsoft_credential_id: microsoft_credential_id,
-      imap_credential_id: imap_credential_id
-    )
+
+    if appearance.new_record?
+      # New appearance - set all fields including credential ownership
+      appearance.assign_attributes(
+        outlook_id: outlook_id,
+        uid: uid,
+        folder_name: folder_name,
+        is_read: is_read,
+        microsoft_credential_id: microsoft_credential_id,
+        imap_credential_id: imap_credential_id
+      )
+    else
+      # Existing appearance - only update mutable fields, preserve credential ownership
+      appearance.assign_attributes(
+        folder_name: folder_name,
+        is_read: is_read
+      )
+      # Only update credential/outlook_id if this is the SAME credential (not a different one overwriting)
+      if appearance.microsoft_credential_id == microsoft_credential_id || appearance.microsoft_credential_id.nil?
+        appearance.outlook_id = outlook_id if outlook_id.present?
+        appearance.microsoft_credential_id = microsoft_credential_id if microsoft_credential_id.present?
+      end
+      if appearance.imap_credential_id == imap_credential_id || appearance.imap_credential_id.nil?
+        appearance.uid = uid if uid.present?
+        appearance.imap_credential_id = imap_credential_id if imap_credential_id.present?
+      end
+    end
+
     appearance.save!
     appearance
   end
@@ -364,11 +393,12 @@ class SyncedEmail < ApplicationRecord
 
   # SSoT: Get attachment documents for this email via WarehouseDocument (Jan 2026)
   # Returns WarehouseDocument records linked to this email
-  # FRC (Feb 2026): Fixed query to match actual storage format from sync_attachments!
-  # Attachments are stored with source_type='email_attachment' and metadata key 'synced_email_id'
+  # SSoT (Feb 2026): linkable FK is THE ONE way to link attachments to emails.
+  # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
+  # linkable is a proper polymorphic FK with index — faster and Rails-standard.
+  # metadata['synced_email_id'] is kept as audit data, not for querying.
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment')
-                     .where("metadata->>'synced_email_id' = ?", id.to_s)
+    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
@@ -616,7 +646,7 @@ class SyncedEmail < ApplicationRecord
       matches << {
         job: job,
         match_type: "contact_email_with_context",
-        confidence: 0.75,
+        confidence: EmailConstants::CONTACT_MATCH_CONFIDENCE,
         reason: "Email #{job.matched_email} is linked to job contact"
       }
     end
@@ -693,7 +723,7 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Auto-assign to best matching job if confidence is high enough
-  def auto_assign_to_job!(min_confidence: 0.8)
+  def auto_assign_to_job!(min_confidence: EmailConstants::DEFAULT_AUTO_ASSIGN_CONFIDENCE)
     return if job_id.present?  # Already assigned
 
     matches = find_matching_jobs
@@ -871,7 +901,7 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Extract text from all attached PDF files
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   # Note: Uses WarehouseDocument (Jan 2026 - email_attachments table dropped)
   def extract_pdf_text
     return nil unless attachment_documents.any?
@@ -880,14 +910,14 @@ class SyncedEmail < ApplicationRecord
 
     attachment_documents.each do |doc|
       content_type = doc.content_type || doc.storage_blob&.content_type
-      next unless content_type == "application/pdf"
+      next unless content_type == PDF
       next unless doc.storage_blob.present?
 
       begin
         content = doc.storage_blob.download
         next unless content.present?
 
-        result = PdfTextExtractionService.extract(content, join_pages: true)
+        result = OcrTextExtractorService.extract(content, join_pages: true)
         next unless result[:success]
 
         pdf_texts << {
@@ -906,16 +936,17 @@ class SyncedEmail < ApplicationRecord
   # SSoT: Try to link attachments from related emails without downloading
   # Checks same internet_message_id (exact copy in another mailbox) or conversation_id (thread)
   # Returns true if attachments were linked, false if download still needed
+  # Two-step aware (Feb 2026): Also copies blobless metadata docs (pending downloads)
   def link_existing_attachments!
     return false unless has_attachments
     return false if attachment_documents.any?
 
     # Find related emails with synced attachments (via WarehouseDocument)
+    # Include blobless docs too - they carry metadata (outlook_attachment_id) for later download
     related_with_attachments = SyncedEmail.where.not(id: id)
       .where(has_attachments: true)
       .joins("INNER JOIN warehouse_documents ON warehouse_documents.metadata->>'synced_email_id' = synced_emails.id::text")
       .where(warehouse_documents: { source_type: 'email_attachment' })
-      .where.not(warehouse_documents: { storage_blob_id: nil })
 
     # Priority 1: Same internet_message_id (exact same email, different mailbox)
     if internet_message_id.present?
@@ -939,23 +970,32 @@ class SyncedEmail < ApplicationRecord
   end
 
   # Copy attachments from another email, linking to same StorageBlobs via WarehouseDocument
+  # Two-step aware (Feb 2026): Also copies blobless metadata docs for later download
   def copy_attachments_from!(source_email)
     source_email.attachment_documents.each do |src_doc|
-      next unless src_doc.storage_blob_id
-
-      # Create new WarehouseDocument linking to same blob via standard service
-      WarehouseDocumentCreator.create!(
+      # Copy the document - with or without blob (two-step: metadata survives without blob)
+      WarehouseDocumentCreator.find_or_create!(
+        find_by: {
+          source_type: "email_attachment",
+          linkable: self,
+          metadata_match: { "outlook_attachment_id" => src_doc.metadata&.dig("outlook_attachment_id") }.compact
+        },
         filename: src_doc.ui_name,
         source_type: "email_attachment",
-        documentable: self,
+        linkable: self,
         storage_blob: src_doc.storage_blob,
         file_size: src_doc.file_size,
         content_type: src_doc.content_type,
-        metadata: { "synced_email_id" => id.to_s }
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "mailbox" => mailbox_owner_email,
+          "outlook_attachment_id" => src_doc.metadata&.dig("outlook_attachment_id"),
+          "blob_status" => src_doc.storage_blob_id.present? ? "downloaded" : "pending"
+        }.compact
       )
 
-      src_doc.storage_blob&.increment!(:reference_count)
-      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id}"
+      src_doc.storage_blob&.increment!(:reference_count) if src_doc.storage_blob_id.present?
+      Rails.logger.debug "[SyncedEmail] Linked attachment: #{src_doc.ui_name} → blob #{src_doc.storage_blob_id || 'pending'}"
     end
 
     # Update attachment count
@@ -969,29 +1009,242 @@ class SyncedEmail < ApplicationRecord
   # Called automatically for new emails with attachments via OrgEmailSyncJob
   # FRC (Jan 2026): Microsoft reports has_attachments=false for inline images only.
   # Check body for cid: references to catch inline images that need syncing.
+  # SSoT: Wasabi is THE ONE storage for attachments. No fallbacks.
+  # Per-attachment dedup (line-by-line) ensures missing ones get synced
+  # even if some already exist.
+  #
+  # FRC (Feb 2026): Legacy fields (microsoft_credential_id, outlook_id, mailbox_owner_email)
+  # are set by the FIRST sync and never updated. For emails in "decommissioned" mailboxes
+  # (e.g., lyw.org.au), the legacy credential may 404. We now fall back to
+  # SyncedEmailMailbox appearances which may have a working credential+outlook_id pair.
   def sync_attachments!(force: false)
     has_inline_images = body_html&.include?('cid:')
     return unless has_attachments || has_inline_images
-    # FRC (Jan 2026): Only skip if ALL attachments have blobs
-    existing_docs = attachment_documents.where.not(storage_blob_id: nil)
-    return if !force && existing_docs.any?
 
-    # SSoT: Try linking existing attachments first (don't re-download)
-    return if link_existing_attachments!
+    # FRC (Feb 2026): StorageBlob.upload_to_storage! needs tenant context to find
+    # the storage provider (Wasabi/S3). Without this, blob creation fails with
+    # "Tenant context required" when called from rake tasks or background jobs.
+    # SyncedEmail acts_as_tenant :tenant, so self.tenant is always available.
+    ActsAsTenant.with_tenant(tenant) do
+      # SSoT: Try linking existing attachments first (don't re-download)
+      link_existing_attachments!
 
-    unless microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
-      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - missing credential/outlook_id/mailbox"
-      return
+      # Try Microsoft Graph first, then IMAP fallback
+      if sync_attachments_via_graph!
+        update_column(:attachment_count, attachment_documents.reload.count)
+        return
+      end
+
+      if sync_attachments_via_imap!
+        update_column(:attachment_count, attachment_documents.reload.count)
+        return
+      end
+
+      Rails.logger.warn "[SyncedEmail] Cannot sync attachments for #{id} - no working credential (Graph or IMAP)"
+    end
+  end
+
+  private
+
+  # Fetch attachments via Microsoft Graph API.
+  # Two-step approach (Feb 2026 optimization):
+  #   1) List attachment metadata only (~1KB) to check for real attachments
+  #   2) Download only real attachments individually (skip inline signature images)
+  # This avoids downloading ~300KB+ of base64 content for emails with only signature images.
+  def sync_attachments_via_graph!
+    graph_attempts = build_graph_credential_attempts
+    return false if graph_attempts.empty?
+
+    used_client = nil
+    used_mailbox = nil
+    used_attempt = nil
+    attachment_metadata = nil
+
+    # Step 1: Find a working credential and list attachment metadata (fast)
+    graph_attempts.each do |attempt|
+      cred = MicrosoftCredential.find_by(id: attempt[:credential_id])
+      next unless cred&.status == "connected"
+
+      begin
+        client = MicrosoftAppGraphClient.new(cred)
+        attachment_metadata = client.list_email_attachments(attempt[:mailbox], attempt[:outlook_id])
+        used_client = client
+        used_mailbox = attempt[:mailbox]
+        used_attempt = attempt
+        break
+      rescue Microsoft::BaseClient::ApiError => e
+        # 404 = mailbox not found in tenant, 403 = credential can't access mailbox
+        # Both mean "wrong credential for this mailbox" - try next one from join table
+        if e.message.include?("404") || e.message.include?("403")
+          Rails.logger.debug "[SyncedEmail] #{e.message[0..3]} for email #{id} via cred #{attempt[:credential_id]} / #{attempt[:mailbox]} - trying next"
+          next
+        end
+        raise
+      end
     end
 
-    cred = MicrosoftCredential.find_by(id: microsoft_credential_id)
-    return unless cred
+    return false unless attachment_metadata&.any?
 
-    client = MicrosoftAppGraphClient.new(cred)
-    attachments = client.get_email_attachments(mailbox_owner_email, outlook_id)
+    # Step 2: Filter to real attachments only (skip inline signature images)
+    real_attachments = attachment_metadata.reject do |att|
+      att["isInline"] && att["contentType"]&.start_with?("image/") && att["size"].to_i < 100_000
+    end
 
-    Rails.logger.info "[SyncedEmail] Syncing #{attachments.count} attachments for email #{id}"
+    if real_attachments.empty?
+      # Only inline images - mark email so we don't re-check
+      Rails.logger.debug "[SyncedEmail] Email #{id} has only inline images (#{attachment_metadata.count} skipped)"
+      update_column(:has_attachments, false)
+      return true # Return true to prevent IMAP fallback
+    end
 
+    # Step 3: Record metadata for all real attachments (fast, no downloads)
+    record_attachment_metadata!(real_attachments, used_mailbox)
+
+    # Step 4: Download blobs for any attachments missing content
+    Rails.logger.info "[SyncedEmail] Downloading pending blobs for email #{id} via Graph (#{used_mailbox})"
+    download_pending_blobs!(used_client, used_attempt, used_mailbox)
+    true
+  end
+
+  # Fetch attachments via IMAP (for non-M365 mailboxes: Gmail, Webcentral, etc.)
+  # Uses SyncedEmailMailbox join table to find IMAP credential + UID.
+  # Returns true if attachments were found and processed, false if no IMAP path worked.
+  def sync_attachments_via_imap!
+    imap_attempts = build_imap_credential_attempts
+    return false if imap_attempts.empty?
+
+    imap_attempts.each do |attempt|
+      cred = ImapCredential.find_by(id: attempt[:imap_credential_id])
+      next unless cred
+
+      begin
+        service = ImapEmailService.new(cred)
+        mail_attachments = service.fetch_attachments_by_uid(attempt[:uid], folder: attempt[:folder])
+        next unless mail_attachments&.any?
+
+        Rails.logger.info "[SyncedEmail] Syncing #{mail_attachments.count} attachments for email #{id} via IMAP (#{attempt[:mailbox]})"
+        store_imap_attachments!(mail_attachments, attempt[:mailbox])
+        return true
+      rescue => e
+        Rails.logger.debug "[SyncedEmail] IMAP attachment fetch failed for email #{id} via cred #{attempt[:imap_credential_id]}: #{e.message}"
+        next
+      end
+    end
+
+    false
+  end
+
+  # Two-Step Attachment Sync (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════
+  # Step 1: Record metadata for all real attachments WITHOUT downloading content.
+  # This ensures every attachment is tracked locally (SSoT) even if the download fails.
+  # Uses find_or_create! so re-running is idempotent.
+  #
+  # Step 2 (download_pending_blobs!) fetches actual bytes into StorageBlob.
+  # If step 2 fails for an attachment, the metadata survives for retry.
+  # ════════════════════════════════════════════════════════════════════
+
+  # Step 1: Record metadata (fast, no downloads)
+  def record_attachment_metadata!(real_attachments, used_mailbox)
+    real_attachments.each do |att_meta|
+      filename = att_meta["name"] || "attachment"
+      graph_attachment_id = att_meta["id"]
+      byte_size = att_meta["size"].to_i
+
+      # Detect item attachments (nested emails) - MS Graph returns null contentType for these
+      is_item_attachment = att_meta["@odata.type"] == "#microsoft.graph.itemAttachment"
+      content_type = if is_item_attachment
+                       "message/rfc822"
+                     else
+                       att_meta["contentType"]
+                     end
+      if is_item_attachment && !filename.downcase.end_with?(".eml")
+        filename = "#{filename}.eml"
+      end
+
+      WarehouseDocumentCreator.find_or_create!(
+        find_by: {
+          source_type: "email_attachment",
+          linkable: self,
+          metadata_match: { "outlook_attachment_id" => graph_attachment_id }
+        },
+        filename: filename,
+        source_type: "email_attachment",
+        linkable: self,
+        file_size: byte_size.positive? ? byte_size : nil,
+        content_type: content_type,
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "outlook_attachment_id" => graph_attachment_id,
+          "mailbox" => used_mailbox,
+          "blob_status" => "pending"
+        }.compact
+      )
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to record metadata for attachment '#{filename}' on email #{id}: #{e.class}: #{e.message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
+      raise # Fail fast - don't silently skip attachments
+    end
+
+    # Update attachment count from local SSoT
+    new_count = attachment_documents.reload.count
+    update_column(:attachment_count, new_count)
+  end
+
+  # Step 2: Download blobs for attachments that don't have one yet.
+  # Tries ALL pending blobs (don't stop at first failure).
+  # Raises after attempting all if any failed - ensures visibility while
+  # maximizing data recovery per run.
+  def download_pending_blobs!(client, attempt, used_mailbox)
+    blobless_docs = attachment_documents.reload.where(storage_blob_id: nil)
+    return if blobless_docs.empty?
+
+    Rails.logger.info "[SyncedEmail] Downloading #{blobless_docs.count} pending blobs for email #{id}"
+
+    failed_docs = []
+
+    blobless_docs.each do |doc|
+      graph_attachment_id = doc.metadata&.dig("outlook_attachment_id")
+      next unless graph_attachment_id.present?
+
+      result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
+      unless result
+        doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+        failed_docs << { doc_id: doc.id, error: "Download returned nil" }
+        next
+      end
+
+      blob = StorageBlob.find_or_create_for_content!(
+        result[:content], filename: result[:filename], content_type: result[:content_type]
+      )
+
+      doc.update!(
+        storage_blob: blob,
+        file_size: blob.file_size,
+        content_type: result[:content_type] || blob.content_type,
+        metadata: (doc.metadata || {}).merge(
+          "blob_status" => "downloaded",
+          "content_id" => result[:content_id]
+        ).compact
+      )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[SyncedEmail] Downloaded blob for: #{doc.ui_name}"
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.class}: #{e.message}"
+      Rails.logger.error e.backtrace.first(3).join("\n")
+      doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+      failed_docs << { doc_id: doc.id, error: "#{e.class}: #{e.message.truncate(100)}" }
+    end
+
+    if failed_docs.any?
+      raise "Failed to download #{failed_docs.count}/#{blobless_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
+    end
+  end
+
+  # Store attachments fetched from Microsoft Graph API (legacy bulk path)
+  # Kept for backward compatibility - new code uses two-step: record_attachment_metadata! + download_pending_blobs!
+  def store_graph_attachments!(attachments, used_mailbox)
     attachments.each do |att|
       next if att["contentBytes"].blank?
 
@@ -999,31 +1252,33 @@ class SyncedEmail < ApplicationRecord
       filename = att["name"]
       content_type = att["contentType"]
       byte_size = att["size"].to_i
-      content_id = att["contentId"]  # For matching cid: references in HTML
+      content_id = att["contentId"]
+      graph_attachment_id = att["id"]
 
       # Skip small inline images (likely signatures)
       next if att["isInline"] && content_type&.start_with?("image/") && byte_size < 50_000
 
-      # Check if already have this attachment (by filename)
+      # Per-attachment dedup: skip only if THIS attachment already has a blob
       existing_doc = attachment_documents.find { |d| d.original_filename == filename }
       next if existing_doc&.storage_blob_id.present?
 
-      # Create StorageBlob (handles deduplication via content_hash)
       blob = StorageBlob.find_or_create_for_content!(
-        content,
-        filename: filename,
-        content_type: content_type
+        content, filename: filename, content_type: content_type
       )
 
-      # Create WarehouseDocument via standard service
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",
-        documentable: self,
+        linkable: self,
         storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
         content_type: content_type || blob.content_type,
-        metadata: { "synced_email_id" => id.to_s, "content_id" => content_id }.compact
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "content_id" => content_id,
+          "outlook_attachment_id" => graph_attachment_id,
+          "mailbox" => used_mailbox
+        }.compact
       )
 
       blob.increment!(:reference_count)
@@ -1031,12 +1286,107 @@ class SyncedEmail < ApplicationRecord
     rescue StandardError => e
       Rails.logger.error "[SyncedEmail] Failed to sync attachment #{filename}: #{e.message}"
     end
-
-    # Update attachment count
-    update_column(:attachment_count, attachment_documents.reload.count)
   end
 
-  private
+  # Store attachments fetched from IMAP
+  def store_imap_attachments!(mail_attachments, mailbox)
+    mail_attachments.each do |att|
+      next unless att[:content].present?
+
+      filename = att[:filename]
+      content_type = att[:content_type]
+      content = att[:content]
+      byte_size = att[:size] || content.bytesize
+
+      # Skip small inline images (likely signatures)
+      next if content_type&.start_with?("image/") && byte_size < 50_000
+
+      # Per-attachment dedup
+      existing_doc = attachment_documents.find { |d| d.original_filename == filename }
+      next if existing_doc&.storage_blob_id.present?
+
+      blob = StorageBlob.find_or_create_for_content!(
+        content, filename: filename, content_type: content_type
+      )
+
+      WarehouseDocumentCreator.create!(
+        filename: filename,
+        source_type: "email_attachment",
+        linkable: self,
+        storage_blob: blob,
+        file_size: byte_size.positive? ? byte_size : blob.file_size,
+        content_type: content_type || blob.content_type,
+        metadata: {
+          "synced_email_id" => id.to_s,
+          "mailbox" => mailbox,
+          "source" => "imap"
+        }.compact
+      )
+
+      blob.increment!(:reference_count)
+      Rails.logger.debug "[SyncedEmail] Synced IMAP attachment: #{filename}"
+    rescue StandardError => e
+      Rails.logger.error "[SyncedEmail] Failed to sync IMAP attachment #{filename}: #{e.message}"
+    end
+  end
+
+  # Build ordered list of Microsoft Graph credential attempts.
+  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances.
+  # FRC (Feb 2026): Legacy fields are set by FIRST sync and never updated. For emails originally
+  # synced via a credential that can no longer access the mailbox (e.g., different Azure AD tenant),
+  # the join table may have an alternative appearance with a working credential.
+  def build_graph_credential_attempts
+    attempts = []
+
+    # 1) Legacy fields (backward compat, fastest path for the 90% case)
+    if microsoft_credential_id.present? && outlook_id.present? && mailbox_owner_email.present?
+      attempts << { credential_id: microsoft_credential_id, mailbox: mailbox_owner_email, outlook_id: outlook_id }
+    end
+
+    # 2) All mailbox appearances with M365 credentials (the SSoT join table)
+    mailbox_appearances.where.not(microsoft_credential_id: nil).where.not(outlook_id: [nil, ""]).each do |appearance|
+      key = [appearance.microsoft_credential_id, appearance.outlook_id]
+      next if attempts.any? { |a| [a[:credential_id], a[:outlook_id]] == key }
+      attempts << {
+        credential_id: appearance.microsoft_credential_id,
+        mailbox: appearance.mailbox_owner_email,
+        outlook_id: appearance.outlook_id
+      }
+    end
+
+    attempts
+  end
+
+  # Build IMAP credential attempts for attachment fetching.
+  # Priority: 1) Legacy fields on SyncedEmail (fast path), 2) SyncedEmailMailbox appearances.
+  # Used as fallback when no Microsoft Graph credential is available (Gmail, Webcentral, etc.)
+  def build_imap_credential_attempts
+    attempts = []
+
+    # 1) Legacy fields (backward compat, fastest path)
+    if imap_credential_id.present? && uid.present? && mailbox_owner_email.present?
+      attempts << {
+        imap_credential_id: imap_credential_id,
+        mailbox: mailbox_owner_email,
+        uid: uid,
+        folder: folder_name || "INBOX"
+      }
+    end
+
+    # 2) All mailbox appearances with IMAP credentials (the SSoT join table)
+    mailbox_appearances.where.not(imap_credential_id: nil).where.not(uid: nil).each do |appearance|
+      key = [appearance.imap_credential_id, appearance.uid]
+      next if attempts.any? { |a| [a[:imap_credential_id], a[:uid]] == key }
+      attempts << {
+        imap_credential_id: appearance.imap_credential_id,
+        mailbox: appearance.mailbox_owner_email,
+        uid: appearance.uid,
+        folder: appearance.folder_name || "INBOX"
+      }
+    end
+
+    attempts
+  end
 
   # SSoT: Normalize all email addresses to lowercase before saving
   # This ensures case-insensitive matching works with simple equality checks

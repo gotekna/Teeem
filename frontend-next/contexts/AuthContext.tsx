@@ -5,14 +5,7 @@ import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
 import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  permissions: string[];
-  [key: string]: unknown;
-}
+import type { User } from '@/lib/types';
 
 interface AuthContextType {
   user: User | null;
@@ -230,7 +223,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const devLogin = async () => {
-    console.log('🔧 Dev Mode: Auto-logging in with mock user...');
 
     // Use a mock user for dev mode - no API call needed
     const mockUser: User = {
@@ -248,7 +240,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     applyUserTheme(mockUser);
     // Load column type definitions from SSoT (fires in background)
     loadTypeDefinitions();
-    console.log('✅ Dev Mode: Logged in as', mockUser.name);
     setLoading(false);
   };
 

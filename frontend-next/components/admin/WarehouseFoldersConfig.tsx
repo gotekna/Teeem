@@ -3,6 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { resolveWithExamples, resolveStoragePath, STORAGE_PLACEHOLDERS } from "@/lib/placeholders";
+import { DEBOUNCE_SHORT_MS } from "@/lib/constants/timeout-constants";
 import { PlaceholderBuilder } from "@/components/ui/placeholders";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,7 @@ import {
   reorderByPosition,
   DragHandle,
   ItemBadge,
+  type ItemBadgeColor,
 } from "@/components/ui/dnd";
 import {
   ChevronDown,
@@ -568,7 +570,6 @@ export function WarehouseFoldersConfig({
         });
       }
 
-      console.log('[WarehouseFoldersConfig] Setting status to saving...');
       setSaveStatus('saving');
       await api.patch('/api/v1/warehouse_provider', {
         storage: {
@@ -578,9 +579,7 @@ export function WarehouseFoldersConfig({
       });
 
       // Show green tick - stays until page closes or next change
-      console.log('[WarehouseFoldersConfig] Setting status to saved...');
       setSaveStatus('saved');
-      console.log('[WarehouseFoldersConfig] Auto-saved templates');
     } catch (err) {
       console.error('[WarehouseFoldersConfig] Failed to auto-save templates:', err);
       setSaveStatus('idle');
@@ -610,7 +609,7 @@ export function WarehouseFoldersConfig({
     // Debounce save by 1 second
     saveTimeoutRef.current = setTimeout(() => {
       saveTemplates();
-    }, 1000);
+    }, DEBOUNCE_SHORT_MS * 10); // 1000ms
 
     return () => {
       if (saveTimeoutRef.current) {
@@ -634,9 +633,9 @@ export function WarehouseFoldersConfig({
 
     const fetchDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: any[] }>('/api/v1/document_types');
+        const response = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name: string }> }>('/api/v1/document_types');
         if (response?.success && Array.isArray(response.data)) {
-          setAllDocumentTypes(response.data.map((dt: any) => ({
+          setAllDocumentTypes(response.data.map((dt) => ({
             id: dt.id,
             name: dt.name,
             display_name: dt.display_name,
@@ -930,7 +929,7 @@ export function WarehouseFoldersConfig({
       uses_custom_path: tab.uses_custom_path || false,  // SSoT: Template inheritance flag
       warehouse_type_override: tab.warehouse_type_override || 'corporate',  // SSoT: Path type for contacts
       // SSoT: Include linked document type IDs
-      document_type_ids: tab.document_types?.map((dt: any) => dt.id) || [],
+      document_type_ids: tab.document_types?.map((dt) => dt.id) || [],
       display_mode: tab.display_mode || 'both',  // SSoT: Display mode
       hidden_by_default: tab.hidden_by_default || false,  // SSoT: Hidden by default
       is_system: tab.is_system || false,  // SSoT: System lock
@@ -1063,9 +1062,9 @@ export function WarehouseFoldersConfig({
         toast.success("Tab created");
         setDialogOpen(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Failed to save tab:", err);
-      toast.error(err?.message || "Failed to save tab");
+      toast.error(err instanceof Error ? err.message : "Failed to save tab");
     } finally {
       setSaving(false);
     }
@@ -2139,7 +2138,7 @@ export function WarehouseFoldersConfig({
                           key={config.id}
                           id={config.id}
                           position={index + 2}
-                          badgeColor={config.color as any}
+                          badgeColor={config.color as ItemBadgeColor}
                           variant="card"
                           className="border rounded"
                         >

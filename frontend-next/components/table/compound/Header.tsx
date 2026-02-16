@@ -18,7 +18,6 @@
 
 'use client';
 
-import React from 'react';
 import { useTableContext } from './TableContext';
 import { TableHeader as UITableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';

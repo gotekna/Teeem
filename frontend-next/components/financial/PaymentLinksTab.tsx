@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, formatDateTime, copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import Link from "next/link";
 
 interface PaymentLink {
@@ -125,7 +126,7 @@ export default function PaymentLinksTab() {
   const handleCopy = async (url: string, token: string) => {
     await copyToClipboard(url);
     setCopiedToken(token);
-    setTimeout(() => setCopiedToken(null), 2000);
+    setTimeout(() => setCopiedToken(null), UI_COPY_FEEDBACK_MS);
   };
 
   const getStatusBadge = (status: string) => {

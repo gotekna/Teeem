@@ -100,16 +100,13 @@ function DetailTooltip({
   // ✅ CORRECT: Using pointerdown/mousedown which fire before focus trap logic
   // ════════════════════════════════════════════════════════════════════════
   React.useEffect(() => {
-    console.log('[WritingChecker] DetailTooltip useEffect running');
     const applyBtn = applyFixRef.current;
     const ignoreBtn = ignoreRef.current;
     const addToDictBtn = addToDictRef.current;
-    console.log('[WritingChecker] Refs:', { applyBtn: !!applyBtn, ignoreBtn: !!ignoreBtn, addToDictBtn: !!addToDictBtn });
 
     // Use pointerdown as primary (fires before click, bypasses focus traps)
     // with mousedown as fallback for older browsers
     const handleApplyPointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] Apply Fix pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -117,7 +114,6 @@ function DetailTooltip({
     };
 
     const handleIgnorePointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] Ignore pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -125,7 +121,6 @@ function DetailTooltip({
     };
 
     const handleAddToDictPointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] Add to Dictionary pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -133,7 +128,6 @@ function DetailTooltip({
     };
 
     const handleClosePointerDown = (e: PointerEvent | MouseEvent) => {
-      console.log('[WritingChecker] Close pointerdown/mousedown');
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -141,7 +135,6 @@ function DetailTooltip({
     };
 
     if (applyBtn) {
-      console.log('[WritingChecker] Adding pointerdown listener to Apply Fix button');
       applyBtn.addEventListener('pointerdown', handleApplyPointerDown, { capture: true });
       applyBtn.addEventListener('mousedown', handleApplyPointerDown, { capture: true });
     }
@@ -187,13 +180,11 @@ function DetailTooltip({
           type="button"
           className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
           onPointerDown={(e) => {
-            console.log('[WritingChecker] Close React onPointerDown');
             e.preventDefault();
             e.stopPropagation();
             onClose();
           }}
           onClick={(e) => {
-            console.log('[WritingChecker] Close React onClick');
             e.preventDefault();
             e.stopPropagation();
             onClose();
@@ -240,13 +231,11 @@ function DetailTooltip({
           type="button"
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-primary/5 hover:bg-primary/10 text-primary transition-colors cursor-pointer"
           onPointerDown={(e) => {
-            console.log('[WritingChecker] Apply Fix React onPointerDown');
             e.preventDefault();
             e.stopPropagation();
             onFix();
           }}
           onClick={(e) => {
-            console.log('[WritingChecker] Apply Fix React onClick');
             e.preventDefault();
             e.stopPropagation();
             onFix();
@@ -262,13 +251,11 @@ function DetailTooltip({
             className="flex items-center gap-1.5 px-3 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer border-l"
             title="Add to Dictionary"
             onPointerDown={(e) => {
-              console.log('[WritingChecker] Add to Dict React onPointerDown');
               e.preventDefault();
               e.stopPropagation();
               onAddToDictionary();
             }}
             onClick={(e) => {
-              console.log('[WritingChecker] Add to Dict React onClick');
               e.preventDefault();
               e.stopPropagation();
               onAddToDictionary();
@@ -283,13 +270,11 @@ function DetailTooltip({
           type="button"
           className="px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
           onPointerDown={(e) => {
-            console.log('[WritingChecker] Ignore React onPointerDown');
             e.preventDefault();
             e.stopPropagation();
             onDismiss();
           }}
           onClick={(e) => {
-            console.log('[WritingChecker] Ignore React onClick');
             e.preventDefault();
             e.stopPropagation();
             onDismiss();
@@ -332,7 +317,6 @@ export const WritingChecker = Extension.create({
   },
 
   addProseMirrorPlugins() {
-    console.log('[WritingChecker] Extension loading, enabled:', this.options.enabled);
     const extension = this;
 
     // Helper to clean up hover tooltip
@@ -527,7 +511,6 @@ export const WritingChecker = Extension.create({
                   extension.storage.hoverMouseleaveHandler = mouseleaveHandler;
 
                   const handleFix = () => {
-                    console.log('[WritingChecker] Tooltip handleFix called');
 
                     // Cleanup hover FIRST
                     cleanupHover();
@@ -535,15 +518,12 @@ export const WritingChecker = Extension.create({
                     // Use setTimeout to escape event handling context
                     setTimeout(() => {
                       try {
-                        console.log('[WritingChecker] Tooltip applying fix');
 
                         // Try to get TipTap editor instance
                         const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const tiptapEditor = (editorElement as any)?.editor;
 
                         if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
-                          console.log('[WritingChecker] Using TipTap editor commands');
                           tiptapEditor
                             .chain()
                             .focus()
@@ -605,7 +585,6 @@ export const WritingChecker = Extension.create({
                   };
 
                   const handleAddToDictionary = async () => {
-                    console.log('[WritingChecker] Adding to dictionary:', hoveredIssue.original);
                     try {
                       const response = await api.post<{
                         success: boolean;
@@ -698,15 +677,12 @@ export const WritingChecker = Extension.create({
 
           // Handle click for detail view
           handleClick(view, pos, event) {
-            console.log('[WritingChecker] handleClick', { pos });
             const state = this.getState(view.state);
-            console.log('[WritingChecker] state:', state ? `${state.issues.length} issues` : 'null');
             if (!state) return false;
 
             const clickedIssue = state.issues.find(
               (issue) => pos >= issue.from && pos <= issue.to
             );
-            console.log('[WritingChecker] clickedIssue:', clickedIssue ? clickedIssue.original : 'none');
 
             if (clickedIssue) {
               cleanupHover();
@@ -731,12 +707,10 @@ export const WritingChecker = Extension.create({
             // Check if click is within a writing-checker tooltip
             const tooltipEl = target.closest('[data-writing-checker-tooltip]');
             if (tooltipEl) {
-              console.log('[WritingChecker] Window capture - tooltip click detected, target:', target.tagName, target.className);
 
               // Check if the click is on a button or interactive element
               const button = target.closest('button');
               if (button) {
-                console.log('[WritingChecker] Window capture - clicking button:', button.textContent?.trim());
                 // Stop event from reaching Radix's document-level listeners
                 e.stopPropagation();
                 e.preventDefault();
@@ -744,7 +718,6 @@ export const WritingChecker = Extension.create({
                 // Dispatch proper mouse events that React can handle
                 // React uses mousedown + mouseup + click sequence
                 setTimeout(() => {
-                  console.log('[WritingChecker] Dispatching synthetic events to button');
                   const rect = button.getBoundingClientRect();
                   const x = rect.left + rect.width / 2;
                   const y = rect.top + rect.height / 2;
@@ -793,7 +766,6 @@ export const WritingChecker = Extension.create({
             view: typeof editorView,
             issue: WritingIssue
           ) => {
-            console.log('[WritingChecker] showDetailTooltip called for:', issue.original);
             cleanupTooltip();
             extension.storage.isTooltipOpen = true;
 
@@ -804,13 +776,10 @@ export const WritingChecker = Extension.create({
             // Find the dialog content element (has role="dialog") and append tooltip there
             // This ensures Radix treats tooltip clicks as "inside" the dialog
             const dialogContent = view.dom.closest('[role="dialog"]');
-            console.log('[WritingChecker] Dialog content found:', !!dialogContent);
             if (dialogContent) {
               dialogContent.appendChild(tooltipContainer);
-              console.log('[WritingChecker] Tooltip appended to dialog content');
             } else {
               document.body.appendChild(tooltipContainer);
-              console.log('[WritingChecker] Tooltip appended to body (no dialog)');
             }
 
             const coords = view.coordsAtPos(issue.from);
@@ -821,13 +790,6 @@ export const WritingChecker = Extension.create({
             extension.storage.tooltipRoot = createRoot(tooltipContainer);
 
             const handleFix = () => {
-              console.log('[WritingChecker] handleFix called', {
-                original: issue.original,
-                suggestion: issue.suggestion,
-                from: issue.from,
-                to: issue.to,
-                docLength: view.state.doc.content.size,
-              });
 
               // Cleanup tooltip FIRST to prevent any interference
               cleanupTooltip();
@@ -835,18 +797,14 @@ export const WritingChecker = Extension.create({
               // Use setTimeout to ensure we're outside any event handling context
               setTimeout(() => {
                 try {
-                  console.log('[WritingChecker] Applying fix in setTimeout');
                   const textBefore = view.state.doc.textContent;
-                  console.log('[WritingChecker] Full text before:', textBefore);
 
                   // Try to get TipTap editor instance from the view's DOM
                   const editorElement = view.dom.closest('.ProseMirror')?.parentElement;
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const tiptapEditor = (editorElement as any)?.editor;
 
                   if (tiptapEditor && typeof tiptapEditor.chain === 'function') {
                     // Use TipTap's chain commands for proper state updates
-                    console.log('[WritingChecker] Using TipTap editor commands');
                     tiptapEditor
                       .chain()
                       .focus()
@@ -854,10 +812,8 @@ export const WritingChecker = Extension.create({
                       .deleteSelection()
                       .insertContent(issue.suggestion)
                       .run();
-                    console.log('[WritingChecker] TipTap commands executed');
                   } else {
                     // Fallback to direct ProseMirror manipulation
-                    console.log('[WritingChecker] Falling back to ProseMirror');
                     const tr = view.state.tr;
                     tr.delete(issue.from, issue.to);
                     tr.insertText(issue.suggestion, issue.from);
@@ -870,13 +826,10 @@ export const WritingChecker = Extension.create({
                     });
 
                     view.dispatch(tr);
-                    console.log('[WritingChecker] ProseMirror transaction dispatched');
                   }
 
                   // Log result
                   const textAfter = view.state.doc.textContent;
-                  console.log('[WritingChecker] Full text after:', textAfter);
-                  console.log('[WritingChecker] Text changed:', textBefore !== textAfter);
 
                   // Clear decorations via separate transaction
                   const clearTr = view.state.tr.setMeta(writingCheckerKey, {
@@ -921,7 +874,6 @@ export const WritingChecker = Extension.create({
             };
 
             const handleAddToDictionary = async () => {
-              console.log('[WritingChecker] Adding to dictionary:', issue.original);
               try {
                 const response = await api.post<{
                   success: boolean;
@@ -988,7 +940,6 @@ export const WritingChecker = Extension.create({
 
           // Make available globally for hover handler
           (window as unknown as { __showDetailTooltip: typeof showDetailTooltipFn }).__showDetailTooltip = showDetailTooltipFn;
-          console.log('[WritingChecker] Set __showDetailTooltip on window');
 
           const scheduleCheck = () => {
             if (!extension.options.enabled) return;
@@ -1024,7 +975,6 @@ export const WritingChecker = Extension.create({
                   context: extension.options.context,
                 });
 
-                console.log('[WritingChecker] API response:', response);
 
                 // Check for API error
                 if (!response?.success) {
@@ -1037,20 +987,16 @@ export const WritingChecker = Extension.create({
                 }
 
                 if (response?.data) {
-                  console.log('[WritingChecker] API returned', response.data.issues.length, 'issues from API');
                   const issues = findIssuePositions(
                     editorView.state.doc,
                     response.data.issues,
                     extension.storage.dismissedIssues
                   );
-                  console.log('[WritingChecker] After findIssuePositions:', issues.length, 'issues with positions');
-                  issues.forEach(i => console.log('[WritingChecker] Issue:', i.original, 'at', i.from, '-', i.to));
 
                   const decorations = createDecorations(
                     editorView.state.doc,
                     issues
                   );
-                  console.log('[WritingChecker] Created decorations, count:', decorations.find().length);
 
                   const tr = editorView.state.tr.setMeta(writingCheckerKey, {
                     decorations,
@@ -1059,7 +1005,6 @@ export const WritingChecker = Extension.create({
                     correctedText: response.data.corrected_text,
                   });
                   editorView.dispatch(tr);
-                  console.log('[WritingChecker] Dispatched transaction with decorations');
 
                   extension.options.onIssuesChange?.(issues);
                 }
@@ -1074,7 +1019,6 @@ export const WritingChecker = Extension.create({
           };
 
           // Trigger initial check when editor loads with content
-          console.log('[WritingChecker] Triggering initial check');
           scheduleCheck();
 
           return {
@@ -1102,11 +1046,8 @@ export const WritingChecker = Extension.create({
     ];
 
     // Helper function to show detail tooltip (accessed from hover handler)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function showDetailTooltip(view: any, issue: WritingIssue) {
-      console.log('[WritingChecker] showDetailTooltip wrapper called');
       const fn = (window as unknown as { __showDetailTooltip?: (view: unknown, issue: WritingIssue) => void }).__showDetailTooltip;
-      console.log('[WritingChecker] __showDetailTooltip exists:', !!fn);
       if (fn) {
         fn(view, issue);
       } else {
@@ -1115,6 +1056,28 @@ export const WritingChecker = Extension.create({
     }
   },
 });
+
+// Get position ranges of all blockquote nodes in the document
+// Used to exclude quoted/original message content from writing checks
+function getBlockquoteRanges(doc: ProseMirrorNode): Array<{ from: number; to: number }> {
+  const ranges: Array<{ from: number; to: number }> = [];
+  doc.descendants((node, pos) => {
+    if (node.type.name === "blockquote") {
+      ranges.push({ from: pos, to: pos + node.nodeSize });
+      return false; // Don't descend into blockquotes
+    }
+    return true;
+  });
+  return ranges;
+}
+
+// Check if a position falls inside any blockquote range
+function isInsideBlockquote(
+  pos: number,
+  blockquoteRanges: Array<{ from: number; to: number }>
+): boolean {
+  return blockquoteRanges.some((range) => pos >= range.from && pos < range.to);
+}
 
 // Convert text content index to actual ProseMirror document position
 // ProseMirror positions include node boundaries, so we need to traverse the doc
@@ -1170,6 +1133,7 @@ function recalculateIssuePositions(
 }
 
 // Find positions of issues in the document
+// Excludes issues inside blockquotes (original/quoted message content)
 function findIssuePositions(
   doc: ProseMirrorNode,
   issues: WritingCheckResult["issues"],
@@ -1177,6 +1141,7 @@ function findIssuePositions(
 ): WritingIssue[] {
   const result: WritingIssue[] = [];
   const text = doc.textContent;
+  const blockquoteRanges = getBlockquoteRanges(doc);
 
   for (const issue of issues) {
     let searchPos = 0;
@@ -1191,6 +1156,12 @@ function findIssuePositions(
         continue;
       }
       const to = from + issue.original.length;
+
+      // Skip issues inside blockquotes (original message content)
+      if (isInsideBlockquote(from, blockquoteRanges)) {
+        searchPos = index + 1;
+        continue;
+      }
 
       const dismissKey = `${issue.original}:${from}`;
       if (!dismissedIssues.has(dismissKey)) {

@@ -27,7 +27,8 @@ class SmHoldService
 
     ActiveRecord::Base.transaction do
       # 1. Check if already on hold
-      existing_hold = construction.sm_tasks.hold_tasks.where(status: "not_started").first
+      # SSoT: Use SmTask::STATUS_NOT_STARTED constant
+      existing_hold = construction.sm_tasks.hold_tasks.where(status: SmTask::STATUS_NOT_STARTED).first
       if existing_hold
         result[:error] = "Job is already on hold: #{existing_hold.hold_reason&.name || 'Unknown reason'}"
         raise ActiveRecord::Rollback
@@ -40,11 +41,12 @@ class SmHoldService
       end
 
       # 3. Create hold task at position 1
+      # SSoT: Use SmTask::STATUS_NOT_STARTED constant
       hold_task = construction.sm_tasks.create!(
         task_number: 1,
         sequence_order: 1,
         name: "HOLD: #{hold_reason.name}",
-        status: "not_started",
+        status: SmTask::STATUS_NOT_STARTED,
         start_date: Date.current,
         end_date: Date.current,
         duration_days: 1,
@@ -106,7 +108,8 @@ class SmHoldService
 
     ActiveRecord::Base.transaction do
       # 1. Find active hold task
-      hold_task = construction.sm_tasks.hold_tasks.where(status: "not_started").first
+      # SSoT: Use SmTask::STATUS_NOT_STARTED constant
+      hold_task = construction.sm_tasks.hold_tasks.where(status: SmTask::STATUS_NOT_STARTED).first
       unless hold_task
         result[:error] = "Job is not currently on hold"
         raise ActiveRecord::Rollback
@@ -115,8 +118,9 @@ class SmHoldService
       hold_reason = hold_task.hold_reason
 
       # 2. Mark hold task as completed
+      # SSoT: Use SmTask::STATUS_COMPLETED constant
       hold_task.update!(
-        status: "completed",
+        status: SmTask::STATUS_COMPLETED,
         completed_at: Time.current,
         hold_released_at: Time.current,
         hold_released_by: user,
@@ -161,7 +165,8 @@ class SmHoldService
 
   # Get current hold status
   def hold_status
-    hold_task = construction.sm_tasks.hold_tasks.where(status: "not_started").first
+    # SSoT: Use SmTask::STATUS_NOT_STARTED constant
+    hold_task = construction.sm_tasks.hold_tasks.where(status: SmTask::STATUS_NOT_STARTED).first
 
     if hold_task
       {

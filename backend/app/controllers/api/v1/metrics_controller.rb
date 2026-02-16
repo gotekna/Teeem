@@ -29,7 +29,7 @@ module Api
         metrics = params[:metrics] || []
 
         if metrics.empty?
-          return render json: { success: false, error: "No metrics provided" }, status: :bad_request
+          return render_error("No metrics provided", status: :bad_request)
         end
 
         # Extract common fields

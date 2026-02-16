@@ -78,7 +78,7 @@ module Api
         if @case.save
           render json: { success: true, data: serialize_case_detail(@case) }, status: :created
         else
-          render json: { success: false, errors: @case.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@case)
         end
       end
 
@@ -87,7 +87,7 @@ module Api
         if @case.update(case_params)
           render json: { success: true, data: serialize_case_detail(@case) }
         else
-          render json: { success: false, errors: @case.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@case)
         end
       end
 
@@ -318,7 +318,7 @@ module Api
 
         render json: { success: true, data: serialize_case_document(case_doc) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Document not found" }, status: :not_found
+        render_error("Document not found", status: :not_found)
       end
 
       # POST /api/v1/cases/:id/add_email
@@ -332,7 +332,7 @@ module Api
 
         render json: { success: true, data: serialize_case_email(case_email) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Email not found" }, status: :not_found
+        render_error("Email not found", status: :not_found)
       end
 
       # POST /api/v1/cases/:id/add_contact
@@ -341,10 +341,7 @@ module Api
 
         # Validate reason is present
         if params[:reason].blank?
-          render json: {
-            success: false,
-            error: "Reason is required when adding a contact to a case"
-          }, status: :unprocessable_entity
+          render_error("Reason is required when adding a contact to a case", status: :unprocessable_entity)
           return
         end
 
@@ -358,7 +355,7 @@ module Api
 
         render json: { success: true, data: serialize_case_contact(case_contact) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
         render json: { success: false, errors: e.record.errors.full_messages }, status: :unprocessable_entity
       end
@@ -374,7 +371,7 @@ module Api
 
         render json: { success: true, data: serialize_case_company(case_company) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Company not found" }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
 
       # POST /api/v1/cases/:id/add_job
@@ -387,7 +384,7 @@ module Api
 
         render json: { success: true, data: serialize_case_job(case_job) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       # ============================================
@@ -418,7 +415,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
+        render_error("Contact not linked to this case", status: :not_found)
       end
 
       # GET /api/v1/cases/:id/contacts/:contact_id
@@ -445,7 +442,7 @@ module Api
           roles: CaseContact::ROLES.map { |k, v| { value: k, label: v } }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
+        render_error("Contact not linked to this case", status: :not_found)
       end
 
       # PATCH /api/v1/cases/:id/contacts/:contact_id
@@ -477,13 +474,10 @@ module Api
             }
           }
         else
-          render json: {
-            success: false,
-            errors: case_contact.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(case_contact)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
+        render_error("Contact not linked to this case", status: :not_found)
       end
 
       # DELETE /api/v1/cases/:id/contacts/:contact_id
@@ -494,7 +488,7 @@ module Api
         # Check if contact is actually linked to this case
         case_contact = @case.case_contacts.find_by(contact: contact)
         unless case_contact
-          render json: { success: false, error: "Contact not linked to this case" }, status: :not_found
+          render_error("Contact not linked to this case", status: :not_found)
           return
         end
 
@@ -506,7 +500,7 @@ module Api
           message: "Contact removed from case. All related emails were also removed."
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # ============================================
@@ -573,13 +567,13 @@ module Api
           )
           review.keep_both!(current_user, new_doc)
         else
-          render json: { success: false, error: "Invalid resolution" }, status: :unprocessable_entity
+          render_error("Invalid resolution", status: :unprocessable_entity)
           return
         end
 
         render json: { success: true, data: serialize_duplicate_review(review) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Duplicate review not found" }, status: :not_found
+        render_error("Duplicate review not found", status: :not_found)
       end
 
       # GET /api/v1/cases/:id/processing_status
@@ -649,7 +643,7 @@ module Api
 
         render json: { success: true, data: serialize_qa_pair(qa) }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Q&A pair not found" }, status: :not_found
+        render_error("Q&A pair not found", status: :not_found)
       end
 
       # ============================================
@@ -674,10 +668,7 @@ module Api
             message: "Case folder created successfully"
           }
         else
-          render json: {
-            success: false,
-            error: "Failed to create folder. Make sure SharePoint is connected."
-          }, status: :unprocessable_entity
+          render_error("Failed to create folder. Make sure SharePoint is connected.", status: :unprocessable_entity)
         end
       end
 
@@ -763,7 +754,7 @@ module Api
       def set_case
         @case = CaseRecord.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Case not found" }, status: :not_found
+        render_error("Case not found", status: :not_found)
       end
 
       def case_params

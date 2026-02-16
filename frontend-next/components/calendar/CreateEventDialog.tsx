@@ -31,23 +31,13 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { X, Users, MapPin, Clock, AlignLeft, Check, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { User, Contact } from "@/lib/types";
+
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 
 // Atoms for event creation
 export const createEventOpenAtom = atom<boolean>(false);
 export const createEventDateAtom = atom<Date>(new Date());
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-}
-
-interface Contact {
-  id: number;
-  name: string;
-  email: string | null;
-  company_name: string | null;
-}
 
 interface MeetingType {
   id: number;
@@ -88,7 +78,7 @@ export function CreateEventDialog({ onSuccess }: CreateEventDialogProps) {
 
         const [usersRes, contactsRes, typesRes] = await Promise.all([
           api.get<{ success: boolean; data: User[] }>("/api/v1/users?active=true"),
-          api.get<{ success: boolean; data: Contact[] }>("/api/v1/contacts?limit=500"),
+          api.get<{ success: boolean; data: Contact[] }>(`/api/v1/contacts?limit=${API_PAGE_SIZES.MEDIUM_REFERENCE}`),
           api.get<{ success: boolean; data: MeetingType[] }>("/api/v1/meeting_types?active_only=true"),
         ]);
 
@@ -298,7 +288,7 @@ export function CreateEventDialog({ onSuccess }: CreateEventDialogProps) {
                               variant="outline"
                               className="flex items-center gap-1"
                             >
-                              {contact.name}
+                              {contact.display_name}
                               <X
                                 className="h-3 w-3 cursor-pointer"
                                 onClick={(e) => {
@@ -353,7 +343,7 @@ export function CreateEventDialog({ onSuccess }: CreateEventDialogProps) {
                                 )}
                               />
                               <div className="flex flex-col">
-                                <span>{contact.name}</span>
+                                <span>{contact.display_name}</span>
                                 <span className="text-xs text-muted-foreground">
                                   {contact.company_name || contact.email || "External"}
                                 </span>

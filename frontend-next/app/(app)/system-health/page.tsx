@@ -16,6 +16,7 @@ import {
   Brain,
   Trophy,
   Activity,
+  Bug,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ import {
   LeaderboardEntry,
 } from "@/components/health";
 import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
+import { SentryTab } from "@/components/health/SentryTab";
 
 // API response from new unified /api/v1/health/unified endpoint
 interface UnifiedHealthApiResponse {
@@ -395,7 +397,6 @@ export default function SystemHealthPage() {
         });
 
         if (response?.success) {
-          console.log(`Fixed ${response.fixed_count} issues, earned ${response.points_earned} points`);
         }
 
         // Refresh health data
@@ -403,7 +404,6 @@ export default function SystemHealthPage() {
       } else {
         // For review items, navigate to the relevant page
         // TODO: Open a modal or navigate to the data health details
-        console.log("Review action:", quickWin);
       }
     } catch (error) {
       console.error("Failed to fix:", error);
@@ -467,6 +467,10 @@ export default function SystemHealthPage() {
           <TabsTrigger value="performance" className="gap-2">
             <Activity className="h-4 w-4" />
             Performance
+          </TabsTrigger>
+          <TabsTrigger value="sentry" className="gap-2">
+            <Bug className="h-4 w-4" />
+            Sentry
           </TabsTrigger>
         </TabsList>
 
@@ -566,6 +570,10 @@ export default function SystemHealthPage() {
 
         <TabsContent value="performance">
           <PerformanceTab />
+        </TabsContent>
+
+        <TabsContent value="sentry">
+          <SentryTab />
         </TabsContent>
       </Tabs>
     </div>

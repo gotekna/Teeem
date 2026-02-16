@@ -21,7 +21,7 @@ module Api
         if result[:success]
           render json: { success: true, data: result[:data] }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -37,7 +37,7 @@ module Api
         if result[:success]
           render json: { success: true, data: result[:data] }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 

@@ -385,7 +385,7 @@ class FormulaParser {
   }
 
   private parsePostfix(): CellValue | ErrorValue {
-    let value = this.parsePrimary();
+    const value = this.parsePrimary();
 
     // Handle percentage
     if (this.peek()?.type === 'OPERATOR' && this.peek()?.value === '%') {

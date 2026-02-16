@@ -15,6 +15,7 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { getIconComponent, resolvePathTokens, SCOPE_ICONS } from "@/components/warehouse/warehouse-utils";
+import { PAGE_SIZE_LIST, API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { Folder } from "lucide-react";
 import React from "react";
 
@@ -158,7 +159,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchTokenValues();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
 
   // ─── Scoped mode: fetch per-folder document counts ──────────
@@ -184,7 +184,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchScopedCounts();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "scoped" ? mode.linkableId : null]);
 
   // ─── Context mode: fetch related records across all warehouse types ──
@@ -227,7 +226,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       }
     };
     fetchContextRecords();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode.type === "context" ? `${mode.entityType}-${mode.entityId}` : null, refreshCounter]);
 
   // ─── Fetch warehouse types tree ────────────────────────────────
@@ -272,7 +270,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
           pagination: RecordsPagination;
         };
       }>(`/api/v1/warehouse_types/${warehouseTypeCode}/records`, {
-        params: { limit: 50, offset }
+        params: { limit: PAGE_SIZE_LIST, offset }
       });
 
       if (response?.success && response.data) {
@@ -292,7 +290,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
       if (offset === 0) {
         setWarehouseRecords(prev => ({
           ...prev,
-          [warehouseTypeCode]: { records: [], pagination: { total: 0, limit: 50, offset: 0, has_more: false } }
+          [warehouseTypeCode]: { records: [], pagination: { total: 0, limit: PAGE_SIZE_LIST, offset: 0, has_more: false } }
         }));
       }
     } finally {
@@ -319,7 +317,6 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         }
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warehouseTreeLoading, warehouseTypesTree.length]);
 
   // ─── Scope-from-path helper ────────────────────────────────────
@@ -481,7 +478,7 @@ export function useWarehouseTree(mode: WarehouseTreeMode): UseWarehouseTreeRetur
         }>;
         folders: Array<{ name: string; count: number }>;
         pagination: { total: number; limit: number; offset: number; has_more: boolean };
-      }>(`/api/v1/documents/warehouse?source_type=${encodeURIComponent(sourceType)}&folder=${encodeURIComponent(folderName)}&limit=500`);
+      }>(`/api/v1/documents/warehouse?source_type=${encodeURIComponent(sourceType)}&folder=${encodeURIComponent(folderName)}&limit=${API_PAGE_SIZES.MEDIUM_REFERENCE}`);
 
       if (response?.success) {
         const files = (response.documents || []).map(doc => ({

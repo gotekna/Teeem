@@ -31,8 +31,7 @@ module Api
           if category.save
             render json: { success: true, data: category }, status: :created
           else
-            render json: { success: false, error: category.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(category.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -43,8 +42,7 @@ module Api
           if category.update(category_params)
             render json: { success: true, data: category }
           else
-            render json: { success: false, error: category.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(category.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -174,8 +172,7 @@ module Api
           if rule.save
             render json: { success: true, data: rule }, status: :created
           else
-            render json: { success: false, error: rule.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(rule.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -186,8 +183,7 @@ module Api
           if rule.update(anomaly_rule_params)
             render json: { success: true, data: rule }
           else
-            render json: { success: false, error: rule.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(rule.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 

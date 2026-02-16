@@ -48,14 +48,14 @@ class GanttDataService
   def get_start_date(record)
     override = @date_overrides[record.task_number]
     return override[:start_date] if override && override[:start_date]
-    record.try(:start_date)
+    record&.start_date
   end
 
   # Get end_date for a record, checking date_overrides first (for templates)
   def get_end_date(record)
     override = @date_overrides[record.task_number]
     return override[:end_date] if override && override[:end_date]
-    record.try(:end_date)
+    record&.end_date
   end
 
   def build_response
@@ -108,7 +108,7 @@ class GanttDataService
     result = Hash.new { |h, k| h[k] = [] }
 
     @records.each do |record|
-      backup = record.try(:predecessor_ids_backup) || []
+      backup = record&.predecessor_ids_backup || []
       next if backup.empty?
 
       # Each backed-up predecessor should see this task as a "broken successor"
@@ -120,8 +120,8 @@ class GanttDataService
           id: record.id,
           task_number: record.task_number,
           name: record.name,
-          dependency_broken_at: record.try(:dependency_broken_at),
-          dependency_broken_by: record.try(:dependency_broken_by_id).present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
+          dependency_broken_at: record&.dependency_broken_at,
+          dependency_broken_by: record&.dependency_broken_by_id.present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
           type: pred.is_a?(Hash) ? (pred['type'] || pred[:type] || 'FS') : 'FS',
           lag: pred.is_a?(Hash) ? (pred['lag'] || pred[:lag] || 0) : 0
         }
@@ -357,26 +357,26 @@ class GanttDataService
       id: record.id.to_s,
       task_number: record.task_number,
       name: record.name,
-      start_date: format_date(calculated_start || record.try(:hold_date)),
+      start_date: format_date(calculated_start || record&.hold_date),
       end_date: format_date(calculated_end),
       duration_days: record.duration_days || 1,
-      status: record.try(:status) || "not_started",
-      progress_percentage: record.try(:progress_percentage) || 0,
-      locked: record.try(:confirm) || false,
-      confirm: record.try(:confirm) || false,
-      supplier_confirm: record.try(:supplier_confirm) || false,
-      supplier_confirmation_method: record.try(:supplier_confirmation_method),
-      supplier_confirmed_contact_name: record.try(:supplier_confirmed_contact_name),
-      started: record.try(:started) || false,
-      hold: record.try(:hold) || false,
-      hold_date: format_date(record.try(:hold_date)),
-      is_completed: record.try(:completed) || false,
-      completed_at: format_date(record.try(:completed_at)),
-      dependency_broken: record.try(:dependency_broken) || false,
+      status: record&.status || "not_started",
+      progress_percentage: record&.progress_percentage || 0,
+      locked: record&.confirm || false,
+      confirm: record&.confirm || false,
+      supplier_confirm: record&.supplier_confirm || false,
+      supplier_confirmation_method: record&.supplier_confirmation_method,
+      supplier_confirmed_contact_name: record&.supplier_confirmed_contact_name,
+      started: record&.started || false,
+      hold: record&.hold || false,
+      hold_date: format_date(record&.hold_date),
+      is_completed: record&.completed || false,
+      completed_at: format_date(record&.completed_at),
+      dependency_broken: record&.dependency_broken || false,
       # Broken dependency tracking - for restore in dependency editor
-      predecessor_ids_backup: record.try(:predecessor_ids_backup) || [],
-      dependency_broken_at: record.try(:dependency_broken_at),
-      dependency_broken_by: record.try(:dependency_broken_by_id).present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
+      predecessor_ids_backup: record&.predecessor_ids_backup || [],
+      dependency_broken_at: record&.dependency_broken_at,
+      dependency_broken_by: record&.dependency_broken_by_id.present? ? User.find_by(id: record.dependency_broken_by_id)&.name : nil,
       # Include predecessor_ids for frontend display (task_number format)
       predecessor_ids: record.predecessor_ids || [],
       # SSoT: Inherited predecessors from header dependencies (calculated by backend)
@@ -387,27 +387,27 @@ class GanttDataService
       broken_successor_ids: @broken_successors_map&.dig(record.task_number) || [],
       # PO-related fields
       po_required: record.po_required || false,
-      supplier_id: record.try(:supplier_id) || record.try(:po_supplier_id),
-      supplier_name: record.try(:supplier)&.name || record.try(:po_supplier)&.name,
+      supplier_id: record&.supplier_id || record&.po_supplier_id,
+      supplier_name: record&.supplier&.name || record&.po_supplier&.name,
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Claim-related fields
       is_claim_task: record.respond_to?(:is_claim_task?) ? record.is_claim_task? : false,
-      job_claim_stage_id: record.try(:job_claim_stage_id),
+      job_claim_stage_id: record&.job_claim_stage_id,
       # Header/parent info - now supports 2-level nesting
       header_gantt: determine_header_gantt(record),
       # SSoT: Explicit allow_header flag for canvas renderer header detection
       allow_header: is_header?(record),
-      parent_id: record.try(:parent_task_id),
+      parent_id: record&.parent_task_id,
       # Nesting level for 2-level hierarchy (0=Level1 header, 1=Level2 header/child of L1, 2=child of L2)
       nesting_level: calculate_nesting_level(record, @header_task_numbers || Set.new, @header_by_task_number || {}),
       # Ordering
-      sequence_order: record.try(:sequence_order) || 0,
+      sequence_order: record&.sequence_order || 0,
       # Additional fields
-      trade: record.try(:trade),
-      stage: record.try(:stage),
-      assigned_role: record.try(:assigned_role),
-      assigned_role_name: roles_map[record.try(:assigned_role).to_i],
-      color: record.try(:color)
+      trade: record&.trade,
+      stage: record&.stage,
+      assigned_role: record&.assigned_role,
+      assigned_role_name: roles_map[record&.assigned_role.to_i],
+      color: record&.color
     }.compact
   end
 
@@ -419,6 +419,7 @@ class GanttDataService
   # SSoT: Load roles lookup map (ID => display_name) from Role model
   # Memoized per request to avoid N+1 queries
   def roles_map
+    # Small lookup table (~20 roles), .all is fine
     @roles_map ||= Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
   end
 
@@ -501,11 +502,11 @@ class GanttDataService
         effective = header_effective_dates[r.task_number] || {}
         [effective[:start_date] || Date.new(9999),
          effective[:end_date] || Date.new(9999),
-         r.try(:sequence_order) || 0]
+         r&.sequence_order || 0]
       else
         [get_start_date(r) || Date.new(9999),
          get_end_date(r) || Date.new(9999),
-         r.try(:sequence_order) || 0]
+         r&.sequence_order || 0]
       end
     end
 
@@ -557,15 +558,21 @@ class GanttDataService
     result
   end
 
+  # Safely get the linked template row (only SmTask has this association)
+  # When records ARE SmScheduleMaster rows, they don't have a self-referential association
+  def template_row_for(record)
+    record.respond_to?(:sm_schedule_master) ? record.sm_schedule_master : nil
+  end
+
   # Check if record is a header
   def is_header?(record)
-    record.try(:allow_header) || record.try(:sm_schedule_master)&.allow_header
+    record&.allow_header || template_row_for(record)&.allow_header
   end
 
   # Get parent task_number from header_gantt field
   # Now supports nested headers - headers CAN have parents (2-level nesting)
   def get_parent_task_number(record)
-    header_gantt = record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
+    header_gantt = record&.header_gantt || template_row_for(record)&.header_gantt
     return nil if header_gantt.nil? || header_gantt == "Header"
 
     # Parse task_number from header_gantt (can be string or integer)
@@ -579,8 +586,8 @@ class GanttDataService
   #   - Tasks: returns parent task_number
   # Returns nil if no parent
   def determine_header_gantt(record)
-    header_gantt = record.try(:header_gantt) || record.try(:sm_schedule_master)&.header_gantt
-    is_header = record.try(:allow_header) || record.try(:sm_schedule_master)&.allow_header
+    header_gantt = record&.header_gantt || template_row_for(record)&.header_gantt
+    is_header = record&.allow_header || template_row_for(record)&.allow_header
 
     # If header_gantt has a numeric parent, return it (even for Level 2 headers)
     if header_gantt.present? && header_gantt != "Header" && header_gantt.to_s.match?(/^\d+$/)

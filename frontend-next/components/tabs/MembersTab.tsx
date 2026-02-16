@@ -11,6 +11,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import {
   Table,
   TableBody,
@@ -108,7 +109,7 @@ export function MembersTab({ company, companyId }: MembersTabProps) {
                   </TableCell>
                   <TableCell className="px-4 py-3 text-sm capitalize">{member.member_type || "Member"}</TableCell>
                   <TableCell className="px-4 py-3 text-sm">
-                    {member.joined_date ? format(new Date(member.joined_date), "dd/MM/yyyy") : "-"}
+                    {member.joined_date ? format(new Date(member.joined_date), DATE_DISPLAY) : "-"}
                   </TableCell>
                   <TableCell className="px-4 py-3">
                     <Badge className={member.status === "active"

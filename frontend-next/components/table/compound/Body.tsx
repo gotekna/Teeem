@@ -19,7 +19,6 @@
 
 'use client';
 
-import React from 'react';
 import { useTableContext } from './TableContext';
 import { Table, TableBody as UITableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -84,8 +83,9 @@ export function Body({
       <div className={cn('flex-1 overflow-auto', className)}>
         <Table>
           <UITableBody>
+            {/* Static skeleton rows - index is appropriate here */}
             {Array.from({ length: skeletonRows }).map((_, i) => (
-              <TableRow key={i}>
+              <TableRow key={`skeleton-${i}`}>
                 {visibleColumnsInOrder.map((col) => (
                   <TableCell
                     key={col.key}

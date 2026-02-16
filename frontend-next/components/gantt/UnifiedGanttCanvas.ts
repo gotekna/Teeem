@@ -17,6 +17,7 @@
 import { GanttTask, GanttDependency, GanttConfig, GanttColors, isHeaderRow, countWorkingDays } from '@/lib/gantt/types';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
 import { calculateCriticalPath, type CriticalPathResult } from '@/lib/gantt/engine/CriticalPath';
+import { CHART_COLORS, STATUS_COLORS, TAILWIND_COLORS, CANVAS_COLORS } from '@/lib/constants/color-constants';
 
 // =============================================================================
 // Types
@@ -118,49 +119,49 @@ export interface UnifiedGanttConfig extends Partial<GanttConfig> {
 // =============================================================================
 
 const LIGHT_COLORS: GanttColors = {
-  background: '#ffffff',
-  gridLines: '#e5e7eb',
-  todayMarker: '#ef4444',
-  weekendBackground: '#f9fafb',
+  background: CHART_COLORS.light.background,
+  gridLines: CHART_COLORS.light.gridLines,
+  todayMarker: CHART_COLORS.light.todayMarker,
+  weekendBackground: CHART_COLORS.light.weekendBackground,
   taskBar: {
-    notStarted: '#9ca3af',
-    inProgress: '#3b82f6',
-    completed: '#10b981',
-    onHold: '#f59e0b',
-    atRisk: '#ef4444',
+    notStarted: STATUS_COLORS.notStarted,
+    inProgress: STATUS_COLORS.inProgress,
+    completed: STATUS_COLORS.completed,
+    onHold: STATUS_COLORS.onHold,
+    atRisk: STATUS_COLORS.atRisk,
   },
-  taskBarBorder: '#6b7280',
-  taskBarText: '#1f2937',
-  headerBackground: '#f3f4f6',
-  headerText: '#374151',
-  selectedRow: '#fef3c7',  // amber-100 (yellow)
-  hoverRow: '#f3f4f6',
-  borderColor: '#e5e7eb',
-  textColor: '#1f2937',
+  taskBarBorder: TAILWIND_COLORS.gray[500],
+  taskBarText: TAILWIND_COLORS.gray[800],
+  headerBackground: CHART_COLORS.light.headerBackground,
+  headerText: CHART_COLORS.light.headerText,
+  selectedRow: TAILWIND_COLORS.amber[100],  // amber-100 (yellow)
+  hoverRow: CHART_COLORS.light.hoverRow,
+  borderColor: CHART_COLORS.light.borderColor,
+  textColor: CHART_COLORS.light.textColor,
   headerRowBackground: 'rgba(251, 191, 36, 0.15)',
   childRowBackground: 'rgba(251, 191, 36, 0.08)',
 };
 
 const DARK_COLORS: GanttColors = {
-  background: '#1f2937',
-  gridLines: '#374151',
-  todayMarker: '#ef4444',
-  weekendBackground: '#111827',
+  background: CHART_COLORS.dark.background,
+  gridLines: CHART_COLORS.dark.gridLines,
+  todayMarker: CHART_COLORS.dark.todayMarker,
+  weekendBackground: CHART_COLORS.dark.weekendBackground,
   taskBar: {
-    notStarted: '#6b7280',
-    inProgress: '#3b82f6',
-    completed: '#10b981',
-    onHold: '#f59e0b',
-    atRisk: '#ef4444',
+    notStarted: TAILWIND_COLORS.gray[500],
+    inProgress: STATUS_COLORS.inProgress,
+    completed: STATUS_COLORS.completed,
+    onHold: STATUS_COLORS.onHold,
+    atRisk: STATUS_COLORS.atRisk,
   },
-  taskBarBorder: '#4b5563',
-  taskBarText: '#f9fafb',
-  headerBackground: '#111827',
-  headerText: '#e5e7eb',
-  selectedRow: '#78350f',  // amber-900 (dark yellow)
-  hoverRow: '#374151',
-  borderColor: '#4b5563',
-  textColor: '#e5e7eb',
+  taskBarBorder: TAILWIND_COLORS.gray[600],
+  taskBarText: TAILWIND_COLORS.gray[50],
+  headerBackground: CHART_COLORS.dark.headerBackground,
+  headerText: CHART_COLORS.dark.headerText,
+  selectedRow: TAILWIND_COLORS.amber[900],  // amber-900 (dark yellow)
+  hoverRow: CHART_COLORS.dark.hoverRow,
+  borderColor: CHART_COLORS.dark.borderColor,
+  textColor: CHART_COLORS.dark.textColor,
   headerRowBackground: 'rgba(251, 191, 36, 0.2)',
   childRowBackground: 'rgba(251, 191, 36, 0.1)',
 };
@@ -443,7 +444,6 @@ export class UnifiedGanttCanvas {
       let current = taskNumber;
       while (current !== null) {
         const headerTask = this.tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const r = t.rowData as any;
           return r?.task_number === current;
         });
@@ -481,7 +481,6 @@ export class UnifiedGanttCanvas {
     this.collapsedHeaderIds.clear();
     for (const task of this.tasks) {
       if (this.isHeaderTask(task)) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         const taskNumber = rowData?.task_number;
         if (taskNumber && !headersToExpand.has(taskNumber)) {
@@ -808,7 +807,6 @@ export class UnifiedGanttCanvas {
     const headerTask = this.tasks.find((t) => t.id === headerTaskId);
     if (!headerTask) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const headerRowData = headerTask.rowData as any;
     const headerTaskNumber = headerRowData?.task_number;
     if (!headerTaskNumber) return;
@@ -822,7 +820,6 @@ export class UnifiedGanttCanvas {
     // Build map of task_number -> parent task_number for recursive lookup
     const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       if (rowData?.task_number) {
         parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
@@ -844,7 +841,6 @@ export class UnifiedGanttCanvas {
 
     // Find all descendants of this header
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const taskNum = rowData?.task_number;
       if (taskNum && isDescendant(taskNum)) {
@@ -869,7 +865,6 @@ export class UnifiedGanttCanvas {
 
     // Update rowData if exists
     if (task.rowData) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (task.rowData as any)[field] = value;
     }
 
@@ -1011,7 +1006,6 @@ export class UnifiedGanttCanvas {
   /** Complete pending dependency creation with selected type */
   completeDependencyCreation(type: 'FS' | 'SS' | 'FF' | 'SF'): void {
     if (this.pendingDependency) {
-      console.log('[UnifiedGanttCanvas] Completing dependency:', this.pendingDependency.fromTaskId, '->', this.pendingDependency.toTaskId, 'type:', type);
       this.callbacks.onDependencyCreate?.(
         this.pendingDependency.fromTaskId,
         this.pendingDependency.toTaskId,
@@ -1024,7 +1018,6 @@ export class UnifiedGanttCanvas {
   /** Cancel pending dependency creation */
   cancelDependencyCreation(): void {
     if (this.pendingDependency) {
-      console.log('[UnifiedGanttCanvas] Cancelling dependency creation');
       this.pendingDependency = null;
       this.callbacks.onDependencyPopupHide?.();
     }
@@ -1060,7 +1053,6 @@ export class UnifiedGanttCanvas {
 
   /** Get parent header task number for a child task */
   private getParentHeaderTaskNumber(task: GanttTask): number | null {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const headerGantt = rowData?.header_gantt;
 
@@ -1078,7 +1070,6 @@ export class UnifiedGanttCanvas {
   /** Find header task by task_number */
   private findHeaderByTaskNumber(taskNumber: number): GanttTask | undefined {
     return this.tasks.find((t) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = t.rowData as any;
       return this.isHeaderTask(t) && rowData?.task_number === taskNumber;
     });
@@ -1093,7 +1084,6 @@ export class UnifiedGanttCanvas {
     for (const taskId of this.collapsedHeaderIds) {
       const task = this.tasks.find((t) => t.id === taskId);
       if (task) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData?.task_number) {
           collapsedTaskNumbers.add(rowData.task_number);
@@ -1106,7 +1096,6 @@ export class UnifiedGanttCanvas {
     if (this.showGroupedOnly) {
       for (const task of this.tasks) {
         if (this.isHeaderTask(task)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData?.task_number) {
             headerTaskNumbers.add(rowData.task_number);
@@ -1118,7 +1107,6 @@ export class UnifiedGanttCanvas {
     // Build parent map for ALL tasks (to check any ancestor collapse)
     const parentMap = new Map<number, number | null>();
     for (const task of this.tasks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       if (rowData?.task_number) {
         parentMap.set(rowData.task_number, this.getParentHeaderTaskNumber(task));
@@ -1156,7 +1144,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Check if any ancestor is collapsed (supports unlimited nesting levels)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const taskNum = rowData?.task_number;
       if (taskNum && hasCollapsedAncestor(taskNum)) {
@@ -1211,7 +1198,6 @@ export class UnifiedGanttCanvas {
     const selectedHeader = this.tasks.find((t) => t.id === this.selectedGroupHeaderId);
     if (!selectedHeader) return false;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const selectedHeaderRowData = selectedHeader.rowData as any;
     const selectedHeaderTaskNum = selectedHeaderRowData?.task_number;
     if (selectedHeaderTaskNum === undefined) return false;
@@ -1581,7 +1567,6 @@ export class UnifiedGanttCanvas {
       // Check for progress handle click (progress drag) - highest priority
       const progressInfo = this.getProgressHandleAtPosition(x, y);
       if (progressInfo) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = progressInfo.task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.finance_approved;
 
@@ -1603,7 +1588,6 @@ export class UnifiedGanttCanvas {
       const edgeInfo = this.getTaskBarEdgeAtPosition(x, y);
       if (edgeInfo) {
         // Check if task is locked
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = edgeInfo.task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.confirm ||
                          rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1627,7 +1611,6 @@ export class UnifiedGanttCanvas {
       const task = this.getTaskBarAtPosition(x, y);
       if (task) {
         // Check if task is locked (completed tasks can't be dragged)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         const isLocked = rowData?.is_completed || rowData?.confirm ||
                          rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1687,7 +1670,6 @@ export class UnifiedGanttCanvas {
         // Check for progress handle (shows ew-resize cursor)
         const progressInfo = this.getProgressHandleAtPosition(x, y);
         if (progressInfo) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = progressInfo.task.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.finance_approved;
           if (!isLocked) {
@@ -1700,7 +1682,6 @@ export class UnifiedGanttCanvas {
         const edgeInfo = this.getTaskBarEdgeAtPosition(x, y);
         if (edgeInfo) {
           // Check if task is locked
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = edgeInfo.task.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.confirm ||
                            rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1713,7 +1694,6 @@ export class UnifiedGanttCanvas {
         // Check if hovering over task body (show grab cursor for movable tasks)
         const taskAtPos = this.getTaskAtPosition(x, y);
         if (taskAtPos) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = taskAtPos.rowData as any;
           const isLocked = rowData?.is_completed || rowData?.confirm ||
                            rowData?.supplier_confirm || rowData?.finance_approved;
@@ -1813,7 +1793,6 @@ export class UnifiedGanttCanvas {
         }
 
         // Update rowData.duration_days for Days column display
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData) {
           const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
@@ -1840,7 +1819,6 @@ export class UnifiedGanttCanvas {
       if (task) {
         task.progress = newProgress;
         // Also update rowData for consistency
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         if (rowData) {
           rowData.progress_percentage = newProgress;
@@ -1931,7 +1909,6 @@ export class UnifiedGanttCanvas {
           }
 
           // Update rowData.duration_days for Days column display
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             const newDuration = Math.max(1, countWorkingDays(task.startDate, task.endDate));
@@ -1946,7 +1923,6 @@ export class UnifiedGanttCanvas {
           task.endDate = new Date(op.originalEnd);
 
           // Reset rowData.duration_days too
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             const originalDuration = Math.max(1, this.daysBetween(op.originalStart, op.originalEnd) + 1);
@@ -1962,12 +1938,10 @@ export class UnifiedGanttCanvas {
       if (targetTask && targetTask.id !== op.fromTaskId) {
         // Show popup for dependency type selection (if callback provided)
         if (this.callbacks.onDependencyPopupShow) {
-          console.log('[UnifiedGanttCanvas] Showing dependency popup:', op.fromTaskId, '->', targetTask.id);
           this.pendingDependency = { fromTaskId: op.fromTaskId, toTaskId: targetTask.id };
           this.callbacks.onDependencyPopupShow(op.fromTaskId, targetTask.id, e.clientX, e.clientY);
         } else {
           // No popup callback - create directly with default FS type
-          console.log('[UnifiedGanttCanvas] Creating dependency:', op.fromTaskId, '->', targetTask.id);
           this.callbacks.onDependencyCreate?.(op.fromTaskId, targetTask.id, 'FS');
         }
       }
@@ -1982,12 +1956,10 @@ export class UnifiedGanttCanvas {
 
         if (newProgress !== op.originalProgress) {
           // Emit callback for parent to handle API update
-          console.log('[UnifiedGanttCanvas] Progress changed:', task.id, 'from', op.originalProgress, 'to', newProgress);
           this.callbacks.onProgressChange?.(task, newProgress);
         } else {
           // No change - reset to original
           task.progress = op.originalProgress;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = task.rowData as any;
           if (rowData) {
             rowData.progress_percentage = op.originalProgress;
@@ -2347,7 +2319,6 @@ export class UnifiedGanttCanvas {
         const rowIndex = this.visibleTasks.indexOf(task);
         const cellY = this.config.headerHeight + rowIndex * this.config.rowHeight - this.scrollY;
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rowData = task.rowData as any;
         // Calculate duration from dates if not in rowData
         const durationFromDates = Math.ceil((task.endDate.getTime() - task.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -2363,7 +2334,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Double-click on any other table column → open detail screen
-      console.log('[UnifiedGanttCanvas] Opening detail screen via onTaskDoubleClick');
       this.callbacks.onTaskDoubleClick?.(task, e);
       return;
     }
@@ -2513,7 +2483,6 @@ export class UnifiedGanttCanvas {
       if (y < barY || y > barY + taskBarHeight) continue;
 
       // Get current progress
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const progress = task.progress ?? rowData?.progress_percentage ?? 0;
 
@@ -2681,7 +2650,7 @@ export class UnifiedGanttCanvas {
         this.ctx.fillRect(newX, 0, column.width, this.config.headerHeight);
 
         // Draw column header text
-        this.ctx.fillStyle = '#3b82f6';
+        this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing;
         this.ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         this.ctx.textBaseline = 'middle';
         this.ctx.textAlign = 'center';
@@ -2692,7 +2661,7 @@ export class UnifiedGanttCanvas {
         if (targetColumn && targetColumn.id !== columnId) {
           const targetX = this.getColumnStartX(targetColumn.id);
           // Draw vertical line at drop position
-          this.ctx.strokeStyle = '#3b82f6';
+          this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
           this.ctx.lineWidth = 2;
           this.ctx.beginPath();
           this.ctx.moveTo(targetX, 0);
@@ -2710,7 +2679,7 @@ export class UnifiedGanttCanvas {
       this.ctx.save();
 
       // Draw line
-      this.ctx.strokeStyle = '#3b82f6';
+      this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
       this.ctx.lineWidth = 2;
       this.ctx.setLineDash([5, 3]);
       this.ctx.beginPath();
@@ -2736,7 +2705,7 @@ export class UnifiedGanttCanvas {
       this.ctx.stroke();
 
       // Draw source connector circle
-      this.ctx.fillStyle = '#3b82f6';
+      this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing;
       this.ctx.beginPath();
       this.ctx.arc(fromX, fromY, 5, 0, Math.PI * 2);
       this.ctx.fill();
@@ -2753,7 +2722,7 @@ export class UnifiedGanttCanvas {
         const endX = this.tableWidth + this.daysBetween(this.startDate, targetTask.endDate) * dayWidth + dayWidth - this.scrollX;
         const barY = rowY + taskBarPadding;
 
-        this.ctx.strokeStyle = '#3b82f6';
+        this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
         this.ctx.lineWidth = 3;
         this.ctx.strokeRect(startX - 2, barY - 2, endX - startX + 4, taskBarHeight + 4);
       }
@@ -2780,7 +2749,6 @@ export class UnifiedGanttCanvas {
     const barWidth = endX - startX;
 
     // Build tooltip content
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const lines: string[] = [];
     lines.push(task.name);
@@ -2839,7 +2807,7 @@ export class UnifiedGanttCanvas {
     this.ctx.fill();
 
     // Draw tooltip text
-    this.ctx.fillStyle = this.config.darkMode ? '#1f2937' : '#ffffff';
+    this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[800] : this.config.colors.background;
     this.ctx.textAlign = 'left';
     this.ctx.textBaseline = 'top';
 
@@ -2920,7 +2888,6 @@ export class UnifiedGanttCanvas {
       const taskW = Math.max(2, ((taskEndDays - taskStartDays + 1) * dayWidth) * scaleX);
       const taskY = y + 4 + (i * rowHeight) * scaleY;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const color = this.getTaskBarColor(rowData);
 
@@ -2954,7 +2921,7 @@ export class UnifiedGanttCanvas {
    */
   private drawTimelineRowBackgrounds(): void {
     const { headerHeight, rowHeight } = this.config;
-    const oddRowColor = this.config.darkMode ? '#263040' : '#fafafa';
+    const oddRowColor = this.config.darkMode ? CANVAS_COLORS.rows.dark.odd : CANVAS_COLORS.rows.light.odd;
 
     for (let i = 0; i < this.visibleTasks.length; i++) {
       const y = headerHeight + i * rowHeight - this.scrollY;
@@ -3092,7 +3059,7 @@ export class UnifiedGanttCanvas {
 
       // Determine background color
       // Alternating row colors - use slightly different shade for odd rows
-      const oddRowColor = this.config.darkMode ? '#263040' : '#fafafa';
+      const oddRowColor = this.config.darkMode ? CANVAS_COLORS.rows.dark.odd : CANVAS_COLORS.rows.light.odd;
       let bgColor = i % 2 === 0 ? this.config.colors.background : oddRowColor;
 
       // Check if header row (SSoT: isHeaderRow)
@@ -3160,7 +3127,6 @@ export class UnifiedGanttCanvas {
 
   private drawTableRow(task: GanttTask, rowIndex: number, y: number): void {
     const { rowHeight } = this.config;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const isHeader = this.isHeaderTask(task);
     const isCollapsed = this.collapsedHeaderIds.has(task.id);
@@ -3223,7 +3189,7 @@ export class UnifiedGanttCanvas {
         }
 
         // Draw text
-        this.ctx.fillStyle = isHeader ? '#374151' : this.config.colors.textColor;
+        this.ctx.fillStyle = isHeader ? TAILWIND_COLORS.gray[700] : this.config.colors.textColor;
         this.ctx.font = isHeader
           ? 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
           : '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
@@ -3264,7 +3230,7 @@ export class UnifiedGanttCanvas {
           const matchWidth = this.ctx.measureText(match).width;
           this.ctx.fillStyle = 'rgba(251, 191, 36, 0.4)'; // Yellow highlight
           this.ctx.fillRect(currentX - 1, textY - 8, matchWidth + 2, 16);
-          this.ctx.fillStyle = isHeader ? '#374151' : this.config.colors.textColor;
+          this.ctx.fillStyle = isHeader ? TAILWIND_COLORS.gray[700] : this.config.colors.textColor;
           this.ctx.fillText(match, currentX, textY);
           currentX += matchWidth;
 
@@ -3315,7 +3281,6 @@ export class UnifiedGanttCanvas {
             // Build task_number -> visual row index map (use visibleTasks for correct row numbers)
             const taskNumToRowIdx = new Map<number, number>();
             this.visibleTasks.forEach((t, idx) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const r = t.rowData as any;
               if (r?.task_number != null) {
                 taskNumToRowIdx.set(Number(r.task_number), idx + 1); // 1-based visual row number
@@ -3342,7 +3307,7 @@ export class UnifiedGanttCanvas {
         }
 
         if (displayText) {
-          this.ctx.fillStyle = '#3b82f6'; // Blue text for clickable
+          this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing; // Blue text for clickable
           this.ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
           this.ctx.textBaseline = 'middle';
           this.ctx.textAlign = 'left';
@@ -3408,7 +3373,6 @@ export class UnifiedGanttCanvas {
       // Determine bar color based on status
       // SSoT: Priority order matches old Gantt (Renderer.ts:1524-1566)
       // Complete > Supplier Confirm > Confirm > Hold > Started > Default
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       const barColor = this.getTaskBarColor(rowData);
 
@@ -3422,7 +3386,7 @@ export class UnifiedGanttCanvas {
         const triangleSize = 8;
 
         // Draw the thin bar (gray-800 in light mode, gray-200 in dark mode)
-        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[800];
         this.ctx.fillRect(startX, summaryY, barWidth, summaryBarHeight);
 
         // Draw downward triangle at start
@@ -3442,7 +3406,7 @@ export class UnifiedGanttCanvas {
         this.ctx.fill();
 
         // Draw header name to the right of the bar
-        this.ctx.fillStyle = this.config.darkMode ? '#e5e7eb' : '#1f2937';
+        this.ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[200] : TAILWIND_COLORS.gray[800];
         this.ctx.font = 'bold 11px Inter, system-ui, sans-serif';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'middle';
@@ -3496,7 +3460,7 @@ export class UnifiedGanttCanvas {
           if (this.hoveredTaskId === task.id) {
             const handleX = startX + progressWidth;
             // Draw vertical line handle
-            this.ctx.strokeStyle = '#3b82f6';
+            this.ctx.strokeStyle = CANVAS_COLORS.ui.focusRing;
             this.ctx.lineWidth = 2;
             this.ctx.beginPath();
             this.ctx.moveTo(handleX, barY);
@@ -3504,7 +3468,7 @@ export class UnifiedGanttCanvas {
             this.ctx.stroke();
 
             // Draw small triangle/grip
-            this.ctx.fillStyle = '#3b82f6';
+            this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing;
             this.ctx.beginPath();
             this.ctx.moveTo(handleX, barY + taskBarHeight / 2 - 4);
             this.ctx.lineTo(handleX + 4, barY + taskBarHeight / 2);
@@ -3556,7 +3520,7 @@ export class UnifiedGanttCanvas {
           const holdX = timelineX + this.daysBetween(this.startDate, holdDate) * dayWidth - this.scrollX;
 
           // Draw small triangle marker at hold date position
-          this.ctx.fillStyle = '#f59e0b'; // Amber color for hold
+          this.ctx.fillStyle = STATUS_COLORS.onHold; // Amber color for hold
           this.ctx.beginPath();
           this.ctx.moveTo(holdX, barY - 2);
           this.ctx.lineTo(holdX + 4, barY + 4);
@@ -3565,7 +3529,7 @@ export class UnifiedGanttCanvas {
           this.ctx.fill();
 
           // Draw vertical line from marker to bar
-          this.ctx.strokeStyle = '#f59e0b';
+          this.ctx.strokeStyle = STATUS_COLORS.onHold;
           this.ctx.lineWidth = 1;
           this.ctx.setLineDash([2, 2]);
           this.ctx.beginPath();
@@ -3594,11 +3558,11 @@ export class UnifiedGanttCanvas {
           // Color based on variance: delayed (amber), ahead (green), on-time (gray)
           let baselineColor: string;
           if (variance > 0) {
-            baselineColor = this.config.darkMode ? '#f59e0b' : '#d97706'; // Amber - delayed
+            baselineColor = this.config.darkMode ? STATUS_COLORS.onHold : TAILWIND_COLORS.amber[600]; // Amber - delayed
           } else if (variance < 0) {
-            baselineColor = this.config.darkMode ? '#10b981' : '#059669'; // Green - ahead
+            baselineColor = this.config.darkMode ? STATUS_COLORS.completed : TAILWIND_COLORS.emerald[600]; // Green - ahead
           } else {
-            baselineColor = this.config.darkMode ? '#6b7280' : '#9ca3af'; // Gray - on time
+            baselineColor = this.config.darkMode ? TAILWIND_COLORS.gray[500] : TAILWIND_COLORS.gray[400]; // Gray - on time
           }
 
           // Draw baseline bar with transparency
@@ -3631,9 +3595,9 @@ export class UnifiedGanttCanvas {
       // Draw critical path highlight (red glow effect)
       if (this.criticalPathEnabled && this.criticalTaskIds.has(task.id)) {
         this.ctx.save();
-        this.ctx.shadowColor = '#ef4444'; // Red shadow
+        this.ctx.shadowColor = STATUS_COLORS.atRisk; // Red shadow
         this.ctx.shadowBlur = 6;
-        this.ctx.strokeStyle = '#ef4444'; // Red border
+        this.ctx.strokeStyle = STATUS_COLORS.atRisk; // Red border
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(startX - 1, barY - 1, barWidth + 2, taskBarHeight + 2);
         this.ctx.restore();
@@ -3641,7 +3605,7 @@ export class UnifiedGanttCanvas {
 
       // Draw selection highlight (amber/yellow)
       if (this.selectedTaskIds.has(task.id)) {
-        this.ctx.strokeStyle = '#f59e0b';  // amber-500
+        this.ctx.strokeStyle = STATUS_COLORS.onHold;  // amber-500
         this.ctx.lineWidth = 2;
         this.ctx.strokeRect(startX - 1, barY - 1, barWidth + 2, taskBarHeight + 2);
       }
@@ -3653,19 +3617,19 @@ export class UnifiedGanttCanvas {
         const connectorRadius = 5;
 
         // Outer circle (white background)
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = this.config.colors.background;
         this.ctx.beginPath();
         this.ctx.arc(connectorX, connectorY, connectorRadius + 1, 0, Math.PI * 2);
         this.ctx.fill();
 
         // Inner circle (blue)
-        this.ctx.fillStyle = '#3b82f6';
+        this.ctx.fillStyle = CANVAS_COLORS.ui.focusRing;
         this.ctx.beginPath();
         this.ctx.arc(connectorX, connectorY, connectorRadius, 0, Math.PI * 2);
         this.ctx.fill();
 
         // Small arrow pointing right
-        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillStyle = this.config.colors.background;
         this.ctx.beginPath();
         this.ctx.moveTo(connectorX + 2, connectorY);
         this.ctx.lineTo(connectorX - 1, connectorY - 2);
@@ -3728,8 +3692,8 @@ export class UnifiedGanttCanvas {
 
     if (shape === 'order') {
       // Order: Orange diamond with "O" (matches old Gantt)
-      this.ctx.fillStyle = '#ea580c'; // orange-600
-      this.ctx.strokeStyle = '#9a3412'; // orange-800
+      this.ctx.fillStyle = TAILWIND_COLORS.orange[600]; // orange-600
+      this.ctx.strokeStyle = TAILWIND_COLORS.orange[800]; // orange-800
       this.ctx.lineWidth = 1;
       // Draw diamond shape
       this.ctx.beginPath();
@@ -3748,8 +3712,8 @@ export class UnifiedGanttCanvas {
       this.ctx.fillText('O', centerX, centerY + 1);
     } else if (shape === 'call') {
       // Call: Blue diamond with "C" (matches old Gantt)
-      this.ctx.fillStyle = '#2563eb'; // blue-600
-      this.ctx.strokeStyle = '#1e40af'; // blue-800
+      this.ctx.fillStyle = TAILWIND_COLORS.blue[600]; // blue-600
+      this.ctx.strokeStyle = TAILWIND_COLORS.blue[800]; // blue-800
       this.ctx.lineWidth = 1;
       // Draw diamond shape
       this.ctx.beginPath();
@@ -3768,8 +3732,8 @@ export class UnifiedGanttCanvas {
       this.ctx.fillText('C', centerX, centerY + 1);
     } else if (shape === 'photo') {
       // Photo: Purple camera icon (matches old Gantt)
-      this.ctx.fillStyle = '#9333ea'; // purple-600
-      this.ctx.strokeStyle = '#7c3aed'; // purple-500
+      this.ctx.fillStyle = TAILWIND_COLORS.purple[600]; // purple-600
+      this.ctx.strokeStyle = TAILWIND_COLORS.purple[500]; // purple-500
       this.ctx.lineWidth = 0.5;
       // Camera body (rounded rectangle)
       const bodyWidth = size * 0.9;
@@ -3790,7 +3754,7 @@ export class UnifiedGanttCanvas {
       this.ctx.arc(centerX, centerY + 1, size * 0.22, 0, Math.PI * 2);
       this.ctx.fill();
       // Lens inner (purple dot)
-      this.ctx.fillStyle = '#9333ea';
+      this.ctx.fillStyle = TAILWIND_COLORS.purple[600];
       this.ctx.beginPath();
       this.ctx.arc(centerX, centerY + 1, size * 0.1, 0, Math.PI * 2);
       this.ctx.fill();
@@ -3873,7 +3837,6 @@ export class UnifiedGanttCanvas {
       }
 
       // Check if this is a broken dependency
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const toRowData = toTask.rowData as any;
       const isBroken = toRowData?.dependency_broken ||
         (toRowData?.brokenPredecessorIds && toRowData.brokenPredecessorIds.includes(dep.fromId)) ||
@@ -3888,35 +3851,35 @@ export class UnifiedGanttCanvas {
 
       if (isBroken) {
         // Broken dependency: red dashed with X instead of arrow
-        strokeColor = '#ef4444'; // red-500
-        fillColor = '#ef4444';
+        strokeColor = STATUS_COLORS.atRisk; // red-500
+        fillColor = STATUS_COLORS.atRisk;
         lineWidth = 2;
         arrowSize = 5; // X mark size
         useDashPattern = true;
       } else if (isPredecessorDep) {
         // Predecessor dependency: yellow/black dashed (matches old UI)
-        strokeColor = '#fbbf24'; // amber-400
-        fillColor = '#fbbf24';
+        strokeColor = TAILWIND_COLORS.amber[400]; // amber-400
+        fillColor = TAILWIND_COLORS.amber[400];
         lineWidth = 3;
         arrowSize = 8;
         useDashPattern = true;
       } else if (isSuccessorDep) {
         // Successor dependency: blue/black dashed (matches old UI)
-        strokeColor = '#60a5fa'; // blue-400
-        fillColor = '#60a5fa';
+        strokeColor = TAILWIND_COLORS.blue[400]; // blue-400
+        fillColor = TAILWIND_COLORS.blue[400];
         lineWidth = 3;
         arrowSize = 8;
         useDashPattern = true;
       } else if (isCriticalDep) {
         // Critical path: red
-        strokeColor = '#ef4444';
-        fillColor = '#ef4444';
+        strokeColor = STATUS_COLORS.atRisk;
+        fillColor = STATUS_COLORS.atRisk;
         lineWidth = 2.5;
         arrowSize = 8;
       } else {
         // Default: gray
-        strokeColor = '#6b7280';
-        fillColor = '#6b7280';
+        strokeColor = TAILWIND_COLORS.gray[500];
+        fillColor = TAILWIND_COLORS.gray[500];
         lineWidth = 1.5;
         arrowSize = 6;
       }
@@ -3931,7 +3894,7 @@ export class UnifiedGanttCanvas {
       // Use dash pattern for predecessor/successor highlighting
       if (useDashPattern) {
         // Draw black base line first
-        this.ctx.strokeStyle = '#000000';
+        this.ctx.strokeStyle = CANVAS_COLORS.dependency.striped;
         this.ctx.lineWidth = lineWidth;
         this.ctx.stroke();
 
@@ -4092,7 +4055,6 @@ export class UnifiedGanttCanvas {
       const checkboxes: OverlayPosition['checkboxes'] = [];
       let columnX = TABLE_LEFT_PADDING;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rowData = task.rowData as any;
       for (const column of this.columns) {
         if (!column.visible) continue;
@@ -4168,11 +4130,10 @@ export class UnifiedGanttCanvas {
    * SSoT: Priority order matches old Gantt (Renderer.ts:1524-1566)
    * Complete > Supplier Confirm > Confirm > Hold > Started > Default
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private getTaskBarColor(rowData: any): string {
     // 1. Dark gray for completed tasks (beats all)
     if (rowData?.is_completed) {
-      return '#1f2937'; // gray-800
+      return TAILWIND_COLORS.gray[800]; // gray-800
     }
 
     // 2. Purple for supplier confirmed tasks
@@ -4192,11 +4153,11 @@ export class UnifiedGanttCanvas {
 
     // 5. Green for started tasks
     if (rowData?.started) {
-      return '#10b981'; // emerald-500
+      return STATUS_COLORS.completed; // emerald-500
     }
 
     // 6. Default gray for not started
-    return '#9ca3af'; // gray-400
+    return TAILWIND_COLORS.gray[400]; // gray-400
   }
 }
 

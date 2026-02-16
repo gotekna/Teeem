@@ -39,7 +39,7 @@ module Gl
     # Generate description for matched anomaly
     def generate_description(record)
       template = conditions["description_template"] || name
-      template.gsub(/\{(\w+)\}/) { |_| record.try($1) || "N/A" }
+      template.gsub(/\{(\w+)\}/) { |_| record&.send($1) || "N/A" }
     end
 
     # Calculate anomaly score
@@ -48,7 +48,7 @@ module Gl
 
       field = conditions["score_field"]
       threshold = conditions["threshold"]&.to_f || 0
-      value = record.try(field)&.to_f || 0
+      value = record&.send(field)&.to_f || 0
 
       return 0.5 if threshold.zero?
 
@@ -59,7 +59,7 @@ module Gl
     # Extract relevant details
     def extract_details(record)
       fields = conditions["detail_fields"] || []
-      fields.to_h { |f| [f, record.try(f)] }
+      fields.to_h { |f| [f, record&.send(f)] }
     end
 
     # Seed default rules
@@ -127,7 +127,7 @@ module Gl
       field = conditions["field"]
       operator = conditions["operator"]
       threshold = conditions["threshold"].to_f
-      value = record.try(field).to_f
+      value = record&.send(field).to_f
 
       case operator
       when "gt" then value > threshold
@@ -142,7 +142,7 @@ module Gl
     def check_pattern(record)
       field = conditions["field"]
       pattern = conditions["pattern"]
-      value = record.try(field)
+      value = record&.send(field)
 
       case pattern
       when "round_thousands"
@@ -177,7 +177,7 @@ module Gl
       time_field = conditions["time_field"]
       outside_hours = conditions["outside_hours"] || []
 
-      time = record.try(time_field)
+      time = record&.send(time_field)
       return false unless time.respond_to?(:hour)
 
       hour = time.hour

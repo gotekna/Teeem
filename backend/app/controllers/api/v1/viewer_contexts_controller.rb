@@ -15,6 +15,8 @@ module Api
     #
     # Context stored in Rails.cache with 24-hour expiry (anonymous access, no auth needed)
     class ViewerContextsController < ApplicationController
+      include CacheConstants
+
       # Public endpoint - viewer contexts are anonymous/ephemeral
       skip_before_action :authorize_request, only: [:show, :create]
       skip_before_action :set_tenant, only: [:show, :create]
@@ -24,8 +26,7 @@ module Api
       # @param context [Hash] The viewer context (files, Q&A, etc.)
       # @return [Hash] { id: "abc123" }
       def create
-        context = params.permit!.to_h.except(:controller, :action, :viewer_context)
-        context = params[:context].permit!.to_h if params[:context].present?
+        context = viewer_context_params
 
         # Generate short ID
         id = SecureRandom.urlsafe_base64(6) # 8 chars
@@ -33,12 +34,12 @@ module Api
         # FRC (Jan 2026): Use 7-day expiry to match typical presigned URL expiry
         # Note: Can't use WarehouseProvider.instance here - this is a public endpoint without tenant context
         # The viewer context just needs to outlive the presigned URLs it contains, which are typically 7 days
-        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: 7.days)
+        Rails.cache.write("viewer_context:#{id}", context.to_json, expires_in: CACHE_TTL_WEEKLY)
 
         render json: { success: true, id: id }
       rescue => e
         Rails.logger.error "[ViewerContexts#create] Error: #{e.message}"
-        render json: { success: false, error: "Failed to store context" }, status: :internal_server_error
+        render_error("Failed to store context", status: :internal_server_error)
       end
 
       # GET /api/v1/viewer_contexts/:id
@@ -51,11 +52,33 @@ module Api
         if cached
           render json: { success: true, context: JSON.parse(cached) }
         else
-          render json: { success: false, error: "Context not found or expired" }, status: :not_found
+          render_error("Context not found or expired", status: :not_found)
         end
       rescue => e
         Rails.logger.error "[ViewerContexts#show] Error: #{e.message}"
-        render json: { success: false, error: "Failed to retrieve context" }, status: :internal_server_error
+        render_error("Failed to retrieve context", status: :internal_server_error)
+      end
+
+      private
+
+      # Strong parameters for viewer context
+      # Viewer context contains: files array, qa_pairs array, current_file_index
+      def viewer_context_params
+        if params[:context].present?
+          # Nested under :context key
+          params.require(:context).permit(
+            :current_file_index,
+            files: [:url, :name, :type],
+            qa_pairs: [:question, :answer, :timestamp]
+          )
+        else
+          # Direct params (backwards compatibility)
+          params.permit(
+            :current_file_index,
+            files: [:url, :name, :type],
+            qa_pairs: [:question, :answer, :timestamp]
+          )
+        end
       end
     end
   end

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 import {
   ArrowLeft,
   Building2,
@@ -345,7 +346,7 @@ export function BillsInvoiceViewer({
           height: coords.height,
           page: coords.page || 1,
           label: fieldLabels[fieldName] || fieldName,
-          color: "#10b981", // green for OCR
+          color: TAILWIND_COLORS.emerald[500], // green for OCR
           focused: fieldName === highlightedField
         });
       }
@@ -365,7 +366,7 @@ export function BillsInvoiceViewer({
           height: location.height,
           page: location.page || 1,
           label: fieldLabels[fieldName] || fieldName,
-          color: "#eab308", // yellow for AI
+          color: TAILWIND_COLORS.yellow[500], // yellow for AI
           focused: fieldName === highlightedField
         });
       }

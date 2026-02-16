@@ -25,6 +25,8 @@ import {
   ChevronUp,
   Clock,
   Save,
+  Eye,
+  Download,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { EmailContactAutocomplete } from "./EmailContactAutocomplete";
@@ -47,10 +49,14 @@ import {
   MAX_TOTAL_ATTACHMENTS_SIZE_BYTES,
 } from "@/lib/email-constants";
 import { formatFileSize } from "@/utils/formatters";
+import { DocumentViewer } from "@/components/ui/document-viewer";
 import type { EmailDraft, EmailAccount, EmailContact, PreUploadedAttachment } from "@/lib/email-types";
 import { LayoutTemplate } from "lucide-react";
 import { TemplatePicker, type EmailTemplate } from "./TemplateManager";
 import { format, setHours, setMinutes } from "date-fns";
+import { DATE_ISO } from "@/lib/constants/date-formats";
+import { API } from "@/lib/constants/api-endpoints";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 // Use EmailContact as Contact for backwards compatibility
 type Contact = EmailContact;
@@ -79,6 +85,14 @@ interface ComposeEmailModalProps {
   smTaskId?: number;
   /** Skip signature generation (when body already includes signature) */
   skipSignature?: boolean;
+  /** Forward: original email ID for fetching attachments */
+  forwardEmailId?: number;
+  /** Forward: attachment metadata from the original email */
+  forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>;
+  /** Reply: original email ID (for fetching attachments on demand) */
+  originalEmailId?: number;
+  /** Reply: attachment metadata from the original email (shown as "Attach Original" button) */
+  originalAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>;
   onSent?: () => void;
 }
 
@@ -98,6 +112,10 @@ export function ComposeEmailModal({
   initialPreUploadedAttachments,
   smTaskId,
   skipSignature = false,
+  forwardEmailId,
+  forwardAttachments,
+  originalEmailId,
+  originalAttachments,
   onSent,
 }: ComposeEmailModalProps) {
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
@@ -120,16 +138,20 @@ export function ComposeEmailModal({
   const { deleteDraft } = useEmailDrafts();
 
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [originalAttachmentsIncluded, setOriginalAttachmentsIncluded] = useState(false);
+  const [fetchingOriginalAttachments, setFetchingOriginalAttachments] = useState(false);
   // SSoT: Existing storage keys (pass directly to backend, no re-upload)
   const [existingStorageKeys, setExistingStorageKeys] = useState<string[]>([]);
   // Pre-uploaded attachments with display names (show in UI, no re-upload on send)
   const [preUploadedAttachments, setPreUploadedAttachments] = useState<PreUploadedAttachment[]>([]);
+  const [previewFile, setPreviewFile] = useState<{ url: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [ccSearch, setCcSearch] = useState("");
   const [bccSearch, setBccSearch] = useState("");
+  const [recentRecipients, setRecentRecipients] = useState<Array<{ email: string; count: number }>>([]);
 
   // Schedule send state
   const [isScheduled, setIsScheduled] = useState(false);
@@ -203,7 +225,7 @@ export function ComposeEmailModal({
     setContactsLoading(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
+        `${API.contacts.list}?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&include_jobs=true&per_page=${CONTACT_SEARCH_MAX_RESULTS}`
       );
       const typedResponse = response as { contacts: Contact[] };
       // Filter to contacts that have at least one email (primary or in contact_emails)
@@ -217,14 +239,34 @@ export function ComposeEmailModal({
     }
   };
 
+  // Search recently-used email addresses from email history
+  const searchRecentRecipients = async (search: string) => {
+    if (!search || search.length < CONTACT_SEARCH_MIN_CHARS) {
+      setRecentRecipients([]);
+      return;
+    }
+    try {
+      const response = await api.get<{ recipients: Array<{ email: string; count: number; lastUsed: string }> }>(
+        `/api/v1/synced_emails/suggest_recipients?q=${encodeURIComponent(search)}`
+      );
+      const typedResponse = response as { recipients: Array<{ email: string; count: number; lastUsed: string }> };
+      setRecentRecipients(typedResponse.recipients || []);
+    } catch (err) {
+      console.debug("Failed to search recent recipients:", err);
+    }
+  };
+
   // Debounced search - triggered by any of the search inputs
   useEffect(() => {
     const activeSearch = contactSearch || ccSearch || bccSearch;
     const timer = setTimeout(() => {
       if (activeSearch) {
+        // Search contacts and recent recipients in parallel
         searchContacts(activeSearch);
+        searchRecentRecipients(activeSearch);
       } else {
         setContacts([]);
+        setRecentRecipients([]);
       }
     }, CONTACT_SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
@@ -234,7 +276,6 @@ export function ComposeEmailModal({
   // SSoT (Feb 2026): Supports per-account branding - if account has custom branding, use it instead of company settings
   const getUserSignature = (selectedAccountId?: string): string => {
     if (!currentUser) {
-      console.log('[ComposeSignature] getUserSignature: no currentUser');
       return "";
     }
 
@@ -247,14 +288,7 @@ export function ComposeEmailModal({
     const accountBranding = selectedAccount?.branding_config;
     const useAccountBranding = accountBranding && accountBranding.use_default === false;
 
-    console.log('[ComposeSignature] getUserSignature:', {
-      signatureStyle,
-      userName: currentUser.name,
-      userEmail: currentUser.email,
-      companyName: companySettings?.company_name,
-      useAccountBranding,
-      accountBranding: useAccountBranding ? accountBranding : undefined,
-    });
+
 
     // SSoT (Feb 2026): Use per-account branding if configured, otherwise use company settings
     const brandingData = useAccountBranding ? {
@@ -303,7 +337,7 @@ export function ComposeEmailModal({
           brand_colors?: { primary?: string; primaryForeground?: string };
         }
         const response = await api.get<{ success: boolean; data: CompanySettingsData }>(
-          "/api/v1/company_settings"
+          API.companySettings.get
         );
         if (response?.data) {
           setCompanySettings(response.data);
@@ -340,7 +374,6 @@ export function ComposeEmailModal({
 
   useEffect(() => {
     if (open && !hasInitialized) {
-      console.log('[ComposeModal] Initializing modal...');
       setHasInitialized(true);
       fetchAccounts();
       fetchFrequentContacts();
@@ -393,6 +426,8 @@ export function ComposeEmailModal({
       setPreUploadedAttachments(initialPreUploadedAttachments || []);
       setError(null);
       setSignatureHtml(""); // Reset signature (will be regenerated when account selected)
+      setOriginalAttachmentsIncluded(false);
+      setFetchingOriginalAttachments(false);
       // Reset schedule state
       setIsScheduled(false);
       setScheduledDate(undefined);
@@ -403,6 +438,121 @@ export function ComposeEmailModal({
     }
   }, [open, hasInitialized, defaultTo, defaultCc, defaultSubject, defaultBody, draft, initialAttachments, initialExistingStorageKeys, initialPreUploadedAttachments]);
 
+  // Fetch forward attachments when modal opens with forwardEmailId
+  useEffect(() => {
+    if (!open || !forwardEmailId || !forwardAttachments?.length) return;
+
+    let cancelled = false;
+
+    const fetchForwardAttachments = async () => {
+      const fetchedFiles: File[] = [];
+      const failedAttachments: string[] = [];
+
+      for (const att of forwardAttachments) {
+        if (cancelled) break;
+        try {
+          // Use whichever ID is available: local WarehouseDocument id OR Outlook attachment id
+          const attachmentId = att.id || att.outlook_attachment_id;
+          if (!attachmentId) {
+            console.warn(`[Compose] No attachment ID for: ${att.name}, skipping`);
+            failedAttachments.push(att.name);
+            continue;
+          }
+
+          // Try presigned URL first (fast path)
+          let blob: Blob | null = null;
+          try {
+            const presigned = await api.get(
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(att.name)}`
+            ) as { success?: boolean; url?: string };
+            if (presigned?.success && presigned.url) {
+              const response = await fetch(presigned.url);
+              if (response.ok) blob = await response.blob();
+            }
+          } catch {
+            // Fall through to proxy
+          }
+
+          // Proxy fallback
+          if (!blob) {
+            blob = await api.getBlob(
+              `/api/v1/synced_emails/${forwardEmailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(att.name)}`
+            );
+          }
+
+          if (blob && !cancelled) {
+            const file = new File([blob], att.name, { type: att.content_type || blob.type });
+            fetchedFiles.push(file);
+          } else if (!blob) {
+            failedAttachments.push(att.name);
+          }
+        } catch (err) {
+          console.error(`[Compose] Failed to fetch forward attachment: ${att.name}`, err);
+          failedAttachments.push(att.name);
+        }
+      }
+
+      if (!cancelled && fetchedFiles.length > 0) {
+        setAttachments(prev => [...prev, ...fetchedFiles]);
+      }
+
+      // FRC (Feb 2026): Show error if any attachments failed to load
+      // Previously silent - user saw attachments in UI metadata but they weren't actually loaded
+      if (!cancelled && failedAttachments.length > 0) {
+        setError(`Failed to load ${failedAttachments.length} attachment(s): ${failedAttachments.join(", ")}. These will NOT be included when you send.`);
+      }
+    };
+
+    fetchForwardAttachments();
+
+    return () => { cancelled = true; };
+  }, [open, forwardEmailId, forwardAttachments]);
+
+  // Include original email attachments on demand (reply/reply-all)
+  const handleIncludeOriginalAttachments = useCallback(async () => {
+    if (!originalEmailId || !originalAttachments?.length || fetchingOriginalAttachments) return;
+
+    setFetchingOriginalAttachments(true);
+    const fetchedFiles: File[] = [];
+
+    for (const att of originalAttachments) {
+      try {
+        const attachmentId = att.id || att.outlook_attachment_id;
+        if (!attachmentId) continue;
+
+        let blob: Blob | null = null;
+        try {
+          const presigned = await api.get(
+            `/api/v1/synced_emails/${originalEmailId}/attachments/${attachmentId}/presigned_url?filename=${encodeURIComponent(att.name)}`
+          ) as { success?: boolean; url?: string };
+          if (presigned?.success && presigned.url) {
+            const response = await fetch(presigned.url);
+            if (response.ok) blob = await response.blob();
+          }
+        } catch {
+          // Fall through to proxy
+        }
+
+        if (!blob) {
+          blob = await api.getBlob(
+            `/api/v1/synced_emails/${originalEmailId}/attachments/${attachmentId}/download?filename=${encodeURIComponent(att.name)}`
+          );
+        }
+
+        if (blob) {
+          fetchedFiles.push(new File([blob], att.name, { type: att.content_type || blob.type }));
+        }
+      } catch (err) {
+        console.error(`[Compose] Failed to fetch original attachment: ${att.name}`, err);
+      }
+    }
+
+    if (fetchedFiles.length > 0) {
+      setAttachments(prev => [...prev, ...fetchedFiles]);
+    }
+    setOriginalAttachmentsIncluded(true);
+    setFetchingOriginalAttachments(false);
+  }, [originalEmailId, originalAttachments, fetchingOriginalAttachments]);
 
   // Generate signature when account is selected and user/company data is available
   useEffect(() => {
@@ -462,7 +612,6 @@ export function ComposeEmailModal({
       const activeAccounts = (typedResponse.data || []).filter(
         (a) => a.is_active
       );
-      console.log('[ComposeAccounts] Active accounts:', activeAccounts.length);
       setAccounts(activeAccounts);
 
       // If a specific account was requested (e.g., for replies), use that
@@ -471,7 +620,6 @@ export function ComposeEmailModal({
 
       if (defaultFromAccountId) {
         accountToSelect = activeAccounts.find((a) => String(a.id) === defaultFromAccountId);
-        console.log('[ComposeAccounts] Looking for defaultFromAccountId:', defaultFromAccountId, 'found:', !!accountToSelect);
       }
 
       // If no account found by ID, try to find by email address (for replies)
@@ -491,20 +639,16 @@ export function ComposeEmailModal({
             matchedFromAlias = defaultFromEmail;
           }
         }
-        console.log('[ComposeAccounts] Looking for defaultFromEmail:', defaultFromEmail, 'found:', !!accountToSelect, 'alias:', matchedFromAlias);
       }
 
       if (!accountToSelect) {
         accountToSelect = activeAccounts.find((a) => a.is_default) || activeAccounts[0];
-        console.log('[ComposeAccounts] Selected account:', accountToSelect?.email_address, 'is_default:', accountToSelect?.is_default);
       }
 
       if (accountToSelect) {
         // Use the matched alias as FROM if we found via alias, otherwise use primary email
         const fromAddress = matchedFromAlias || accountToSelect.email_address;
-        console.log('[ComposeAccounts] Setting credential_id:', accountToSelect.id, 'from:', fromAddress);
         setFormData((prev) => {
-          console.log('[ComposeAccounts] setFormData called, prev credential_id:', prev.credential_id);
           return {
             ...prev,
             credential_id: String(accountToSelect!.id),
@@ -512,7 +656,6 @@ export function ComposeEmailModal({
           };
         });
       } else {
-        console.log('[ComposeAccounts] No account to select!');
       }
     } catch (err) {
       console.error("Failed to fetch accounts:", err);
@@ -566,30 +709,21 @@ export function ComposeEmailModal({
   };
 
   const handleSend = async () => {
-    console.log('[ComposeSend] handleSend called:', {
-      credential_id: formData.credential_id,
-      to: formData.to,
-      subject: formData.subject,
-      body_length: formData.body?.length,
-      signatureHtml_length: signatureHtml?.length,
-    });
+
 
     setError(null);
 
     if (!formData.credential_id) {
-      console.log('[ComposeSend] Error: no credential_id');
       setError("Please select an email account");
       return;
     }
 
     if (!formData.to.trim()) {
-      console.log('[ComposeSend] Error: no to');
       setError("Please enter a recipient");
       return;
     }
 
     if (!formData.subject.trim()) {
-      console.log('[ComposeSend] Error: no subject');
       setError("Please enter a subject");
       return;
     }
@@ -687,6 +821,7 @@ export function ComposeEmailModal({
   const selectedAccount = accounts.find((a) => String(a.id) === formData.credential_id);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[1400px] h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col" aria-describedby={undefined}>
         <DialogTitle className="sr-only">Compose Email</DialogTitle>
@@ -816,6 +951,26 @@ export function ComposeEmailModal({
             </Button>
           </label>
 
+          {/* Include original attachments (reply/reply-all only) */}
+          {originalAttachments && originalAttachments.length > 0 && !originalAttachmentsIncluded && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleIncludeOriginalAttachments}
+              disabled={fetchingOriginalAttachments}
+              title={`Attach ${originalAttachments.length} file${originalAttachments.length > 1 ? "s" : ""} from original email`}
+              className="gap-1 text-xs text-muted-foreground"
+            >
+              {fetchingOriginalAttachments ? (
+                <Spinner className="h-3 w-3" />
+              ) : (
+                <Paperclip className="h-4 w-4" />
+              )}
+              {originalAttachments.length}
+            </Button>
+          )}
+
           {/* Templates */}
           <TemplatePicker
             open={templatePickerOpen}
@@ -841,9 +996,9 @@ export function ComposeEmailModal({
               <Clock className="h-4 w-4 text-muted-foreground" />
               <Input
                 type="date"
-                value={scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : ""}
+                value={scheduledDate ? format(scheduledDate, DATE_ISO) : ""}
                 onChange={(e) => setScheduledDate(e.target.value ? new Date(e.target.value) : undefined)}
-                min={format(new Date(), "yyyy-MM-dd")}
+                min={format(new Date(), DATE_ISO)}
                 className="w-[130px] h-8 text-xs"
               />
               <Input
@@ -882,6 +1037,7 @@ export function ComposeEmailModal({
                   isLoading={contactsLoading}
                   onSearch={setContactSearch}
                   minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                  recentRecipients={recentRecipients}
                 />
               </div>
               <Button
@@ -906,6 +1062,7 @@ export function ComposeEmailModal({
                   isLoading={contactsLoading}
                   onSearch={setCcSearch}
                   minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                  recentRecipients={recentRecipients}
                 />
               </div>
             </div>
@@ -922,6 +1079,7 @@ export function ComposeEmailModal({
                     isLoading={contactsLoading}
                     onSearch={setBccSearch}
                     minSearchChars={CONTACT_SEARCH_MIN_CHARS}
+                    recentRecipients={recentRecipients}
                   />
                 </div>
               </div>
@@ -985,7 +1143,7 @@ export function ComposeEmailModal({
             )}
 
             {/* Subject - Outlook style underlined */}
-            <div className="flex items-center border-b px-4 py-2">
+            <div className="flex items-center border-b px-4 py-2" style={{ borderColor: TAILWIND_COLORS.gray[200] }}>
               <SmartInput
                 placeholder="Add a subject"
                 value={formData.subject}
@@ -997,7 +1155,7 @@ export function ComposeEmailModal({
 
             {/* Attachments bar - shows both regular and pre-uploaded attachments */}
             {(attachments.length > 0 || preUploadedAttachments.length > 0) && (
-              <div className="flex flex-wrap gap-2 px-4 py-2 border-b bg-muted/30">
+              <div className="flex flex-wrap gap-2 px-4 py-2 border-b" style={{ backgroundColor: TAILWIND_COLORS.gray[500] }}>
                 {/* Regular file attachments */}
                 {attachments.map((file, index) => (
                   <Badge
@@ -1011,8 +1169,35 @@ export function ComposeEmailModal({
                     </span>
                     <button
                       type="button"
+                      title="Preview"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file);
+                        setPreviewFile({ url, name: file.name });
+                      }}
+                      className="ml-1 hover:text-blue-500"
+                    >
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Download"
+                      onClick={() => {
+                        const url = URL.createObjectURL(file);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = file.name;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="hover:text-blue-500"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Remove"
                       onClick={() => removeAttachment(index)}
-                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                      className="ml-1 hover:text-red-500 dark:hover:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1034,10 +1219,11 @@ export function ComposeEmailModal({
                     )}
                     <button
                       type="button"
+                      title="Remove"
                       onClick={() => {
                         setPreUploadedAttachments(prev => prev.filter((_, i) => i !== index));
                       }}
-                      className="ml-1 hover:text-red-500 dark:text-red-400"
+                      className="ml-1 hover:text-red-500 dark:hover:text-red-400"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -1081,5 +1267,22 @@ export function ComposeEmailModal({
         )}
       </DialogContent>
     </Dialog>
+
+      {/* Attachment preview modal */}
+      {previewFile && (
+        <DocumentViewer
+          modal
+          url={previewFile.url}
+          fileName={previewFile.name}
+          open={true}
+          onOpenChange={(open) => {
+            if (!open) {
+              URL.revokeObjectURL(previewFile.url);
+              setPreviewFile(null);
+            }
+          }}
+        />
+      )}
+    </>
   );
 }

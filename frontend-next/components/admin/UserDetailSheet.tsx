@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { User, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound } from "lucide-react";
+import { User as UserIcon, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound } from "lucide-react";
 import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
@@ -35,37 +35,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { format } from "date-fns";
-
-interface Role {
-  id: number;
-  name: string;
-  display_name: string;
-}
-
-interface UserData {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  role_ids?: Array<{ id: number; display_value: string; name: string }>;
-  job_title?: string;
-  contact_id?: number | null;
-  contact?: { id: number; display_name?: string; first_name?: string; last_name?: string } | null;
-  last_login_at?: string;
-  created_at?: string;
-  status?: string;
-  presence_status?: string;
-  integrations?: string[];
-  preferred_theme?: string;
-  // Primary role (Jan 2026)
-  primary_role_id?: number | null;
-  // Email signature style (Jan 2026)
-  email_signature_style?: string;
-  [key: string]: unknown;
-}
+import type { Role, User } from '@/lib/types';
 
 interface UserDetailSheetProps {
-  user: UserData | null;
+  user: User | null;
   isOpen: boolean;
   onClose: () => void;
   onSave: () => void;
@@ -73,8 +46,8 @@ interface UserDetailSheetProps {
 
 export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailSheetProps) {
   const router = useRouter();
-  const [editData, setEditData] = useState<Partial<UserData>>({});
-  const [fullUserData, setFullUserData] = useState<UserData | null>(null);
+  const [editData, setEditData] = useState<Partial<User>>({});
+  const [fullUser, setFullUser] = useState<User | null>(null);
   const [roles, setRoles] = useState<Role[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -100,7 +73,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         // Fetch roles, user data, and company settings in parallel
         const [rolesResponse, userResponse, companyResponse] = await Promise.all([
           api.get<Array<{ id: number; value: string; label: string }>>("/api/v1/roles"),
-          api.get<UserData>(`/api/v1/users/${user.id}`),
+          api.get<User>(`/api/v1/users/${user.id}`),
           api.get<{ success: boolean; data?: {
             force_email_signature?: boolean;
             forced_signature_style?: string;
@@ -120,7 +93,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
 
         // SSoT: UsersController#show returns full user with role_ids
         if (userResponse) {
-          setFullUserData(userResponse);
+          setFullUser(userResponse);
         }
 
         // Company signature settings (Jan 2026)
@@ -140,14 +113,14 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
     if (isOpen && user?.id) {
       loadData();
     } else {
-      setFullUserData(null);
+      setFullUser(null);
     }
   }, [isOpen, user?.id]);
 
   // Initialize edit data when full user data is loaded
   // Phase 5: User sheet focuses on auth - profile info managed via Contact
   useEffect(() => {
-    const userData = fullUserData || user;
+    const userData = fullUser || user;
     if (userData) {
       setEditData({
         email: userData.email,
@@ -161,7 +134,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         email_signature_style: userData.email_signature_style || DEFAULT_SIGNATURE_STYLE,
       });
     }
-  }, [fullUserData, user]);
+  }, [fullUser, user]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -222,9 +195,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       );
 
       if (response?.success && response?.compose) {
-        // SSoT: Production URL is always teeem.vercel.app (3 e's)
-        // Link goes directly to password reset page - user sets their own password
-        const resetUrl = "https://teeem.vercel.app/reset-password?token=" + encodeURIComponent(response.reset_token || "");
+        // Password reset URL uses current frontend origin (works in any environment)
+        const resetUrl = `${window.location.origin}/reset-password?token=${encodeURIComponent(response.reset_token || "")}`;
         const firstName = (response.user_name || "").split(" ")[0] || "there";
 
         const subject = encodeURIComponent("Welcome to Teeem - Your Account is Ready");
@@ -297,8 +269,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const selectedRoleIds = roleIdsArray.map((r: { id: number }) => String(r.id));
   const selectedOptions = roleOptions.filter((opt) => selectedRoleIds.includes(opt.value));
 
-  // Use fullUserData (from API) if available, fallback to prop
-  const displayUser = fullUserData || user;
+  // Use fullUser (from API) if available, fallback to prop
+  const displayUser = fullUser || user;
 
   // Get Contact display name for header
   const contactDisplayName = displayUser?.contact?.display_name
@@ -314,7 +286,7 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
       <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
+            <UserIcon className="h-5 w-5" />
             User Account
           </SheetTitle>
         </SheetHeader>

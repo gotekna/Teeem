@@ -94,7 +94,9 @@ module Api
             # SSoT: Daily rate limit reset time
             resets_at: brisbane_reset.iso8601,
             resets_at_display: resets_at_display,
-            tenants: usage[:per_tenant].map do |tenant|
+            # FRC (Feb 2026): Filter per_tenant list to only visible orgs
+            # aggregate_usage returns ALL orgs from rate tracker - must filter by tenant scope
+            tenants: usage[:per_tenant].select { |t| credentials_by_tenant.key?(t[:tenant_id]) }.map do |tenant|
               credential = credentials_by_tenant[tenant[:tenant_id]]
               {
                 tenant_id: tenant[:tenant_id],
@@ -148,16 +150,17 @@ module Api
         # Ensure user can access this alert
         company = current_user.corporate
         if company && @alert.corporate_id && @alert.corporate_id != company.id
-          render json: { success: false, error: "Not authorized" }, status: :forbidden
+          render_error("Not authorized", status: :forbidden)
         end
       end
 
+      # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
       def find_credential_for_company(company)
-        return XeroCredential.current unless company
-
-        # Try to find via connection
-        connection = company.corporate_xero_connection
-        connection&.xero_credential || XeroCredential.current
+        if company
+          connection = company.corporate_xero_connection
+          return connection.xero_credential if connection&.xero_credential
+        end
+        XeroCredential.current_for(current_tenant)
       end
 
       def calculate_overall_status(credential)

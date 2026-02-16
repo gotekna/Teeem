@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   Select,
   SelectContent,
@@ -33,18 +34,7 @@ import { BackButton } from "@/components/ui/back-button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-
-interface Company {
-  id: number;
-  name: string;
-  code?: string;
-}
-
-interface User {
-  id: number;
-  full_name: string;
-  email: string;
-}
+import type { Company, User } from "@/lib/types";
 
 // Asset type codes for preview
 const ASSET_TYPE_CODES: Record<string, string> = {
@@ -124,8 +114,8 @@ export default function NewAssetPage() {
   const loadData = async () => {
     try {
       const [companiesRes, usersRes] = await Promise.all([
-        api.get<{ companies: Company[] }>("/api/v1/companies"),
-        api.get<{ users: User[] }>("/api/v1/users"),
+        api.get<{ companies: Company[] }>(API.companies.list),
+        api.get<{ users: User[] }>(API.users.list),
       ]);
       setCompanies(companiesRes.companies || []);
       setUsers(usersRes.users || []);
@@ -416,7 +406,7 @@ export default function NewAssetPage() {
                   <SelectItem value="__none__">Not assigned</SelectItem>
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id.toString()}>
-                      {user.full_name}
+                      {user.full_name || user.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

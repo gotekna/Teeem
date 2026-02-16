@@ -3,6 +3,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -59,9 +60,11 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { renderMessageContent } from "@/components/chat/SupportChatWidget";
 import { uploadFile } from "@/lib/upload-utils";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 import { ScreenShareViewer } from "@/components/screen-share/ScreenShareViewer";
@@ -157,7 +160,7 @@ export default function ChatPage() {
     };
     loadOnlineUsers();
 
-    const interval = setInterval(loadOnlineUsers, 30000);
+    const interval = setInterval(loadOnlineUsers, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -180,7 +183,7 @@ export default function ChatPage() {
     };
     loadConversations();
 
-    const interval = setInterval(loadConversations, 30000);
+    const interval = setInterval(loadConversations, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -360,12 +363,12 @@ export default function ChatPage() {
   // Load entities for save-to-entity - lazy load when dialog opens
   const loadEntities = useCallback(async () => {
     try {
-      const jobsResponse = await api.get<{ constructions: Construction[] }>("/api/v1/jobs", {
+      const jobsResponse = await api.get<{ constructions: Construction[] }>(API.jobs.list, {
         params: { status: "Active", per_page: PAGE_SIZE_REFERENCE },
       });
       setConstructions(jobsResponse?.constructions || []);
 
-      const contactsResponse = await api.get<{ contacts: Contact[] }>("/api/v1/contacts", {
+      const contactsResponse = await api.get<{ contacts: Contact[] }>(API.contacts.list, {
         params: { per_page: PAGE_SIZE_REFERENCE },
       });
       setContacts(contactsResponse?.contacts || []);

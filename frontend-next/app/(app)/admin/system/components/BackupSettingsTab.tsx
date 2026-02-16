@@ -41,6 +41,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatDistanceToNow } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 // Types
 interface SchedulePreset {
@@ -225,7 +226,7 @@ export function BackupSettingsTab() {
         title: "Backup started",
         description: `${type.charAt(0).toUpperCase() + type.slice(1)} backup queued`,
       });
-      setTimeout(loadData, 3000);
+      setTimeout(loadData, POLLING_DELAY_MS);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : "Failed to start backup";
       toast({

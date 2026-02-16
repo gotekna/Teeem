@@ -22,6 +22,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatCurrencyWhole, formatPercentageWithFallback } from "@/utils/formatters";
+import { PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 
 // Types for Claims API response
 interface ClaimsSummary {
@@ -146,7 +147,7 @@ export function JobProfitTab({ jobId }: JobProfitTabProps) {
         }>(`/api/v1/foundations/${foundationId}/records`, {
           params: {
             filters: JSON.stringify([{ column: "job_id", operator: "=", value: String(jobId) }]),
-            per_page: 1000,
+            per_page: PAGE_SIZE_LARGE,
           },
         });
 

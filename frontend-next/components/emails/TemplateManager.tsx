@@ -624,9 +624,9 @@ export function TemplatePicker({ onSelect, context = {}, trigger, open: controll
           </div>
         ) : (
           <Tabs defaultValue="quick" className="w-full">
-            <TabsList className="w-full justify-start rounded-none border-b">
-              <TabsTrigger value="quick" className="gap-1">
-                <Zap className="h-3 w-3" />
+            <TabsList>
+              <TabsTrigger value="quick" className="gap-1.5">
+                <Zap className="h-4 w-4" />
                 Quick
               </TabsTrigger>
               <TabsTrigger value="all">All Templates</TabsTrigger>

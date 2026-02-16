@@ -19,6 +19,7 @@ import "@xyflow/react/dist/style.css";
 import { Building2, Network, User, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isTrust } from "@/lib/entity-types";
+import { CANVAS_COLORS, TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 // Types for structure data
 interface StructureShareholder {
@@ -436,10 +437,10 @@ export default function CorporateStructureChart({
           source: parentId,
           target: nodeId,
           type: "smoothstep",
-          style: { stroke: "#6b7280", strokeWidth: 2 },
+          style: { stroke: CANVAS_COLORS.edges.hierarchy, strokeWidth: 2 },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color: "#6b7280",
+            color: CANVAS_COLORS.edges.hierarchy,
           },
         });
       }
@@ -568,25 +569,25 @@ export default function CorporateStructureChart({
               type: "smoothstep",
               animated: true,
               style: {
-                stroke: "#f59e0b", // Amber for person ownership
+                stroke: CANVAS_COLORS.edges.personOwnership, // Amber for person ownership
                 strokeWidth: 2,
                 strokeDasharray: "5,5",
               },
               label: `${ownership.percentage}%`,
               labelStyle: {
-                fill: "#f59e0b",
+                fill: CANVAS_COLORS.edges.personOwnership,
                 fontWeight: 600,
                 fontSize: 12,
               },
               labelBgStyle: {
-                fill: "#ffffff",
+                fill: COLORS.white,
                 fillOpacity: 0.9,
               },
               labelBgPadding: [4, 4] as [number, number],
               labelBgBorderRadius: 4,
               markerEnd: {
                 type: MarkerType.ArrowClosed,
-                color: "#f59e0b",
+                color: CANVAS_COLORS.edges.personOwnership,
               },
             });
           }
@@ -609,25 +610,25 @@ export default function CorporateStructureChart({
             type: "smoothstep",
             animated: true,
             style: {
-              stroke: "#10b981", // Emerald green
+              stroke: CANVAS_COLORS.edges.ownership, // Emerald green
               strokeWidth: 2,
               strokeDasharray: "5,5",
             },
             label: `${sh.percentage}%`,
             labelStyle: {
-              fill: "#10b981",
+              fill: CANVAS_COLORS.edges.ownership,
               fontWeight: 600,
               fontSize: 12,
             },
             labelBgStyle: {
-              fill: "#ffffff",
+              fill: COLORS.white,
               fillOpacity: 0.9,
             },
             labelBgPadding: [4, 4] as [number, number],
             labelBgBorderRadius: 4,
             markerEnd: {
               type: MarkerType.ArrowClosed,
-              color: "#10b981",
+              color: CANVAS_COLORS.edges.ownership,
             },
           });
         }
@@ -675,15 +676,15 @@ export default function CorporateStructureChart({
         minZoom={0.05}
         maxZoom={1.5}
       >
-        <Background color="#e5e7eb" gap={20} />
+        <Background color={TAILWIND_COLORS.gray[200]} gap={20} />
         <Controls />
         <MiniMap
           nodeColor={(node) => {
             const data = node.data as unknown as EntityNodeData;
             const entityType = data?.entityType?.toLowerCase();
-            if (isTrust(entityType) || entityType === "superfund") return "#fda4af";
-            if (data?.isTrustee) return "#a5b4fc";
-            return "#93c5fd";
+            if (isTrust(entityType) || entityType === "superfund") return CANVAS_COLORS.minimap.trust;
+            if (data?.isTrustee) return CANVAS_COLORS.minimap.trustee;
+            return CANVAS_COLORS.minimap.company;
           }}
           maskColor="rgba(0, 0, 0, 0.1)"
         />

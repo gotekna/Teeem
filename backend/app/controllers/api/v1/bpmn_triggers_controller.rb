@@ -40,7 +40,7 @@ module Api
         if @trigger.save
           render json: { success: true, trigger: serialize_trigger(@trigger) }, status: :created
         else
-          render json: { success: false, errors: @trigger.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@trigger)
         end
       end
 
@@ -48,7 +48,7 @@ module Api
         if @trigger.update(trigger_params)
           render json: { success: true, trigger: serialize_trigger(@trigger) }
         else
-          render json: { success: false, errors: @trigger.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@trigger)
         end
       end
 
@@ -75,25 +75,19 @@ module Api
         variables = params[:variables] || {}
 
         unless subject_type_name.present? && subject_id.present?
-          return render json: {
-            success: false,
-            error: "subject_type and subject_id are required"
-          }, status: :unprocessable_entity
+          return render_error("subject_type and subject_id are required", status: :unprocessable_entity)
         end
 
         # Validate subject_type against whitelist to prevent RCE
         unless ALLOWED_SUBJECT_TYPES.include?(subject_type_name)
-          return render json: {
-            success: false,
-            error: "Invalid subject_type: #{subject_type_name}. Allowed types: #{ALLOWED_SUBJECT_TYPES.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid subject_type: #{subject_type_name}. Allowed types: #{ALLOWED_SUBJECT_TYPES.join(', ')}", status: :unprocessable_entity)
         end
 
         # Resolve the subject (safe - subject_type is whitelisted)
         begin
           subject = subject_type_name.constantize.find(subject_id)
         rescue ActiveRecord::RecordNotFound
-          return render json: { success: false, error: "Subject not found" }, status: :not_found
+          return render_error("Subject not found", status: :not_found)
         end
 
         # Fire the trigger
@@ -113,7 +107,7 @@ module Api
           }
         }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private

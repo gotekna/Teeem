@@ -46,9 +46,12 @@ class HealthKudosEvent < ApplicationRecord
     prevention_added: 10
   }.freeze
 
+  # Constants
+  ACTOR_TYPES = %w[system user].freeze
+
   belongs_to :user, optional: true
 
-  validates :actor_type, presence: true, inclusion: { in: %w[system user] }
+  validates :actor_type, presence: true, inclusion: { in: ACTOR_TYPES }
   validates :action, presence: true
   validates :fix_type, presence: true
   validates :points, presence: true, numericality: { greater_than_or_equal_to: 0 }

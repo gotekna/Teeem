@@ -75,14 +75,14 @@ module Api
                     else
                       "This invite is not valid for payment"
                     end
-          return render json: { success: false, error: message }, status: :unprocessable_entity
+          return render_error(message, status: :unprocessable_entity)
         end
 
         subscription = @invite.email_subscription
         stripe_service = StripeSubscriptionService.new
 
         # Determine return URLs
-        frontend_url = ENV.fetch("FRONTEND_URL", "https://teeem.vercel.app")
+        frontend_url = InfrastructureUrls.frontend_url
         success_url = "#{frontend_url}/migrate/#{@invite.token}?payment=success"
         cancel_url = "#{frontend_url}/migrate/#{@invite.token}?payment=cancelled"
 
@@ -102,10 +102,10 @@ module Api
           }
         }
       rescue StripeSubscriptionService::SubscriptionError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue Stripe::StripeError => e
         Rails.logger.error("[MigratePortal] Stripe error: #{e.message}")
-        render json: { success: false, error: "Payment service unavailable" }, status: :service_unavailable
+        render_error("Payment service unavailable", status: :service_unavailable)
       end
 
       # GET /api/v1/migrate/:token/progress
@@ -129,10 +129,7 @@ module Api
       # Confirm and start migration after payment
       def confirm_migration
         unless @invite.payment_complete?
-          return render json: {
-            success: false,
-            error: "Payment must be completed before migration can start"
-          }, status: :unprocessable_entity
+          return render_error("Payment must be completed before migration can start", status: :unprocessable_entity)
         end
 
         subscription = @invite.email_subscription
@@ -154,7 +151,7 @@ module Api
           }
         }
       rescue EmailMigrationService::MigrationError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/migrate/webhook
@@ -198,7 +195,7 @@ module Api
       def set_invite
         @invite = EmailMigrationInvite.find_by!(token: params[:token])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invite not found or expired" }, status: :not_found
+        render_error("Invite not found or expired", status: :not_found)
       end
 
       def migration_progress_json(migration)

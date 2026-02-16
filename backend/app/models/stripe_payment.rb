@@ -37,7 +37,7 @@ class StripePayment < ApplicationRecord
       contact: contact,
       payment_link: payment_link,
       amount: amount,
-      currency: invoice.currency_code || "AUD",
+      currency: invoice.currency_code || TenantSetting::DEFAULT_CURRENCY,
       status: "pending",
       stripe_payment_intent_id: payment_intent_id,
       metadata: metadata
@@ -151,7 +151,7 @@ class StripePayment < ApplicationRecord
 
   def set_defaults
     self.status ||= "pending"
-    self.currency ||= "AUD"
+    self.currency ||= TenantSetting::DEFAULT_CURRENCY
   end
 
   # Sync payment to the invoice

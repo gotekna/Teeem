@@ -125,7 +125,6 @@ export async function loadTypeDefinitions(): Promise<void> {
         );
         categories = response.meta?.categories || [];
         isLoaded = true;
-        console.log(`[ColumnTypeRegistry] Loaded ${typeDefinitions.size} type definitions`);
       } else {
         console.error('[ColumnTypeRegistry] Failed to load type definitions:', response);
       }

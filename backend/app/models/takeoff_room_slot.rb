@@ -15,10 +15,13 @@ class TakeoffRoomSlot < ApplicationRecord
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
   belongs_to :measurement, class_name: "TakeoffMeasurement", optional: true
 
+  # Constants
+  MEASUREMENT_TYPES = %w[count area linear perimeter].freeze
+
   # Validations
   validates :step_index, presence: true, uniqueness: { scope: :takeoff_room_instance_id }
   validates :label, presence: true
-  validates :measurement_type, presence: true, inclusion: { in: %w[count area linear perimeter] }
+  validates :measurement_type, presence: true, inclusion: { in: MEASUREMENT_TYPES }
 
   # Scopes
   scope :ordered, -> { order(:step_index) }

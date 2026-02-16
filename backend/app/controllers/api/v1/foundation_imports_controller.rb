@@ -13,10 +13,7 @@ module Api
       # Upload file and generate preview with auto-mapped columns
       def preview
         unless params[:file].present?
-          return render json: {
-            success: false,
-            error: "No file provided"
-          }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         file = params[:file]
@@ -31,19 +28,13 @@ module Api
 
           unless parsed_data[:success]
             File.delete(temp_file_path) if File.exist?(temp_file_path)
-            return render json: {
-              success: false,
-              error: parsed_data[:errors].join(", ")
-            }, status: :unprocessable_entity
+            return render_error(parsed_data[:errors].join(", "), status: :unprocessable_entity)
           end
 
           # Cap rows to prevent memory issues
           if parsed_data[:total_rows] > MAX_IMPORT_ROWS
             File.delete(temp_file_path) if File.exist?(temp_file_path)
-            return render json: {
-              success: false,
-              error: "File contains #{parsed_data[:total_rows]} rows. Maximum allowed is #{MAX_IMPORT_ROWS}."
-            }, status: :unprocessable_entity
+            return render_error("File contains #{parsed_data[:total_rows]} rows. Maximum allowed is #{MAX_IMPORT_ROWS}.", status: :unprocessable_entity)
           end
 
           # Auto-map source columns to Foundation columns
@@ -72,10 +63,7 @@ module Api
           Rails.logger.error "Foundation import preview error: #{e.class} - #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
 
-          render json: {
-            success: false,
-            error: "Failed to process file: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to process file: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -86,28 +74,19 @@ module Api
         column_mapping = params[:column_mapping] || {}
 
         unless session_key.present?
-          return render json: {
-            success: false,
-            error: "Session key not provided"
-          }, status: :unprocessable_entity
+          return render_error("Session key not provided", status: :unprocessable_entity)
         end
 
         # Find import session
         import_session = ImportSession.valid.find_by(session_key: session_key)
         unless import_session
-          return render json: {
-            success: false,
-            error: "Import session expired or not found. Please upload the file again."
-          }, status: :unprocessable_entity
+          return render_error("Import session expired or not found. Please upload the file again.", status: :unprocessable_entity)
         end
 
         # Load parsed rows from session
         rows = import_session.file_data["rows"] || []
         if rows.empty?
-          return render json: {
-            success: false,
-            error: "No data found in import session"
-          }, status: :unprocessable_entity
+          return render_error("No data found in import session", status: :unprocessable_entity)
         end
 
         # Execute import
@@ -133,10 +112,7 @@ module Api
         Rails.logger.error "Foundation import execute error: #{e.class} - #{e.message}"
         Rails.logger.error e.backtrace.join("\n")
 
-        render json: {
-          success: false,
-          error: "Import failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Import failed: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/foundations/:foundation_id/import/status/:session_key
@@ -146,10 +122,7 @@ module Api
 
         import_session = ImportSession.find_by(session_key: session_key)
         unless import_session
-          return render json: {
-            success: false,
-            error: "Import session not found"
-          }, status: :not_found
+          return render_error("Import session not found", status: :not_found)
         end
 
         render json: {
@@ -171,10 +144,7 @@ module Api
         @foundation = Foundation.find_by(id: foundation_id) || Foundation.find_by(slug: foundation_id)
 
         unless @foundation
-          render json: {
-            success: false,
-            error: "Foundation not found"
-          }, status: :not_found
+          render_error("Foundation not found", status: :not_found)
         end
       end
 

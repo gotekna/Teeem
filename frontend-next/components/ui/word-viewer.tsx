@@ -12,6 +12,7 @@ import {
 import { Button } from "./button";
 import { Spinner } from "./spinner";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 export interface WordData {
   text: string;
@@ -40,7 +41,7 @@ export function WordViewer({
     try {
       await copyToClipboard(data.text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       console.error("Failed to copy text:", err);
     }

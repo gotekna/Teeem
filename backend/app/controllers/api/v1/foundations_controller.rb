@@ -1,6 +1,8 @@
 module Api
   module V1
     class FoundationsController < ApplicationController
+      include CacheConstants
+
       skip_before_action :authorize_request, only: [ :table_ids ]
       before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups ]
 
@@ -146,7 +148,7 @@ module Api
         end
 
         # Cache the fresh results (24 hour expiry)
-        Rails.cache.write("health_check:foundation:#{@foundation.id}", result, expires_in: 24.hours) if result.present?
+        Rails.cache.write("health_check:foundation:#{@foundation.id}", result, expires_in: CACHE_TTL_DAILY) if result.present?
 
         render json: result.merge(
           foundation_id: @foundation.id,
@@ -173,7 +175,7 @@ module Api
         end
 
         if result[:error]
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         else
           # Clear cache after fix
           Rails.cache.delete("health_check:foundation:#{@foundation.id}")

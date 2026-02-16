@@ -61,7 +61,7 @@ class AiProcessingPipeline
     return nil unless @config.ocr_enabled?
 
     start_time = monotonic_time
-    result = PdfTextExtractionService.extract(pdf_content)
+    result = OcrTextExtractorService.extract(pdf_content)
 
     @log.ocr_result = result
     @log.ocr_duration_ms = duration_ms(start_time)

@@ -52,12 +52,6 @@ export default function TaskDependencyEditor({ task, tasks, onSave, onClose }) {
   const handleSave = () => {
     // Filter out empty predecessors and save
     const validPredecessors = predecessors.filter(p => p.id !== '')
-    console.log('🐛 TaskDependencyEditor: Saving dependencies')
-    console.log('  - Task ID:', task.id)
-    console.log('  - Task name:', task.name)
-    console.log('  - Original predecessors:', task.predecessor_ids)
-    console.log('  - New valid predecessors:', validPredecessors)
-    console.log('  - Removed dependencies:', task.predecessor_ids?.length - validPredecessors.length)
     onSave(task.id, validPredecessors)
   }
 

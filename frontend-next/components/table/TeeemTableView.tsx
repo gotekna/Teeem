@@ -69,6 +69,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import DOMPurify from "isomorphic-dompurify";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   Search,
   X,
@@ -124,7 +125,7 @@ import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "
 import { measureText, TABLE_FONTS, TABLE_PADDING } from "@/lib/column-measurement";
 import { convertColumnsToTEEEMFormat, SYSTEM_DISPLAY_COLUMNS, type ApiColumn } from "@/lib/corporate/column-utils";
 import { isVisibleSystemColumn } from "@/lib/constants/system-columns";
-import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS } from "@/lib/constants/pagination-constants";
+import { TABLE_ROW_LIMIT, MAX_RENDERED_ROWS, API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -282,7 +283,7 @@ import { useSchemaHandlers } from "./core/hooks/useSchemaHandlers";
 import { useTableHandlers } from "./core/hooks/useTableHandlers";
 import { useTableDragSelect } from "./core/hooks/useTableDragSelect";
 import { useGroupCounts } from "@/hooks/useGroupCounts";
-import { useTableKeyboardNavigation } from "@/hooks/useTableKeyboardNavigation";
+import { useRowKeyboardNav } from "@/hooks/useRowKeyboardNav";
 import { useTableSessionStorage } from "@/hooks/useTableSessionStorage";
 
 // Phase 8: Extracted hooks
@@ -433,6 +434,7 @@ import { selectDefaultView } from '@/lib/view-loading-utils';
 import { useFoundationViewState } from '@/lib/view-state/hooks/useFoundationViewState';
 import { useViewFromPath } from '@/lib/view-state/hooks/useViewFromPath';
 import { isLookupColumn, isChoiceColumn, isBooleanColumn, isNumericColumn } from '@/lib/constants/column-types';
+import { Z_STICKY, Z_FULLSCREEN_OVERLAY, Z_TOOLTIP_CLASS } from '@/lib/constants/z-index-constants';
 
 // Layer 2: Feature Hooks (new architecture - gradual migration)
 import { useSorting } from './hooks/useSorting';
@@ -932,11 +934,9 @@ export default function TeeemTableView({
 
         // If autoFetchLimit is set, only restore up to that limit
         if (autoFetchLimit !== undefined && recordsToRestore.length > autoFetchLimit) {
-          console.log(`[RecordsCache] Limiting cache restore to ${autoFetchLimit} records (cache had ${recordsToRestore.length})`);
           recordsToRestore = recordsToRestore.slice(0, autoFetchLimit);
           hasMoreToRestore = true; // There are more records available
         } else {
-          console.log(`[RecordsCache] Restoring ${recordsToRestore.length} records from cache (SSR had ${initialRecords?.length || 0})`);
         }
 
         setAutoFetchedRecords(recordsToRestore);
@@ -946,7 +946,6 @@ export default function TeeemTableView({
         // L2 (IndexedDB) cache may be stale - trigger background refresh to get fresh data
         // User sees cached data immediately, then silently updates if server data differs
         if (cached.source === 'L2') {
-          console.log(`[RecordsCache] L2 cache restored - triggering background refresh for fresh data`);
           isBackgroundRefreshRef.current = true;
           // Small delay to let UI render with cached data first
           setTimeout(() => {
@@ -1103,13 +1102,6 @@ export default function TeeemTableView({
     }
 
     const fetchInitialRecords = async () => {
-      console.log('[TeeemTableView] fetchInitialRecords called:', {
-        hasMore,
-        recordCount: autoFetchedRecords.length,
-        search: searchRef.current,
-        autoFetchRefreshKey,
-      });
-
       // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-01-07)
       // ════════════════════════════════════════════════════════════════════════
       // Why we check URL param directly instead of just searchRef.current:
@@ -1137,7 +1129,6 @@ export default function TeeemTableView({
       const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
       const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
       if (hasPersistedSearch) {
-        console.log('[TeeemTableView] Skipping fetch - search pending:', { urlSearchParam, initialSearch, ref: searchRef.current });
         return;
       }
 
@@ -1160,26 +1151,16 @@ export default function TeeemTableView({
       const hasActiveSearch = Boolean(searchRef.current);
 
       if (!hasMore && autoFetchedRecords.length > 0 && !baseFiltersChanged && !hasActiveSearch) {
-        console.log('[TeeemTableView] All records loaded, applying filters client-side');
         return; // Client-side filtering in filteredAndSortedEntries handles this
-      }
-
-      if (baseFiltersChanged) {
-        console.log('[TeeemTableView] Base filters changed, refetching:', {
-          previous: lastFetchedBaseFiltersKeyRef.current,
-          current: baseFiltersKey,
-        });
       }
 
       // ULTRA FIX: Skip refetch if SSR data was already applied on initial load
       // This prevents double-fetch when filter initialization triggers effect re-run
       // EXCEPTION: If baseFilters changed, we must refetch even with SSR data
       if (hasAppliedInitialRecordsRef.current && autoFetchedRecords.length > 0 && autoFetchRefreshKey === 0 && !baseFiltersChanged) {
-        console.log('[TeeemTableView] SSR data already applied, skipping duplicate initial fetch');
         return;
       }
 
-      console.log('[TeeemTableView] Proceeding with API fetch');
 
       // Skip loading indicator for background refresh (L2 cache already displayed data)
       const isBackground = isBackgroundRefreshRef.current;
@@ -1187,8 +1168,7 @@ export default function TeeemTableView({
         setIsLoadingMore(true);
       }
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { limit: 100 };
+        const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in API call (not view/cascade filters)
         // This enables instant view switching - data loads once, views filter client-side
         // View filters are applied by filteredAndSortedEntries via applyFilters()
@@ -1219,7 +1199,6 @@ export default function TeeemTableView({
         }
         // Log completion of background refresh
         if (isBackground) {
-          console.log(`[RecordsCache] Background refresh complete - ${newRecords.length} fresh records loaded`);
           isBackgroundRefreshRef.current = false;
         }
       } catch (error) {
@@ -1241,7 +1220,6 @@ export default function TeeemTableView({
     // They're applied one-time via hasAppliedInitialRecordsRef, not on prop changes
     // ULTRA FIX: safeFilters (view filters) REMOVED from deps - enables instant view switching
     // View filters are now applied client-side by filteredAndSortedEntries
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useAutoFetch, effectiveFoundationId, autoFetchRefreshKey, baseFiltersKey]);
 
   // Auto-load more records in background after initial render
@@ -1267,8 +1245,7 @@ export default function TeeemTableView({
 
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { cursor, limit: 100 };
+        const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
         // This enables instant view switching - all data loads regardless of current view
         if (baseFilters.length > 0) {
@@ -1316,10 +1293,9 @@ export default function TeeemTableView({
 
     setIsSearching(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: 100,
+        limit: TABLE_ROW_LIMIT,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
@@ -1490,7 +1466,6 @@ export default function TeeemTableView({
       searchHook.actions.setMode(propSearchMode);
     }
     // Only run on mount - propSearchMode is initial value only
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Clear search when foundationId OR pathname changes (prevents stale search across different tables/pages)
@@ -1571,7 +1546,6 @@ export default function TeeemTableView({
         effectiveOnServerSearch(searchToApply, propSearchMode);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheInitialized]); // Re-run when session storage becomes available
 
   // View-related state now managed by Jotai atoms (SSoT)
@@ -1655,7 +1629,6 @@ export default function TeeemTableView({
       const staleIds = Array.from(prev).filter(id => !validIds.has(id));
 
       if (staleIds.length > 0) {
-        console.warn(`[TeeemTableView] Removing ${staleIds.length} stale selection IDs:`, staleIds);
         const updated = new Set(prev);
         staleIds.forEach(id => updated.delete(id));
         return updated;
@@ -1689,17 +1662,11 @@ export default function TeeemTableView({
         // Clear ALL filters including base - prevents atom pollution between tables sharing the same Jotai store
         // (e.g., PO table's job_id base filter leaking into PO Line Items table)
         // Base filters will be re-set by the initialFilters effect below if needed
-        console.log('[Foundation Change] Clearing filters for:', effectiveFoundationId,
-          isInitialMount ? '(initial mount)' : `(from ${prevFoundationRef.current})`);
         clearAllUserFilters();
         setBaseFilters([]);
 
         // Apply filters from initialView (CRITICAL: This is what makes LIVE filter work)
         if (initialView) {
-          console.log('[Foundation Change] Applying SSR initialView filters:', {
-            filterCount: initialView.filters?.cascadeFilters?.length || 0,
-          });
-
           if (initialView.filters?.cascadeFilters?.length) {
             setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
           } else {
@@ -1760,7 +1727,6 @@ export default function TeeemTableView({
     if (ssrFiltersInitializedRef.current === foundationId) return;
     if (initialView?.filters?.cascadeFilters?.length) {
       ssrFiltersInitializedRef.current = foundationId;
-      console.log('[SSR] Applying initialView filters:', initialView.filters.cascadeFilters.length, 'filters');
       setViewFilters(initialView.filters.cascadeFilters as CascadeFilter[]);
       // Also set filter groups and inter-group logic if present
       if (initialView.filters.filterGroups?.length) {
@@ -1782,11 +1748,6 @@ export default function TeeemTableView({
       const { order, visible, widths } = initialView.columns;
       if (order?.length || (visible && Object.keys(visible).length)) {
         ssrColumnsInitializedRef.current = foundationId;
-        console.log('[SSR] Applying initialView columns:', {
-          order: order?.length || 0,
-          visible: visible ? Object.keys(visible).length : 0,
-          widths: widths ? Object.keys(widths).length : 0
-        });
         if (order?.length) {
           setColumnOrder(order);
         }
@@ -1810,7 +1771,6 @@ export default function TeeemTableView({
     const ssrSortOrder = (initialView as { sort_order?: SortColumn[] })?.sort_order;
     if (ssrSortOrder?.length) {
       ssrSortColumnsInitializedRef.current = foundationId;
-      console.log('[SSR] Applying initialView sort_order:', ssrSortOrder.length, 'columns', ssrSortOrder);
       setSortColumns(ssrSortOrder);
     }
   }, [initialView, setSortColumns, foundationId]);
@@ -1829,7 +1789,6 @@ export default function TeeemTableView({
     const shouldInitialize = savedViews.length === 0 || savedViewsAreStale;
     if (shouldInitialize) {
       preloadedViewsInitializedRef.current = foundationId;
-      console.log('[SSR] Initializing savedViews from preloadedViews:', preloadedViews.length, 'views', savedViewsAreStale ? '(replacing stale views)' : '');
       // Map preloaded views to SavedView format
       // Handle both ViewData (from SSR) and SavedView (from client) formats
       // SSR ViewData uses nested format: columns.visible, columns.order, columns.widths
@@ -1949,14 +1908,6 @@ export default function TeeemTableView({
   // IMPORTANT: Pass safeFilters so group counts respect saved views and cascade filters
   // Use validGroupByColumnForApi to prevent API errors from computed columns
 
-  // Debug: Log why groups API might not be called (disabled to reduce console noise during auto-fetch)
-  // console.log('[TeeemTableView] Groups API params:', {
-  //   effectiveFoundationId,
-  //   groupByColumn,
-  //   validGroupByColumnForApi,
-  //   groupByColumnsLength: groupByColumns.length, // ULTRA: Hook provides SSR-aware values
-  //   enabled: groupByColumns.length > 0 && !!validGroupByColumnForApi
-  // });
 
   // SSR: Convert initialGroupCounts to hook's expected format
   const ssrGroupCountsData = useMemo(() => {
@@ -2027,7 +1978,6 @@ export default function TeeemTableView({
       }
     }
 
-    console.log('[TeeemTableView] serverDisplayMap from SSoT:', map.size, 'entries', Object.keys(serverDisplayValuesMap || {}));
     return map;
   }, [serverGroupCounts, groupByColumns, serverDisplayValuesMap]);
 
@@ -2122,7 +2072,6 @@ export default function TeeemTableView({
       setEditingData({});
       setValidationErrors({});
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount, not when editingRowIds changes
 
   // ⚠️ CRITICAL: Reset edit mode on unmount (2026-01-09)
@@ -2514,23 +2463,19 @@ export default function TeeemTableView({
       // Client-side search can't replicate this without duplicating logic - backend is THE source
       const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
       if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
-        console.log('[TeeemTableView] All records loaded (no prior search), searching client-side');
         return; // Skip API call - safe because we truly have all records
       }
 
       if (effectiveOnServerSearch) {
         // When clearing search, restore from cache first (avoids refetch if data was loaded)
         if (isClearing) {
-          console.log('[TeeemTableView] Clearing search - checking cache for pre-search data');
           // Try to restore from cache first (preserves all loaded records)
           const cached = effectiveFoundationId ? getCachedRecords(effectiveFoundationId) : null;
           if (cached && cached.records.length > 0) {
-            console.log(`[TeeemTableView] Restoring ${cached.records.length} records from cache`);
             setAutoFetchedRecords(cached.records as TableRowType[]);
             setHasMore(cached.hasMore);
           } else {
             // No cache - trigger a fresh fetch
-            console.log('[TeeemTableView] No cache available - triggering fresh fetch');
             setHasMore(true);
             setAutoFetchRefreshKey(prev => prev + 1);
           }
@@ -2578,11 +2523,9 @@ export default function TeeemTableView({
   // Uses refs to always get current state values
   const autoSaveColumnWidths = useCallback(async (widths: Record<string, number>) => {
     if (!activeViewId || (typeof activeViewId === 'string' && activeViewId.startsWith('new_'))) {
-      console.log('[TeeemTableView] Skipping auto-save - no active view');
       return;
     }
     if (!effectiveFoundationId) {
-      console.log('[TeeemTableView] Skipping auto-save - no foundation ID');
       return;
     }
 
@@ -2603,10 +2546,8 @@ export default function TeeemTableView({
           }
         }
       };
-      console.log('[TeeemTableView] Saving column widths:', { viewId: activeViewId, widths });
 
       await api.patch(`/api/v1/foundation_views/${activeViewId}`, payload);
-      console.log('[TeeemTableView] Auto-saved column widths for view', activeViewId);
     } catch (error) {
       console.error('[TeeemTableView] Failed to auto-save column widths:', error);
     }
@@ -2889,7 +2830,7 @@ export default function TeeemTableView({
       // Build params with sort to maintain consistent ordering
       const params: Record<string, string | number> = {
         filters: JSON.stringify(combinedFilters),
-        limit: 10000 // Get all records for the group
+        limit: API_PAGE_SIZES.GROUP_EXPANSION // Get all records for the group
       };
 
       // SSoT: Apply current sort order to lazy-loaded records
@@ -3148,9 +3089,7 @@ export default function TeeemTableView({
         if (response?.record) {
           row = response.record;
         }
-      } catch (error) {
-        console.warn("Failed to fetch row for editing:", error);
-      }
+      } catch (_) { /* Fetch failure is non-critical - falls through to use cached row */ }
     }
 
     if (row) {
@@ -3209,15 +3148,6 @@ export default function TeeemTableView({
   // NOTE: This function is now simplified - atoms handle the atomic state updates
   const loadViewState = useCallback(
     (view: SavedView, skipUrlUpdate = false, isUserAction = false, silentUrlUpdate = false) => {
-      console.log('[loadViewState] Called with:', {
-        viewId: view.id,
-        viewName: view.name,
-        skipUrlUpdate,
-        isUserAction,
-        silentUrlUpdate,
-        foundationSlug,
-      });
-
       // Mark that user has made a view selection - prevents default view from overriding
       // This fixes race condition where async loadSavedViews completion could override user's selection
       if (isUserAction) {
@@ -3346,10 +3276,6 @@ export default function TeeemTableView({
         // must not apply view to a DIFFERENT foundation's global atoms.
         // StrictMode double-mount is safe (same foundation ID) and should proceed.
         if (loadStartFoundationId !== effectiveFoundationId) {
-          console.log('[loadSavedViews] Foundation changed during load, skipping view application', {
-            startedWith: loadStartFoundationId,
-            currentFoundation: effectiveFoundationId,
-          });
           return;
         }
 
@@ -3418,16 +3344,6 @@ export default function TeeemTableView({
           // Check if user has selected a view in THIS session
           const userSelectedThisSession = userSelectedViewRef.current;
 
-          console.log('[loadSavedViews] View application check:', {
-            defaultViewSlug,
-            explicitlyNoView,
-            ssrAlreadyAppliedView,
-            userSelectedThisSession,
-            urlViewExistsForFoundation,
-            willApply: !ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView,
-            defaultViewName: defaultView?.name,
-          });
-
           // Skip if:
           // - SSR already applied a view, OR
           // - User selected a view THIS session (prevents race condition), OR
@@ -3435,11 +3351,6 @@ export default function TeeemTableView({
           if (!ssrAlreadyAppliedView && !userSelectedThisSession && !explicitlyNoView) {
             // Apply the selected view
             // URL is SSoT - always update it (event-based breadcrumbs handle sync)
-            console.log('[loadSavedViews] Auto-applying view:', {
-              viewId: defaultView.id,
-              viewName: defaultView.name,
-              viewSlug: defaultView.slug,
-            });
             // silentUrlUpdate: true - uses history.replaceState + VIEW_CHANGE_EVENT
             // This updates URL and triggers breadcrumb rebuild without React re-renders
             loadViewState(defaultView, false, false, true);
@@ -3450,7 +3361,6 @@ export default function TeeemTableView({
             //      But Jotai atoms still have the OLD view's filters from before remount.
             //      We must explicitly CLEAR them, not just skip applying new ones.
             // ════════════════════════════════════════════════════════════════════
-            console.log('[loadSavedViews] v2706 - Clearing view filters (explicitlyNoView)');
             setViewFilters([]);
             setActiveViewId(null);
           }
@@ -3585,15 +3495,6 @@ export default function TeeemTableView({
   // Filter and sort entries using extracted utility functions
   // IMPORTANT: Use effectiveEntries (not raw entries) to support auto-fetch mode
   const filteredAndSortedEntries = useMemo(() => {
-    // Debug: Log filtering state - only when filters are active or records are empty
-    // This reduces console noise during normal auto-fetch operation
-    if (safeFilters.length > 0 || effectiveEntries.length === 0) {
-      console.log('[TeeemTableView] Filtering entries:', {
-        effectiveEntriesCount: effectiveEntries.length,
-        safeFiltersCount: safeFilters.length,
-        filterDetails: safeFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
-      });
-    }
     let result = [...effectiveEntries];
 
     // Optimistically hide pending deletes (merged records)
@@ -3629,16 +3530,7 @@ export default function TeeemTableView({
     const skipClientFilters = effectiveOnServerSearch && search;
     if (safeFilters.length > 0 && !skipClientFilters) {
       // Use extracted utility function for filters
-      const beforeCount = result.length;
       result = applyFilters(result, safeFilters, filterGroups, interGroupLogic);
-      // Only log if filtering actually removed records (reduces noise)
-      if (beforeCount !== result.length) {
-        console.log('[TeeemTableView] After applying filters:', {
-          beforeCount,
-          afterCount: result.length,
-          filtered: beforeCount - result.length,
-        });
-      }
     }
 
     // Apply sorting using extracted utility function
@@ -3682,7 +3574,7 @@ export default function TeeemTableView({
     setFocusedRowIndex,
     tableProps: keyboardProps,
     hasFocus: tableHasFocus,
-  } = useTableKeyboardNavigation({
+  } = useRowKeyboardNav({
     rowCount: filteredAndSortedEntries.length,
     onRowOpen: (index) => {
       const row = filteredAndSortedEntries[index];
@@ -4967,7 +4859,7 @@ export default function TeeemTableView({
               paddingLeft: `${16 + depth * 24}px`,
               position: 'sticky',
               left: 0,
-              zIndex: 10,
+              zIndex: Z_STICKY,
               backgroundColor: groupBgColor,
             }}
           >
@@ -5489,7 +5381,7 @@ export default function TeeemTableView({
   // Threshold for switching to virtualized rendering
   // Below this, use standard table (better for editing, printing, small datasets)
   // Above this, use virtual scrolling (better for performance with large datasets)
-  const VIRTUALIZATION_THRESHOLD = 200;
+  const VIRTUALIZATION_THRESHOLD = MAX_RENDERED_ROWS;
 
   // Render flat table - uses virtualization for large datasets
   const renderFlatTable = () => {
@@ -5727,17 +5619,6 @@ export default function TeeemTableView({
   // Use loose comparison to handle string/number ID mismatches from API
   const activeView = savedViews.find((v) => String(v.id) === String(activeViewId));
 
-  // Debug logging for view selection
-  if (savedViews.length > 0) {
-    console.log('[TeeemTableView] View selection debug:', {
-      activeViewId,
-      activeViewIdType: typeof activeViewId,
-      foundActiveView: !!activeView,
-      savedViewsCount: savedViews.length,
-      savedViewIds: savedViews.map(v => ({ id: v.id, type: typeof v.id, name: v.name })),
-    });
-  }
-
   // NOTE: onViewChange is called from loadViewState when isUserAction=true
   // This prevents URL auto-updates on initial page load (confusing UX)
   // The effect that was here was removed because it fired on ANY activeView
@@ -5897,17 +5778,18 @@ export default function TeeemTableView({
 
 
   return (
+    <ErrorBoundary>
     <TableProvider value={tableContextValue}>
     <div className={cn(
       "flex flex-col h-full gap-2",
       debugGrid && "border-4 border-blue-500 bg-blue-50 dark:bg-blue-950/20 relative",
       // Fullscreen mode - SSoT for table fullscreen (enableFullscreen prop)
-      // z-[120] to appear above breadcrumb (z-[110])
-      isFullscreen && "fixed inset-0 z-[120] bg-background p-4"
+      // Z_FULLSCREEN_OVERLAY to appear above breadcrumb
+      isFullscreen && `fixed inset-0 z-[${Z_FULLSCREEN_OVERLAY}] bg-background p-4`
     )}>
       {/* DEBUG: Main Container Label */}
       {debugGrid && (
-        <div className="absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold z-50">
+        <div className={`absolute top-0 left-0 bg-blue-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
           [1] MAIN CONTAINER (BLUE) - flex flex-col h-full gap-2
         </div>
       )}
@@ -5916,7 +5798,7 @@ export default function TeeemTableView({
       {(healthPanelOpen || showDataHealth) && effectiveFoundationId && (
         <div className={cn("px-4", debugGrid && "border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20 relative")}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-cyan-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [1a] DATA HEALTH (CYAN)
             </div>
           )}
@@ -5937,7 +5819,7 @@ export default function TeeemTableView({
           debugGrid && "border-2 border-green-500 bg-green-50 dark:bg-green-950/20 relative"
         )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-green-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [2] HEADER (GREEN) - flex justify-between px-4 shrink-0
             </div>
           )}
@@ -6027,7 +5909,7 @@ export default function TeeemTableView({
         debugGrid && "border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/20 relative"
       )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-purple-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [3] TOOLBAR (PURPLE) - flex justify-between gap-4 px-4
             </div>
           )}
@@ -6258,7 +6140,7 @@ export default function TeeemTableView({
         {...keyboardProps}
       >
         {debugGrid && (
-          <div className="sticky top-0 left-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold z-50 inline-block">
+          <div className={`sticky top-0 left-0 bg-orange-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS} inline-block`}>
             [4] TABLE CONTAINER (ORANGE) - flex-1 min-h-0 overflow-auto
           </div>
         )}
@@ -6334,7 +6216,7 @@ export default function TeeemTableView({
           debugGrid && "border-2 border-red-500 bg-yellow-50 dark:bg-yellow-950/20 relative"
         )}>
           {debugGrid && (
-            <div className="absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold z-50">
+            <div className={`absolute top-0 left-0 bg-red-600 text-white px-2 py-1 text-xs font-bold ${Z_TOOLTIP_CLASS}`}>
               [5] FOOTER (YELLOW/RED) - shrink-0
             </div>
           )}
@@ -6633,5 +6515,6 @@ export default function TeeemTableView({
       )}
     </div>
     </TableProvider>
+    </ErrorBoundary>
   );
 }

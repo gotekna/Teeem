@@ -1,5 +1,5 @@
 class MicrosoftEmailService
-  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
+  GRAPH_API_BASE = MicrosoftGraphBase::GRAPH_API_BASE
 
   def initialize(credential = nil)
     @credential = credential || MicrosoftCredential.sharepoint_credential

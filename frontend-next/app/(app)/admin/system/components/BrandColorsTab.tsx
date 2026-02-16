@@ -223,7 +223,7 @@ export function BrandColorsTab() {
                       <div className="bg-white p-4 rounded-md border">
                         <img
                           src={detectedBrand.logo_url}
-                          alt="Detected logo"
+                          alt="Detected company logo for light background"
                           className="h-12 max-w-[200px] object-contain"
                         />
                       </div>
@@ -235,7 +235,7 @@ export function BrandColorsTab() {
                       <div className="bg-background p-4 rounded-md border">
                         <img
                           src={detectedBrand.logo_dark_url}
-                          alt="Detected dark logo"
+                          alt="Detected company logo for dark background"
                           className="h-12 max-w-[200px] object-contain"
                         />
                       </div>
@@ -312,7 +312,7 @@ export function BrandColorsTab() {
             <div className="flex items-start gap-4">
               <div className="border rounded-lg p-3 bg-white dark:bg-white min-w-[180px] min-h-[80px] flex items-center justify-center">
                 {brand?.logo_url ? (
-                  <img src={brand.logo_url} alt="Primary Logo" className="max-w-[150px] max-h-[60px] object-contain" />
+                  <img src={brand.logo_url} alt="Company primary logo" className="max-w-[150px] max-h-[60px] object-contain" />
                 ) : (
                   <span className="text-xs text-muted-foreground">No logo</span>
                 )}
@@ -359,7 +359,7 @@ export function BrandColorsTab() {
             <div className="flex items-start gap-4">
               <div className="border rounded-lg p-3 bg-white dark:bg-white min-w-[80px] min-h-[80px] flex items-center justify-center">
                 {brand?.logo_mobile ? (
-                  <img src={brand.logo_mobile} alt="Mobile Logo" className="max-w-[50px] max-h-[50px] object-contain" />
+                  <img src={brand.logo_mobile} alt="Company mobile logo" className="max-w-[50px] max-h-[50px] object-contain" />
                 ) : (
                   <span className="text-xs text-muted-foreground">No logo</span>
                 )}
@@ -406,7 +406,7 @@ export function BrandColorsTab() {
             <div className="flex items-start gap-4">
               <div className="border rounded-lg p-3 bg-slate-800 min-w-[180px] min-h-[80px] flex items-center justify-center">
                 {brand?.logo_dark ? (
-                  <img src={brand.logo_dark} alt="Dark Mode Logo" className="max-w-[150px] max-h-[60px] object-contain" />
+                  <img src={brand.logo_dark} alt="Company dark mode logo" className="max-w-[150px] max-h-[60px] object-contain" />
                 ) : (
                   <span className="text-xs text-muted-foreground">No logo</span>
                 )}

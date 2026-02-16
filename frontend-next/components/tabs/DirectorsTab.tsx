@@ -28,6 +28,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 
 interface WorkflowInstance {
   id: number;
@@ -162,7 +163,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
                     <TableCell className="px-4 py-3 text-sm">-</TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
@@ -186,8 +187,8 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                       </div>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), "dd/MM/yyyy") : "-"}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), "dd/MM/yyyy") : "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
+                    <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-"}</TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge variant="secondary">Former</Badge>
                     </TableCell>

@@ -24,10 +24,13 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { PAGE_SIZE_SEARCH } from "@/lib/constants/pagination-constants";
 import { AttachmentList, type Attachment } from "./AttachmentList";
 import { ComposeEmailModal } from "./ComposeEmailModal";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { cn } from "@/lib/utils";
+import { DATETIME_FULL_12H } from "@/lib/constants/date-formats";
+import { Job } from "@/lib/types";
 
 /**
  * Strips existing quoted content from email body text.
@@ -138,12 +141,6 @@ interface EmailDetailData {
   mailbox_owner_email?: string;
 }
 
-interface Job {
-  id: number;
-  job_number: string;
-  title: string;
-}
-
 interface EmailDetailDialogProps {
   emailId: number | null;
   open: boolean;
@@ -210,7 +207,7 @@ export function EmailDetailDialog({
     try {
       const response = await api.get<{ records: Job[] }>(
         "/api/v1/foundations/jobs/records",
-        { params: { search, per_page: 20 } }
+        { params: { search, per_page: PAGE_SIZE_SEARCH } }
       );
       setJobs(response.records || []);
     } catch (err) {
@@ -260,7 +257,7 @@ export function EmailDetailDialog({
     if (!printWindow) return;
 
     const formattedDate = email.received_at
-      ? format(new Date(email.received_at), "MMM d, yyyy, h:mm:ss a")
+      ? format(new Date(email.received_at), DATETIME_FULL_12H)
       : "";
 
     printWindow.document.write(`
@@ -350,7 +347,7 @@ export function EmailDetailDialog({
     // Build quoted body as HTML with blockquote so signature inserts before it
     const quotedHeader = `--- Original Message ---<br>From: ${email.display_from || email.from_email}<br>Date: ${format(new Date(email.received_at), "PPpp")}<br>Subject: ${email.subject || ""}`;
     const quotedContentHtml = originalContent.split("\n").map(line => line || "<br>").join("<br>");
-    const quotedBody = `${attachmentsHtml}<blockquote style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
+    const quotedBody = `${attachmentsHtml}<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${quotedHeader}<br><br>${quotedContentHtml}</blockquote>`;
 
     // SSoT: Use the mailbox that received this email as the From address for replies
     const mailboxEmail = email.mailbox_owner_email?.toLowerCase();
@@ -382,12 +379,27 @@ export function EmailDetailDialog({
           replyToMessageId: email.internet_message_id,
           defaultFromEmail: email.mailbox_owner_email,
         };
-      case "forward":
+      case "forward": {
+        // Forward uses body_html when available (preserves original formatting, handles styled emails).
+        // Strip <style>/<head>/<html>/<body> wrappers that don't belong in the editor.
+        let forwardBodyHtml: string;
+        if (email.body_html) {
+          forwardBodyHtml = email.body_html
+            .replace(/<style[\s\S]*?<\/style>/gi, "")
+            .replace(/<head[\s\S]*?<\/head>/gi, "")
+            .replace(/<\/?(?:html|body|!doctype)[^>]*>/gi, "")
+            .trim();
+        } else {
+          forwardBodyHtml = quotedContentHtml;
+        }
+        const forwardHeader = `---------- Forwarded message -----------<br>From: ${email.display_from || email.from_email}<br>Date: ${format(new Date(email.received_at), "PPpp")}<br>Subject: ${email.subject || ""}<br>To: ${email.to_emails?.join(", ") || ""}`;
+        const forwardQuotedBody = `${attachmentsHtml}<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeader}<br><br>${forwardBodyHtml}</blockquote>`;
         return {
           defaultSubject: forwardSubject,
-          defaultBody: quotedBody,
+          defaultBody: forwardQuotedBody,
           defaultFromEmail: email.mailbox_owner_email,
         };
+      }
       default:
         return {};
     }

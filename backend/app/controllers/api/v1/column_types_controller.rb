@@ -258,10 +258,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
-      render json: {
-        success: false,
-        error: "Gold Standard Reference table not found"
-      }, status: :not_found
+      render_error("Gold Standard Reference table not found", status: :not_found)
       return
     end
 
@@ -274,10 +271,7 @@ class Api::V1::ColumnTypesController < ApplicationController
         data: format_column_type(column)
       }
     else
-      render json: {
-        success: false,
-        error: "Column type '#{params[:id]}' not found in Gold Standard table"
-      }, status: :not_found
+      render_error("Column type '#{params[:id]}' not found in Gold Standard table", status: :not_found)
     end
   end
 
@@ -288,10 +282,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     gold_standard_foundation = Foundation.find_by(slug: "gold_standard_table")
 
     unless gold_standard_foundation
-      render json: {
-        success: false,
-        error: "Gold Standard Reference table not found"
-      }, status: :not_found
+      render_error("Gold Standard Reference table not found", status: :not_found)
       return
     end
 
@@ -299,10 +290,7 @@ class Api::V1::ColumnTypesController < ApplicationController
     column = gold_standard_foundation.columns.find_by(column_type: params[:id])
 
     unless column
-      render json: {
-        success: false,
-        error: "Column type '#{params[:id]}' not found in Gold Standard table"
-      }, status: :not_found
+      render_error("Column type '#{params[:id]}' not found in Gold Standard table", status: :not_found)
       return
     end
 

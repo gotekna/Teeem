@@ -135,9 +135,9 @@ export function RevitTab({ jobId, jobTitle }: RevitTabProps) {
           a.name.localeCompare(b.name)
         );
 
-        // Get Revit folder URL and ID from found_folders (check both web_url and webUrl)
-        const revitFolder = response.found_folders?.[0];
-        const revitFolderUrl = revitFolder?.web_url || (revitFolder as any)?.webUrl || response.job_folder_web_url;
+        // Get Revit folder URL and ID from found_folders (check both web_url and webUrl for backwards compatibility)
+        const revitFolder = response.found_folders?.[0] as { id?: string; web_url?: string; webUrl?: string } | undefined;
+        const revitFolderUrl = revitFolder?.web_url || revitFolder?.webUrl || response.job_folder_web_url;
 
         // Store the folder ID for uploads
         if (revitFolder?.id) {

@@ -23,6 +23,9 @@ class Contact < ApplicationRecord
   # All contacts are now considered active unless is_active=false
   # default_scope { where(deleted: [ false, nil ]) }
 
+  # Filter scopes (extracted from controllers)
+  scope :active, -> { where(is_active: true) }
+
   # Associations
   has_one :user, dependent: :nullify  # Linked user for data sync
   has_many :contact_activities, dependent: :destroy
@@ -110,7 +113,10 @@ class Contact < ApplicationRecord
   has_many :dividend_payments, foreign_key: :shareholder_id, dependent: :destroy
 
   # SSoT: Contact documents (ID, licenses, personal documents for people scope)
-  has_many :contact_documents, dependent: :destroy
+  # DISABLED: contact_documents table does not exist yet (model created but migration never run).
+  # This was crashing ALL contact deletes with PG::UndefinedTable.
+  # TODO: Create migration for contact_documents table, then re-enable this line.
+  # has_many :contact_documents, dependent: :destroy
 
   # Company Group memberships (SSoT - links contact to company groups with permissions)
   has_many :company_group_memberships, class_name: "ContactCompanyGroupMembership", dependent: :destroy
@@ -161,16 +167,30 @@ class Contact < ApplicationRecord
 
   # TFN for directors is stored in Corporate.tfn (not on Contact)
 
-  # Constants
-  ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
-  # SSoT: Valid entity_type values
-  # - person: Individual person
-  # - company: Business entity
-  # - trust: Trust entity
-  # - sole_trader: Individual trading business
-  # - price_only: Contact used only for pricebook pricing data (legacy suppliers with no other info)
-  ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
-  EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+  # SSoT: Configurable per tenant via TenantSetting (Feb 2026)
+  # DEFAULT_ constants kept as fallbacks only
+  DEFAULT_ROLES = %w[Employee sales land_agent Director Company_Secretary Public_Officer CEO GM Owner].freeze
+  DEFAULT_ENTITY_TYPES = %w[person company trust sole_trader price_only].freeze
+  DEFAULT_EMPLOYMENT_STATUSES = %w[active contractor inactive].freeze
+
+  # Class methods to read from TenantSetting with fallback
+  def self.roles
+    TenantSetting.contact_roles
+  rescue StandardError
+    DEFAULT_ROLES
+  end
+
+  def self.entity_types
+    TenantSetting.contact_entity_types
+  rescue StandardError
+    DEFAULT_ENTITY_TYPES
+  end
+
+  def self.employment_statuses
+    TenantSetting.contact_employment_statuses
+  rescue StandardError
+    DEFAULT_EMPLOYMENT_STATUSES
+  end
 
   # Alias name to display_name for backwards compatibility
   # Many parts of the codebase reference contact.name but the column is 'display_name'
@@ -497,9 +517,9 @@ class Contact < ApplicationRecord
   # Validations
   validate :roles_must_be_valid
 
-  # Entity type validation
+  # Entity type validation (SSoT: TenantSetting.contact_entity_types)
   validates :entity_type, presence: { message: "must be selected" },
-                          inclusion: { in: ENTITY_TYPES, allow_nil: true }
+                          inclusion: { in: -> { Contact.entity_types }, allow_nil: true }
 
   # SSoT: Unique company display_name (prevents duplicates from concurrent syncs)
   # DB-enforced via partial unique index: idx_contacts_unique_company_name
@@ -545,16 +565,16 @@ class Contact < ApplicationRecord
 
   # SSoT: Sync primary_company_id → employee_of relationship
   # This ensures the relationship exists when primary_company is set directly
-  after_commit :sync_primary_company_to_relationship, if: :should_sync_primary_company_to_relationship?
+  after_commit :enqueue_relationship_sync, if: :should_sync_primary_company_to_relationship?
 
   # SSoT: Sync Contact → Corporate for standard contact fields
   # One-way sync: Contact is SSoT for name, email, phone, bank details
   # Two-way sync for ABN: Contact.abn ↔ Corporate.abn
-  after_commit :sync_to_corporate, if: :should_sync_to_corporate?
+  after_commit :enqueue_corporate_sync, if: :should_sync_to_corporate?
 
   # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
   # If invoice.contact_name matches contact.display_name exactly, link them
-  after_commit :auto_link_unlinked_invoices, on: [:create, :update], if: :should_auto_link_invoices?
+  after_commit :enqueue_invoice_linking, on: [:create, :update], if: :should_auto_link_invoices?
 
   # Materialized Path: Recompute warehouse document paths when contact name changes
   after_commit :queue_warehouse_path_recompute,
@@ -1572,6 +1592,21 @@ class Contact < ApplicationRecord
     RecomputeDocumentPathsJob.perform_later("Contact", id)
   end
 
+  # Sync primary_company_id → employee_of relationship (service object, runs synchronously)
+  def enqueue_relationship_sync
+    ContactRelationshipSyncService.call(self)
+  end
+
+  # Enqueue background job: Sync Contact → Corporate
+  def enqueue_corporate_sync
+    ContactSyncCorporateJob.perform_later(id)
+  end
+
+  # Enqueue background job: Auto-link unlinked Xero invoices
+  def enqueue_invoice_linking
+    ContactAutoLinkInvoicesJob.perform_later(id)
+  end
+
   # SSoT: Sync mobile_phone to linked user
   def sync_mobile_to_user
     return unless user.present?
@@ -1647,34 +1682,6 @@ class Contact < ApplicationRecord
     saved_change_to_primary_company_id?
   end
 
-  # SSoT: Create/update employee_of relationship when primary_company_id is set directly
-  # This is the reverse of ContactRelationship#sync_primary_company_id
-  def sync_primary_company_to_relationship
-    # Prevent infinite loop with ContactRelationship callback
-    return if Thread.current[:syncing_primary_company_relationship]
-    Thread.current[:syncing_primary_company_relationship] = true
-
-    if primary_company_id.present?
-      # Create or activate employee_of relationship
-      relationship = outgoing_relationships.find_or_initialize_by(
-        related_contact_id: primary_company_id,
-        relationship_type: "employee_of"
-      )
-      relationship.is_active = true
-      relationship.start_date ||= Date.today
-      relationship.save!
-    else
-      # Deactivate any existing employee_of relationships (primary company was cleared)
-      outgoing_relationships
-        .where(relationship_type: "employee_of", is_active: true)
-        .update_all(is_active: false, end_date: Date.today)
-    end
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: SSoT sync primary_company_to_relationship failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_primary_company_relationship] = false
-  end
-
   def roles_must_be_valid
     return if roles.blank?
 
@@ -1682,7 +1689,7 @@ class Contact < ApplicationRecord
     role_list = roles.is_a?(String) ? (JSON.parse(roles) rescue []) : roles
     return if role_list.blank?
 
-    invalid_roles = role_list - ROLES
+    invalid_roles = role_list - Contact.roles
     if invalid_roles.any?
       errors.add(:roles, "contains invalid roles: #{invalid_roles.join(', ')}")
     end
@@ -1954,7 +1961,7 @@ class Contact < ApplicationRecord
     end.join(" ")
   end
 
-  # SSoT: Check if this contact should sync to Corporate
+  # SSoT: Guard method for syncing to Corporate
   def should_sync_to_corporate?
     # Only sync if this is a company/trust with a linked Corporate record
     # Don't sync if we're already syncing from Corporate to Contact (prevent loop)
@@ -1964,54 +1971,10 @@ class Contact < ApplicationRecord
       !Thread.current[:syncing_company_to_contact]
   end
 
-  # SSoT: Sync Contact → Corporate for standard contact fields
-  def sync_to_corporate
-    # Prevent infinite loops
-    return if Thread.current[:syncing_contact_to_company]
-
-    Thread.current[:syncing_contact_to_company] = true
-
-    company_record.update!(
-      name: display_name,
-      abn: abn  # SelfHealing will format with spaces
-    )
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: Sync to Corporate failed - #{e.message}")
-  ensure
-    Thread.current[:syncing_contact_to_company] = false
-  end
-
-  # SSoT: Check if this contact should auto-link unlinked invoices
+  # SSoT: Guard method for auto-linking unlinked invoices
   def should_auto_link_invoices?
     # Only run if display_name or company_name_or_trust changed (or new record)
     display_name.present? || company_name_or_trust.present?
-  end
-
-  # SSoT: Auto-link unlinked Xero invoices when contact is created/updated
-  # This ensures that when a user creates a TEEEM contact, existing Xero invoices
-  # with matching names are automatically linked (no manual intervention needed)
-  def auto_link_unlinked_invoices
-    names_to_match = [
-      display_name&.strip&.squish&.downcase,
-      company_name_or_trust&.strip&.squish&.downcase
-    ].compact.reject(&:blank?).uniq
-
-    return if names_to_match.empty?
-
-    # Find unlinked invoices with matching contact_name (case-insensitive, trimmed)
-    linked_count = 0
-    names_to_match.each do |name|
-      count = ExternalInvoice.where(contact_id: nil)
-        .where("LOWER(TRIM(contact_name)) = ?", name)
-        .update_all(contact_id: id)
-      linked_count += count
-    end
-
-    if linked_count > 0
-      Rails.logger.info("Contact##{id} (#{display_name}): Auto-linked #{linked_count} unlinked Xero invoices")
-    end
-  rescue StandardError => e
-    Rails.logger.error("Contact##{id}: Auto-link invoices failed - #{e.message}")
   end
 
   # Phase 3: Prevent deletion if Contact has a linked User

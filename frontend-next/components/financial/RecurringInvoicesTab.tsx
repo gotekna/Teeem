@@ -54,14 +54,17 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { EmailContactAutocomplete } from "@/components/emails/EmailContactAutocomplete";
 import type { EmailContact } from "@/lib/email-types";
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
+import type { Job, Contact } from "@/lib/types";
 
 const CONTACT_SEARCH_MIN_CHARS = 2;
-const CONTACT_SEARCH_DEBOUNCE_MS = 300;
+const CONTACT_SEARCH_DEBOUNCE_MS = DEBOUNCE_SEARCH_MS;
 
 interface RecurringInvoice {
   id: number;
@@ -117,16 +120,6 @@ interface Summary {
   paused_count: number;
   due_today: number;
   total_monthly_value: number;
-}
-
-interface Contact {
-  id: number;
-  name: string;
-}
-
-interface Job {
-  id: number;
-  name: string;
 }
 
 const FREQUENCIES = [
@@ -200,7 +193,7 @@ export default function RecurringInvoicesTab() {
     setEmailContactsLoading(true);
     try {
       const response = await api.get<{ contacts: EmailContact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=20`
+        `/api/v1/contacts?search=${encodeURIComponent(search)}&with_email=true&include_companies=true&per_page=${API_PAGE_SIZES.SEARCH_MODAL}`
       );
       const typedResponse = response as { contacts: EmailContact[] };
       setEmailContacts((typedResponse.contacts || []).filter(c =>
@@ -249,7 +242,7 @@ export default function RecurringInvoicesTab() {
 
   const fetchContacts = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: Contact[] }>("/api/v1/contacts?limit=100");
+      const res = await api.get<{ success: boolean; data: Contact[] }>(`/api/v1/contacts?limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
       if (res?.success) {
         setContacts(res.data || []);
       }
@@ -260,7 +253,7 @@ export default function RecurringInvoicesTab() {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const res = await api.get<{ success: boolean; data: Job[] }>("/api/v1/jobs?limit=100");
+      const res = await api.get<{ success: boolean; data: Job[] }>(`/api/v1/jobs?limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
       if (res?.success) {
         setJobs(res.data || []);
       }
@@ -691,7 +684,7 @@ export default function RecurringInvoicesTab() {
                   <SelectContent>
                     {contacts.map((contact) => (
                       <SelectItem key={contact.id} value={contact.id.toString()}>
-                        {contact.name}
+                        {contact.display_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

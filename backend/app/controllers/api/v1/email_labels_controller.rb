@@ -41,10 +41,7 @@ class Api::V1::EmailLabelsController < ApplicationController
         data: label_json(label)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: label.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(label)
     end
   end
 
@@ -52,10 +49,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   def update
     # Prevent editing system labels (except position)
     if @label.is_system && label_params.keys != ["position"]
-      return render json: {
-        success: false,
-        error: "Cannot modify system labels"
-      }, status: :unprocessable_entity
+      return render_error("Cannot modify system labels", status: :unprocessable_entity)
     end
 
     if @label.update(label_params)
@@ -64,10 +58,7 @@ class Api::V1::EmailLabelsController < ApplicationController
         data: label_json(@label)
       }
     else
-      render json: {
-        success: false,
-        error: @label.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@label)
     end
   end
 
@@ -75,10 +66,7 @@ class Api::V1::EmailLabelsController < ApplicationController
   def destroy
     # Prevent deleting system labels
     if @label.is_system
-      return render json: {
-        success: false,
-        error: "Cannot delete system labels"
-      }, status: :unprocessable_entity
+      return render_error("Cannot delete system labels", status: :unprocessable_entity)
     end
 
     @label.destroy
@@ -114,7 +102,7 @@ class Api::V1::EmailLabelsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [(params[:per_page] || 50).to_i, 200].min
+    per_page = [(params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE].min
     total = emails.count
 
     emails = emails.offset((page - 1) * per_page).limit(per_page)
@@ -252,7 +240,7 @@ class Api::V1::EmailLabelsController < ApplicationController
     }
 
     if include_emails
-      json[:emails] = label.emails.order(received_at: :desc).limit(50).map { |e| email_summary_json(e) }
+      json[:emails] = label.emails.order(received_at: :desc).limit(EmailConstants::DEFAULT_PER_PAGE).map { |e| email_summary_json(e) }
     end
 
     json

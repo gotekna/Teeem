@@ -32,10 +32,7 @@ module Api
         storage_config = WarehouseProvider.instance
 
         unless storage_config
-          return render json: {
-            success: false,
-            error: "Storage configuration not found. Please ensure your organization has a document provider configured."
-          }, status: :unprocessable_entity
+          return render_error("Storage configuration not found. Please ensure your organization has a document provider configured.", status: :unprocessable_entity)
         end
 
         sp = storage_params
@@ -180,10 +177,7 @@ module Api
             data: storage_config.to_config_hash
           }
         else
-          render json: {
-            success: false,
-            errors: storage_config.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(storage_config)
         end
       end
 
@@ -193,10 +187,7 @@ module Api
         storage_config = WarehouseProvider.instance
 
         unless storage_config&.connected?
-          return render json: {
-            success: false,
-            error: "Storage is not configured. Please configure your storage provider."
-          }, status: :unprocessable_entity
+          return render_error("Storage is not configured. Please configure your storage provider.", status: :unprocessable_entity)
         end
 
         case storage_config.provider_type
@@ -207,10 +198,7 @@ module Api
         when "local"
           test_local_connection(storage_config)
         else
-          render json: {
-            success: false,
-            error: "Unknown storage provider: #{storage_config.provider_type}"
-          }, status: :unprocessable_entity
+          render_error("Unknown storage provider: #{storage_config.provider_type}", status: :unprocessable_entity)
         end
       end
 
@@ -250,10 +238,7 @@ module Api
                        MicrosoftCredential.for_tenant(current_tenant).refreshable_app.first
 
           unless credential
-            return render json: {
-              success: false,
-              error: "No active SharePoint credential found. Please connect in Admin > System > Connections."
-            }, status: :unprocessable_entity
+            return render_error("No active SharePoint credential found. Please connect in Admin > System > Connections.", status: :unprocessable_entity)
           end
 
           client = MicrosoftAppGraphClient.new(credential)
@@ -269,10 +254,7 @@ module Api
             }
           }
         rescue => e
-          render json: {
-            success: false,
-            error: "SharePoint connection failed: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("SharePoint connection failed: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -283,10 +265,7 @@ module Api
           credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
           unless credential
-            return render json: {
-              success: false,
-              error: "No active S3 credential found. Please configure credentials first."
-            }, status: :unprocessable_entity
+            return render_error("No active S3 credential found. Please configure credentials first.", status: :unprocessable_entity)
           end
 
           # Build S3 client and test with head_bucket
@@ -294,10 +273,7 @@ module Api
           bucket = storage_config.bucket
 
           unless bucket.present?
-            return render json: {
-              success: false,
-              error: "Bucket not configured. Please set bucket name in Storage Config."
-            }, status: :unprocessable_entity
+            return render_error("Bucket not configured. Please set bucket name in Storage Config.", status: :unprocessable_entity)
           end
 
           # Test connection by checking if bucket exists
@@ -309,7 +285,7 @@ module Api
           # Auto-configure CORS for browser uploads (presigned URLs)
           cors_configured = false
           begin
-            provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+            provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
             provider.configure_cors!
             cors_configured = true
           rescue => e
@@ -328,22 +304,13 @@ module Api
             }
           }
         rescue Aws::S3::Errors::NotFound, Aws::S3::Errors::NoSuchBucket => e
-          render json: {
-            success: false,
-            error: "Bucket '#{storage_config.bucket}' not found: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Bucket '#{storage_config.bucket}' not found: #{e.message}", status: :unprocessable_entity)
         rescue Aws::S3::Errors::ServiceError => e
           # Update credential with error
           credential&.update!(status: "error", metadata: (credential.metadata || {}).merge(last_error: e.message))
-          render json: {
-            success: false,
-            error: "S3 connection failed: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("S3 connection failed: #{e.message}", status: :unprocessable_entity)
         rescue => e
-          render json: {
-            success: false,
-            error: "#{storage_config.provider_type.titleize} connection failed: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("#{storage_config.provider_type.titleize} connection failed: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -358,10 +325,7 @@ module Api
             details: { path: base_path }
           }
         else
-          render json: {
-            success: false,
-            error: "Local storage path does not exist: #{base_path}"
-          }, status: :unprocessable_entity
+          render_error("Local storage path does not exist: #{base_path}", status: :unprocessable_entity)
         end
       end
 
@@ -373,10 +337,7 @@ module Api
         storage_config = WarehouseProvider.instance
 
         unless storage_config&.connected?
-          return render json: {
-            success: false,
-            error: "Storage is not configured"
-          }, status: :unprocessable_entity
+          return render_error("Storage is not configured", status: :unprocessable_entity)
         end
 
         case storage_config.provider_type
@@ -387,10 +348,7 @@ module Api
         when "local"
           get_local_storage_stats(storage_config)
         else
-          render json: {
-            success: false,
-            error: "Unknown storage provider"
-          }, status: :unprocessable_entity
+          render_error("Unknown storage provider", status: :unprocessable_entity)
         end
       end
 
@@ -401,18 +359,12 @@ module Api
         credential = S3CompatibleCredential.for_tenant(current_tenant).active.connected.first
 
         unless credential
-          return render json: {
-            success: false,
-            error: "No active S3 credential found"
-          }, status: :unprocessable_entity
+          return render_error("No active S3 credential found", status: :unprocessable_entity)
         end
 
         bucket = storage_config.bucket
         unless bucket.present?
-          return render json: {
-            success: false,
-            error: "Bucket not configured"
-          }, status: :unprocessable_entity
+          return render_error("Bucket not configured", status: :unprocessable_entity)
         end
 
         client = credential.build_client
@@ -455,10 +407,7 @@ module Api
             }
           }
         rescue Aws::S3::Errors::ServiceError => e
-          render json: {
-            success: false,
-            error: "Failed to get storage stats: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to get storage stats: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -478,10 +427,7 @@ module Api
         base_path = storage_config.connection_config&.dig("base_path") || Rails.root.join("storage")
 
         unless Dir.exist?(base_path)
-          return render json: {
-            success: false,
-            error: "Storage path does not exist"
-          }, status: :unprocessable_entity
+          return render_error("Storage path does not exist", status: :unprocessable_entity)
         end
 
         # Calculate local storage stats

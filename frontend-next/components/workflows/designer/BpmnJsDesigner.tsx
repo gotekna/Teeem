@@ -21,6 +21,7 @@ import {
   Settings,
   Cog,
   UserCheck,
+  ClipboardList,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescri
 import { api, getApiBaseUrl } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
+import { AdaptiveFormDesigner } from "@/components/workflows/forms/designer/AdaptiveFormDesigner";
+import type { AdaptiveFormSchema } from "@/lib/workflow-forms/types";
+import { createEmptySchema } from "@/lib/workflow-forms/schema-utils";
+import { Job } from "@/lib/types";
 
 // Default empty BPMN diagram
 const EMPTY_BPMN = `<?xml version="1.0" encoding="UTF-8"?>
@@ -95,12 +100,6 @@ interface DocumentTemplate {
   requires: string[];
 }
 
-interface Job {
-  id: number;
-  name: string;
-  job_number?: string;
-}
-
 // Preview job with contacts for showing actual names/emails
 interface JobContact {
   id: number;
@@ -146,6 +145,11 @@ interface TaskConfig {
   invoice_description?: string;
   invoice_amount?: number;
   claim_stage?: string; // deposit, frame, lock_up, etc.
+  // For UserTask (adaptive form)
+  form_schema?: AdaptiveFormSchema;
+  assignee_type?: string;
+  assignee_value?: string;
+  due_days?: number;
 }
 
 // Contact key options for signers
@@ -186,7 +190,6 @@ export default function BpmnJsDesigner({
   dataLoaded = false,
 }: BpmnJsDesignerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const modelerRef = useRef<any>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -202,6 +205,7 @@ export default function BpmnJsDesigner({
   );
   const [previewJobData, setPreviewJobData] = useState<PreviewJobData | null>(null);
   const [loadingJobContacts, setLoadingJobContacts] = useState(false);
+  const [formDesignerOpen, setFormDesignerOpen] = useState(false);
   const { toast } = useToast();
 
   // Update editable name when prop changes (e.g., data loads from server)
@@ -239,10 +243,8 @@ export default function BpmnJsDesigner({
         const response = await api.get<{ success: boolean; data: DocumentTemplate[] }>(
           "/api/v1/tekna_documents/templates"
         );
-        console.log("Templates response:", response);
         if (response?.success && response.data) {
           setTemplates(response.data);
-          console.log("Loaded templates:", response.data.length);
         }
       } catch (err) {
         console.error("Failed to fetch templates:", err);
@@ -253,20 +255,14 @@ export default function BpmnJsDesigner({
 
   // Fetch jobs for test run - load all jobs so search works properly
   useEffect(() => {
-    console.log("[BPMN] Starting to fetch jobs...");
     const fetchJobs = async () => {
       try {
-        console.log("[BPMN] Calling /api/v1/jobs...");
         const response = await api.get<{ jobs: Job[]; pagination: object }>(
           "/api/v1/jobs?per_page=1000"
         );
-        console.log("[BPMN] Jobs API response:", response);
-        console.log("[BPMN] Jobs array:", response?.jobs);
         if (response?.jobs && Array.isArray(response.jobs)) {
-          console.log("[BPMN] Setting", response.jobs.length, "jobs");
           setJobs(response.jobs);
         } else {
-          console.warn("[BPMN] No jobs array in response. Keys:", Object.keys(response || {}));
         }
       } catch (err) {
         console.error("[BPMN] Failed to fetch jobs:", err);
@@ -360,20 +356,11 @@ export default function BpmnJsDesigner({
   useEffect(() => {
     const myInitId = ++initCounterRef.current;
 
-    console.log("useEffect running:", {
-      initId: myInitId,
-      hasContainer: !!containerRef.current,
-      initialized: initializedRef.current,
-      processId,
-      initialXmlLength: initialXml?.length
-    });
 
     if (!containerRef.current || typeof window === "undefined") {
-      console.log(`[${myInitId}] No container or SSR, skipping`);
       return;
     }
     if (initializedRef.current) {
-      console.log(`[${myInitId}] Already initialized, skipping`);
       return;
     }
 
@@ -381,22 +368,18 @@ export default function BpmnJsDesigner({
     // For new workflows (no processId), we can start immediately
     // dataLoaded tells us the query completed (even if xml is null)
     if (processId && !dataLoaded && !xmlLoadedRef.current) {
-      console.log(`[${myInitId}] Waiting for data to load... (dataLoaded: ${dataLoaded})`);
       return; // Wait for query to complete
     }
 
-    console.log(`[${myInitId}] Starting modeler initialization...`);
     xmlLoadedRef.current = true;
 
     let modeler: unknown = null;
     let aborted = false;
 
     const initModeler = async () => {
-      console.log(`[${myInitId}] initModeler async starting...`);
       try {
         // Dynamic import for bpmn-js (browser only)
         const BpmnModeler = (await import("bpmn-js/lib/Modeler")).default;
-        console.log(`[${myInitId}] BpmnModeler imported`);
 
         // Import CSS dynamically
         // @ts-expect-error - CSS imports don't have type declarations
@@ -405,36 +388,27 @@ export default function BpmnJsDesigner({
         await import("bpmn-js/dist/assets/bpmn-js.css");
         // @ts-expect-error - CSS imports don't have type declarations
         await import("bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css");
-        console.log(`[${myInitId}] CSS imported`);
 
         // Check if this init attempt was superseded or aborted
         if (aborted || initCounterRef.current !== myInitId) {
-          console.log(`[${myInitId}] Init superseded or aborted (current: ${initCounterRef.current})`);
           return;
         }
 
         // Check if already initialized by another attempt
         if (initializedRef.current) {
-          console.log(`[${myInitId}] Already initialized by another attempt`);
           return;
         }
 
-        console.log(`[${myInitId}] Creating modeler with container:`, containerRef.current);
         modeler = new BpmnModeler({
           container: containerRef.current!,
         });
-        console.log(`[${myInitId}] Modeler created:`, modeler);
 
         modelerRef.current = modeler;
 
         // Load initial diagram
         const xmlToLoad = initialXml || EMPTY_BPMN;
-        console.log(`[${myInitId}] Initializing modeler with XML length:`, xmlToLoad.length);
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await (modeler as any).importXML(xmlToLoad);
-        console.log(`[${myInitId}] XML imported successfully`);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const canvas = (modeler as any).get("canvas");
         // Center diagram with padding so it doesn't hug the top-left
         canvas.zoom("fit-viewport", "auto");
@@ -442,13 +416,10 @@ export default function BpmnJsDesigner({
         // Mark as fully initialized AFTER successful setup
         initializedRef.current = true;
         setIsLoaded(true);
-        console.log(`[${myInitId}] Modeler loaded and ready`);
 
         // Listen for selection changes
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const eventBus = (modeler as any).get("eventBus");
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         eventBus.on("selection.changed", (e: any) => {
           const selection = e.newSelection;
           if (selection && selection.length === 1) {
@@ -482,10 +453,8 @@ export default function BpmnJsDesigner({
 
     // Cleanup
     return () => {
-      console.log(`[${myInitId}] Cleanup running, modeler exists:`, !!modeler, "initialized:", initializedRef.current);
       aborted = true;
       if (modeler) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (modeler as any).destroy();
         modelerRef.current = null;
         initializedRef.current = false;
@@ -620,7 +589,6 @@ export default function BpmnJsDesigner({
     const defaultConfig: TaskConfig = { task_type: "generate_document", execution_mode: "manual" };
     if (!selectedElement?.businessObject) return defaultConfig;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bo = selectedElement.businessObject as any;
     const docs = bo.documentation;
 
@@ -685,7 +653,6 @@ export default function BpmnJsDesigner({
       const configJson = JSON.stringify(newConfig);
 
       // Create a documentation element using moddle
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const documentation = (moddle as any).create("bpmn:Documentation", {
         text: configJson
       });
@@ -1448,6 +1415,96 @@ export default function BpmnJsDesigner({
                     </div>
                   );
                 })()}
+
+                {/* User Task Config - Form Designer */}
+                {selectedElement.type === "bpmn:UserTask" && (() => {
+                  const taskConfig = getTaskConfig();
+                  const formSchema = taskConfig.form_schema;
+                  const fieldCount = formSchema?.fields?.length ?? 0;
+
+                  return (
+                    <div className="pt-4 border-t space-y-4">
+                      <h4 className="text-sm font-medium flex items-center gap-2">
+                        <ClipboardList className="h-4 w-4" />
+                        User Task Form
+                      </h4>
+
+                      {fieldCount > 0 ? (
+                        <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">{formSchema?.title || "Untitled Form"}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {fieldCount} field{fieldCount !== 1 ? "s" : ""}
+                            </Badge>
+                          </div>
+                          {formSchema?.description && (
+                            <p className="text-xs text-muted-foreground line-clamp-2">{formSchema.description}</p>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full mt-2"
+                            onClick={() => setFormDesignerOpen(true)}
+                          >
+                            <ClipboardList className="h-4 w-4 mr-2" />
+                            Edit Form
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 border rounded-lg bg-muted/20">
+                          <ClipboardList className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground mb-2">
+                            No form configured
+                          </p>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setFormDesignerOpen(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Design Form
+                          </Button>
+                        </div>
+                      )}
+
+                      {/* Assignee Config */}
+                      <div className="space-y-3 pt-2">
+                        <div>
+                          <Label className="text-xs">Assignee Type</Label>
+                          <select
+                            value={taskConfig.assignee_type || "role"}
+                            onChange={(e) => updateTaskConfig({ assignee_type: e.target.value })}
+                            className="w-full mt-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            <option value="role">By Role</option>
+                            <option value="user">Specific User</option>
+                            <option value="starter">Process Starter</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label className="text-xs">Assignee Value</Label>
+                          <Input
+                            value={taskConfig.assignee_value || ""}
+                            onChange={(e) => updateTaskConfig({ assignee_value: e.target.value })}
+                            placeholder={taskConfig.assignee_type === "user" ? "user@email.com" : "admin"}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Due In (Days)</Label>
+                          <Input
+                            type="number"
+                            value={taskConfig.due_days ?? ""}
+                            onChange={(e) => updateTaskConfig({ due_days: e.target.value ? Number(e.target.value) : undefined })}
+                            placeholder="7"
+                            min={1}
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <div className="text-sm text-muted-foreground">
@@ -1457,6 +1514,29 @@ export default function BpmnJsDesigner({
           </div>
         </div>
       </div>
+
+      {/* Form Designer Sheet */}
+      <Sheet open={formDesignerOpen} onOpenChange={setFormDesignerOpen}>
+        <SheetContent className="w-full sm:max-w-[900px] p-0" side="right">
+          <AdaptiveFormDesigner
+            initialSchema={(() => {
+              if (!selectedElement) return undefined;
+              const config = getTaskConfig();
+              const fs = config.form_schema;
+              return fs?.version === 1 ? fs : undefined;
+            })()}
+            onSave={(schema) => {
+              updateTaskConfig({ form_schema: schema } as Partial<TaskConfig>);
+              setFormDesignerOpen(false);
+              toast({
+                title: "Form Saved",
+                description: `Form with ${schema.fields.length} field${schema.fields.length !== 1 ? "s" : ""} saved to task`,
+              });
+            }}
+            onCancel={() => setFormDesignerOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

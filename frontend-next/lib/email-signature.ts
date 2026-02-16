@@ -3,6 +3,18 @@
  * SSoT for generating branded email signatures from user data
  */
 
+import { TAILWIND_COLORS, COLORS } from '@/lib/constants/color-constants';
+
+/** Email signature color palette - SSoT for all signature templates */
+const EMAIL_SIGNATURE_COLORS = {
+  heading: TAILWIND_COLORS.gray[700],     // #374151
+  body: TAILWIND_COLORS.gray[500],        // #6b7280
+  muted: TAILWIND_COLORS.gray[400],       // #9ca3af
+  border: TAILWIND_COLORS.gray[200],      // #e5e7eb
+  link: TAILWIND_COLORS.gray[700],        // #374151
+  background: TAILWIND_COLORS.gray[50],   // #f9fafb
+} as const;
+
 export interface SignatureUserData {
   name: string;
   email: string;
@@ -251,11 +263,11 @@ function generateModernLight(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? `<span style="color: #666666; margin-left: 12px;">${user.mobile_phone}</span>`
+    ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.body}; margin-left: 12px;">${user.mobile_phone}</span>`
     : "";
 
   const companyName = company?.name || DEFAULT_COMPANY.name;
@@ -269,7 +281,7 @@ function generateModernLight(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<table cellpadding="0" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif; border-left: 4px solid ${brandColor};">
+<table cellpadding="0" cellspacing="0" border="0" style="background-color: ${EMAIL_SIGNATURE_COLORS.background}; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif; border-left: 4px solid ${brandColor};">
   <tr>
     <td style="padding: 16px 20px;">
       <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
@@ -284,7 +296,7 @@ ${SIGNATURE_MARKER}
           </td>
           <td style="vertical-align: top; text-align: right; width: 100px;">
             ${logoHtml}
-            <div style="color: #999999; font-size: 11px; margin-top: 8px;">${website}</div>
+            <div style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 11px; margin-top: 8px;">${website}</div>
           </td>
         </tr>
       </table>
@@ -303,11 +315,11 @@ function generateMinimal(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<span style="color: #888888;">  •  ${user.job_title}</span>`
+    ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.muted};">  •  ${user.job_title}</span>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? ` | <span style="color: #333333;">${user.mobile_phone}</span>`
+    ? ` | <span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.mobile_phone}</span>`
     : "";
 
   const website = company?.website || DEFAULT_COMPANY.website;
@@ -316,12 +328,12 @@ function generateMinimal(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<div style="font-family: Arial, sans-serif; color: #333333; font-size: 13px; border-top: 1px solid #e0e0e0; padding-top: 12px; max-width: 400px;">
+<div style="font-family: Arial, sans-serif; color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 13px; border-top: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; padding-top: 12px; max-width: 400px;">
   <div style="font-weight: 600; color: ${brandColor};">${user.name}${jobTitleLine}</div>
   <div style="margin-top: 4px;">
-    <span style="color: #333333;">${user.email}</span>${mobileLine}
+    <span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.email}</span>${mobileLine}
   </div>
-  <div style="margin-top: 4px; color: #888888; font-size: 12px;">${website}</div>
+  <div style="margin-top: 4px; color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px;">${website}</div>
 </div>
 `.trim();
 }
@@ -335,7 +347,7 @@ function generateClassic(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-style: italic;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-style: italic;">${user.job_title}</div>`
     : "";
 
   const contactLines = [user.email, user.mobile_phone]
@@ -355,7 +367,7 @@ ${SIGNATURE_MARKER}
     <div style="font-weight: bold; color: ${brandColor}; font-size: 15px;">${user.name}</div>
     ${jobTitleLine}
   </div>
-  <div style="color: #333333; line-height: 1.6;">
+  <div style="color: ${EMAIL_SIGNATURE_COLORS.heading}; line-height: 1.6;">
     <div>${contactLines}</div>
     <div style="margin-top: 4px;">${address}, ${cityState}</div>
     <div style="margin-top: 2px;"><a href="https://${website}" style="color: ${brandColor}; text-decoration: none;">${website}</a></div>
@@ -373,11 +385,11 @@ function generateProfessional(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #555555; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">${user.job_title}</div>`
+    ? `<div style="color: ${TAILWIND_COLORS.gray[500]}; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">${user.job_title}</div>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? `<tr><td style="color: #666666; font-size: 12px; padding: 2px 0;"><strong>M:</strong> ${user.mobile_phone}</td></tr>`
+    ? `<tr><td style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 12px; padding: 2px 0;"><strong>M:</strong> ${user.mobile_phone}</td></tr>`
     : "";
 
   const website = company?.website || DEFAULT_COMPANY.website;
@@ -391,15 +403,15 @@ function generateProfessional(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<table cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
+<table cellpadding="0" cellspacing="0" border="0" style="background-color: ${COLORS.white}; border: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; border-radius: 4px; width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
-    <td style="padding: 16px; border-right: 1px solid #e0e0e0;">
+    <td style="padding: 16px; border-right: 1px solid ${EMAIL_SIGNATURE_COLORS.border};">
       <div style="font-weight: bold; color: ${brandColor}; font-size: 15px;">${user.name}</div>
       ${jobTitleLine}
       <table cellpadding="0" cellspacing="0" border="0" style="margin-top: 10px;">
-        <tr><td style="color: #666666; font-size: 12px; padding: 2px 0;"><strong>E:</strong> ${user.email}</td></tr>
+        <tr><td style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 12px; padding: 2px 0;"><strong>E:</strong> ${user.email}</td></tr>
         ${mobileLine}
-        <tr><td style="color: #666666; font-size: 12px; padding: 2px 0;"><strong>W:</strong> ${website}</td></tr>
+        <tr><td style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 12px; padding: 2px 0;"><strong>W:</strong> ${website}</td></tr>
       </table>
     </td>
     <td style="padding: 16px; text-align: center; vertical-align: middle; width: 100px;">
@@ -419,7 +431,7 @@ function generateCreative(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #ffffff; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; opacity: 0.9;">${user.job_title}</div>`
+    ? `<div style="color: ${COLORS.white}; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin-top: 4px; opacity: 0.9;">${user.job_title}</div>`
     : "";
 
   const mobileLine = user.mobile_phone
@@ -435,13 +447,13 @@ ${SIGNATURE_MARKER}
 <table cellpadding="0" cellspacing="0" border="0" style="width: 400px; max-width: 100%; font-family: Arial, sans-serif;">
   <tr>
     <td style="background-color: ${brandColor}; padding: 20px; border-radius: 8px 8px 0 0;">
-      <div style="color: #ffffff; font-weight: bold; font-size: 18px; letter-spacing: 0.5px;">${user.name}</div>
+      <div style="color: ${COLORS.white}; font-weight: bold; font-size: 18px; letter-spacing: 0.5px;">${user.name}</div>
       ${jobTitleLine}
     </td>
   </tr>
   <tr>
-    <td style="background-color: #f8f9fa; padding: 14px 20px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0; border-top: none;">
-      <div style="font-size: 13px; color: #333333;">
+    <td style="background-color: ${EMAIL_SIGNATURE_COLORS.background}; padding: 14px 20px; border-radius: 0 0 8px 8px; border: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; border-top: none;">
+      <div style="font-size: 13px; color: ${EMAIL_SIGNATURE_COLORS.heading};">
         ${user.email}${mobileLine}
       </div>
       <div style="font-size: 12px; color: ${brandColor}; margin-top: 6px; font-weight: 600;">${website}</div>
@@ -462,9 +474,9 @@ function generateCompact(
   const brandColor = company?.brand_color || DEFAULT_COMPANY.brand_color;
   const parts = [
     `<strong style="color: ${brandColor};">${user.name}</strong>`,
-    user.job_title ? `<span style="color: #666666;">${user.job_title}</span>` : null,
-    user.mobile_phone ? `<span style="color: #333333;">${user.mobile_phone}</span>` : null,
-    `<span style="color: #333333;">${user.email}</span>`,
+    user.job_title ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.body};">${user.job_title}</span>` : null,
+    user.mobile_phone ? `<span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.mobile_phone}</span>` : null,
+    `<span style="color: ${EMAIL_SIGNATURE_COLORS.heading};">${user.email}</span>`,
   ].filter(Boolean);
 
   const website = company?.website || DEFAULT_COMPANY.website;
@@ -473,8 +485,8 @@ function generateCompact(
 ${SIGNATURE_MARKER}
 <br><br>
 <div style="font-family: Arial, sans-serif; font-size: 12px; border-top: 1px solid ${brandColor}; padding-top: 8px; max-width: 500px;">
-  <div>${parts.join(' <span style="color: #cccccc;">|</span> ')}</div>
-  <div style="color: #888888; font-size: 11px; margin-top: 4px;">${website}</div>
+  <div>${parts.join(` <span style="color: ${TAILWIND_COLORS.gray[300]};">|</span> `)}</div>
+  <div style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 11px; margin-top: 4px;">${website}</div>
 </div>
 `.trim();
 }
@@ -488,13 +500,13 @@ function generateDetailed(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-size: 13px; border-bottom: 1px solid #e0e0e0; padding-bottom: 8px; margin-bottom: 10px;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 13px; border-bottom: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; padding-bottom: 8px; margin-bottom: 10px;">${user.job_title}</div>`
     : "";
 
   const mobileRow = user.mobile_phone
     ? `<tr>
-        <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Mobile</td>
-        <td style="color: #333333; font-size: 12px; padding: 3px 0;">${user.mobile_phone}</td>
+        <td style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Mobile</td>
+        <td style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 12px; padding: 3px 0;">${user.mobile_phone}</td>
       </tr>`
     : "";
 
@@ -506,8 +518,8 @@ function generateDetailed(
 
   const phoneRow = phone
     ? `<tr>
-        <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Office</td>
-        <td style="color: #333333; font-size: 12px; padding: 3px 0;">${phone}</td>
+        <td style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Office</td>
+        <td style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 12px; padding: 3px 0;">${phone}</td>
       </tr>`
     : "";
 
@@ -519,29 +531,29 @@ function generateDetailed(
   return `
 ${SIGNATURE_MARKER}
 <br><br>
-<table cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; width: 420px; max-width: 100%; font-family: Arial, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+<table cellpadding="0" cellspacing="0" border="0" style="background-color: ${COLORS.white}; border: 1px solid ${EMAIL_SIGNATURE_COLORS.border}; border-radius: 6px; width: 420px; max-width: 100%; font-family: Arial, sans-serif; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
   <tr>
     <td style="padding: 16px;">
       <div style="font-weight: bold; color: ${brandColor}; font-size: 16px; margin-bottom: 4px;">${user.name}</div>
       ${jobTitleLine}
       <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
         <tr>
-          <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Email</td>
-          <td style="color: #333333; font-size: 12px; padding: 3px 0;">${user.email}</td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Email</td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 12px; padding: 3px 0;">${user.email}</td>
         </tr>
         ${mobileRow}
         ${phoneRow}
         <tr>
-          <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Address</td>
-          <td style="color: #333333; font-size: 12px; padding: 3px 0;">${address}<br>${cityState}</td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Address</td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 12px; padding: 3px 0;">${address}<br>${cityState}</td>
         </tr>
         <tr>
-          <td style="color: #888888; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Web</td>
-          <td style="color: #333333; font-size: 12px; padding: 3px 0;"><a href="https://${website}" style="color: ${brandColor}; text-decoration: none;">${website}</a></td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 12px; padding: 3px 10px 3px 0; vertical-align: top;">Web</td>
+          <td style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 12px; padding: 3px 0;"><a href="https://${website}" style="color: ${brandColor}; text-decoration: none;">${website}</a></td>
         </tr>
       </table>
     </td>
-    <td style="padding: 16px; text-align: right; vertical-align: top; border-left: 1px solid #f0f0f0;">
+    <td style="padding: 16px; text-align: right; vertical-align: top; border-left: 1px solid ${TAILWIND_COLORS.gray[100]};">
       ${logoHtml}
     </td>
   </tr>
@@ -558,11 +570,11 @@ function generateSocial(
   company?: SignatureCompanyData
 ): string {
   const jobTitleLine = user.job_title
-    ? `<div style="color: #666666; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.body}; font-size: 13px; margin-top: 2px;">${user.job_title}</div>`
     : "";
 
   const mobileLine = user.mobile_phone
-    ? `<div style="color: #333333; font-size: 13px;">${user.mobile_phone}</div>`
+    ? `<div style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 13px;">${user.mobile_phone}</div>`
     : "";
 
   const website = company?.website || DEFAULT_COMPANY.website;
@@ -590,14 +602,14 @@ ${SIGNATURE_MARKER}
       <div style="font-weight: bold; color: ${brandColor}; font-size: 15px;">${user.name}</div>
       ${jobTitleLine}
       <div style="margin-top: 8px;">
-        <div style="color: #333333; font-size: 13px;">${user.email}</div>
+        <div style="color: ${EMAIL_SIGNATURE_COLORS.heading}; font-size: 13px;">${user.email}</div>
         ${mobileLine}
       </div>
       ${linkedinHtml}
     </td>
     <td style="text-align: right; vertical-align: top; padding-left: 20px;">
       ${logoHtml}
-      <div style="color: #888888; font-size: 11px; margin-top: 6px;">${website}</div>
+      <div style="color: ${EMAIL_SIGNATURE_COLORS.muted}; font-size: 11px; margin-top: 6px;">${website}</div>
     </td>
   </tr>
 </table>

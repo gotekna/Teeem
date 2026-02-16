@@ -38,10 +38,7 @@ module Api
             item: @recipe_item.as_json
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @recipe_item.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@recipe_item)
         end
       end
 
@@ -53,10 +50,7 @@ module Api
             item: @recipe_item.as_json
           }
         else
-          render json: {
-            success: false,
-            error: @recipe_item.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@recipe_item)
         end
       end
 

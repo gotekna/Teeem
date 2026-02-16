@@ -1,6 +1,8 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 export default function GlobalError({
   error,
@@ -11,6 +13,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("Global error boundary caught:", error);
+    Sentry.captureException(error);
   }, [error]);
 
   return (
@@ -24,7 +27,7 @@ export default function GlobalError({
             justifyContent: "center",
             padding: "1rem",
             fontFamily: "system-ui, sans-serif",
-            backgroundColor: "#f9fafb",
+            backgroundColor: TAILWIND_COLORS.gray[50],
           }}
         >
           <div
@@ -42,7 +45,7 @@ export default function GlobalError({
                 width: "48px",
                 height: "48px",
                 margin: "0 auto 1rem",
-                backgroundColor: "#fee2e2",
+                backgroundColor: TAILWIND_COLORS.red[100],
                 borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
@@ -54,7 +57,7 @@ export default function GlobalError({
                 height="24"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#dc2626"
+                stroke={TAILWIND_COLORS.red[600]}
                 strokeWidth="2"
               >
                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -65,14 +68,14 @@ export default function GlobalError({
             <h1 style={{ fontSize: "1.25rem", fontWeight: "600", marginBottom: "0.5rem" }}>
               Critical Error
             </h1>
-            <p style={{ color: "#6b7280", marginBottom: "1.5rem", fontSize: "0.875rem" }}>
+            <p style={{ color: TAILWIND_COLORS.gray[500], marginBottom: "1.5rem", fontSize: "0.875rem" }}>
               A critical error occurred. Please refresh the page or contact support if the problem
               persists.
             </p>
             <button
               onClick={reset}
               style={{
-                backgroundColor: "#4f46e5",
+                backgroundColor: TAILWIND_COLORS.indigo[600],
                 color: "white",
                 padding: "0.5rem 1rem",
                 borderRadius: "0.375rem",

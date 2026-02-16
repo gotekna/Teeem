@@ -47,10 +47,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: swms.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: swms.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(swms)
     end
   end
 
@@ -65,10 +62,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: @whs_swms.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_swms.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_swms)
     end
   end
 
@@ -80,10 +74,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: { message: "SWMS deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete SWMS"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete SWMS", status: :unprocessable_entity)
     end
   end
 
@@ -95,10 +86,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: @whs_swms.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot submit SWMS for approval"
-      }, status: :unprocessable_entity
+      render_error("Cannot submit SWMS for approval", status: :unprocessable_entity)
     end
   end
 
@@ -111,10 +99,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: @whs_swms.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot approve SWMS"
-      }, status: :unprocessable_entity
+      render_error("Cannot approve SWMS", status: :unprocessable_entity)
     end
   end
 
@@ -123,10 +108,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     rejection_reason = params[:rejection_reason]
 
     if rejection_reason.blank?
-      return render json: {
-        success: false,
-        error: "Rejection reason is required"
-      }, status: :unprocessable_entity
+      return render_error("Rejection reason is required", status: :unprocessable_entity)
     end
 
     # TODO: Add WPHS Appointee authorization check
@@ -136,10 +118,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: @whs_swms.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Cannot reject SWMS"
-      }, status: :unprocessable_entity
+      render_error("Cannot reject SWMS", status: :unprocessable_entity)
     end
   end
 
@@ -148,10 +127,7 @@ class Api::V1::WHSSWMSController < ApplicationController
     new_version = params[:new_version]
 
     if new_version.blank?
-      return render json: {
-        success: false,
-        error: "New version number is required"
-      }, status: :unprocessable_entity
+      return render_error("New version number is required", status: :unprocessable_entity)
     end
 
     # Create new SWMS with incremented version
@@ -168,10 +144,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: new_swms.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: new_swms.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(new_swms)
     end
   end
 
@@ -187,10 +160,7 @@ class Api::V1::WHSSWMSController < ApplicationController
         data: acknowledgment.as_json
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: acknowledgment.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(acknowledgment)
     end
   end
 

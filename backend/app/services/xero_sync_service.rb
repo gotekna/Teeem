@@ -2,7 +2,7 @@ require "httparty"
 
 class XeroSyncService
   include HTTParty
-  base_uri "https://api.xero.com/api.xro/2.0"
+  base_uri XeroConstants::XERO_API_BASE_URL
 
   class SyncError < StandardError; end
 
@@ -197,7 +197,7 @@ class XeroSyncService
   def parse_xero_date(month, day)
     return nil unless month.present? && day.present?
     # Create date for current year's financial year end
-    Date.new(Date.today.year, month.to_i, day.to_i)
+    Date.new(Date.current.year, month.to_i, day.to_i)
   rescue ArgumentError
     nil
   end

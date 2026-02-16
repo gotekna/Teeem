@@ -56,10 +56,7 @@ module Api
 
         # Verify photo requirement
         if job.require_photo_checkin && photo.nil?
-          return render json: {
-            success: false,
-            error: "This job requires a photo at check-in"
-          }, status: :unprocessable_entity
+          return render_error("This job requires a photo at check-in", status: :unprocessable_entity)
         end
 
         # Create the session
@@ -112,18 +109,12 @@ module Api
         session = SitePresenceSession.find(params[:id])
 
         unless session.active?
-          return render json: {
-            success: false,
-            error: "Session is not active. Status: #{session.session_status}"
-          }, status: :unprocessable_entity
+          return render_error("Session is not active. Status: #{session.session_status}", status: :unprocessable_entity)
         end
 
         # Verify worker owns this session
         unless session.worker_profile_id == @worker_profile&.id || current_user.admin?
-          return render json: {
-            success: false,
-            error: "Not authorized to check out this session"
-          }, status: :forbidden
+          return render_error("Not authorized to check out this session", status: :forbidden)
         end
 
         job = session.job
@@ -136,10 +127,7 @@ module Api
 
         # Verify photo requirement
         if job.require_photo_checkout && photo.nil?
-          return render json: {
-            success: false,
-            error: "This job requires a photo at check-out"
-          }, status: :unprocessable_entity
+          return render_error("This job requires a photo at check-out", status: :unprocessable_entity)
         end
 
         # Set break time if provided
@@ -341,7 +329,7 @@ module Api
       # POST /api/v1/site_presence_sessions/:id/approve
       def approve
         unless current_user.admin?
-          return render json: { success: false, error: "Admin access required" }, status: :forbidden
+          return render_error("Admin access required", status: :forbidden)
         end
 
         @session.approve!(current_user)
@@ -355,11 +343,11 @@ module Api
       # POST /api/v1/site_presence_sessions/:id/reject
       def reject
         unless current_user.admin?
-          return render json: { success: false, error: "Admin access required" }, status: :forbidden
+          return render_error("Admin access required", status: :forbidden)
         end
 
         unless params[:reason].present?
-          return render json: { success: false, error: "Rejection reason is required" }, status: :unprocessable_entity
+          return render_error("Rejection reason is required", status: :unprocessable_entity)
         end
 
         @session.reject!(current_user, reason: params[:reason])
@@ -373,7 +361,7 @@ module Api
       # POST /api/v1/site_presence_sessions/bulk_approve
       def bulk_approve
         unless current_user.admin?
-          return render json: { success: false, error: "Admin access required" }, status: :forbidden
+          return render_error("Admin access required", status: :forbidden)
         end
 
         session_ids = params[:session_ids] || []
@@ -397,7 +385,7 @@ module Api
       # POST /api/v1/site_presence_sessions/:id/add_break
       def add_break
         unless @session.active?
-          return render json: { success: false, error: "Can only add breaks to active sessions" }, status: :unprocessable_entity
+          return render_error("Can only add breaks to active sessions", status: :unprocessable_entity)
         end
 
         minutes = params[:minutes].to_i

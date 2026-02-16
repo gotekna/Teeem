@@ -38,7 +38,7 @@ module Api
 
         # Pagination
         page = (params[:page] || 1).to_i
-        per_page = [ (params[:per_page] || 20).to_i, 100 ].min
+        per_page = [ (params[:per_page] || EmailConstants::PROPOSALS_PER_PAGE).to_i, EmailConstants::PROPOSALS_MAX_PER_PAGE ].min
         total = proposals.count
 
         proposals = proposals.recent.offset((page - 1) * per_page).limit(per_page)
@@ -71,17 +71,11 @@ module Api
 
         # Check if email has already been actioned (rejected or assigned to job)
         if email.match_type == "rejected"
-          return render json: {
-            success: false,
-            error: "This email was previously rejected and cannot create a new proposal"
-          }, status: :unprocessable_entity
+          return render_error("This email was previously rejected and cannot create a new proposal", status: :unprocessable_entity)
         end
 
         if email.job_id.present?
-          return render json: {
-            success: false,
-            error: "This email is already assigned to a job"
-          }, status: :unprocessable_entity
+          return render_error("This email is already assigned to a job", status: :unprocessable_entity)
         end
 
         # Check if proposal already exists for this email
@@ -121,27 +115,18 @@ module Api
         }, status: :created
 
       rescue EmailToJobService::RateLimitError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :too_many_requests
+        render_error(e.message, status: :too_many_requests)
 
       rescue StandardError => e
         Rails.logger.error "Proposal creation error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to create proposal: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to create proposal: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/email_job_proposals/:id/approve
       # Approve proposal and create job
       def approve
         unless @proposal.pending?
-          return render json: {
-            success: false,
-            error: "Proposal is not pending (status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Proposal is not pending (status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         # Get user edits from params (optional)
@@ -168,20 +153,14 @@ module Api
 
       rescue StandardError => e
         Rails.logger.error "Job approval error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to create job: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to create job: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/email_job_proposals/:id/reject
       # Reject proposal
       def reject
         unless @proposal.pending? || @proposal.error?
-          return render json: {
-            success: false,
-            error: "Proposal is not pending or error (status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Proposal is not pending or error (status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         reason = params[:reason] || "No reason provided"
@@ -195,20 +174,14 @@ module Api
 
       rescue StandardError => e
         Rails.logger.error "Proposal rejection error: #{e.message}"
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/email_job_proposals/:id/re_extract
       # Re-extract data from email and PDFs with latest extraction logic
       def re_extract
         unless @proposal.pending? || @proposal.error?
-          return render json: {
-            success: false,
-            error: "Can only re-extract pending or error proposals (current status: #{@proposal.status})"
-          }, status: :unprocessable_entity
+          return render_error("Can only re-extract pending or error proposals (current status: #{@proposal.status})", status: :unprocessable_entity)
         end
 
         email = @proposal.email_warehouse
@@ -250,17 +223,11 @@ module Api
         }
 
       rescue EmailToJobService::RateLimitError => e
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :too_many_requests
+        render_error(e.message, status: :too_many_requests)
 
       rescue StandardError => e
         Rails.logger.error "Re-extraction error: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to re-extract proposal: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to re-extract proposal: #{e.message}", status: :internal_server_error)
       end
 
       private

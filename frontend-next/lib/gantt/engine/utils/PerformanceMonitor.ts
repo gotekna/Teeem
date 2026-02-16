@@ -108,7 +108,6 @@ export class PerformanceMonitor {
 
     // Log warning for very slow frames
     if (duration > this.WARNING_FRAME_THRESHOLD) {
-      console.warn(`[PerformanceMonitor] Slow frame: ${duration.toFixed(2)}ms`);
     }
 
     this.currentFrameStart = 0;

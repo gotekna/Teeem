@@ -45,10 +45,7 @@ module Api
             job_stage: job_stage_json(@job_stage)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @job_stage.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_stage)
         end
       end
 
@@ -60,10 +57,7 @@ module Api
             job_stage: job_stage_json(@job_stage)
           }
         else
-          render json: {
-            success: false,
-            errors: @job_stage.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_stage)
         end
       end
 

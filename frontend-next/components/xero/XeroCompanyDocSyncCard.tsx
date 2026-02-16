@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatDateTimeWithFallback } from "@/utils/formatters";
+import { POLLING_XERO_SYNC_MS } from "@/lib/constants/timeout-constants";
 
 /**
  * XeroCompanyDocSyncCard - Shows Xero document sync status for a specific company
@@ -128,7 +129,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
 
     fetchStatus();
     // Auto-refresh every 10 seconds
-    const refreshInterval = setInterval(fetchStatus, 10000);
+    const refreshInterval = setInterval(fetchStatus, POLLING_XERO_SYNC_MS);
     return () => clearInterval(refreshInterval);
   }, [tenantId]);
 

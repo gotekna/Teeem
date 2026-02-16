@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
+import { API } from "@/lib/constants/api-endpoints";
 import {
   UserGroupIcon,
   ShieldCheckIcon,
@@ -56,6 +57,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { User } from "@/lib/types";
 
 /**
  * Roles & Permissions Page - Organization Settings
@@ -83,13 +85,6 @@ const DEFAULT_TAB = "permissions";
 // ============================================
 // Types
 // ============================================
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-}
 
 interface Permission {
   id: number;
@@ -157,7 +152,7 @@ function PermissionsSubTab() {
       setError(null);
 
       const [usersRes, permissionsRes] = await Promise.all([
-        api.get<{ users: User[] }>("/api/v1/users"),
+        api.get<{ users: User[] }>(API.users.list),
         api.get<{
           success: boolean;
           permissions: PermissionsMap;
@@ -246,7 +241,7 @@ function PermissionsSubTab() {
     (user) =>
       user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase())
+      user.role?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (loading) {
@@ -492,7 +487,7 @@ function UserRolesSubTab() {
     } catch (error) {
       console.error("Failed to load role users:", error);
       try {
-        const allUsers = await api.get<{ users: User[] }>("/api/v1/users");
+        const allUsers = await api.get<{ users: User[] }>(API.users.list);
         const filtered = (allUsers?.users || []).filter(u =>
           u.role === role.name
         );
@@ -1001,12 +996,12 @@ function GroupsSubTab() {
 
 export default function RolesSettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/roles to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     "/settings/roles",
     DEFAULT_TAB,
-    ROLES_TABS.map(t => t.id)
+    ROLES_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   return (

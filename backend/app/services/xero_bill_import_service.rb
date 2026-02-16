@@ -3,7 +3,7 @@
 # Service to import bills from Xero as Purchase Orders for a job
 # Matches bills by Xero Tracking Category (Job)
 class XeroBillImportService
-  TRACKING_CATEGORY_NAME = "Job"
+  include XeroConstants
 
   class Error < StandardError; end
   class NotConnectedError < Error; end
@@ -12,6 +12,7 @@ class XeroBillImportService
   def initialize(job)
     @job = job
     @client = XeroApiClient.new
+    @tracking_category_name = XeroConstants.tracking_category_name
     @imported_count = 0
     @skipped_count = 0
     @errors = []
@@ -41,23 +42,60 @@ class XeroBillImportService
   end
 
   # Fetch all tracking categories and their options from Xero
+  # Cached for 1 hour to avoid hitting Xero rate limits on every job page load
   # Returns empty array if Xero is not configured (graceful degradation for local dev)
+  #
+  # ⚠️ DO NOT cache empty results - a failed API call should not poison the cache
+  # for 1 hour. Only successful results with actual options get cached.
   def self.fetch_tracking_options
+    tracking_category_name = XeroConstants.tracking_category_name
+
+    # Check cache first
+    cached = Rails.cache.read("xero_tracking_options/#{tracking_category_name}")
+    return cached if cached.present?
+
+    # Fetch from Xero API
     client = XeroApiClient.new
     result = client.get("TrackingCategories")
 
-    return [] unless result[:success]
+    unless result[:success]
+      Rails.logger.warn("[Xero] TrackingCategories API call failed: #{result[:error]}")
+      return []
+    end
 
     categories = result[:data]["TrackingCategories"] || []
-    job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    job_category = categories.find { |c| c["Name"] == tracking_category_name }
 
-    return [] unless job_category
+    unless job_category
+      available = categories.map { |c| c["Name"] }.join(", ")
+      Rails.logger.warn("[Xero] Tracking category '#{tracking_category_name}' not found. Available: #{available}")
+      return []
+    end
 
-    job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+    options = job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+
+    # Only cache non-empty results so failed calls don't poison the cache
+    if options.any?
+      Rails.cache.write("xero_tracking_options/#{tracking_category_name}", options, expires_in: 1.hour)
+      Rails.logger.info("[Xero] Cached #{options.length} tracking options for '#{tracking_category_name}'")
+    else
+      Rails.logger.warn("[Xero] Category '#{tracking_category_name}' found but has no active options")
+    end
+
+    options
   rescue XeroApiClient::AuthenticationError => e
-    # Graceful degradation: return empty if Xero not configured (common in local dev)
     Rails.logger.info("[Xero] Not configured: #{e.message}")
     []
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error fetching tracking options: #{e.class}: #{e.message}")
+    []
+  end
+
+  # Clear the cached tracking options (call after import or manual refresh)
+  def self.clear_tracking_options_cache
+    tracking_category_name = XeroConstants.tracking_category_name
+    Rails.cache.delete("xero_tracking_options/#{tracking_category_name}")
+    Rails.logger.info("[Xero] Cleared tracking options cache for '#{tracking_category_name}'")
   end
 
   # Match a job to a Xero tracking option by name/address
@@ -92,8 +130,17 @@ class XeroBillImportService
       raise NotConnectedError, "Xero is not connected"
     end
 
-    unless @job.xero_tracking_option_id.present?
+    unless @job.xero_tracking_option_id.present? || @job.xero_tracking_links.any?
       raise NoTrackingOptionError, "Job '#{@job.title}' is not linked to a Xero tracking option"
+    end
+  end
+
+  # All tracking option IDs for this job (join table + legacy column)
+  def job_tracking_option_ids
+    @job_tracking_option_ids ||= begin
+      ids = @job.xero_tracking_links.pluck(:tracking_option_id)
+      ids << @job.xero_tracking_option_id if @job.xero_tracking_option_id.present? && !ids.include?(@job.xero_tracking_option_id)
+      ids
     end
   end
 
@@ -118,7 +165,7 @@ class XeroBillImportService
       tracking = line["Tracking"] || []
       tracking.any? do |t|
         t["TrackingCategoryID"] == tracking_category_id &&
-          t["TrackingOptionID"] == @job.xero_tracking_option_id
+          job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
   end
@@ -127,7 +174,7 @@ class XeroBillImportService
     @tracking_category_id ||= begin
       result = @client.get("TrackingCategories")
       categories = result[:data]["TrackingCategories"] || []
-      job_category = categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+      job_category = categories.find { |c| c["Name"] == @tracking_category_name }
       job_category&.dig("TrackingCategoryID")
     end
   end
@@ -169,11 +216,11 @@ class XeroBillImportService
   def calculate_job_total(bill)
     line_items = bill["LineItems"] || []
 
-    # Sum only line items that are tracked to this job
+    # Sum only line items that are tracked to this job (any linked tracking option)
     matching_lines = line_items.select do |line|
       tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t["TrackingOptionID"] == @job.xero_tracking_option_id
+        job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
 
@@ -187,7 +234,7 @@ class XeroBillImportService
     matching_lines = line_items.select do |line|
       tracking = line["Tracking"] || []
       tracking.any? do |t|
-        t["TrackingOptionID"] == @job.xero_tracking_option_id
+        job_tracking_option_ids.include?(t["TrackingOptionID"])
       end
     end
 

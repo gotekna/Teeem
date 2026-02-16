@@ -84,8 +84,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { sortHiddenColumnsAlphabetically } from "../column-utils";
 import { getColumnPriority, COLUMN_PRIORITY_CONFIG, type ColumnPriority } from "@/lib/column-priority";
 import type { SavedView, CascadeFilter, FilterGroup, SortColumn } from "../types";
-import { useSetAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { foundationViewsAtom, invalidateViewsCacheAtom } from "@/lib/view-state-atoms";
+import { activeTableModalAtom, tableModalDataAtom } from "@/lib/table-atoms";
 
 import { SortableViewItem } from "./SortableViewItem";
 import { SortableColumnItem } from "./SortableColumnItem";
@@ -94,20 +95,7 @@ import { SortableGroupByItem } from "./SortableGroupByItem";
 import { useEntityTypes } from "@/hooks/useEntityTypes";
 import { useContactChoices } from "@/hooks/useContactChoices";
 import { isLookupColumn as checkIsLookup, isChoiceColumn as checkIsChoice, isNumericColumn, isBooleanColumn } from "@/lib/constants/column-types";
-
-// Column interface for view manager
-interface Column {
-  id: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  position?: number;
-  lookup_foundation_id?: number;
-  lookup_foundation_slug?: string;  // SSoT: Use slug for API calls (portable across environments)
-  lookup_display_column?: string;
-  available_choices?: { id: number; value: string }[] | string[];
-  searchable?: boolean;
-}
+import type { ApiColumn as Column } from "@/lib/types";
 
 interface ViewManagerSheetProps {
   open: boolean;
@@ -190,9 +178,16 @@ export function ViewManagerSheet({
   const [saving, setSaving] = React.useState(false);
   const [activeViewId, setActiveViewId] = React.useState<number | string | null>(null);
   const [editingView, setEditingView] = React.useState<SavedView | null>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+  // SSoT: Modal state managed via table atoms (not local useState)
+  const [activeModal, setActiveModal] = useAtom(activeTableModalAtom);
+  const [modalData, setModalData] = useAtom(tableModalDataAtom);
+
+  // Derived state for backward compatibility
+  const showDeleteConfirm = activeModal === 'deleteColumn'; // Reusing existing modal type
+  const showCreateDialog = activeModal === 'saveView'; // Reusing existing modal type
+
   const [viewToDelete, setViewToDelete] = React.useState<SavedView | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = React.useState(false);
   const [newViewName, setNewViewName] = React.useState("New View");
   const [newViewBaseId, setNewViewBaseId] = React.useState<string>("blank");
   const [newViewIsGlobal, setNewViewIsGlobal] = React.useState(false);
@@ -401,7 +396,7 @@ export function ViewManagerSheet({
     setNewViewName("New View");
     setNewViewBaseId("blank");
     setNewViewIsGlobal(false);
-    setShowCreateDialog(true);
+    setActiveModal('saveView'); // Open create modal
   };
 
   const handleConfirmCreate = () => {
@@ -431,7 +426,7 @@ export function ViewManagerSheet({
     setActiveViewId(newView.id);
     loadViewIntoEditor(newView);
     setIsEditing(true);
-    setShowCreateDialog(false);
+    setActiveModal(null); // Close create modal
   };
 
   const handleSaveView = async () => {
@@ -536,12 +531,6 @@ export function ViewManagerSheet({
 
         // Apply the view state immediately using captured state
         // This ensures display type changes take effect immediately
-        console.log('[ViewManagerSheet] Applying saved view:', {
-          name: savedView.name,
-          filters: savedView.filters,
-          filterCount: Array.isArray(savedView.filters) ? savedView.filters.length : 0,
-          columnOrder: savedView.columnOrder?.length,
-        });
         onApplyView?.(savedView);
 
         // Small delay to ensure atom updates propagate before triggering refresh
@@ -549,7 +538,6 @@ export function ViewManagerSheet({
         await new Promise(resolve => setTimeout(resolve, 10));
 
         // Trigger data refresh to apply new filters/sorting/etc
-        console.log('[ViewManagerSheet] Triggering refresh after view applied');
         onRefresh?.();
 
         onViewsChange?.();
@@ -576,7 +564,7 @@ export function ViewManagerSheet({
       toast({ title: "Success", description: "View deleted" });
       await loadViews();
       onViewsChange?.();
-      setShowDeleteConfirm(false);
+      setActiveModal(null); // Close delete modal
       setViewToDelete(null);
 
       if (editingView?.id === viewToDelete.id) {
@@ -1229,7 +1217,7 @@ export function ViewManagerSheet({
                             onEdit={() => handleEditView(view)}
                             onDelete={() => {
                               setViewToDelete(view);
-                              setShowDeleteConfirm(true);
+                              setActiveModal('deleteColumn'); // Open delete modal
                             }}
                             onApply={onApplyView ? () => {
                               onApplyView(view);
@@ -1952,7 +1940,7 @@ export function ViewManagerSheet({
       </Sheet>
 
       {/* Create View Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <Dialog open={showCreateDialog} onOpenChange={(open) => setActiveModal(open ? 'saveView' : null)}>
         <DialogContent className="sm:max-w-[450px] p-8">
           <DialogHeader className="pb-2">
             <DialogTitle className="text-xl">Create New View</DialogTitle>
@@ -2023,7 +2011,7 @@ export function ViewManagerSheet({
             </div>
           </div>
           <DialogFooter className="pt-2 gap-3">
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            <Button variant="outline" onClick={() => setActiveModal(null)}>
               Cancel
             </Button>
             <Button onClick={handleConfirmCreate}>
@@ -2034,7 +2022,7 @@ export function ViewManagerSheet({
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <Dialog open={showDeleteConfirm} onOpenChange={(open) => setActiveModal(open ? 'deleteColumn' : null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete View</DialogTitle>
@@ -2043,7 +2031,7 @@ export function ViewManagerSheet({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+            <Button variant="outline" onClick={() => setActiveModal(null)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteView}>

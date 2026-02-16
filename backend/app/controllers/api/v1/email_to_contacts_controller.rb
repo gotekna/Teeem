@@ -26,10 +26,7 @@ module Api
         Rails.logger.error("EmailToContactsController#analyze error: #{e.message}")
         Rails.logger.error(e.backtrace.join("\n"))
 
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/email_to_contacts/bulk_create
@@ -55,10 +52,7 @@ module Api
         default_reason = params[:default_reason]
 
         if selections.empty?
-          return render json: {
-            success: false,
-            error: "No selections provided"
-          }, status: :bad_request
+          return render_error("No selections provided", status: :bad_request)
         end
 
         service = EmailToContactExtractionService.new(user: current_user)
@@ -78,10 +72,7 @@ module Api
         Rails.logger.error("EmailToContactsController#bulk_create error: #{e.message}")
         Rails.logger.error(e.backtrace.join("\n"))
 
-        render json: {
-          success: false,
-          error: e.message
-        }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
     end
   end

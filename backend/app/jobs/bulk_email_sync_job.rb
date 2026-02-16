@@ -28,6 +28,7 @@
 #   }
 
 class BulkEmailSyncJob < ApplicationJob
+  include XeroConstants  # For BULK_EMAIL_SYNC_THROTTLE_SEC
   include DocumentProviderAware
 
   queue_as :low
@@ -38,10 +39,12 @@ class BulkEmailSyncJob < ApplicationJob
 
   def perform(credential_id, sync_years: 10, resume: false)
     # SSoT: Use MicrosoftCredential
+    # Security: Job is queued from tenant-scoped controller, so credential_id is already validated.
+    # However, we still verify the credential exists as a defensive measure.
     @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential&.status == "connected"
-      Rails.logger.info "[BulkSync] Skipping - org #{credential_id} not connected"
+      Rails.logger.info "[BulkSync] Skipping - credential #{credential_id} not found or not connected"
       return
     end
 
@@ -349,7 +352,7 @@ class BulkEmailSyncJob < ApplicationJob
         end
 
         # Throttle to avoid rate limits (every 10 emails)
-        sleep(0.1) if processed % 10 == 0
+        sleep(BULK_EMAIL_SYNC_THROTTLE_SEC) if processed % 10 == 0
       rescue StandardError => e
         log_error("email_upload", email.id, e.message)
       end

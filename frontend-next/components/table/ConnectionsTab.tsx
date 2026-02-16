@@ -18,12 +18,7 @@ import NextLink from "next/link";
 import { urls } from "@/lib/url-utils";
 import { isLookupColumn } from "@/lib/constants/column-types";
 import { TableColumn } from "./types";
-
-interface Foundation {
-  id: number;
-  name: string;
-  table_type?: string;
-}
+import type { Foundation } from "@/lib/types";
 
 interface SchemaColumn {
   id: number;
@@ -130,7 +125,7 @@ export function ConnectionsTab({ foundationId, columns, tableName }: Connections
 
       if (lookupFoundationId) {
         const targetFoundation = foundations.find((f) => f.id === lookupFoundationId);
-        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups'; // Note: This is an explicit check for the specific type, not a general lookup check
+        const isMultiple = details?.is_multiple || column.column_type === 'multiple_lookups';
 
         result.push({
           type: "outgoing",

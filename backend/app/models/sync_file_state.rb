@@ -138,7 +138,7 @@ class SyncFileState < ApplicationRecord
     return nil unless remote_item_id.present?
 
     provider = organization.document_storage
-    provider.download_url(remote_item_id, expires_in: 3600)
+    provider.download_url(remote_item_id, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
   rescue StandardError => e
     Rails.logger.error("Failed to get download URL for #{remote_path}: #{e.message}")
     nil

@@ -9,9 +9,12 @@ module Gl
     belongs_to :invoice, class_name: "Gl::Invoice"
     belongs_to :created_by, class_name: "User", optional: true
 
+    # Constants
+    STATUSES = %w[pending sent cancelled failed].freeze
+
     validates :scheduled_for, presence: true
     validates :invoice_id, presence: true
-    validates :status, presence: true, inclusion: { in: %w[pending sent cancelled failed] }
+    validates :status, presence: true, inclusion: { in: STATUSES }
 
     scope :pending, -> { where(status: "pending") }
     scope :due_now, -> { pending.where("scheduled_for <= ?", Time.current) }

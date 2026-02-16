@@ -85,6 +85,7 @@ module Searchable
 
       find_in_batches(batch_size: batch_size) do |batch|
         # Touch each record to fire the trigger
+        # Note: batch is already loaded by find_in_batches, .map(&:id) is OK here
         where(id: batch.map(&:id)).update_all(updated_at: Time.current)
       end
     end

@@ -11,6 +11,7 @@ import {
   Check,
 } from "lucide-react";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -135,7 +136,7 @@ export function AgentsTab() {
   const copyCommand = (command: string) => {
     copyToClipboard(command);
     setCopiedCommand(command);
-    setTimeout(() => setCopiedCommand(null), 2000);
+    setTimeout(() => setCopiedCommand(null), UI_COPY_FEEDBACK_MS);
   };
 
   useEffect(() => {

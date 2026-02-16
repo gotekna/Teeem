@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { extractEmailsFromRows } from "@/lib/email-utils";
+import { MODAL_RESET_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 interface EmailCandidate {
   email: string;
@@ -88,7 +89,7 @@ interface CompanyAction {
 interface EmailToContactsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  emailData: Array<Record<string, any>>;
+  emailData: Array<Record<string, unknown>>;
   onComplete: () => void;
   caseId?: number; // Optional case ID to link contacts to
   caseNumber?: string; // Optional case number for display
@@ -138,7 +139,7 @@ export function EmailToContactsModal({
         setCompanyActions(new Map());
         setDuplicateActions(new Map());
         setResults(null);
-      }, 300);
+      }, MODAL_RESET_DELAY_MS);
     }
   }, [open]);
 
@@ -147,13 +148,18 @@ export function EmailToContactsModal({
     setAnalyzing(true);
 
     try {
-      const response: any = await api.post("/api/v1/email_to_contacts/analyze", {
+      const response = await api.post<{
+        success: boolean;
+        emails: Array<Record<string, any>>;
+        stats?: { total_emails: number; existing_contacts: number };
+        error?: string;
+      }>("/api/v1/email_to_contacts/analyze", {
         email_data: emailData,
         scope: scope,
       });
 
-      if (response.success) {
-        const emailCandidates: EmailCandidate[] = response.emails.map((e: any) => ({
+      if (response?.success) {
+        const emailCandidates: EmailCandidate[] = response.emails.map((e: Record<string, any>) => ({
           email: e.email,
           displayName: e.display_name,
           isExistingContact: e.is_existing_contact,
@@ -224,12 +230,12 @@ export function EmailToContactsModal({
 
         toast({
           title: "Analysis complete",
-          description: `Found ${response.stats.total_emails} email addresses, ${response.stats.existing_contacts} already in contacts.`,
+          description: `Found ${response.stats?.total_emails ?? 0} email addresses, ${response.stats?.existing_contacts ?? 0} already in contacts.`,
         });
       } else {
         toast({
           title: "Analysis failed",
-          description: response.error || "Unknown error",
+          description: response?.error || "Unknown error",
           variant: "destructive",
         });
       }
@@ -237,7 +243,7 @@ export function EmailToContactsModal({
       console.error("Error analyzing emails:", error);
       toast({
         title: "Error",
-        description: error.response?.data?.error || "Failed to analyze emails",
+        description: error?.response?.data?.error || "Failed to analyze emails",
         variant: "destructive",
       });
     } finally {
@@ -293,11 +299,11 @@ export function EmailToContactsModal({
 
       const response = await api.post<{
         success?: boolean;
-        created_contacts?: any[];
-        created_companies?: any[];
-        linked_to_companies?: any[];
-        added_emails?: any[];
-        errors?: any[];
+        created_contacts?: Array<Record<string, unknown>>;
+        created_companies?: Array<Record<string, unknown>>;
+        linked_to_companies?: Array<Record<string, unknown>>;
+        added_emails?: Array<Record<string, unknown>>;
+        errors?: Array<{ email: string; error: string }>;
       }>("/api/v1/email_to_contacts/bulk_create", {
         selections: selections,
         case_id: caseId,
@@ -327,26 +333,29 @@ export function EmailToContactsModal({
           variant: "destructive",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating contacts:", error);
-      console.error("Error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
+
+      // Type guard for error response
+      const isErrorWithResponse = (e: unknown): e is { response?: { status?: number; data?: { errors?: Array<unknown>; error?: string } }; message?: string } => {
+        return typeof e === 'object' && e !== null;
+      };
 
       // Handle errors array from backend
-      const errors = error.response?.data?.errors || [];
-      const errorMessage = error.response?.data?.error;
+      const errors = isErrorWithResponse(error) ? (error.response?.data?.errors || []) : [];
+      const errorMessage = isErrorWithResponse(error) ? error.response?.data?.error : undefined;
 
       let description = errorMessage || "Failed to create contacts";
 
       if (errors.length > 0) {
         // Format errors array into readable message
-        const errorMessages = errors.map((err: any) => {
+        const errorMessages = errors.map((err: unknown) => {
           if (typeof err === 'string') return err;
-          if (err.email && err.error) return `${err.email}: ${err.error}`;
-          if (err.error) return err.error;
+          if (typeof err === 'object' && err !== null) {
+            const errObj = err as Record<string, unknown>;
+            if (errObj.email && errObj.error) return `${errObj.email}: ${errObj.error}`;
+            if (errObj.error) return String(errObj.error);
+          }
           return JSON.stringify(err);
         });
         description = errorMessages.join('\n');

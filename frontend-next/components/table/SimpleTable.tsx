@@ -31,7 +31,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Table } from './compound';
 import { cn } from '@/lib/utils';
 import type { TableColumn, TableRow } from './types';

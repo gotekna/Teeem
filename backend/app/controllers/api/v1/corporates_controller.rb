@@ -97,10 +97,7 @@ module Api
             company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @company.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company)
         end
       end
 
@@ -143,13 +140,10 @@ module Api
             company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @company.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       # PATCH/PUT /api/v1/companies/:id
@@ -166,18 +160,12 @@ module Api
             company: @company.as_json(methods: [ :formatted_acn, :formatted_abn ])
           }
         else
-          render json: {
-            success: false,
-            errors: @company.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company)
         end
       rescue ActiveRecord::RecordNotUnique => e
         # Handle duplicate ABN/ACN constraint violations
         field = e.message.include?("abn") ? "ABN" : (e.message.include?("acn") ? "ACN" : "value")
-        render json: {
-          success: false,
-          error: "A company with this #{field} already exists"
-        }, status: :unprocessable_entity
+        render_error("A company with this #{field} already exists", status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/companies/:id
@@ -213,7 +201,7 @@ module Api
         director = @company.corporate_directors.build(
           contact: contact,
           position: params[:position],
-          appointment_date: params[:appointment_date] || Date.today,
+          appointment_date: params[:appointment_date] || Date.current,
           is_current: true
         )
 
@@ -227,10 +215,7 @@ module Api
             )
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: director.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(director)
         end
       end
 
@@ -248,10 +233,7 @@ module Api
             )
           }
         else
-          render json: {
-            success: false,
-            errors: director.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(director)
         end
       end
 
@@ -259,16 +241,13 @@ module Api
       def remove_director
         director = @company.corporate_directors.find(params[:director_id])
 
-        if director.update(resignation_date: params[:resignation_date] || Date.today, is_current: false)
+        if director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
           render json: {
             success: true,
             message: "Director removed successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: director.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(director)
         end
       end
 
@@ -351,10 +330,7 @@ module Api
         }
       rescue => e
         Rails.logger.error("[CorporateCompaniesController#documents] Error: #{e.message}")
-        render json: {
-          success: false,
-          error: "Failed to fetch documents: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to fetch documents: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/companies/:id/assets
@@ -464,10 +440,7 @@ module Api
         is_trustee_company = @company.is_trustee && @company.trust_name.present?
 
         if !is_trust && !is_trustee_company
-          return render json: {
-            success: false,
-            error: "This company is not a trust or corporate trustee"
-          }, status: :unprocessable_entity
+          return render_error("This company is not a trust or corporate trustee", status: :unprocessable_entity)
         end
 
         # For a Trust entity, find the corporate trustee
@@ -510,7 +483,7 @@ module Api
       def import
         # Handle Excel import (to be implemented with CompanyImportService)
         if params[:file].blank?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         # This will be implemented later with the CompanyImportService
@@ -525,11 +498,11 @@ module Api
         file_path = ENV["CORPORATE_FILE_PATH"]
 
         unless file_path.present?
-          return render json: { success: false, error: "CORPORATE_FILE_PATH environment variable not configured" }, status: :unprocessable_entity
+          return render_error("CORPORATE_FILE_PATH environment variable not configured", status: :unprocessable_entity)
         end
 
         unless File.exist?(file_path)
-          return render json: { success: false, error: "Corporate File not found" }, status: :unprocessable_entity
+          return render_error("Corporate File not found", status: :unprocessable_entity)
         end
 
         service = CompanyImportService.new(file_path)
@@ -541,7 +514,7 @@ module Api
           result: result
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/companies/health_report
@@ -575,7 +548,7 @@ module Api
             health: health_data
           }
         else
-          render json: { success: false, error: "Could not calculate health" }, status: :unprocessable_entity
+          render_error("Could not calculate health", status: :unprocessable_entity)
         end
       end
 
@@ -980,9 +953,9 @@ module Api
           generator_params: generator_params
         )
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Record not found: #{e.message}" }, status: :not_found
+        render_error("Record not found: #{e.message}", status: :not_found)
       rescue Date::Error => e
-        render json: { success: false, error: "Invalid date format: #{e.message}" }, status: :unprocessable_entity
+        render_error("Invalid date format: #{e.message}", status: :unprocessable_entity)
       end
 
       private
@@ -990,7 +963,7 @@ module Api
       def set_company
         @company = Corporate.find_by_slug_or_id(params[:id])
         unless @company
-          render json: { success: false, error: "Company not found" }, status: :not_found
+          render_error("Company not found", status: :not_found)
         end
       end
 

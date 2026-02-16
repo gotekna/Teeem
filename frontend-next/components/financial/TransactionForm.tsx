@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { api } from "@/lib/api";
 import { uploadFile } from "@/lib/upload-utils";
+import { MAX_INLINE_IMAGE_SIZE } from "@/lib/constants/file-size-limits";
+import { Job } from "@/lib/types";
 
 interface Transaction {
   id: number;
@@ -13,11 +15,6 @@ interface Transaction {
   description?: string;
   category?: string;
   job_id?: number;
-}
-
-interface Job {
-  id: number;
-  name?: string;
 }
 
 interface TransactionFormProps {
@@ -140,7 +137,7 @@ export default function TransactionForm({
     const file = e.target.files?.[0];
     if (file) {
       // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
+      if (file.size > MAX_INLINE_IMAGE_SIZE) {
         setError("File size must be less than 5MB");
         return;
       }

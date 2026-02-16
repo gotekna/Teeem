@@ -187,7 +187,6 @@ export function ImageLightbox({
     // Extract document_id from the proxy URL
     const documentId = extractDocumentId(photo.url);
     if (!documentId) {
-      console.warn("[ImageLightbox] No document_id in URL, falling back to proxy");
       return null;
     }
 
@@ -204,9 +203,7 @@ export function ImageLightbox({
         setPresignedUrls((prev) => ({ ...prev, [photo.id]: response.url as string }));
         return response.url;
       }
-    } catch (err) {
-      console.warn("[ImageLightbox] Presigned URL failed, will use proxy:", err);
-    }
+    } catch (_) { /* Presigned URL failure - returns null fallback */ }
 
     return null;
   }, [presignedUrls]);
@@ -256,7 +253,6 @@ export function ImageLightbox({
         }
 
         // Step 2: Fall back to api.getBlob() proxy (slow path)
-        console.log("[ImageLightbox] Using proxy fallback for:", photo.name);
         const endpoint = getEndpointFromUrl(urlToUse);
         const blob = await api.getBlob(endpoint, { skipAuthRedirect: true });
         const objectUrl = URL.createObjectURL(blob);
@@ -644,13 +640,11 @@ export function ImageLightbox({
                 // If we tried the resolved URL (SharePoint direct) and it failed (CORS),
                 // mark it as failed so we trigger the authenticated fetch
                 if (currentPhoto && resolvedUrls[currentPhoto.id] && !failedUrls.has(currentPhoto.id)) {
-                  console.log("[ImageLightbox] SharePoint URL failed (CORS), triggering auth fetch");
                   setFailedUrls((prev) => new Set(prev).add(currentPhoto.id));
                   setLoading(true); // Will trigger authenticated fetch via useEffect
                 } else if (needsAuthenticatedFetch(currentPhoto.url)) {
                   // URL needs auth but we're here from img tag - wait for blob fetch
                   // This shouldn't happen if the useEffect is working correctly
-                  console.log("[ImageLightbox] Waiting for authenticated fetch...");
                   setLoading(true);
                 } else {
                   // External URL failed and doesn't need our auth

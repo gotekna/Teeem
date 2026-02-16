@@ -4,11 +4,12 @@ require "base64"
 
 class XeroApiClient
   include HTTParty
+  include XeroConstants
 
-  BASE_URL = "https://api.xero.com/api.xro/2.0"
-  AUTH_URL = "https://login.xero.com/identity/connect/authorize"
-  TOKEN_URL = "https://identity.xero.com/connect/token"
-  CONNECTIONS_URL = "https://api.xero.com/connections"
+  BASE_URL = XERO_API_BASE_URL
+  AUTH_URL = XERO_AUTH_URL
+  TOKEN_URL = XERO_TOKEN_URL
+  CONNECTIONS_URL = XERO_CONNECTIONS_URL
 
   # Custom error classes
   class ApiError < StandardError; end
@@ -17,12 +18,12 @@ class XeroApiClient
 
   # Allowed origins for dynamic redirect_uri
   # Must match exactly what's registered in Xero Developer Portal
-  ALLOWED_ORIGINS = [
-    "https://teeem.vercel.app",
-    "https://teeem-staging.vercel.app",
-    "https://teeem-beta.vercel.app",
-    "https://teeemrob.vercel.app"
-  ].freeze
+  # SSoT: Infrastructure URLs + personal dev URLs
+  ALLOWED_ORIGINS = (
+    InfrastructureUrls.all_frontend_urls + [
+      "https://teeemrob.vercel.app"
+    ]
+  ).freeze
 
   def initialize(redirect_uri: nil, teeem_tenant: nil)
     @client_id = ENV["XERO_CLIENT_ID"]
@@ -47,7 +48,7 @@ class XeroApiClient
   # - accounting.settings: Read tax rates, tracking categories
   # - accounting.attachments: Read/write attachments (upgraded from .read for two-way sync)
   # - accounting.reports.read: Read financial reports (P&L, Balance Sheet)
-  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments accounting.reports.read"
+  OAUTH_SCOPES = "offline_access accounting.transactions accounting.contacts accounting.settings accounting.attachments accounting.reports.read".freeze
 
   # Generate OAuth authorization URL
   def authorization_url
@@ -190,7 +191,7 @@ class XeroApiClient
   # Refresh the access token
   # DELEGATES TO XeroTokenManager - Single Source of Truth for token operations
   def refresh_access_token
-    credential = XeroCredential.current
+    credential = current_credential
     return { success: false, error: "No credentials found" } unless credential
 
     refresh_access_token_for(credential)
@@ -313,13 +314,18 @@ class XeroApiClient
   def connection_status
     # Multi-tenancy: Filter by TEEEM tenant
     # Master tenant sees all; other tenants only see their own Xero orgs
-    all_credentials = if @teeem_tenant&.master_tenant?
+    tenant = @teeem_tenant || ActsAsTenant.current_tenant
+    all_credentials = if tenant&.master_tenant?
                         XeroCredential.all
-                      elsif @teeem_tenant
-                        XeroCredential.for_teeem_tenant(@teeem_tenant)
+                      elsif tenant
+                        XeroCredential.for_teeem_tenant(tenant)
                       else
                         XeroCredential.all  # Fallback for backward compatibility
                       end
+
+    # FRC (Feb 2026): Derive primary from tenant-scoped set, NOT global XeroCredential.current
+    # Bug: XeroCredential.current is unscoped - returns Tekna Homes even on Pilgrim tenant
+    tenant_primary = current_credential
 
     if all_credentials.empty?
       return {
@@ -369,7 +375,7 @@ class XeroApiClient
       }
     elsif needs_attention_count > 0
       # Some working but needs attention - orange (degraded but functional)
-      primary = XeroCredential.current
+      primary = tenant_primary
       {
         connected: true,
         status: "degraded",
@@ -383,7 +389,7 @@ class XeroApiClient
       }
     elsif rate_limited_count > 0
       # FRC: Some working but rate limited - orange (syncing paused)
-      primary = XeroCredential.current
+      primary = tenant_primary
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
       {
         connected: true,
@@ -399,7 +405,7 @@ class XeroApiClient
       }
     else
       # Credentials all good - now check sync health for orange indicator
-      primary = XeroCredential.current
+      primary = tenant_primary
       primary_health = primary ? XeroConnectionHealth.for_credential(primary) : nil
 
       # SSoT: Check sync health - show orange if any sync is stalled
@@ -457,7 +463,7 @@ class XeroApiClient
 
   # Disconnect from Xero (revoke tokens)
   def disconnect
-    credential = XeroCredential.current
+    credential = current_credential
     return { success: false, error: "Not connected" } unless credential
 
     begin
@@ -493,14 +499,15 @@ class XeroApiClient
     begin
       auth_header = Base64.strict_encode64("#{@client_id}:#{@client_secret}")
 
+      # SSoT: Use XERO_TOKEN_TIMEOUT constant from XeroConstants
       response = HTTParty.post(
-        "https://identity.xero.com/connect/revocation",
+        XERO_REVOCATION_URL,
         headers: {
           "Authorization" => "Basic #{auth_header}",
           "Content-Type" => "application/x-www-form-urlencoded"
         },
         body: "token=#{token}",
-        timeout: 10
+        timeout: XERO_TOKEN_TIMEOUT
       )
 
       if response.code == 200
@@ -856,11 +863,12 @@ class XeroApiClient
 
     Rails.logger.info("[Xero] Uploading attachment #{filename} to #{entity_type}/#{entity_id}")
 
+    # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants
     response = HTTParty.put(
       url,
       headers: headers,
       body: file_content,
-      timeout: 60
+      timeout: XERO_FILE_TIMEOUT
     )
 
     if response.success?
@@ -895,13 +903,26 @@ class XeroApiClient
 
   private
 
+  # FRC (Feb 2026): Tenant-scoped credential lookup - replaces all XeroCredential.current calls
+  # Uses @teeem_tenant when available to prevent cross-tenant leaks
+  # Falls back to ActsAsTenant.current_tenant for safety (covers cases where
+  # XeroApiClient.new was called without explicit teeem_tenant: param)
+  def current_credential
+    tenant = @teeem_tenant || ActsAsTenant.current_tenant
+    if tenant
+      XeroCredential.current_for(tenant)
+    else
+      XeroCredential.current
+    end
+  end
+
   # Find the appropriate credential for a tenant
   def find_credential_for_tenant(tenant_id)
     if tenant_id.present?
       CorporateXeroConnection.find_by(xero_tenant_id: tenant_id) ||
         XeroCredential.find_by(tenant_id: tenant_id)
     else
-      XeroCredential.current
+      current_credential
     end
   end
 
@@ -943,7 +964,7 @@ class XeroApiClient
     OAuth2::Client.new(
       @client_id,
       @client_secret,
-      site: "https://login.xero.com",
+      site: XERO_OAUTH_SITE,
       authorize_url: AUTH_URL,
       token_url: TOKEN_URL
     )
@@ -983,8 +1004,8 @@ class XeroApiClient
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
 
-    # Default to current global credential if no tenant specified
-    credential ||= XeroCredential.current
+    # Default to current tenant-scoped credential if no tenant specified
+    credential ||= current_credential
 
     unless credential
       raise AuthenticationError, "Not authenticated with Xero"
@@ -1027,6 +1048,10 @@ class XeroApiClient
       attempts += 1
 
       begin
+        # Pre-request throttle: proactively wait if near minute limit (50+/60)
+        # instead of blasting requests until Xero returns 429
+        XeroRateLimitTracker.throttle_before_request!(request_tenant_id)
+
         headers = {
           "Authorization" => "Bearer #{credential.access_token}",
           "Xero-tenant-id" => request_tenant_id,
@@ -1034,13 +1059,14 @@ class XeroApiClient
           "Accept" => "application/json"
         }
 
+        # SSoT: Use XERO_DEFAULT_TIMEOUT constant from XeroConstants
         response = case method
         when :get
-          HTTParty.get(url, headers: headers, query: data, timeout: 30)
+          HTTParty.get(url, headers: headers, query: data, timeout: XERO_DEFAULT_TIMEOUT)
         when :post
-          HTTParty.post(url, headers: headers, body: data.to_json, timeout: 30)
+          HTTParty.post(url, headers: headers, body: data.to_json, timeout: XERO_DEFAULT_TIMEOUT)
         when :put
-          HTTParty.put(url, headers: headers, body: data.to_json, timeout: 30)
+          HTTParty.put(url, headers: headers, body: data.to_json, timeout: XERO_DEFAULT_TIMEOUT)
         else
           raise ArgumentError, "Unsupported HTTP method: #{method}"
         end
@@ -1063,6 +1089,12 @@ class XeroApiClient
         return handle_response(response)
       rescue AuthenticationError => e
         # Re-raise auth errors without retry (already tried in response handling)
+        raise e
+      rescue RateLimitError => e
+        # FRC (Feb 2026): RateLimitError MUST propagate to callers so they can
+        # handle rate limits properly (record lockout, schedule retry, etc).
+        # Previously caught by `rescue StandardError` below and converted to ApiError,
+        # which broke rate limit handling in XeroContactBatchFetchJob and others.
         raise e
       rescue Net::ReadTimeout => e
         Rails.logger.error("Xero API timeout: #{e.message}")
@@ -1087,7 +1119,7 @@ class XeroApiClient
       credential = CorporateXeroConnection.find_by(xero_tenant_id: tenant_id)
       credential ||= XeroCredential.find_by(tenant_id: tenant_id)
     end
-    credential ||= XeroCredential.current
+    credential ||= current_credential
 
     unless credential
       raise AuthenticationError, "Not authenticated with Xero"
@@ -1109,8 +1141,17 @@ class XeroApiClient
     request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
     url = "#{BASE_URL}/#{endpoint}"
 
+    # FRC (Feb 2026): Track timeout retries separately from auth retries.
+    # Timeouts deserve their own retry because they're transient network issues,
+    # not auth problems. Without this, a Net::ReadTimeout bubbled up as an
+    # unhandled StandardError and killed the entire thread.
+    timeout_retried = false
+
     loop do
       attempts += 1
+
+      # Pre-request throttle: proactively wait if near minute limit (50+/60)
+      XeroRateLimitTracker.throttle_before_request!(request_tenant_id)
 
       headers = {
         "Authorization" => "Bearer #{credential.access_token}",
@@ -1118,7 +1159,20 @@ class XeroApiClient
         "Accept" => accept_type
       }
 
-      response = HTTParty.get(url, headers: headers, timeout: 60)
+      begin
+        # SSoT: Use XERO_FILE_TIMEOUT constant from XeroConstants (binary downloads)
+        response = HTTParty.get(url, headers: headers, timeout: XERO_FILE_TIMEOUT)
+      rescue Net::ReadTimeout, Net::OpenTimeout => e
+        # FRC (Feb 2026): Retry once on timeout before giving up.
+        # PDF downloads can be slow for large invoices or when Xero is under load.
+        if !timeout_retried
+          timeout_retried = true
+          Rails.logger.warn("[Xero] Binary request timeout for #{endpoint}, retrying once...")
+          next
+        end
+        Rails.logger.error("[Xero] Binary request timeout for #{endpoint} after retry: #{e.message}")
+        return { success: false, error: "Download timeout (#{XERO_FILE_TIMEOUT}s)" }
+      end
 
       # Track the API request for rate limiting visibility
       XeroRateLimitTracker.record_request(request_tenant_id)
@@ -1189,6 +1243,19 @@ class XeroApiClient
       retry_after = response.headers["Retry-After"] || 60
       Rails.logger.warn("Xero API rate limit hit. Retry after: #{retry_after}s")
       raise RateLimitError, "Rate limit exceeded. Retry after #{retry_after} seconds"
+    when 403
+      # FRC (Feb 2026): 403 with "AuthenticationUnsuccessful" means the Xero org's
+      # OAuth token is dead. Must mark credential as disconnected so sync jobs skip it
+      # instead of retrying every cycle and wasting API calls.
+      error_body = JSON.parse(response.body) rescue {}
+      error_detail = error_body["Detail"] || error_body["message"] || "Forbidden"
+      if error_detail.include?("AuthenticationUnsuccessful")
+        Rails.logger.error("Xero API 403 AuthenticationUnsuccessful - marking credential as needing re-auth")
+        raise AuthenticationError, error_detail
+      end
+      # Non-auth 403s fall through to generic client error handling
+      Rails.logger.error("Xero API forbidden (403): #{error_detail}")
+      raise ApiError, error_detail
     when 400..499
       # Client error
       error_body = JSON.parse(response.body) rescue {}

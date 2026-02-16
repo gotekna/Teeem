@@ -33,7 +33,7 @@ module HealthChecks
   #   - Upcoming compliance items
   #
   class CompaniesCheck < BaseCheck
-    FOUNDATION_SLUG = "corporate_companies"
+    FOUNDATION_SLUG = "corporate_companies".freeze
 
     def self.check_type
       "companies"
@@ -451,8 +451,8 @@ module HealthChecks
             display: "#{item.code || item.id} - #{item.name}",
             code: item.code,
             name: item.name,
-            entity_type: item.try(:entity_type),
-            review_date: item.try(:review_date)
+            entity_type: item&.entity_type,
+            review_date: item&.review_date
           }
         else
           super

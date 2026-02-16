@@ -6,8 +6,11 @@ class ChatConversation < ApplicationRecord
   has_many :users, through: :chat_conversation_participants
   has_many :chat_messages, dependent: :nullify
 
+  # Constants
+  CONVERSATION_TYPES = %w[group].freeze
+
   validates :name, presence: true
-  validates :conversation_type, inclusion: { in: %w[group] }
+  validates :conversation_type, inclusion: { in: CONVERSATION_TYPES }
 
   scope :groups, -> { where(conversation_type: "group") }
   scope :for_user, ->(user_id) {

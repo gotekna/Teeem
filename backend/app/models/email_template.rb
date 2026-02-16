@@ -11,10 +11,13 @@ class EmailTemplate < ApplicationRecord
 
   belongs_to :user
 
+  # SSoT: Categories configurable per tenant via TenantSetting (Feb 2026)
+  DEFAULT_CATEGORY_VALUES = %w[quick_reply formal follow_up meeting quote invoice other].freeze
+
   # Validations
   validates :name, presence: true
   validates :name, uniqueness: { scope: [:tenant_id, :user_id], case_sensitive: false }
-  validates :category, inclusion: { in: %w[quick_reply formal follow_up meeting quote invoice other] }, allow_blank: true
+  validates :category, inclusion: { in: -> { TenantSetting.email_template_categories.keys rescue EmailTemplate::DEFAULT_CATEGORY_VALUES }, allow_blank: true }
 
   # Scopes
   scope :ordered, -> { order(position: :asc, name: :asc) }
@@ -24,16 +27,22 @@ class EmailTemplate < ApplicationRecord
   scope :by_category, ->(cat) { where(category: cat) }
   scope :popular, -> { order(usage_count: :desc) }
 
-  # Categories for organizing templates
-  CATEGORIES = {
-    quick_reply: "Quick Reply",
-    formal: "Formal",
-    follow_up: "Follow-up",
-    meeting: "Meeting",
-    quote: "Quote/Proposal",
-    invoice: "Invoice",
-    other: "Other"
+  # SSoT: Categories display hash - configurable per tenant via TenantSetting (Feb 2026)
+  DEFAULT_CATEGORIES = {
+    "quick_reply" => "Quick Reply",
+    "formal" => "Formal",
+    "follow_up" => "Follow-up",
+    "meeting" => "Meeting",
+    "quote" => "Quote/Proposal",
+    "invoice" => "Invoice",
+    "other" => "Other"
   }.freeze
+
+  def self.categories
+    TenantSetting.email_template_categories
+  rescue StandardError
+    DEFAULT_CATEGORIES
+  end
 
   # Variable pattern: {{variable_name}}
   VARIABLE_PATTERN = /\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/

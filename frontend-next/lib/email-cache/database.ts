@@ -70,7 +70,6 @@ export async function getDatabase(): Promise<IDBPDatabase<EmailCacheDB>> {
   if (!dbPromise) {
     dbPromise = openDB<EmailCacheDB>(CACHE_CONFIG.DB_NAME, CACHE_CONFIG.DB_VERSION, {
       upgrade(db, oldVersion, newVersion, transaction) {
-        console.log(`[EmailCache] Upgrading database from v${oldVersion} to v${newVersion}`);
 
         // Version 1: Initial schema
         if (oldVersion < 1) {
@@ -93,17 +92,14 @@ export async function getDatabase(): Promise<IDBPDatabase<EmailCacheDB>> {
           // Store 5: syncMeta - Sync tracking
           db.createObjectStore("syncMeta", { keyPath: "key" });
 
-          console.log("[EmailCache] Created all object stores");
         }
 
         // Future migrations would go here:
         // if (oldVersion < 2) { ... }
       },
       blocked() {
-        console.warn("[EmailCache] Database blocked - another tab may be using an older version");
       },
       blocking() {
-        console.warn("[EmailCache] This tab is blocking a database upgrade in another tab");
       },
       terminated() {
         console.error("[EmailCache] Database connection terminated unexpectedly");
@@ -124,7 +120,6 @@ export async function closeDatabase(): Promise<void> {
     const db = await dbPromise;
     db.close();
     dbPromise = null;
-    console.log("[EmailCache] Database closed");
   }
 }
 
@@ -141,7 +136,6 @@ export async function deleteDatabase(): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(CACHE_CONFIG.DB_NAME);
     request.onsuccess = () => {
-      console.log("[EmailCache] Database deleted");
       resolve();
     };
     request.onerror = () => {
@@ -149,7 +143,6 @@ export async function deleteDatabase(): Promise<void> {
       reject(request.error);
     };
     request.onblocked = () => {
-      console.warn("[EmailCache] Database deletion blocked - close other tabs");
     };
   });
 }

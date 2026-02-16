@@ -13,8 +13,8 @@ module Gl
     attr_reader :corporate, :revaluation_date, :converter
 
     # Standard account codes for exchange gains/losses
-    EXCHANGE_GAIN_ACCOUNT = 'exchange_gain'   # Revenue account
-    EXCHANGE_LOSS_ACCOUNT = 'exchange_loss'   # Expense account
+    EXCHANGE_GAIN_ACCOUNT = 'exchange_gain'.freeze   # Revenue account
+    EXCHANGE_LOSS_ACCOUNT = 'exchange_loss'.freeze   # Expense account
 
     def initialize(corporate, revaluation_date: Date.current)
       @corporate = corporate

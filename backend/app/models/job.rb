@@ -75,6 +75,9 @@ class Job < ApplicationRecord
   has_many :job_recipes, dependent: :destroy
   has_many :recipes, through: :job_recipes
 
+  # Xero tracking option links (multi-variant support)
+  has_many :xero_tracking_links, class_name: "XeroJobTrackingLink", dependent: :destroy
+
   # Email proposals
   has_one :email_job_proposal, dependent: :nullify
 
@@ -369,6 +372,11 @@ class Job < ApplicationRecord
     xero_tracking_option_id.present?
   end
 
+  # Get the primary Xero tracking link (variant marked as primary)
+  def primary_xero_tracking_link
+    xero_tracking_links.primary.first
+  end
+
   # ============================================
   # Schedule Template Methods
   # ============================================
@@ -641,7 +649,7 @@ class Job < ApplicationRecord
       user: nil, # System-initiated, no user context
       clear_existing: false,
       create_purchase_orders: false # Don't auto-create POs on job creation
-    }).execute
+    }).call
 
     if result[:success]
       # Record when template was applied

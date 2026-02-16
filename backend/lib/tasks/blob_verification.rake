@@ -5,8 +5,7 @@ namespace :blob do
   task verify: :environment do |_t, args|
     require "aws-sdk-s3"
 
-    # Set tenant context (required for StorageConfiguration)
-    # Use Tekna tenant which has S3 storage configured
+    # Set tenant context (required for WarehouseProvider)
     tenant = Tenant.find_by(name: "Tekna") || Tenant.first
     unless tenant
       puts "No tenant found"
@@ -21,9 +20,9 @@ namespace :blob do
       exit 1
     end
 
-    bucket = StorageConfiguration.bucket
+    bucket = WarehouseProvider.instance&.bucket
     unless bucket
-      puts "No bucket configured in StorageConfiguration"
+      puts "No bucket configured in WarehouseProvider"
       exit 1
     end
 

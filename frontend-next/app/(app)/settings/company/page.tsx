@@ -18,6 +18,7 @@ import { DocumentsTab } from "@/app/(app)/admin/system/components/DocumentsTab";
 import { EntityConfigurationTab } from "@/app/(app)/admin/system/components/EntityConfigurationTab";
 import CompanyInfoTab from "@/app/(app)/admin/system/components/CompanyInfoTab";
 import { OfflineTab } from "@/app/(app)/admin/system/components/OfflineTab";
+import { DataHealthTab } from "@/components/settings/DataHealthTab";
 
 /**
  * Company Settings Page - Organization Settings
@@ -46,6 +47,7 @@ const COMPANY_TABS = [
   { id: "workflows", label: "Workflows" },
   { id: "job-setup", label: "Job Setup" },
   { id: "warehouse-config", label: "Warehouse Config" },
+  { id: "data-health", label: "Data Health" },
   { id: "offline", label: "Offline" },
 ];
 
@@ -55,13 +57,13 @@ export default function CompanySettingsPage() {
   const router = useRouter();
 
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/company to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   // SSoT (Jan 2026): Connections moved to top-level /settings/connections
   const [activeTab, setActiveTab, subTab] = usePathTabs(
     "/settings/company",
     DEFAULT_TAB,
-    COMPANY_TABS.map(t => t.id)
+    COMPANY_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   // Parse deepTab from URL for warehouse-config (third level)
@@ -72,10 +74,13 @@ export default function CompanySettingsPage() {
     return parts[2] || undefined;
   }, [pathname]);
 
-  // Apply default sub-tab for warehouse-config
+  // Apply default sub-tab for tabs that have sub-tabs
   const effectiveSubTab = useMemo(() => {
     let sub = subTab;
     if (activeTab === "warehouse-config" && !sub) sub = "warehouse_folders";
+    if (activeTab === "data-health" && !sub) sub = "overview";
+    if (activeTab === "job-setup" && !sub) sub = "lists";
+    if (activeTab === "documents" && !sub) sub = "types";
     return sub;
   }, [activeTab, subTab]);
 
@@ -89,6 +94,12 @@ export default function CompanySettingsPage() {
     if (!urlHasSubTab) {
       if (activeTab === "warehouse-config") {
         router.replace(`/settings/company/warehouse-config/warehouse_folders`, { scroll: false });
+      } else if (activeTab === "data-health") {
+        router.replace(`/settings/company/data-health/overview`, { scroll: false });
+      } else if (activeTab === "job-setup") {
+        router.replace(`/settings/company/job-setup/lists`, { scroll: false });
+      } else if (activeTab === "documents") {
+        router.replace(`/settings/company/documents/types`, { scroll: false });
       }
     }
   }, [activeTab, router, pathname]);
@@ -130,6 +141,9 @@ export default function CompanySettingsPage() {
           </TabsContent>
           <TabsContent value="warehouse-config">
             <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
+          </TabsContent>
+          <TabsContent value="data-health">
+            <DataHealthTab subTab={effectiveSubTab} basePath="/settings/company/data-health" />
           </TabsContent>
           <TabsContent value="offline">
             <OfflineTab />

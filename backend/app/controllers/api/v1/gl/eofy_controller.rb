@@ -42,7 +42,7 @@ module Api
           if result[:success]
             render json: { success: true, data: result[:item] }
           else
-            render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         end
 
@@ -84,7 +84,7 @@ module Api
           if result[:success]
             render json: { success: true, data: result }
           else
-            render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         end
 
@@ -92,7 +92,7 @@ module Api
         # Reopen a closed year (admin only)
         def reopen_year
           unless params[:reason].present?
-            return render json: { success: false, error: 'Reason is required to reopen a closed year' }, status: :bad_request
+            return render_error('Reason is required to reopen a closed year', status: :bad_request)
           end
 
           result = eofy_service.reopen_year!(reason: params[:reason])
@@ -100,7 +100,7 @@ module Api
           if result[:success]
             render json: { success: true, data: result }
           else
-            render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         end
 
@@ -140,7 +140,7 @@ module Api
             }
           }
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # =====================================================

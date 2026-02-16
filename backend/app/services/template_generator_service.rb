@@ -242,7 +242,7 @@ class TemplateGeneratorService
         - Boolean fields: true/false, yes/no, or 1/0
 
         HELP:
-        Contact support@teeem.com.au if you need assistance.
+        Contact #{InfrastructureUrls::SUPPORT_EMAIL} if you need assistance.
       README
     end
   end

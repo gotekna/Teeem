@@ -26,6 +26,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { getCachedRecords, setCachedRecords } from '@/lib/records-cache';
+import { TABLE_ROW_LIMIT } from '@/lib/constants/pagination-constants';
 import type { CascadeFilter } from '../types';
 
 // ============================================================================
@@ -163,10 +164,9 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
     setIsSearching(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: 100,
+        limit: TABLE_ROW_LIMIT,
       };
       if (mode) {
         params.search_mode = mode;
@@ -220,7 +220,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
     const cached = getCachedRecords(foundationId);
     if (cached && cached.records.length > (initialRecords?.length || 0)) {
-      console.log(`[useAutoFetch] Restoring ${cached.records.length} records from cache`);
       setRecords(cached.records as TableRow[]);
       setHasMore(cached.hasMore);
       hasAppliedInitialRecordsRef.current = true;
@@ -246,27 +245,22 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
       // Skip if search is pending (URL param or initial)
       const hasPersistedSearch = urlSearchParam || initialSearch || searchRef.current;
       if (hasPersistedSearch) {
-        console.log('[useAutoFetch] Skipping fetch - search pending');
         return;
       }
 
       // Skip if all records already loaded
       if (!hasMore && records.length > 0) {
-        console.log('[useAutoFetch] All records loaded, applying filters client-side');
         return;
       }
 
       // Skip if SSR data already applied
       if (hasAppliedInitialRecordsRef.current && records.length > 0 && refreshKey === 0) {
-        console.log('[useAutoFetch] SSR data already applied, skipping duplicate fetch');
         return;
       }
 
-      console.log('[useAutoFetch] Fetching initial records');
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { limit: 100 };
+        const params: Record<string, any> = { limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
@@ -294,7 +288,6 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
     };
 
     fetchInitialRecords();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive, foundationId, refreshKey, baseFiltersKey, initialViewLoaded, disableSavedViews, isEmbeddedContext]);
 
   // Auto-load more records in background
@@ -309,8 +302,7 @@ export function useAutoFetch(options: UseAutoFetchOptions): UseAutoFetchReturn {
 
       setIsLoadingMore(true);
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const params: Record<string, any> = { cursor, limit: 100 };
+        const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
         if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,

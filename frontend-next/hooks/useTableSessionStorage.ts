@@ -89,7 +89,6 @@ function writeToStorage(key: string, state: TableViewState): void {
     sessionStorage.setItem(key, data);
   } catch (e) {
     // Quota exceeded or other error - try to clear old entries
-    console.warn("[useTableSessionStorage] Failed to save state:", e);
     try {
       // Clear all teeem table states (oldest first would be ideal but this is simpler)
       for (let i = 0; i < sessionStorage.length; i++) {

@@ -24,10 +24,7 @@ module Api
         if api_environment.present?
           corporate_settings = TenantSetting.instance
           unless corporate_settings.update(api_environment: api_environment)
-            return render json: {
-              success: false,
-              error: "Failed to update environment: #{corporate_settings.errors.full_messages.join(', ')}"
-            }, status: :unprocessable_entity
+            return render_error("Failed to update environment: #{corporate_settings.errors.full_messages.join(', ')}", status: :unprocessable_entity)
           end
 
           # Keep CompanyGroup.environment in sync (used by sidebar badge)
@@ -44,10 +41,7 @@ module Api
             data: settings_json(settings)
           }
         else
-          render json: {
-            success: false,
-            error: settings.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(settings)
         end
       end
 
@@ -56,7 +50,7 @@ module Api
         settings = current_tenant_settings
 
         unless settings.twilio_enabled && settings.twilio_account_sid.present? && settings.twilio_auth_token.present? && settings.twilio_phone_number.present?
-          return render json: { success: false, error: "Twilio is not configured" }, status: :bad_request
+          return render_error("Twilio is not configured", status: :bad_request)
         end
 
         # Test Twilio connection
@@ -65,9 +59,9 @@ module Api
           account = client.api.accounts(settings.twilio_account_sid).fetch
           render json: { success: true, message: "Twilio connected successfully", account_name: account.friendly_name }
         rescue Twilio::REST::RestError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
-          render json: { success: false, error: "Failed to connect to Twilio: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to connect to Twilio: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -76,7 +70,7 @@ module Api
         settings = current_tenant_settings
 
         unless params[:logo].present?
-          return render json: { success: false, error: "No logo file provided" }, status: :bad_request
+          return render_error("No logo file provided", status: :bad_request)
         end
 
         begin
@@ -99,10 +93,7 @@ module Api
             logo_url: settings.logo_url
           }
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: "Failed to upload logo: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to upload logo: #{e.message}", status: :internal_server_error)
         end
       end
 

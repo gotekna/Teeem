@@ -51,7 +51,7 @@ class SmCascadeService
   end
 
   # Execute cascade with user decisions from modal
-  def execute(cascade_params)
+  def call(cascade_params)
     results = {
       updated_tasks: [],
       broken_dependencies: [],

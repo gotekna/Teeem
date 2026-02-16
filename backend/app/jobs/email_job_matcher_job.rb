@@ -51,11 +51,17 @@ class EmailJobMatcherJob < ApplicationJob
       matching_term = search_terms.find { |term| searchable_text.include?(term) }
 
       if matching_term
-        email.update!(
+        # FRC (Feb 2026): Use update_columns to avoid uniqueness validation on
+        # internet_message_id. Some emails have duplicate internet_message_ids
+        # (from forwarded/re-sent messages). update! triggers full validation
+        # which fails on the duplicate, but we're only setting metadata fields
+        # (job_id, match_type, etc.) so validation is unnecessary here.
+        email.update_columns(
           job_id: job.id,
           match_type: "auto_reverse",
-          match_confidence: 0.7,
-          matched_at: Time.current
+          match_confidence: EmailConstants::JOB_MATCH_CONFIDENCE,
+          matched_at: Time.current,
+          updated_at: Time.current
         )
         matched_count += 1
         Rails.logger.info "[EmailJobMatcherJob] Linked email #{email.id} to job #{job.id} via '#{matching_term}'"
@@ -84,7 +90,7 @@ class EmailJobMatcherJob < ApplicationJob
         .update_all(
           job_id: job.id,
           match_type: "thread_inheritance",
-          match_confidence: 0.7,
+          match_confidence: EmailConstants::JOB_MATCH_CONFIDENCE,
           matched_at: Time.current
         )
 
@@ -115,11 +121,13 @@ class EmailJobMatcherJob < ApplicationJob
       # Check if email mentions job context (address, job number, etc.)
       next unless email.email_mentions_job_context?(job)
 
-      email.update!(
+      # FRC (Feb 2026): Use update_columns — same reason as match_emails_by_address
+      email.update_columns(
         job_id: job.id,
         match_type: "auto_reverse_contact",
-        match_confidence: 0.75,
-        matched_at: Time.current
+        match_confidence: EmailConstants::CONTACT_MATCH_CONFIDENCE,
+        matched_at: Time.current,
+        updated_at: Time.current
       )
       matched_count += 1
       Rails.logger.info "[EmailJobMatcherJob] Linked email #{email.id} to job #{job.id} via contact #{contact_email}"

@@ -3,10 +3,13 @@ class UserAbsence < ApplicationRecord
   belongs_to :user
   belongs_to :approved_by, class_name: 'User', optional: true
 
+  # Constants
+  ABSENCE_TYPES = %w[leave sick holiday training other].freeze
+
   # Validations
   validates :start_date, presence: true
   validates :end_date, presence: true
-  validates :absence_type, inclusion: { in: %w[leave sick holiday training other] }
+  validates :absence_type, inclusion: { in: ABSENCE_TYPES }
   validate :end_date_after_start_date
   validate :no_overlapping_absences
 

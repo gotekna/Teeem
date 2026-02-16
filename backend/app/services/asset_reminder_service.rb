@@ -1,6 +1,6 @@
 class AssetReminderService
   def initialize
-    @today = Date.today
+    @today = Date.current
   end
 
   # Check all assets and send reminders for insurance and service

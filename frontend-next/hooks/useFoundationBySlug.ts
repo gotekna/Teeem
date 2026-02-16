@@ -3,9 +3,10 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { TableColumn, TableRow } from '@/components/table/types';
-import type { Foundation } from './useFoundationData';
+import type { Foundation, ApiColumn } from '@/lib/types';
 import { isSystemOrHiddenColumn } from '@/lib/corporate/column-utils';
 import { CACHE_TTL_VIEWS } from '@/lib/constants/cache-constants';
+import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
 
 /**
  * Extended return type with server-side search support
@@ -23,24 +24,6 @@ export interface UseFoundationBySlugReturn {
   serverSearch: (query: string, searchAll?: boolean) => Promise<void>;
   isSearching: boolean;
   clearSearch: () => void;
-}
-
-/**
- * API column format (what the backend returns)
- */
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_display_column?: string;
-  required?: boolean;
-  is_unique?: boolean;
-  searchable?: boolean;
 }
 
 /**
@@ -108,12 +91,10 @@ export function useFoundationBySlug(
   const loadData = useCallback(async () => {
     // Prevent duplicate fetches for the same slug
     if (fetchInProgressRef.current && lastFetchSlugRef.current === slug) {
-      console.log('[useFoundationBySlug] Skipping duplicate fetch for:', slug);
       return;
     }
 
     const startTime = performance.now();
-    console.log('[useFoundationBySlug] loadData starting for slug:', slug);
 
     if (!slug) {
       setIsLoading(false);
@@ -131,7 +112,6 @@ export function useFoundationBySlug(
       const foundationData = await api.get<FoundationLookupResponse>(
         `/api/v1/foundations/${slug}`
       );
-      console.log('[useFoundationBySlug] Foundation loaded in', (performance.now() - foundationStartTime).toFixed(0), 'ms');
 
       const foundationObj = foundationData.foundation;
       setFoundation(foundationObj);
@@ -162,7 +142,6 @@ export function useFoundationBySlug(
       // Wait for both to complete
       const [recordsData, viewsData] = await Promise.all([recordsPromise, viewsPromise]);
 
-      console.log('[useFoundationBySlug] Records loaded in', (performance.now() - recordsStartTime).toFixed(0), 'ms', '- count:', recordsData.records?.length);
 
       // Cache the views for TeeemTableView to use
       if (viewsData?.success && viewsData.views) {
@@ -170,9 +149,7 @@ export function useFoundationBySlug(
           views: viewsData.views,
           timestamp: Date.now()
         };
-        console.log('[useFoundationBySlug] Views preloaded:', viewsData.views.length);
       } else if (viewsCached) {
-        console.log('[useFoundationBySlug] Using cached views');
       }
 
       // Safety: ensure records is always an array to prevent .sort() errors
@@ -180,7 +157,6 @@ export function useFoundationBySlug(
       setRecords(loadedRecords);
       setOriginalRecords(loadedRecords); // Store for clearing search
       setTotalCount(recordsData.pagination?.total_count ?? null); // Store total count from server
-      console.log('[useFoundationBySlug] Total loadData time:', (performance.now() - startTime).toFixed(0), 'ms');
     } catch (err) {
       console.error('Failed to load foundation data by slug:', err);
       setError(err instanceof Error ? err : new Error('Failed to load data'));
@@ -208,7 +184,7 @@ export function useFoundationBySlug(
           params: {
             search: query,
             ...(searchAll && { search_all: 'true' }),
-            per_page: 500 // Return up to 500 search results
+            per_page: API_PAGE_SIZES.MEDIUM_REFERENCE // Return up to 500 search results
           }
         }
       );
@@ -256,7 +232,7 @@ export function useFoundationBySlug(
         sortable: true,
         filterable: true,
         width: getDefaultWidth(col.column_name, col.column_type),
-        choices: col.available_choices,
+        choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
         lookup_foundation_id: col.lookup_foundation_id,
         lookup_display_column: col.lookup_display_column,
         searchable: col.searchable ?? false,

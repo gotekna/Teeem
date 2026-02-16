@@ -38,10 +38,7 @@ module Api
             message: "Bank statement template created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @template.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -54,10 +51,7 @@ module Api
             message: "Bank statement template updated successfully"
           }
         else
-          render json: {
-            success: false,
-            error: @template.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -65,10 +59,7 @@ module Api
       def destroy
         # Prevent deletion of default template
         if @template.bank_code == "default"
-          return render json: {
-            success: false,
-            error: "Cannot delete the default template"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete the default template", status: :unprocessable_entity)
         end
 
         @template.destroy
@@ -129,10 +120,7 @@ module Api
         result = service.generate
 
         unless result[:success]
-          return render json: {
-            success: false,
-            error: result[:error] || "Failed to generate PDF"
-          }, status: :unprocessable_entity
+          return render_error(result[:error] || "Failed to generate PDF", status: :unprocessable_entity)
         end
 
         send_data result[:pdf],
@@ -140,10 +128,7 @@ module Api
                   type: "application/pdf",
                   disposition: "inline"
       rescue StandardError => e
-        render json: {
-          success: false,
-          error: "Failed to generate test PDF: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to generate test PDF: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/bank_statement_templates/:id/reference_image
@@ -156,10 +141,7 @@ module Api
             return send_local_reference_file(local_file)
           end
 
-          return render json: {
-            success: false,
-            error: "No reference image available for this template"
-          }, status: :not_found
+          return render_error("No reference image available for this template", status: :not_found)
         end
 
         # Check if it's a local file path first
@@ -203,10 +185,7 @@ module Api
       def serve_sharepoint_reference
         storage_config = WarehouseProvider.instance
         unless storage_config&.connected?
-          return render json: {
-            success: false,
-            error: "SharePoint not configured"
-          }, status: :service_unavailable
+          return render_error("SharePoint not configured", status: :service_unavailable)
         end
 
         begin
@@ -216,10 +195,7 @@ module Api
           item = client.get_item_by_path(drive_id, @template.reference_image_path)
 
           unless item
-            return render json: {
-              success: false,
-              error: "Reference file not found in SharePoint: #{@template.reference_image_path}"
-            }, status: :not_found
+            return render_error("Reference file not found in SharePoint: #{@template.reference_image_path}", status: :not_found)
           end
 
           content = client.get_drive_item_content(
@@ -239,25 +215,16 @@ module Api
                     type: content_type,
                     disposition: "inline"
         rescue MicrosoftAppGraphClient::NotConnectedError => e
-          render json: {
-            success: false,
-            error: "SharePoint not connected: #{e.message}"
-          }, status: :service_unavailable
+          render_error("SharePoint not connected: #{e.message}", status: :service_unavailable)
         rescue MicrosoftAppGraphClient::ApiError => e
-          render json: {
-            success: false,
-            error: "Failed to fetch reference image from SharePoint: #{e.message}"
-          }, status: :service_unavailable
+          render_error("Failed to fetch reference image from SharePoint: #{e.message}", status: :service_unavailable)
         end
       end
 
       def set_template
         @template = BankStatementTemplate.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Bank statement template not found"
-        }, status: :not_found
+        render_error("Bank statement template not found", status: :not_found)
       end
 
       def template_params

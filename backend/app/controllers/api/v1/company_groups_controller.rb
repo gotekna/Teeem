@@ -49,10 +49,7 @@ module Api
             data: serialize_company_group(@company_group)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @company_group.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company_group)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             data: serialize_company_group(@company_group)
           }
         else
-          render json: {
-            success: false,
-            errors: @company_group.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@company_group)
         end
       end
 
@@ -103,6 +97,7 @@ module Api
 
         # Find trusts/superfunds that have a trustee company in this group
         # Match by Trust/Superfund's name (not trust_name field) since trustee's trust_name = Trust's name
+        # TODO: Could optimize with SQL join instead of loading into memory
         trusts_with_trustees = @company_group.corporate_companies
           .where(entity_type: [ "Trust", "Superfund" ])
           .select { |trust| @company_group.corporate_companies.exists?(is_trustee: true, trust_name: trust.name) }

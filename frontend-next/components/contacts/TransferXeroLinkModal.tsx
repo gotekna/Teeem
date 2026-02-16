@@ -15,14 +15,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import type { XeroLink } from "@/types/xero";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  entity_type: string | null;
-  email?: string | null;
-  [key: string]: any;
-}
+import type { Contact } from "@/lib/types";
 
 interface TransferXeroLinkModalProps {
   isOpen: boolean;

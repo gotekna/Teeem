@@ -5,7 +5,7 @@ class ProcessNewJobEmailsJob < ApplicationJob
   queue_as :default
 
   # Legacy folder name (kept for backwards compatibility)
-  NEW_JOB_FOLDER_NAME = "A - New Job"
+  NEW_JOB_FOLDER_NAME = "A - New Job".freeze
 
   def perform
     # SSoT: Get the monitored mailbox from configuration

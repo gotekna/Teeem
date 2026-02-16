@@ -55,7 +55,7 @@ module Api
         bank_account = @corporate.bank_accounts.find(params[:bank_account_id])
 
         unless bank_account.is_ap_enabled
-          return render json: { error: "Bank account is not enabled for AP payments" }, status: :unprocessable_entity
+          return render_error("Bank account is not enabled for AP payments", status: :unprocessable_entity)
         end
 
         @batch = @corporate.bill_payment_batches.build(
@@ -68,7 +68,7 @@ module Api
         if @batch.save
           render json: @batch, status: :created
         else
-          render json: { errors: @batch.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@batch.errors.full_messages)
         end
       end
 
@@ -77,7 +77,7 @@ module Api
         if @batch.update(batch_params)
           render json: @batch
         else
-          render json: { errors: @batch.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(@batch.errors.full_messages)
         end
       end
 
@@ -86,26 +86,26 @@ module Api
         if @batch.cancel!
           render json: { success: true }
         else
-          render json: { error: "Cannot cancel batch in #{@batch.status} status" }, status: :unprocessable_entity
+          render_error("Cannot cancel batch in #{@batch.status} status", status: :unprocessable_entity)
         end
       end
 
       # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/add_bill
       def add_bill
         unless @batch.can_add_items?
-          return render json: { error: "Cannot add items to batch in #{@batch.status} status" }, status: :unprocessable_entity
+          return render_error("Cannot add items to batch in #{@batch.status} status", status: :unprocessable_entity)
         end
 
         bill = BillInbox.find(params[:bill_inbox_id])
 
         unless bill.payable?
-          return render json: { error: "Bill is not payable (status: #{bill.status})" }, status: :unprocessable_entity
+          return render_error("Bill is not payable (status: #{bill.status})", status: :unprocessable_entity)
         end
 
         # Check for overpayment
         amount = params[:amount]&.to_d || bill.remaining_balance
         if amount > bill.remaining_balance
-          return render json: { error: "Amount ($#{amount}) exceeds remaining balance ($#{bill.remaining_balance})" }, status: :unprocessable_entity
+          return render_error("Amount ($#{amount}) exceeds remaining balance ($#{bill.remaining_balance})", status: :unprocessable_entity)
         end
 
         @batch.add_bill!(bill, amount: amount)
@@ -119,7 +119,7 @@ module Api
         payment = @batch.bill_payments.find(params[:bill_payment_id])
 
         unless payment.can_be_removed?
-          return render json: { error: "Cannot remove payment in #{payment.status} status" }, status: :unprocessable_entity
+          return render_error("Cannot remove payment in #{payment.status} status", status: :unprocessable_entity)
         end
 
         payment.bill_inbox.update!(status: "approved")
@@ -132,11 +132,11 @@ module Api
       # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/generate_aba
       def generate_aba
         unless @batch.can_generate_file?
-          return render json: { error: "Cannot generate file for batch in #{@batch.status} status" }, status: :unprocessable_entity
+          return render_error("Cannot generate file for batch in #{@batch.status} status", status: :unprocessable_entity)
         end
 
         if @batch.bill_payments.empty?
-          return render json: { error: "Batch has no payments" }, status: :unprocessable_entity
+          return render_error("Batch has no payments", status: :unprocessable_entity)
         end
 
         result = @batch.generate_aba_file!
@@ -151,13 +151,13 @@ module Api
           render json: { error: result[:error], errors: result[:errors] }, status: :unprocessable_entity
         end
       rescue AbaFileGeneratorService::ValidationError => e
-        render json: { error: e.message }, status: :unprocessable_entity
+        render_error(e.message)
       end
 
       # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/download_aba
       def download_aba
         unless @batch.aba_file_content.present?
-          return render json: { error: "ABA file has not been generated" }, status: :not_found
+          return render_error("ABA file has not been generated", status: :not_found)
         end
 
         send_data @batch.aba_file_content,
@@ -171,14 +171,14 @@ module Api
         if @batch.submit_for_approval!
           render json: @batch
         else
-          render json: { error: "Cannot submit batch for approval" }, status: :unprocessable_entity
+          render_error("Cannot submit batch for approval", status: :unprocessable_entity)
         end
       end
 
       # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/approve
       def approve
         unless @batch.can_approve?
-          return render json: { error: "Cannot approve batch in #{@batch.status} status" }, status: :unprocessable_entity
+          return render_error("Cannot approve batch in #{@batch.status} status", status: :unprocessable_entity)
         end
 
         @batch.approve!(current_user)
@@ -188,7 +188,7 @@ module Api
       # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/mark_submitted
       def mark_submitted
         unless @batch.can_submit?
-          return render json: { error: "Cannot mark as submitted in #{@batch.status} status" }, status: :unprocessable_entity
+          return render_error("Cannot mark as submitted in #{@batch.status} status", status: :unprocessable_entity)
         end
 
         @batch.mark_submitted!
@@ -198,7 +198,7 @@ module Api
       # POST /api/v1/corporate_companies/:corporate_id/bill_payment_batches/:id/mark_completed
       def mark_completed
         unless @batch.status == "submitted"
-          return render json: { error: "Batch must be submitted before completing" }, status: :unprocessable_entity
+          return render_error("Batch must be submitted before completing", status: :unprocessable_entity)
         end
 
         @batch.mark_completed!

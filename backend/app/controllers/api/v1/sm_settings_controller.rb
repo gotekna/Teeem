@@ -26,10 +26,7 @@ module Api
             settings: settings_to_json(@settings)
           }
         else
-          render json: {
-            success: false,
-            errors: @settings.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@settings)
         end
       end
 
@@ -48,7 +45,7 @@ module Api
         tag_name = params[:tag]&.strip
 
         if tag_name.blank?
-          return render json: { success: false, error: "Tag name is required" }, status: :unprocessable_entity
+          return render_error("Tag name is required", status: :unprocessable_entity)
         end
 
         if @settings.add_tag(tag_name)
@@ -58,10 +55,7 @@ module Api
             tags: @settings.tags
           }
         else
-          render json: {
-            success: false,
-            error: "Tag already exists or invalid"
-          }, status: :unprocessable_entity
+          render_error("Tag already exists or invalid", status: :unprocessable_entity)
         end
       end
 
@@ -77,10 +71,7 @@ module Api
             tags: @settings.tags
           }
         else
-          render json: {
-            success: false,
-            error: "Tag not found"
-          }, status: :not_found
+          render_error("Tag not found", status: :not_found)
         end
       end
 
@@ -91,7 +82,7 @@ module Api
         new_name = params[:new_name]&.strip
 
         if new_name.blank?
-          return render json: { success: false, error: "New name is required" }, status: :unprocessable_entity
+          return render_error("New name is required", status: :unprocessable_entity)
         end
 
         if @settings.rename_tag(old_name, new_name)
@@ -101,10 +92,7 @@ module Api
             tags: @settings.tags
           }
         else
-          render json: {
-            success: false,
-            error: "Tag not found or new name already exists"
-          }, status: :unprocessable_entity
+          render_error("Tag not found or new name already exists", status: :unprocessable_entity)
         end
       end
 
@@ -123,7 +111,7 @@ module Api
         trade_name = params[:trade]&.strip
 
         if trade_name.blank?
-          return render json: { success: false, error: "Trade name is required" }, status: :unprocessable_entity
+          return render_error("Trade name is required", status: :unprocessable_entity)
         end
 
         if @settings.add_trade(trade_name)
@@ -133,10 +121,7 @@ module Api
             trades: @settings.trades
           }
         else
-          render json: {
-            success: false,
-            error: "Trade already exists or invalid"
-          }, status: :unprocessable_entity
+          render_error("Trade already exists or invalid", status: :unprocessable_entity)
         end
       end
 
@@ -152,10 +137,7 @@ module Api
             trades: @settings.trades
           }
         else
-          render json: {
-            success: false,
-            error: "Trade not found"
-          }, status: :not_found
+          render_error("Trade not found", status: :not_found)
         end
       end
 
@@ -174,7 +156,7 @@ module Api
         stage_name = params[:stage]&.strip
 
         if stage_name.blank?
-          return render json: { success: false, error: "Stage name is required" }, status: :unprocessable_entity
+          return render_error("Stage name is required", status: :unprocessable_entity)
         end
 
         if @settings.add_stage(stage_name)
@@ -184,10 +166,7 @@ module Api
             stages: @settings.stages
           }
         else
-          render json: {
-            success: false,
-            error: "Stage already exists or invalid"
-          }, status: :unprocessable_entity
+          render_error("Stage already exists or invalid", status: :unprocessable_entity)
         end
       end
 
@@ -203,10 +182,7 @@ module Api
             stages: @settings.stages
           }
         else
-          render json: {
-            success: false,
-            error: "Stage not found"
-          }, status: :not_found
+          render_error("Stage not found", status: :not_found)
         end
       end
 
@@ -236,7 +212,7 @@ module Api
         role_name = params[:role]&.strip
 
         if role_name.blank?
-          return render json: { success: false, error: "Role name is required" }, status: :unprocessable_entity
+          return render_error("Role name is required", status: :unprocessable_entity)
         end
 
         if @settings.add_role(role_name)
@@ -246,10 +222,7 @@ module Api
             roles: @settings.roles
           }
         else
-          render json: {
-            success: false,
-            error: "Role already exists or invalid"
-          }, status: :unprocessable_entity
+          render_error("Role already exists or invalid", status: :unprocessable_entity)
         end
       end
 
@@ -265,10 +238,7 @@ module Api
             roles: @settings.roles
           }
         else
-          render json: {
-            success: false,
-            error: "Role not found"
-          }, status: :not_found
+          render_error("Role not found", status: :not_found)
         end
       end
 

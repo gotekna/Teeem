@@ -56,18 +56,32 @@ class BulkContactUpsertService
     now = Time.current
 
     # Build insert records
+    # FRC (Feb 2026): insert_all! bypasses ActiveRecord callbacks.
+    # Contact model has before_create :ensure_contact_code_for_insert that sets
+    # contact_code, but insert_all! skips it. Must set temp codes here, then
+    # update to canonical "C#{id}" format after insert returns IDs.
     records = operations.map do |op|
       op[:attrs].merge(
         tenant_id: @teeem_tenant_id,
         is_active: true,
+        contact_code: "C-TEMP-#{SecureRandom.hex(6)}",
         created_at: now,
         updated_at: now
-      ).compact
+      )
     end
+
+    # FRC (Feb 2026): insert_all! requires all hashes to have identical keys.
+    # build_contact_attrs returns varying keys (some contacts have phone, some don't).
+    # Normalize: ensure every record has the union of all keys (nil for missing).
+    records = normalize_keys(records)
 
     # Use insert_all! with returning to get IDs
     # Note: insert_all doesn't run validations - we validate in the processor job
     result = Contact.insert_all!(records, returning: [:id])
+
+    # Set canonical contact_codes ("C#{id}") now that we have IDs
+    id_code_pairs = result.rows.map { |row| { id: row[0], contact_code: "C#{row[0]}" } }
+    Contact.upsert_all(id_code_pairs, unique_by: :id) if id_code_pairs.any?
 
     # Map back to xero_contact_id for link creation
     result.rows.zip(operations).map do |row, op|
@@ -98,24 +112,34 @@ class BulkContactUpsertService
   end
 
   # Bulk update contacts
-  # Uses upsert_all for efficiency
+  # FRC (Feb 2026): Use update_all per contact instead of upsert_all.
+  # upsert_all generates INSERT...ON CONFLICT which requires ALL NOT NULL
+  # columns (including contact_code) even when the ON CONFLICT path is taken.
+  # Since we KNOW these records exist (IDs from ContactMatcher), plain UPDATE
+  # is correct, simpler, and avoids NOT NULL issues entirely.
   def bulk_update(operations)
     return 0 if operations.empty?
 
-    now = Time.current
+    updated = 0
+    contact_ids = []
 
-    # Build upsert records (must include id)
-    records = operations.map do |op|
-      op[:attrs].merge(
-        id: op[:contact_id],
-        updated_at: now
-      ).compact
+    operations.each do |op|
+      # FRC (Feb 2026): Do NOT include updated_at in attrs hash.
+      # update_all with explicit updated_at causes PG::SyntaxError
+      # "multiple assignments to same column" — Rails auto-appends it.
+      # Touch separately via touch_all after all updates complete.
+      attrs = op[:attrs].compact
+      attrs.delete(:updated_at)
+      attrs.delete("updated_at")
+      next if attrs.empty?
+
+      updated += Contact.where(id: op[:contact_id]).update_all(attrs)
+      contact_ids << op[:contact_id]
     end
 
-    # upsert_all with unique_by: :id for updates
-    Contact.upsert_all(records, unique_by: :id)
+    Contact.where(id: contact_ids).touch_all if contact_ids.any?
 
-    operations.size
+    updated
   end
 
   # Bulk create/update contact external links
@@ -142,15 +166,19 @@ class BulkContactUpsertService
         last_verified_at: now,
         created_at: now,
         updated_at: now
-      }.compact
+      }
     end
 
     # Use upsert_all to handle existing links
+    # FRC (Feb 2026): Do NOT include :updated_at in update_only.
+    # Rails 8 auto-adds updated_at to ON CONFLICT DO UPDATE SET clause.
+    # Including it in update_only causes PG::SyntaxError "multiple
+    # assignments to same column updated_at".
     ContactExternalLink.upsert_all(
       records,
       unique_by: [:source, :xero_org_id, :external_contact_id],
       on_duplicate: :update,
-      update_only: [:external_name, :match_type, :match_confidence, :last_synced_at, :xero_contact_status, :last_verified_at, :updated_at]
+      update_only: [:external_name, :match_type, :match_confidence, :last_synced_at, :xero_contact_status, :last_verified_at]
     )
 
     records.size
@@ -186,6 +214,16 @@ class BulkContactUpsertService
         needs_review: op[:needs_review] || false
       }
     end
+  end
+
+  # Normalize array of hashes to all have the same keys.
+  # Required by insert_all!/upsert_all which demand identical key sets.
+  # Missing keys get nil (→ SQL NULL).
+  def normalize_keys(records)
+    return records if records.empty?
+
+    all_keys = records.flat_map(&:keys).uniq
+    records.map { |r| all_keys.each_with_object({}) { |k, h| h[k] = r[k] } }
   end
 
   # Fallback for individual create with duplicate handling

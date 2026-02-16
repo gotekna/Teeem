@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -51,7 +51,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["contact_id", "system_type"], name: "index_accounting_integrations_on_contact_id_and_system_type", unique: true
     t.index ["contact_id"], name: "index_accounting_integrations_on_contact_id"
     t.index ["last_sync_at"], name: "index_accounting_integrations_on_last_sync_at"
+    t.index ["organization_id"], name: "index_accounting_integrations_on_organization_id"
     t.index ["system_type"], name: "index_accounting_integrations_on_system_type"
+    t.index ["tenant_id"], name: "index_accounting_integrations_on_tenant_id"
   end
 
   create_table "agent_definitions", force: :cascade do |t|
@@ -1520,6 +1522,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.integer "position", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_contact_emails_on_contact_id"
   end
 
   create_table "contact_external_links", force: :cascade do |t|
@@ -1780,7 +1783,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.string "emergency_contact_name"
     t.string "emergency_contact_phone"
     t.string "emergency_contact_relationship"
-    t.index "lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
+    t.index "tenant_id, lower(TRIM(BOTH FROM display_name))", name: "idx_contacts_unique_company_name", unique: true, where: "(((entity_type)::text = 'company'::text) AND (is_active = true))"
     t.index ["abn_valid"], name: "index_contacts_on_abn_valid"
     t.index ["acn"], name: "index_contacts_on_acn"
     t.index ["acn_valid"], name: "index_contacts_on_acn_valid"
@@ -2651,7 +2654,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.string "provider_draft_id"
+    t.string "provider_type"
+    t.bigint "microsoft_credential_id"
+    t.datetime "provider_synced_at"
+    t.string "provider_sync_error"
     t.index ["imap_credential_id"], name: "index_email_drafts_on_imap_credential_id"
+    t.index ["microsoft_credential_id"], name: "index_email_drafts_on_microsoft_credential_id"
+    t.index ["provider_draft_id"], name: "index_email_drafts_on_provider_draft_id"
     t.index ["tenant_id"], name: "index_email_drafts_on_tenant_id"
     t.index ["user_id", "status"], name: "idx_email_drafts_user_status"
     t.index ["user_id", "updated_at"], name: "idx_email_drafts_user_recent"
@@ -2815,7 +2825,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.boolean "is_internal", default: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_email_recipients_on_contact_id"
     t.index ["email_address", "recipient_type"], name: "idx_email_recipients_address_type"
+    t.index ["user_id"], name: "index_email_recipients_on_user_id"
   end
 
   create_table "email_rules", force: :cascade do |t|
@@ -2917,6 +2929,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.text "last_error"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_email_sync_statuses_on_user_id"
   end
 
   create_table "email_templates", force: :cascade do |t|
@@ -3139,6 +3152,28 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.datetime "updated_at", null: false
     t.index ["chapter_number"], name: "index_feature_chapters_on_chapter_number", unique: true
     t.index ["sort_order"], name: "index_feature_chapters_on_sort_order"
+  end
+
+  create_table "feature_requests", force: :cascade do |t|
+    t.string "title", null: false
+    t.text "description"
+    t.string "category", default: "feature", null: false
+    t.string "status", default: "submitted", null: false
+    t.integer "priority_order"
+    t.bigint "submitted_by_user_id"
+    t.bigint "submitted_by_tenant_id"
+    t.string "submitted_by_name"
+    t.string "submitted_by_company"
+    t.text "admin_notes"
+    t.text "status_update"
+    t.integer "follower_count", default: 0, null: false
+    t.jsonb "follower_user_ids", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["category"], name: "index_feature_requests_on_category"
+    t.index ["priority_order"], name: "index_feature_requests_on_priority_order"
+    t.index ["status"], name: "index_feature_requests_on_status"
+    t.index ["submitted_by_user_id"], name: "index_feature_requests_on_submitted_by_user_id"
   end
 
   create_table "feature_trackers", force: :cascade do |t|
@@ -4913,6 +4948,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["provider"], name: "index_gl_provider_credentials_on_provider"
     t.index ["status"], name: "index_gl_provider_credentials_on_status"
     t.index ["sync_enabled"], name: "index_gl_provider_credentials_on_sync_enabled"
+    t.index ["tenant_id"], name: "index_gl_provider_credentials_on_tenant_id"
   end
 
   create_table "gl_quote_lines", force: :cascade do |t|
@@ -6307,6 +6343,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.string "job_code", null: false
     t.bigint "tenant_id"
     t.string "project_type", default: "construction", null: false
+    t.string "design_name"
+    t.bigint "job_design_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6317,6 +6355,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
     t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
     t.index ["job_code"], name: "index_jobs_on_job_code", unique: true
+    t.index ["job_design_id"], name: "index_jobs_on_job_design_id"
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
@@ -8598,6 +8637,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["attachable_type", "attachable_id"], name: "index_sm_task_attachments_on_attachable_type_and_attachable_id"
     t.index ["category"], name: "index_sm_task_attachments_on_category"
     t.index ["deleted_at"], name: "index_sm_task_attachments_on_deleted_at"
+    t.index ["deleted_by_id"], name: "index_sm_task_attachments_on_deleted_by_id"
     t.index ["sm_task_id", "attachable_type", "attachable_id"], name: "idx_sm_task_attachments_unique", unique: true
     t.index ["sm_task_id"], name: "index_sm_task_attachments_on_sm_task_id"
     t.index ["source_email_attachment_id"], name: "index_sm_task_attachments_on_source_email_attachment_id"
@@ -9083,6 +9123,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["job_type_id"], name: "index_specification_templates_on_job_type_id"
     t.index ["tenant_id", "sync_key"], name: "idx_specification_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_specification_templates_on_tenant_id"
+  end
+
+  create_table "storage_billing_snapshots", force: :cascade do |t|
+    t.string "provider", null: false
+    t.string "period", null: false
+    t.float "total_size_gb"
+    t.integer "total_objects"
+    t.float "estimated_cost"
+    t.jsonb "details", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["provider", "period"], name: "index_storage_billing_snapshots_on_provider_and_period", unique: true
   end
 
   create_table "storage_blobs", force: :cascade do |t|
@@ -9835,6 +9887,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.jsonb "config_sync_table_timestamps", default: {}
     t.string "monitored_mailbox_esignature"
     t.boolean "esignature_require_email_verification", default: true, null: false
+    t.jsonb "ticket_sla_response_hours", default: {"low"=>24, "high"=>4, "medium"=>8, "urgent"=>1}, comment: "SLA response time by priority (hours)"
+    t.jsonb "ticket_sla_resolution_hours", default: {"low"=>168, "high"=>24, "medium"=>72, "urgent"=>4}, comment: "SLA resolution time by priority (hours)"
+    t.jsonb "ticket_priorities", default: ["urgent", "high", "medium", "low"], comment: "Available ticket priority levels"
+    t.jsonb "ticket_categories", default: ["bug", "feature_request", "question", "onboarding", "billing", "other"], comment: "Available ticket categories"
+    t.jsonb "contact_roles", default: ["Employee", "sales", "land_agent", "Director", "Company_Secretary", "Public_Officer", "CEO", "GM", "Owner"], comment: "Valid contact roles for job assignments"
+    t.jsonb "contact_entity_types", default: ["person", "company", "trust", "sole_trader", "price_only"], comment: "Valid contact entity types"
+    t.jsonb "contact_employment_statuses", default: ["active", "contractor", "inactive"], comment: "Valid contact employment statuses"
+    t.jsonb "email_template_categories", default: {"other"=>"Other", "quote"=>"Quote/Proposal", "formal"=>"Formal", "invoice"=>"Invoice", "meeting"=>"Meeting", "follow_up"=>"Follow-up", "quick_reply"=>"Quick Reply"}, comment: "Email template categories (key => display label)"
+    t.jsonb "relationship_type_metadata", comment: "Custom relationship types (overrides ContactRelationship defaults)"
+    t.jsonb "email_star_colors", default: {"red"=>{"hex"=>"#EF4444", "label"=>"Red"}, "blue"=>{"hex"=>"#3B82F6", "label"=>"Blue"}, "green"=>{"hex"=>"#22C55E", "label"=>"Green"}, "orange"=>{"hex"=>"#F97316", "label"=>"Orange"}, "purple"=>{"hex"=>"#A855F7", "label"=>"Purple"}, "yellow"=>{"hex"=>"#EAB308", "label"=>"Yellow"}}, comment: "Star color options for email states"
+    t.jsonb "email_priority_levels", default: {"low"=>{"icon"=>"arrow-down", "label"=>"Low"}, "high"=>{"icon"=>"alert-circle", "label"=>"High"}, "normal"=>{"icon"=>"minus", "label"=>"Normal"}}, comment: "Email priority levels with display metadata"
+    t.string "xero_tracking_category_name", default: "Job", comment: "Xero tracking category name used for job matching (e.g., 'Job', 'JOB ID')"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"
@@ -9965,6 +10029,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
+  create_table "units_of_measure", force: :cascade do |t|
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 50, null: false
+    t.string "description", limit: 100
+    t.integer "sort_order", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
+    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
+  end
+
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -10027,6 +10103,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["storage_provider"], name: "index_user_documents_on_storage_provider"
     t.index ["user_id", "category"], name: "index_user_documents_on_user_id_and_category"
     t.index ["user_id"], name: "index_user_documents_on_user_id"
+  end
+
+  create_table "user_folders", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "path", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "path"], name: "index_user_folders_on_user_id_and_path", unique: true
+    t.index ["user_id"], name: "index_user_folders_on_user_id"
   end
 
   create_table "user_groups", force: :cascade do |t|
@@ -10299,9 +10384,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
+    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
@@ -10833,6 +10920,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.index ["xero_credential_id"], name: "index_xero_health_events_on_xero_credential_id"
   end
 
+  create_table "xero_job_tracking_links", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "tracking_option_id", null: false
+    t.string "tracking_option_name"
+    t.string "variant"
+    t.boolean "is_primary", default: false
+    t.bigint "tenant_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "is_primary"], name: "index_xero_job_tracking_links_on_job_id_and_is_primary"
+    t.index ["job_id"], name: "index_xero_job_tracking_links_on_job_id"
+    t.index ["tenant_id"], name: "index_xero_job_tracking_links_on_tenant_id"
+    t.index ["tracking_option_id"], name: "index_xero_job_tracking_links_on_tracking_option_id", unique: true
+  end
+
   create_table "xero_sync_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "sync_type", null: false
@@ -10895,6 +10997,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["sync_type", "tenant_id"], name: "index_xero_sync_statuses_on_sync_type_and_tenant_id", unique: true
+    t.index ["tenant_id"], name: "index_xero_sync_statuses_on_tenant_id"
   end
 
   add_foreign_key "account_mappings", "accounting_integrations"
@@ -11485,6 +11588,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
   add_foreign_key "job_types", "sm_schedule_master_templates"
   add_foreign_key "job_types", "tenants"
   add_foreign_key "jobs", "cost_centres", on_delete: :nullify
+  add_foreign_key "jobs", "job_designs"
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
@@ -11869,6 +11973,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
   add_foreign_key "user_documents", "document_types"
   add_foreign_key "user_documents", "storage_blobs"
   add_foreign_key "user_documents", "users"
+  add_foreign_key "user_folders", "users"
   add_foreign_key "user_navigation_configs", "navigation_items", name: "user_navigation_configs_navigation_item_id_fkey"
   add_foreign_key "user_navigation_configs", "users", name: "user_navigation_configs_user_id_fkey"
   add_foreign_key "user_permissions", "permissions"
@@ -11933,6 +12038,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_13_200001) do
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
   add_foreign_key "xero_health_events", "xero_credentials"
+  add_foreign_key "xero_job_tracking_links", "jobs"
+  add_foreign_key "xero_job_tracking_links", "tenants"
   add_foreign_key "xero_sync_events", "xero_credentials"
   add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
 end

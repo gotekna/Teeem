@@ -158,7 +158,7 @@ class PlanReextractionJob < ApplicationJob
       category_code: category&.code.to_s,
       # Revision context
       rev: revision&.revision || "A",
-      date: Date.today.strftime("%Y%m%d"),
+      date: Date.current.strftime("%Y%m%d"),
       variant: variant_suffix.to_s
     }
   end

@@ -11,8 +11,11 @@ class SyncSubscription < ApplicationRecord
 
   has_many :sync_file_states, dependent: :destroy
 
+  # Constants
+  SYNCABLE_TYPES = %w[Job Corporate Contact].freeze
+
   # Validations
-  validates :syncable_type, inclusion: { in: %w[Job Corporate Contact] }
+  validates :syncable_type, inclusion: { in: SYNCABLE_TYPES }
   validates :syncable_id, uniqueness: { scope: [:desktop_client_id, :syncable_type] }
 
   # Scopes

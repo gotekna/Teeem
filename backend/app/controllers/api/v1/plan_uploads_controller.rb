@@ -56,15 +56,12 @@ module Api
         # SSoT: Accept either file upload or storage_key from presigned URL
         uploaded_file = resolve_uploaded_file(:file, :storage_key)
         unless uploaded_file
-          return render json: { success: false, error: "No file provided. Use 'file' for multipart or 'storage_key' for presigned URL upload." }, status: :unprocessable_entity
+          return render_error("No file provided. Use 'file' for multipart or 'storage_key' for presigned URL upload.", status: :unprocessable_entity)
         end
 
         # Check for existing active upload
         if @job.plan_uploads.active.exists?
-          return render json: {
-            success: false,
-            error: "An upload is already in progress for this job"
-          }, status: :conflict
+          return render_error("An upload is already in progress for this job", status: :conflict)
         end
 
         # Ensure job has plan tabs
@@ -86,7 +83,7 @@ module Api
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
           @plan_upload.mark_failed!("Storage not connected: #{e.message}")
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         begin
@@ -118,11 +115,11 @@ module Api
         rescue DocumentProviders::Error => e
           Rails.logger.error("[PlanUpload] Storage error: #{e.message}")
           @plan_upload.mark_failed!(e.message)
-          render json: { success: false, error: "Storage error: #{e.message}" }, status: :bad_gateway
+          render_error("Storage error: #{e.message}", status: :bad_gateway)
         rescue => e
           Rails.logger.error("[PlanUpload] Upload failed: #{e.message}")
           @plan_upload.mark_failed!(e.message)
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -130,10 +127,7 @@ module Api
       # Resume a failed upload
       def resume
         unless @plan_upload.can_resume?
-          return render json: {
-            success: false,
-            error: "This upload cannot be resumed"
-          }, status: :unprocessable_entity
+          return render_error("This upload cannot be resumed", status: :unprocessable_entity)
         end
 
         @plan_upload.mark_retrying!

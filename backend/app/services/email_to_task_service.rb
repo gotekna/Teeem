@@ -252,7 +252,7 @@ class EmailToTaskService
         .where(conversation_id: @email.conversation_id)
         .where.not(id: @email.id)
         .order(received_at: :desc)
-        .limit(10)
+        .limit(EmailConstants::RELATED_EMAILS_LIMIT)
         .to_a
     end
 
@@ -260,13 +260,13 @@ class EmailToTaskService
     # FRC: Extended to 90 days because forwards create new conversation IDs,
     # so subject matching is the only way to link back to original emails.
     base_subject = normalize_subject(@email.subject)
-    if base_subject.present? && emails.size < 10
+    if base_subject.present? && emails.size < EmailConstants::RELATED_EMAILS_LIMIT
       subject_emails = SyncedEmail
         .where("subject ILIKE ?", "%#{base_subject}%")
-        .where("received_at > ?", 90.days.ago)
+        .where("received_at > ?", EmailConstants::FULL_SYNC_LOOKBACK.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
         .order(received_at: :desc)
-        .limit(10 - emails.size)
+        .limit(EmailConstants::RELATED_EMAILS_LIMIT - emails.size)
         .to_a
 
       emails += subject_emails
@@ -276,20 +276,20 @@ class EmailToTaskService
     # SSoT: Internal domains checked via TenantSetting.internal_domain_patterns
     # FRC: Extended to 90 days to match subject matching window
     external_email = find_external_party
-    if external_email.present? && emails.size < 10
+    if external_email.present? && emails.size < EmailConstants::RELATED_EMAILS_LIMIT
       party_emails = SyncedEmail
         .involving_email(external_email)
-        .where("received_at > ?", 90.days.ago)
+        .where("received_at > ?", EmailConstants::FULL_SYNC_LOOKBACK.ago)
         .where.not(id: [@email.id] + emails.map(&:id))
         .order(received_at: :desc)
-        .limit(10 - emails.size)
+        .limit(EmailConstants::RELATED_EMAILS_LIMIT - emails.size)
         .to_a
 
       emails += party_emails
     end
 
     # Return unique, limited list
-    emails.uniq(&:id).first(10)
+    emails.uniq(&:id).first(EmailConstants::RELATED_EMAILS_LIMIT)
   end
 
   def normalize_subject(subject)

@@ -96,6 +96,11 @@ export const FOUNDATION_SLUGS = {
   WORKER_PROFILES: 'worker_profiles',
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Corporate
+  // ═══════════════════════════════════════════════════════════════════════════
+  CORPORATE_COMPANIES: 'corporate_companies',
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Jobs & Projects
   // ═══════════════════════════════════════════════════════════════════════════
   JOB_CONTACTS: 'job_contacts',
@@ -193,6 +198,7 @@ export const FOUNDATION_SLUGS = {
   PERMISSIONS: 'permissions',
   PORTAL_USERS: 'portal_users',
   PORTAL_ACCESS_LOGS: 'portal_access_logs',
+  ASSETS: 'assets',
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Microsoft Integration

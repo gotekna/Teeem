@@ -40,8 +40,7 @@ module Api
           if report.save
             render json: { success: true, data: report }, status: :created
           else
-            render json: { success: false, error: report.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(report.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -52,8 +51,7 @@ module Api
           if report.update(report_params)
             render json: { success: true, data: report }
           else
-            render json: { success: false, error: report.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(report.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -73,7 +71,7 @@ module Api
 
           render json: { success: true, data: results }
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # POST /api/v1/gl/reports_builder/:id/export
@@ -89,7 +87,7 @@ module Api
                     type: export_content_type(format),
                     disposition: "attachment"
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # POST /api/v1/gl/reports_builder/:id/duplicate
@@ -144,7 +142,7 @@ module Api
 
           render json: { success: true, message: "Added to favorites" }
         rescue ActiveRecord::RecordNotUnique
-          render json: { success: false, error: "Already in favorites" }, status: :unprocessable_entity
+          render_error("Already in favorites", status: :unprocessable_entity)
         end
 
         # DELETE /api/v1/gl/reports_builder/:id/favorite
@@ -197,8 +195,7 @@ module Api
           if dashboard.save
             render json: { success: true, data: dashboard }, status: :created
           else
-            render json: { success: false, error: dashboard.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(dashboard.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -209,8 +206,7 @@ module Api
           if dashboard.update(dashboard_params)
             render json: { success: true, data: dashboard }
           else
-            render json: { success: false, error: dashboard.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(dashboard.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -229,8 +225,7 @@ module Api
           if widget.save
             render json: { success: true, data: widget }, status: :created
           else
-            render json: { success: false, error: widget.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(widget.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -242,8 +237,7 @@ module Api
           if widget.update(widget_params)
             render json: { success: true, data: widget }
           else
-            render json: { success: false, error: widget.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(widget.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 

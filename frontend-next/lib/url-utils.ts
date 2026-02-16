@@ -70,15 +70,6 @@ export function buildTableUrl(slug: string, tab?: string): string {
 }
 
 /**
- * @deprecated Use buildTableUrl(slug, tab) instead - tableId removed from URLs
- */
-export function buildTableUrlLegacy(tableId: number, slug: string, tab?: string): string {
-  const baseSlug = slugify(slug);
-  const base = `/${tableId}/${baseSlug}`;
-  return tab ? `${base}?tab=${tab}` : base;
-}
-
-/**
  * Build a table item URL: /{tableSlug}/{itemId}?tab={tab}
  * @param tableSlug - The table slug (e.g., "jobs", "contacts")
  * @param itemId - The item ID or slug
@@ -94,50 +85,6 @@ export function buildItemUrl(
   // For item URLs, we use /{tableSlug}/{itemId}
   const base = `/${slugify(tableSlug)}/${itemId}`;
   return tab ? `${base}?tab=${tab}` : base;
-}
-
-/**
- * @deprecated Use buildItemUrl(tableSlug, itemId, itemName, tab) instead
- */
-export function buildItemUrlLegacy(
-  tableId: number,
-  itemId: number | string,
-  itemName?: string,
-  tab?: string
-): string {
-  let slug: string;
-  if (itemName) {
-    slug = `${slugify(itemName)}-${itemId}`;
-  } else {
-    slug = `item-${itemId}`;
-  }
-  return buildTableUrlLegacy(tableId, slug, tab);
-}
-
-/**
- * Parse a TEEEM URL to extract tableId, slug, and tab
- */
-export function parseTableUrl(pathname: string, searchParams?: URLSearchParams): {
-  tableId: number | null;
-  slug: string | null;
-  tab: string | null;
-  itemId: string | null;
-} {
-  // Match /{tableId}/{slug}
-  const match = pathname.match(/^\/(\d+)\/(.+)$/i);
-  if (!match) {
-    return { tableId: null, slug: null, tab: null, itemId: null };
-  }
-
-  const tableId = parseInt(match[1], 10);
-  const slug = match[2];
-  const tab = searchParams?.get("tab") || null;
-
-  // Extract item ID from slug if present (e.g., "job-123-smith-st" -> "123")
-  const itemMatch = slug.match(/-(\d+)(?:-|$)/);
-  const itemId = itemMatch ? itemMatch[1] : null;
-
-  return { tableId, slug, tab, itemId };
 }
 
 /**

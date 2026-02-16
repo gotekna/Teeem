@@ -30,8 +30,7 @@ module Api
           financial_year = params[:financial_year] || ::Gl::TparReport.current_financial_year
 
           if @corporate.gl_tpar_reports.exists?(financial_year: financial_year)
-            render json: { success: false, error: "Report for #{financial_year} already exists" },
-                   status: :unprocessable_entity
+            render_error("Report for #{financial_year} already exists", status: :unprocessable_entity)
             return
           end
 
@@ -60,7 +59,7 @@ module Api
           if @report.submit_for_review!
             render json: { success: true, data: @report, message: "Report submitted for review" }
           else
-            render json: { success: false, error: "Cannot submit report" }, status: :unprocessable_entity
+            render_error("Cannot submit report", status: :unprocessable_entity)
           end
         end
 

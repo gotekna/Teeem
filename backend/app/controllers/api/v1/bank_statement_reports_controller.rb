@@ -51,7 +51,7 @@ module Api
           data: serialize_report(report, include_url: true)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       # GET /api/v1/bank_statement_reports/:id/download
@@ -61,13 +61,13 @@ module Api
         report = base_scope.find(params[:id])
 
         unless report.status == "completed" && report.cloudinary_url.present?
-          return render json: { success: false, error: "Report not available for download" }, status: :unprocessable_entity
+          return render_error("Report not available for download", status: :unprocessable_entity)
         end
 
         # Redirect to SharePoint URL for download
         redirect_to report.cloudinary_url, allow_other_host: true
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       # POST /api/v1/bank_statement_reports/generate_all (global - all companies)
@@ -81,17 +81,14 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Bank statement report generation failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Generation failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Generation failed: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/companies/:company_id/bank_statement_reports/generate_historical
       # Generate monthly bank statement reports for this company's bank accounts
       def generate_historical
         unless @company
-          return render json: { success: false, error: "Company ID required" }, status: :bad_request
+          return render_error("Company ID required", status: :bad_request)
         end
 
         result = BankStatementReport.generate_historical!(@company)
@@ -113,10 +110,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Historical bank statement generation failed: #{e.message}")
-        render json: {
-          success: false,
-          error: "Generation failed: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Generation failed: #{e.message}", status: :internal_server_error)
       end
 
       # POST /api/v1/bank_statement_reports/:id/regenerate
@@ -132,7 +126,7 @@ module Api
           error: result[:error]
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Report not found" }, status: :not_found
+        render_error("Report not found", status: :not_found)
       end
 
       # POST /api/v1/bank_statement_reports/batch_regenerate
@@ -169,10 +163,7 @@ module Api
         }
       rescue StandardError => e
         Rails.logger.error("Batch regeneration failed to start: #{e.message}")
-        render json: {
-          success: false,
-          error: "Failed to start batch regeneration: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to start batch regeneration: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/bank_statement_reports/batch_progress
@@ -267,7 +258,7 @@ module Api
       def set_company
         @company = Corporate.find(params[:company_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Company not found" }, status: :not_found
+        render_error("Company not found", status: :not_found)
       end
 
       # Base scope - scoped to company if company_id present

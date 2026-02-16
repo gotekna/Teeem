@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Wand2, Check, X, AlertCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
 
 // =============================================================================
 // Types
@@ -141,7 +142,7 @@ export function ScaleDetector({
     setResult(null);
     setManualReference("");
     // Auto-start detection
-    setTimeout(() => handleDetect(), 100);
+    setTimeout(() => handleDetect(), UI_ANIMATION_SHORT_MS);
   };
 
   // Get confidence color

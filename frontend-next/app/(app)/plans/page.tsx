@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api";
+import { formatDateTime } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatFileSize } from "@/utils/formatters";
+import { POLLING_DELAY_MS } from "@/lib/constants/timeout-constants";
 
 interface PlanFolderScan {
   id: number;
@@ -92,7 +94,7 @@ export default function PlansPage() {
           description: response.message || "Scanning folders for new plans...",
         });
         // Refresh after a delay to show results
-        setTimeout(fetchScans, 3000);
+        setTimeout(fetchScans, POLLING_DELAY_MS);
       }
     } catch (error) {
       toast({
@@ -152,15 +154,6 @@ export default function PlansPage() {
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "-";
-    return new Date(dateStr).toLocaleString("en-AU", {
-      day: "2-digit",
-      month: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
 
   if (loading) {
     return (
@@ -258,7 +251,7 @@ export default function PlansPage() {
                     <TableCell className="max-w-[150px] truncate" title={scan.job_name}>
                       {scan.job_name}
                     </TableCell>
-                    <TableCell>{formatDate(scan.file_modified_at)}</TableCell>
+                    <TableCell>{formatDateTime(scan.file_modified_at)}</TableCell>
                     <TableCell>{formatFileSize(scan.file_size)}</TableCell>
                     <TableCell>{getStatusBadge(scan.status)}</TableCell>
                     <TableCell>

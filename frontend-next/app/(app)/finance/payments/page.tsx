@@ -49,6 +49,7 @@ import {
 import { api } from "@/lib/api";
 import { BackButton } from "@/components/ui/back-button";
 import { SearchInput } from "@/components/ui/search-input";
+import type { User } from "@/lib/types";
 
 interface BankAccount {
   id: number;
@@ -56,13 +57,6 @@ interface BankAccount {
   bsb: string;
   account_number: string;
   institution_name?: string;
-}
-
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
-  email?: string;
 }
 
 interface BillPaymentBatch {
@@ -395,7 +389,7 @@ export default function PaymentBatchesPage() {
                   </TableCell>
                   <TableCell>
                     {batch.created_by
-                      ? `${batch.created_by.first_name} ${batch.created_by.last_name}`
+                      ? batch.created_by.name || `${batch.created_by.first_name || ''} ${batch.created_by.last_name || ''}`.trim()
                       : "-"}
                   </TableCell>
                   <TableCell>

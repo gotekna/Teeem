@@ -30,7 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import {
   Table,
   TableBody,
@@ -538,7 +538,7 @@ export function XeroInvoicesListByTenant({
     setPdfUrl(null);
     try {
       // The PDF endpoint returns the PDF directly as binary data, so we need the full URL for iframe
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+      const baseUrl = getApiBaseUrl();
       setPdfUrl(`${baseUrl}/api/v1/external_invoices/${invoiceId}/pdf`);
     } catch (err) {
       console.error("Failed to set PDF URL:", err);

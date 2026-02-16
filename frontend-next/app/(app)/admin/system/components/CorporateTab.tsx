@@ -61,19 +61,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
-
-interface CompanyGroup {
-  id: number;
-  name: string;
-  code?: string;
-  description?: string;
-  default_registered_office?: string;
-  default_principal_place?: string;
-  default_accountant?: string;
-  default_accountant_contact?: string;
-  active?: boolean;
-  companies_count?: number;
-}
+import type { Company, CompanyGroup } from "@/lib/types";
 
 const COMPANY_STATUSES = [
   { value: "all", label: "All Statuses" },
@@ -89,23 +77,6 @@ const ENTITY_TYPES = [
   { value: "Trust", label: "Trust" },
   { value: "Superfund", label: "Superfund" },
 ];
-
-interface Company {
-  id: number;
-  name: string;
-  code?: string;
-  abn: string;
-  acn: string;
-  company_group_id?: number;
-  group?: string;
-  status: string;
-  type: string;
-  entity_type?: string;
-  address: string;
-  email: string;
-  phone: string;
-  storage_folder_url?: string;
-}
 
 // ===== GROUPS SUB-TAB =====
 function GroupsSubTab() {
@@ -695,7 +666,7 @@ function CompaniesSubTab() {
     );
   });
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
     switch (status) {
       case "active":
         return "bg-status-success text-status-success-foreground dark:bg-green-900 dark:text-green-300";

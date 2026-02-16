@@ -83,10 +83,7 @@ class Api::V1::JobCostBudgetsController < ApplicationController
         data: budget_to_json(@budget)
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: @budget.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@budget)
     end
   end
 
@@ -98,10 +95,7 @@ class Api::V1::JobCostBudgetsController < ApplicationController
         data: budget_to_json(@budget)
       }
     else
-      render json: {
-        success: false,
-        errors: @budget.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@budget)
     end
   end
 
@@ -115,10 +109,7 @@ class Api::V1::JobCostBudgetsController < ApplicationController
       message: "Budget recalculated successfully"
     }
   rescue StandardError => e
-    render json: {
-      success: false,
-      error: "Recalculation failed: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Recalculation failed: #{e.message}", status: :unprocessable_entity)
   end
 
   private
@@ -126,7 +117,7 @@ class Api::V1::JobCostBudgetsController < ApplicationController
   def set_budget
     @budget = JobCostBudget.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Budget not found" }, status: :not_found
+    render_error("Budget not found", status: :not_found)
   end
 
   def budget_params

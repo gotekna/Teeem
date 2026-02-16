@@ -7,12 +7,16 @@ module Gl
     belongs_to :job, optional: true
     belongs_to :created_by, class_name: 'User', optional: true
     belongs_to :updated_by, class_name: 'User', optional: true
-    has_many :generated_invoices, class_name: 'Gl::Invoice', foreign_key: :recurring_invoice_id
+    has_many :generated_invoices, class_name: 'Gl::Invoice', foreign_key: :recurring_invoice_id, dependent: :nullify
+
+    # Constants
+    INVOICE_TYPES = %w[sales_invoice bill].freeze
+    FREQUENCIES = %w[daily weekly fortnightly monthly quarterly annually].freeze
 
     # Validations
     validates :name, presence: true
-    validates :invoice_type, presence: true, inclusion: { in: %w[sales_invoice bill] }
-    validates :frequency, presence: true, inclusion: { in: %w[daily weekly fortnightly monthly quarterly annually] }
+    validates :invoice_type, presence: true, inclusion: { in: INVOICE_TYPES }
+    validates :frequency, presence: true, inclusion: { in: FREQUENCIES }
     validates :frequency_interval, numericality: { greater_than: 0 }
     validates :start_date, presence: true
     validates :day_of_month, numericality: { greater_than_or_equal_to: -1, less_than_or_equal_to: 28 }, allow_nil: true

@@ -404,7 +404,6 @@ async function drawImage(
 
   // Only support data URLs for now
   if (!annotation.src.startsWith("data:image")) {
-    console.warn("Image annotation source not supported:", annotation.src.substring(0, 50));
     return;
   }
 
@@ -418,7 +417,6 @@ async function drawImage(
     } else if (annotation.src.includes("image/jpeg") || annotation.src.includes("image/jpg")) {
       image = await doc.embedJpg(imageBytes);
     } else {
-      console.warn("Unsupported image format:", annotation.src.substring(0, 30));
       return;
     }
 
@@ -472,7 +470,6 @@ export async function drawAnnotationsOnPage(
           await drawImage(doc, page, annotation as FabricImage, pageInfo);
           break;
         default:
-          console.warn("Unknown annotation type:", annotation.type);
       }
     } catch (err) {
       console.error(`Failed to draw annotation of type ${annotation.type}:`, err);

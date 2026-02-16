@@ -17,20 +17,14 @@ module Api
       # POST /api/v1/pay_now_weekly_limits/set_limit
       def set_limit
         unless params[:amount].present?
-          render json: {
-            success: false,
-            error: "Limit amount is required"
-          }, status: :unprocessable_entity
+          render_error("Limit amount is required", status: :unprocessable_entity)
           return
         end
 
         amount = params[:amount].to_f
 
         if amount < 0
-          render json: {
-            success: false,
-            error: "Limit amount must be greater than or equal to zero"
-          }, status: :unprocessable_entity
+          render_error("Limit amount must be greater than or equal to zero", status: :unprocessable_entity)
           return
         end
 
@@ -43,10 +37,7 @@ module Api
             data: weekly_limit_json(new_limit)
           }
         rescue StandardError => e
-          render json: {
-            success: false,
-            error: "Failed to set weekly limit: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to set weekly limit: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -111,10 +102,7 @@ module Api
 
       def authorize_builder_or_admin
         unless current_user.builder? || current_user.admin?
-          render json: {
-            success: false,
-            error: "Unauthorized. Only builders can manage weekly limits."
-          }, status: :forbidden
+          render_error("Unauthorized. Only builders can manage weekly limits.", status: :forbidden)
         end
       end
 

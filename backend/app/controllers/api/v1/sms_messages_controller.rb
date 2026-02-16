@@ -16,14 +16,14 @@ module Api
       # POST /api/v1/contacts/:contact_id/sms_messages
       def create
         unless params[:body].present?
-          return render json: { success: false, error: "Message body is required" }, status: :unprocessable_entity
+          return render_error("Message body is required", status: :unprocessable_entity)
         end
 
         # SSoT: Use primary_mobile from contact_phones table
         to_phone = params[:to_phone] || @contact.primary_mobile
 
         unless to_phone.present?
-          return render json: { success: false, error: "No phone number available for this contact" }, status: :unprocessable_entity
+          return render_error("No phone number available for this contact", status: :unprocessable_entity)
         end
 
         result = TwilioService.send_sms(
@@ -39,7 +39,7 @@ module Api
             sms_message: result[:sms].as_json(include: :user)
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -72,7 +72,7 @@ module Api
       def set_contact
         @contact = Contact.find(params[:contact_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
     end
   end

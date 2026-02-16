@@ -102,9 +102,6 @@ export function SMGanttTab() {
       if (saved) {
         setConfig(saved);
       }
-      // Optionally try API if it exists in the future
-      // const data = await api.get<GanttConfig>("/api/v1/gantt_config");
-      // setConfig(data);
     } catch {
       console.debug("Using default gantt config");
     } finally {

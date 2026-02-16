@@ -185,7 +185,7 @@ class GanttDateCalculationService
     # Started tasks use hold_date as anchor (even if hold is false)
     # This allows "started" checkbox without "hold" checkbox, but task stays pinned
     # User-pinned dates are respected even on weekends/holidays
-    if task.try(:started) && task.hold_date.present?
+    if task&.started && task.hold_date.present?
       row_start = task.hold_date.to_date
       duration = task.duration_days || 1
       row_end = @calendar.add_working_days(row_start, duration - 1)
@@ -194,7 +194,7 @@ class GanttDateCalculationService
 
     # Supplier confirmed tasks use hold_date as anchor (pins to confirmation date)
     # User-pinned dates are respected even on weekends/holidays
-    if task.try(:supplier_confirm) && task.hold_date.present?
+    if task&.supplier_confirm && task.hold_date.present?
       row_start = task.hold_date.to_date
       duration = task.duration_days || 1
       row_end = @calendar.add_working_days(row_start, duration - 1)

@@ -36,8 +36,7 @@ module Api
         if recipe.save
           render json: { success: true, recipe: recipe.as_json }, status: :created
         else
-          render json: { success: false, error: recipe.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(recipe)
         end
       end
 
@@ -46,8 +45,7 @@ module Api
         if @recipe.update(recipe_params)
           render json: { success: true, recipe: @recipe.as_json }
         else
-          render json: { success: false, error: @recipe.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(@recipe)
         end
       end
 
@@ -66,7 +64,7 @@ module Api
 
         render json: { success: true, recipe: new_recipe.as_json }, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/recipes/:id/activate

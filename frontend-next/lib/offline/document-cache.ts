@@ -18,6 +18,7 @@
 
 import { openDB, DBSchema, IDBPDatabase } from "idb";
 import { formatFileSize } from "@/utils/formatters";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
 
 // =============================================================================
 // Configuration
@@ -32,7 +33,7 @@ const JOBS_STORE = "syncedJobs";
 export const DOCUMENT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Max size per document (10MB - larger files skip caching)
-export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+export const MAX_DOCUMENT_SIZE_BYTES = MAX_UPLOAD_SIZE;
 
 // =============================================================================
 // Types
@@ -120,7 +121,6 @@ async function getDatabase(): Promise<IDBPDatabase<DocumentCacheDB>> {
   if (!dbPromise) {
     dbPromise = openDB<DocumentCacheDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
-        console.log(`[DocumentCache] Upgrading database from v${oldVersion} to v${DB_VERSION}`);
 
         if (oldVersion < 1) {
           // Documents store
@@ -132,14 +132,11 @@ async function getDatabase(): Promise<IDBPDatabase<DocumentCacheDB>> {
           const jobsStore = db.createObjectStore(JOBS_STORE, { keyPath: "jobId" });
           jobsStore.createIndex("by-lastSynced", "lastSyncedAt");
 
-          console.log("[DocumentCache] Created documents and syncedJobs stores");
         }
       },
       blocked() {
-        console.warn("[DocumentCache] Database blocked - another tab may be using an older version");
       },
       blocking() {
-        console.warn("[DocumentCache] This tab is blocking a database upgrade in another tab");
       },
       terminated() {
         console.error("[DocumentCache] Database connection terminated unexpectedly");
@@ -193,14 +190,12 @@ export async function getDocumentFromCache(
     // Check TTL
     if (Date.now() > data.expiresAt) {
       await db.delete(DOCUMENTS_STORE, cacheKey);
-      console.log(`[DocumentCache] EXPIRED: ${cacheKey}`);
       return null;
     }
 
-    console.log(`[DocumentCache] HIT: ${data.fileName} (${formatFileSize(data.fileSize)})`);
     return data;
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to read:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -222,7 +217,6 @@ export async function setDocumentInCache(
 
   // Skip large files
   if (blob.size > MAX_DOCUMENT_SIZE_BYTES) {
-    console.log(`[DocumentCache] SKIP: ${fileName} too large (${formatFileSize(blob.size)})`);
     return;
   }
 
@@ -247,9 +241,8 @@ export async function setDocumentInCache(
     };
 
     await db.put(DOCUMENTS_STORE, data);
-    console.log(`[DocumentCache] SET: ${fileName} (${formatFileSize(blob.size)})`);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to write:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -266,9 +259,8 @@ export async function deleteDocumentFromCache(
     const db = await getDatabase();
     const cacheKey = getDocumentCacheKey(jobId, documentId);
     await db.delete(DOCUMENTS_STORE, cacheKey);
-    console.log(`[DocumentCache] DELETED: ${cacheKey}`);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to delete:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -285,8 +277,8 @@ export async function getJobDocumentsFromCache(jobId: number): Promise<CachedDoc
 
     // Filter out expired entries
     return all.filter(entry => now <= entry.expiresAt);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to get job documents:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -311,10 +303,9 @@ export async function clearJobDocumentsFromCache(jobId: number): Promise<number>
     }
 
     await tx.done;
-    console.log(`[DocumentCache] Cleared ${deletedCount} documents for job ${jobId}`);
     return deletedCount;
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to clear job documents:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -332,8 +323,8 @@ export async function getSyncedJobInfo(jobId: number): Promise<SyncedJobInfo | n
   try {
     const db = await getDatabase();
     return await db.get(JOBS_STORE, jobId) || null;
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to get synced job info:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -347,8 +338,8 @@ export async function updateSyncedJobInfo(info: SyncedJobInfo): Promise<void> {
   try {
     const db = await getDatabase();
     await db.put(JOBS_STORE, info);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to update synced job info:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -361,8 +352,8 @@ export async function getAllSyncedJobs(): Promise<SyncedJobInfo[]> {
   try {
     const db = await getDatabase();
     return await db.getAll(JOBS_STORE);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to get all synced jobs:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -382,9 +373,8 @@ export async function removeSyncedJob(jobId: number): Promise<void> {
     // Delete all documents for this job
     await clearJobDocumentsFromCache(jobId);
 
-    console.log(`[DocumentCache] Removed synced job ${jobId}`);
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to remove synced job:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -417,12 +407,11 @@ export async function cleanupDocumentCache(): Promise<number> {
     await tx.done;
 
     if (deletedCount > 0) {
-      console.log(`[DocumentCache] Cleaned up ${deletedCount} expired documents`);
     }
 
     return deletedCount;
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to cleanup:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -437,9 +426,8 @@ export async function clearDocumentCache(): Promise<void> {
     const db = await getDatabase();
     await db.clear(DOCUMENTS_STORE);
     await db.clear(JOBS_STORE);
-    console.log("[DocumentCache] ALL CLEARED");
-  } catch (error) {
-    console.warn("[DocumentCache] Failed to clear:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -481,7 +469,6 @@ export async function getDocumentCacheStats(): Promise<{
       oldestAge: oldestTimestamp ? Date.now() - oldestTimestamp : null,
     };
   } catch (error) {
-    console.warn("[DocumentCache] Failed to get stats:", error);
     return {
       documentCount: 0,
       jobCount: 0,

@@ -64,6 +64,8 @@ import { EmailAccountsTab } from "./EmailAccountsTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { API } from "@/lib/constants/api-endpoints";
+import { COUNTDOWN_TICK_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 // SharePoint Connection Component
 function SharePointConnection() {
@@ -86,7 +88,7 @@ function SharePointConnection() {
 
   const loadStatus = async () => {
     try {
-      const data = await api.get<typeof status>("/api/v1/documents/status");
+      const data = await api.get<typeof status>("API.documents.status");
       setStatus(data);
     } catch (error) {
       console.error("Failed to load SharePoint status:", error);
@@ -99,7 +101,7 @@ function SharePointConnection() {
   const handleConnect = async () => {
     setConnecting(true);
     try {
-      const data = await api.get<{ auth_url: string }>("/api/v1/documents/authorize");
+      const data = await api.get<{ auth_url: string }>("API.documents.presignedUrl");
       window.location.href = data.auth_url;
     } catch (error) {
       console.error("Failed to get auth URL:", error);
@@ -112,7 +114,7 @@ function SharePointConnection() {
     if (!(await confirm("Are you sure you want to disconnect cloud storage?"))) return;
     setDisconnecting(true);
     try {
-      await api.delete("/api/v1/documents/disconnect");
+      await api.delete("API.documents.delete");
       toast({ title: "Success", description: "Cloud storage disconnected successfully" });
       setStatus({ connected: false });
     } catch (error) {
@@ -230,7 +232,6 @@ function OutlookConnection() {
   React.useEffect(() => {
     const autoRefreshToken = async () => {
       if (status?.needs_refresh && status?.connected) {
-        console.log("Token needs refresh, attempting auto-refresh...");
         try {
           const result = await api.post<{ success: boolean; error?: string }>("/api/v1/microsoft/refresh");
           if (result?.success) {
@@ -238,7 +239,6 @@ function OutlookConnection() {
             loadStatus(); // Reload status after successful refresh
           } else if (result) {
             // Auto-refresh failed, redirect to re-auth
-            console.log("Auto-refresh failed, redirecting to auth...");
             const data = await api.get<{ auth_url: string }>("/api/v1/microsoft/auth_url");
             window.location.href = data.auth_url;
           }
@@ -1000,7 +1000,7 @@ function DocumentStorageProvider() {
   const loadOrgConfig = async () => {
     try {
       // SSoT (Feb 2026): Use WarehouseProvider API directly - same as Warehouse Config page
-      const response = await api.get<{ success: boolean; data: WarehouseProviderConfig }>("/api/v1/warehouse_provider");
+      const response = await api.get<{ success: boolean; data: WarehouseProviderConfig }>(API.warehouseProvider.get);
       if (response.data) {
         setOrgConfig(response.data);
         setBucket(response.data.bucket || "");
@@ -1056,7 +1056,7 @@ function DocumentStorageProvider() {
       const preset = selectedProvider !== "sharepoint" ? PROVIDER_PRESETS[selectedProvider] : null;
 
       const response = await api.patch<{ success: boolean; data?: WarehouseProviderConfig; errors?: string[] }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             provider_type: providerType,
@@ -1095,7 +1095,7 @@ function DocumentStorageProvider() {
           sampled?: boolean;
         };
         error?: string;
-      }>("/api/v1/warehouse_provider/storage_stats");
+      }>(`${API.warehouseProvider.get}/storage_stats`);
 
       if (response?.success && response.stats) {
         setStorageStats(response.stats);
@@ -1121,7 +1121,7 @@ function DocumentStorageProvider() {
         error?: string;
         provider?: string;
         details?: Record<string, unknown>;
-      }>("/api/v1/warehouse_provider/test");
+      }>(API.warehouseProvider.test);
 
       const isSuccess = response?.success ?? false;
       const successMessage = response?.message || "Connection successful";
@@ -1720,7 +1720,7 @@ function EmailMigrationCard() {
     try {
       await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
       toast({ title: "Started", description: "Email migration job queued" });
-      setTimeout(loadActiveEmailJob, 1000);
+      setTimeout(loadActiveEmailJob, COUNTDOWN_TICK_MS);
     } catch {
       toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
     }
@@ -1791,14 +1791,14 @@ function EmailMigrationCard() {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Emails uploaded</span>
             <span className="font-semibold">
-              {storageUpload.uploaded.toLocaleString()} / {storageUpload.uploadable.toLocaleString()}
+              {(storageUpload.uploaded ?? 0).toLocaleString()} / {(storageUpload.uploadable ?? 0).toLocaleString()}
             </span>
           </div>
           <Progress value={storageUpload.upload_rate} className="h-3" />
           {storageUpload.remaining > 0 && (
             <p className="text-sm text-muted-foreground">
               <span className="font-medium text-orange-600 dark:text-orange-400">
-                {storageUpload.remaining.toLocaleString()}
+                {(storageUpload.remaining ?? 0).toLocaleString()}
               </span>{" "}
               emails remaining
             </p>
@@ -1829,7 +1829,7 @@ function EmailMigrationCard() {
                         variant={item.pending > 5000 ? "destructive" : item.pending > 1000 ? "default" : "secondary"}
                         className="text-xs"
                       >
-                        {item.pending.toLocaleString()}
+                        {(item.pending ?? 0).toLocaleString()}
                       </Badge>
                     </div>
                   ))}
@@ -1948,8 +1948,8 @@ function AttachmentDeduplicationCard() {
     return <></>; // No attachments to process - render empty to maintain consistent component tree
   }
 
-  const isComplete = attachments.migration_rate >= 100;
-  const pending = attachments.legacy_sharepoint;
+  const isComplete = (attachments.migration_rate ?? 0) >= 100;
+  const pending = attachments.legacy_sharepoint ?? 0;
 
   return (
     <Card>
@@ -1977,13 +1977,13 @@ function AttachmentDeduplicationCard() {
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Attachments deduplicated</span>
             <span className="font-semibold">
-              {attachments.with_blob.toLocaleString()} / {attachments.total.toLocaleString()}
+              {(attachments.with_blob ?? 0).toLocaleString()} / {(attachments.total ?? 0).toLocaleString()}
             </span>
           </div>
           <Progress value={attachments.migration_rate} className="h-2" />
           <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>Legacy SharePoint: {attachments.legacy_sharepoint.toLocaleString()}</span>
-            <span>Deduplicated: {attachments.with_blob.toLocaleString()}</span>
+            <span>Legacy SharePoint: {(attachments.legacy_sharepoint ?? 0).toLocaleString()}</span>
+            <span>Deduplicated: {(attachments.with_blob ?? 0).toLocaleString()}</span>
           </div>
         </div>
 
@@ -2037,7 +2037,7 @@ function DocumentMigrationCard() {
 
   React.useEffect(() => {
     if (status?.migration_in_progress) {
-      refreshIntervalRef.current = setInterval(loadStatus, 5000);
+      refreshIntervalRef.current = setInterval(loadStatus, POLLING_FAST_MS);
     } else if (refreshIntervalRef.current) {
       clearInterval(refreshIntervalRef.current);
       refreshIntervalRef.current = null;
@@ -2302,7 +2302,7 @@ function IntegrationsSubTab() {
 
         // Fetch Cloudflare status
         try {
-          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/cloudflare_credentials');
+          const cloudflareResponse = await api.get<{ success: boolean; data: { status: string; account_id: string } | null }>('/api/v1/cloudflare_credentials');
           if (cloudflareResponse?.success && cloudflareResponse.data) {
             setCloudflareStatus({ connected: cloudflareResponse.data.status === 'connected', account_id: cloudflareResponse.data.account_id });
           } else {

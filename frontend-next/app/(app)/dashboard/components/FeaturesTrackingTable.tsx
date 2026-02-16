@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 // Badge imported but kept for potential future use
 import { Trophy } from "lucide-react";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -252,7 +253,7 @@ export default function FeaturesTrackingTable() {
       {/* TeeemTableView */}
       <TeeemTableView
         tableName="Feature Tracking"
-        foundationId="feature_trackers"
+        foundationId={FOUNDATION_SLUGS.FEATURE_TRACKERS}
         entries={features}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
         viewOnly={true}

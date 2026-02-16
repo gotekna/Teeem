@@ -46,14 +46,14 @@ module Api
           system_type = params[:system_type]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: "Invalid system type" }, status: :bad_request
+            render_error("Invalid system type", status: :bad_request)
             return
           end
 
           # Check if already connected
           existing = current_contact.accounting_integrations.active.where(system_type: system_type).first
           if existing
-            render json: { success: false, error: "Already connected to this system" }, status: :unprocessable_entity
+            render_error("Already connected to this system", status: :unprocessable_entity)
             return
           end
 
@@ -81,7 +81,7 @@ module Api
               }
             }
           else
-            render json: { success: false, error: "OAuth URL generation failed" }, status: :internal_server_error
+            render_error("OAuth URL generation failed", status: :internal_server_error)
           end
         end
 
@@ -93,13 +93,13 @@ module Api
           state = params[:state]
 
           unless AccountingIntegration::SYSTEM_TYPES.include?(system_type)
-            render json: { success: false, error: "Invalid system type" }, status: :bad_request
+            render_error("Invalid system type", status: :bad_request)
             return
           end
 
           # Verify state to prevent CSRF
           unless verify_oauth_state(state, system_type)
-            render json: { success: false, error: "Invalid OAuth state" }, status: :forbidden
+            render_error("Invalid OAuth state", status: :forbidden)
             return
           end
 
@@ -116,7 +116,7 @@ module Api
           end
 
           if token_data[:error]
-            render json: { success: false, error: token_data[:error] }, status: :unprocessable_entity
+            render_error(token_data[:error], status: :unprocessable_entity)
             return
           end
 
@@ -179,7 +179,7 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
+            render_error("Integration is not active", status: :unprocessable_entity)
             return
           end
 
@@ -204,7 +204,7 @@ module Api
           integration = current_contact.accounting_integrations.find(params[:id])
 
           unless integration.active?
-            render json: { success: false, error: "Integration is not active" }, status: :unprocessable_entity
+            render_error("Integration is not active", status: :unprocessable_entity)
             return
           end
 
@@ -268,7 +268,7 @@ module Api
 
         def generate_xero_oauth_url
           client_id = ENV["XERO_CLIENT_ID"] || "YOUR_XERO_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/xero"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/xero"
           scope = "accounting.transactions accounting.contacts"
           state = generate_oauth_state("xero")
 
@@ -277,14 +277,14 @@ module Api
 
         def generate_myob_oauth_url
           client_id = ENV["MYOB_CLIENT_ID"] || "YOUR_MYOB_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/myob"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/myob"
 
           "https://secure.myob.com/oauth2/account/authorize?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=CompanyFile"
         end
 
         def generate_quickbooks_oauth_url
           client_id = ENV["QUICKBOOKS_CLIENT_ID"] || "YOUR_QUICKBOOKS_CLIENT_ID"
-          redirect_uri = "#{ENV['FRONTEND_URL']}/portal/accounting/callback/quickbooks"
+          redirect_uri = "#{InfrastructureUrls.frontend_url}/portal/accounting/callback/quickbooks"
 
           "https://appcenter.intuit.com/connect/oauth2?client_id=#{client_id}&redirect_uri=#{CGI.escape(redirect_uri)}&response_type=code&scope=com.intuit.quickbooks.accounting"
         end

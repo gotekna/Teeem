@@ -21,7 +21,7 @@ class PlanReviewService
     @review = nil
   end
 
-  def execute
+  def call
     # Create or get existing review
     @review = @estimate.estimate_reviews.create!(
       status: "processing",

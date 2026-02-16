@@ -68,25 +68,25 @@ module Api
 
           # Validate job is completed
           unless purchase_order.completed_at.present?
-            render json: { success: false, error: "Cannot invoice incomplete jobs" }, status: :unprocessable_entity
+            render_error("Cannot invoice incomplete jobs", status: :unprocessable_entity)
             return
           end
 
           # Check for existing invoice
           if purchase_order.subcontractor_invoices.any?
-            render json: { success: false, error: "Purchase order already has an invoice" }, status: :unprocessable_entity
+            render_error("Purchase order already has an invoice", status: :unprocessable_entity)
             return
           end
 
           # Validate amount
           amount = params[:amount].to_f
           if amount <= 0
-            render json: { success: false, error: "Invoice amount must be greater than zero" }, status: :unprocessable_entity
+            render_error("Invoice amount must be greater than zero", status: :unprocessable_entity)
             return
           end
 
           if amount > purchase_order.total
-            render json: { success: false, error: "Invoice amount cannot exceed PO total of $#{purchase_order.total}" }, status: :unprocessable_entity
+            render_error("Invoice amount cannot exceed PO total of $#{purchase_order.total}", status: :unprocessable_entity)
             return
           end
 
@@ -126,7 +126,7 @@ module Api
           invoice = current_contact.subcontractor_invoices.find(params[:id])
 
           unless invoice.pending?
-            render json: { success: false, error: "Can only update pending invoices" }, status: :unprocessable_entity
+            render_error("Can only update pending invoices", status: :unprocessable_entity)
             return
           end
 
@@ -151,7 +151,7 @@ module Api
           invoice = current_contact.subcontractor_invoices.find(params[:id])
 
           unless invoice.pending? || invoice.failed?
-            render json: { success: false, error: "Can only delete pending or failed invoices" }, status: :unprocessable_entity
+            render_error("Can only delete pending or failed invoices", status: :unprocessable_entity)
             return
           end
 
@@ -174,12 +174,12 @@ module Api
           invoice = current_contact.subcontractor_invoices.find(params[:id])
 
           unless invoice.failed?
-            render json: { success: false, error: "Can only retry failed invoices" }, status: :unprocessable_entity
+            render_error("Can only retry failed invoices", status: :unprocessable_entity)
             return
           end
 
           unless invoice.accounting_integration&.active?
-            render json: { success: false, error: "No active accounting integration found" }, status: :unprocessable_entity
+            render_error("No active accounting integration found", status: :unprocessable_entity)
             return
           end
 

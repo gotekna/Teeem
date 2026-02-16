@@ -106,7 +106,7 @@ namespace :warehouse do
     # LEGACY: RECOMPUTE WAREHOUSE_DOCUMENT FOLDER PATHS
     # ═══════════════════════════════════════════════════════════════════════════
 
-    desc "Recompute all folder paths from StorageConfiguration templates"
+    desc "Recompute all folder paths from WarehouseProvider templates"
     task recompute_all: :environment do
       puts "Recomputing all WarehouseDocument folder paths from templates..."
 
@@ -169,8 +169,8 @@ namespace :warehouse do
     end
 
     def recompute_folders_for_tenant(tenant)
-      config = StorageConfiguration.instance rescue nil
-      return puts "  No StorageConfiguration for tenant #{tenant.name}" unless config
+      config = WarehouseProvider.instance rescue nil
+      return puts "  No WarehouseProvider for tenant #{tenant.name}" unless config
 
       updated = 0
       errors = 0
@@ -190,8 +190,8 @@ namespace :warehouse do
     end
 
     def recompute_folders_for_source_type(tenant, source_type)
-      config = StorageConfiguration.instance rescue nil
-      return puts "  No StorageConfiguration for tenant #{tenant.name}" unless config
+      config = WarehouseProvider.instance rescue nil
+      return puts "  No WarehouseProvider for tenant #{tenant.name}" unless config
 
       updated = 0
       errors = 0

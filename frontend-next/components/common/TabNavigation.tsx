@@ -20,7 +20,6 @@ import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 // TYPES
 // ============================================
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type IconComponent = React.ComponentType<{ className?: string }>;
 
 interface TabNavigationProps {

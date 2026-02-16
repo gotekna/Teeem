@@ -235,8 +235,8 @@ export function MergeModal({
                     </div>
                     {secondaryInfo.length > 0 && (
                       <div className="text-sm text-muted-foreground flex gap-4 mt-1 flex-wrap">
-                        {secondaryInfo.map((info, idx) => (
-                          <span key={idx}>{info}</span>
+                        {secondaryInfo.map((info) => (
+                          <span key={info}>{info}</span>
                         ))}
                       </div>
                     )}

@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  role: string;
-  created_at: string;
-}
+import type { User } from '@/lib/types';
 
 export async function GET() {
   try {

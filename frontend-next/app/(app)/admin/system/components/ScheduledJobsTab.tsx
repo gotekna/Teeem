@@ -19,6 +19,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow, format } from "date-fns";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 interface ScheduledJob {
   [key: string]: unknown;
@@ -83,7 +84,7 @@ export function ScheduledJobsTab() {
   React.useEffect(() => {
     loadData();
     // Refresh every 30 seconds
-    const interval = setInterval(loadData, 30000);
+    const interval = setInterval(loadData, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [loadData]);
 

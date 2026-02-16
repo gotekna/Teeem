@@ -20,6 +20,7 @@
 #
 class ConnectionHealthMonitorJob < ApplicationJob
   include DeduplicatableJob
+  include CacheConstants
 
   queue_as :low
 
@@ -35,7 +36,7 @@ class ConnectionHealthMonitorJob < ApplicationJob
     health_data = check_all_pools
 
     # Cache for other jobs to check before running
-    Rails.cache.write("connection_health", health_data, expires_in: 5.minutes)
+    Rails.cache.write("connection_health", health_data, expires_in: CACHE_TTL_MEDIUM)
 
     case health_data[:status]
     when :critical

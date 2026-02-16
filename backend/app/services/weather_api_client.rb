@@ -2,7 +2,7 @@ require "net/http"
 require "json"
 
 class WeatherApiClient
-  BASE_URL = "https://api.weatherapi.com/v1"
+  BASE_URL = "https://api.weatherapi.com/v1".freeze
 
   class Error < StandardError; end
   class ConfigurationError < Error; end

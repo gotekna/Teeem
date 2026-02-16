@@ -56,7 +56,7 @@ module Gl
           source_number: source.payment_number,
           entry_date: source.payment_date,
           description: payment_description('from'),
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0
         )
 
@@ -92,7 +92,7 @@ module Gl
           source_number: source.payment_number,
           entry_date: source.payment_date,
           description: payment_description('to'),
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0
         )
 
@@ -128,7 +128,7 @@ module Gl
           source_number: source.payment_number,
           entry_date: source.payment_date,
           description: "Refund to #{source.contact_name}",
-          currency_code: source.currency_code || 'AUD',
+          currency_code: source.currency_code || TenantSetting::DEFAULT_CURRENCY,
           exchange_rate: source.exchange_rate || 1.0
         )
 

@@ -12,7 +12,7 @@
  * No useState - all state flows through atoms or refs.
  */
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Spinner } from "@/components/ui/spinner";

@@ -16,7 +16,7 @@
 # Queue: default (was xero_orchestrator, but SolidQueue uses default)
 #
 class XeroContactSyncOrchestratorJob < ApplicationJob
-  queue_as :default
+  queue_as :xero_sync
 
   # Lock key for preventing duplicate orchestrator runs
   LOCK_KEY = "xero_contact_sync_orchestrator:running"
@@ -112,6 +112,10 @@ class XeroContactSyncOrchestratorJob < ApplicationJob
       tenant_name: credential.tenant_name
     )
 
+  rescue XeroApiClient::AuthenticationError => e
+    # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+    Rails.logger.warn("[XeroContactSyncOrchestrator] Auth failed for #{credential&.tenant_name}, marking disconnected")
+    credential&.mark_disconnected!
   rescue StandardError => e
     Rails.logger.error("[XeroContactSyncOrchestrator] Error processing tenant #{tenant_id}: #{e.message}")
     Rails.logger.error(e.backtrace.first(5).join("\n"))

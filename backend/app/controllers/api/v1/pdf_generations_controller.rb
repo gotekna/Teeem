@@ -49,7 +49,7 @@ module Api
           data: serialize(pdf_gen)
         }, status: :created
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/pdf_generations/:id
@@ -58,7 +58,7 @@ module Api
         pdf_gen = PdfGeneration.find(params[:id])
 
         unless pdf_gen.user_id == current_user&.id || pdf_gen.tenant_id == current_tenant&.id
-          return render json: { success: false, error: "Not found" }, status: :not_found
+          return render_error("Not found", status: :not_found)
         end
 
         render json: {
@@ -73,11 +73,11 @@ module Api
         pdf_gen = PdfGeneration.find(params[:id])
 
         unless pdf_gen.tenant_id == current_tenant&.id
-          return render json: { success: false, error: "Not found" }, status: :not_found
+          return render_error("Not found", status: :not_found)
         end
 
         unless pdf_gen.pending_or_processing?
-          return render json: { success: false, error: "Cannot cancel - status is #{pdf_gen.status}" }, status: :unprocessable_entity
+          return render_error("Cannot cancel - status is #{pdf_gen.status}", status: :unprocessable_entity)
         end
 
         pdf_gen.update!(status: "failed", error_message: "Cancelled by user")
@@ -91,7 +91,7 @@ module Api
         pdf_gen = PdfGeneration.find(params[:id])
 
         unless pdf_gen.tenant_id == current_tenant&.id
-          return render json: { success: false, error: "Not found" }, status: :not_found
+          return render_error("Not found", status: :not_found)
         end
 
         pdf_gen.update!(status: "failed", error_message: "Dismissed by user")
@@ -105,7 +105,7 @@ module Api
         pdf_gen = PdfGeneration.find(params[:id])
 
         unless pdf_gen.user_id == current_user&.id || pdf_gen.tenant_id == current_tenant&.id
-          return render json: { success: false, error: "Not found" }, status: :not_found
+          return render_error("Not found", status: :not_found)
         end
 
         if pdf_gen.pending_or_processing?
@@ -114,7 +114,7 @@ module Api
         end
 
         if pdf_gen.failed?
-          render json: { success: false, error: pdf_gen.error_message || "Generation failed" }, status: :unprocessable_entity
+          render_error(pdf_gen.error_message || "Generation failed", status: :unprocessable_entity)
           return
         end
 
@@ -141,7 +141,7 @@ module Api
                     type: "application/pdf",
                     disposition: params[:inline] ? "inline" : "attachment"
         else
-          render json: { success: false, error: "PDF not available" }, status: :not_found
+          render_error("PDF not available", status: :not_found)
         end
       end
 

@@ -89,8 +89,8 @@ module Api
             success: true,
             data: {
               items: compliance_items.map { |c| serialize_compliance_item(c) },
-              overdue_count: compliance_items.where("due_date < ? AND completed = ?", Date.today, false).count,
-              upcoming_count: compliance_items.where("due_date BETWEEN ? AND ? AND completed = ?", Date.today, 30.days.from_now, false).count,
+              overdue_count: compliance_items.where("due_date < ? AND completed = ?", Date.current, false).count,
+              upcoming_count: compliance_items.where("due_date BETWEEN ? AND ? AND completed = ?", Date.current, 30.days.from_now, false).count,
               health_score: @corporate_details.health_score,
               health_status: @corporate_details.health_status
             }

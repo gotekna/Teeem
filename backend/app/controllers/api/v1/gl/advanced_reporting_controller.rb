@@ -32,8 +32,7 @@ module Api
           if dept.save
             render json: { success: true, data: dept }, status: :created
           else
-            render json: { success: false, error: dept.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(dept.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -44,8 +43,7 @@ module Api
           if dept.update(department_params)
             render json: { success: true, data: dept }
           else
-            render json: { success: false, error: dept.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(dept.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -104,8 +102,7 @@ module Api
           if tc.save
             render json: { success: true, data: tc }, status: :created
           else
-            render json: { success: false, error: tc.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(tc.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -116,8 +113,7 @@ module Api
           if tc.update(tracking_class_params)
             render json: { success: true, data: tc }
           else
-            render json: { success: false, error: tc.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(tc.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -147,7 +143,7 @@ module Api
 
           render json: { success: true, data: split.as_json(include: :lines) }, status: :created
         rescue StandardError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # POST /api/v1/gl/advanced_reporting/splits/:id/complete
@@ -157,7 +153,7 @@ module Api
           if split.complete!(current_user)
             render json: { success: true, data: split }
           else
-            render json: { success: false, error: "Cannot complete split" }, status: :unprocessable_entity
+            render_error("Cannot complete split", status: :unprocessable_entity)
           end
         end
 
@@ -168,7 +164,7 @@ module Api
           if split.reverse!(current_user)
             render json: { success: true, data: split }
           else
-            render json: { success: false, error: "Cannot reverse split" }, status: :unprocessable_entity
+            render_error("Cannot reverse split", status: :unprocessable_entity)
           end
         end
 
@@ -255,8 +251,7 @@ module Api
           if kpi.save
             render json: { success: true, data: kpi }, status: :created
           else
-            render json: { success: false, error: kpi.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(kpi.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -267,8 +262,7 @@ module Api
           if kpi.update(kpi_params)
             render json: { success: true, data: kpi }
           else
-            render json: { success: false, error: kpi.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(kpi.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -327,7 +321,7 @@ module Api
           industry_code = params[:industry_code] || "E" # Default to Construction
           benchmark = ::Gl::Benchmark.for_kpi_and_industry(params[:kpi_code], industry_code)
 
-          return render json: { success: false, error: "No benchmark found" }, status: :not_found unless benchmark
+          return render_error("No benchmark found", status: :not_found) unless benchmark
 
           # Get current value to compare
           kpi = @corporate.gl_kpi_definitions.find_by(code: params[:kpi_code])
@@ -393,8 +387,7 @@ module Api
 
             render json: { success: true, data: request.as_json(include: :requested_documents) }, status: :created
           else
-            render json: { success: false, error: request.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(request.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -405,7 +398,7 @@ module Api
           if request.send_request!
             render json: { success: true, data: request }
           else
-            render json: { success: false, error: "Cannot send request" }, status: :unprocessable_entity
+            render_error("Cannot send request", status: :unprocessable_entity)
           end
         end
 
@@ -416,7 +409,7 @@ module Api
           if request.send_reminder!
             render json: { success: true, message: "Reminder sent" }
           else
-            render json: { success: false, error: "Cannot send reminder" }, status: :unprocessable_entity
+            render_error("Cannot send reminder", status: :unprocessable_entity)
           end
         end
 

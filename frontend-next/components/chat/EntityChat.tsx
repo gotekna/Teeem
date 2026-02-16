@@ -23,6 +23,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { PAGE_SIZE_REFERENCE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
+import { Job } from "@/lib/types";
+import { POLLING_CHAT_ENTITY_MS } from "@/lib/constants/timeout-constants";
 
 interface Message {
   id: number;
@@ -50,11 +52,6 @@ interface GuestSession {
   status: string;
   job_id: number | null;
   expires_at: string;
-}
-
-interface Job {
-  id: number;
-  title: string;
 }
 
 type EntityType = "job" | "contact" | "case";
@@ -122,9 +119,9 @@ export function EntityChat({
   useEffect(() => {
     loadMessages();
     // Poll for new messages every 5 seconds
-    const interval = setInterval(loadMessages, 5000);
+    const interval = setInterval(loadMessages, POLLING_CHAT_ENTITY_MS);
     return () => clearInterval(interval);
-     
+
   }, [entityType, entityId]);
 
   useEffect(() => {
@@ -258,7 +255,7 @@ export function EntityChat({
 
   // Filter jobs based on search
   const filteredJobs = jobs.filter((job) =>
-    job.title.toLowerCase().includes(jobSearch.toLowerCase())
+    job.title?.toLowerCase().includes(jobSearch.toLowerCase())
   );
 
   const formatTime = (dateString: string): string => {

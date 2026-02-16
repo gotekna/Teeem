@@ -157,7 +157,6 @@ export const mergedFiltersAtom = atom<SourcedCascadeFilter[]>((get) => {
  */
 export const apiFiltersAtom = atom<CascadeFilter[]>((get) => {
   const merged = get(mergedFiltersAtom);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   return merged.map(({ source, locked, ...rest }) => rest);
 });
 
@@ -238,7 +237,6 @@ export const setUserFiltersAtom = atom(
     // Support functional update pattern for backward compatibility
     const currentUserFilters = get(userFiltersAtom);
     // Strip source metadata for the prev array
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const prevFilters = currentUserFilters.map(({ source, locked, ...rest }) => rest);
 
     const newFilters = typeof filtersOrUpdater === 'function'

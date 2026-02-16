@@ -18,6 +18,7 @@ interface QuickEmailActionsProps {
   emailId: number;
   isRead?: boolean;
   isArchived?: boolean;
+  mailboxEmail?: string; // Current mailbox being viewed (for correct Outlook API calls)
   onAction?: () => void;
   onSnooze?: () => void;
   onMove?: () => void;
@@ -34,6 +35,7 @@ export function QuickEmailActions({
   emailId,
   isRead = false,
   isArchived = false,
+  mailboxEmail,
   onAction,
   onSnooze,
   onMove,
@@ -60,7 +62,7 @@ export function QuickEmailActions({
     e.stopPropagation();
     setLoading("delete");
     try {
-      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook`);
+      await api.delete(`/api/v1/synced_emails/${emailId}/delete_from_outlook${mailboxEmail ? `?mailbox_owner_email=${encodeURIComponent(mailboxEmail)}` : ""}`);
       onAction?.();
     } catch (error) {
       console.error("Failed to delete:", error);

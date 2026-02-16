@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { ArrowLeft, Bookmark } from "lucide-react";
@@ -37,18 +37,16 @@ function ResetPasswordForm() {
     }
     (async () => {
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/validate_reset_token`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token }),
-        });
-        const data = await res.json();
-        if (data.success) {
+        const data = await api.post<{ success: boolean; name?: string; username?: string; email?: string; error?: string }>(
+          "/api/v1/auth/validate_reset_token",
+          { token }
+        );
+        if (data?.success) {
           setName(data.name || "");
           setUsername(data.username || data.email || "");
         } else {
           setTokenValid(false);
-          setTokenError(data.error || "Invalid or expired reset link");
+          setTokenError(data?.error || "Invalid or expired reset link");
         }
       } catch {
         setTokenValid(false);
@@ -74,19 +72,17 @@ function ResetPasswordForm() {
 
     setIsLoading(true);
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/reset_password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password, name: name.trim() || undefined, username: username.trim() || undefined }),
-      });
-      const data = await res.json();
-      if (data.success && data.token) {
+      const data = await api.post<{ success: boolean; token?: string; error?: string }>(
+        "/api/v1/auth/reset_password",
+        { token, password, name: name.trim() || undefined, username: username.trim() || undefined }
+      );
+      if (data?.success && data.token) {
         const loginSuccess = await handleTokenFromRedirect(data.token);
         router.push(loginSuccess ? "/dashboard" : "/login");
-      } else if (data.success) {
+      } else if (data?.success) {
         router.push("/login");
       } else {
-        setError(data.error || "Something went wrong");
+        setError(data?.error || "Something went wrong");
       }
     } catch {
       setError("Unable to connect. Please try again.");

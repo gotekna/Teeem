@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import {
   Dialog,
   DialogContent,
@@ -32,30 +33,14 @@ import {
   DollarSign,
 } from "lucide-react";
 import { api } from "@/lib/api";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  email?: string;
-  company_name?: string;
-}
-
-interface JobType {
-  id: number;
-  name: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-}
+import type { JobType, JobStatus, Contact } from '@/lib/types';
 
 interface ExtractedContact {
   contact_id?: number;
   name?: string;
-  email?: string;
-  phone?: string;
-  company?: string;
+  email?: string | null;
+  phone?: string | null;
+  company?: string | null;
   contact_exists?: boolean;
 }
 
@@ -185,7 +170,7 @@ export function ProposalApprovalDialog({
     setSearching(true);
     try {
       const response = await api.get<{ contacts: Contact[] }>(
-        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=10`
+        `/api/v1/contacts?search=${encodeURIComponent(query)}&limit=${API_PAGE_SIZES.AUTOCOMPLETE}`
       );
       setSearchResults(response.contacts || []);
     } catch (error) {

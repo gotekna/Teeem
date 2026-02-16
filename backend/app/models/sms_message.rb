@@ -2,8 +2,11 @@ class SmsMessage < ApplicationRecord
   belongs_to :contact
   belongs_to :user, optional: true
 
+  # Constants
+  DIRECTIONS = %w[inbound outbound].freeze
+
   validates :from_phone, :to_phone, :body, :direction, presence: true
-  validates :direction, inclusion: { in: %w[inbound outbound] }
+  validates :direction, inclusion: { in: DIRECTIONS }
 
   scope :inbound, -> { where(direction: "inbound") }
   scope :outbound, -> { where(direction: "outbound") }

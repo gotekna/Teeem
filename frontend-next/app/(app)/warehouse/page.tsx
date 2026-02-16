@@ -64,10 +64,12 @@ import { BackButton } from "@/components/ui/back-button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { uploadFile } from "@/lib/upload-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { VIEW_CHANGE_EVENT } from "@/lib/breadcrumb-atoms";
 import { DocumentActions } from "@/components/documents/DocumentActions";
 import { MailboxDrawer } from "@/components/documents/MailboxDrawer";
@@ -76,7 +78,9 @@ import { WarehouseTree } from "@/components/warehouse/WarehouseTree";
 import { WarehouseDocTree } from "@/components/warehouse/WarehouseDocTree";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import type { DocumentItem, TreeDisplayMode } from "@/components/warehouse/types";
+import { UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/timeout-constants";
 
 interface AllDocumentsResponse {
   success: boolean;
@@ -397,11 +401,11 @@ export default function AllDocumentsPage() {
       await fetchDocuments();
 
       // Clear message after 2 seconds
-      setTimeout(() => setUploadProgress(null), 2000);
+      setTimeout(() => setUploadProgress(null), RETRY_DELAY_MS);
     } catch (err) {
       console.error("Upload failed:", err);
       setUploadProgress(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
-      setTimeout(() => setUploadProgress(null), 3000);
+      setTimeout(() => setUploadProgress(null), UI_SUCCESS_MESSAGE_MS);
     } finally {
       setIsUploading(false);
     }
@@ -464,7 +468,6 @@ export default function AllDocumentsPage() {
     } catch (error) {
       // Expected to fail if no desktop app connected (401)
       // Just log and continue - the UI will show empty state
-      console.log("Sync settings not available (no desktop app connected):", error);
     } finally {
       setSyncLoading(false);
     }
@@ -726,7 +729,7 @@ export default function AllDocumentsPage() {
     }
     try {
       const response = await api.get<{ tasks: Array<{ id: number; name: string; task_number: number }>; success: boolean }>(
-        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=10`
+        `/api/v1/sm_tasks?search=${encodeURIComponent(searchTerm)}&limit=${API_PAGE_SIZES.AUTOCOMPLETE}`
       );
       if (response.success && response.tasks) {
         setLinkToTaskResults(response.tasks.map(t => ({ id: t.id, name: t.name, task_number: t.task_number })));
@@ -1074,7 +1077,17 @@ export default function AllDocumentsPage() {
           viewMode === "table" ? "p-0" : "px-4 py-4",
           previewDocument && viewMode !== "table" && "max-w-[50%]"
         )} data-tour="warehouse-files">
-          {loading ? (
+          {viewMode === "table" ? (
+            // Table View renders immediately - no dependency on fetchDocuments counts
+            // autoFetchLimit caps background loading (24K+ records would be ~247 API calls without it)
+            <div className="flex flex-col h-full">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
+                autoFetchRecords={true}
+                autoFetchLimit={5000}
+              />
+            </div>
+          ) : loading ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[400px] gap-4">
               <div className="relative">
                 <div className="h-16 w-16 rounded-full border-4 border-muted animate-pulse" />
@@ -1199,14 +1212,6 @@ export default function AllDocumentsPage() {
                   ))}
                 </div>
               )}
-            </div>
-          ) : viewMode === "table" ? (
-            // Table View - TeeemTableView backed by Foundation API
-            <div className="flex flex-col h-full">
-              <TeeemTableView
-                foundationId={FOUNDATION_SLUGS.WAREHOUSE_DOCUMENTS}
-                autoFetchRecords={true}
-              />
             </div>
           ) : null}
         </div>
@@ -1429,16 +1434,16 @@ export default function AllDocumentsPage() {
                 ) : previewDocument.mimeType?.includes("wordprocessingml") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".docx") ? (
-                  // Word document preview using TeeemWord's mammoth conversion
-                  <WordDocumentPreview url={previewDocument.fileUrl} className="h-full" />
+                  // Word document preview - use backend content proxy to bypass S3 CORS
+                  <WordDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
                 ) : previewDocument.mimeType?.includes("spreadsheetml") ||
                   previewDocument.mimeType?.includes("ms-excel") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xls") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".xls") ? (
-                  // Excel document preview using TeeemXL
-                  <ExcelDocumentPreview url={previewDocument.fileUrl} className="h-full" />
+                  // Excel document preview - use backend content proxy to bypass S3 CORS
+                  <ExcelDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">

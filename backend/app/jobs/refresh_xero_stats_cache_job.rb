@@ -10,6 +10,7 @@
 # Part of "Scale Xero Sync to 15k" plan (Phase 3)
 class RefreshXeroStatsCacheJob < ApplicationJob
   include DeduplicatableJob
+  include CacheConstants
 
   queue_as :low
 
@@ -79,6 +80,6 @@ class RefreshXeroStatsCacheJob < ApplicationJob
 
     # Write to cache with 10-minute TTL (longer than refresh interval)
     # This ensures cache doesn't expire between refreshes
-    Rails.cache.write(cache_key, result, expires_in: 10.minutes)
+    Rails.cache.write(cache_key, result, expires_in: CACHE_TTL_LONG)
   end
 end

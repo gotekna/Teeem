@@ -32,7 +32,7 @@ module Api
         template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
+          return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
         generator = TeknaDocumentGenerator.new(template_key)
@@ -49,7 +49,7 @@ module Api
         end
       rescue StandardError => e
         Rails.logger.error("TeknaDocuments preview error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/tekna_documents/:id/generate
@@ -58,7 +58,7 @@ module Api
         template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
+          return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
         enqueue_pdf_and_respond(
@@ -78,7 +78,7 @@ module Api
         template_key = params[:id].to_sym
 
         unless TeknaDocumentGenerator::TEMPLATES.key?(template_key)
-          return render json: { success: false, error: "Template not found: #{params[:id]}" }, status: :not_found
+          return render_error("Template not found: #{params[:id]}", status: :not_found)
         end
 
         enqueue_pdf_and_respond(

@@ -35,10 +35,7 @@ module Api
             data: serialize_shareholding(@shareholding)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @shareholding.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@shareholding)
         end
       end
 
@@ -50,10 +47,7 @@ module Api
             data: serialize_shareholding(@shareholding)
           }
         else
-          render json: {
-            success: false,
-            errors: @shareholding.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@shareholding)
         end
       end
 

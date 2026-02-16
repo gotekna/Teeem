@@ -423,14 +423,6 @@ export const applyViewAtom = atom(
     // Companies with employees will have those employees grouped under them
     // Companies with 0 employees will still appear in search results
 
-    console.log('[applyViewAtom] Setting view filters:', {
-      viewName: view.name,
-      viewId: view.id,
-      filterCount: sourcedFilters.length,
-      filters: sourcedFilters.map(f => ({ column: f.column, operator: f.operator, value: f.value })),
-      filterGroups: filterGroups.length,
-      interGroupLogic,
-    });
     set(_viewFiltersAtom, sourcedFilters);
     set(_filterGroupsAtom, filterGroups);
     set(_interGroupLogicAtom, interGroupLogic);
@@ -727,11 +719,14 @@ export const loadFoundationViewsAtom = atom(
             ? view.filters
             : (view.filters?.cascadeFilters || []);
 
+          // Map backend snake_case fields to frontend camelCase
+          const backendView = view as unknown as SavedView & { is_default?: boolean };
+
           return {
             ...view,
-            isDefault: (view as any).is_default, // Map backend is_default to frontend isDefault
-            view_type: (view as any).view_display_type || "table", // Map backend field to frontend field
-            view_display_type: (view as any).view_display_type, // Preserve for applyViewAtom panel mode check
+            isDefault: backendView.is_default ?? view.isDefault,
+            view_type: view.view_display_type || "table", // Map backend field to frontend field
+            view_display_type: view.view_display_type, // Preserve for applyViewAtom panel mode check
             filters: ensureFilterIds(rawFilters),
             filterGroups: Array.isArray(view.filters) ? [{ id: "default", logic: "AND" as const }] : (view.filters?.filterGroups || [{ id: "default", logic: "AND" as const }]),
             interGroupLogic: Array.isArray(view.filters) ? "OR" as const : (view.filters?.interGroupLogic || "OR" as const),

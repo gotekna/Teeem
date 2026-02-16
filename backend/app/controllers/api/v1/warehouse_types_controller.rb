@@ -231,7 +231,7 @@ module Api
             wd.ui_name.presence || wd.original_filename.presence || "document-#{wd.id}"
           end
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: 3600, filename: safe_filename) rescue nil
+            provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: safe_filename) rescue nil
           end
 
           {
@@ -324,10 +324,7 @@ module Api
             data: serialize_warehouse_type(@warehouse_type)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @warehouse_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@warehouse_type)
         end
       end
 
@@ -347,27 +344,18 @@ module Api
             data: serialize_warehouse_type(@warehouse_type)
           }
         else
-          render json: {
-            success: false,
-            errors: @warehouse_type.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@warehouse_type)
         end
       end
 
       # DELETE /api/v1/warehouse_types/:id
       def destroy
         if @warehouse_type.is_system
-          return render json: {
-            success: false,
-            error: "System warehouse types cannot be deleted"
-          }, status: :forbidden
+          return render_error("System warehouse types cannot be deleted", status: :forbidden)
         end
 
         unless @warehouse_type.can_delete?
-          return render json: {
-            success: false,
-            error: "Cannot delete warehouse type with associated warehouse folders or document types"
-          }, status: :unprocessable_entity
+          return render_error("Cannot delete warehouse type with associated warehouse folders or document types", status: :unprocessable_entity)
         end
 
         @warehouse_type.destroy

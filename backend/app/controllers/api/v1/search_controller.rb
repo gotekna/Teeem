@@ -24,10 +24,7 @@ module Api
         query = params[:q] || params[:query] || params[:search]
 
         if query.blank?
-          return render json: {
-            success: false,
-            error: "Query parameter 'q' is required"
-          }, status: :bad_request
+          return render_error("Query parameter 'q' is required", status: :bad_request)
         end
 
         service = GlobalSearchService.new(user: current_user)
@@ -61,10 +58,7 @@ module Api
         end
 
         if query.blank?
-          return render json: {
-            success: false,
-            error: "Query parameter 'q' is required"
-          }, status: :bad_request
+          return render_error("Query parameter 'q' is required", status: :bad_request)
         end
 
         service = GlobalSearchService.new(user: current_user)

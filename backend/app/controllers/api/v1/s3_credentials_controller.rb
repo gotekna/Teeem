@@ -43,15 +43,9 @@ class Api::V1::S3CredentialsController < ApplicationController
         client.head_bucket(bucket: test_bucket)
         credential.status = "connected"
       rescue Aws::S3::Errors::ServiceError => e
-        return render json: {
-          success: false,
-          error: "Connection failed: #{friendly_error_message(e)}"
-        }, status: :unprocessable_entity
+        return render_error("Connection failed: #{friendly_error_message(e)}", status: :unprocessable_entity)
       rescue RuntimeError => e
-        return render json: {
-          success: false,
-          error: e.message
-        }, status: :unprocessable_entity
+        return render_error(e.message, status: :unprocessable_entity)
       end
     end
 
@@ -62,10 +56,7 @@ class Api::V1::S3CredentialsController < ApplicationController
         message: "S3 storage connected successfully"
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: credential.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(credential)
     end
   end
 
@@ -77,10 +68,7 @@ class Api::V1::S3CredentialsController < ApplicationController
         data: credential_json(@credential)
       }
     else
-      render json: {
-        success: false,
-        error: @credential.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@credential)
     end
   end
 
@@ -111,21 +99,12 @@ class Api::V1::S3CredentialsController < ApplicationController
           }
         }
       else
-        render json: {
-          success: false,
-          error: @credential.metadata["last_error"] || "Connection failed"
-        }, status: :unprocessable_entity
+        render_error(@credential.metadata["last_error"] || "Connection failed", status: :unprocessable_entity)
       end
     rescue Aws::S3::Errors::ServiceError => e
-      render json: {
-        success: false,
-        error: friendly_error_message(e)
-      }, status: :unprocessable_entity
+      render_error(friendly_error_message(e), status: :unprocessable_entity)
     rescue RuntimeError => e
-      render json: {
-        success: false,
-        error: e.message
-      }, status: :unprocessable_entity
+      render_error(e.message, status: :unprocessable_entity)
     end
   end
 
@@ -136,10 +115,7 @@ class Api::V1::S3CredentialsController < ApplicationController
     credential = S3CompatibleCredential.new(credential_params)
 
     unless credential.valid?
-      return render json: {
-        success: false,
-        error: credential.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      return render_validation_errors(credential)
     end
 
     begin
@@ -159,15 +135,9 @@ class Api::V1::S3CredentialsController < ApplicationController
         }
       }
     rescue Aws::S3::Errors::ServiceError => e
-      render json: {
-        success: false,
-        error: friendly_error_message(e)
-      }, status: :unprocessable_entity
+      render_error(friendly_error_message(e), status: :unprocessable_entity)
     rescue RuntimeError => e
-      render json: {
-        success: false,
-        error: e.message
-      }, status: :unprocessable_entity
+      render_error(e.message, status: :unprocessable_entity)
     end
   end
 
@@ -276,10 +246,7 @@ class Api::V1::S3CredentialsController < ApplicationController
       }
     }
   rescue => e
-    render json: {
-      success: false,
-      error: "Failed to browse: #{e.message}"
-    }, status: :unprocessable_entity
+    render_error("Failed to browse: #{e.message}", status: :unprocessable_entity)
   end
 
   private

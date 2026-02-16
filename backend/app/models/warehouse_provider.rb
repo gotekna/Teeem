@@ -49,25 +49,9 @@ class WarehouseProvider < ApplicationRecord
   # Connection statuses
   STATUSES = %w[disconnected connected error].freeze
 
-  # Warehouse types (SSoT - renamed from SCOPES)
-  # Valid warehouse types that can have storage enabled
-  # SSoT: 'contact' is THE ONE for all individuals (Jan 2026 - 'people' merged into 'contact')
-  # SSoT: 'user' is for personal user documents (My Docs feature - Jan 2026)
-  # SSoT: All valid warehouse types for File Warehouse
-  WAREHOUSE_TYPES = %w[
-    corporate job document contact email email_body email_attachments warehouse
-    task task_attachments task_responses
-    case case_documents case_emails
-    asset asset_expenses asset_service asset_readings
-    compliance bank_statement template
-    template_documents template_bank_statements template_invoices template_email_signatures template_pdf_fields
-    esignature esignature_pending esignature_completed
-    plan
-    xero user
-  ].freeze
-
-  # LIM (Jan 2026): scope_warehouse_folders is now a method that returns simple mapping
-  # Note: scope_options was deleted and replaced with exclude_sm_tasks boolean
+  # SSoT: warehouse_types table is THE ONE source for valid warehouse types (Feb 2026)
+  # See WarehouseType model + /api/v1/warehouse_types endpoint
+  # WAREHOUSE_TYPES constant removed - use WarehouseType.enabled_codes instead
 
   # Validations
   # SSoT: WarehouseProvider validates TENANT (not organization) - Jan 2026 fix
@@ -458,8 +442,8 @@ class WarehouseProvider < ApplicationRecord
     end
 
     # Date tokens - try multiple date fields
-    date = record.try(:expense_date) || record.try(:reading_date) ||
-           record.try(:transaction_date) || record.try(:created_at) || Time.current
+    date = record&.expense_date || record&.reading_date ||
+           record&.transaction_date || record&.created_at || Time.current
     tokens[:Year] = date.year.to_s
     tokens[:Month] = date.strftime("%m")
 
@@ -472,10 +456,10 @@ class WarehouseProvider < ApplicationRecord
     end
 
     # Generic category - try multiple field names
-    tokens[:Category] = record.try(:category) ||
-                        record.try(:expense_type)&.titleize ||
-                        record.try(:reading_type)&.titleize ||
-                        record.try(:document_type)&.titleize ||
+    tokens[:Category] = record&.category ||
+                        record&.expense_type&.titleize ||
+                        record&.reading_type&.titleize ||
+                        record&.document_type&.titleize ||
                         "Documents"
 
     # Task context for task documents
@@ -765,9 +749,10 @@ class WarehouseProvider < ApplicationRecord
     case provider_type
     when "s3_compatible"
       if storage_credential_id.present?
-        S3CompatibleCredential.find_by(id: storage_credential_id)&.status == "connected"
+        # Tenant-scoped credential lookup (security)
+        S3CompatibleCredential.where(tenant_id: tenant_id).find_by(id: storage_credential_id)&.status == "connected"
       else
-        S3CompatibleCredential.active.first&.status == "connected"
+        S3CompatibleCredential.where(tenant_id: tenant_id).active.first&.status == "connected"
       end
     when "sharepoint"
       MicrosoftCredential.sharepoint_credential&.status == "connected"

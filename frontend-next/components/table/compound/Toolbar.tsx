@@ -19,7 +19,6 @@
 
 'use client';
 
-import React from 'react';
 import { useTableContext } from './TableContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

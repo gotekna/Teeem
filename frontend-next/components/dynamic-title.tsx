@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { resolveDisplayName } from "@/lib/breadcrumb-utils";
+import { TITLE_UPDATE } from "@/lib/constants/timeout-constants";
 
 export function DynamicTitle() {
   const pathname = usePathname();
@@ -40,13 +41,13 @@ export function DynamicTitle() {
     setTitle();
 
     // Set title again after short delays
-    const timeoutId = setTimeout(setTitle, 100);
-    const timeoutId2 = setTimeout(setTitle, 500);
-    const timeoutId3 = setTimeout(setTitle, 1000);
-    const timeoutId4 = setTimeout(setTitle, 2000);
+    const timeoutId = setTimeout(setTitle, TITLE_UPDATE.FAST);
+    const timeoutId2 = setTimeout(setTitle, TITLE_UPDATE.MEDIUM);
+    const timeoutId3 = setTimeout(setTitle, TITLE_UPDATE.SLOW);
+    const timeoutId4 = setTimeout(setTitle, TITLE_UPDATE.SLOWEST);
 
-    // Poll every 500ms to enforce the title (aggressive but reliable)
-    const intervalId = setInterval(setTitle, 500);
+    // Poll to enforce the title (aggressive but reliable)
+    const intervalId = setInterval(setTitle, TITLE_UPDATE.INTERVAL);
 
     // Also use MutationObserver for immediate catches
     const observer = new MutationObserver(setTitle);

@@ -102,7 +102,7 @@ module Bpmn
           additional_templates: additional_docs.filter_map { |doc| doc["template_key"] }
         )
 
-        result = service.execute!
+        result = service.call!
         request = result[:e_signature_request]
 
         log_info("Document generated and e-signature request created: #{request.request_number}")

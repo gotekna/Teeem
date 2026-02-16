@@ -17,19 +17,19 @@ class BillPayment < ApplicationRecord
   delegate :corporate, to: :bill_payment_batch
   delegate :bank_account, to: :bill_payment_batch
 
+  # Constants
+  STATUSES = %w[pending approved paid failed reversed].freeze
+
   # Validations
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :payee_bsb, format: { with: /\A\d{6}\z/, message: "must be 6 digits" }, allow_blank: true
-  validates :status, presence: true, inclusion: { in: %w[pending approved paid failed reversed] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :payment_reference, length: { maximum: 18 }
 
   # Callbacks
   before_validation :set_defaults, on: :create
   before_validation :normalize_bsb
   after_save :update_po_payment_tracking, if: :saved_change_to_status?
-
-  # Status constants
-  STATUSES = %w[pending approved paid failed reversed].freeze
 
   # Scopes
   scope :pending, -> { where(status: "pending") }

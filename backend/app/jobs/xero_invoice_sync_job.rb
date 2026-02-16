@@ -10,7 +10,10 @@
 #
 class XeroInvoiceSyncJob < ApplicationJob
   include XeroJobBase
-  queue_as :default
+  include CacheConstants
+  include DeduplicatableJob
+
+  queue_as :xero_sync
 
   # Perform incremental sync of invoices from Xero
   # Can accept options:
@@ -71,6 +74,13 @@ class XeroInvoiceSyncJob < ApplicationJob
         # FRC (Jan 2026): Changed break→next for multi-tenant SaaS scaling
         # Xero rate limits are per-connection, not global. If tenant A is rate-limited,
         # tenants B-Z should still sync. Critical for 10-15K connection scaling.
+        next
+      rescue XeroApiClient::AuthenticationError => e
+        # FRC (Feb 2026): Mark credential as disconnected so sync jobs stop queuing it.
+        # Without this, a dead token causes failed API calls every sync cycle forever.
+        Rails.logger.warn("XeroInvoiceSyncJob: Auth failed for #{credential.tenant_name}, marking disconnected")
+        credential.mark_disconnected!
+        combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Auth failed - marked disconnected" }
         next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
@@ -146,7 +156,7 @@ class XeroInvoiceSyncJob < ApplicationJob
         incremental: incremental,
         tenant_id: tenant_id
       },
-      expires_in: 24.hours
+      expires_in: CACHE_TTL_DAILY
     )
 
     result
@@ -167,7 +177,7 @@ class XeroInvoiceSyncJob < ApplicationJob
         incremental: options[:incremental] != false,
         tenant_id: tenant_id
       },
-      expires_in: 24.hours
+      expires_in: CACHE_TTL_DAILY
     )
 
     raise
@@ -185,9 +195,5 @@ class XeroInvoiceSyncJob < ApplicationJob
     self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id))
   end
 
-  # Extract retry_after seconds from RateLimitError message
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600  # Default 1 hour if not parseable
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 end

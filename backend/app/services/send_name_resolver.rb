@@ -57,7 +57,7 @@ class SendNameResolver
     # 3. Fallback chain
     fallback_name = warehouse_document.ui_name.presence ||
                     warehouse_document.original_filename.presence ||
-                    warehouse_document.documentable&.try(:file_name).presence ||
+                    warehouse_document.documentable&.file_name.presence ||
                     "document"
 
     sanitize_and_ensure_extension(fallback_name, warehouse_document)
@@ -107,7 +107,7 @@ class SendNameResolver
     context = build_context_from_documentable(documentable)
 
     # Get template from DocumentType (SSoT for non-warehouse documents)
-    template = documentable.try(:document_type)&.download_name.presence
+    template = documentable&.document_type&.download_name.presence
 
     if template.present?
       expanded = expand_template(template, context)
@@ -117,9 +117,9 @@ class SendNameResolver
     end
 
     # Fallback
-    fallback = documentable.try(:file_name).presence ||
-               documentable.try(:filename).presence ||
-               documentable.try(:original_filename).presence ||
+    fallback = documentable&.file_name.presence ||
+               documentable&.filename.presence ||
+               documentable&.original_filename.presence ||
                "document"
 
     sanitize_and_ensure_extension(fallback, documentable)
@@ -202,7 +202,7 @@ class SendNameResolver
         context[:name] ||= linkable.display_name
         context[:person_name] ||= linkable.display_name
         context[:contact_name] ||= linkable.display_name
-      when CorporateCompany
+      when Corporate
         context[:company_code] ||= linkable.company_code || linkable.try(:code)
         context[:company_name] ||= linkable.name
         context[:company_group] ||= linkable.company_group&.name
@@ -237,8 +237,8 @@ class SendNameResolver
     return context unless documentable
 
     # Common fields
-    context[:document_date] = documentable.try(:created_at) || Time.current
-    context[:file_name] = documentable.try(:file_name)
+    context[:document_date] = documentable&.created_at || Time.current
+    context[:file_name] = documentable&.file_name
 
     # Email-specific context (SyncedEmail)
     if documentable.respond_to?(:synced_email) && documentable.email_warehouse
@@ -273,18 +273,18 @@ class SendNameResolver
     # Company context
     if documentable.respond_to?(:corporate) && documentable.corporate
       company = documentable.corporate
-      context[:company_code] = company.company_code || company.code
+      context[:company_code] = company.company_code || company.try(:code)
       context[:company_name] = company.name
       context[:company_group] = company.company_group&.name  # SSoT: use association
     end
 
     # Document type context
     # Note: Use document_type_record (association) not document_type (string column)
-    doc_type_record = documentable.try(:document_type_record)
+    doc_type_record = documentable&.document_type_record
     if doc_type_record
       context[:doc_type_name] = doc_type_record.name
       context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record.try(:code)
-      context[:category] = doc_type_record.category
+      context[:category] = doc_type_record.try(:category)
     end
 
     # User context

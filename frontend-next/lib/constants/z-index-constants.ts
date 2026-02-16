@@ -16,34 +16,51 @@
  * LAYER 0: Base content (no z-index)
  *   - Normal page content, tables, forms
  *
- * LAYER 1: Toast notifications (z-100)
+ * LAYER 1: Sticky elements (z-10)
+ *   - Sticky headers, sticky table cells
+ *   - Fixed mobile headers
+ *
+ * LAYER 2: Tooltips and popovers (z-50)
+ *   - Hover tooltips, inline popovers
+ *
+ * LAYER 3: Toast notifications (z-100)
  *   - Non-blocking notifications at screen edge
  *
- * LAYER 2: Fullscreen overlays (z-120)
+ * LAYER 4: Fullscreen overlays (z-120)
  *   - EntityConfigurationTab fullscreen mode
  *
- * LAYER 3: Side panels (z-130)
+ * LAYER 5: Side panels (z-130)
  *   - Sheet component (slide-out panels)
  *
- * LAYER 4: External libraries (z-1000)
+ * LAYER 6: External libraries (z-1000)
  *   - Leaflet map controls (EXTERNAL - cannot change)
  *
- * LAYER 5: Modal dialogs (z-1100)
+ * LAYER 7: Modal dialogs (z-1100)
  *   - Dialog component (centered modals)
  *   - Must be above Leaflet
  *
- * LAYER 6: Dropdowns (z-1200)
+ * LAYER 8: Dropdowns (z-1200)
  *   - ALL Radix popper-based components via globals.css wrapper
  *   - Popover, Select, DropdownMenu, Tooltip, ComboboxDropdown
  *   - Must be above modals so dropdowns inside dialogs work
  *
- * LAYER 7: Debug tools (z-9999)
+ * LAYER 9: Toast notifications (z-1300)
+ *   - Toast/notification popups
+ *   - Must be above dropdowns to ensure visibility
+ *
+ * LAYER 10: Debug tools (z-9999)
  *   - Debug toolbar, dev-only overlays
  */
 
 // ============================================
 // Z-INDEX VALUES (use these in components)
 // ============================================
+
+/** Sticky elements - headers, table cells, fixed mobile headers */
+export const Z_STICKY = 10;
+
+/** Tooltips and popovers - hover hints, inline popovers */
+export const Z_TOOLTIP = 50;
 
 /** Toast notifications - non-blocking, screen edge */
 export const Z_TOAST = 100;
@@ -76,6 +93,12 @@ export const Z_DEBUG = 9999;
 // ============================================
 // These are derived automatically - change the value above,
 // the class updates automatically. No manual sync needed.
+
+/** Use in className for sticky headers and cells */
+export const Z_STICKY_CLASS = `z-[${Z_STICKY}]` as const;
+
+/** Use in className for tooltips and popovers */
+export const Z_TOOLTIP_CLASS = `z-[${Z_TOOLTIP}]` as const;
 
 /** Use in className for toast positioning */
 export const Z_TOAST_CLASS = `z-[${Z_TOAST}]` as const;

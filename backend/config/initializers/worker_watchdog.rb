@@ -7,7 +7,7 @@
 # - Not in dev/test
 
 Rails.application.config.after_initialize do
-  next unless ENV["HEROKU_APP_NAME"].present? && ENV["HEROKU_API_KEY"].present?
+  next unless ENV["HEROKU_APP_NAME"].present? && HerokuPlatformService.api_key?
   next unless ENV["DYNO"].to_s.start_with?("web")
   next if Rails.env.test? || Rails.env.development?
 

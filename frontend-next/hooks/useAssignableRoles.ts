@@ -40,7 +40,6 @@ async function fetchRoles(): Promise<AssignableRole[]> {
     return [];
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.warn('Failed to fetch assignable roles:', errorMsg);
     fetchError = errorMsg;
     return [];
   }

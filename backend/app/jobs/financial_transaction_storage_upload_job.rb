@@ -28,8 +28,8 @@ class FinancialTransactionStorageUploadJob < ApplicationJob
       return
     end
 
-    # Build folder path: Warehousing/{YYYY-MM}
-    folder_path = "/Warehousing/FinancialReceipts/#{transaction.transaction_date.strftime('%Y-%m')}"
+    # Build folder path: Warehouse/FinancialReceipts/{YYYY-MM}
+    folder_path = "/Warehouse/FinancialReceipts/#{transaction.transaction_date.strftime('%Y-%m')}"
     filename = transaction.receipt.filename.to_s
     content = transaction.receipt.download
 

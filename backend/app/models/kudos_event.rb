@@ -31,6 +31,11 @@ class KudosEvent < ApplicationRecord
   scope :for_account, ->(account_id) { where(subcontractor_account_id: account_id) }
   scope :by_type, ->(type) { where(event_type: type) }
 
+  # Performance metrics scopes
+  scope :on_time_arrivals, -> { where(event_type: "arrived_on_time").where("points_awarded > 0") }
+  scope :on_time_completions, -> { where(event_type: "completed_on_time").where("points_awarded > 0") }
+  scope :fast_quote_responses, -> { where(event_type: "quote_submitted").where("points_awarded >= 75") }
+
   # Class Methods
   def self.record_arrival(purchase_order, actual_time)
     return unless purchase_order.supplier&.subcontractor_account

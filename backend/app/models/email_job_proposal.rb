@@ -6,8 +6,11 @@ class EmailJobProposal < ApplicationRecord
   belongs_to :approved_by_user, class_name: "User", optional: true
   belongs_to :job, optional: true
 
+  # Constants
+  STATUSES = %w[pending approved rejected error].freeze
+
   # Validations
-  validates :status, presence: true, inclusion: { in: %w[pending approved rejected error] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :email_warehouse_id, presence: true
   validates :created_by_user_id, presence: true
   validates :extracted_data, presence: true

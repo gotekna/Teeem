@@ -236,7 +236,7 @@ class DocumentInbox < ApplicationRecord
   end
 
   # Get presigned download URL
-  def download_url(expires_in: 3600)
+  def download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     storage_blob&.presigned_url(expires_in: expires_in)
   end
 

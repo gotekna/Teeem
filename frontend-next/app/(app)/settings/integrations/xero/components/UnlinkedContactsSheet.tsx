@@ -34,6 +34,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { formatCurrencyWhole } from "@/utils/formatters";
+import { API } from "@/lib/constants/api-endpoints";
 
 interface PotentialMatch {
   id: number;
@@ -101,7 +102,6 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
       const response = await api.get<{ success: boolean; data: UnlinkedContactsData }>(
         "/api/v1/xero/unlinked_contacts"
       );
-      console.log("Unlinked contacts response:", response);
       if (response?.success && response?.data) {
         setData(response.data);
       } else {
@@ -239,9 +239,6 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
     return <Badge className={`${config.className} text-[10px] font-normal px-1.5 py-0`}>{config.label}</Badge>;
   };
 
-  const formatCurrency = (amount: number) => {
-    return formatCurrencyWhole(amount);
-  };
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -326,7 +323,7 @@ export function UnlinkedContactsSheet({ isOpen, onClose, onLinked }: Props) {
                               <FileText className="h-3 w-3" />
                               <span>{contact.invoice_count} invoices</span>
                               <span className="text-muted-foreground/50">|</span>
-                              <span>{formatCurrency(contact.total_amount)}</span>
+                              <span>{formatCurrencyWhole(contact.total_amount)}</span>
                             </div>
                           </div>
                         </div>

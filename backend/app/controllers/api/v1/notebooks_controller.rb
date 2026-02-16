@@ -34,7 +34,7 @@ module Api
       # GET /api/v1/notebooks/:id
       def show
         unless @notebook.accessible_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         render json: {
@@ -56,24 +56,18 @@ module Api
             notebook: notebook_json(notebook, include_sections: true)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: notebook.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(notebook)
         end
       rescue => e
         Rails.logger.error("[NotebooksController#create] Exception: #{e.class} - #{e.message}")
         Rails.logger.error(e.backtrace.first(10).join("\n"))
-        render json: {
-          success: false,
-          error: "Failed to create notebook: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to create notebook: #{e.message}", status: :internal_server_error)
       end
 
       # PATCH /api/v1/notebooks/:id
       def update
         unless @notebook.editable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         if @notebook.update(notebook_params)
@@ -84,17 +78,14 @@ module Api
             notebook: notebook_json(@notebook, include_sections: true)
           }
         else
-          render json: {
-            success: false,
-            errors: @notebook.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@notebook)
         end
       end
 
       # DELETE /api/v1/notebooks/:id
       def destroy
         unless @notebook.admin?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         @notebook.archive!
@@ -106,7 +97,7 @@ module Api
       # POST /api/v1/notebooks/:id/share
       def share
         unless @notebook.admin?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         user = User.find(params[:user_id])
@@ -133,17 +124,14 @@ module Api
             share: share_json(share)
           }
         else
-          render json: {
-            success: false,
-            errors: share.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(share)
         end
       end
 
       # DELETE /api/v1/notebooks/:id/unshare
       def unshare
         unless @notebook.admin?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         share = @notebook.shares.find_by!(user_id: params[:user_id])
@@ -159,7 +147,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Share not found" }, status: :not_found
+        render_error("Share not found", status: :not_found)
       end
 
       private

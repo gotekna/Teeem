@@ -45,25 +45,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-
-interface JobType {
-  id: number;
-  name: string;
-  color: string;
-  description?: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-  color: string;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-  color: string;
-}
+import type { JobType, JobStatus, JobStage } from '@/lib/types';
 
 // Backend returns flattened status with job_type_status_id
 interface TypeStatus {

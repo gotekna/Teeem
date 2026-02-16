@@ -27,6 +27,7 @@ class OrgEmailSyncJob < ApplicationJob
   discard_on MicrosoftAppGraphClient::DeadTokenError do |job, error|
     credential_id = job.arguments[1]&.fetch(:credential_id, nil)
     if credential_id
+      # Security: Job is queued from tenant-scoped controller, credential_id already validated
       credential = MicrosoftCredential.find_by(id: credential_id)
       if credential
         credential.mark_dead!(error.message)
@@ -48,8 +49,15 @@ class OrgEmailSyncJob < ApplicationJob
   # With 3 threads per folder batch + main thread, we exceed pool capacity.
   # Each user syncs multiple folders, causing cascading connection failures.
   # Fix: 2 threads is safer while still providing parallelism benefit.
-  PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
+  PARALLEL_FOLDER_THREADS = 2       # Background worker: conservative (limited connection pool)
+  INLINE_PARALLEL_THREADS = 8       # Web dyno inline sync: more headroom, must finish in 30s
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
+  # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
+  # Root cause: Pilgrim Homes (56 mailboxes x 15 years) would take ~56 hours to fully sync.
+  # Heroku kills dynos at 30 minutes, so the job dies mid-sync and last_sync_at never updates.
+  # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
+  # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
+  PER_CREDENTIAL_TIMEOUT = 10.minutes
 
   # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
   # ════════════════════════════════════════════════════════════════
@@ -60,12 +68,12 @@ class OrgEmailSyncJob < ApplicationJob
   # Solution: Always add overlap buffer and enforce minimum lookback.
   # Overlap is SAFE (upsert handles duplicates). Missing emails is NOT.
   # ════════════════════════════════════════════════════════════════
-  SYNC_OVERLAP_BUFFER = 2.hours   # Always look back this much before last_sync_at
-  SYNC_MINIMUM_LOOKBACK = 24.hours # Never sync less than this window
+  SYNC_OVERLAP_BUFFER = EmailConstants::SYNC_OVERLAP_BUFFER   # Always look back this much before last_sync_at
+  SYNC_MINIMUM_LOOKBACK = EmailConstants::RECENT_EMAIL_WINDOW # Never sync less than this window
 
   # SSoT: Supports multi-org via organization_id (preferred)
   # Falls back to credential_id or org_name for legacy compatibility (with warning)
-  def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil)
+  def perform(sync_type = "incremental", organization_id: nil, credential_id: nil, org_name: nil, target_mailbox: nil)
     # Performance: Thread-safe caches for parallel folder sync
     @user_cache = Concurrent::Map.new
     @blacklist_cache = nil
@@ -77,74 +85,156 @@ class OrgEmailSyncJob < ApplicationJob
       return
     end
 
-    sync_config = @credential.sync_config || {}
-    sync_all = sync_config["sync_all"] || false
-    user_emails = sync_config["user_emails"] || []
-    sync_years = sync_config["sync_years"] || 3
-    sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
-
-    # Determine which users to sync
-    # Priority: 1) sync_all → all tenant mailboxes
-    #           2) user_emails configured → use those
-    #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
-    if sync_all
-      # Get all users from tenant
-      client = MicrosoftAppGraphClient.new(@credential)
-      tenant_users = client.list_users(select: "id,mail,userPrincipalName")
-      user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
-    elsif user_emails.empty?
-      # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
-      # If Sync All is OFF, only sync mailboxes that are visible to at least one user
-      # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
-      user_mailbox_access = sync_config["user_mailbox_access"] || {}
-
-      # Collect all unique mailboxes that have at least one user with access
-      user_emails = user_mailbox_access.values.flatten.compact.uniq
-
-      Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
-    end
-
-    if user_emails.empty?
-      Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
+    # ⚠️ FRC (Feb 2026): Set tenant context for StorageBlob and WarehouseDocument operations
+    # Root cause: sync_attachments! → StorageBlob.find_or_create_for_content! → upload_to_storage!
+    # → storage_provider (class method) requires ActsAsTenant.current_tenant to find the
+    # WarehouseProvider config. Without this, ALL attachment uploads fail with TenantNotFoundError,
+    # which caused ~99% of email attachments to never reach Wasabi storage.
+    tenant = @credential.tenant
+    unless tenant
+      Rails.logger.error "[OrgEmailSync] No tenant found for credential #{@credential.id} - cannot sync attachments"
       return
     end
 
-    Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} users"
+    ActsAsTenant.with_tenant(tenant) do
+      sync_config = @credential.sync_config || {}
+      sync_all = sync_config["sync_all"] || false
+      user_emails = sync_config["user_emails"] || []
+      sync_years = sync_config["sync_years"] || 3
+      sync_days = sync_config["sync_days"] # Optional: sync by days instead of years
 
-    total_synced = 0
-    errors = []
+      # Determine which users to sync
+      # Priority: 1) sync_all → all tenant mailboxes
+      #           2) user_emails configured → use those
+      #           3) Auto-detect: TEEEM users whose email matches a tenant mailbox
+      if sync_all
+        # Get all users from tenant
+        client = MicrosoftAppGraphClient.new(@credential)
+        tenant_users = client.list_users(select: "id,mail,userPrincipalName")
+        user_emails = tenant_users.map { |u| u["mail"] || u["userPrincipalName"] }.compact
+      elsif user_emails.empty?
+        # FRC (Jan 2026): Auto-detect mailboxes from user_mailbox_access config
+        # If Sync All is OFF, only sync mailboxes that are visible to at least one user
+        # user_mailbox_access format: { "user_id" => ["mailbox1@...", "mailbox2@..."], ... }
+        user_mailbox_access = sync_config["user_mailbox_access"] || {}
 
-    user_emails.each do |user_email|
-      begin
-        synced = sync_user_emails(user_email, sync_type, sync_years, sync_days)
-        total_synced += synced
-        Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
-      rescue StandardError => e
-        Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
-        errors << { user: user_email, error: e.message }
+        # Collect all unique mailboxes that have at least one user with access
+        user_emails = user_mailbox_access.values.flatten.compact.uniq
+
+        Rails.logger.info "[OrgEmailSync] Auto-detected #{user_emails.count} mailboxes from user_mailbox_access"
       end
-    end
 
-    # Update last sync time
-    # FRC (Jan 2026): Use update_columns to bypass optimistic locking
-    # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
-    # when credential is modified elsewhere. update_columns is safe for timestamps.
-    @credential.update_columns(last_sync_at: Time.current)
+      if user_emails.empty?
+        Rails.logger.info "[OrgEmailSync] No users configured for sync (enable Sync All or add TEEEM users with matching emails)"
+        return
+      end
 
-    Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+      # FRC (Feb 2026): Target a single mailbox for quick inline sync from the UI.
+      if target_mailbox.present?
+        target = target_mailbox.to_s.downcase.strip
+        Rails.logger.info "[SYNC-DEBUG] target_mailbox=#{target_mailbox}, user_emails count=#{user_emails.count}, user_emails=#{user_emails.first(5).join(', ')}"
+        if user_emails.map(&:downcase).include?(target)
+          user_emails = [target_mailbox]
+          Rails.logger.info "[SYNC-DEBUG] Matched! Will sync single mailbox: #{target_mailbox}"
+        else
+          Rails.logger.warn "[SYNC-DEBUG] Target mailbox #{target_mailbox} NOT in user_emails list: #{user_emails.map(&:downcase).join(', ')}"
+          return
+        end
+      end
 
-    { total_synced: total_synced, errors: errors }
+      # ⚠️ FRC (Feb 2026): Per-mailbox sync tracking fixes TWO bugs:
+      # ════════════════════════════════════════════
+      # Bug 1 (Starvation): list_users() returns the same order every time. With
+      #   PER_CREDENTIAL_TIMEOUT=10min, only the first ~15 mailboxes get processed.
+      #   The remaining 41 are STARVED FOREVER.
+      # Bug 2 (Wrong since date): last_sync_at is credential-level (shared by all mailboxes).
+      #   Once one mailbox syncs, the incremental `since` becomes ~15min ago for ALL mailboxes,
+      #   even ones never synced. So unsynced mailboxes only get last 24h, not full history.
+      # Fix: Track per-mailbox sync timestamps. Sort unsynced-first. Use per-mailbox since dates.
+      # ════════════════════════════════════════════
+      mailbox_synced_at = sync_config["mailbox_synced_at"] || {}
+
+      # Sort: never-synced mailboxes FIRST, then oldest-synced first
+      # This ensures new mailboxes get priority within the time budget
+      user_emails.sort_by! { |email| mailbox_synced_at[email.downcase] || "0000-00-00" }
+
+      synced_count = user_emails.count { |e| mailbox_synced_at[e.downcase].present? }
+      unsynced_count = user_emails.count - synced_count
+      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} mailboxes (#{synced_count} synced, #{unsynced_count} unsynced) (tenant: #{tenant.name})"
+
+      total_synced = 0
+      errors = []
+      sync_started_at = Time.current
+
+      # Broadcast sync_started to all tenant users via WebSocket
+      broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
+
+      user_emails.each_with_index do |user_email, idx|
+        # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
+        elapsed = Time.current - sync_started_at
+        Rails.logger.info "[SYNC-DEBUG] Mailbox #{idx + 1}/#{user_emails.count}: #{user_email} (elapsed: #{elapsed.round(1)}s)"
+        if elapsed > PER_CREDENTIAL_TIMEOUT
+          remaining = user_emails.count - total_synced - errors.count
+          Rails.logger.warn "[SYNC-DEBUG] TIME BUDGET EXCEEDED (#{PER_CREDENTIAL_TIMEOUT.to_i}s) after #{total_synced} mailboxes, #{remaining} remaining"
+          break
+        end
+
+        begin
+          # Use per-mailbox last_synced_at for accurate since date
+          mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
+          sync_start = Time.current
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?)
+          sync_elapsed = (Time.current - sync_start).round(1)
+          total_synced += synced
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
+
+          # Update per-mailbox sync timestamp
+          mailbox_synced_at[user_email.downcase] = Time.current.iso8601
+          updated_config = sync_config.merge("mailbox_synced_at" => mailbox_synced_at)
+          @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
+        rescue StandardError => e
+          Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
+          errors << { user: user_email, error: e.message }
+        end
+      end
+
+      # Final update (also covers the case where all mailboxes completed)
+      # FRC (Jan 2026): Use update_columns to bypass optimistic locking
+      # Root cause: Long-running syncs (30+ min for 2000+ emails) hit StaleObjectError
+      # when credential is modified elsewhere. update_columns is safe for timestamps.
+      @credential.update_columns(last_sync_at: Time.current)
+
+      Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+
+      # Broadcast sync_completed to all tenant users via WebSocket
+      duration = (Time.current - sync_started_at).round
+      broadcast_sync_status_to_tenant(tenant, :completed,
+        new_count: total_synced, updated_count: 0, duration_seconds: duration)
+
+      { total_synced: total_synced, errors: errors }
+    end # ActsAsTenant.with_tenant
   end
 
   private
 
-  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil)
+  # ⚠️ FRC (Feb 2026): Inline sync since date fix
+  # Root cause: Per-mailbox tracking (mailbox_synced_at) was added AFTER mailboxes were
+  # already syncing via the recurring job. So old mailboxes show mb_last_synced=NEVER even
+  # though they ARE synced (emails visible up to 15 min ago). Without credential.last_sync_at
+  # fallback, since=2011 (15 years) → 217 folders × thousands of emails → H12 timeout.
+  # Fix: For inline sync, fall back to credential.last_sync_at (recent, from last recurring run).
+  # Background sync keeps the original behavior (full lookback for truly never-synced mailboxes).
+  INLINE_FALLBACK_LOOKBACK = 7.days
+
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false)
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email} (inline_quick=#{inline_quick})"
     client = MicrosoftAppGraphClient.new(@credential)
 
     # Determine since date - prefer sync_days over sync_years if both are set
     lookback_time = if sync_days.present?
                       if sync_days == 0
-                        Date.today.beginning_of_day  # Just today (from midnight)
+                        Date.current.beginning_of_day  # Just today (from midnight)
                       else
                         sync_days.days.ago  # Last N days (24-hour periods)
                       end
@@ -156,68 +246,114 @@ class OrgEmailSyncJob < ApplicationJob
     when "full"
               lookback_time
     else
-              # ⚠️ ULTRA FIX: Never trust last_sync_at exactly - always add overlap
-              # This ensures emails aren't lost due to timing issues or transient failures
-              if @credential.last_sync_at
-                # Use last_sync_at minus overlap buffer, but never less than minimum lookback
+              if mailbox_last_synced_at
+                buffered_time = mailbox_last_synced_at - SYNC_OVERLAP_BUFFER
+                minimum_time = SYNC_MINIMUM_LOOKBACK.ago
+                [buffered_time, minimum_time].min
+              elsif inline_quick && @credential.last_sync_at
+                # Inline sync: mailbox IS synced (by recurring job), just missing per-mailbox
+                # tracking. Use credential.last_sync_at as fallback for a sane since date.
                 buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
                 minimum_time = SYNC_MINIMUM_LOOKBACK.ago
-                [buffered_time, minimum_time].min  # Use the OLDER of the two (larger window)
+                Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced nil → fallback to credential.last_sync_at=#{@credential.last_sync_at.iso8601}"
+                [buffered_time, minimum_time].min
+              elsif inline_quick
+                INLINE_FALLBACK_LOOKBACK.ago
               else
                 lookback_time
               end
     end
 
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: since=#{since&.iso8601 || 'nil'}, sync_type=#{sync_type}"
+
     # Get all mail folders
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Fetching mail folders..."
+    folder_start = Time.current
     folders = client.get_user_mail_folders(user_email)
+    folder_elapsed = (Time.current - folder_start).round(1)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s"
 
     # Performance: Parallel folder sync with thread batching
-    # Sync folders in parallel (PARALLEL_FOLDER_THREADS at a time) for ~3x speedup
-    total_synced = sync_folders_parallel(client, user_email, folders, since)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
+    parallel_start = Time.current
+    thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
+    total_synced = sync_folders_parallel(client, user_email, folders, since, thread_count: thread_count)
+    parallel_elapsed = (Time.current - parallel_start).round(1)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
     # Auto-match unassigned emails after sync
-    auto_match_user_emails(user_email)
+    # Skip for inline_quick - background job handles it, saves time on web dyno
+    unless inline_quick
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
+      match_start = Time.current
+      auto_match_user_emails(user_email)
+      match_elapsed = (Time.current - match_start).round(1)
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: auto_match completed in #{match_elapsed}s"
+    end
 
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails DONE for #{user_email}: #{total_synced} total"
     total_synced
   end
 
   # Performance: Sync folders in parallel batches
   # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
   # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
-  def sync_folders_parallel(client, user_email, folders, since)
+  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
     total_synced = Concurrent::AtomicFixnum.new(0)
     failed_folders = Concurrent::Array.new
 
+    # Capture tenant for child threads (ActsAsTenant uses thread-local storage)
+    current_tenant = ActsAsTenant.current_tenant
+
+    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, threads=#{thread_count}, SYNC_TIMEOUT_SECONDS=#{SYNC_TIMEOUT_SECONDS}"
+
     # Process folders in parallel batches
-    folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
+    batch_num = 0
+    folders.each_slice(thread_count) do |folder_batch|
+      batch_num += 1
+      batch_start = Time.current
+      Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num}: #{folder_batch.map { |f| f[:name] }.join(', ')}"
+
       threads = folder_batch.map do |folder|
         Thread.new do
+          # Set tenant context in child thread (thread-local, not inherited)
+          ActsAsTenant.current_tenant = current_tenant
           # Each thread gets its own database connection from the pool
           ActiveRecord::Base.connection_pool.with_connection do
             begin
               # Create a new client instance per thread (thread-safe HTTP)
               thread_client = MicrosoftAppGraphClient.new(@credential)
+              folder_start = Time.current
               synced = sync_folder(thread_client, user_email, folder, since)
+              folder_elapsed = (Time.current - folder_start).round(1)
+              Rails.logger.info "[SYNC-DEBUG] Folder '#{folder[:name]}' done: #{synced} emails in #{folder_elapsed}s"
               total_synced.increment(synced)
             rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
               # Database connection error - mark for retry
-              Rails.logger.warn "[OrgEmailSync] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
+              Rails.logger.warn "[SYNC-DEBUG] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
               failed_folders << folder
             rescue StandardError => e
-              Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
+              Rails.logger.error "[SYNC-DEBUG] Parallel sync error for folder #{folder[:name]}: #{e.class}: #{e.message}"
+              Rails.logger.error "[SYNC-DEBUG] #{e.backtrace.first(3).join("\n")}"
             end
           end
         end
       end
 
       # Wait for all threads in this batch to complete (with timeout)
-      threads.each do |thread|
-        thread.join(SYNC_TIMEOUT_SECONDS)
-        thread.kill if thread.alive?  # Kill timed-out threads
+      threads.each_with_index do |thread, i|
+        joined = thread.join(SYNC_TIMEOUT_SECONDS)
+        if joined.nil?
+          Rails.logger.error "[SYNC-DEBUG] Thread #{i} TIMED OUT after #{SYNC_TIMEOUT_SECONDS}s - killing"
+          thread.kill
+        end
       end
+
+      batch_elapsed = (Time.current - batch_start).round(1)
+      Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num} completed in #{batch_elapsed}s (total so far: #{total_synced.value})"
     end
 
     # Retry failed folders sequentially (connection pool should have connections now)
@@ -243,6 +379,7 @@ class OrgEmailSyncJob < ApplicationJob
     max_pages = 200 # Increased from 50 to handle large mailboxes (200 * 100 = 20,000 emails per folder)
 
     loop do
+      page_start = Time.current
       emails = client.get_user_emails(
         user_email,
         folder: folder[:id],
@@ -250,14 +387,19 @@ class OrgEmailSyncJob < ApplicationJob
         since: since,
         skip: skip
       )
+      api_elapsed = (Time.current - page_start).round(1)
 
       break if emails.empty?
 
+      upsert_start = Time.current
       emails.each do |email_data|
         # Upsert into SyncedEmail
         warehouse_email = upsert_email(email_data, user_email, folder[:name])
         synced += 1 if warehouse_email
       end
+      upsert_elapsed = (Time.current - upsert_start).round(1)
+
+      Rails.logger.info "[SYNC-DEBUG] #{folder[:name]} page #{page}: #{emails.count} emails (API: #{api_elapsed}s, upsert: #{upsert_elapsed}s, total synced: #{synced})"
 
       page += 1
       skip += 100 # Move to next page
@@ -403,6 +545,12 @@ class OrgEmailSyncJob < ApplicationJob
       email.synced_by_user_id = teeem_user&.id
     end
 
+    # FRC (Feb 2026): Set ssot_owner_id for WebSocket broadcasts
+    # Root cause: broadcast_new_email (after_create_commit) returned early because
+    # ssot_owner_id was never set. set_ssot_owner! was defined but never called.
+    # Fix: Set ssot_owner_id during upsert using synced_by_user_id as default.
+    email.ssot_owner_id ||= email.synced_by_user_id
+
     is_new_record = email.new_record?
     email.save!
 
@@ -487,7 +635,7 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Return highest confidence match if above threshold (0.8)
     best_match = matches.first
-    return nil unless best_match && best_match[:confidence] >= 0.8
+    return nil unless best_match && best_match[:confidence] >= EmailConstants::DEFAULT_AUTO_ASSIGN_CONFIDENCE
 
     Rails.logger.info "[OrgEmailSync] Matched email #{email.id} to job #{best_match[:job].id} (#{best_match[:match_type]}, confidence: #{best_match[:confidence]})"
     best_match[:job]
@@ -497,6 +645,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Priority: organization_id > credential_id > org_name > legacy fallback (with warning)
   def find_credential(organization_id: nil, credential_id: nil, org_name: nil)
     # 1. Organization ID (SSoT preferred method)
+    # Security: Job is queued from tenant-scoped controller, organization_id already validated
     if organization_id.present?
       org = Organization.find_by(id: organization_id)
       if org
@@ -507,12 +656,14 @@ class OrgEmailSyncJob < ApplicationJob
     end
 
     # 2. Credential ID (direct lookup - SSoT: MicrosoftCredential only)
+    # Security: Job is queued from tenant-scoped controller, credential_id already validated
     if credential_id.present?
       cred = MicrosoftCredential.find_by(id: credential_id)
       return cred if cred
     end
 
     # 3. Organization name (lookup by name)
+    # Security: Job is queued from tenant-scoped controller, org_name already validated
     if org_name.present?
       org = Organization.find_by_name_or_slug(org_name)
       if org
@@ -726,5 +877,23 @@ class OrgEmailSyncJob < ApplicationJob
   # SSoT: Use user_roles join table (user.role column was removed in Dec 2025)
   def find_org_admin_user
     @org_admin_user ||= User.with_role("admin").first
+  end
+
+  # Broadcast sync status to all users in the tenant via WebSocket
+  # ActionCable only delivers to users with active EmailChannel subscriptions
+  def broadcast_sync_status_to_tenant(tenant, status, **kwargs)
+    tenant.users.select(:id).find_each do |user|
+      case status
+      when :started
+        EmailChannel.broadcast_sync_started(user, sync_type: kwargs[:sync_type] || "incremental")
+      when :completed
+        EmailChannel.broadcast_sync_completed(user,
+          new_count: kwargs[:new_count] || 0,
+          updated_count: kwargs[:updated_count] || 0,
+          duration_seconds: kwargs[:duration_seconds] || 0)
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error "[OrgEmailSync] Failed to broadcast sync #{status}: #{e.message}"
   end
 end

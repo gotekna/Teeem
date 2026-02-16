@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
-import { getApiBaseUrl } from "@/lib/api";
+import { api } from "@/lib/api";
 import Link from "next/link";
 import { ArrowLeft, Mail } from "lucide-react";
 
@@ -22,16 +22,14 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch(`${getApiBaseUrl()}/api/v1/auth/forgot_password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (data.success) {
+      const data = await api.post<{ success: boolean; error?: string }>(
+        "/api/v1/auth/forgot_password",
+        { email }
+      );
+      if (data?.success) {
         setSent(true);
       } else {
-        setError(data.error || "Something went wrong");
+        setError(data?.error || "Something went wrong");
       }
     } catch {
       setError("Unable to connect. Please try again.");

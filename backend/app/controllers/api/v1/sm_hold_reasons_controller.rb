@@ -41,10 +41,7 @@ module Api
             hold_reason: hold_reason_to_json(@hold_reason)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @hold_reason.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@hold_reason)
         end
       end
 
@@ -56,10 +53,7 @@ module Api
             hold_reason: hold_reason_to_json(@hold_reason)
           }
         else
-          render json: {
-            success: false,
-            errors: @hold_reason.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@hold_reason)
         end
       end
 
@@ -85,10 +79,7 @@ module Api
       # POST /api/v1/sm_hold_reasons/reorder
       def reorder
         unless params[:hold_reason_ids].is_a?(Array)
-          return render json: {
-            success: false,
-            error: "hold_reason_ids must be an array"
-          }, status: :unprocessable_entity
+          return render_error("hold_reason_ids must be an array", status: :unprocessable_entity)
         end
 
         SmHoldReason.transaction do
@@ -119,10 +110,7 @@ module Api
       def set_hold_reason
         @hold_reason = SmHoldReason.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Hold reason not found"
-        }, status: :not_found
+        render_error("Hold reason not found", status: :not_found)
       end
 
       def hold_reason_params

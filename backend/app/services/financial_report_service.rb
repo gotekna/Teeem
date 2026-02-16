@@ -26,7 +26,7 @@ class FinancialReportService
 
     pdf_content = build_pdf
     filename = @report.generate_file_name || generate_filename
-    folder_path = "/Warehousing/Financial Reports/#{sanitize_storage_path(@report.company_name)}/#{@report.financial_year}"
+    folder_path = "/Warehouse/Financial Reports/#{sanitize_storage_path(@report.company_name)}/#{@report.financial_year}"
 
     result = upload_to_storage_path(folder_path, pdf_content, filename, content_type: "application/pdf")
 

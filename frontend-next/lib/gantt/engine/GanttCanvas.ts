@@ -13,10 +13,11 @@ import { UndoManager, Command } from './UndoManager';
 import { WorkingDaysCalendar, Holiday, WorkingDaysConfig } from './WorkingDaysCalendar';
 import { calculateCriticalPath, CriticalPathResult, TaskSchedule } from './CriticalPath';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS } from '@/lib/constants/color-constants';
+import { CHART_COLORS, GANTT_COLORS, TAILWIND_COLORS, CATEGORY_COLORS, COLORS } from '@/lib/constants/color-constants';
 import { TASK_STATUS, TaskStatus, TASK_STATUS_LABELS } from '@/lib/constants/task-status';
 import { getStorageItem, setStorageItem, removeStorageItem } from '@/lib/storage-utils';
 import { copyToClipboard } from '@/utils/formatters';
+import { UI_ANIMATION_SHORT_MS } from '@/lib/constants/timeout-constants';
 
 // Extracted Managers (Day 2-7 Refactor)
 import { SelectionManager, SelectionChangeEvent } from './managers/SelectionManager';
@@ -97,7 +98,6 @@ export interface GanttTask {
   /** Hold state for paused tasks */
   holdState?: HoldState;
   /** Original row data from API (for accessing hold etc) */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   rowData?: any;
 }
 
@@ -595,26 +595,12 @@ export class GanttCanvas {
   }
 
   constructor(container: HTMLElement, options?: Partial<GanttConfig>) {
-    console.log('[GanttCanvas] 🎨 Constructor called', {
-      container,
-      containerWidth: container.offsetWidth,
-      containerHeight: container.offsetHeight,
-      options
-    });
-
     // Create canvas element
     this.canvas = document.createElement('canvas');
     this.canvas.style.display = 'block';
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
     container.appendChild(this.canvas);
-
-    console.log('[GanttCanvas] 📐 Canvas element created and appended', {
-      canvasWidth: this.canvas.width,
-      canvasHeight: this.canvas.height,
-      styleWidth: this.canvas.style.width,
-      styleHeight: this.canvas.style.height
-    });
 
     // Get 2D context
     const ctx = this.canvas.getContext('2d');
@@ -828,13 +814,6 @@ export class GanttCanvas {
    * Set the tasks to display
    */
   setTasks(tasks: GanttTask[]): void {
-    console.log('[GanttCanvas] 📋 setTasks called', {
-      tasksCount: tasks.length,
-      firstTask: tasks[0],
-      rowHeight: this.config.rowHeight,
-      contentHeight: tasks.length * this.config.rowHeight
-    });
-
     this.state.tasks = tasks;
     this.markDirty();
 
@@ -1239,7 +1218,6 @@ export class GanttCanvas {
 
     // Prevent cascade loops
     if (this.cascadeInProgress) {
-      console.warn('GanttCanvas: Ignoring nested batch update to prevent cascade loop');
       return;
     }
 
@@ -2065,7 +2043,6 @@ export class GanttCanvas {
   ): GanttDependency | null {
     // Check for circular dependency
     if (this.wouldCreateCircularDependency(fromId, toId)) {
-      console.warn(`Circular dependency prevented: ${fromId} → ${toId}`);
       return null;
     }
 
@@ -2074,7 +2051,6 @@ export class GanttCanvas {
       d => d.fromId === fromId && d.toId === toId
     );
     if (existingDep) {
-      console.warn(`Dependency already exists: ${fromId} → ${toId}`);
       return existingDep;
     }
 
@@ -2159,7 +2135,6 @@ export class GanttCanvas {
 
     if (cycles.length === 0) return removedIds;
 
-    console.warn(`Found ${cycles.length} circular dependencies, removing...`);
 
     // For each cycle, remove the last dependency (the one that closes the loop)
     cycles.forEach(cycle => {
@@ -2457,18 +2432,10 @@ export class GanttCanvas {
   resize(): void {
     const parent = this.canvas.parentElement;
     if (!parent) {
-      console.warn('[GanttCanvas] ⚠️  resize() called but canvas has no parent');
       return;
     }
 
     const rect = parent.getBoundingClientRect();
-    console.log('[GanttCanvas] 📐 resize() called', {
-      parentWidth: rect.width,
-      parentHeight: rect.height,
-      dpr: this.dpr,
-      canvasWidth: rect.width * this.dpr,
-      canvasHeight: rect.height * this.dpr
-    });
 
     this.containerWidth = rect.width;
     this.containerHeight = rect.height;
@@ -2692,9 +2659,7 @@ export class GanttCanvas {
         baselineEnabled: this.baselineEnabled,
       };
       setStorageItem(this.statePersistenceKey, stateToSave, false);
-    } catch (e) {
-      console.warn('GanttCanvas: Failed to persist state', e);
-    }
+    } catch (_) { /* Storage save failure is non-critical */ }
   }
 
   /**
@@ -2738,7 +2703,6 @@ export class GanttCanvas {
       this.markDirty();
       return true;
     } catch (e) {
-      console.warn('GanttCanvas: Failed to restore state', e);
       return false;
     }
   }
@@ -2749,9 +2713,7 @@ export class GanttCanvas {
   clearPersistedState(): void {
     try {
       removeStorageItem(this.statePersistenceKey, false);
-    } catch (e) {
-      console.warn('GanttCanvas: Failed to clear persisted state', e);
-    }
+    } catch (_) { /* Storage clear failure is non-critical */ }
   }
 
   private startRenderLoop(): void {
@@ -2774,18 +2736,6 @@ export class GanttCanvas {
 
   private render(): void {
     // Debug log every 60 frames (~1 second at 60fps)
-    if (!this._renderCount) this._renderCount = 0;
-    this._renderCount++;
-    if (this._renderCount % 60 === 1) {
-      console.log('[GanttCanvas] 🎬 render() called', {
-        tasksCount: this.state.tasks.length,
-        containerWidth: this.containerWidth,
-        containerHeight: this.containerHeight,
-        headerHeight: this.config.headerHeight,
-        scrollY: this.viewport.getState().scrollY
-      });
-    }
-
     // Clear canvas
     this.ctx.clearRect(0, 0, this.containerWidth, this.containerHeight);
 
@@ -3380,7 +3330,7 @@ export class GanttCanvas {
       if (this.isDragging) {
         // Calculate new date based on drag distance
         const daysDelta = Math.round(deltaX / (this.config.dayWidth * this.viewportState.zoom));
-        let newDate = new Date(this.dragStartDate);
+        const newDate = new Date(this.dragStartDate);
         newDate.setDate(newDate.getDate() + daysDelta);
 
         // Use UTC midnight to avoid timezone shifts
@@ -5287,12 +5237,12 @@ export class GanttCanvas {
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 10pt;
-            color: #333;
+            color: ${TAILWIND_COLORS.gray[700]};
           }
           .header {
             text-align: center;
             margin-bottom: 20px;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid ${TAILWIND_COLORS.gray[700]};
             padding-bottom: 10px;
           }
           .header h1 {
@@ -5300,7 +5250,7 @@ export class GanttCanvas {
             font-size: 18pt;
           }
           .header .dates {
-            color: #666;
+            color: ${TAILWIND_COLORS.gray[500]};
             font-size: 9pt;
           }
           .task-table {
@@ -5310,27 +5260,27 @@ export class GanttCanvas {
           }
           .task-table th,
           .task-table td {
-            border: 1px solid #ddd;
+            border: 1px solid ${TAILWIND_COLORS.gray[300]};
             padding: 6px 8px;
             text-align: left;
           }
           .task-table th {
-            background: #f5f5f5;
+            background: ${TAILWIND_COLORS.gray[100]};
             font-weight: 600;
           }
           .task-table tr:nth-child(even) {
-            background: #fafafa;
+            background: ${TAILWIND_COLORS.gray[50]};
           }
           .progress-bar {
             width: 100px;
             height: 12px;
-            background: #eee;
+            background: ${TAILWIND_COLORS.gray[200]};
             border-radius: 6px;
             overflow: hidden;
           }
           .progress-fill {
             height: 100%;
-            background: #4CAF50;
+            background: ${TAILWIND_COLORS.green[500]};
           }
           .status-badge {
             display: inline-block;
@@ -5338,16 +5288,16 @@ export class GanttCanvas {
             border-radius: 4px;
             font-size: 8pt;
           }
-          .status-not-started { background: #e0e0e0; }
-          .status-in-progress { background: #bbdefb; color: #1565c0; }
-          .status-completed { background: #c8e6c9; color: #2e7d32; }
-          .status-on-hold { background: #fff9c4; color: #f57f17; }
-          .status-at-risk { background: #ffcdd2; color: #c62828; }
+          .status-not-started { background: ${TAILWIND_COLORS.gray[200]}; }
+          .status-in-progress { background: ${TAILWIND_COLORS.blue[200]}; color: ${TAILWIND_COLORS.blue[800]}; }
+          .status-completed { background: ${TAILWIND_COLORS.green[200]}; color: ${TAILWIND_COLORS.green[800]}; }
+          .status-on-hold { background: ${TAILWIND_COLORS.amber[100]}; color: ${TAILWIND_COLORS.amber[800]}; }
+          .status-at-risk { background: ${TAILWIND_COLORS.red[200]}; color: ${TAILWIND_COLORS.red[800]}; }
           .footer {
             text-align: center;
             font-size: 8pt;
-            color: #666;
-            border-top: 1px solid #ddd;
+            color: ${TAILWIND_COLORS.gray[500]};
+            border-top: 1px solid ${TAILWIND_COLORS.gray[300]};
             padding-top: 10px;
             margin-top: 20px;
           }
@@ -5540,7 +5490,6 @@ export class GanttCanvas {
    */
   assignResource(taskId: string, resourceId: string): void {
     if (!this.resources.has(resourceId)) {
-      console.warn(`Resource ${resourceId} not found`);
       return;
     }
 
@@ -7153,7 +7102,7 @@ export class GanttCanvas {
     const {
       width = this.canvas.width,
       height = this.canvas.height,
-      backgroundColor = '#ffffff',
+      backgroundColor = COLORS.white,
       scale = 1
     } = options;
 
@@ -7879,8 +7828,8 @@ export class GanttCanvas {
     if (selectedTasks.length === 0) return;
 
     // Find the date range of selected tasks
-    let minDate = new Date(Math.min(...selectedTasks.map(t => t.startDate.getTime())));
-    let maxDate = new Date(Math.max(...selectedTasks.map(t => t.endDate.getTime())));
+    const minDate = new Date(Math.min(...selectedTasks.map(t => t.startDate.getTime())));
+    const maxDate = new Date(Math.max(...selectedTasks.map(t => t.endDate.getTime())));
 
     // Add padding
     minDate.setDate(minDate.getDate() - padding);
@@ -11070,11 +11019,11 @@ export class GanttCanvas {
     // Background
     ctx.fillStyle = this.config.darkMode ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)';
     ctx.fillRect(x, y, modalWidth, modalHeight);
-    ctx.strokeStyle = this.config.darkMode ? '#444' : '#ccc';
+    ctx.strokeStyle = this.config.darkMode ? TAILWIND_COLORS.gray[600] : TAILWIND_COLORS.gray[300];
     ctx.strokeRect(x, y, modalWidth, modalHeight);
 
     // Title
-    ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+    ctx.fillStyle = this.config.darkMode ? COLORS.white : COLORS.black;
     ctx.font = 'bold 16px system-ui';
     ctx.fillText('Keyboard Shortcuts', x + 20, y + 30);
 
@@ -11082,9 +11031,9 @@ export class GanttCanvas {
     ctx.font = '13px system-ui';
     shortcuts.forEach((shortcut, i) => {
       const rowY = y + 55 + i * 25;
-      ctx.fillStyle = this.config.darkMode ? '#a0a0a0' : '#666';
+      ctx.fillStyle = this.config.darkMode ? TAILWIND_COLORS.gray[400] : TAILWIND_COLORS.gray[500];
       ctx.fillText(shortcut.key, x + 20, rowY);
-      ctx.fillStyle = this.config.darkMode ? '#fff' : '#000';
+      ctx.fillStyle = this.config.darkMode ? COLORS.white : COLORS.black;
       ctx.fillText(shortcut.description, x + 150, rowY);
     });
   }
@@ -11232,7 +11181,6 @@ export class GanttCanvas {
     });
 
     if (removed.length > 0) {
-      console.warn('[GanttCanvas] Removed circular dependencies:', removed);
       this.markDirty();
     }
 
@@ -11250,7 +11198,6 @@ export class GanttCanvas {
 
   logCircularDependencyAttempt(fromId: string, toId: string): void {
     if (!this.circularDepLoggingEnabled) return;
-    console.warn(`[GanttCanvas] Circular dependency blocked: ${fromId} → ${toId}`);
   }
 
   // =========================================================================
@@ -11403,7 +11350,7 @@ export class GanttCanvas {
 
   initializeOrientationDetection(): void {
     this.detectOrientation();
-    this._boundOrientationChange = () => setTimeout(() => this.detectOrientation(), 100);
+    this._boundOrientationChange = () => setTimeout(() => this.detectOrientation(), UI_ANIMATION_SHORT_MS);
     this._boundOrientationResize = () => this.detectOrientation();
     window.addEventListener('orientationchange', this._boundOrientationChange);
     window.addEventListener('resize', this._boundOrientationResize);
@@ -11445,7 +11392,7 @@ export class GanttCanvas {
     if (!this.screenReaderElement) return;
     this.screenReaderElement.setAttribute('aria-live', priority);
     this.screenReaderElement.textContent = '';
-    setTimeout(() => { if (this.screenReaderElement) this.screenReaderElement.textContent = message; }, 100);
+    setTimeout(() => { if (this.screenReaderElement) this.screenReaderElement.textContent = message; }, UI_ANIMATION_SHORT_MS);
   }
 
   // =========================================================================
@@ -13116,7 +13063,6 @@ export class GanttCanvas {
       };
       setStorageItem(key, state, false);
     } catch {
-      console.warn('Failed to save state to localStorage');
     }
   }
 
@@ -13138,7 +13084,6 @@ export class GanttCanvas {
       this.markDirty();
       return true;
     } catch {
-      console.warn('Failed to load state from localStorage');
       return false;
     }
   }
@@ -14748,14 +14693,12 @@ ${this.getAutomatedTestResults()}
     this.visualTestMode = true;
     this.visualTestOverlayVisible = true;
     this.markDirty();
-    console.log('[GanttCanvas] Visual Test Mode enabled');
   }
 
   disableVisualTestMode(): void {
     this.visualTestMode = false;
     this.visualTestOverlayVisible = false;
     this.markDirty();
-    console.log('[GanttCanvas] Visual Test Mode disabled');
   }
 
   isVisualTestModeEnabled(): boolean {
@@ -14766,7 +14709,6 @@ ${this.getAutomatedTestResults()}
   private automatedTestResults: Map<string, { passed: boolean; message: string; duration: number }> = new Map();
 
   async runGanttAutomatedTest(): Promise<{ passed: number; failed: number; total: number; results: Array<{ name: string; passed: boolean; message: string; duration: number }> }> {
-    console.log('[GanttCanvas] Starting automated tests...');
     this.automatedTestResults.clear();
 
     const tests = [
@@ -14808,7 +14750,6 @@ ${this.getAutomatedTestResults()}
     const passed = results.filter(r => r.passed).length;
     const failed = results.filter(r => !r.passed).length;
 
-    console.log(`[GanttCanvas] Tests complete: ${passed} passed, ${failed} failed`);
     return { passed, failed, total: results.length, results };
   }
 
@@ -15043,7 +14984,6 @@ ${this.getAutomatedTestResults()}
 
   setConsoleLogging(category: keyof typeof this.consoleLoggingConfig, enabled: boolean): void {
     this.consoleLoggingConfig[category] = enabled;
-    console.log(`[GanttCanvas] Console logging for '${category}': ${enabled ? 'ENABLED' : 'DISABLED'}`);
   }
 
   getConsoleLoggingConfig(): typeof this.consoleLoggingConfig {
@@ -15054,19 +14994,16 @@ ${this.getAutomatedTestResults()}
     for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
       this.consoleLoggingConfig[key] = true;
     }
-    console.log('[GanttCanvas] All console logging ENABLED');
   }
 
   disableAllConsoleLogging(): void {
     for (const key of Object.keys(this.consoleLoggingConfig) as Array<keyof typeof this.consoleLoggingConfig>) {
       this.consoleLoggingConfig[key] = false;
     }
-    console.log('[GanttCanvas] All console logging DISABLED');
   }
 
   private log(category: keyof typeof this.consoleLoggingConfig, message: string, ...args: unknown[]): void {
     if (this.consoleLoggingConfig[category]) {
-      console.log(`[GanttCanvas:${category}] ${message}`, ...args);
     }
   }
 
@@ -15092,7 +15029,6 @@ ${this.getAutomatedTestResults()}
       showDependencyPaths: true,
     };
     this.markDirty();
-    console.log('[GanttCanvas] Debug mode ENABLED');
   }
 
   disableDebugMode(): void {
@@ -15106,7 +15042,6 @@ ${this.getAutomatedTestResults()}
       showDependencyPaths: false,
     };
     this.markDirty();
-    console.log('[GanttCanvas] Debug mode DISABLED');
   }
 
   isDebugModeEnabled(): boolean {
@@ -15219,12 +15154,10 @@ ${this.getAutomatedTestResults()}
 
   enableEventLogging(): void {
     this.eventLoggingEnabled = true;
-    console.log('[GanttCanvas] Event logging ENABLED');
   }
 
   disableEventLogging(): void {
     this.eventLoggingEnabled = false;
-    console.log('[GanttCanvas] Event logging DISABLED');
   }
 
   logEvent(type: string, data: unknown): void {
@@ -15334,7 +15267,6 @@ ${this.getAutomatedTestResults()}
       timestamp: Date.now(),
       data: this.getMemoryEstimate(),
     });
-    console.log(`[GanttCanvas] Memory snapshot taken: ${label}`);
   }
 
   getMemorySnapshots(): typeof this.memorySnapshots {
@@ -15400,7 +15332,6 @@ ${this.getAutomatedTestResults()}
       this.clearDirtyRegions();
       this.markDirty();
 
-      console.log('[GanttCanvas] Recovery attempted - state reset');
       return true;
     } catch (e) {
       console.error('[GanttCanvas] Recovery failed:', e);
@@ -15415,13 +15346,11 @@ ${this.getAutomatedTestResults()}
   enableErrorReporting(callback: (error: { message: string; context: object }) => void): void {
     this.errorReportingEnabled = true;
     this.errorReportCallback = callback;
-    console.log('[GanttCanvas] Error reporting ENABLED');
   }
 
   disableErrorReporting(): void {
     this.errorReportingEnabled = false;
     this.errorReportCallback = null;
-    console.log('[GanttCanvas] Error reporting DISABLED');
   }
 
   reportError(message: string, context?: object): void {
@@ -15690,7 +15619,7 @@ ${this.getAutomatedTestResults()}
     let completed = 0;
     let inProgress = 0;
     let notStarted = 0;
-    let onHold = 0;
+    const onHold = 0;
     let overdue = 0;
 
     for (const task of tasks) {

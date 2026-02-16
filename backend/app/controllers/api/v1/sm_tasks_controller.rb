@@ -317,30 +317,21 @@ module Api
             sm_task: task_to_json(@task)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @task.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@task)
         end
       end
 
       # POST /api/v1/constructions/:job_id/sm_tasks/copy_from_template
       def copy_from_template
         unless params[:template_row_id].present?
-          return render json: {
-            success: false,
-            error: "Template row ID is required"
-          }, status: :unprocessable_entity
+          return render_error("Template row ID is required", status: :unprocessable_entity)
         end
 
         # Use SmScheduleMaster (THE ONE template system - SSoT)
         template_row = SmScheduleMaster.find_by(id: params[:template_row_id])
 
         unless template_row
-          return render json: {
-            success: false,
-            error: "Template row not found"
-          }, status: :not_found
+          return render_error("Template row not found", status: :not_found)
         end
 
         # Get the next sequence order
@@ -368,10 +359,7 @@ module Api
             sm_task: task_to_json(@task)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @task.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@task)
         end
       end
 
@@ -384,10 +372,7 @@ module Api
       #
       def import
         unless params[:file].present?
-          return render json: {
-            success: false,
-            error: "No file provided"
-          }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         file = params[:file]
@@ -397,7 +382,7 @@ module Api
           result = SmTaskImportService.new(@job, temp_file.path, {
             user: current_user,
             clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
-          }).execute
+          }).call
 
           if result[:success]
             render json: {
@@ -418,10 +403,7 @@ module Api
           Rails.logger.error("SmTask import error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: {
-            success: false,
-            error: "Import failed: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Import failed: #{e.message}", status: :unprocessable_entity)
         ensure
           temp_file.close
           temp_file.unlink
@@ -431,19 +413,13 @@ module Api
       # GET /api/v1/jobs/:job_id/sm_tasks/upgrade_preview
       # Versioning has been removed - templates are now applied directly
       def upgrade_preview
-        render json: {
-          success: false,
-          error: "Template versioning has been removed. Templates are now applied directly."
-        }, status: :gone
+        render_error("Template versioning has been removed. Templates are now applied directly.", status: :gone)
       end
 
       # POST /api/v1/jobs/:job_id/sm_tasks/upgrade
       # Versioning has been removed - templates are now applied directly
       def upgrade
-        render json: {
-          success: false,
-          error: "Template versioning has been removed. Templates are now applied directly."
-        }, status: :gone
+        render_error("Template versioning has been removed. Templates are now applied directly.", status: :gone)
       end
 
       # GET /api/v1/constructions/:job_id/sm_tasks/gantt_data
@@ -506,10 +482,7 @@ module Api
             sm_task: task_to_json(@task)
           }
         else
-          render json: {
-            success: false,
-            errors: @task.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@task)
         end
       end
 
@@ -528,17 +501,11 @@ module Api
       # Useful for fixing tasks where dependency dates weren't applied correctly
       def recalculate_dates
         if @task.locked?
-          return render json: {
-            success: false,
-            error: "Cannot recalculate dates for locked task"
-          }, status: :unprocessable_entity
+          return render_error("Cannot recalculate dates for locked task", status: :unprocessable_entity)
         end
 
         if @task.predecessor_ids.empty?
-          return render json: {
-            success: false,
-            error: "Task has no dependencies to calculate from"
-          }, status: :unprocessable_entity
+          return render_error("Task has no dependencies to calculate from", status: :unprocessable_entity)
         end
 
         old_start = @task.start_date
@@ -562,10 +529,7 @@ module Api
         updates = params[:updates]&.permit(:status, :assigned_user_id, :trade, :stage)
 
         unless raw_task_ids.present? && updates.present?
-          return render json: {
-            success: false,
-            error: "task_ids and updates are required"
-          }, status: :unprocessable_entity
+          return render_error("task_ids and updates are required", status: :unprocessable_entity)
         end
 
         # Sanitize task_ids to prevent SQL injection - convert all to integers
@@ -573,10 +537,7 @@ module Api
         safe_task_ids = Array(raw_task_ids).map { |id| Integer(id) rescue nil }.compact.uniq
 
         if safe_task_ids.empty?
-          return render json: {
-            success: false,
-            error: "No valid task IDs provided"
-          }, status: :unprocessable_entity
+          return render_error("No valid task IDs provided", status: :unprocessable_entity)
         end
 
         # Safe to use in query - only contains validated integers
@@ -601,10 +562,7 @@ module Api
             sm_task: task_to_json(@task)
           }
         else
-          render json: {
-            success: false,
-            error: "Task cannot be started"
-          }, status: :unprocessable_entity
+          render_error("Task cannot be started", status: :unprocessable_entity)
         end
       end
 
@@ -658,18 +616,12 @@ module Api
       # POST /api/v1/sm_tasks/:id/hold
       def hold
         unless params[:hold_reason_id].present?
-          return render json: {
-            success: false,
-            error: "Hold reason is required"
-          }, status: :unprocessable_entity
+          return render_error("Hold reason is required", status: :unprocessable_entity)
         end
 
         hold_reason = SmHoldReason.active.find_by(id: params[:hold_reason_id])
         unless hold_reason
-          return render json: {
-            success: false,
-            error: "Hold reason not found"
-          }, status: :not_found
+          return render_error("Hold reason not found", status: :not_found)
         end
 
         @task.update!(
@@ -699,10 +651,7 @@ module Api
       # POST /api/v1/sm_tasks/:id/release_hold
       def release_hold
         unless @task.is_hold_task?
-          return render json: {
-            success: false,
-            error: "Task is not on hold"
-          }, status: :unprocessable_entity
+          return render_error("Task is not on hold", status: :unprocessable_entity)
         end
 
         old_reason = @task.hold_reason
@@ -735,10 +684,7 @@ module Api
       # Preview cascade effects before moving a task
       def cascade_preview
         unless params[:new_start_date].present?
-          return render json: {
-            success: false,
-            error: "new_start_date is required"
-          }, status: :unprocessable_entity
+          return render_error("new_start_date is required", status: :unprocessable_entity)
         end
 
         cascade_service = SmCascadeService.new(@task)
@@ -787,10 +733,7 @@ module Api
       # Simple move that auto-cascades unlocked successors
       def move
         unless params[:new_start_date].present?
-          return render json: {
-            success: false,
-            error: "new_start_date is required"
-          }, status: :unprocessable_entity
+          return render_error("new_start_date is required", status: :unprocessable_entity)
         end
 
         cascade_service = SmCascadeService.new(@task)
@@ -839,10 +782,7 @@ module Api
         end
 
         if supplier_email.blank?
-          return render json: {
-            success: false,
-            error: "No supplier email available for this task"
-          }, status: :unprocessable_entity
+          return render_error("No supplier email available for this task", status: :unprocessable_entity)
         end
 
         begin
@@ -859,10 +799,7 @@ module Api
           }
         rescue => e
           Rails.logger.error "[SmTasksController] Email supplier failed: #{e.message}"
-          render json: {
-            success: false,
-            error: "Failed to send email: #{e.message}"
-          }, status: :unprocessable_entity
+          render_error("Failed to send email: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -870,10 +807,7 @@ module Api
       # Creates a new case linked to this task
       def create_case
         if @task.case_id.present?
-          return render json: {
-            success: false,
-            error: "Task already linked to a case"
-          }, status: :unprocessable_entity
+          return render_error("Task already linked to a case", status: :unprocessable_entity)
         end
 
         case_attrs = {
@@ -909,10 +843,7 @@ module Api
             }
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @case.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@case)
         end
       end
 
@@ -933,10 +864,7 @@ module Api
       # Process a PDF and categorize pages using AI
       def process_working_drawings
         unless params[:file].present? || params[:url].present?
-          return render json: {
-            success: false,
-            error: "Either file or url parameter is required"
-          }, status: :unprocessable_entity
+          return render_error("Either file or url parameter is required", status: :unprocessable_entity)
         end
 
         service = SmWorkingDrawingsService.new(@task)
@@ -963,24 +891,15 @@ module Api
         page = @task.working_drawing_pages.find_by(id: params[:page_id])
 
         unless page
-          return render json: {
-            success: false,
-            error: "Page not found"
-          }, status: :not_found
+          return render_error("Page not found", status: :not_found)
         end
 
         unless params[:category].present?
-          return render json: {
-            success: false,
-            error: "category parameter is required"
-          }, status: :unprocessable_entity
+          return render_error("category parameter is required", status: :unprocessable_entity)
         end
 
         unless SmWorkingDrawingsService::CATEGORIES.include?(params[:category])
-          return render json: {
-            success: false,
-            error: "Invalid category. Valid categories: #{SmWorkingDrawingsService::CATEGORIES.join(', ')}"
-          }, status: :unprocessable_entity
+          return render_error("Invalid category. Valid categories: #{SmWorkingDrawingsService::CATEGORIES.join(', ')}", status: :unprocessable_entity)
         end
 
         page.override_category!(params[:category])
@@ -1029,7 +948,7 @@ module Api
         when "user_document"
           UserDocument.find(attachable_id)
         else
-          return render json: { success: false, error: "Invalid attachment type: #{attachment_type}" }, status: :unprocessable_entity
+          return render_error("Invalid attachment type: #{attachment_type}", status: :unprocessable_entity)
         end
 
         attachment = @task.sm_task_attachments.create!(
@@ -1045,9 +964,9 @@ module Api
           attachment: attachment_to_json(attachment)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Attachable not found" }, status: :not_found
+        render_error("Attachable not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/attachments/:attachment_id
@@ -1072,7 +991,7 @@ module Api
           render json: { success: true, message: "Attachment removed" }
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Attachment not found" }, status: :not_found
+        render_error("Attachment not found", status: :not_found)
       end
 
       # GET /api/v1/sm_tasks/:id/suggested_emails
@@ -1180,9 +1099,9 @@ module Api
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Attachment not found" }, status: :not_found
+        render_error("Attachment not found", status: :not_found)
       rescue => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/upload
@@ -1197,7 +1116,7 @@ module Api
       # Virtual folder paths handled by SmTaskAttachment.virtual_folder_path
       def upload_attachment
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :bad_request
+          return render_error("No file provided", status: :bad_request)
         end
 
         file = params[:file]
@@ -1209,7 +1128,7 @@ module Api
           upload_standard_file(file, category)
         rescue => e
           Rails.logger.error "[SmTasksController#upload_attachment] Failed: #{e.message}"
-          render json: { success: false, error: "Upload failed: #{e.message}" }, status: :unprocessable_entity
+          render_error("Upload failed: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -1266,12 +1185,12 @@ module Api
         category = params[:category] || "info"
 
         unless filename.present?
-          return render json: { success: false, error: "Filename required" }, status: :bad_request
+          return render_error("Filename required", status: :bad_request)
         end
 
         begin
-          # Get S3 provider
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          # Get S3 provider - use for_tenant (SSoT) not deprecated for_organization
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
           # Generate unique key in Blobs folder (will be moved after upload)
           # Use timestamp + random to avoid collisions
@@ -1282,7 +1201,7 @@ module Api
           upload_url = provider.presigned_upload_url(
             "",  # Folder path (temp_key already includes full path)
             temp_key,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             content_type: content_type
           )
 
@@ -1293,13 +1212,13 @@ module Api
             filename: filename,
             content_type: content_type,
             category: category,
-            expires_in: 3600
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
           }
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+          render_error("Storage not configured: #{e.message}", status: :service_unavailable)
         rescue => e
           Rails.logger.error "[SmTasksController#presign_attachment] Failed: #{e.message}"
-          render json: { success: false, error: "Failed to generate upload URL" }, status: :unprocessable_entity
+          render_error("Failed to generate upload URL", status: :unprocessable_entity)
         end
       end
 
@@ -1314,11 +1233,11 @@ module Api
         file_size = params[:file_size].to_i
 
         unless key.present? && filename.present?
-          return render json: { success: false, error: "Key and filename required" }, status: :bad_request
+          return render_error("Key and filename required", status: :bad_request)
         end
 
         begin
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
           # Verify the file exists in S3
           file_info = provider.get_file(key)
@@ -1362,12 +1281,12 @@ module Api
             )
           }
         rescue DocumentProviders::NotFoundError
-          render json: { success: false, error: "File not found in storage. Upload may have failed." }, status: :not_found
+          render_error("File not found in storage. Upload may have failed.", status: :not_found)
         rescue DocumentProviders::NotConnectedError => e
-          render json: { success: false, error: "Storage not configured: #{e.message}" }, status: :service_unavailable
+          render_error("Storage not configured: #{e.message}", status: :service_unavailable)
         rescue => e
           Rails.logger.error "[SmTasksController#confirm_attachment] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
-          render json: { success: false, error: "Failed to confirm upload: #{e.message}" }, status: :unprocessable_entity
+          render_error("Failed to confirm upload: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -1379,7 +1298,7 @@ module Api
 
         # SSoT (Jan 2026): Support both WarehouseDocument (new) and legacy document types
         unless document.is_a?(WarehouseDocument) || document.respond_to?(:storage_blob)
-          return render json: { success: false, error: "Attachment is not a document" }, status: :unprocessable_entity
+          return render_error("Attachment is not a document", status: :unprocessable_entity)
         end
 
         # SSoT: Use DocumentStorageService for all document downloads
@@ -1389,7 +1308,7 @@ module Api
         content = result[:success] ? result[:content] : nil
 
         unless content
-          return render json: { success: false, error: "Could not download file content" }, status: :unprocessable_entity
+          return render_error("Could not download file content", status: :unprocessable_entity)
         end
 
         # Get filename and content type from appropriate source
@@ -1403,7 +1322,7 @@ module Api
           content_type: content_type
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Attachment not found" }, status: :not_found
+        render_error("Attachment not found", status: :not_found)
       end
 
       # POST /api/v1/sm_tasks/:id/attachments/:attachment_id/share_link
@@ -1417,7 +1336,7 @@ module Api
 
         # SSoT (Jan 2026): Support WarehouseDocument (new) and SyncedEmail
         unless attachable.is_a?(WarehouseDocument) || attachable.is_a?(SyncedEmail)
-          return render json: { success: false, error: "Attachment type not supported for sharing" }, status: :unprocessable_entity
+          return render_error("Attachment type not supported for sharing", status: :unprocessable_entity)
         end
 
         # Disposition: inline (open in browser) vs attachment (download)
@@ -1431,13 +1350,13 @@ module Api
         if result[:success]
           render json: { success: true, share_url: result[:share_url] }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Attachment not found" }, status: :not_found
+        render_error("Attachment not found", status: :not_found)
       rescue => e
         Rails.logger.error "[SmTasksController#create_attachment_share_link] Error: #{e.message}"
-        render json: { success: false, error: "Failed to create sharing link" }, status: :internal_server_error
+        render_error("Failed to create sharing link", status: :internal_server_error)
       end
 
       # GET /api/v1/sm_tasks/:id/download_all_response_files
@@ -1461,7 +1380,7 @@ module Api
         document_attachments = response_attachments.select { |att| att.attachable.is_a?(WarehouseDocument) }
 
         if document_attachments.empty?
-          return render json: { success: false, error: "No files to download" }, status: :unprocessable_entity
+          return render_error("No files to download", status: :unprocessable_entity)
         end
 
         # Calculate fingerprint of current attachments for smart caching
@@ -1567,7 +1486,7 @@ module Api
               cached: false
             }
           else
-            render json: { success: false, error: "Failed to upload zip file" }, status: :unprocessable_entity
+            render_error("Failed to upload zip file", status: :unprocessable_entity)
           end
         rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption => e
           # NotConnectedError: No storage configured
@@ -1584,11 +1503,11 @@ module Api
           }
         rescue => e
           Rails.logger.error "[SmTasksController#download_all_response_files] Upload error: #{e.message}"
-          render json: { success: false, error: "Failed to create download link" }, status: :internal_server_error
+          render_error("Failed to create download link", status: :internal_server_error)
         end
       rescue => e
         Rails.logger.error "[SmTasksController#download_all_response_files] Error: #{e.message}"
-        render json: { success: false, error: "Failed to create zip file" }, status: :internal_server_error
+        render_error("Failed to create zip file", status: :internal_server_error)
       end
 
       # ===== Bulk Email Linking =====
@@ -1726,7 +1645,7 @@ module Api
           # Multiple job contacts (e.g., "All Clients" button)
           ids = Array(params[:job_contact_ids]).map(&:to_i)
           job_contacts = @task.job&.job_contacts&.where(id: ids).includes(contact: :contact_emails, user: [])
-          return render json: { success: false, error: "Job contacts not found" }, status: :not_found if job_contacts.blank?
+          return render_error("Job contacts not found", status: :not_found) if job_contacts.blank?
 
           job_contacts.flat_map do |jc|
             if jc.contact.present?
@@ -1739,7 +1658,7 @@ module Api
           end.uniq
         elsif params[:job_contact_id].present?
           jc = @task.job&.job_contacts&.find_by(id: params[:job_contact_id])
-          return render json: { success: false, error: "Job contact not found" }, status: :not_found unless jc
+          return render_error("Job contact not found", status: :not_found) unless jc
 
           if jc.contact.present?
             jc.contact.all_emails
@@ -1751,20 +1670,20 @@ module Api
         elsif params[:contact_id].present?
           # Link emails from a contact (from search or supplier)
           contact = Contact.find_by(id: params[:contact_id])
-          return render json: { success: false, error: "Contact not found" }, status: :not_found unless contact
+          return render_error("Contact not found", status: :not_found) unless contact
           contact.all_emails
         elsif params[:user_id].present?
           # Link emails from a user (assigned user)
           user = User.find_by(id: params[:user_id])
-          return render json: { success: false, error: "User not found" }, status: :not_found unless user
+          return render_error("User not found", status: :not_found) unless user
           [ user.email ].compact
         elsif params[:email_address].present?
           [ params[:email_address].downcase.strip ]
         else
-          return render json: { success: false, error: "email_address, job_contact_id, contact_id, or user_id required" }, status: :bad_request
+          return render_error("email_address, job_contact_id, contact_id, or user_id required", status: :bad_request)
         end
 
-        return render json: { success: false, error: "No email addresses found" }, status: :unprocessable_entity if emails_to_search.empty?
+        return render_error("No email addresses found", status: :unprocessable_entity) if emails_to_search.empty?
 
         # Find all matching emails
         matching_emails = SyncedEmail.involving_email(emails_to_search)
@@ -1798,7 +1717,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#bulk_link_emails] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/match_keywords
@@ -1808,7 +1727,7 @@ module Api
       #   preview: true/false - if true, just return count without linking
       def match_keywords
         keywords = @task.email_keywords.to_s.strip
-        return render json: { success: false, error: "No keywords set" }, status: :bad_request if keywords.blank?
+        return render_error("No keywords set", status: :bad_request) if keywords.blank?
 
         search_type = params[:search_type] || 'full'
         preview_only = params[:preview] == 'true' || params[:preview] == true
@@ -1871,7 +1790,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#match_keywords] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/clear_matched_emails
@@ -1891,17 +1810,17 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#clear_matched_emails] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/link_email_thread
       # Link all emails in a conversation thread to this task
       def link_email_thread
         email_id = params[:email_id]
-        return render json: { success: false, error: "email_id required" }, status: :bad_request if email_id.blank?
+        return render_error("email_id required", status: :bad_request) if email_id.blank?
 
         email = SyncedEmail.find_by(id: email_id)
-        return render json: { success: false, error: "Email not found" }, status: :not_found unless email
+        return render_error("Email not found", status: :not_found) unless email
 
         # Get all emails in the conversation thread
         thread_emails = email.conversation_thread
@@ -1931,7 +1850,7 @@ module Api
         }
       rescue => e
         Rails.logger.error "[SmTasksController#link_email_thread] Error: #{e.message}"
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # ===== Task Followers =====
@@ -1983,7 +1902,7 @@ module Api
       # Add a specific user as a follower (for sharing private tasks)
       def add_follower
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized to share this task" }, status: :forbidden
+          return render_error("Not authorized to share this task", status: :forbidden)
         end
 
         user = User.find(params[:user_id])
@@ -1999,14 +1918,14 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "User not found" }, status: :not_found
+        render_error("User not found", status: :not_found)
       end
 
       # DELETE /api/v1/sm_tasks/:id/followers/:user_id
       # Remove a follower from the task
       def remove_follower
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         follower = @task.task_followers.find_by(user_id: params[:user_id])
@@ -2014,7 +1933,7 @@ module Api
           follower.destroy
           render json: { success: true }
         else
-          render json: { success: false, error: "Follower not found" }, status: :not_found
+          render_error("Follower not found", status: :not_found)
         end
       end
 
@@ -2051,9 +1970,9 @@ module Api
           contact: task_contact_to_json(tc)
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "User or contact not found" }, status: :not_found
+        render_error("User or contact not found", status: :not_found)
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/contacts/:contact_id
@@ -2063,7 +1982,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Task contact not found" }, status: :not_found
+        render_error("Task contact not found", status: :not_found)
       end
 
       # ============================================
@@ -2118,7 +2037,7 @@ module Api
           note: note.as_json_with_user
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # DELETE /api/v1/sm_tasks/:id/notes/:note_id
@@ -2127,13 +2046,13 @@ module Api
 
         # Only allow note author or task owner to delete
         unless note.user_id == current_user.id || @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized to delete this note" }, status: :forbidden
+          return render_error("Not authorized to delete this note", status: :forbidden)
         end
 
         note.destroy
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Note not found" }, status: :not_found
+        render_error("Note not found", status: :not_found)
       end
 
       # ============================================
@@ -2145,7 +2064,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         item_type = params[:item_type] || 'action'
@@ -2162,7 +2081,7 @@ module Api
           action_item: action_item_to_json(item)
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/bulk
@@ -2171,7 +2090,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         items_data = params[:items] || []
@@ -2195,7 +2114,7 @@ module Api
           action_items: created_items
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/toggle
@@ -2216,7 +2135,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         item = @task.action_items.find(params[:item_id])
@@ -2230,7 +2149,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         item = @task.action_items.find(params[:item_id])
@@ -2250,7 +2169,7 @@ module Api
           action_item: action_item_to_json(item)
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/answer
@@ -2260,7 +2179,7 @@ module Api
         item = @task.action_items.find(params[:item_id])
 
         unless item.question?
-          return render json: { success: false, error: "Can only answer question items" }, status: :unprocessable_entity
+          return render_error("Can only answer question items", status: :unprocessable_entity)
         end
 
         item.answer!(params[:response], current_user)
@@ -2297,7 +2216,7 @@ module Api
             delegated_task: task_to_json(result[:task])
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -2308,7 +2227,7 @@ module Api
         item = @task.action_items.find(params[:item_id])
 
         unless item.delegated_task_id.present?
-          return render json: { success: false, error: "No task linked to this item" }, status: :unprocessable_entity
+          return render_error("No task linked to this item", status: :unprocessable_entity)
         end
 
         delegated_task = SmTask.find_by(id: item.delegated_task_id)
@@ -2326,7 +2245,7 @@ module Api
           action_item: action_item_to_json(item.reload)
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Not found" }, status: :not_found
+        render_error("Not found", status: :not_found)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/:item_id/move_delegated_task
@@ -2337,11 +2256,11 @@ module Api
         target_item = @task.action_items.find(params[:target_item_id])
 
         unless source_item.delegated_task_id.present?
-          return render json: { success: false, error: "No task linked to source item" }, status: :unprocessable_entity
+          return render_error("No task linked to source item", status: :unprocessable_entity)
         end
 
         if target_item.delegated_task_id.present?
-          return render json: { success: false, error: "Target item already has a delegated task" }, status: :unprocessable_entity
+          return render_error("Target item already has a delegated task", status: :unprocessable_entity)
         end
 
         delegated_task_id = source_item.delegated_task_id
@@ -2356,7 +2275,7 @@ module Api
           target_item: action_item_to_json(target_item.reload)
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Not found" }, status: :not_found
+        render_error("Not found", status: :not_found)
       end
 
       # POST /api/v1/sm_tasks/:id/action_items/reorder
@@ -2365,7 +2284,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         items_data = params[:items] || []
@@ -2379,9 +2298,9 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Item not found" }, status: :not_found
+        render_error("Item not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # PATCH /api/v1/sm_tasks/:id/privacy
@@ -2389,7 +2308,7 @@ module Api
         @task = SmTask.find(params[:id])
 
         unless @task.manageable_by?(current_user)
-          return render json: { success: false, error: "Not authorized" }, status: :forbidden
+          return render_error("Not authorized", status: :forbidden)
         end
 
         @task.update!(is_private: params[:is_private])
@@ -2444,19 +2363,13 @@ module Api
         template_row = @task.sm_schedule_master
 
         unless template_row
-          render json: {
-            success: false,
-            error: "Task is not linked to a template row"
-          }, status: :unprocessable_entity
+          render_error("Task is not linked to a template row", status: :unprocessable_entity)
           return
         end
 
         # Check if task can be synced
         if task_has_job_reality?(@task)
-          render json: {
-            success: false,
-            error: "Task has job-level changes (#{build_skip_reason(@task)}) and cannot be synced"
-          }, status: :unprocessable_entity
+          render_error("Task has job-level changes (#{build_skip_reason(@task)}) and cannot be synced", status: :unprocessable_entity)
           return
         end
 
@@ -2472,10 +2385,7 @@ module Api
             changes: result[:changes] || {}
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -2486,10 +2396,7 @@ module Api
         email = SyncedEmail.find_by(id: params[:email_id])
 
         unless email
-          return render json: {
-            success: false,
-            error: "Email not found"
-          }, status: :not_found
+          return render_error("Email not found", status: :not_found)
         end
 
         service = EmailToTaskService.new(email, user: current_user)
@@ -2501,10 +2408,7 @@ module Api
           sm_task: task_to_json(task)
         }, status: :created
       rescue EmailToTaskService::TaskCreationError => e
-        render json: {
-          success: false,
-          error: "Failed to create task: #{e.message}"
-        }, status: :unprocessable_entity
+        render_error("Failed to create task: #{e.message}", status: :unprocessable_entity)
       end
 
       private
@@ -2697,10 +2601,7 @@ module Api
       def set_job
         @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Construction job not found"
-        }, status: :not_found
+        render_error("Construction job not found", status: :not_found)
       end
 
       # Optional job lookup - allows creating tasks without a job
@@ -2717,10 +2618,7 @@ module Api
           action_items: [:checked_by, :responded_by, { delegated_task: [:action_items, { sm_task_attachments: [:warehouse_document, :attachable] }, { children: :assigned_user }] }]
         ).find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Task not found"
-        }, status: :not_found
+        render_error("Task not found", status: :not_found)
       end
 
       # Build case description from task context

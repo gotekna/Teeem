@@ -8,10 +8,7 @@ module Api
       def create
         # Check if estimate is matched to construction
         unless @estimate.job
-          return render json: {
-            success: false,
-            error: "Estimate must be matched to a construction/job before AI review"
-          }, status: :unprocessable_entity
+          return render_error("Estimate must be matched to a construction/job before AI review", status: :unprocessable_entity)
         end
 
         # Check for existing processing review
@@ -39,10 +36,7 @@ module Api
         }, status: :accepted
       rescue StandardError => e
         Rails.logger.error "Failed to start AI review: #{e.message}"
-        render json: {
-          success: false,
-          error: "Failed to start AI review: #{e.message}"
-        }, status: :internal_server_error
+        render_error("Failed to start AI review: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/estimate_reviews/:id
@@ -66,10 +60,7 @@ module Api
           reviews: reviews.map { |r| format_review_summary(r) }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Estimate not found"
-        }, status: :not_found
+        render_error("Estimate not found", status: :not_found)
       end
 
       # DELETE /api/v1/estimate_reviews/:id
@@ -82,10 +73,7 @@ module Api
           message: "Review deleted successfully"
         }
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Review not found"
-        }, status: :not_found
+        render_error("Review not found", status: :not_found)
       end
 
       private
@@ -93,19 +81,13 @@ module Api
       def set_estimate
         @estimate = Estimate.find(params[:estimate_id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Estimate not found"
-        }, status: :not_found
+        render_error("Estimate not found", status: :not_found)
       end
 
       def set_review
         @review = EstimateReview.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Review not found"
-        }, status: :not_found
+        render_error("Review not found", status: :not_found)
       end
 
       def format_completed_review

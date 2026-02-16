@@ -14,7 +14,7 @@
 #
 class XeroContactSyncJob < ApplicationJob
   include XeroJobBase
-  queue_as :default
+  queue_as :xero_sync
 
   # Perform can accept different actions:
   # - No args: Full sync all tenants (delegates to orchestrator)
@@ -116,6 +116,12 @@ class XeroContactSyncJob < ApplicationJob
         combined_result[:success] = false
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Rate limited" }
         next
+      rescue XeroApiClient::AuthenticationError => e
+        # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+        Rails.logger.warn("XeroContactSyncJob: Auth failed for #{credential.tenant_name}, marking disconnected")
+        credential.mark_disconnected!
+        combined_result[:errors] << { tenant_id: credential.tenant_id, error: "Auth failed - marked disconnected" }
+        next
       rescue StandardError => e
         combined_result[:errors] << { tenant_id: credential.tenant_id, error: e.message }
       end
@@ -176,10 +182,7 @@ class XeroContactSyncJob < ApplicationJob
     self.class.set(wait: (retry_after + 60).seconds).perform_later(options.merge(tenant_id: tenant_id, use_legacy_sync: true))
   end
 
-  def extract_retry_after(message)
-    match = message.to_s.match(/retry after (\d+)/i)
-    match ? match[1].to_i : 3600
-  end
+  # SSoT: extract_retry_after now in XeroJobBase concern
 
   # ============================================
   # SINGLE CONTACT SYNC (for webhooks)

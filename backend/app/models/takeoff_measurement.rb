@@ -25,12 +25,16 @@ class TakeoffMeasurement < ApplicationRecord
   belongs_to :takeoff_room_slot, optional: true
   has_many :deductions, class_name: "TakeoffMeasurement", foreign_key: :parent_measurement_id, dependent: :nullify
 
+  # Constants
+  MEASUREMENT_TYPES = %w[area length count perimeter].freeze
+  SOURCES = %w[unreal pdf_takeoff manual].freeze
+
   # Validations
   validates :session_id, presence: true
-  validates :measurement_type, presence: true, inclusion: { in: %w[area length count perimeter] }
+  validates :measurement_type, presence: true, inclusion: { in: MEASUREMENT_TYPES }
   validates :value, presence: true, numericality: { greater_than_or_equal_to: 0 }
   validates :unit, presence: true
-  validates :source, inclusion: { in: %w[unreal pdf_takeoff manual] }, allow_nil: true
+  validates :source, inclusion: { in: SOURCES }, allow_nil: true
   validate :job_or_document_inbox_present
 
   # Custom validation: must belong to either a job or a document_inbox

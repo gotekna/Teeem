@@ -65,9 +65,10 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { clearCachedRecords } from "@/lib/records-cache";
-import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
+import { PAGE_SIZE_LIST, PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { SESSION_STORAGE_KEYS } from "@/lib/storage-utils";
 import { ContactEditModal } from "@/components/contacts/ContactEditModal";
 import { XeroSyncSection } from "@/components/contacts/XeroSyncSection";
 import { XeroTransactionsSection } from "@/components/contacts/XeroTransactionsSection";
@@ -599,8 +600,8 @@ export default function ContactDetailPage() {
           const incoming = response.relationships?.incoming || [];
 
           // Store metadata if returned
-          if ((response as any).relationship_types_metadata) {
-            setRelationshipTypeMetadata((response as any).relationship_types_metadata);
+          if ('relationship_types_metadata' in response) {
+            setRelationshipTypeMetadata(response.relationship_types_metadata as RelationshipTypeMetadata[]);
           }
 
           // Group relationships by employee ID and collect role types
@@ -709,14 +710,14 @@ export default function ContactDetailPage() {
 
     const fetchAllContacts = async () => {
       try {
-        const response = await api.get<{ contacts: any[] }>("/api/v1/contacts", {
-          params: { limit: 500 }
+        const response = await api.get<{ contacts: Array<Record<string, unknown>> }>("/api/v1/contacts", {
+          params: { limit: PAGE_SIZE_LARGE }
         });
         const contacts = response.contacts || [];
         const options: Option[] = contacts
-          .filter((c: any) => c.id !== contact?.id) // Exclude current contact
-          .map((c: any) => ({
-            value: c.id.toString(),
+          .filter((c: Record<string, unknown>) => c.id !== contact?.id) // Exclude current contact
+          .map((c: Record<string, unknown>) => ({
+            value: String(c.id),
             label: `${c.display_name || c.first_name || 'Unknown'} (${c.entity_type || 'unknown'})`,
           }));
         setAvailableContacts(options);
@@ -747,15 +748,19 @@ export default function ContactDetailPage() {
       setError(null);
       const response = await api.get<{ contact: Contact }>(`/api/v1/contacts/${id}`);
       setContact(response.contact);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // Type guard for error with status
+      const hasStatus = (e: unknown): e is { status?: number; message?: string } => {
+        return typeof e === 'object' && e !== null;
+      };
+
       // Silently redirect if contact not found (404) or forbidden (403)
-      if (err?.status === 404 || err?.status === 403 || err?.message?.includes('not found')) {
-        console.log("Contact not found, using client-side redirect");
+      if (hasStatus(err) && (err.status === 404 || err.status === 403 || err.message?.includes('not found'))) {
         // Use replace instead of push to avoid SSR and keep browser history clean
         router.replace('/contacts');
       } else {
         console.error("Failed to load contact:", err);
-        setError(err?.message || "Failed to load contact");
+        setError((err as Error)?.message || "Failed to load contact");
       }
     } finally {
       setLoading(false);
@@ -784,7 +789,7 @@ export default function ContactDetailPage() {
           await executeDelete();
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to check deletion:", error);
       // Fallback to simple confirm
       if (await confirm(`Delete contact "${contact.display_name}"?`)) {
@@ -816,9 +821,11 @@ export default function ContactDetailPage() {
 
       setDeletionDialogOpen(false);
       router.push('/contacts');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to delete contact:", error);
-      const errorMessage = error?.message || error?.error || "Failed to delete contact. Please try again.";
+      const errorMessage = error instanceof Error ? error.message :
+                          (typeof error === 'object' && error !== null && 'error' in error ? String(error.error) :
+                          "Failed to delete contact. Please try again.");
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
@@ -841,9 +848,11 @@ export default function ContactDetailPage() {
         setDeletionDialogOpen(false);
         router.push('/contacts');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to archive contact:", error);
-      const errorMessage = error?.message || error?.error || "Failed to archive contact. Please try again.";
+      const errorMessage = error instanceof Error ? error.message :
+                          (typeof error === 'object' && error !== null && 'error' in error ? String(error.error) :
+                          "Failed to archive contact. Please try again.");
       toast({ title: "Error", description: errorMessage, variant: "destructive" });
     }
   };
@@ -1193,12 +1202,10 @@ export default function ContactDetailPage() {
 
       // Delete ALL relationships for removed companies
       for (const companyId of removedIds) {
-        console.log('[Company Change] Fetching relationships to delete for company:', companyId);
         const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
         const relsToDelete = relationshipsResponse.relationships.outgoing.filter(
           (r) => r.target_contact_id.toString() === companyId
         );
-        console.log('[Company Change] Found', relsToDelete.length, 'relationships to delete for company:', companyId);
         for (const rel of relsToDelete) {
           await api.delete(`/api/v1/contacts/${contact.id}/relationships/${rel.id}`);
         }
@@ -1235,7 +1242,6 @@ export default function ContactDetailPage() {
     if (!contact) return;
 
     try {
-      console.log('[Company Roles] Fetching relationships for company:', companyId);
       // Fetch existing relationships for this company
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${contact.id}/relationships`);
       const existingRels = relationshipsResponse.relationships.outgoing.filter(
@@ -1243,7 +1249,6 @@ export default function ContactDetailPage() {
       );
 
       const existingRoleTypes = existingRels.map((r) => r.relationship_type);
-      console.log('[Company Roles] Current roles:', existingRoleTypes, 'New roles:', newRoles);
 
       // Find roles to add (in newRoles but not in existingRoleTypes)
       const rolesToAdd = newRoles.filter(role => !existingRoleTypes.includes(role));
@@ -1251,7 +1256,6 @@ export default function ContactDetailPage() {
       // Find roles to remove (in existingRoleTypes but not in newRoles)
       const rolesToRemove = existingRoleTypes.filter((role: string) => !newRoles.includes(role));
 
-      console.log('[Company Roles] Roles to add:', rolesToAdd, 'Roles to remove:', rolesToRemove);
 
       // Create new relationships for added roles
       for (const roleType of rolesToAdd) {
@@ -1272,7 +1276,6 @@ export default function ContactDetailPage() {
         }
       }
 
-      console.log('[Company Roles] Successfully updated roles for company:', companyId);
       // Update local state
       setCompanyRoles({
         ...companyRoles,
@@ -1308,21 +1311,17 @@ export default function ContactDetailPage() {
 
   // Handle employee selection changes (for company contacts)
   const handleEmployeeChange = async (newSelectedEmployees: Option[]) => {
-    console.log('[Employee Change] Called with:', newSelectedEmployees);
     if (!contact) return;
 
     const previousIds = selectedEmployees.map((e) => e.value);
     const newIds = newSelectedEmployees.map((e) => e.value);
-    console.log('[Employee Change] Previous:', previousIds, 'New:', newIds);
 
     const addedIds = newIds.filter((id) => !previousIds.includes(id));
     const removedIds = previousIds.filter((id) => !newIds.includes(id));
-    console.log('[Employee Change] Added:', addedIds, 'Removed:', removedIds);
 
     try {
       // Create relationships FROM person TO company for added employees
       for (const personId of addedIds) {
-        console.log('[Employee Change] Creating relationship for person:', personId);
         try {
           await api.post(`/api/v1/contacts/${personId}/relationships`, {
             contact_relationship: {
@@ -1331,12 +1330,10 @@ export default function ContactDetailPage() {
               is_active: true,
             },
           });
-          console.log('[Employee Change] Relationship created successfully for:', personId);
         } catch (err: unknown) {
           // Skip if relationship already exists
           const error = err as { response?: { data?: { error?: string } } };
           if (error?.response?.data?.error?.includes('already exists')) {
-            console.log(`[Employee Change] Skipping duplicate relationship for person ${personId}`);
             continue;
           }
           throw err; // Re-throw if it's a different error
@@ -1345,7 +1342,6 @@ export default function ContactDetailPage() {
 
       // Delete relationships for removed employees
       for (const personId of removedIds) {
-        console.log('[Employee Change] Deleting relationship for person:', personId);
         try {
           const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${personId}/relationships`);
           const rel = relationshipsResponse.relationships.outgoing.find(
@@ -1353,9 +1349,7 @@ export default function ContactDetailPage() {
           );
           if (rel) {
             await api.delete(`/api/v1/contacts/${personId}/relationships/${rel.id}`);
-            console.log('[Employee Change] Relationship deleted successfully for:', personId);
           } else {
-            console.log('[Employee Change] No employee_of relationship found for person:', personId);
           }
         } catch (err) {
           console.error('[Employee Change] Failed to fetch/delete relationship for person:', personId, 'Error:', err);
@@ -1363,11 +1357,8 @@ export default function ContactDetailPage() {
         }
       }
 
-      console.log('[Employee Change] Setting selectedEmployees to:', newSelectedEmployees);
       setSelectedEmployees(newSelectedEmployees);
-      console.log('[Employee Change] Calling loadContact()...');
       await loadContact();
-      console.log('[Employee Change] loadContact() completed');
     } catch (err) {
       console.error("Failed to update employee relationships:", err);
       setSelectedEmployees(selectedEmployees);
@@ -1381,7 +1372,6 @@ export default function ContactDetailPage() {
     if (!(await confirm("Remove this person from the company?"))) return;
 
     try {
-      console.log('[Remove Employee] Fetching relationships for employee:', employeeId);
       // Find and delete the employee_of relationship
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const rel = relationshipsResponse.relationships.outgoing.find(
@@ -1389,12 +1379,9 @@ export default function ContactDetailPage() {
       );
 
       if (rel) {
-        console.log('[Remove Employee] Deleting relationship:', rel.id);
         await api.delete(`/api/v1/contacts/${employeeId}/relationships/${rel.id}`);
         await loadContact();
-        console.log('[Remove Employee] Successfully removed employee:', employeeId);
       } else {
-        console.log('[Remove Employee] No relationship found for employee:', employeeId);
       }
     } catch (err) {
       console.error("[Remove Employee] Failed to remove employee:", employeeId, "Error:", err);
@@ -1407,7 +1394,6 @@ export default function ContactDetailPage() {
     if (!contact) return;
 
     try {
-      console.log('[Employee Roles] Fetching relationships for employee:', employeeId);
       // Get current relationships for this employee to this company
       const relationshipsResponse = await api.get<RelationshipsResponse>(`/api/v1/contacts/${employeeId}/relationships`);
       const currentRels = relationshipsResponse.relationships.outgoing.filter(
@@ -1415,7 +1401,6 @@ export default function ContactDetailPage() {
       );
 
       const currentRoleTypes = currentRels.map((r) => r.relationship_type);
-      console.log('[Employee Roles] Current roles:', currentRoleTypes, 'New roles:', newRoleTypes);
 
       // Find roles to add
       const rolesToAdd = newRoleTypes.filter((rt: string) => !currentRoleTypes.includes(rt));
@@ -1423,7 +1408,6 @@ export default function ContactDetailPage() {
       // Find roles to remove
       const rolesToRemove = currentRoleTypes.filter((rt: string) => !newRoleTypes.includes(rt));
 
-      console.log('[Employee Roles] Roles to add:', rolesToAdd, 'Roles to remove:', rolesToRemove);
 
       // Add new roles
       for (const roleType of rolesToAdd) {
@@ -1444,7 +1428,6 @@ export default function ContactDetailPage() {
         }
       }
 
-      console.log('[Employee Roles] Successfully updated roles for employee:', employeeId);
       // Update local state
       const newEmployeeRoles = { ...employeeRoles };
       newEmployeeRoles[employeeId.toString()] = newRoleTypes;
@@ -1649,7 +1632,7 @@ export default function ContactDetailPage() {
       });
       setHasChanges(false);
       // Signal that contacts list needs refresh when navigating back
-      sessionStorage.setItem('contacts_needs_refresh', 'true');
+      sessionStorage.setItem('SESSION_STORAGE_KEYS.CONTACTS_NEEDS_REFRESH', 'true');
       // Clear Xero sync contacts cache so changes show when returning to that view
       clearCachedRecords("xero-sync-contacts");
       loadContact();
@@ -1848,7 +1831,6 @@ export default function ContactDetailPage() {
     if (activeTab === "emails" && contact?.email) {
       loadEmails(1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   // Reload emails when showAllInThread changes

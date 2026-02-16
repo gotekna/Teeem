@@ -26,13 +26,18 @@ import {
   HardDrive,
   ChevronDown,
   ChevronUp,
+  Briefcase,
+  FileSpreadsheet,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 import { FuzzyMatchReviewModal } from "./FuzzyMatchReviewModal";
 import { FuzzyMatchReviewSheet } from "./FuzzyMatchReviewSheet";
 import { XeroOrgContactsDrilldownSheet } from "./XeroOrgContactsDrilldownSheet";
+import { XeroJobImportModal } from "@/components/xero/XeroJobImportModal";
+import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
 
 // Card height for virtual scrolling (estimated average)
 const CARD_HEIGHT = 420;
@@ -382,6 +387,8 @@ export function XeroSyncStats() {
   const [selectedReviewItem, setSelectedReviewItem] = React.useState<PendingReviewItem | null>(null);
   const [reviewSheetOpen, setReviewSheetOpen] = React.useState(false);
   const [contactsDrilldownOpen, setContactsDrilldownOpen] = React.useState(false);
+  const [jobImportOpen, setJobImportOpen] = React.useState(false);
+  const [databuildImportOpen, setDatabuildImportOpen] = React.useState(false);
 
   // Search/filter state for large tenant lists (Scale to 15k feature)
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -491,7 +498,7 @@ export function XeroSyncStats() {
   React.useEffect(() => {
     fetchData();
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchData]);
 
@@ -521,34 +528,19 @@ export function XeroSyncStats() {
     }
   };
 
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center h-48">
-          <Spinner size={32} className="text-muted-foreground" />
-        </CardContent>
-      </Card>
-    );
-  }
+  // ⚠️ DO NOT SIMPLIFY - Hooks must be called before early returns (Feb 2026)
+  // ════════════════════════════════════════════
+  // Why: React Rules of Hooks require hooks to be called in the same order
+  //      every render. Moving useMemo/useVirtualizer/useCallback after early
+  //      returns caused "Rendered more hooks than during the previous render"
+  //      crash on the Stats tab.
+  // ❌ WRONG: Early return for loading/error, THEN call useMemo/useVirtualizer
+  // ✅ CORRECT: Call ALL hooks first with safe defaults, THEN early return
+  // ════════════════════════════════════════════
 
-  if (error || !data) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
-          <AlertTriangle className="h-8 w-8 text-amber-500" />
-          <p className="text-muted-foreground">{error || "No data available"}</p>
-          <Button variant="outline" size="sm" onClick={fetchData}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { global: rawGlobal, tenants } = data;
-
-  // Defensive: ensure tenants is always an array
+  // Destructure data with safe defaults (hooks below depend on these)
+  const rawGlobal = data?.global;
+  const tenants = data?.tenants;
   const safeTenants = Array.isArray(tenants) ? tenants : [];
 
   // Defensive: ensure global has all required properties with safe defaults
@@ -627,6 +619,32 @@ export function XeroSyncStats() {
     });
   }, []);
 
+  // Now safe to early return - all hooks have been called
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center h-48">
+          <Spinner size={32} className="text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
+          <AlertTriangle className="h-8 w-8 text-amber-500" />
+          <p className="text-muted-foreground">{error || "No data available"}</p>
+          <Button variant="outline" size="sm" onClick={fetchData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Quick Actions */}
@@ -685,6 +703,22 @@ export function XeroSyncStats() {
               )}
               Full Import (Contacts + Invoices)
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setJobImportOpen(true)}
+              disabled={syncing !== null}
+            >
+              <Briefcase className="h-4 w-4 mr-2" />
+              Import Jobs from Tracking
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setDatabuildImportOpen(true)}
+              disabled={syncing !== null}
+            >
+              <FileSpreadsheet className="h-4 w-4 mr-2" />
+              Import from Databuild
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -710,9 +744,9 @@ export function XeroSyncStats() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">{global.totals.contacts_with_links.toLocaleString()}</span>
+                <span className="text-2xl font-bold">{(global.totals?.contacts_with_links ?? 0).toLocaleString()}</span>
                 <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300">
-                  {global.totals.total_links.toLocaleString()} links
+                  {(global.totals?.total_links ?? 0).toLocaleString()} links
                 </Badge>
               </div>
               <div className="space-y-1 text-sm">
@@ -742,7 +776,7 @@ export function XeroSyncStats() {
           <CardContent>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">{global.totals.all_documents.toLocaleString()}</span>
+                <span className="text-2xl font-bold">{(global.totals?.all_documents ?? 0).toLocaleString()}</span>
                 <Badge className="bg-status-success text-status-success-foreground">
                   {global.recent_activity.invoice_syncs_24h} synced today
                 </Badge>
@@ -750,15 +784,15 @@ export function XeroSyncStats() {
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Invoices</span>
-                  <span className="font-medium">{global.totals.invoices.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.invoices ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Bills</span>
-                  <span className="font-medium">{global.totals.bills.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.bills ?? 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Quotes</span>
-                  <span className="font-medium">{global.totals.quotes.toLocaleString()}</span>
+                  <span className="font-medium">{(global.totals?.quotes ?? 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
@@ -813,8 +847,8 @@ export function XeroSyncStats() {
       {/* Sync Status & Storage Health - Global stats (single API call) */}
       {(() => {
         // Use global stats from first tenant (stored there by fetchData)
-        const globalTotals = tenants[0]?.totals_summary;
-        const globalBlobHealth = tenants[0]?.blob_health;
+        const globalTotals = safeTenants[0]?.totals_summary;
+        const globalBlobHealth = safeTenants[0]?.blob_health;
 
         // Only show if we have data
         if (!globalTotals && !globalBlobHealth) return null;
@@ -978,15 +1012,15 @@ export function XeroSyncStats() {
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-muted-foreground" />
             <h3 className="text-sm font-semibold">Xero Organizations</h3>
-            <Badge className="bg-muted text-muted-foreground">{tenants.length} connected</Badge>
-            {searchQuery && filteredTenants.length !== tenants.length && (
+            <Badge className="bg-muted text-muted-foreground">{safeTenants.length} connected</Badge>
+            {searchQuery && filteredTenants.length !== safeTenants.length && (
               <Badge variant="outline" className="text-xs">
                 {filteredTenants.length} shown
               </Badge>
             )}
           </div>
           {/* Search input for large tenant lists */}
-          {tenants.length > 5 && (
+          {safeTenants.length > 5 && (
             <SearchInput
               className="w-64"
               placeholder="Search organizations..."
@@ -1087,7 +1121,7 @@ export function XeroSyncStats() {
                       <div className="text-sm font-medium">Xero Data</div>
                       <Progress value={100} className="h-1.5 mt-1 [&>div]:bg-green-500" />
                       <div className="text-xs text-muted-foreground mt-1">
-                        {tenant.documents.total.toLocaleString()} / {tenant.documents.total.toLocaleString()}
+                        {(tenant.documents?.total ?? 0).toLocaleString()} / {(tenant.documents?.total ?? 0).toLocaleString()}
                       </div>
                       {/* Stage 1 Timing */}
                       {tenant.data_sync && (
@@ -1316,9 +1350,23 @@ export function XeroSyncStats() {
       <XeroOrgContactsDrilldownSheet
         isOpen={contactsDrilldownOpen}
         onClose={() => setContactsDrilldownOpen(false)}
-        tenants={tenants}
+        tenants={safeTenants}
         totalContacts={global.totals.contacts_with_links}
         onLinkChanged={fetchData}
+      />
+
+      {/* Job Import Modal */}
+      <XeroJobImportModal
+        isOpen={jobImportOpen}
+        onClose={() => setJobImportOpen(false)}
+        onImportComplete={fetchData}
+      />
+
+      {/* Databuild Import Modal */}
+      <DatabuildImportModal
+        isOpen={databuildImportOpen}
+        onClose={() => setDatabuildImportOpen(false)}
+        onImportComplete={fetchData}
       />
     </div>
   );

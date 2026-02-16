@@ -29,6 +29,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import type { XeroConnectionStatus, TenantStats } from "./types";
+import { POLLING_DELAY_MS, XERO_CONNECTION_TIMEOUT_MS } from "@/lib/constants/timeout-constants";
 
 interface XeroConnectionCardProps {
   companyId: string;
@@ -126,17 +127,18 @@ export function XeroConnectionCard({
           );
           if (statusCheck.connected) {
             clearInterval(pollInterval);
+            clearTimeout(timeoutId);
             // Show confirmation dialog instead of auto-accepting
             setPendingConnection(statusCheck);
             setShowConfirmDialog(true);
             setConnecting(false);
           }
-        }, 3000);
+        }, POLLING_DELAY_MS);
         // Stop polling after 5 minutes
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           clearInterval(pollInterval);
           setConnecting(false);
-        }, 300000);
+        }, XERO_CONNECTION_TIMEOUT_MS);
       }
     } catch (error) {
       console.error("Failed to start Xero connection:", error);

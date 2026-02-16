@@ -19,17 +19,9 @@ import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
+import type { PricebookItem } from '@/lib/types';
 
-// Types
-interface PricebookItem {
-  id: number;
-  item_code: string;
-  item_name: string;
-  current_price: number;
-  colour?: string;
-  colour_code?: string;
-  colour_brand?: string;
-}
+// Types (API returns item_code/item_name instead of SSoT's code/name)
 
 interface JobColourSelection {
   id?: number;
@@ -37,9 +29,9 @@ interface JobColourSelection {
   item_key: string;
   pricebook_item_id?: number;
   pricebook_item?: PricebookItem;
-  colour_name?: string;
-  colour_code?: string;
-  colour_brand?: string;
+  colour_name?: string | null;
+  colour_code?: string | null;
+  colour_brand?: string | null;
   notes?: string;
   position: number;
 }
@@ -61,7 +53,7 @@ interface ColourSelectionTemplate {
 }
 
 // Colour Swatch Component
-function ColourSwatch({ colour, code }: { colour?: string; code?: string }) {
+function ColourSwatch({ colour, code }: { colour?: string | null; code?: string | null }) {
   if (!code && !colour) return null;
 
   const bgColour = code?.startsWith("#") ? code : "#e5e5e5";
@@ -71,7 +63,7 @@ function ColourSwatch({ colour, code }: { colour?: string; code?: string }) {
       <div
         className="w-6 h-6 rounded border shadow-sm"
         style={{ backgroundColor: bgColour }}
-        title={colour || code}
+        title={colour || code || undefined}
       />
       {colour && <span className="text-sm">{colour}</span>}
     </div>

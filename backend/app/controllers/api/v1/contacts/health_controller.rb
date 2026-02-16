@@ -41,7 +41,7 @@ module Api
         # GET /api/v1/contacts/health/invalid_entity_types
         # Find contacts with invalid or nil entity_type
         def invalid_entity_types
-          valid_types = Contact::ENTITY_TYPES
+          valid_types = Contact.entity_types
           invalid = Contact.where.not(entity_type: valid_types)
             .or(Contact.where(entity_type: nil))
 
@@ -61,7 +61,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Invalid entity types check error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/health/price_only_with_xero
@@ -87,7 +87,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Price-only with Xero check error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/health/company_with_first_name
@@ -114,7 +114,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Company with first name check error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/health/person_without_name
@@ -140,7 +140,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Person without name check error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/health/missing_contact_info
@@ -168,7 +168,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Missing contact info check error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
 
         # GET /api/v1/contacts/health/connected_mailboxes
@@ -197,7 +197,7 @@ module Api
           }
         rescue => e
           Rails.logger.error("Connected mailboxes error: #{e.message}")
-          render json: { success: false, error: e.message }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
     end

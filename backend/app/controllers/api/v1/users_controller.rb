@@ -4,7 +4,7 @@ class Api::V1::UsersController < ApplicationController
   # Requires either contact_id (link to existing) or creates new contact from user info
   def create
     unless current_user&.admin?
-      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+      return render_error("Admin access required", status: :forbidden)
     end
 
     @user = nil
@@ -17,7 +17,7 @@ class Api::V1::UsersController < ApplicationController
       # Create user with contact and tenant
       @user = User.new(create_user_params)
       @user.contact = contact
-      @user.tenant_id = current_user.tenant_id  # Inherit tenant from admin
+      @user.tenant_id = current_tenant.id  # Inherit tenant (respects tenant switcher)
 
       if @user.save
         # Assign roles if provided
@@ -45,7 +45,7 @@ class Api::V1::UsersController < ApplicationController
     render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
   rescue => e
     Rails.logger.error "Error creating user: #{e.class} - #{e.message}"
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # GET /api/v1/users
@@ -83,10 +83,7 @@ class Api::V1::UsersController < ApplicationController
       update_params = update_params.merge(admin_user_params)
     elsif admin_fields_present
       # Non-admin trying to change admin fields - reject request
-      return render json: {
-        success: false,
-        error: "Thanks for helping, can you contact an administrator for assistance"
-      }, status: :forbidden
+      return render_error("Thanks for helping, can you contact an administrator for assistance", status: :forbidden)
     end
 
     # Handle primary role update (Jan 2026)
@@ -131,10 +128,7 @@ class Api::V1::UsersController < ApplicationController
         user: user_with_presence(@user)
       }
     else
-      render json: {
-        success: false,
-        errors: @user.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@user)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
@@ -166,7 +160,7 @@ class Api::V1::UsersController < ApplicationController
   # Generate temp password, set force_password_change, and send welcome email
   def send_invite
     unless current_user&.admin?
-      return render json: { success: false, error: "Admin access required" }, status: :forbidden
+      return render_error("Admin access required", status: :forbidden)
     end
 
     @user = User.find(params[:id])
@@ -207,10 +201,7 @@ class Api::V1::UsersController < ApplicationController
         }
       end
     else
-      render json: {
-        success: false,
-        errors: @user.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@user)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
@@ -222,13 +213,13 @@ class Api::V1::UsersController < ApplicationController
     contact = Contact.find(params[:contact_id])
     user = contact.user
     unless user
-      return render json: { success: false, error: "No user account linked to this contact" }, status: :not_found
+      return render_error("No user account linked to this contact", status: :not_found)
     end
     # Reuse personal_details by setting params[:id]
     params[:id] = user.id
     personal_details
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Contact not found" }, status: :not_found
+    render_error("Contact not found", status: :not_found)
   end
 
   # GET /api/v1/users/:id/personal_details
@@ -281,7 +272,7 @@ class Api::V1::UsersController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "User not found" }, status: :not_found
+    render_error("User not found", status: :not_found)
   end
 
   # PATCH /api/v1/users/:id/personal_details
@@ -378,9 +369,9 @@ class Api::V1::UsersController < ApplicationController
     # Return fresh data
     personal_details
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "User not found" }, status: :not_found
+    render_error("User not found", status: :not_found)
   rescue ActiveRecord::RecordInvalid => e
-    render json: { success: false, error: e.message }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/users/:id
@@ -390,16 +381,124 @@ class Api::V1::UsersController < ApplicationController
     if @user.destroy
       render json: { success: true, message: "User removed successfully" }
     else
-      render json: { success: false, error: "Failed to remove user" }, status: :unprocessable_entity
+      render_error("Failed to remove user", status: :unprocessable_entity)
     end
   rescue ActiveRecord::RecordNotFound
     render json: { error: "User not found" }, status: :not_found
   end
 
+  # POST /api/v1/users/import_from_microsoft
+  # Bulk-import M365 licensed users as TEEEM users (admin only)
+  # Creates Contact + User + default role + tenant company link for each
+  def import_from_microsoft
+    unless current_user&.admin?
+      return render_error("Admin access required", status: :forbidden)
+    end
+
+    credential_id = params[:organization_id]
+    return render_error("organization_id is required", status: :bad_request) if credential_id.blank?
+
+    # Frontend passes MicrosoftCredential.id (from sync dashboard), not Organization.id
+    credential = MicrosoftCredential.find_by(id: credential_id, credential_type: "app")
+    unless credential&.status == "connected"
+      return render_error("No connected Microsoft credential found", status: :not_found)
+    end
+
+    # Tenant-scope: verify credential belongs to current tenant's organizations
+    unless tenant_organization_ids.include?(credential.organization_id)
+      return render_error("Organization not found in your tenant", status: :not_found)
+    end
+
+    # Get M365 tenant users (cached 1hr)
+    m365_users = credential.list_tenant_users
+
+    # Get existing TEEEM user emails for dedup
+    # Uses current_tenant (respects tenant override/switcher) not current_user.tenant_id
+    existing_emails = User.where(tenant_id: current_tenant.id)
+                          .pluck(:email)
+                          .compact
+                          .map(&:downcase)
+                          .to_set
+
+    # Filter: licensed + user mailbox type + not already in TEEEM
+    importable = m365_users.select do |u|
+      u[:has_license] == true &&
+        u[:mailbox_type] == "user" &&
+        u[:email].present? &&
+        !existing_emails.include?(u[:email].downcase)
+    end
+
+    imported = 0
+    skipped = 0
+    errors = []
+
+    importable.each do |m365_user|
+      ActiveRecord::Base.transaction do
+        name = m365_user[:name].to_s.strip
+        email = m365_user[:email].to_s.strip
+
+        # M365 often formats names as "FirstName @ Company" - strip the @ suffix
+        clean_name = name.sub(/\s*@\s.*$/, "").strip
+        clean_name = email.split("@").first.capitalize if clean_name.blank?
+        parts = clean_name.split(/\s+/)
+
+        # Create contact
+        contact = Contact.create!(
+          display_name: clean_name,
+          first_name: parts[0],
+          last_name: parts.length > 1 ? parts[1..].join(" ") : nil,
+          entity_type: "person",
+          is_user_cached: true
+        )
+
+        contact.contact_emails.create!(
+          email: email,
+          label: "login",
+          is_primary: true,
+          position: 1
+        )
+
+        # Create user with random password (they'll use invite/reset flow)
+        user = User.new(
+          name: clean_name,
+          email: email,
+          password: SecureRandom.urlsafe_base64(16) + "!A1",
+          tenant_id: current_tenant.id
+        )
+        user.contact = contact
+
+        unless user.save
+          errors << "#{email}: #{user.errors.full_messages.join(', ')}"
+          skipped += 1
+          raise ActiveRecord::Rollback
+        end
+
+        # Assign default 'user' role
+        default_role = Role.find_by(name: "user")
+        user.roles << default_role if default_role && !user.roles.exists?(id: default_role.id)
+
+        # Link to tenant company
+        link_user_to_tenant_company(user)
+
+        imported += 1
+      end
+    rescue => e
+      errors << "#{m365_user[:email]}: #{e.message}"
+      skipped += 1
+    end
+
+    render json: {
+      success: true,
+      imported: imported,
+      skipped: skipped,
+      errors: errors
+    }
+  end
+
   # POST /api/v1/users/bulk_delete
   def bulk_delete
     ids = params[:ids]
-    return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
+    return render_error("No IDs provided", status: :bad_request) if ids.blank?
 
     ids = ids.first(1000) if ids.is_a?(Array)
     deleted_count = User.where(id: ids).destroy_all.count
@@ -480,7 +579,7 @@ class Api::V1::UsersController < ApplicationController
         display_name: name,
         first_name: parts[0],
         last_name: parts.length > 1 ? parts[1..-1].join(' ') : nil,
-        contact_type: 'person',
+        entity_type: 'person',
         is_user_cached: true
       ).tap do |contact|
         # Add email to contact_emails table
@@ -532,7 +631,7 @@ class Api::V1::UsersController < ApplicationController
       related_contact_id: company_contact.id,
       relationship_type: "employee_of",
       is_active: true,
-      start_date: Date.today
+      start_date: Date.current
     )
   rescue => e
     # Non-critical: log but don't fail user creation

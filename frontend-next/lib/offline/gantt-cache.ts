@@ -100,7 +100,6 @@ async function getDatabase(): Promise<IDBPDatabase<GanttCacheDB>> {
   if (!dbPromise) {
     dbPromise = openDB<GanttCacheDB>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion) {
-        console.log(`[GanttCache] Upgrading database from v${oldVersion} to v${DB_VERSION}`);
 
         if (oldVersion < 1) {
           // Gantt data store
@@ -111,14 +110,11 @@ async function getDatabase(): Promise<IDBPDatabase<GanttCacheDB>> {
           // Jobs list store
           db.createObjectStore("jobsList", { keyPath: "key" });
 
-          console.log("[GanttCache] Created ganttData and jobsList stores");
         }
       },
       blocked() {
-        console.warn("[GanttCache] Database blocked - another tab may be using an older version");
       },
       blocking() {
-        console.warn("[GanttCache] This tab is blocking a database upgrade in another tab");
       },
       terminated() {
         console.error("[GanttCache] Database connection terminated unexpectedly");
@@ -166,7 +162,6 @@ export async function getGanttFromCache(
     const data = await db.get(STORE_NAME, cacheKey);
 
     if (!data) {
-      console.log(`[GanttCache] MISS: ${cacheKey}`);
       return null;
     }
 
@@ -174,15 +169,13 @@ export async function getGanttFromCache(
     const now = Date.now();
     if (now > data.expiresAt) {
       await db.delete(STORE_NAME, cacheKey);
-      console.log(`[GanttCache] EXPIRED: ${cacheKey}`);
       return null;
     }
 
     const age = Math.round((now - data.cachedAt) / 1000 / 60);
-    console.log(`[GanttCache] HIT: ${cacheKey}, ${data.tasks.length} tasks, age: ${age}min`);
     return data;
-  } catch (error) {
-    console.warn("[GanttCache] Failed to read:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return null;
   }
 }
@@ -226,14 +219,13 @@ export async function setGanttInCache(
     };
 
     await db.put(STORE_NAME, data);
-    console.log(`[GanttCache] SET: ${cacheKey}, ${tasks.length} tasks`);
 
     // Update jobs list with cache status if this is a job
     if (mode === "job") {
       await updateJobCacheStatus(id, now);
     }
-  } catch (error) {
-    console.warn("[GanttCache] Failed to write:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -247,9 +239,8 @@ export async function deleteGanttFromCache(mode: "job" | "template", id: number)
     const db = await getDatabase();
     const cacheKey = getGanttCacheKey(mode, id);
     await db.delete(STORE_NAME, cacheKey);
-    console.log(`[GanttCache] DELETED: ${cacheKey}`);
-  } catch (error) {
-    console.warn("[GanttCache] Failed to delete:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -266,8 +257,8 @@ export async function getAllCachedGantt(): Promise<CachedGanttData[]> {
 
     // Filter out expired entries
     return all.filter(entry => now <= entry.expiresAt);
-  } catch (error) {
-    console.warn("[GanttCache] Failed to get all:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return [];
   }
 }
@@ -304,21 +295,17 @@ export async function getJobsListFromCache(): Promise<CachedJobInfo[] | null> {
     const data = await db.get("jobsList", JOBS_LIST_KEY);
 
     if (!data) {
-      console.log("[GanttCache] Jobs list MISS");
       return null;
     }
 
     // Check TTL
     const age = Date.now() - data.cachedAt;
     if (age > JOBS_LIST_TTL_MS) {
-      console.log("[GanttCache] Jobs list EXPIRED");
       return null;
     }
 
-    console.log(`[GanttCache] Jobs list HIT: ${data.jobs.length} jobs`);
     return data.jobs;
   } catch (error) {
-    console.warn("[GanttCache] Failed to read jobs list:", error);
     return null;
   }
 }
@@ -352,9 +339,8 @@ export async function setJobsListInCache(jobs: CachedJobInfo[]): Promise<void> {
       cachedAt: Date.now(),
     });
 
-    console.log(`[GanttCache] Jobs list SET: ${jobs.length} jobs`);
-  } catch (error) {
-    console.warn("[GanttCache] Failed to write jobs list:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -380,8 +366,8 @@ async function updateJobCacheStatus(jobId: number, cachedAt: number): Promise<vo
         jobs: updatedJobs,
       });
     }
-  } catch (error) {
-    console.warn("[GanttCache] Failed to update job cache status:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -414,12 +400,11 @@ export async function cleanupGanttCache(): Promise<number> {
     await tx.done;
 
     if (deletedCount > 0) {
-      console.log(`[GanttCache] Cleaned up ${deletedCount} expired entries`);
     }
 
     return deletedCount;
-  } catch (error) {
-    console.warn("[GanttCache] Failed to cleanup:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return 0;
   }
 }
@@ -434,9 +419,8 @@ export async function clearGanttCache(): Promise<void> {
     const db = await getDatabase();
     await db.clear(STORE_NAME);
     await db.clear("jobsList");
-    console.log("[GanttCache] ALL CLEARED");
-  } catch (error) {
-    console.warn("[GanttCache] Failed to clear:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
   }
 }
 
@@ -485,8 +469,8 @@ export async function getGanttCacheStats(): Promise<{
       oldestAge,
       totalSizeEstimate,
     };
-  } catch (error) {
-    console.warn("[GanttCache] Failed to get stats:", error);
+  } catch (_) {
+    /* Cache failure is non-critical - app continues without cache */
     return {
       ganttEntries: 0,
       totalTasks: 0,

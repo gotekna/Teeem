@@ -119,14 +119,12 @@ export class DependencyManager {
   ): GanttDependency | null {
     // Check for circular dependency
     if (this.wouldCreateCycle(fromId, toId)) {
-      console.warn(`Circular dependency prevented: ${fromId} → ${toId}`);
       return null;
     }
 
     // Check if dependency already exists
     const existing = this.findDependency(fromId, toId);
     if (existing) {
-      console.warn(`Dependency already exists: ${fromId} → ${toId}`);
       return existing;
     }
 

@@ -70,6 +70,7 @@ import Link from "next/link";
 import { WarehouseFolderEditor, WarehouseFolderEditData } from "@/components/admin/WarehouseFolderEditor";
 import { TabTypeBadgeCompact } from "@/components/ui/tab-type-badge";
 import { deriveTabType } from "@/lib/constants/tab-types";
+import { API } from "@/lib/constants/api-endpoints";
 
 // SSoT (Feb 2026): All warehouse type config now comes from database
 // - warehouse_folder.full_path_template is the SSoT for folder paths
@@ -750,9 +751,7 @@ function TreeNode({
 
   // Manual save handler - saves immediately without waiting for debounce
   const handleManualSave = React.useCallback(async () => {
-    console.log('🟡 [handleManualSave] Called', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, hasConfigLink, configLinkUrl });
     if (!currentEditingScopeKey) {
-      console.log('🟡 [handleManualSave] No currentEditingScopeKey, returning');
       return;
     }
 
@@ -765,9 +764,7 @@ function TreeNode({
     setIsSaving(true);
     try {
       const linkToSave = hasConfigLink ? configLinkUrl : null;
-      console.log('🟡 [handleManualSave] Calling onSaveTemplates with:', { currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave });
       await onSaveTemplates(currentEditingScopeKey, editValue, folderTemplate, downloadNameTemplate, uiNameTemplate, linkToSave);
-      console.log('🟡 [handleManualSave] Save successful');
       setLastSaved(new Date());
       hasModified.current = false;
       setHasUnsavedChanges(false);
@@ -781,9 +778,7 @@ function TreeNode({
 
   // Auto-save function with debounce - calls actual API
   const autoSave = React.useCallback(async (scopeKey: string, baseFolder: string, folder: string, downloadName: string, uiName: string, configLink: string | null) => {
-    console.log('🟢 [autoSave] Called', { scopeKey, baseFolder, folder, downloadName, uiName, configLink, hasModified: hasModified.current });
     if (!scopeKey || !hasModified.current) {
-      console.log('🟢 [autoSave] Skipping - no scopeKey or not modified');
       return;
     }
 
@@ -794,11 +789,9 @@ function TreeNode({
       clearTimeout(saveTimeoutRef.current);
     }
     saveTimeoutRef.current = setTimeout(async () => {
-      console.log('🟢 [autoSave] Debounce triggered, saving...');
       setIsSaving(true);
       try {
         await onSaveTemplates(scopeKey, baseFolder, folder, downloadName, uiName, configLink);
-        console.log('🟢 [autoSave] Save successful');
         setLastSaved(new Date());
         hasModified.current = false;
         setHasUnsavedChanges(false);
@@ -870,7 +863,6 @@ function TreeNode({
   React.useEffect(() => {
     if (currentEditingScopeKey) {
       const scopeActuallyChanged = initializedScopeRef.current !== currentEditingScopeKey;
-      console.log('🟣 [TreeNode useEffect] Scope edit check:', { currentEditingScopeKey, previousScope: initializedScopeRef.current, scopeActuallyChanged, nodePath: node.path });
 
       // Only initialize templates when switching to a DIFFERENT scope
       if (scopeActuallyChanged) {
@@ -880,14 +872,6 @@ function TreeNode({
         const fullPath = currentPath[currentEditingScopeKey] || node.path;
         const firstSegment = fullPath?.split('/')[0] || fullPath || '';
         const initialTemplate = getInitialFolderTemplate(currentEditingScopeKey);
-        console.log('🟣 [TreeNode useEffect] Initializing edit values:', {
-          fullPath,
-          firstSegment,
-          folderTemplate: initialTemplate,
-          downloadName: downloadNameTemplates[currentEditingScopeKey],
-          uiName: uiNameTemplates[currentEditingScopeKey],
-          configLink: configLinks[currentEditingScopeKey],
-        });
         setEditValue(firstSegment);
         setFolderTemplate(initialTemplate);
         setDownloadNameTemplate(
@@ -1464,14 +1448,9 @@ function TabNode({
     // Only reset edit fields when ENTERING edit mode (false → true)
     // NOT when data changes during editing (that would overwrite user's changes)
     const shouldInit = isEditing && !wasEditingRef.current;
-    console.log('[TabNode useEffect]', { isEditing, wasEditing: wasEditingRef.current, shouldInit, tabId: tab.id });
     if (shouldInit) {
-      console.log('[TabNode useEffect] tab.folder_path:', JSON.stringify(tab.folder_path));
-      console.log('[TabNode useEffect] tab.storage_folder_path:', JSON.stringify(tab.storage_folder_path));
       const stored = tab.folder_path ?? tab.storage_folder_path ?? '';
-      console.log('[TabNode useEffect] stored (after ??):', JSON.stringify(stored));
       const folderName = stored ? extractFolderName(stored, basePath) : '';
-      console.log('[TabNode useEffect] Initializing editPath to:', JSON.stringify(folderName));
       setEditPath(folderName);
       setEditDisplayName(tab.display_name || '');
       setEditSendName(tab.download_name || '{{OriginalFileName}}');
@@ -1630,7 +1609,6 @@ function TabNode({
                       : [basePath, editPath].filter(Boolean).join('/').replace(/\/+/g, '/');
                   }
 
-                  console.log('[TabNode Save] Clicked:', { tabId: tab.id, editPath, fullPath, displayNameToSave, editSendName, basePath });
                   onSaveEdit(tab.id, fullPath, displayNameToSave, editSendName);
                 }}
                 className="h-7 text-xs"
@@ -1690,7 +1668,6 @@ function TabNode({
 
   // Debug: Log children for tabs that should have them
   if (tab.display_name === 'Xero' || tab.display_name === 'Financial') {
-    console.log(`[TabNode] ${tab.display_name} - children:`, tab.children?.length || 0, tab.children?.map(c => c.display_name));
   }
   const storedFolderPath = tab.folder_path || tab.storage_folder_path;
 
@@ -2021,7 +1998,7 @@ export function WarehouseProviderTab() {
         success: boolean;
         data: Record<string, unknown>;
         counts: Record<string, number | Record<string, number>>;
-      }>("/api/v1/documents/all");
+      }>(API.documents.all);
       if (response?.success && response.counts) {
         const counts = response.counts;
         setWarehouseStats({
@@ -2058,7 +2035,6 @@ export function WarehouseProviderTab() {
             return { scopeKey, tabs };
           } catch (scopeError) {
             // Log but don't fail other scopes
-            console.warn(`Failed to load entity tabs for scope ${scopeKey}:`, scopeError);
             return { scopeKey, tabs: [] };
           }
         })
@@ -2069,12 +2045,10 @@ export function WarehouseProviderTab() {
         tabsByScope[scopeKey] = tabs;
       });
 
-      console.log('[loadWarehouseTabConfigs] Loaded tabs:', Object.entries(tabsByScope).map(([k, v]) => `${k}: ${v.length}`));
       // Debug: Log tabs with children for corporate scope
       if (tabsByScope['corporate']) {
         tabsByScope['corporate'].forEach(tab => {
           if (tab.children && tab.children.length > 0) {
-            console.log(`[loadWarehouseTabConfigs] ${tab.display_name} has ${tab.children.length} children:`, tab.children.map(c => c.display_name));
           }
         });
       }
@@ -2105,18 +2079,8 @@ export function WarehouseProviderTab() {
         response.data.forEach((wt) => {
           // Use the warehouse type code as the scope key (e.g., "task", "job", "email")
           foldersByScope[wt.code] = wt.warehouse_folders || [];
-
-          // DEBUG: Log base folders from API for each warehouse type
-          if (wt.warehouse_folders && wt.warehouse_folders.length > 0) {
-            console.log(`[loadWarehouseTypes] Scope "${wt.code}" has ${wt.warehouse_folders.length} base_folders from API:`,
-              wt.warehouse_folders.map(bf => ({ id: bf.id, name: bf.name, path: bf.full_path_template })));
-          }
         });
         setWarehouseFoldersByScope(foldersByScope);
-
-        // DEBUG: Summary of all base folders
-        console.log('[loadWarehouseTypes] Total base_folders by scope:',
-          Object.entries(foldersByScope).map(([k, v]) => `${k}: ${v.length}`).join(', '));
       }
     } catch (error) {
       console.error("Failed to load warehouse types:", error);
@@ -2172,7 +2136,6 @@ export function WarehouseProviderTab() {
           });
         } catch (patchError) {
           // If update fails with 404, the record doesn't exist - create it instead
-          console.warn('[saveWarehouseFolder] Update failed, attempting create:', patchError);
           response = await createNew();
         }
       }
@@ -2259,14 +2222,8 @@ export function WarehouseProviderTab() {
     const root: FolderTreeNode[] = [];
     const isPlaceholder = (p: string) => p.startsWith('{{') || p.startsWith('[[');
 
-    // DEBUG: Track sources of each node
-    console.log('[folderTree] Building tree from warehouseFoldersByScope:', Object.keys(warehouseFoldersByScope));
-
     // Build tree directly from base folders
     Object.entries(warehouseFoldersByScope).forEach(([scopeCode, baseFolders]) => {
-      console.log(`[folderTree] Processing scope "${scopeCode}" with ${baseFolders.length} base folders:`,
-        baseFolders.map(bf => `ID:${bf.id} "${bf.name}" path:${bf.full_path_template}`));
-
       baseFolders.forEach((bf) => {
         const path = bf.full_path_template;
         if (!path || isPlaceholder(path.split('/')[0])) return;
@@ -2313,7 +2270,6 @@ export function WarehouseProviderTab() {
           // Only add if not already present
           if (!leafNode.warehouseFolders.find((existing: WarehouseFolderFromAPI) => existing.id === bf.id)) {
             leafNode.warehouseFolders.push(bf);
-            console.log(`[folderTree] Attached base_folder ID:${bf.id} "${bf.name}" to leaf node "${leafNode.name}"`);
           }
         }
       });
@@ -2323,7 +2279,6 @@ export function WarehouseProviderTab() {
     root.sort((a, b) => a.name.localeCompare(b.name));
 
     // DEBUG: Log final tree structure
-    console.log('[folderTree] Final root nodes:', root.map(n => `"${n.name}" (scope:${n.scopeKey}, baseFolders:${n.warehouseFolders?.length || 0})`));
 
     const tree = root;
 
@@ -2396,7 +2351,6 @@ export function WarehouseProviderTab() {
       nodes.forEach(node => {
         if (node.scopeKey && entityTabs[node.scopeKey]) {
           const allTabs = entityTabs[node.scopeKey];
-          console.log(`[attachTabs] ${node.scopeKey}: ${allTabs.length} total tabs`, allTabs.map(t => t.display_name));
           // Scopes without doc types: show all warehouse-enabled tabs
           // Other scopes (contact, job, corporate): only show tabs with document types
           if (SCOPES_WITHOUT_DOC_TYPES.includes(node.scopeKey)) {
@@ -2404,7 +2358,6 @@ export function WarehouseProviderTab() {
           } else {
             node.tabs = filterTabsWithDocTypes(allTabs);
           }
-          console.log(`[attachTabs] ${node.scopeKey}: ${node.tabs?.length || 0} filtered tabs`, node.tabs?.map(t => t.display_name));
         }
         if (node.children.length > 0) {
           attachTabs(node.children);
@@ -2468,7 +2421,6 @@ export function WarehouseProviderTab() {
     sendNameTemplate: string
   ) => {
     try {
-      console.log('[saveTabFolderPath] Saving:', { tabId, folderPath, displayName, sendNameTemplate });
       const response = await api.patch<{ success: boolean; error?: string; data?: WarehouseTabConfig }>(
         `/api/v1/warehouse_folders/${tabId}`,
         {
@@ -2479,7 +2431,6 @@ export function WarehouseProviderTab() {
           }
         }
       );
-      console.log('[saveTabFolderPath] Response:', response);
       if (response?.success) {
         // SSoT: Use RESPONSE data if available, not sent values
         // Backend might transform/normalize values (e.g., empty string handling)
@@ -2488,7 +2439,6 @@ export function WarehouseProviderTab() {
         const savedDisplayName = savedData?.display_name ?? displayName;
         const savedSendName = savedData?.download_name ?? sendNameTemplate;
 
-        console.log('[saveTabFolderPath] Using values:', { savedFolderPath, savedDisplayName, savedSendName });
 
         // Update local state with response data (SSoT)
         setWarehouseTabConfigs(prev => {
@@ -2534,16 +2484,6 @@ export function WarehouseProviderTab() {
     uiNameTemplate: string,
     configLink: string | null
   ) => {
-    // DEBUG: Log all save parameters
-    console.log('🔵 [saveScopeTemplates] Called with:', {
-      scopeKey,
-      baseFolder,
-      folderTemplate,
-      downloadNameTemplate,
-      uiNameTemplate,
-      configLink,
-    });
-
     try {
       // SSoT (Feb 2026): base_folder.full_path_template is the SSoT
       // folderTemplate already contains the complete path - save it directly
@@ -2551,7 +2491,6 @@ export function WarehouseProviderTab() {
         .replace(/\/+/g, '/')
         .replace(/\/+$/, '');
 
-      console.log('🔵 [saveScopeTemplates] Saving folder path:', warehouseFolderValue);
 
       // FRC Guard (Feb 2026): Prevent saving empty folder_path for root scopes
       // This would remove the scope from the tree entirely and break folder storage
@@ -2573,13 +2512,11 @@ export function WarehouseProviderTab() {
           config_links: { [scopeKey]: configLink }, // null removes the link
         }
       };
-      console.log('🔵 [saveScopeTemplates] API payload:', JSON.stringify(payload, null, 2));
 
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         payload
       );
-      console.log('🔵 [saveScopeTemplates] API response:', response);
 
       if (response?.success) {
         // Update local state to reflect saved values
@@ -2617,7 +2554,7 @@ export function WarehouseProviderTab() {
   const toggleVirtualScope = React.useCallback(async (scopeKey: string, isVirtual: boolean) => {
     try {
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             virtual_warehouses: { [scopeKey]: isVirtual },
@@ -2684,16 +2621,10 @@ export function WarehouseProviderTab() {
   const loadConfig = async () => {
     try {
       setLoading(true);
-      console.log('🔴 [loadConfig] Fetching storage config...');
       const response = await api.get<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider"
+        API.warehouseProvider.get
       );
-      console.log('🔴 [loadConfig] Response:', response);
       if (response?.success && response.data) {
-        console.log('🔴 [loadConfig] warehouse_folders:', response.data.warehouse_folders);
-        console.log('🔴 [loadConfig] warehouse_folder_templates:', response.data.warehouse_folder_templates);
-        console.log('🔴 [loadConfig] download_names:', response.data.download_names);
-        console.log('🔴 [loadConfig] ui_name_templates:', response.data.ui_name_templates);
         setConfig(response.data);
         setFormData({
           // Provider type - normalize legacy values (wasabi/s3 → s3_compatible)
@@ -2744,7 +2675,7 @@ export function WarehouseProviderTab() {
       setSaving(true);
       // Include provider_type and S3/Wasabi fields in save
       const response = await api.patch<{ success: boolean; data: StorageConfig }>(
-        "/api/v1/warehouse_provider",
+        API.warehouseProvider.update,
         {
           storage: {
             provider_type: formData.provider_type,
@@ -2796,7 +2727,7 @@ export function WarehouseProviderTab() {
     try {
       setTesting(true);
       const response = await api.post<{ success: boolean; message?: string; error?: string; provider?: string; details?: { name?: string; web_url?: string } }>(
-        "/api/v1/warehouse_provider/test"
+        API.warehouseProvider.test
       );
       if (response?.success) {
         toast({

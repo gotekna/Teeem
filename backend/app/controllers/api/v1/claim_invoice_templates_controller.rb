@@ -24,7 +24,7 @@ module Api
           data: template.preview_data
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Template not found" }, status: :not_found
+        render_error("Template not found", status: :not_found)
       end
 
       # PATCH/PUT /api/v1/claim_invoice_templates/:id
@@ -38,9 +38,9 @@ module Api
           data: template.preview_data
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Template not found" }, status: :not_found
+        render_error("Template not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # PATCH /api/v1/claim_invoice_templates/:id/set_default
@@ -54,7 +54,7 @@ module Api
 
         render json: { success: true }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Template not found" }, status: :not_found
+        render_error("Template not found", status: :not_found)
       end
 
       # GET /api/v1/claim_invoice_templates/:id/preview
@@ -138,7 +138,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Template not found" }, status: :not_found
+        render_error("Template not found", status: :not_found)
       end
 
       private

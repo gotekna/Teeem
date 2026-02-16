@@ -130,7 +130,6 @@ export function GanttDependencyEditor({
     setPendingPredRowNum('');
     setPendingSuccRowNum('');
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rowData = task.rowData as any;
     const predecessorIds = rowData?.predecessor_ids || [];
 
@@ -138,7 +137,6 @@ export function GanttDependencyEditor({
     const predecessorLinks: DependencyLink[] = predecessorIds.map((pred: { id: number; type?: string; lag?: number }) => {
       // Find task by task_number to get its id
       const predTask = tasks.find(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         return r?.task_number === pred.id;
       });
@@ -151,10 +149,8 @@ export function GanttDependencyEditor({
 
     // Add pending predecessor from drag-create if not already in the list
     if (pendingPredecessor) {
-      console.log('[GanttDependencyEditor] pendingPredecessor:', pendingPredecessor);
       const alreadyExists = predecessorLinks.some(link => {
         const predTask = tasks.find(t => t.id === link.predecessorId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = predTask?.rowData as any;
         return r?.task_number === pendingPredecessor.taskNumber;
       });
@@ -162,21 +158,17 @@ export function GanttDependencyEditor({
       if (!alreadyExists) {
         // Find the task by task_number to get its id
         const pendingTask = tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const r = t.rowData as any;
           return r?.task_number === pendingPredecessor.taskNumber;
         });
-        console.log('[GanttDependencyEditor] Found pendingTask:', pendingTask?.id, pendingTask?.name);
         if (pendingTask) {
           predecessorLinks.push({
             predecessorId: pendingTask.id,
             type: (pendingPredecessor.type as DependencyType) || 'FS',
             lag: pendingPredecessor.lag || 0,
           });
-          console.log('[GanttDependencyEditor] Added pending predecessor, total:', predecessorLinks.length);
         }
       } else {
-        console.log('[GanttDependencyEditor] Pending predecessor already exists');
       }
     }
 
@@ -194,7 +186,6 @@ export function GanttDependencyEditor({
       })
       .map((pred: { id: number; type?: string; lag?: number }) => {
         const predTask = tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const r = t.rowData as any;
           return r?.task_number === pred.id;
         });
@@ -217,7 +208,6 @@ export function GanttDependencyEditor({
 
     if (taskNumber) {
       tasks.forEach(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         const preds = r?.predecessor_ids || [];
         const predLink = preds.find((p: { id: number }) => p.id === taskNumber);
@@ -241,14 +231,12 @@ export function GanttDependencyEditor({
         // Only show broken successors that aren't currently in active successors
         return !successorLinks.some(active => {
           const activeTask = tasks.find(t => t.id === active.predecessorId);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const activeRowData = activeTask?.rowData as any;
           return activeRowData?.task_number === bs.task_number;
         });
       })
       .map((bs: { id: number; task_number: number; name: string; dependency_broken_at?: string; dependency_broken_by?: string; type: string; lag: number }) => {
         const succTask = tasks.find(t => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const r = t.rowData as any;
           return r?.task_number === bs.task_number;
         });
@@ -292,9 +280,7 @@ export function GanttDependencyEditor({
   const restoreBrokenDependency = (brokenDep: BrokenDependencyInfo) => {
     // Find the predecessor task to check for conflicts
     const predTask = tasks.find(t => t.id === brokenDep.predecessorId);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const predRowData = predTask?.rowData as any;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task?.rowData as any;
 
     // Check if restoring would cause a date conflict
@@ -404,7 +390,6 @@ export function GanttDependencyEditor({
   const handleUnlockAndRestore = async () => {
     if (!restoreConflict || !task || !onUpdateTask) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
 
     // Determine which lock to clear
@@ -429,7 +414,6 @@ export function GanttDependencyEditor({
   const handleMoveSuccessor = async () => {
     if (!restoreConflict || !task) return;
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
     const brokenDep = restoreConflict.brokenDep;
 
@@ -443,7 +427,6 @@ export function GanttDependencyEditor({
           updates.confirm = false;
         }
         if (Object.keys(updates).length > 0) {
-          console.log('[GanttDependencyEditor] Unlocking successor:', task.id, updates);
           await onUpdateTask(task.id, updates);
         }
       }
@@ -451,7 +434,6 @@ export function GanttDependencyEditor({
       // 2. Save the restored dependency immediately
       const currentPreds = depEditorLinks.map(link => {
         const pt = tasks.find(t => t.id === link.predecessorId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rd = pt?.rowData as any;
         return {
           taskNumber: rd?.task_number || 0,
@@ -469,7 +451,6 @@ export function GanttDependencyEditor({
 
       const currentSuccs = depEditorSuccessorLinks.map(link => {
         const st = tasks.find(t => t.id === link.predecessorId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rd = st?.rowData as any;
         return {
           taskNumber: rd?.task_number || 0,
@@ -478,7 +459,6 @@ export function GanttDependencyEditor({
         };
       }).filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving restored dependency (move successor):', currentPreds);
       await onSave(task.id, currentPreds, currentSuccs);
 
       // Close dialogs
@@ -491,15 +471,12 @@ export function GanttDependencyEditor({
 
   // Handle moving the predecessor to honor dependency
   const handleMovePredecessor = async () => {
-    console.log('[GanttDependencyEditor] handleMovePredecessor called');
 
     if (!restoreConflict || !restoreConflict.predecessorTask || !task) {
-      console.log('[GanttDependencyEditor] Early return - missing data');
       return;
     }
 
     const predTask = restoreConflict.predecessorTask;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const predRowData = predTask.rowData as any;
     const brokenDep = restoreConflict.brokenDep;
 
@@ -508,7 +485,6 @@ export function GanttDependencyEditor({
       // Build the new predecessors list with the restored dependency
       const currentPreds = depEditorLinks.map(link => {
         const pt = tasks.find(t => t.id === link.predecessorId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rd = pt?.rowData as any;
         return {
           taskNumber: rd?.task_number || 0,
@@ -527,7 +503,6 @@ export function GanttDependencyEditor({
       // Get current successors
       const currentSuccs = depEditorSuccessorLinks.map(link => {
         const st = tasks.find(t => t.id === link.predecessorId);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rd = st?.rowData as any;
         return {
           taskNumber: rd?.task_number || 0,
@@ -536,7 +511,6 @@ export function GanttDependencyEditor({
         };
       }).filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving restored dependency immediately:', currentPreds);
       await onSave(task.id, currentPreds, currentSuccs);
 
       // 2. THEN: Update predecessor task (move it backward) if needed
@@ -561,7 +535,6 @@ export function GanttDependencyEditor({
         updates.hold = true;
         updates.hold_date = dateStr;
 
-        console.log('[GanttDependencyEditor] Moving predecessor (hold_date):', predTask.id, updates);
         await onUpdateTask(predTask.id, updates);
       }
 
@@ -582,26 +555,20 @@ export function GanttDependencyEditor({
     if (!task) return;
 
     // Start with current links
-    let currentPredLinks = [...depEditorLinks];
-    let currentSuccLinks = [...depEditorSuccessorLinks];
+    const currentPredLinks = [...depEditorLinks];
+    const currentSuccLinks = [...depEditorSuccessorLinks];
 
     // Check if there's a pending predecessor in the input field (controlled state)
-    console.log('[GanttDependencyEditor] pendingPredRowNum:', pendingPredRowNum);
-    console.log('[GanttDependencyEditor] tasks.length:', tasks.length);
 
     if (pendingPredRowNum) {
       const taskNum = parseInt(pendingPredRowNum, 10);
-      console.log('[GanttDependencyEditor] taskNum:', taskNum);
       // Find by task_number, not array index
       const t = tasks.find(t => {
         const rd = t.rowData as any;
         return rd?.task_number === taskNum;
       }) || null;
-      console.log('[GanttDependencyEditor] found task t:', t?.id, t?.name);
-      console.log('[GanttDependencyEditor] current task.id:', task?.id);
       if (t && t.id !== task?.id && !currentPredLinks.some(l => l.predecessorId === t.id)) {
         currentPredLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending predecessor from input:', taskNum);
       }
     }
 
@@ -615,11 +582,9 @@ export function GanttDependencyEditor({
       }) || null;
       if (t && t.id !== task?.id && !currentSuccLinks.some(l => l.predecessorId === t.id)) {
         currentSuccLinks.push({ predecessorId: t.id, type: 'FS', lag: 0 });
-        console.log('[GanttDependencyEditor] Added pending successor from input:', taskNum);
       }
     }
 
-    console.log('[GanttDependencyEditor] handleSave called, depEditorLinks:', currentPredLinks.length);
 
     setIsSaving(true);
     try {
@@ -628,7 +593,6 @@ export function GanttDependencyEditor({
         .filter(link => link.predecessorId)
         .map(link => {
           const predTask = tasks.find(t => t.id === link.predecessorId);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = predTask?.rowData as any;
           return {
             taskNumber: rowData?.task_number || 0,
@@ -642,7 +606,6 @@ export function GanttDependencyEditor({
         .filter(link => link.predecessorId)
         .map(link => {
           const succTask = tasks.find(t => t.id === link.predecessorId);
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const rowData = succTask?.rowData as any;
           return {
             taskNumber: rowData?.task_number || 0,
@@ -652,9 +615,7 @@ export function GanttDependencyEditor({
         })
         .filter(s => s.taskNumber > 0);
 
-      console.log('[GanttDependencyEditor] Saving predecessors:', predecessors, 'successors:', successors);
       await onSave(task.id, predecessors, successors);
-      console.log('[GanttDependencyEditor] Save completed');
       onClose();
     } catch (error) {
       console.error('[GanttDependencyEditor] Failed to save dependencies:', error);
@@ -668,7 +629,6 @@ export function GanttDependencyEditor({
   // ---------------------------------------------------------------------------
 
   // Get task info for display
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const taskRowData = task?.rowData as any;
   const taskName = taskRowData?.name || task?.name || 'Task';
   const taskNumber = taskRowData?.task_number;
@@ -676,7 +636,6 @@ export function GanttDependencyEditor({
 
   // Helper: Extract parent header task_number from header_gantt field
   // Mirrors backend extract_header_parent logic
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const extractHeaderParent = (headerGantt: any): number | null => {
     if (!headerGantt || headerGantt === 'Header') return null;
     if (typeof headerGantt === 'number') return headerGantt;
@@ -695,7 +654,6 @@ export function GanttDependencyEditor({
   const inheritedByHeader = React.useMemo(() => {
     if (!task) return [];
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const taskRowData = task.rowData as any;
 
     // SSoT: Read from backend-calculated inherited_predecessor_ids
@@ -713,13 +671,11 @@ export function GanttDependencyEditor({
     inheritedTaskNumbers.forEach((taskNum: number) => {
       // Find the task by task_number
       const predTask = tasks.find(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         return r?.task_number === taskNum;
       });
       if (!predTask) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const predRowData = predTask.rowData as any;
 
       // Find the parent header of this task
@@ -728,13 +684,11 @@ export function GanttDependencyEditor({
 
       // Find the header task
       const headerTask = tasks.find(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         return r?.task_number === parentHeaderNum;
       });
       if (!headerTask) return;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const headerRowData = headerTask.rowData as any;
       const headerRowIndex = tasks.findIndex(t => t.id === headerTask.id) + 1;
 
@@ -776,13 +730,11 @@ export function GanttDependencyEditor({
   const taskComboItems = React.useMemo(() => {
     return tasks
       .filter(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         // Exclude current task and headers
         return t.id !== task?.id && r?.header_gantt !== 'Header';
       })
       .map(t => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const r = t.rowData as any;
         return {
           id: t.id,
@@ -911,7 +863,6 @@ export function GanttDependencyEditor({
               <div className="space-y-2">
                 {depEditorLinks.map((link, index) => {
                   const predecessorTask = tasks.find(t => t.id === link.predecessorId);
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const predecessorRowData = predecessorTask?.rowData as any;
                   // Use task_number for Row # display, not array index
                   const predecessorRowNum = predecessorRowData?.task_number || '';
@@ -1111,7 +1062,6 @@ export function GanttDependencyEditor({
                     </div>
                     {brokenDependencies.map((brokenDep, index) => {
                       const brokenTask = tasks.find(t => t.id === brokenDep.predecessorId);
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const brokenRowData = brokenTask?.rowData as any;
                       const brokenRowIndex = brokenTask ? tasks.findIndex(t => t.id === brokenTask.id) + 1 : 0;
 
@@ -1291,7 +1241,6 @@ export function GanttDependencyEditor({
               <div className="space-y-2">
                 {depEditorSuccessorLinks.map((link, index) => {
                   const successorTask = tasks.find(t => t.id === link.predecessorId);
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   const successorRowData = successorTask?.rowData as any;
                   // Use task_number for Row # display, not array index
                   const successorRowNum = successorRowData?.task_number || '';
@@ -1458,7 +1407,6 @@ export function GanttDependencyEditor({
                     </div>
                     {brokenSuccessors.map((brokenSucc, index) => {
                       const brokenTask = tasks.find(t => t.id === brokenSucc.predecessorId);
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const brokenRowData = brokenTask?.rowData as any;
                       const brokenRowIndex = brokenTask ? tasks.findIndex(t => t.id === brokenTask.id) + 1 : 0;
 

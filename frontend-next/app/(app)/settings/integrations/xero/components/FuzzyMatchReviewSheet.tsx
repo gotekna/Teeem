@@ -29,6 +29,8 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { API } from "@/lib/constants/api-endpoints";
+import type { Contact } from "@/lib/types";
 
 interface PendingReviewItem {
   id: number;
@@ -41,17 +43,6 @@ interface PendingReviewItem {
   match_type: string;
   match_confidence: number;
   created_at: string;
-}
-
-interface Contact {
-  id: number;
-  display_name: string;
-  entity_type: string | null;
-  email?: string | null;
-  primary_company?: {
-    id: number;
-    name: string;
-  } | null;
 }
 
 interface FuzzyMatchReviewSheetProps {

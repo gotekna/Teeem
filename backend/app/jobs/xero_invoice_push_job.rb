@@ -18,6 +18,7 @@
 #   XeroInvoicePushJob.perform_later(batch: true)  # Push all pending invoices
 #
 class XeroInvoicePushJob < ApplicationJob
+  include XeroConstants  # For XERO_INVOICE_PUSH_RETRY_SEC
   include XeroJobBase
 
   queue_as :xero_sync
@@ -98,8 +99,14 @@ class XeroInvoicePushJob < ApplicationJob
 
     return if count.zero?
 
-    # Get credential
-    credential = tenant_id ? XeroCredential.find_by(tenant_id: tenant_id) : XeroCredential.current
+    # FRC (Feb 2026): Tenant-scoped credential lookup
+    # When no tenant_id provided, falls back to unscoped .current (logged warning in find_credential)
+    credential = if tenant_id
+                   XeroCredential.find_by(tenant_id: tenant_id)
+                 else
+                   Rails.logger.warn("[XeroInvoicePushJob] No tenant_id for batch push, using unscoped .current")
+                   XeroCredential.current
+                 end
 
     unless credential
       Rails.logger.warn("[XeroInvoicePushJob] No credential found for batch push")
@@ -130,7 +137,7 @@ class XeroInvoicePushJob < ApplicationJob
           increment_records_updated
 
           # Rate limiting - small delay between pushes
-          sleep(0.5)
+          sleep(XERO_INVOICE_PUSH_RETRY_SEC)
         rescue StandardError => e
           Rails.logger.error("[XeroInvoicePushJob] Failed to push invoice #{invoice.id}: #{e.message}")
           invoice.update(sync_error: e.message.truncate(500))

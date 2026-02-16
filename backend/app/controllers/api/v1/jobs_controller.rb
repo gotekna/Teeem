@@ -88,7 +88,7 @@ module Api
           stage = JobStage.find_by(job_status_id: enquiry_status&.id, name: stage_name.titleize.gsub("_", " "))
 
           unless stage
-            return render json: { success: false, error: "Invalid stage: #{stage_name}" }, status: :unprocessable_entity
+            return render_error("Invalid stage: #{stage_name}", status: :unprocessable_entity)
           end
 
           # Ensure job is in Enquiry status
@@ -108,7 +108,7 @@ module Api
         lost_status = JobStatus.find_by(name: "Lost - Pre Contract")
 
         unless lost_status
-          return render json: { success: false, error: "Lost - Pre Contract status not found" }, status: :unprocessable_entity
+          return render_error("Lost - Pre Contract status not found", status: :unprocessable_entity)
         end
 
         if @job.update(job_status_id: lost_status.id, job_stage_id: nil)
@@ -228,7 +228,7 @@ module Api
 
         # Filter by location presence if requested
         if params[:has_location] == "true"
-          @jobs = @jobs.where.not(latitude: nil).where.not(longitude: nil)
+          @jobs = @jobs.with_coordinates
         end
 
         # Search using SSoT SearchService
@@ -285,6 +285,7 @@ module Api
         job_json[:job_type] = @job.job_type&.as_json
         job_json[:job_status] = @job.job_status&.as_json
         job_json[:job_stage] = @job.job_stage&.as_json
+        job_json[:job_design] = @job.job_design&.as_json
 
         # Use already-eager-loaded job_contacts from set_job
         # Sort in Ruby since we already have the data loaded
@@ -319,7 +320,7 @@ module Api
           end
         end
 
-        render json: job_json
+        render json: { success: true, data: job_json }
       end
 
       # POST /api/v1/jobs
@@ -352,20 +353,20 @@ module Api
             response_data[:template_instantiation] = template_instantiation_result
           end
 
-          render json: response_data, status: :created
+          render json: { success: true, data: response_data }, status: :created
         else
           Rails.logger.error "[JobsController#create] Validation failed: #{@job.errors.full_messages.inspect}"
           Rails.logger.error "[JobsController#create] job_status_id was: #{@job.job_status_id.inspect}"
-          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
+          render json: { success: false, error: @job.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
 
       # PUT/PATCH /api/v1/jobs/:id
       def update
         if @job.update(job_params)
-          render json: @job
+          render json: { success: true, data: @job }
         else
-          render json: { errors: @job.errors.full_messages }, status: :unprocessable_entity
+          render json: { success: false, error: @job.errors.full_messages.join(", ") }, status: :unprocessable_entity
         end
       end
 
@@ -382,10 +383,13 @@ module Api
                                   .includes(:user)
                                   .order(created_at: :desc)
 
-        render json: @messages.as_json(
-          include: { user: {} },
-          methods: :formatted_timestamp
-        )
+        render json: {
+          success: true,
+          data: @messages.as_json(
+            include: { user: {} },
+            methods: :formatted_timestamp
+          )
+        }
       end
 
       # GET /api/v1/jobs/:id/emails
@@ -394,7 +398,7 @@ module Api
                               .includes(:synced_by_user)
                               .order(received_at: :desc)
 
-        render json: { emails: @emails }
+        render json: { success: true, data: { emails: @emails } }
       end
 
       # GET /api/v1/jobs/:id/sms_messages
@@ -444,7 +448,7 @@ module Api
                               .includes(:children)
         end
 
-        render json: job_tabs.map(&:as_nested_json)
+        render json: { success: true, data: job_tabs.map(&:as_nested_json) }
       end
 
       # POST /api/v1/jobs/:id/import_xero_bills
@@ -455,59 +459,65 @@ module Api
 
         render json: result
       rescue XeroBillImportService::NotConnectedError => e
-        render json: { success: false, error: e.message }, status: :service_unavailable
+        render_error(e.message, status: :service_unavailable)
       rescue XeroBillImportService::NoTrackingOptionError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue StandardError => e
         Rails.logger.error("Xero bill import error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/link_xero_tracking
-      # Link this job to a Xero tracking option
+      # Link this job to one or more Xero tracking options
+      # Accepts either:
+      #   Single: { tracking_option_id: "...", tracking_option_name: "..." }
+      #   Multi:  { tracking_options: [{ id: "...", name: "...", is_primary: true }, ...] }
       def link_xero_tracking
-        tracking_option_id = params[:tracking_option_id]
-        tracking_option_name = params[:tracking_option_name]
-
-        unless tracking_option_id.present?
-          return render json: { success: false, error: "tracking_option_id is required" }, status: :bad_request
-        end
-
-        if @job.update(
-          xero_tracking_option_id: tracking_option_id,
-          xero_tracking_option_name: tracking_option_name
-        )
-          render json: {
-            success: true,
-            job: @job.as_json
-          }
+        if params[:tracking_options].present?
+          # Multi-link mode: replace all link rows
+          link_xero_tracking_multi
         else
-          render json: { success: false, errors: @job.errors.full_messages }, status: :unprocessable_entity
+          # Single-link mode (backward compatible)
+          link_xero_tracking_single
         end
       end
 
       # GET /api/v1/jobs/:id/xero_tracking_options
-      # Get available Xero tracking options and suggest a match for this job
+      # Get available Xero tracking options and current linked options for this job
       def xero_tracking_options
-        tracking_options = XeroBillImportService.fetch_tracking_options
+        # SSoT: Read from local xero_tracking_options table (not Xero API)
+        local_options = XeroTrackingOption.active.order(:name)
 
-        # Find suggested match based on job title/location
-        suggested_match = XeroBillImportService.match_job_to_tracking_option(@job, tracking_options)
+        # Return all linked options from join table (multi-link)
+        current_links = @job.xero_tracking_links.order(is_primary: :desc, created_at: :asc)
+        current_options = current_links.map do |link|
+          {
+            id: link.tracking_option_id,
+            name: link.tracking_option_name,
+            variant: link.variant,
+            is_primary: link.is_primary
+          }
+        end
+
+        # Backward compat: if no link rows but legacy column has a value, include it
+        if current_options.empty? && @job.xero_tracking_option_id.present?
+          current_options = [{
+            id: @job.xero_tracking_option_id,
+            name: @job.xero_tracking_option_name,
+            variant: nil,
+            is_primary: true
+          }]
+        end
 
         render json: {
           success: true,
-          tracking_options: tracking_options.map { |o| { id: o["TrackingOptionID"], name: o["Name"] } },
-          current_option: @job.xero_tracking_option_id.present? ? {
-            id: @job.xero_tracking_option_id,
-            name: @job.xero_tracking_option_name
-          } : nil,
-          suggested_match: suggested_match ? {
-            id: suggested_match["TrackingOptionID"],
-            name: suggested_match["Name"]
-          } : nil
+          tracking_options: local_options.map { |o| { id: o.xero_tracking_option_id, name: o.name } },
+          current_options: current_options,
+          current_option: current_options.find { |o| o[:is_primary] } || current_options.first,
+          suggested_match: nil
         }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/jobs/:id/activities
@@ -682,14 +692,14 @@ module Api
         secondary_job_ids = params[:secondary_job_ids]
 
         if secondary_job_ids.blank?
-          render json: { success: false, error: "No secondary jobs provided" }, status: :unprocessable_entity
+          render_error("No secondary jobs provided", status: :unprocessable_entity)
           return
         end
 
         secondary_jobs = Job.where(id: secondary_job_ids)
 
         if secondary_jobs.count != secondary_job_ids.length
-          render json: { success: false, error: "Some secondary jobs not found" }, status: :not_found
+          render_error("Some secondary jobs not found", status: :not_found)
           return
         end
 
@@ -750,16 +760,16 @@ module Api
           primary_job: @job
         }
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue => e
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/upload_plan_set
       # Upload a PDF plan set, split into individual pages named by PDF page labels
       def upload_plan_set
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         service = PlanSetService.new(@job, params[:file])
@@ -775,7 +785,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -786,7 +796,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         # Build job folder path
@@ -835,7 +845,7 @@ module Api
         }
       rescue => e
         Rails.logger.error("plan_set error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/rename_plans
@@ -853,11 +863,11 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       rescue => e
         Rails.logger.error("rename_plans error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/generate_contract
@@ -869,7 +879,7 @@ module Api
         )
       rescue => e
         Rails.logger.error("generate_contract error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/save_contract
@@ -887,7 +897,7 @@ module Api
       rescue => e
         Rails.logger.error("save_contract error: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # POST /api/v1/jobs/:id/send_contract_for_signing
@@ -904,7 +914,7 @@ module Api
         begin
           setup_default_provider!
         rescue DocumentProviders::NotConnectedError => e
-          return render json: { success: false, error: "Storage not connected: #{e.message}" }, status: :unprocessable_entity
+          return render_error("Storage not connected: #{e.message}", status: :unprocessable_entity)
         end
 
         # Build folder path using SSoT pattern
@@ -917,7 +927,7 @@ module Api
         uploaded = upload_to_provider(folder_path, pdf_content, filename, content_type: "application/pdf")
 
         unless uploaded
-          return render json: { success: false, error: "Failed to upload to storage" }, status: :internal_server_error
+          return render_error("Failed to upload to storage", status: :internal_server_error)
         end
 
         # Step 3: Get signers from job contacts (clients only)
@@ -929,13 +939,13 @@ module Api
           .compact
 
         if client_contacts.empty?
-          return render json: { success: false, error: "No client contacts found on this job" }, status: :unprocessable_entity
+          return render_error("No client contacts found on this job", status: :unprocessable_entity)
         end
 
         # Validate all contacts have emails
         missing_emails = client_contacts.select { |c| c.email.blank? }.map(&:display_name)
         if missing_emails.any?
-          return render json: { success: false, error: "Missing email for: #{missing_emails.join(', ')}" }, status: :unprocessable_entity
+          return render_error("Missing email for: #{missing_emails.join(', ')}", status: :unprocessable_entity)
         end
 
         # Step 4: Create e-signature request
@@ -968,7 +978,7 @@ module Api
         request.original_document_hash = Digest::SHA256.hexdigest(pdf_content)
 
         unless request.save
-          return render json: { success: false, error: request.errors.full_messages.join(", ") }, status: :unprocessable_entity
+          return render_error(request.errors.full_messages.join(", "), status: :unprocessable_entity)
         end
 
         # Step 5: Send for signing
@@ -988,7 +998,7 @@ module Api
       rescue => e
         Rails.logger.error("send_contract_for_signing error: #{e.message}")
         Rails.logger.error(e.backtrace.first(5).join("\n"))
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/jobs/:id/linked_schedule_template
@@ -1032,7 +1042,7 @@ module Api
           render json: { success: true, has_linked_template: false, task_count: job.sm_tasks.count }
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       # POST /api/v1/jobs/:id/create_storage_folders
@@ -1046,10 +1056,100 @@ module Api
         @job.create_folders_if_needed!
         render json: { success: true, status: @job.reload.storage_folder_status }
       rescue StandardError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       private
+
+      # Single-link mode: link one tracking option (backward compatible)
+      def link_xero_tracking_single
+        tracking_option_id = params[:tracking_option_id]
+        tracking_option_name = params[:tracking_option_name]
+
+        unless tracking_option_id.present?
+          return render_error("tracking_option_id is required", status: :bad_request)
+        end
+
+        ActiveRecord::Base.transaction do
+          # Create or update link row
+          link = XeroJobTrackingLink.find_or_initialize_by(tracking_option_id: tracking_option_id)
+          link.assign_attributes(
+            job: @job,
+            tracking_option_name: tracking_option_name,
+            is_primary: true,
+            tenant_id: @job.tenant_id
+          )
+          link.save!
+
+          # Unset previous primary (if different)
+          @job.xero_tracking_links.where.not(id: link.id).update_all(is_primary: false)
+
+          # Backward compat: update job columns
+          @job.update_columns(
+            xero_tracking_option_id: tracking_option_id,
+            xero_tracking_option_name: tracking_option_name
+          )
+        end
+
+        render json: { success: true, job: @job.reload.as_json }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
+      end
+
+      # Multi-link mode: replace all tracking links with the provided set
+      def link_xero_tracking_multi
+        options = params[:tracking_options]
+
+        unless options.is_a?(Array) && options.any?
+          return render_error("tracking_options must be a non-empty array", status: :bad_request)
+        end
+
+        ActiveRecord::Base.transaction do
+          incoming_ids = options.map { |o| o[:id] }.compact
+
+          # Remove links no longer in the set
+          @job.xero_tracking_links.where.not(tracking_option_id: incoming_ids).destroy_all
+
+          # Create or update each link
+          primary_set = false
+          options.each do |opt|
+            link = XeroJobTrackingLink.find_or_initialize_by(tracking_option_id: opt[:id])
+            is_primary = opt[:is_primary].present? ? ActiveModel::Type::Boolean.new.cast(opt[:is_primary]) : false
+            link.assign_attributes(
+              job: @job,
+              tracking_option_name: opt[:name],
+              is_primary: is_primary,
+              tenant_id: @job.tenant_id
+            )
+            link.save!
+            primary_set = true if is_primary
+          end
+
+          # If no explicit primary, set the first as primary
+          unless primary_set
+            first_link = @job.xero_tracking_links.reload.first
+            first_link&.update!(is_primary: true)
+          end
+
+          # Backward compat: update job columns from primary
+          primary_link = @job.xero_tracking_links.reload.find_by(is_primary: true)
+          if primary_link
+            @job.update_columns(
+              xero_tracking_option_id: primary_link.tracking_option_id,
+              xero_tracking_option_name: primary_link.tracking_option_name
+            )
+          end
+        end
+
+        # Return updated options
+        current_options = @job.xero_tracking_links.reload.order(is_primary: :desc).map do |link|
+          { id: link.tracking_option_id, name: link.tracking_option_name, variant: link.variant, is_primary: link.is_primary }
+        end
+
+        render json: { success: true, current_options: current_options }
+      rescue ActiveRecord::RecordInvalid => e
+        render json: { success: false, errors: [e.message] }, status: :unprocessable_entity
+      end
 
       # SSoT: Use WarehouseProvider.job_path for consistent folder naming
       def build_job_folder_path(job)
@@ -1115,6 +1215,7 @@ module Api
           :site_supervisor_phone,
           :design_id,
           :design_name,
+          :job_design_id,
           :job_type_id,
           :job_status_id,
           :job_stage_id,
@@ -1209,7 +1310,7 @@ module Api
         result = SmScheduleMasterTemplateCopyService.new(template, @job, {
           start_date: Date.current,
           user: current_user
-        }).execute
+        }).call
 
         if result[:success]
           Rails.logger.info("Successfully instantiated template #{template.name} for job #{@job.id}")

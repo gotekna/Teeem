@@ -29,6 +29,7 @@ import {
   Clock,
   Moon,
   Sun,
+  Lightbulb,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,8 @@ import { CreateTaskDialog } from "@/components/task-hub/CreateTaskDialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/lib/constants/route-paths";
+import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
 
 
 // Microsoft 365 icon component
@@ -311,7 +314,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     // Poll every 30 seconds for unread count
     const interval = setInterval(() => {
       fetchUnreadCount();
-    }, 30000);
+    }, POLLING_INTERVAL_MS);
     return () => {
       clearInterval(interval);
       fetchingRef.current = false;
@@ -335,7 +338,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
   const handleLogout = async () => {
     await logout();
-    router.push("/login");
+    router.push(ROUTES.LOGIN);
   };
 
   const userInitials = user?.name
@@ -350,7 +353,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   return (
     <header className="z-40 flex h-12 shrink-0 items-center gap-x-2 border-b border-border bg-white px-3 shadow-sm sm:gap-x-3 sm:px-4 lg:px-6 dark:border-white/10 dark:bg-background dark:shadow-none transition-all duration-300 overflow-hidden">
       {/* Logo - always visible */}
-      <Link prefetch={false} href="/dashboard" className="flex items-center gap-2 font-bold text-lg shrink-0">
+      <Link prefetch={false} href={ROUTES.DASHBOARD} className="flex items-center gap-2 font-bold text-lg shrink-0">
         <div className="w-7 h-7 bg-primary text-primary-foreground flex items-center justify-center text-sm">
           t
         </div>
@@ -386,7 +389,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Chat Icon */}
           <Link prefetch={false}
-            href="/chat"
+            href={ROUTES.CHAT}
             className="relative p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
           >
             <span className="sr-only">Chat</span>
@@ -403,7 +406,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Training Icon */}
           <Link prefetch={false}
-            href="/training"
+            href={ROUTES.TRAINING}
             className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md"
             title="Training Sessions"
           >
@@ -423,32 +426,32 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
               <DropdownMenuItem asChild>
-                <Link href="/notebooks" className="flex items-center">
+                <Link href={ROUTES.NOTEBOOKS} className="flex items-center">
                   <StickyNote className="mr-2 h-4 w-4 text-amber-500" />
                   Notes
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <a href="/admin/system/teeem-xl" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                <a href={ROUTES.ADMIN.TEEEM_XL} target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <FileSpreadsheet className="mr-2 h-4 w-4 text-green-500" />
                   New Spreadsheet
                 </a>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href="/admin/system/teeem-word" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                <a href={ROUTES.ADMIN.TEEEM_WORD} target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <FileText className="mr-2 h-4 w-4 text-blue-500" />
                   New Document
                 </a>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href="/admin/system/teeem-powerpoint" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                <a href={ROUTES.ADMIN.TEEEM_POWERPOINT} target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <Presentation className="mr-2 h-4 w-4 text-orange-500" />
                   New Presentation
                 </a>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href="/admin/system/teeem-pdf" target="_blank" rel="noopener noreferrer" className="flex items-center">
+                <a href={ROUTES.ADMIN.TEEEM_PDF} target="_blank" rel="noopener noreferrer" className="flex items-center">
                   <FileText className="mr-2 h-4 w-4 text-red-500" />
                   New PDF
                 </a>
@@ -499,7 +502,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   <div className="p-4 text-center text-sm text-muted-foreground">
                     <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
                     <p>No email accounts connected</p>
-                    <Link href="/settings/system/email-accounts" className="text-primary hover:underline text-xs">
+                    <Link href={ROUTES.SETTINGS.SYSTEM_EMAIL_ACCOUNTS} className="text-primary hover:underline text-xs">
                       Add email account
                     </Link>
                   </div>
@@ -581,7 +584,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
               </div>
               <div className="p-2 border-t border-border bg-muted/30">
                 <Link
-                  href="/settings/system/email-accounts"
+                  href={ROUTES.SETTINGS.SYSTEM_EMAIL_ACCOUNTS}
                   className="block text-center text-xs text-primary hover:underline"
                 >
                   Manage Email Accounts
@@ -592,7 +595,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Office 365 Status */}
           <Link prefetch={false}
-            href="/settings/integrations/microsoft"
+            href={ROUTES.SETTINGS.INTEGRATIONS_MICROSOFT}
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
               getStatusColors(office365Status)
@@ -618,7 +621,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Xero Status */}
           <Link prefetch={false}
-            href="/settings/integrations/xero"
+            href={ROUTES.SETTINGS.INTEGRATIONS_XERO}
             className={cn(
               "relative p-1.5 rounded-md transition-colors",
               xeroPendingReview > 0 ? "text-amber-500 dark:text-amber-400 hover:text-amber-600" : getStatusColors(xeroStatus)
@@ -659,7 +662,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Data Warehouse */}
           <Link prefetch={false}
-            href="/data-warehouse"
+            href={ROUTES.DATA_WAREHOUSE}
             className="p-1.5 text-red-500 dark:text-red-400 hover:text-red-600 dark:text-red-400 rounded-md transition-colors"
             title="Data Warehouse"
           >
@@ -669,7 +672,7 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* System Health - link to full page */}
           <Link prefetch={false}
-            href="/system-health"
+            href={ROUTES.SYSTEM_HEALTH}
             className="p-1.5 text-muted-foreground hover:text-muted-foreground dark:hover:text-white rounded-md transition-colors"
             title="System Health"
           >
@@ -686,6 +689,15 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
 
           {/* Help Button */}
           <FloatingHelpButton inline={true} />
+
+          {/* Feature Requests */}
+          <Link prefetch={false}
+            href={ROUTES.FEATURE_REQUESTS}
+            className="p-1.5 text-muted-foreground hover:text-amber-500 dark:hover:text-amber-400 rounded-md transition-colors"
+            title="Feature Requests & Suggestions"
+          >
+            <Lightbulb className="h-4 w-4" />
+          </Link>
 
           {/* Separator */}
           <div
@@ -731,13 +743,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                 </>
               )}
               <DropdownMenuItem asChild>
-                <Link prefetch={false} href="/profile" className="flex items-center">
+                <Link prefetch={false} href={ROUTES.PROFILE} className="flex items-center">
                   <User className="mr-2 h-4 w-4" />
                   Your profile
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link prefetch={false} href="/settings" className="flex items-center">
+                <Link prefetch={false} href={ROUTES.SETTINGS.ROOT} className="flex items-center">
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </Link>

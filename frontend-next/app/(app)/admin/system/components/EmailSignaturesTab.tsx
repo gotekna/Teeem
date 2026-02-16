@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { SYSTEM_ROLES } from "@/lib/constants/roles";
 import type { EmailAccount } from "@/lib/email-types";
 import {
   SIGNATURE_STYLES,
@@ -133,7 +134,7 @@ export function EmailSignaturesTab() {
 
   // Check if user is admin
   const userWithSig = user as UserWithSignature;
-  const isAdmin = userWithSig?.permissions?.includes('admin') ||
+  const isAdmin = userWithSig?.permissions?.includes(SYSTEM_ROLES.ADMIN) ||
                   userWithSig?.permissions?.includes('manage_settings');
 
   // Load company settings
@@ -752,7 +753,7 @@ export function EmailSignaturesTab() {
                                     {account.branding_config?.logo_url && (
                                       <img
                                         src={account.branding_config.logo_url}
-                                        alt="Logo"
+                                        alt="Account logo"
                                         className="h-4 object-contain"
                                       />
                                     )}
@@ -865,7 +866,7 @@ export function EmailSignaturesTab() {
                                     />
                                     {brandingDraft.logo_url && (
                                       <div className="mt-2 p-2 bg-white rounded border">
-                                        <img src={brandingDraft.logo_url} alt="Logo preview" className="h-8 object-contain" />
+                                        <img src={brandingDraft.logo_url} alt="Logo preview for light background" className="h-8 object-contain" />
                                       </div>
                                     )}
                                   </div>
@@ -881,7 +882,7 @@ export function EmailSignaturesTab() {
                                     />
                                     {brandingDraft.logo_dark && (
                                       <div className="mt-2 p-2 bg-gray-800 rounded border">
-                                        <img src={brandingDraft.logo_dark} alt="Logo preview" className="h-8 object-contain" />
+                                        <img src={brandingDraft.logo_dark} alt="Logo preview for dark background" className="h-8 object-contain" />
                                       </div>
                                     )}
                                   </div>

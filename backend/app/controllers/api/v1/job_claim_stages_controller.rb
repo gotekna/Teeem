@@ -86,8 +86,7 @@ module Api
         if @stage.save
           render json: { success: true, data: stage_json(@stage) }, status: :created
         else
-          render json: { success: false, error: @stage.errors.full_messages.join(", ") },
-                 status: :unprocessable_entity
+          render_validation_errors(@stage)
         end
       end
 
@@ -103,8 +102,7 @@ module Api
         if @stage.update(stage_params)
           render json: { success: true, data: stage_json(@stage) }
         else
-          render json: { success: false, error: @stage.errors.full_messages.join(", ") },
-                 status: :unprocessable_entity
+          render_validation_errors(@stage)
         end
       end
 
@@ -112,8 +110,7 @@ module Api
       # Only custom stages can be deleted
       def destroy
         unless @stage.is_custom?
-          return render json: { success: false, error: "Cannot delete template-based stages. Use reset to restore from template." },
-                        status: :unprocessable_entity
+          return render_error("Cannot delete template-based stages. Use reset to restore from template.", status: :unprocessable_entity)
         end
 
         @stage.destroy
@@ -141,15 +138,13 @@ module Api
         invoice_id = params[:invoice_id]
 
         unless invoice_id.present?
-          return render json: { success: false, error: "invoice_id is required" },
-                        status: :unprocessable_entity
+          return render_error("invoice_id is required", status: :unprocessable_entity)
         end
 
         invoice = @job.external_invoices.find_by(id: invoice_id)
 
         unless invoice
-          return render json: { success: false, error: "Invoice not found for this job" },
-                        status: :not_found
+          return render_error("Invoice not found for this job", status: :not_found)
         end
 
         begin
@@ -158,7 +153,7 @@ module Api
 
           render json: { success: true, data: stage_json(@stage.reload) }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -170,7 +165,7 @@ module Api
 
           render json: { success: true, data: stage_json(@stage.reload) }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
       end
 
@@ -181,10 +176,7 @@ module Api
         template = @job.job_type&.sm_schedule_master_template
 
         unless template
-          return render json: {
-            success: false,
-            error: "No schedule template configured for this job type"
-          }, status: :unprocessable_entity
+          return render_error("No schedule template configured for this job type", status: :unprocessable_entity)
         end
 
         # Clear existing claim stages and re-apply from Schedule Master
@@ -195,7 +187,7 @@ module Api
           user: current_user,
           clear_existing: true, # Re-apply entire schedule
           create_purchase_orders: false
-        }).execute
+        }).call
 
         if result[:success]
           stages = @job.job_claim_stages.includes(:external_invoice).ordered
@@ -209,8 +201,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: result[:errors].join(", ") },
-                 status: :unprocessable_entity
+          render_error(result[:errors].join(", "), status: :unprocessable_entity)
         end
       end
 
@@ -219,8 +210,7 @@ module Api
         order_ids = params[:order_ids]
 
         unless order_ids.is_a?(Array)
-          return render json: { success: false, error: "order_ids must be an array" },
-                        status: :unprocessable_entity
+          return render_error("order_ids must be an array", status: :unprocessable_entity)
         end
 
         JobClaimStage.transaction do
@@ -235,8 +225,7 @@ module Api
           data: { stages: stages.map { |s| stage_json(s) } }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: "Stage not found: #{e.message}" },
-               status: :not_found
+        render_error("Stage not found: #{e.message}", status: :not_found)
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages/sync_payments
@@ -260,22 +249,19 @@ module Api
       def create_invoice
         # Validate stage doesn't already have an invoice
         if @stage.external_invoice_id.present?
-          return render json: { success: false, error: "Stage already has an invoice linked" },
-                        status: :unprocessable_entity
+          return render_error("Stage already has an invoice linked", status: :unprocessable_entity)
         end
 
         # Get the client contact for the invoice
         client = @job.client
         unless client
-          return render json: { success: false, error: "Job has no client contact assigned. Please add a client first." },
-                        status: :unprocessable_entity
+          return render_error("Job has no client contact assigned. Please add a client first.", status: :unprocessable_entity)
         end
 
-        # Get Xero credential for tenant_id
-        xero_credential = XeroCredential.current
+        # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
+        xero_credential = XeroCredential.current_for(current_tenant)
         unless xero_credential
-          return render json: { success: false, error: "No Xero connection configured" },
-                        status: :unprocessable_entity
+          return render_error("No Xero connection configured", status: :unprocessable_entity)
         end
 
         # LIM (Jan 2026): XeroContact removed - ContactExternalLink is THE ONE SSoT
@@ -284,10 +270,7 @@ module Api
         external_contact_id = link&.external_contact_id
 
         unless external_contact_id
-          return render json: {
-            success: false,
-            error: "Client '#{client.display_name}' is not linked to Xero. Please sync contacts first."
-          }, status: :unprocessable_entity
+          return render_error("Client '#{client.display_name}' is not linked to Xero. Please sync contacts first.", status: :unprocessable_entity)
         end
 
         # Build invoice attributes
@@ -377,8 +360,7 @@ module Api
           Rails.logger.error("Failed to create invoice for claim stage #{@stage.id}: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: { success: false, error: "Failed to create invoice: #{e.message}" },
-                 status: :unprocessable_entity
+          render_error("Failed to create invoice: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -388,20 +370,17 @@ module Api
         invoice = @stage.external_invoice
 
         unless invoice
-          return render json: { success: false, error: "No invoice linked to this stage" },
-                       status: :unprocessable_entity
+          return render_error("No invoice linked to this stage", status: :unprocessable_entity)
         end
 
         unless invoice.pending_push?
-          return render json: { success: false, error: "Invoice has already been sent to Xero" },
-                       status: :unprocessable_entity
+          return render_error("Invoice has already been sent to Xero", status: :unprocessable_entity)
         end
 
-        # Get Xero credential
-        xero_credential = XeroCredential.current
+        # FRC (Feb 2026): Tenant-scoped credential lookup to prevent cross-tenant leaks
+        xero_credential = XeroCredential.current_for(current_tenant)
         unless xero_credential
-          return render json: { success: false, error: "No Xero connection configured" },
-                       status: :unprocessable_entity
+          return render_error("No Xero connection configured", status: :unprocessable_entity)
         end
 
         begin
@@ -431,8 +410,7 @@ module Api
           Rails.logger.error("Failed to send invoice to Xero: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
 
-          render json: { success: false, error: "Failed to send to Xero: #{e.message}" },
-                 status: :unprocessable_entity
+          render_error("Failed to send to Xero: #{e.message}", status: :unprocessable_entity)
         end
       end
 
@@ -442,8 +420,7 @@ module Api
         invoice = @stage.external_invoice
 
         unless invoice
-          return render json: { success: false, error: "No invoice linked to this stage" },
-                       status: :unprocessable_entity
+          return render_error("No invoice linked to this stage", status: :unprocessable_entity)
         end
 
         template_id = params[:template_id]
@@ -454,8 +431,7 @@ module Api
         end
 
         unless template
-          return render json: { success: false, error: "No invoice template found. Please create an invoice template first." },
-                       status: :unprocessable_entity
+          return render_error("No invoice template found. Please create an invoice template first.", status: :unprocessable_entity)
         end
 
         enqueue_pdf_and_respond(
@@ -474,8 +450,7 @@ module Api
       # Release held retainage for a stage
       def release_retainage
         unless @stage.retainage_held?
-          return render json: { success: false, error: "No retainage held on this stage" },
-                        status: :unprocessable_entity
+          return render_error("No retainage held on this stage", status: :unprocessable_entity)
         end
 
         # Optionally link to a release invoice
@@ -494,8 +469,7 @@ module Api
             }
           }
         else
-          render json: { success: false, error: "Failed to release retainage" },
-                 status: :unprocessable_entity
+          render_error("Failed to release retainage", status: :unprocessable_entity)
         end
       end
 
@@ -525,13 +499,13 @@ module Api
       def set_job
         @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       def set_stage
         @stage = @job.job_claim_stages.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Stage not found" }, status: :not_found
+        render_error("Stage not found", status: :not_found)
       end
 
       def stage_params

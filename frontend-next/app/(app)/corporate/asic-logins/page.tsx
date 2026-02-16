@@ -15,9 +15,11 @@ import {
   Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API } from "@/lib/constants/api-endpoints";
 import { copyToClipboard } from "@/utils/formatters";
 import { BackButton } from "@/components/ui/back-button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import {
   Table,
   TableBody,
@@ -33,12 +35,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { CompanyGroup } from "@/lib/types";
 
-interface Company {
+// Local interface for ASIC-specific fields
+interface AsicCompany {
   id: number;
   name: string;
-  company_group_name?: string;
   acn?: string;
+  company_group_name?: string;
   formatted_acn?: string;
   corporate_key?: string;
   asic_username?: string;
@@ -48,16 +52,11 @@ interface Company {
   has_credentials?: boolean;
 }
 
-interface CompanyGroup {
-  id: number;
-  name: string;
-}
-
 export default function AsicLoginsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = React.useState(true);
-  const [companies, setCompanies] = React.useState<Company[]>([]);
+  const [companies, setCompanies] = React.useState<AsicCompany[]>([]);
   const [companyGroups, setCompanyGroups] = React.useState<CompanyGroup[]>([]);
   const [selectedGroup, setSelectedGroup] = React.useState(searchParams.get("company_group_id") || "");
   const [showPasswords, setShowPasswords] = React.useState<Record<string, boolean>>({});
@@ -74,7 +73,7 @@ export default function AsicLoginsPage() {
 
   const loadCompanyGroups = async () => {
     try {
-      const response = await api.get<{ company_groups: CompanyGroup[] }>("/api/v1/company_groups");
+      const response = await api.get<{ company_groups: CompanyGroup[] }>(API.companyGroups.list);
       setCompanyGroups(response.company_groups || []);
     } catch (error) {
       console.error("Failed to load company groups:", error);
@@ -86,7 +85,7 @@ export default function AsicLoginsPage() {
       setLoading(true);
       const params: Record<string, string> = {};
       if (selectedGroup) params.company_group_id = selectedGroup;
-      const response = await api.get<{ companies: Company[] }>("/api/v1/companies/asic_logins", { params });
+      const response = await api.get<{ companies: AsicCompany[] }>(`${API.companies.list}/asic_logins`, { params });
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load ASIC logins:", error);
@@ -104,7 +103,7 @@ export default function AsicLoginsPage() {
     await copyToClipboard(text);
     const key = `${companyId}-${field}`;
     setCopiedField(key);
-    setTimeout(() => setCopiedField(null), 2000);
+    setTimeout(() => setCopiedField(null), UI_COPY_FEEDBACK_MS);
   };
 
   const handleGroupChange = (groupId: string) => {
@@ -190,6 +189,7 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => handleCopy(company.corporate_key!, company.id, "corporate_key")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy corporate key"
                         >
                           {copiedField === `${company.id}-corporate_key` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -209,6 +209,7 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => handleCopy(company.asic_username!, company.id, "username")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy username"
                         >
                           {copiedField === `${company.id}-username` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -230,12 +231,14 @@ export default function AsicLoginsPage() {
                         <button
                           onClick={() => togglePassword(company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label={showPasswords[`${company.id}-password`] ? "Hide password" : "Show password"}
                         >
                           {showPasswords[`${company.id}-password`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                         <button
                           onClick={() => handleCopy(company.asic_password!, company.id, "password")}
                           className="text-muted-foreground hover:text-foreground"
+                          aria-label="Copy password"
                         >
                           {copiedField === `${company.id}-password` ? (
                             <Check className="h-4 w-4 text-green-500 dark:text-green-400" />
@@ -260,12 +263,14 @@ export default function AsicLoginsPage() {
                             <button
                               onClick={() => togglePassword(company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
+                              aria-label={showPasswords[`${company.id}-recovery`] ? "Hide recovery answer" : "Show recovery answer"}
                             >
                               {showPasswords[`${company.id}-recovery`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                             </button>
                             <button
                               onClick={() => handleCopy(company.recovery_answer!, company.id, "recovery")}
                               className="text-muted-foreground hover:text-foreground"
+                              aria-label="Copy recovery answer"
                             >
                               {copiedField === `${company.id}-recovery` ? (
                                 <Check className="h-4 w-4 text-green-500 dark:text-green-400" />

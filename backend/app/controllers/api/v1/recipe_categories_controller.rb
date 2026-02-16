@@ -33,8 +33,7 @@ module Api
         if category.save
           render json: { success: true, category: category.as_json }, status: :created
         else
-          render json: { success: false, error: category.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(category)
         end
       end
 
@@ -43,16 +42,14 @@ module Api
         if @category.update(category_params)
           render json: { success: true, category: @category.as_json }
         else
-          render json: { success: false, error: @category.errors.full_messages.join(', ') },
-                 status: :unprocessable_entity
+          render_validation_errors(@category)
         end
       end
 
       # DELETE /api/v1/recipe_categories/:id
       def destroy
         if @category.recipes.any?
-          render json: { success: false, error: 'Cannot delete category with recipes' },
-                 status: :unprocessable_entity
+          render_error('Cannot delete category with recipes', status: :unprocessable_entity)
         else
           @category.destroy
           render json: { success: true }

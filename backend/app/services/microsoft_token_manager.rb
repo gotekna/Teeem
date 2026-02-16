@@ -76,10 +76,12 @@ class MicrosoftTokenManager
       return { success: false, error: "Credential is dead" } if credential.refresh_token_dead?
 
       # Use advisory lock to prevent concurrent refresh attempts
-      lock_id = LOCK_ID_OFFSET + credential.id
+      lock_id = LOCK_ID_OFFSET + credential.id.to_i
 
       begin
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_lock(?)", lock_id])
+        )
 
         # Reload to check if another process already refreshed
         credential.reload
@@ -92,7 +94,9 @@ class MicrosoftTokenManager
 
         perform_refresh(credential)
       ensure
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_unlock(?)", lock_id])
+        )
       end
     end
 
@@ -188,7 +192,7 @@ class MicrosoftTokenManager
         form: {
           client_id: credential.client_id,
           client_secret: credential.client_secret,
-          scope: "https://graph.microsoft.com/.default",
+          scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
           grant_type: "client_credentials"
         }
       )
@@ -221,7 +225,7 @@ class MicrosoftTokenManager
       return { success: false, error: "No refresh token" } if credential.refresh_token.blank?
 
       response = HTTP.post(
-        "https://login.microsoftonline.com/#{credential.azure_tenant_id.presence || 'common'}/oauth2/v2.0/token",
+        "https://login.microsoftonline.com/#{credential.azure_tenant_id.presence || MicrosoftGraphBase::AZURE_DEFAULT_TENANT}/oauth2/v2.0/token",
         form: {
           client_id: ENV["OUTLOOK_CLIENT_ID"],
           client_secret: ENV["OUTLOOK_CLIENT_SECRET"],

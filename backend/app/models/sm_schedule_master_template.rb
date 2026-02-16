@@ -19,8 +19,8 @@ class SmScheduleMasterTemplate < ApplicationRecord
   belongs_to :updated_by, class_name: "User", optional: true
   belongs_to :copied_from, class_name: "SmScheduleMasterTemplate", optional: true
 
-  has_many :copies, class_name: "SmScheduleMasterTemplate", foreign_key: :copied_from_id
-  has_many :job_types
+  has_many :copies, class_name: "SmScheduleMasterTemplate", foreign_key: :copied_from_id, dependent: :nullify
+  has_many :job_types, dependent: :nullify
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }
@@ -50,7 +50,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
 
   # Copy template to a construction as sm_tasks
   def copy_to_construction(construction, options = {})
-    SmScheduleMasterTemplateCopyService.new(self, construction, options).execute
+    SmScheduleMasterTemplateCopyService.new(self, construction, options).call
   end
 
   private

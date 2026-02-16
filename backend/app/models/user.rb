@@ -21,7 +21,7 @@ class User < ApplicationRecord
   has_many :email_drafts, dependent: :destroy
   has_many :email_mailbox_favorites, dependent: :destroy
   has_many :vip_senders, dependent: :destroy
-  has_many :email_warehouses, foreign_key: :synced_by_user_id, dependent: :nullify
+  has_many :email_warehouses, class_name: "SyncedEmail", foreign_key: :synced_by_user_id, dependent: :nullify
   has_one :email_sync_status, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :user_navigation_configs, dependent: :destroy
@@ -161,7 +161,7 @@ class User < ApplicationRecord
     signature_blob_id.present?
   end
 
-  def signature_url(expires_in: 3600)
+  def signature_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless signature_blob
     signature_blob.presigned_url(expires_in: expires_in)
   end
@@ -191,7 +191,7 @@ class User < ApplicationRecord
     photo_blob_id.present?
   end
 
-  def photo_url(expires_in: 3600)
+  def photo_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless photo_blob
     photo_blob.presigned_url(expires_in: expires_in)
   end

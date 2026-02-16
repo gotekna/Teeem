@@ -38,8 +38,8 @@ class Api::V1::ColourSwatchesController < ApplicationController
       colourName: doc.meta("colour_name") || doc.ui_name,
       brand: doc.meta("brand") || "Other",
       filename: doc.ui_name,
-      imageUrl: doc.download_url(expires_in: 3600, disposition: :inline),
-      thumbnailUrl: doc.download_url(expires_in: 3600, disposition: :inline),
+      imageUrl: doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline),
+      thumbnailUrl: doc.download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :inline),
       contentType: doc.storage_blob&.content_type,
       createdAt: doc.created_at&.iso8601
     }

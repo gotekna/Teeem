@@ -62,6 +62,7 @@ export function PDFEditorImpl({
   const [selectedPageId, setSelectedPageId] = React.useState<string | null>(null);
   const [currentTool, setCurrentTool] = React.useState<AnnotationTool>("select");
   const [zoom, setZoom] = React.useState(100);
+  const [hasAutoFit, setHasAutoFit] = React.useState(false);
   const [strokeColor, setStrokeColor] = React.useState("#FF0000");
   const [strokeWidth, setStrokeWidth] = React.useState(2);
   const [canUndo, setCanUndo] = React.useState(false);
@@ -71,6 +72,7 @@ export function PDFEditorImpl({
 
   // File input ref for merge
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const canvasAreaRef = React.useRef<HTMLDivElement>(null);
 
   // DnD sensors
   const sensors = useSensors(
@@ -93,6 +95,20 @@ export function PDFEditorImpl({
 
   // Get selected page
   const selectedPage = pages.find((p) => p.id === selectedPageId);
+
+  // Auto-fit zoom to container width on first page load
+  React.useEffect(() => {
+    if (hasAutoFit || !selectedPage || !canvasAreaRef.current) return;
+    // Container width minus padding (p-4 = 16px each side)
+    const containerWidth = canvasAreaRef.current.clientWidth - 32;
+    if (containerWidth > 0 && selectedPage.width > 0) {
+      const fitZoom = Math.floor((containerWidth / selectedPage.width) * 100);
+      // Clamp to reasonable range
+      const clamped = Math.max(25, Math.min(200, fitZoom));
+      setZoom(clamped);
+      setHasAutoFit(true);
+    }
+  }, [selectedPage, hasAutoFit]);
 
   // Handle drag end for reordering
   const handleDragEnd = (event: DragEndEvent) => {
@@ -272,7 +288,7 @@ export function PDFEditorImpl({
         </div>
 
         {/* Canvas area */}
-        <PdfChrome className="bg-muted/50 flex items-center justify-center p-4">
+        <PdfChrome ref={canvasAreaRef} className="bg-muted/50 flex items-center justify-center p-4">
           {selectedPage ? (
             <PdfFrame className="shadow-lg">
               <AnnotationCanvas

@@ -55,6 +55,7 @@ import {
   BookOpen,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
 interface BankTransaction {
@@ -155,10 +156,10 @@ export default function AICategorizationTab() {
     try {
       // Fetch predictions
       const predictionsUrl = predictionFilter === "pending"
-        ? "/api/v1/gl/ai/predictions?pending_only=true&limit=50"
+        ? `/api/v1/gl/ai/predictions?pending_only=true&limit=${API_PAGE_SIZES.LIST_VIEW}`
         : predictionFilter === "high_confidence"
-        ? "/api/v1/gl/ai/predictions?high_confidence=true&limit=50"
-        : "/api/v1/gl/ai/predictions?limit=50";
+        ? `/api/v1/gl/ai/predictions?high_confidence=true&limit=${API_PAGE_SIZES.LIST_VIEW}`
+        : `/api/v1/gl/ai/predictions?limit=${API_PAGE_SIZES.LIST_VIEW}`;
 
       const predictionsResponse = await api.get<{
         success: boolean;
@@ -183,7 +184,7 @@ export default function AICategorizationTab() {
       const suggestionsResponse = await api.get<{
         success: boolean;
         data: { suggestions: RuleSuggestion[]; count: number };
-      }>("/api/v1/gl/bank_rules_learning/suggestions?limit=20");
+      }>(`/api/v1/gl/bank_rules_learning/suggestions?limit=${API_PAGE_SIZES.SEARCH_MODAL}`);
 
       if (suggestionsResponse?.success) {
         setRuleSuggestions(suggestionsResponse.data.suggestions || []);

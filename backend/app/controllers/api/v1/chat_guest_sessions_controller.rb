@@ -55,7 +55,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # POST /api/v1/chat_guest_sessions/:token/join
@@ -73,7 +73,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     }
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # GET /api/v1/chat_guest_sessions/:token/messages
@@ -104,7 +104,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
       }
     end
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # POST /api/v1/chat_guest_sessions/:token/send_message
@@ -113,7 +113,7 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
     session = find_guest_session!
 
     unless session.active?
-      return render json: { success: false, error: "Please join the chat first" }, status: :unprocessable_entity
+      return render_error("Please join the chat first", status: :unprocessable_entity)
     end
 
     ActsAsTenant.with_tenant(session.tenant) do
@@ -132,11 +132,11 @@ class Api::V1::ChatGuestSessionsController < ApplicationController
           data: guest_message_json(message)
         }, status: :created
       else
-        render json: { success: false, error: message.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        render_validation_errors(message)
       end
     end
   rescue ActiveRecord::RecordNotFound => e
-    render json: { success: false, error: e.message }, status: :not_found
+    render_error(e.message, status: :not_found)
   end
 
   # DELETE /api/v1/chat_guest_sessions/:id

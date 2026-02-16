@@ -133,11 +133,9 @@ export function useGroupCounts(
   const extraParamsKey = extraQueryParams ? JSON.stringify(extraQueryParams) : "";
 
   const fetchGroupCounts = useCallback(async () => {
-    console.log('[useGroupCounts] fetchGroupCounts called:', { enabled, foundationId, groupByColumn, allGroupByColumns });
 
     // Don't fetch if disabled or missing required params
     if (!enabled || !foundationId || !groupByColumn) {
-      console.log('[useGroupCounts] Skipping - disabled or missing params');
       // SSR FIX: Don't clear state if we have SSR data and haven't fetched yet
       // This prevents losing initial data during the hydration phase
       if (!skipInitialFetchRef.current) {
@@ -180,14 +178,12 @@ export function useGroupCounts(
         params.filters = JSON.stringify(filters);
       }
 
-      console.log('[useGroupCounts] Calling API:', `/api/v1/foundations/${foundationId}/groups`, params);
 
       const response = await api.get<GroupsApiResponse>(
         `/api/v1/foundations/${foundationId}/groups`,
         { params, signal: abortController.signal }
       );
 
-      console.log('[useGroupCounts] API response:', response);
 
       // Only update state if this request wasn't aborted
       if (!abortController.signal.aborted) {
@@ -197,24 +193,19 @@ export function useGroupCounts(
             count: g.count,
             displayValue: g.display_value,
           }));
-          console.log('[useGroupCounts] Setting groups:', mappedGroups.length, 'items');
-          console.log('[useGroupCounts] display_values_map:', response.display_values_map);
           setGroups(mappedGroups);
           setTotalRecords(response.total_records);
           // SSoT: Store server-provided display values for ALL grouping columns
           setDisplayValuesMap(response.display_values_map || {});
           setHasFetched(true);
         } else {
-          console.log('[useGroupCounts] API returned error:', response.error);
           setError(response.error || "Failed to fetch group counts");
         }
       } else {
-        console.log('[useGroupCounts] Request was aborted, not updating state');
       }
     } catch (err) {
       // Ignore abort errors
       if (err instanceof Error && err.name === "AbortError") {
-        console.log('[useGroupCounts] Request aborted');
         return;
       }
       console.error("[useGroupCounts] Failed to fetch:", err);
@@ -231,7 +222,6 @@ export function useGroupCounts(
     // SSR: Skip initial fetch if we have pre-loaded data
     // Keep skipInitialFetchRef true until we actually need to fetch
     if (skipInitialFetchRef.current && enabled && foundationId && groupByColumn) {
-      console.log('[useGroupCounts] Skipping initial fetch - using SSR data');
       skipInitialFetchRef.current = false; // Mark SSR data as consumed
       return;
     }

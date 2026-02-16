@@ -18,28 +18,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  company_name?: string;
-  first_name?: string;
-  last_name?: string;
-  abn?: string;
-  email?: string;
-  mobile_phone?: string;
-  xero_contact_status?: string;
-  last_synced_at?: string;
-  xero_links_count: number;
-  xero_orgs: Array<{
-    tenant_id: string;
-    external_contact_id: string;
-    last_synced_at?: string;
-  }>;
-  invoices_count: number;
-  created_at: string;
-  updated_at: string;
-}
+import type { Contact } from "@/lib/types";
 
 interface DuplicateItem {
   id: number;
@@ -240,7 +219,7 @@ export function XeroDuplicateReviewPanel({
     return "text-red-600 dark:text-red-400";
   };
 
-  const formatDate = (dateString?: string) => {
+  const formatDate = (dateString?: string | null) => {
     if (!dateString) return "Never";
     const date = new Date(dateString);
     const now = new Date();

@@ -198,7 +198,7 @@ class BpmnTaskInstance < ApplicationRecord
   end
 
   def create_task_notification(user, type, title)
-    subject_name = subject&.try(:name) || subject&.try(:title) || "Unknown"
+    subject_name = subject.try(:name) || subject.try(:title) || "Unknown"
     process = bpmn_process_instance&.bpmn_process
 
     Notification.create!(

@@ -1,6 +1,9 @@
 class DataImporter
   attr_reader :table, :file_path, :column_mapping, :errors, :imported_count, :failed_rows
 
+  # SSoT: Batch size for bulk inserts (performance vs memory tradeoff)
+  BATCH_SIZE = 500
+
   def initialize(table, file_path, column_mapping = {})
     @table = table
     @file_path = file_path
@@ -26,12 +29,12 @@ class DataImporter
     model = @table.dynamic_model
 
     # Process rows in batches for better performance
-    batch_size = 500
-    rows.each_slice(batch_size).with_index do |batch, batch_index|
+    # SSoT: Use BATCH_SIZE constant
+    rows.each_slice(BATCH_SIZE).with_index do |batch, batch_index|
       batch_records = []
 
       batch.each_with_index do |row_data, index_in_batch|
-        row_index = batch_index * batch_size + index_in_batch
+        row_index = batch_index * BATCH_SIZE + index_in_batch
 
         begin
           # Map spreadsheet data to database columns
@@ -54,13 +57,13 @@ class DataImporter
 
           # Call progress callback if provided
           if progress_callback
-            current_progress = [ (batch_index + 1) * batch_size, total_rows ].min
+            current_progress = [ (batch_index + 1) * BATCH_SIZE, total_rows ].min
             progress_callback.call(current_progress, total_rows)
           end
         rescue => e
           # If bulk insert fails, fall back to individual inserts for this batch
           batch_records.each_with_index do |attributes, index|
-            row_index = batch_index * batch_size + index
+            row_index = batch_index * BATCH_SIZE + index
             begin
               model.create!(attributes)
               @imported_count += 1

@@ -24,10 +24,7 @@ module Api
             contact_person: @contact_person.as_json
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @contact_person.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@contact_person)
         end
       end
 
@@ -39,10 +36,7 @@ module Api
             contact_person: @contact_person.as_json
           }
         else
-          render json: {
-            success: false,
-            error: @contact_person.errors.full_messages.join(", ")
-          }, status: :unprocessable_entity
+          render_validation_errors(@contact_person)
         end
       end
 
@@ -57,13 +51,13 @@ module Api
       def set_contact
         @contact = Contact.find(params[:contact_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact not found" }, status: :not_found
+        render_error("Contact not found", status: :not_found)
       end
 
       def set_contact_person
         @contact_person = @contact.contact_persons.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Contact person not found" }, status: :not_found
+        render_error("Contact person not found", status: :not_found)
       end
 
       def contact_person_params

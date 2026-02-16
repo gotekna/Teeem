@@ -4,7 +4,7 @@ class ComplianceCalendarService
   def initialize(params = {})
     @company_id = params[:company_id]
     @company_group_id = params[:company_group_id]
-    @start_date = params[:start_date] || Date.today.beginning_of_month
+    @start_date = params[:start_date] || Date.current.beginning_of_month
     @end_date = params[:end_date] || 6.months.from_now.end_of_month
     @completed = params[:completed]
     @include_completed = params[:include_completed] || false
@@ -42,9 +42,9 @@ class ComplianceCalendarService
 
     {
       total: items.count,
-      overdue: items.where("corporate_compliance_items.due_date < ?", Date.today).where(completed: false).count,
-      due_this_week: items.where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.today, Date.today.end_of_week).where(completed: false).count,
-      due_this_month: items.where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.today, Date.today.end_of_month).where(completed: false).count,
+      overdue: items.where("corporate_compliance_items.due_date < ?", Date.current).where(completed: false).count,
+      due_this_week: items.where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.current, Date.current.end_of_week).where(completed: false).count,
+      due_this_month: items.where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.current, Date.current.end_of_month).where(completed: false).count,
       pending: items.where(completed: false).count,
       completed: items.where(completed: true).count
     }
@@ -55,7 +55,7 @@ class ComplianceCalendarService
     CorporateComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
-      .where("corporate_compliance_items.due_date < ? AND corporate_compliance_items.completed = ?", Date.today, false)
+      .where("corporate_compliance_items.due_date < ? AND corporate_compliance_items.completed = ?", Date.current, false)
       .includes(:corporate)
       .order(:due_date)
   end
@@ -65,7 +65,7 @@ class ComplianceCalendarService
     CorporateComplianceItem
       .joins(:company)
       .left_joins(company: :company_group)
-      .where("corporate_compliance_items.due_date BETWEEN ? AND ? AND corporate_compliance_items.completed = ?", Date.today, days.days.from_now, false)
+      .where("corporate_compliance_items.due_date BETWEEN ? AND ? AND corporate_compliance_items.completed = ?", Date.current, days.days.from_now, false)
       .includes(:corporate)
       .order(:due_date)
   end
@@ -76,7 +76,7 @@ class ComplianceCalendarService
       {
         company: items.first.company,
         items: items,
-        overdue_count: items.count { |i| i.due_date < Date.today && !i.completed },
+        overdue_count: items.count { |i| i.due_date < Date.current && !i.completed },
         pending_count: items.count { |i| !i.completed },
         total_count: items.count
       }
@@ -99,7 +99,7 @@ class ComplianceCalendarService
           review_month = company.date_incorporated.month
           review_day = company.date_incorporated.day
           # Calculate next review date
-          review_year = Date.today.month > review_month || (Date.today.month == review_month && Date.today.day > review_day) ? Date.today.year + 1 : Date.today.year
+          review_year = Date.current.month > review_month || (Date.current.month == review_month && Date.current.day > review_day) ? Date.current.year + 1 : Date.current.year
           review_date = Date.new(review_year, review_month, review_day) rescue Date.new(review_year, review_month, 28)
 
           unless company.corporate_compliance_items.exists?(item_type: "asic_annual_review", due_date: review_date)
@@ -157,7 +157,7 @@ class ComplianceCalendarService
           ]
 
           bas_quarters.each do |bas|
-            next if bas[:due] < Date.today # Skip past quarters
+            next if bas[:due] < Date.current # Skip past quarters
             next if company.corporate_compliance_items.exists?(item_type: "bas", due_date: bas[:due])
 
             company.corporate_compliance_items.create!(
@@ -182,7 +182,7 @@ class ComplianceCalendarService
 
   def self.current_financial_year
     # FY25 = July 2024 to June 2025, so current year if >= July, previous if < July
-    Date.today.month >= 7 ? Date.today.year : Date.today.year - 1
+    Date.current.month >= 7 ? Date.current.year : Date.current.year - 1
   end
 
   # Send reminders for upcoming compliance items
@@ -191,7 +191,7 @@ class ComplianceCalendarService
     sent_count = 0
 
     days_before.each do |days|
-      target_date = Date.today + days.days
+      target_date = Date.current + days.days
 
       items = CorporateComplianceItem
         .where(due_date: target_date, completed: false)

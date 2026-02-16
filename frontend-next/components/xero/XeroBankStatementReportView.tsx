@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RefreshCw, FileText, Plus } from "lucide-react";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
@@ -110,7 +111,6 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
         setReports(response.data);
         // Show success message
         if (response.message) {
-          console.log(response.message);
         }
       } else {
         setError(response?.error || "Failed to generate reports");
@@ -124,12 +124,8 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
   };
 
   const downloadReport = async (report: BSReport) => {
-    console.log("🟢 downloadReport called with:", report);
-    console.log("🟢 Report ID:", report.id);
-    console.log("🟢 Has download_url:", !!report.download_url);
 
     if (!report.download_url) {
-      console.log("🟡 No download_url, fetching from API...");
       // Need to fetch the full report to get download URL
       try {
         const response = await api.get<{
@@ -137,21 +133,16 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           data: BSReport;
         }>(`/api/v1/companies/${companyId}/bank_statement_reports/${report.id}`);
 
-        console.log("🟢 API response:", response);
 
         if (response?.success && response.data.download_url) {
-          console.log("🟢 Opening URL:", response.data.download_url);
           window.open(response.data.download_url, "_blank");
         } else {
-          console.log("🔴 No download URL in response");
           setError("Report download not available - PDF was not uploaded to cloud storage. Click 'Generate All Historical' to regenerate.");
         }
       } catch (err) {
-        console.log("🔴 API error:", err);
         setError("Failed to get download link");
       }
     } else {
-      console.log("🟢 Opening existing URL:", report.download_url);
       window.open(report.download_url, "_blank");
     }
   };
@@ -230,24 +221,14 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
 
   // Handle row actions
   const handleRowClick = (row: TableRow) => {
-    console.log("🔵 ROW CLICKED:", row);
-    console.log("🔵 Row ID:", row.id);
-    console.log("🔵 Row status:", row.status);
-    console.log("🔵 Row _original:", row._original);
 
     const report = row._original as BSReport;
-    console.log("🔵 Report object:", report);
-    console.log("🔵 Report status:", report?.status);
-    console.log("🔵 Report download_url:", report?.download_url);
 
     if (report?.status === "completed") {
-      console.log("✅ Status is completed, calling downloadReport");
       downloadReport(report);
     } else {
-      console.log("⚠️ Status is NOT completed:", report?.status);
       // Still try to download even if status doesn't match "completed" exactly
       if (row.status === "COMPLETED" || report?.status?.toUpperCase() === "COMPLETED") {
-        console.log("✅ Status matches COMPLETED (uppercase), calling downloadReport");
         downloadReport(report);
       }
     }
@@ -312,12 +293,11 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
           /* Tabs for each bank account */
           <Tabs value={activeBank} onValueChange={setActiveBank} className="-mx-4">
             <div className="px-4 border-b">
-              <TabsList className="flex h-auto flex-wrap gap-1 bg-transparent p-0 pb-2">
+              <TabsList className="flex-wrap h-auto gap-1">
                 {bankNames.map((bankName) => (
                   <TabsTrigger
                     key={bankName}
                     value={bankName}
-                    className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground rounded-md px-3 py-1.5 text-sm"
                   >
                     {bankName}
                     <span className="ml-1.5 text-xs opacity-70">
@@ -331,7 +311,7 @@ export function XeroBankStatementReportView({ companyId }: XeroBankStatementRepo
               <TabsContent key={bankName} value={bankName} className="mt-0">
                 <TeeemTableView
                   entries={getTableRows(reportsByBank[bankName] || [])}
-                  foundationId="bank_statement_reports"
+                  foundationId={FOUNDATION_SLUGS.BANK_STATEMENT_REPORTS}
                   tableName="Statements"
                   onRowClick={handleRowClick}
                   viewOnly={true}

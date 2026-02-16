@@ -34,7 +34,7 @@ class PaymentLink < ApplicationRecord
       invoice: invoice,
       contact: invoice.contact,
       amount: invoice.amount_due,
-      currency: invoice.currency_code || "AUD",
+      currency: invoice.currency_code || TenantSetting::DEFAULT_CURRENCY,
       expires_at: expires_in ? Time.current + expires_in : nil,
       created_by: created_by
     )
@@ -100,7 +100,7 @@ class PaymentLink < ApplicationRecord
   # Get the public payment URL
   def payment_url
     # This will be configured based on environment
-    base_url = Rails.application.config.payment_portal_url || "https://pay.teeem.com"
+    base_url = Rails.application.config.payment_portal_url || InfrastructureUrls.payment_portal_url
     "#{base_url}/pay/#{token}"
   end
 
@@ -119,6 +119,6 @@ class PaymentLink < ApplicationRecord
 
   def set_defaults
     self.status ||= "active"
-    self.currency ||= "AUD"
+    self.currency ||= TenantSetting::DEFAULT_CURRENCY
   end
 end

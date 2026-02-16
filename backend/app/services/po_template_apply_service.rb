@@ -9,7 +9,7 @@
 #
 # Usage:
 #   service = PoTemplateApplyService.new(pack, job)
-#   result = service.execute   # Creates POs (all-or-nothing transaction)
+#   result = service.call   # Creates POs (all-or-nothing transaction)
 #   result = service.preview   # Returns what WOULD happen without creating
 #
 class PoTemplateApplyService
@@ -40,7 +40,7 @@ class PoTemplateApplyService
   end
 
   # Apply the template - creates all POs in a transaction
-  def execute
+  def call
     created_pos = []
 
     ActiveRecord::Base.transaction do

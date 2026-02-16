@@ -17,11 +17,23 @@ import {
   MessageSquare,
   MessageSquareText,
   FileSpreadsheet,
-  FileIcon as LucideFileIcon
+  FileIcon as LucideFileIcon,
+  Pencil,
+  X
 } from "lucide-react";
 import { ExcelDocumentPreview } from "@/components/ui/excel-document-preview";
+import { WordDocumentPreview } from "@/components/ui/word-document-preview";
 import { cn } from "@/lib/utils";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PDFEditor } from "@/components/ui/pdf-editor";
+import { Button } from "@/components/ui/button";
 
 // =============================================================================
 // TYPES
@@ -87,6 +99,14 @@ export interface DocumentViewerProps {
   theme?: "light" | "dark";
   /** Footer text (default: 'Shared via Teeem') */
   footerText?: string;
+  /** Wrap viewer in a Dialog modal */
+  modal?: boolean;
+  /** Dialog open state (required when modal=true) */
+  open?: boolean;
+  /** Dialog open state change handler (required when modal=true) */
+  onOpenChange?: (open: boolean) => void;
+  /** PDF annotation save handler - when provided, PDFs open in PDFEditor */
+  onSave?: (pdfBytes: Uint8Array, fileName: string) => Promise<void>;
 }
 
 // =============================================================================
@@ -237,7 +257,6 @@ function processMimePart(
   const contentId = extractContentId(headers["content-id"]);
   const transferEncoding = (headers["content-transfer-encoding"] || "").toLowerCase();
 
-  console.log(`[EML Parser] Processing part - Type: ${contentType.substring(0, 50)}, CID: ${contentId || 'none'}, Encoding: ${transferEncoding || 'none'}`);
 
   // Handle nested multipart
   if (isMultipartContentType(contentType)) {
@@ -261,7 +280,6 @@ function processMimePart(
   } else if (isImageContentType(contentType)) {
     // Extract inline image
     if (!contentId) {
-      console.log(`[EML Parser] Found image (${contentType}) but NO Content-ID - skipping`);
     } else {
       const mimeType = contentType.split(";")[0].trim().toLowerCase();
       // Remove all whitespace from base64 data (line breaks, spaces, etc.)
@@ -274,9 +292,7 @@ function processMimePart(
         if (atIndex > 0) {
           cidMap[contentId.substring(0, atIndex)] = `data:${mimeType};base64,${imageData}`;
         }
-        console.log(`[EML Parser] Found inline image: ${contentId}, size: ${imageData.length}, type: ${mimeType}`);
       } else {
-        console.log(`[EML Parser] Found image with CID ${contentId} but body is empty`);
       }
     }
   }
@@ -296,7 +312,6 @@ function parseEmlContent(content: string): {
   body: string;
   isHtml: boolean;
 } {
-  console.log(`[EML Parser] Starting parse, content length: ${content.length}`);
 
   const { headers, body: rawBody } = parseMimePart(content);
   let body = rawBody;
@@ -304,17 +319,14 @@ function parseEmlContent(content: string): {
   const cidMap: Record<string, string> = {}; // Content-ID -> data URL
 
   const contentType = headers["content-type"] || "";
-  console.log(`[EML Parser] Top-level Content-Type: ${contentType}`);
 
   // Handle multipart messages
   if (isMultipartContentType(contentType)) {
     const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/i);
-    console.log(`[EML Parser] Boundary match:`, boundaryMatch ? boundaryMatch[1] : 'NOT FOUND');
     if (boundaryMatch) {
       const boundary = boundaryMatch[1];
       const escapedBoundary = boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const parts = rawBody.split(new RegExp(`--${escapedBoundary}`));
-      console.log(`[EML Parser] Found ${parts.length} parts`);
 
       let htmlPart = "";
       let textPart = "";
@@ -323,7 +335,6 @@ function parseEmlContent(content: string): {
         const part = parts[i];
         if (part.trim() === "" || part.trim() === "--") continue;
         // Log first 200 chars of each part to see what we're working with
-        console.log(`[EML Parser] Part ${i}: ${part.substring(0, 200).replace(/\n/g, '\\n')}`);
         const result = processMimePart(part, cidMap);
         if (result.htmlPart && !htmlPart) htmlPart = result.htmlPart;
         if (result.textPart && !textPart) textPart = result.textPart;
@@ -352,18 +363,13 @@ function parseEmlContent(content: string): {
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
     const httpRefs = allImgSrcs.filter(s => s.includes('http'));
     const dataRefs = allImgSrcs.filter(s => s.includes('data:'));
-    console.log(`[EML Parser] Image sources in HTML: ${allImgSrcs.length} total, ${cidRefs.length} cid:, ${httpRefs.length} http(s):, ${dataRefs.length} data:`);
-    if (cidRefs.length > 0) console.log(`[EML Parser] cid: refs:`, cidRefs.slice(0, 5));
-    if (httpRefs.length > 0) console.log(`[EML Parser] http refs:`, httpRefs.slice(0, 3));
   }
 
   // Replace cid: references with data URLs
   if (isHtml && Object.keys(cidMap).length > 0) {
-    console.log(`[EML Parser] Found ${Object.keys(cidMap).length} images to replace`);
 
     // First, find all cid: references in the HTML
     const cidRefs = body.match(/src=["']cid:([^"']+)["']/gi) || [];
-    console.log(`[EML Parser] Replacing ${cidRefs.length} cid: references`);
 
     for (const [cid, dataUrl] of Object.entries(cidMap)) {
       // Escape special regex characters in the cid
@@ -373,7 +379,6 @@ function parseEmlContent(content: string): {
       const before = body;
       body = body.replace(regex, `src="${dataUrl}"`);
       if (body !== before) {
-        console.log(`[EML Parser] Replaced cid:${cid}`);
       }
     }
 
@@ -388,7 +393,6 @@ function parseEmlContent(content: string): {
         for (const [cid, dataUrl] of Object.entries(cidMap)) {
           if (cid.startsWith(filename) || cid.toLowerCase().startsWith(filename.toLowerCase())) {
             body = body.replace(ref, `src="${dataUrl}"`);
-            console.log(`[EML Parser] Replaced cid:${filename} (matched ${cid})`);
             break;
           }
         }
@@ -403,7 +407,6 @@ function parseEmlContent(content: string): {
   // This happens when reply emails quote original messages with images that weren't included
   const unresolvedCids = body.match(/src=["']cid:[^"']+["']/gi) || [];
   if (unresolvedCids.length > 0) {
-    console.log(`[EML Parser] ${unresolvedCids.length} unresolved cid: images - replacing with placeholder`);
     // Replace with a 1x1 transparent gif and add a data attribute for styling
     body = body.replace(
       /(<img[^>]*)(src=["']cid:[^"']+["'])([^>]*>)/gi,
@@ -411,7 +414,6 @@ function parseEmlContent(content: string): {
     );
   }
 
-  console.log(`[EML Parser] Final result - isHtml: ${isHtml}, images found: ${Object.keys(cidMap).length}, body length: ${body.length}`);
 
   return {
     from: headers["from"] || "Unknown",
@@ -470,6 +472,10 @@ export function DocumentViewer({
   className,
   theme = "dark",
   footerText = "Shared via Teeem",
+  modal,
+  open,
+  onOpenChange,
+  onSave,
 }: DocumentViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const [emlData, setEmlData] = useState<ReturnType<typeof parseEmlContent> | null>(null);
@@ -483,6 +489,7 @@ export function DocumentViewer({
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = useState<number>(0);
+  const [pdfEditMode, setPdfEditMode] = useState(false);
 
   const fileType = getFileType(fileName);
   const hasFiles = files && files.length > 0;
@@ -513,7 +520,7 @@ export function DocumentViewer({
 
         // Small delay between downloads to prevent browser blocking
         if (i < files.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, UI_ANIMATION_STANDARD_MS));
         }
       }
     } finally {
@@ -531,7 +538,6 @@ export function DocumentViewer({
   // - Pre-fetching: Next/prev files load in background for instant switching
   // - Memory management: Blob URLs cleaned up on unmount
   useEffect(() => {
-    console.log(`[DocumentViewer] PDF load - file: ${fileName}, type: ${fileType}, url: ${url ? url.substring(0, 80) + '...' : 'EMPTY'}`);
 
     if (fileType !== "pdf") {
       setPdfBlobUrl(null);
@@ -541,7 +547,6 @@ export function DocumentViewer({
 
     // Handle empty/missing URL - show error instead of black screen
     if (!url) {
-      console.warn(`[DocumentViewer] Empty URL for: ${fileName}`);
       setPdfBlobUrl(null);
       setPdfLoadProgress(0);
       setError("Document URL not available. The file may not be uploaded to storage yet.");
@@ -604,7 +609,6 @@ export function DocumentViewer({
         return blob;
       })
       .then(async blob => {
-        console.log(`[DocumentViewer] PDF loaded: ${fileName} (${blob.size} bytes)`);
 
         // Validate PDF content - detect corrupted/invalid files
         // Real PDFs start with %PDF magic bytes and are typically >500 bytes
@@ -625,7 +629,6 @@ export function DocumentViewer({
           return;
         }
 
-        console.log(`[DocumentViewer] PDF validated successfully: ${fileName}`);
         const blobUrl = URL.createObjectURL(blob);
         // Cache for instant navigation
         pdfBlobCacheRef.current.set(url, blobUrl);
@@ -639,7 +642,6 @@ export function DocumentViewer({
         // If we set pdfLoading=false here, it overwrites the new fetch's loading=true state,
         // causing a race condition that shows black screen instead of loading indicator.
         if (err.name === 'AbortError') {
-          console.log(`[DocumentViewer] Fetch aborted (user switched files): ${fileName}`);
           return;
         }
         console.error(`[DocumentViewer] PDF fetch failed for ${fileName}:`, err);
@@ -706,15 +708,12 @@ export function DocumentViewer({
     setEmlData(null);
     setError(null);
 
-    console.log(`[EML Viewer] Fetching EML from: ${url}`);
     fetch(url, { signal: controller.signal })
       .then(res => {
-        console.log(`[EML Viewer] Fetch response status: ${res.status}`);
         if (!res.ok) throw new Error("Failed to fetch email");
         return res.text();
       })
       .then(content => {
-        console.log(`[EML Viewer] Received content, length: ${content.length}, first 500 chars: ${content.substring(0, 500)}`);
         const parsed = parseEmlContent(content);
         setEmlData(parsed);
       })
@@ -736,6 +735,282 @@ export function DocumentViewer({
 
   const isDark = theme === "dark";
 
+  // =========================================================================
+  // Modal mode: wrap viewer in a Dialog
+  // =========================================================================
+  if (modal) {
+    // PDF with onSave → PDFEditor (annotation tools)
+    if (fileType === "pdf" && onSave) {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
+            <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
+            <PDFEditor
+              url={url}
+              fileName={fileName}
+              onSave={onSave}
+              onClose={() => onOpenChange?.(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // PDF without onSave → iframe viewer (with option to switch to editor)
+    if (fileType === "pdf") {
+      return (
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) setPdfEditMode(false); onOpenChange?.(isOpen); }}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
+            <DialogTitle className="sr-only">{fileName || "PDF Viewer"}</DialogTitle>
+            {pdfEditMode ? (
+              <PDFEditor
+                url={url}
+                fileName={fileName}
+                onSave={onSave}
+                onClose={() => setPdfEditMode(false)}
+              />
+            ) : (
+              <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button variant="outline" size="sm" onClick={() => setPdfEditMode(true)}>
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                      <ExternalLink className="h-4 w-4 mr-1" />
+                      Open in New Tab
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex-1 min-h-0">
+                  {pdfLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p className="text-muted-foreground">Loading document...</p>
+                    </div>
+                  ) : pdfBlobUrl ? (
+                    <PdfFrame className="w-full h-full">
+                      <iframe key={pdfBlobUrl} src={pdfBlobUrl} className="w-full h-full" />
+                    </PdfFrame>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                      <FileText className="h-16 w-16" />
+                      <p>Unable to preview this PDF.</p>
+                      <Button onClick={() => window.open(url, "_blank")}>
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open in New Tab
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Image → image viewer in dialog
+    if (fileType === "image") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] p-4" hideClose>
+            <DialogTitle className="sr-only">{fileName || "Image Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 flex items-center justify-center overflow-auto">
+                <img src={url} alt={fileName} className="max-w-full max-h-full object-contain" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // EML → parsed email viewer in dialog
+    if (fileType === "eml") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0" hideClose>
+            <DialogTitle className="sr-only">{fileName || "Email Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                {emlLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">Loading email...</p>
+                  </div>
+                ) : emlData ? (
+                  <div className="h-full">
+                    <div className="bg-muted/50 border-b p-4 space-y-2">
+                      <div className="flex items-start gap-3">
+                        <User className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">From:</span>
+                          <p className="truncate">{emlData.from}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <Users className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">To:</span>
+                          <p className="truncate">{emlData.to}</p>
+                        </div>
+                      </div>
+                      {emlData.cc && (
+                        <div className="flex items-start gap-3">
+                          <Users className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                          <div className="min-w-0">
+                            <span className="text-sm text-muted-foreground">CC:</span>
+                            <p className="truncate">{emlData.cc}</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-start gap-3">
+                        <Calendar className="h-5 w-5 text-muted-foreground mt-0.5 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-sm text-muted-foreground">Date:</span>
+                          <p>{emlData.date}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 overflow-auto" style={{ maxHeight: "calc(90vh - 250px)" }}>
+                      {emlData.isHtml ? (
+                        <iframe
+                          srcDoc={emlData.body}
+                          className="w-full border-0"
+                          style={{ minHeight: "400px", height: "100%" }}
+                          sandbox="allow-same-origin"
+                          title="Email content"
+                        />
+                      ) : (
+                        <pre className="whitespace-pre-wrap font-sans text-sm">
+                          {emlData.body}
+                        </pre>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
+                    <Mail className="h-16 w-16" />
+                    <p>Unable to preview this email.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Excel → ExcelDocumentPreview in dialog
+    if (fileType === "excel") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] h-[95vh] p-0 gap-0" hideClose>
+            <DialogTitle className="sr-only">{fileName || "Spreadsheet Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <ExcelDocumentPreview url={url} className="h-full" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // Word → WordDocumentPreview in dialog
+    if (fileType === "word") {
+      return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className="max-w-[90vw] max-h-[90vh] h-[90vh] p-0 gap-0" hideClose>
+            <DialogTitle className="sr-only">{fileName || "Document Viewer"}</DialogTitle>
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between p-3 border-b">
+                <h2 className="text-sm font-medium truncate">{fileName}</h2>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button variant="outline" size="sm" onClick={() => window.open(url, "_blank")}>
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open in New Tab
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange?.(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex-1 min-h-0">
+                <WordDocumentPreview url={url} className="h-full" />
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      );
+    }
+
+    // All other types → generic modal with open in new tab
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogTitle className="sr-only">{fileName || "File Preview"}</DialogTitle>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <FileText className="h-16 w-16 text-muted-foreground" />
+            <p className="text-sm font-medium">{fileName}</p>
+            <div className="flex items-center gap-2">
+              <Button onClick={() => window.open(url, "_blank")}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Open in New Tab
+              </Button>
+              <Button variant="outline" onClick={() => onOpenChange?.(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // =========================================================================
+  // Inline mode (default): full document viewer with header/footer/sidebar
+  // =========================================================================
   return (
     <div className={cn(
       "flex flex-col h-full",
@@ -829,7 +1104,7 @@ export function DocumentViewer({
                 isDark ? "border-gray-700" : "border-gray-200"
               )}>
                 {qaContext!.map((qa, index) => (
-                  <div key={index} className="space-y-2">
+                  <div key={`qa-${qa.question}-${index}`} className="space-y-2">
                     {qaContext!.length > 1 && (
                       <div className={cn("text-xs uppercase tracking-wide", isDark ? "text-gray-500" : "text-gray-400")}>
                         Question {index + 1}
@@ -894,7 +1169,7 @@ export function DocumentViewer({
                 <div className="space-y-1">
                   {files!.map((file, index) => (
                     <button
-                      key={index}
+                      key={`file-${file.name}-${index}`}
                       onClick={() => goToFile(index)}
                       className={cn(
                         "w-full text-left px-3 py-2 rounded-md text-sm transition-colors flex items-center gap-2",
@@ -967,14 +1242,14 @@ export function DocumentViewer({
                     <circle
                       cx="50" cy="50" r="40"
                       fill="none"
-                      stroke={isDark ? "#374151" : "#e5e7eb"}
+                      stroke={isDark ? TAILWIND_COLORS.gray[700] : TAILWIND_COLORS.gray[200]}
                       strokeWidth="8"
                     />
                     {/* Progress circle */}
                     <circle
                       cx="50" cy="50" r="40"
                       fill="none"
-                      stroke="#3b82f6"
+                      stroke={TAILWIND_COLORS.blue[500]}
                       strokeWidth="8"
                       strokeLinecap="round"
                       strokeDasharray={`${pdfLoadProgress * 2.51} 251`}
@@ -1092,6 +1367,13 @@ export function DocumentViewer({
           ) : fileType === "excel" ? (
             <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden" style={{ minHeight: "calc(100vh - 200px)" }}>
               <ExcelDocumentPreview
+                url={url}
+                className="h-full"
+              />
+            </div>
+          ) : fileType === "word" ? (
+            <div className="w-full h-full bg-white rounded-lg shadow-2xl overflow-hidden" style={{ minHeight: "calc(100vh - 200px)" }}>
+              <WordDocumentPreview
                 url={url}
                 className="h-full"
               />

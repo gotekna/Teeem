@@ -5,6 +5,8 @@
  * column width overrides, and other settings.
  */
 
+import { API } from '@/lib/constants/api-endpoints';
+
 // =============================================================================
 // Foundation Table IDs
 // =============================================================================
@@ -32,11 +34,12 @@ export const CORPORATE_TABLE_IDS = {
 
 /**
  * API endpoints for corporate entities.
+ * SSoT: Uses API constants from api-endpoints.ts
  */
 export const CORPORATE_API_ENDPOINTS = {
-  companies: '/api/v1/companies',
+  companies: API.companies.list,
   assets: '/api/v1/assets',
-  directors: '/api/v1/contacts', // Directors are Contacts with is_director=true
+  directors: API.contacts.list, // Directors are Contacts with is_director=true
   complianceItems: '/api/v1/company_compliance_items',
   documents: '/api/v1/company_documents',
 } as const;

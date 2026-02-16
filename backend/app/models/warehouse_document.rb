@@ -69,7 +69,32 @@ class WarehouseDocument < ApplicationRecord
   # as they generate expensive per-type queries across 125K+ records
   # ========================================
   def self.safe_eager_load_associations
-    [:warehouse_folder, :warehouse_folder_document_type, :storage_blob]
+    # Only storage_blob — warehouse_folder/warehouse_folder_document_type FKs
+    # are excluded from list views (list_view_excluded_columns) so no point loading them
+    [:storage_blob]
+  end
+
+  # ========================================
+  # Performance: Exclude columns from Foundation API list views
+  # Table could reach 3M+ records — every byte per row matters.
+  # - metadata: JSONB (TOAST-compressed), largest column by far
+  # - Internal FKs/config: not displayed in table UI, only needed in detail views
+  # Detail views (show action) still return all columns.
+  # ========================================
+  def self.list_view_excluded_columns
+    %w[
+      metadata
+      folder_path
+      version_group_id
+      version_number
+      is_latest_version
+      parent_document_id
+      linkable_type
+      linkable_id
+      warehouse_folder_id
+      warehouse_folder_document_type_id
+      path_template_version
+    ]
   end
 
   # ========================================
@@ -119,6 +144,7 @@ class WarehouseDocument < ApplicationRecord
   scope :by_warehouse_type, ->(wt) { where(warehouse_type: wt) }
   scope :with_blob, -> { where.not(storage_blob_id: nil) }
   scope :without_blob, -> { where(storage_blob_id: nil) }
+  scope :in_folder, -> { where.not(folder_path: [nil, ""]) }
 
   # Phase 6: Multi-tenant scopes
   scope :for_tenant, ->(tenant_id) { where(tenant_id: tenant_id) }
@@ -174,7 +200,7 @@ class WarehouseDocument < ApplicationRecord
 
   # SSoT: Get presigned download URL - storage_blob is THE ONE source
   # Uses resolved_tenant (from TenantResolvable) for provider - Jan 2026 fix
-  def download_url(expires_in: 3600, disposition: :attachment)
+  def download_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, disposition: :attachment)
     return nil unless storage_blob&.storage_path.present?
 
     provider = DocumentProviders.for_tenant(resolved_tenant)
@@ -211,22 +237,6 @@ class WarehouseDocument < ApplicationRecord
   # If it fails, we WANT to know - not silently produce wrong paths.
   def computed_folder_path
     WarehousePathComputer.new.compute(self)[:folder_path]
-  end
-
-  # SSoT: Map source_type to root folder name
-  def source_type_to_root_folder
-    case source_type
-    when "corporate", "xero", "financial", "asset" then "Corporate"
-    when "job", "compliance" then "Jobs"
-    when "contact", "people" then "Contacts"
-    when "task" then "Tasks"
-    when "email", "email_attachment" then "Emails"
-    when "case" then "Cases"
-    when "user" then "Teeem Docs"
-    when "template", "warehouse", "esignature" then "Warehousing"
-    when "notebook" then "Notes"
-    else source_type&.titleize || "Documents"
-    end
   end
 
   # ========================================
@@ -546,47 +556,21 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Check if warehouse_type needs (re)computation
+  # Derived from warehouse_folder FK chain, so recompute when folder changes.
   def needs_warehouse_type_recomputation?
     warehouse_type.blank? ||
-      source_type_changed? ||
-      linkable_type_changed?
+      warehouse_folder_id_changed?
   end
 
-  # Compute and store the warehouse_type code from linkable_type or source_type.
-  # Uses the same mapping as WarehousePathComputer#source_type_to_warehouse_type_code.
+  # Compute and store the warehouse_type code from warehouse_folder FK chain.
+  # materialize_folder_path runs first (before_save order), so warehouse_folder_id is already set.
   def materialize_warehouse_type
-    # Prefer linkable_type (most precise) then fall back to source_type
-    self.warehouse_type = derive_warehouse_type
-  end
-
-  # SSoT: Derive warehouse_type code from linkable_type or source_type
-  # Matches WarehousePathComputer mappings exactly.
-  def derive_warehouse_type
-    # 1. From linkable_type (most precise, FK-driven)
-    if linkable_type.present?
-      code = case linkable_type
-             when "Job" then "job"
-             when "Contact" then "contact"
-             when "CorporateCompany" then "corporate"
-             when "SmTask" then "task"
-             end
-      return code if code
-    end
-
-    # 2. From source_type (fallback)
-    case source_type
-    when "task" then "task"
-    when "email", "email_attachment" then "email"
-    when "corporate", "xero", "financial", "asset" then "corporate"
-    when "job", "compliance" then "job"
-    when "contact", "people" then "contact"
-    when "case" then "case"
-    when "notebook" then "notebook"
-    when "user" then "user"
-    when "warehouse", "template" then "warehouse"
-    when "esignature" then "e_signing"
-    else "unassigned"
-    end
+    self.warehouse_type = if warehouse_folder_id.present?
+                            wf = warehouse_folder || WarehouseFolder.find_by(id: warehouse_folder_id)
+                            wf&.warehouse_type&.code || "unassigned"
+                          else
+                            "unassigned"
+                          end
   end
 
   # Compute and store the materialized folder path using WarehousePathComputer
@@ -599,6 +583,10 @@ class WarehouseDocument < ApplicationRecord
   end
 
   # Invalidate folder counts for affected paths
+  # FRC (Feb 2026): Runs inline instead of via background job.
+  # WarehouseFolderCount.invalidate_path is a single indexed SQL UPDATE (<1ms).
+  # Creating a background job per document was flooding the queue during bulk imports
+  # (10,000+ jobs for trivial SQL).
   def invalidate_folder_counts
     return unless tenant_id.present?
     return unless saved_change_to_folder_path? || destroyed?
@@ -612,7 +600,9 @@ class WarehouseDocument < ApplicationRecord
     # Invalidate new path (if created or changed)
     paths_to_invalidate << folder_path if folder_path.present? && !destroyed?
 
-    InvalidateFolderCountsJob.perform_later(tenant_id, paths_to_invalidate.compact.uniq) if paths_to_invalidate.any?
+    paths_to_invalidate.compact.uniq.each do |path|
+      WarehouseFolderCount.invalidate_path(tenant_id, path)
+    end
   rescue StandardError => e
     Rails.logger.debug "[WarehouseDocument] invalidate_folder_counts failed: #{e.message}"
   end

@@ -174,7 +174,7 @@ module Api
             data: sync_log_json(log, detailed: true)
           }
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Log not found' }, status: :not_found
+          render_error('Log not found', status: :not_found)
         end
 
         # GET /api/v1/gl/sync/providers
@@ -290,7 +290,7 @@ module Api
           # Fallback to current_user's company
           @corporate = Corporate.find(current_user&.corporate_id)
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: 'Company not found' }, status: :not_found
+          render_error('Company not found', status: :not_found)
         end
 
         def get_adapter

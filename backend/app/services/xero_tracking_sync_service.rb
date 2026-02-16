@@ -3,10 +3,11 @@
 # Service to sync jobs with Xero tracking categories
 # Creates new tracking options in Xero when jobs are created
 class XeroTrackingSyncService
-  TRACKING_CATEGORY_NAME = "Job"
+  include XeroConstants
 
   def initialize
     @client = XeroApiClient.new
+    @tracking_category_name = XeroConstants.tracking_category_name
   end
 
   # Create a tracking option in Xero for a job and link it
@@ -86,7 +87,7 @@ class XeroTrackingSyncService
     return nil unless result[:success]
 
     categories = result[:data]["TrackingCategories"] || []
-    categories.find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
+    categories.find { |c| c["Name"] == @tracking_category_name }
   end
 
   # Find an existing option by name (case-insensitive)
@@ -112,11 +113,11 @@ class XeroTrackingSyncService
 
   # Create the "Job" tracking category in Xero
   def create_job_tracking_category
-    Rails.logger.info("Creating '#{TRACKING_CATEGORY_NAME}' tracking category in Xero")
+    Rails.logger.info("Creating '#{@tracking_category_name}' tracking category in Xero")
 
     result = @client.put(
       "TrackingCategories",
-      { Name: TRACKING_CATEGORY_NAME }
+      { Name: @tracking_category_name }
     )
 
     unless result[:success]
@@ -128,8 +129,8 @@ class XeroTrackingSyncService
     # Response can be { "TrackingCategories": [...] } or just the category object
     data = result[:data]
     if data["TrackingCategories"]
-      data["TrackingCategories"].find { |c| c["Name"] == TRACKING_CATEGORY_NAME }
-    elsif data["Name"] == TRACKING_CATEGORY_NAME
+      data["TrackingCategories"].find { |c| c["Name"] == @tracking_category_name }
+    elsif data["Name"] == @tracking_category_name
       data
     else
       Rails.logger.error("Unexpected response when creating tracking category: #{data.inspect}")

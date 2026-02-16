@@ -15,7 +15,7 @@
 # Queue: default (SolidQueue uses default queue)
 #
 class XeroContactBatchFetchJob < ApplicationJob
-  queue_as :default
+  queue_as :xero_bulk
 
   # Xero returns max 100 contacts per page
   BATCH_SIZE = 100
@@ -58,10 +58,14 @@ class XeroContactBatchFetchJob < ApplicationJob
     session.increment_fetched!(contacts.size, page: page)
 
     # Queue processing job for this batch
+    # FRC (Feb 2026): Pass contacts as JSON string, not raw Array<Hash>.
+    # ActiveJob/SolidQueue serialization fails with "undefined method
+    # to_global_id for an instance of Hash" when serializing nested Hashes
+    # from JSON.parse. JSON string is a primitive that serializes cleanly.
     unless contacts.empty?
       XeroContactBatchProcessJob.perform_later(
         session_id: session.id,
-        xero_contacts: contacts,
+        xero_contacts_json: contacts.to_json,
         page: page,
         xero_org_id: tenant_id,
         tenant_name: tenant_name
@@ -84,6 +88,12 @@ class XeroContactBatchFetchJob < ApplicationJob
   rescue XeroApiClient::RateLimitError => e
     # Handle rate limit with session tracking
     handle_rate_limit(session, page, e, retry_count, tenant_name)
+  rescue XeroApiClient::AuthenticationError => e
+    # FRC (Feb 2026): Mark credential disconnected so sync stops queuing it
+    credential = XeroCredential.find_by(tenant_id: tenant_id)
+    Rails.logger.warn("[XeroContactBatchFetch] Auth failed for #{tenant_name}, marking disconnected")
+    credential&.mark_disconnected!
+    session.fail!("Auth failed for #{tenant_name} - credential disconnected")
   rescue StandardError => e
     # FAIL FAST - any unexpected error stops the sync
     Rails.logger.error("[XeroContactBatchFetch] Unexpected error: #{e.class.name}: #{e.message}")
@@ -132,12 +142,16 @@ class XeroContactBatchFetchJob < ApplicationJob
   def handle_rate_limit(session, page, error, retry_count, tenant_name)
     Rails.logger.warn("[XeroContactBatchFetch] Rate limited on page #{page}: #{error.message}")
 
-    # Record the rate limit
-    retry_after = extract_retry_after(error.message)
-    XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: session.tenant_id)
+    # FRC (Feb 2026): Cap retry_after to 120s. Xero sometimes returns huge values
+    # (e.g., 9738s for daily limit), but we should retry sooner — if still rate
+    # limited, we'll get another 429. Matches XeroRateLimitTracker::MAX_LOCKOUT_DURATION.
+    raw_retry = extract_retry_after(error.message)
+    capped_retry = [raw_retry, 120].min
 
-    # Schedule retry after lockout expires
-    XeroContactBatchFetchJob.set(wait: (retry_after + 5).seconds).perform_later(
+    XeroRateLimitTracker.record_lockout!(raw_retry, tenant_id: session.tenant_id)
+
+    # Schedule retry after lockout expires (use capped value for wait time)
+    XeroContactBatchFetchJob.set(wait: (capped_retry + 5).seconds).perform_later(
       session_id: session.id,
       page: page,
       tenant_name: tenant_name,
@@ -145,12 +159,10 @@ class XeroContactBatchFetchJob < ApplicationJob
     )
   end
 
+  # SSoT: Same logic as XeroJobBase concern (this job doesn't include it).
   def extract_retry_after(error_message)
-    # Try to extract retry-after from error message
-    if match = error_message.match(/(\d+)\s*seconds?/i)
-      match[1].to_i
-    else
-      60  # Default to 60 seconds
-    end
+    match = error_message.to_s.match(/retry after (\d+)/i)
+    match ||= error_message.to_s.match(/(\d+)\s*seconds?/i)
+    match ? match[1].to_i : 120
   end
 end

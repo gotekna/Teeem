@@ -15,7 +15,7 @@ import type { SmScheduleMaster } from '../types';
 import { Viewport } from './Viewport';
 import type { WorkingDaysCalendar } from './WorkingDaysCalendar';
 import { getTodayInCompanyTimezone } from '@/lib/stores/company-settings-store';
-import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS, COLORS } from '@/lib/constants/color-constants';
+import { TAILWIND_COLORS, GANTT_COLORS, CHART_COLORS, CATEGORY_COLORS, STATUS_COLORS, COLORS, CANVAS_COLORS } from '@/lib/constants/color-constants';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 
 // ============================================================================
@@ -198,7 +198,7 @@ export class Renderer {
       if (y < this.config.headerHeight || y > height) continue;
 
       // Match table border styling - darker gray, 0.25px thin but visible
-      this.ctx.strokeStyle = '#9ca3af'; // gray-400 for darker visibility at thin width
+      this.ctx.strokeStyle = TAILWIND_COLORS.gray[400]; // gray-400 for darker visibility at thin width
       this.ctx.lineWidth = 0.25;
       this.ctx.beginPath();
       // Align to exact pixel for crisp rendering
@@ -687,7 +687,6 @@ export class Renderer {
       // This indicates the task is not following its predecessors as designed
       const rowData = task.rowData as Record<string, unknown> | undefined;
       if (rowData?.dependency_broken) {
-        console.log('[Renderer] Drawing checkered pattern for task:', task.name, 'dependency_broken:', rowData.dependency_broken);
         this.ctx.save();
         // Clip to task bar shape
         this.ctx.beginPath();
@@ -1425,9 +1424,9 @@ export class Renderer {
 
       // Predecessors: black/yellow stripes, Successors: black/blue dashed
       if (isPredecessor) {
-        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, COLORS.black, TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
       } else {
-        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
+        this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, COLORS.black, TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
       }
     });
 
@@ -1458,9 +1457,9 @@ export class Renderer {
 
         // Draw striped line - predecessors: black/yellow, successors: black/blue
         if (isPredecessor) {
-          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, COLORS.black, TAILWIND_COLORS.amber[400], tasks, from.index, to.index);
         } else {
-          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, '#000000', TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
+          this.drawStripedDependencyLine(fromX, fromY, toX, toY, dep.type, COLORS.black, TAILWIND_COLORS.blue[400], tasks, from.index, to.index);
         }
 
         this.ctx.restore();
@@ -1529,27 +1528,27 @@ export class Renderer {
 
     // 1. Dark gray for completed tasks (beats all)
     if (task.rowData?.is_completed) {
-      return '#1f2937'; // gray-800 - Dark gray for done/complete
+      return TAILWIND_COLORS.gray[800]; // gray-800 - Dark gray for done/complete
     }
 
     // 2. Purple for supplier confirmed tasks (beats confirm, hold, and started)
     if (task.rowData?.supplier_confirm) {
-      return '#a855f7'; // purple-500 - Purple for supplier confirm
+      return TAILWIND_COLORS.purple[500]; // purple-500 - Purple for supplier confirm
     }
 
     // 3. Orange for confirmed tasks (beats hold and started)
     if (task.rowData?.confirm) {
-      return '#f97316'; // orange-500 - Orange for supervisor confirm
+      return TAILWIND_COLORS.orange[500]; // orange-500 - Orange for supervisor confirm
     }
 
     // 4. Tan for manually positioned (held) tasks (beats started)
     if (task.rowData?.hold) {
-      return '#D4A574'; // Tan - custom brand color for hold status
+      return CANVAS_COLORS.taskStatus.hold; // Tan - custom brand color for hold status
     }
 
     // 5. Green for started tasks (beats default)
     if (task.rowData?.started) {
-      return '#10b981'; // emerald-500 - Green for started tasks
+      return STATUS_COLORS.completed; // emerald-500 - Green for started tasks
     }
 
     // 6. Default gray for not started

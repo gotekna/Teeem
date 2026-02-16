@@ -62,10 +62,7 @@ module Api
       # Create Stripe Checkout session
       def create_checkout
         unless @payment_link.valid_for_payment?
-          return render json: {
-            success: false,
-            error: @payment_link.expired? ? "This payment link has expired" : "This invoice has already been paid"
-          }, status: :unprocessable_entity
+          return render_error(@payment_link.expired? ? "This payment link has expired" : "This invoice has already been paid", status: :unprocessable_entity)
         end
 
         service = StripePaymentService.new
@@ -85,10 +82,10 @@ module Api
           }
         }
       rescue StripePaymentService::PaymentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue Stripe::StripeError => e
         Rails.logger.error("Stripe error creating checkout: #{e.message}")
-        render json: { success: false, error: "Payment service unavailable. Please try again." }, status: :service_unavailable
+        render_error("Payment service unavailable. Please try again.", status: :service_unavailable)
       end
 
       # GET /api/v1/pay/:token/success
@@ -100,7 +97,7 @@ module Api
         payment_link = PaymentLink.find_by(token: token)
 
         unless payment_link
-          return render json: { success: false, error: "Payment link not found" }, status: :not_found
+          return render_error("Payment link not found", status: :not_found)
         end
 
         # Verify the session with Stripe
@@ -131,7 +128,7 @@ module Api
         end
       rescue Stripe::StripeError => e
         Rails.logger.error("Stripe error on success: #{e.message}")
-        render json: { success: false, error: "Unable to verify payment" }, status: :service_unavailable
+        render_error("Unable to verify payment", status: :service_unavailable)
       end
 
       # POST /api/v1/pay/webhook
@@ -208,9 +205,9 @@ module Api
           data: payment_link_json(link)
         }, status: :created
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Invoice not found" }, status: :not_found
+        render_error("Invoice not found", status: :not_found)
       rescue ActiveRecord::RecordInvalid => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       end
 
       # GET /api/v1/payments
@@ -258,7 +255,7 @@ module Api
       def set_payment_link
         @payment_link = PaymentLink.find_by_token!(params[:token])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Payment link not found or expired" }, status: :not_found
+        render_error("Payment link not found or expired", status: :not_found)
       end
 
       def handle_payment_intent_succeeded(payment_intent)

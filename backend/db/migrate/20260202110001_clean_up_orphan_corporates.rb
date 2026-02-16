@@ -35,15 +35,15 @@ class CleanUpOrphanCorporates < ActiveRecord::Migration[7.1]
     return unless group_id
 
     # Step 2: Assign RH- struck-off companies to the "ASIC Struck Off" group
-    execute(<<~SQL)
+    execute(sanitize_sql_array([<<~SQL, group_id]))
       UPDATE corporates
-      SET company_group_id = #{group_id}, updated_at = NOW()
+      SET company_group_id = ?, updated_at = NOW()
       WHERE code LIKE 'RH-%'
         AND status = 'struck_off'
         AND company_group_id IS NULL
     SQL
 
-    rh_updated = connection.select_value("SELECT COUNT(*) FROM corporates WHERE company_group_id = #{group_id}")
+    rh_updated = connection.select_value(sanitize_sql_array(["SELECT COUNT(*) FROM corporates WHERE company_group_id = ?", group_id]))
     say "Assigned #{rh_updated} RH- struck-off companies to 'ASIC Struck Off' group"
 
     # Step 3: Clear Contact links for garbage Corporates (will be deleted)
@@ -118,9 +118,9 @@ class CleanUpOrphanCorporates < ActiveRecord::Migration[7.1]
       say "WARNING: #{remaining} Corporate records still have no company_group_id"
       # These would be active RH- companies that weren't struck off
       # Assign them to the ASIC group too
-      execute(<<~SQL)
+      execute(sanitize_sql_array([<<~SQL, group_id]))
         UPDATE corporates
-        SET company_group_id = #{group_id}, updated_at = NOW()
+        SET company_group_id = ?, updated_at = NOW()
         WHERE code LIKE 'RH-%'
           AND company_group_id IS NULL
       SQL

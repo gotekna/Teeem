@@ -1,6 +1,7 @@
 module Api
   module V1
     class XeroController < ApplicationController
+      include CacheConstants
       # GET /api/v1/xero/auth_url
       # Returns the Xero OAuth authorization URL
       # Uses Origin header to determine redirect_uri for multi-environment support
@@ -21,16 +22,10 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero auth_url error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :service_unavailable
+          render_error(e.message, status: :service_unavailable)
         rescue StandardError => e
           Rails.logger.error("Xero auth_url unexpected error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to generate authorization URL"
-          }, status: :internal_server_error
+          render_error("Failed to generate authorization URL", status: :internal_server_error)
         end
       end
 
@@ -41,10 +36,7 @@ module Api
         code = params[:code]
 
         unless code.present?
-          return render json: {
-            success: false,
-            error: "Authorization code is required"
-          }, status: :bad_request
+          return render_error("Authorization code is required", status: :bad_request)
         end
 
         begin
@@ -75,22 +67,13 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero callback auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unauthorized
+          render_error(e.message, status: :unauthorized)
         rescue XeroApiClient::ApiError => e
           Rails.logger.error("Xero callback API error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error("Xero callback unexpected error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to connect to Xero"
-          }, status: :internal_server_error
+          render_error("Failed to connect to Xero", status: :internal_server_error)
         end
       end
 
@@ -117,10 +100,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero status error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get connection status"
-          }, status: :internal_server_error
+          render_error("Failed to get connection status", status: :internal_server_error)
         end
       end
 
@@ -141,6 +121,7 @@ module Api
                       end
 
         tenants = credentials.map do |cred|
+          usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
           {
             id: cred.id,
             tenant_id: cred.tenant_id,
@@ -156,7 +137,12 @@ module Api
             # Frontend should use these instead of calculating from expires_at
             status_display: cred.status_for_display,      # 'connected', 'warning', 'expired', 'disconnected'
             expires_in_human: cred.time_until_expiry_human, # "28m", "1h 15m", "Expired"
-            needs_attention: cred.needs_attention?          # true if user action required
+            needs_attention: cred.needs_attention?,         # true if user action required
+            last_refreshed_at: cred.last_refresh_at&.iso8601,
+            # Daily API usage and reset time (Xero resets at midnight UTC = 10:00 AM Brisbane)
+            daily_used: usage&.dig(:daily, :used) || 0,
+            daily_limit: usage&.dig(:daily, :limit) || 5000,
+            daily_resets_at: usage&.dig(:resets, :daily)&.iso8601
           }
         end
 
@@ -172,10 +158,7 @@ module Api
         tenant_id = params[:tenant_id]
 
         unless tenant_id.present?
-          return render json: {
-            success: false,
-            error: "Tenant ID is required"
-          }, status: :bad_request
+          return render_error("Tenant ID is required", status: :bad_request)
         end
 
         # FRC (Feb 2026): Must be tenant-scoped - prevent cross-tenant access
@@ -186,10 +169,7 @@ module Api
                      end
 
         unless credential
-          return render json: {
-            success: false,
-            error: "Xero organization not found"
-          }, status: :not_found
+          return render_error("Xero organization not found", status: :not_found)
         end
 
         begin
@@ -206,10 +186,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Failed to set primary Xero: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to set primary organization"
-          }, status: :internal_server_error
+          render_error("Failed to set primary organization", status: :internal_server_error)
         end
       end
 
@@ -226,17 +203,11 @@ module Api
               message: result[:message]
             }
           else
-            render json: {
-              success: false,
-              error: result[:error]
-            }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Xero disconnect error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to disconnect from Xero"
-          }, status: :internal_server_error
+          render_error("Failed to disconnect from Xero", status: :internal_server_error)
         end
       end
 
@@ -294,29 +265,17 @@ module Api
               }
             }
           else
-            render json: {
-              success: false,
-              error: "Failed to fetch invoices"
-            }, status: :unprocessable_entity
+            render_error("Failed to fetch invoices", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero invoices auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue XeroApiClient::ApiError => e
           Rails.logger.error("Xero invoices API error: #{e.message}")
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         rescue StandardError => e
           Rails.logger.error("Xero invoices unexpected error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch invoices"
-          }, status: :internal_server_error
+          render_error("Failed to fetch invoices", status: :internal_server_error)
         end
       end
 
@@ -340,17 +299,17 @@ module Api
                 data: invoice
               }
             else
-              render json: { success: false, error: "Invoice not found" }, status: :not_found
+              render_error("Invoice not found", status: :not_found)
             end
           else
-            render json: { success: false, error: "Failed to fetch invoice" }, status: :unprocessable_entity
+            render_error("Failed to fetch invoice", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero invoice detail auth error: #{e.message}")
-          render json: { success: false, error: "Not authenticated with Xero" }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero invoice detail error: #{e.message}")
-          render json: { success: false, error: "Failed to fetch invoice details" }, status: :internal_server_error
+          render_error("Failed to fetch invoice details", status: :internal_server_error)
         end
       end
 
@@ -385,11 +344,11 @@ module Api
               }
             }
           else
-            render json: { success: false, error: "Failed to fetch payments" }, status: :unprocessable_entity
+            render_error("Failed to fetch payments", status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Xero payments error: #{e.message}")
-          render json: { success: false, error: "Failed to fetch payments" }, status: :internal_server_error
+          render_error("Failed to fetch payments", status: :internal_server_error)
         end
       end
 
@@ -423,11 +382,11 @@ module Api
               }
             }
           else
-            render json: { success: false, error: "Failed to fetch credit notes" }, status: :unprocessable_entity
+            render_error("Failed to fetch credit notes", status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Xero credit_notes error: #{e.message}")
-          render json: { success: false, error: "Failed to fetch credit notes" }, status: :internal_server_error
+          render_error("Failed to fetch credit notes", status: :internal_server_error)
         end
       end
 
@@ -463,11 +422,11 @@ module Api
               }
             }
           else
-            render json: { success: false, error: "Failed to fetch quotes" }, status: :unprocessable_entity
+            render_error("Failed to fetch quotes", status: :unprocessable_entity)
           end
         rescue StandardError => e
           Rails.logger.error("Xero quotes error: #{e.message}")
-          render json: { success: false, error: "Failed to fetch quotes" }, status: :internal_server_error
+          render_error("Failed to fetch quotes", status: :internal_server_error)
         end
       end
 
@@ -478,10 +437,7 @@ module Api
         purchase_order_id = params[:purchase_order_id]
 
         unless invoice_id.present?
-          return render json: {
-            success: false,
-            error: "Invoice ID is required"
-          }, status: :bad_request
+          return render_error("Invoice ID is required", status: :bad_request)
         end
 
         begin
@@ -490,19 +446,13 @@ module Api
           result = client.get("Invoices/#{invoice_id}")
 
           unless result[:success]
-            return render json: {
-              success: false,
-              error: "Failed to fetch invoice from Xero"
-            }, status: :unprocessable_entity
+            return render_error("Failed to fetch invoice from Xero", status: :unprocessable_entity)
           end
 
           invoice_data = result[:data]["Invoices"]&.first
 
           unless invoice_data
-            return render json: {
-              success: false,
-              error: "Invoice not found in Xero"
-            }, status: :not_found
+            return render_error("Invoice not found in Xero", status: :not_found)
           end
 
           # Match invoice to PO
@@ -525,23 +475,14 @@ module Api
               }
             }
           else
-            render json: {
-              success: false,
-              error: match_result[:error]
-            }, status: :unprocessable_entity
+            render_error(match_result[:error], status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero match_invoice auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero match_invoice error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to match invoice: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to match invoice: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -552,10 +493,7 @@ module Api
         tracking_option_name = params[:tracking_option_name]
 
         unless tracking_option_name.present?
-          return render json: {
-            success: false,
-            error: "tracking_option_name is required"
-          }, status: :bad_request
+          return render_error("tracking_option_name is required", status: :bad_request)
         end
 
         begin
@@ -576,10 +514,7 @@ module Api
             })
 
             unless result[:success]
-              return render json: {
-                success: false,
-                error: "Failed to fetch invoices from Xero"
-              }, status: :unprocessable_entity
+              return render_error("Failed to fetch invoices from Xero", status: :unprocessable_entity)
             end
 
             invoices_page = result[:data]["Invoices"] || []
@@ -619,16 +554,10 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero invoices_by_tracking auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero invoices_by_tracking error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch invoices: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to fetch invoices: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -637,10 +566,7 @@ module Api
       def webhook
         # Verify webhook signature
         unless verify_xero_webhook_signature
-          return render json: {
-            success: false,
-            error: "Invalid webhook signature"
-          }, status: :unauthorized
+          return render_error("Invalid webhook signature", status: :unauthorized)
         end
 
         # Parse webhook payload
@@ -669,7 +595,7 @@ module Api
         }, status: :ok
       rescue JSON::ParserError => e
         Rails.logger.error("Failed to parse Xero webhook: #{e.message}")
-        render json: { success: false, error: "Invalid JSON payload" }, status: :bad_request
+        render_error("Invalid JSON payload", status: :bad_request)
       end
 
       # POST /api/v1/xero/sync_contacts
@@ -683,10 +609,7 @@ module Api
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
-            return render json: {
-              success: false,
-              error: "Not authenticated with Xero. Please connect to Xero first."
-            }, status: :unauthorized
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
           # Queue the background job
@@ -704,7 +627,7 @@ module Api
                 total: 0,
                 processed: 0
               },
-              expires_in: 24.hours
+              expires_in: CACHE_TTL_DAILY
             )
           rescue StandardError => cache_error
             Rails.logger.warn("Failed to write job metadata to cache: #{cache_error.message}")
@@ -721,17 +644,11 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero sync_contacts auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero. Please connect to Xero first."
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero sync_contacts unexpected error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to queue contact sync: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to queue contact sync: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -741,10 +658,7 @@ module Api
         job_id = params[:id]
 
         unless job_id.present?
-          return render json: {
-            success: false,
-            error: "Job ID is required"
-          }, status: :bad_request
+          return render_error("Job ID is required", status: :bad_request)
         end
 
         begin
@@ -752,10 +666,7 @@ module Api
           job_data = Rails.cache.read("xero_sync_job_#{job_id}")
 
           if job_data.nil?
-            return render json: {
-              success: false,
-              error: "Job not found or expired"
-            }, status: :not_found
+            return render_error("Job not found or expired", status: :not_found)
           end
 
           render json: {
@@ -764,10 +675,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero sync_contacts_status error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get job status"
-          }, status: :internal_server_error
+          render_error("Failed to get job status", status: :internal_server_error)
         end
       end
 
@@ -809,10 +717,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero sync_status error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get sync status"
-          }, status: :internal_server_error
+          render_error("Failed to get sync status", status: :internal_server_error)
         end
       end
 
@@ -911,10 +816,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero contacts_sync_list error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get contacts sync list"
-          }, status: :internal_server_error
+          render_error("Failed to get contacts sync list", status: :internal_server_error)
         end
       end
 
@@ -951,10 +853,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero sync_history error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch sync history"
-          }, status: :internal_server_error
+          render_error("Failed to fetch sync history", status: :internal_server_error)
         end
       end
 
@@ -979,23 +878,14 @@ module Api
               }
             }
           else
-            render json: {
-              success: false,
-              error: result[:error]
-            }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero tax_rates auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero tax_rates error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch tax rates"
-          }, status: :internal_server_error
+          render_error("Failed to fetch tax rates", status: :internal_server_error)
         end
       end
 
@@ -1028,23 +918,14 @@ module Api
               }
             }
           else
-            render json: {
-              success: false,
-              error: result[:error]
-            }, status: :unprocessable_entity
+            render_error(result[:error], status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero accounts auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero accounts error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch accounts"
-          }, status: :internal_server_error
+          render_error("Failed to fetch accounts", status: :internal_server_error)
         end
       end
 
@@ -1052,33 +933,96 @@ module Api
       # Import all Xero tracking categories as Jobs
       def import_tracking_categories
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
-            return render json: {
-              success: false,
-              error: "Not authenticated with Xero. Please connect to Xero first."
-            }, status: :unauthorized
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
-          service = XeroTrackingImportService.new
+          # Clear cached tracking options so fresh data is fetched
+          XeroBillImportService.clear_tracking_options_cache
+
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           result = service.import_all
 
           render json: result
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero import_tracking_categories auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero import_tracking_categories error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to import tracking categories: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to import tracking categories: #{e.message}", status: :internal_server_error)
+        end
+      end
+
+      # POST /api/v1/xero/reparse_tracking_jobs
+      # Re-parse existing Xero-linked jobs that have no address (e.g., "New Job (Pending Address)")
+      def reparse_tracking_jobs
+        service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
+        result = service.reparse_existing_jobs
+        render json: result
+      rescue StandardError => e
+        Rails.logger.error("Xero reparse_tracking_jobs error: #{e.message}")
+        Rails.logger.error(e.backtrace.join("\n"))
+        render_error("Failed to re-parse jobs: #{e.message}", status: :internal_server_error)
+      end
+
+      # GET /api/v1/xero/tracking_categories_preview
+      # Preview tracking categories with parsed job data, client info, and couple detection
+      def tracking_categories_preview
+        begin
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
+          end
+
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
+          result = service.preview
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero tracking_categories_preview auth error: #{e.message}")
+          render_error("Not authenticated with Xero", status: :unauthorized)
+        rescue StandardError => e
+          Rails.logger.error("Xero tracking_categories_preview error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render_error("Failed to preview tracking categories: #{e.message}", status: :internal_server_error)
+        end
+      end
+
+      # POST /api/v1/xero/import_jobs
+      # Import selected tracking options as Jobs with address parsing and client linking
+      # Body: { option_ids: ["id1", "id2", ...] } - if empty, imports all
+      def import_jobs
+        begin
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
+          status = client.connection_status
+
+          unless status[:connected] && !status[:expired]
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
+          end
+
+          service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
+          option_ids = params[:option_ids]
+
+          result = if option_ids.present? && option_ids.is_a?(Array) && option_ids.any?
+            service.import_selected(option_ids)
+          else
+            service.import_all
+          end
+
+          render json: result
+        rescue XeroApiClient::AuthenticationError => e
+          Rails.logger.error("Xero import_jobs auth error: #{e.message}")
+          render_error("Not authenticated with Xero", status: :unauthorized)
+        rescue StandardError => e
+          Rails.logger.error("Xero import_jobs error: #{e.message}")
+          Rails.logger.error(e.backtrace.join("\n"))
+          render_error("Failed to import jobs: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1090,10 +1034,7 @@ module Api
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
-            return render json: {
-              success: false,
-              error: "Not authenticated with Xero. Please connect to Xero first."
-            }, status: :unauthorized
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
           service = XeroFullBillImportService.new
@@ -1102,17 +1043,11 @@ module Api
           render json: result
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero import_all_bills auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero import_all_bills error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to import bills: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to import bills: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1124,10 +1059,7 @@ module Api
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
-            return render json: {
-              success: false,
-              error: "Not authenticated with Xero. Please connect to Xero first."
-            }, status: :unauthorized
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
           service = XeroClaimImportService.new
@@ -1136,17 +1068,11 @@ module Api
           render json: result
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero import_all_claims auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero import_all_claims error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to import claims: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to import claims: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1154,14 +1080,11 @@ module Api
       # Run full import: contacts, tracking categories, bills, and claims
       def full_import
         begin
-          client = XeroApiClient.new
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
           status = client.connection_status
 
           unless status[:connected] && !status[:expired]
-            return render json: {
-              success: false,
-              error: "Not authenticated with Xero. Please connect to Xero first."
-            }, status: :unauthorized
+            return render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
           end
 
           results = {
@@ -1179,7 +1102,7 @@ module Api
 
           # Step 2: Import tracking categories as jobs
           Rails.logger.info("Full import: Starting tracking category import")
-          tracking_service = XeroTrackingImportService.new
+          tracking_service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
           results[:tracking_categories] = tracking_service.import_all
 
           # Step 3: Import bills as purchase orders
@@ -1197,17 +1120,11 @@ module Api
           render json: results
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero full_import auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero full_import error: #{e.message}")
           Rails.logger.error(e.backtrace.join("\n"))
-          render json: {
-            success: false,
-            error: "Full import failed: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Full import failed: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1217,18 +1134,12 @@ module Api
         query = params[:query]
 
         if query.blank?
-          return render json: {
-            success: false,
-            error: "Search query is required"
-          }, status: :bad_request
+          return render_error("Search query is required", status: :bad_request)
         end
 
         # Require minimum 2 characters for search
         if query.length < 2
-          return render json: {
-            success: false,
-            error: "Search query must be at least 2 characters"
-          }, status: :bad_request
+          return render_error("Search query must be at least 2 characters", status: :bad_request)
         end
 
         begin
@@ -1270,24 +1181,15 @@ module Api
               count: formatted_contacts.length
             }
           else
-            render json: {
-              success: false,
-              error: "Failed to search Xero contacts"
-            }, status: :unprocessable_entity
+            render_error("Failed to search Xero contacts", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero search_contacts auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero. Please connect to Xero first."
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero. Please connect to Xero first.", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero search_contacts error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to search contacts: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to search contacts: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1298,10 +1200,7 @@ module Api
         tenant_id = params[:tenant_id]
 
         if xero_contact_id.blank?
-          return render json: {
-            success: false,
-            error: "Contact ID is required"
-          }, status: :bad_request
+          return render_error("Contact ID is required", status: :bad_request)
         end
 
         begin
@@ -1319,10 +1218,7 @@ module Api
           end
 
           unless credential
-            return render json: {
-              success: false,
-              error: tenant_id.present? ? "No Xero credential found for tenant #{tenant_id}" : "Not connected to Xero"
-            }, status: :unauthorized
+            return render_error(tenant_id.present? ? "No Xero credential found for tenant #{tenant_id}" : "Not connected to Xero", status: :unauthorized)
           end
 
           # Make direct request using the specific credential
@@ -1339,29 +1235,17 @@ module Api
                 }
               }
             else
-              render json: {
-                success: false,
-                error: "Contact not found in Xero"
-              }, status: :not_found
+              render_error("Contact not found in Xero", status: :not_found)
             end
           else
-            render json: {
-              success: false,
-              error: "Failed to fetch contact from Xero"
-            }, status: :unprocessable_entity
+            render_error("Failed to fetch contact from Xero", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero show_contact auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero show_contact error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch contact: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to fetch contact: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1378,23 +1262,14 @@ module Api
               data: result[:data]
             }
           else
-            render json: {
-              success: false,
-              error: "Failed to fetch organisation"
-            }, status: :unprocessable_entity
+            render_error("Failed to fetch organisation", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero organisation auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero organisation error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch organisation: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to fetch organisation: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1412,23 +1287,14 @@ module Api
               data: result[:data]
             }
           else
-            render json: {
-              success: false,
-              error: "Failed to fetch contacts"
-            }, status: :unprocessable_entity
+            render_error("Failed to fetch contacts", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero contacts auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero contacts error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch contacts: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to fetch contacts: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -1445,32 +1311,125 @@ module Api
               data: result[:data]
             }
           else
-            render json: {
-              success: false,
-              error: "Failed to fetch tracking categories"
-            }, status: :unprocessable_entity
+            render_error("Failed to fetch tracking categories", status: :unprocessable_entity)
           end
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("Xero tracking_categories auth error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Not authenticated with Xero"
-          }, status: :unauthorized
+          render_error("Not authenticated with Xero", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("Xero tracking_categories error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to fetch tracking categories: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to fetch tracking categories: #{e.message}", status: :internal_server_error)
         end
+      end
+
+      # GET /api/v1/xero/tracking_options
+      # Returns tracking options from LOCAL DB (SSoT) with linked job data
+      # Used by the Tracking tab on the Xero Integration page AND job dropdown
+      def tracking_options
+        # SSoT: Read from local xero_tracking_options table (not Xero API)
+        local_options = XeroTrackingOption.all.order(:name)
+
+        # Build a map of tracking_option_id → job link info
+        links = XeroJobTrackingLink.includes(:job).index_by(&:tracking_option_id)
+
+        enriched = local_options.map do |opt|
+          link = links[opt.xero_tracking_option_id]
+          {
+            id: opt.xero_tracking_option_id,
+            name: opt.name,
+            status: opt.status,
+            linked_job: link ? {
+              id: link.job_id,
+              name: link.job&.name,
+              job_code: link.job&.job_code,
+              variant: link.variant,
+              is_primary: link.is_primary
+            } : nil
+          }
+        end
+
+        render json: {
+          success: true,
+          tracking_category: XeroConstants.tracking_category_name,
+          tracking_options: enriched,
+          total: enriched.length,
+          linked: enriched.count { |o| o[:linked_job].present? },
+          unlinked: enriched.count { |o| o[:linked_job].nil? }
+        }
+      rescue StandardError => e
+        Rails.logger.error("Xero tracking_options error: #{e.message}")
+        render_error("Failed to fetch tracking options: #{e.message}", status: :internal_server_error)
+      end
+
+      # POST /api/v1/xero/sync_tracking_options
+      # Fetch tracking options from Xero API and upsert into local xero_tracking_options table
+      def sync_tracking_options
+        tracking_category_name = XeroConstants.tracking_category_name
+        client = XeroApiClient.new(teeem_tenant: current_tenant)
+        result = client.get("TrackingCategories")
+
+        unless result[:success]
+          return render_error("Failed to fetch from Xero: #{result[:error]}", status: :bad_gateway)
+        end
+
+        categories = result[:data]["TrackingCategories"] || []
+        job_category = categories.find { |c| c["Name"] == tracking_category_name }
+
+        unless job_category
+          available = categories.map { |c| c["Name"] }.join(", ")
+          return render_error("Tracking category '#{tracking_category_name}' not found in Xero. Available: #{available}")
+        end
+
+        xero_options = job_category["Options"] || []
+        category_id = job_category["TrackingCategoryID"]
+        synced = 0
+        archived = 0
+
+        # Upsert each option from Xero
+        xero_option_ids = []
+        xero_options.each do |opt|
+          xero_option_ids << opt["TrackingOptionID"]
+          record = XeroTrackingOption.find_or_initialize_by(xero_tracking_option_id: opt["TrackingOptionID"])
+          record.assign_attributes(
+            name: opt["Name"],
+            status: opt["Status"],
+            xero_tracking_category_id: category_id,
+            tenant_id: current_tenant.id
+          )
+          record.save! if record.new_record? || record.changed?
+          synced += 1
+        end
+
+        # Archive local options no longer in Xero
+        if xero_option_ids.any?
+          stale = XeroTrackingOption.where.not(xero_tracking_option_id: xero_option_ids).where(status: "ACTIVE")
+          archived = stale.count
+          stale.update_all(status: "ARCHIVED")
+        end
+
+        render json: {
+          success: true,
+          synced: synced,
+          archived: archived,
+          total: XeroTrackingOption.active.count,
+          tracking_category: tracking_category_name
+        }
+      rescue XeroApiClient::RateLimitError => e
+        render_error("Xero rate limit exceeded. Try again later.", status: :too_many_requests)
+      rescue XeroApiClient::AuthenticationError => e
+        render_error("Not authenticated with Xero. Please reconnect.", status: :unauthorized)
+      rescue StandardError => e
+        Rails.logger.error("Xero sync_tracking_options error: #{e.message}")
+        render_error("Failed to sync tracking options: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/xero/pdf_sync_status
       # Returns PDF sync progress and health status for the Xero integration dashboard
       def pdf_sync_status
         begin
-          # Filter by tenant_id if provided (for per-organization view)
-          tenant_id = params[:tenant_id]
+          # Filter by xero_org_id if provided (for per-organization view)
+          # Frontend passes Xero UUID as "tenant_id" param
+          xero_org_id = params[:tenant_id]
 
           # ============================================
           # STAGE 1: Invoice DATA Sync (Xero -> Database)
@@ -1478,19 +1437,19 @@ module Api
           # SSoT: Exclude drafts from both Stage 1 and Stage 2 for consistent denominator
           # Drafts can't have PDFs (Xero only generates PDFs for finalized invoices)
           # Total ALL invoices (including voided/deleted) for display
-          all_invoices_scope = tenant_id.present? ? ExternalInvoice.xero.where(tenant_id: tenant_id) : ExternalInvoice.xero
+          all_invoices_scope = xero_org_id.present? ? ExternalInvoice.xero.for_xero_org(xero_org_id) : ExternalInvoice.xero
           total_all_invoices = all_invoices_scope.count
           voided_deleted_count = all_invoices_scope.where(status: %w[voided deleted]).count
 
-          base_scope = tenant_id.present? ? ExternalInvoice.active.where(tenant_id: tenant_id) : ExternalInvoice.active
+          base_scope = xero_org_id.present? ? ExternalInvoice.active.for_xero_org(xero_org_id) : ExternalInvoice.active
           base_scope_no_drafts = base_scope.where.not(status: "draft")
           total_invoices_in_db = base_scope_no_drafts.count
           invoices_with_contacts = base_scope_no_drafts.where.not(contact_id: nil)
           total_with_contacts = invoices_with_contacts.count
           # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
           # Apply tenant filter if specified
-          needs_linking_scope = tenant_id.present? ?
-            ExternalInvoice.needs_contact_linking.where(tenant_id: tenant_id) :
+          needs_linking_scope = xero_org_id.present? ?
+            ExternalInvoice.needs_contact_linking.for_xero_org(xero_org_id) :
             ExternalInvoice.needs_contact_linking
           invoices_without_contacts = needs_linking_scope.count
 
@@ -1498,9 +1457,9 @@ module Api
           # Jan 2026: Always check BOTH tenant-specific AND global (nil) records
           # Webhooks update global record; old scheduled jobs updated per-tenant records
           invoice_sync_status_query = XeroSyncStatus.where(sync_type: "invoices")
-          if tenant_id.present?
+          if xero_org_id.present?
             # Check both tenant-specific and global, take most recent
-            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [tenant_id, nil])
+            invoice_sync_status_query = invoice_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           invoice_sync_status = invoice_sync_status_query.order(last_synced_at: :desc).first
           last_invoice_sync = invoice_sync_status&.last_synced_at || base_scope.maximum(:last_synced_at)
@@ -1553,9 +1512,8 @@ module Api
                                        .where.not(external_invoices: { status: "draft" })
                                        .where.not(external_invoices: { status: %w[voided deleted] })
 
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-            pdf_query = pdf_query.where(external_invoices: { xero_org_id: tenant_id })
+          if xero_org_id.present?
+            pdf_query = pdf_query.where(external_invoices: { xero_org_id: xero_org_id })
           end
 
           invoices_with_pdfs = pdf_query.distinct.count(:documentable_id)
@@ -1566,8 +1524,8 @@ module Api
           # SSoT: Use XeroSyncStatus for last sync time
           # Jan 2026: Check both tenant-specific AND global records, use most recent
           pdf_sync_status_query = XeroSyncStatus.where(sync_type: "pdfs")
-          if tenant_id.present?
-            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [tenant_id, nil])
+          if xero_org_id.present?
+            pdf_sync_status_query = pdf_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           pdf_sync_status = pdf_sync_status_query.order(last_synced_at: :desc).first
 
@@ -1575,10 +1533,9 @@ module Api
                                            .where.not(storage_blob_id: nil)
                                            .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                            .where(documentable_type: "ExternalInvoice")
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             pdf_docs_query = pdf_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                           .where(external_invoices: { xero_org_id: tenant_id })
+                                           .where(external_invoices: { xero_org_id: xero_org_id })
           end
           last_pdf_sync = pdf_sync_status&.last_synced_at || pdf_docs_query.maximum(:created_at)
 
@@ -1588,10 +1545,9 @@ module Api
                                          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                          .where(documentable_type: "ExternalInvoice")
                                          .where("warehouse_documents.created_at > ?", 24.hours.ago)
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             pdfs_last_24h_query = pdfs_last_24h_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                     .where(external_invoices: { xero_org_id: tenant_id })
+                                                     .where(external_invoices: { xero_org_id: xero_org_id })
           end
           pdfs_last_24h = pdfs_last_24h_query.count
 
@@ -1605,8 +1561,8 @@ module Api
           # SSoT: Use XeroSyncStatus for last sync time, fallback to record timestamps
           # Jan 2026: Check both tenant-specific AND global records, use most recent
           sharepoint_sync_status_query = XeroSyncStatus.where(sync_type: "sharepoint")
-          if tenant_id.present?
-            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [tenant_id, nil])
+          if xero_org_id.present?
+            sharepoint_sync_status_query = sharepoint_sync_status_query.where(tenant_id: [xero_org_id, nil])
           end
           sharepoint_sync_status = sharepoint_sync_status_query.order(last_synced_at: :desc).first
 
@@ -1615,10 +1571,9 @@ module Api
           sharepoint_docs_query = WarehouseDocument.where(source_type: "xero")
                                                    .where(documentable_type: "ExternalInvoice")
                                                    .where.not(storage_blob_id: nil)
-          if tenant_id.present?
-            # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
+          if xero_org_id.present?
             sharepoint_docs_query = sharepoint_docs_query.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                                         .where(external_invoices: { xero_org_id: tenant_id })
+                                                         .where(external_invoices: { xero_org_id: xero_org_id })
           end
           last_sharepoint_sync = sharepoint_sync_status&.last_synced_at || sharepoint_docs_query.maximum(:updated_at)
 
@@ -1638,8 +1593,7 @@ module Api
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          bills_query = bills_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          bills_query = bills_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
           sales_total = pdf_eligible_invoices.sales_invoices.count
@@ -1652,8 +1606,7 @@ module Api
                                          .where(external_invoices: { invoice_type: "sales_invoice" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          sales_query = sales_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          sales_query = sales_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           sales_with_pdfs = sales_query.distinct.count("warehouse_documents.documentable_id")
 
           quotes_total = pdf_eligible_invoices.quotes.count
@@ -1666,8 +1619,7 @@ module Api
                                           .where(external_invoices: { invoice_type: "quote" })
                                           .where.not(external_invoices: { status: "draft" })
                                           .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          quotes_query = quotes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          quotes_query = quotes_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           quotes_with_pdfs = quotes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Credit notes breakdown
@@ -1681,8 +1633,7 @@ module Api
                                                 .where(external_invoices: { invoice_type: "credit_note" })
                                                 .where.not(external_invoices: { status: "draft" })
                                                 .where.not(external_invoices: { status: %w[voided deleted] })
-          # FRC (Feb 2026): Use xero_org_id (Xero UUID), not tenant_id (TEEEM FK)
-          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: tenant_id }) if tenant_id.present?
+          credit_notes_query = credit_notes_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           credit_notes_with_pdfs = credit_notes_query.distinct.count("warehouse_documents.documentable_id")
 
           # Estimate time remaining for PDF sync (based on 10s per invoice)
@@ -1706,7 +1657,7 @@ module Api
           credential = rate_cred_scope.where(status: %w[connected degraded]).first
           rate_usage = credential ? XeroRateLimitTracker.usage_for(credential.tenant_id) : nil
           daily_percentage = rate_usage&.dig(:daily, :percentage) || 0
-          is_rate_limited = daily_percentage >= 80
+          is_rate_limited = daily_percentage >= XeroConstants::XERO_RATE_LIMIT_WARNING_THRESHOLD
 
           # PDF sync uses smart rate limiting - calculates next run based on pending count AND rate limit status
           # SSoT: If rate limited, show when we'll resume (next recurring run or rate limit reset)
@@ -2011,10 +1962,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero pdf_sync_status error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get PDF sync status: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get PDF sync status: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2031,10 +1979,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero sync_health error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get sync health: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get sync health: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2074,10 +2019,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero trigger_sync_all error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to trigger sync: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to trigger sync: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2115,7 +2057,7 @@ module Api
             # Paginated requests compute fresh stats (don't cache partial results)
             compute_sync_stats(credentials, page: page, per_page: per_page)
           else
-            Rails.cache.fetch(cache_key, expires_in: 5.minutes) do
+            Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_MEDIUM) do
               compute_sync_stats(credentials)
             end
           end
@@ -2124,10 +2066,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero sync_stats error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get sync stats: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get sync stats: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2196,10 +2135,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero common_contacts error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to get common contacts: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get common contacts: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2253,10 +2189,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero validate_contacts error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to validate contacts: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to validate contacts: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2266,7 +2199,12 @@ module Api
         begin
           # SSoT: Use ExternalInvoice.needs_contact_linking scope (THE ONE definition)
           # This ensures counts match the status page exactly
+          # FRC (Feb 2026): Also filter by xero_org_id to prevent cross-tenant data leaks.
+          # acts_as_tenant scopes by tenant_id, but if invoices were imported with the wrong
+          # tenant_id (e.g., Pilgrim invoices stamped as Tekna), they'd leak through.
+          xero_org_ids = current_tenant_xero_org_ids
           unlinked = ExternalInvoice.needs_contact_linking
+            .where(xero_org_id: xero_org_ids)
             .group(:contact_name, :external_contact_id)
             .select("contact_name, external_contact_id, COUNT(*) as invoice_count, SUM(total) as total_amount")
             .order("invoice_count DESC")
@@ -2302,10 +2240,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero unlinked_contacts error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get unlinked contacts: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get unlinked contacts: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2331,25 +2266,29 @@ module Api
                         australia australian qld nsw vic sa wa nt act tas
                         services solutions consulting enterprises industries]
 
-          # Get all unique Xero contacts per tenant
-          tenant_contacts = ExternalInvoice
+          # Get all unique Xero contacts per Xero org
+          # FRC (Feb 2026): Must group by xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer).
+          # tenant_id is the TEEEM tenant FK - grouping by it lumps ALL Xero orgs together,
+          # causing false positives (same supplier across different Xero orgs is NOT a duplicate).
+          org_contacts = ExternalInvoice
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .where.not(external_contact_id: nil)
-            .select("DISTINCT tenant_id, contact_name, external_contact_id")
+            .where.not(xero_org_id: [nil, ""])
+            .select("DISTINCT xero_org_id, contact_name, external_contact_id")
             .to_a
 
-          # Group by tenant
-          by_tenant = tenant_contacts.group_by(&:tenant_id)
+          # Group by Xero organization
+          by_xero_org = org_contacts.group_by(&:xero_org_id)
 
-          # FRC (Feb 2026): Build tenant-scoped credential lookup for display names
+          # Build credential lookup for Xero org display names
           common_cred_scope = if current_tenant&.master_tenant?
                                 XeroCredential
                               else
                                 XeroCredential.for_teeem_tenant(current_tenant)
                               end
-          by_tenant.each do |tenant_id, contacts|
-            cred = common_cred_scope.find_by(tenant_id: tenant_id)
-            tenant_name = cred&.tenant_name || tenant_id[0..7]
+          by_xero_org.each do |xero_org_id, contacts|
+            cred = common_cred_scope.find_by(tenant_id: xero_org_id)
+            tenant_name = cred&.tenant_name || xero_org_id.to_s[0..7]
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
@@ -2381,7 +2320,7 @@ module Api
                 if likely_duplicate?(a[:name], b[:name], suffixes)
                   # Find or create group for this pair
                   existing_group = duplicates.find do |d|
-                    d[:tenant_id] == tenant_id &&
+                    d[:tenant_id] == xero_org_id &&
                     d[:xero_contacts].any? { |c| c[:xero_id] == a[:xero_id] || c[:xero_id] == b[:xero_id] }
                   end
 
@@ -2396,7 +2335,7 @@ module Api
                   else
                     # Create new group
                     duplicates << {
-                      tenant_id: tenant_id,
+                      tenant_id: xero_org_id,
                       tenant_name: tenant_name,
                       base_name: normalize_name(a[:name], suffixes).split.first&.capitalize || a[:name],
                       variation_count: 2,
@@ -2427,10 +2366,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero xero_duplicates error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get Xero duplicates: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get Xero duplicates: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2445,12 +2381,12 @@ module Api
         create_new = params[:create_new] == true || params[:create_new] == "true"
 
         unless xero_contact_id.present?
-          return render json: { success: false, error: "xero_contact_id is required" }, status: :bad_request
+          return render_error("xero_contact_id is required", status: :bad_request)
         end
 
         # contact_id is required UNLESS create_new is true
         unless contact_id.present? || create_new
-          return render json: { success: false, error: "contact_id is required" }, status: :bad_request
+          return render_error("contact_id is required", status: :bad_request)
         end
 
         begin
@@ -2497,10 +2433,11 @@ module Api
                               end
 
             # Create or update ContactExternalLink
+            # FRC (Feb 2026): Column is xero_org_id, not tenant_id
             link = ContactExternalLink.find_or_initialize_by(
               source: "xero",
               external_contact_id: xero_contact_id,
-              tenant_id: effective_tenant_id
+              xero_org_id: effective_tenant_id
             )
 
             link.assign_attributes(
@@ -2516,12 +2453,16 @@ module Api
             link.save!
 
             # Update all invoices with this Xero contact ID to point to the TEEEM contact
+            # FRC (Feb 2026): Also filter by xero_org_id to avoid updating cross-tenant invoices
+            xero_org_ids = current_tenant_xero_org_ids
             updated_count = ExternalInvoice.where(external_contact_id: xero_contact_id)
+              .where(xero_org_id: xero_org_ids)
               .update_all(contact_id: @contact.id)
 
             # Also update by name if we have it (for invoices that might have the name but not the ID)
             if xero_contact_name.present?
               name_updated = ExternalInvoice.where(contact_id: nil, contact_name: xero_contact_name)
+                .where(xero_org_id: xero_org_ids)
                 .update_all(contact_id: @contact.id)
               updated_count += name_updated
             end
@@ -2537,11 +2478,11 @@ module Api
             }
           end
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Contact not found" }, status: :not_found
+          render_error("Contact not found", status: :not_found)
         rescue StandardError => e
           Rails.logger.error("Xero link_unlinked_contact error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: { success: false, error: "Failed to link contact: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to link contact: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2553,8 +2494,12 @@ module Api
           skipped_count = 0
           results = []
 
-          # Get all unique unlinked contact names
+          # FRC (Feb 2026): Filter by xero_org_id to prevent cross-tenant auto-matching
+          xero_org_ids = current_tenant_xero_org_ids
+
+          # Get all unique unlinked contact names (scoped to this tenant's Xero orgs)
           unlinked = ExternalInvoice.where(contact_id: nil)
+            .where(xero_org_id: xero_org_ids)
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .distinct
             .pluck(:contact_name)
@@ -2572,8 +2517,9 @@ module Api
             teeem_contact ||= match_scope.find_by("LOWER(TRIM(company_name_or_trust)) = ?", normalized_name)
 
             if teeem_contact
-              # Link all invoices with this name
+              # Link all invoices with this name (scoped to this tenant's Xero orgs)
               count = ExternalInvoice.where(contact_id: nil, contact_name: xero_name)
+                .where(xero_org_id: xero_org_ids)
                 .update_all(contact_id: teeem_contact.id)
 
               matched_count += 1
@@ -2598,7 +2544,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("Xero auto_match_contacts error: #{e.message}")
-          render json: { success: false, error: "Failed to auto-match: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to auto-match: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2609,7 +2555,7 @@ module Api
         xero_link_ids = params[:xero_link_ids]
 
         unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
-          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+          return render_error("xero_link_ids array is required", status: :bad_request)
         end
 
         begin
@@ -2694,10 +2640,10 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("[Xero] push_contact_names auth error: #{e.message}")
-          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Xero authentication failed: #{e.message}", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("[Xero] push_contact_names error: #{e.message}")
-          render json: { success: false, error: "Failed to push contact names: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to push contact names: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2708,7 +2654,7 @@ module Api
         xero_link_ids = params[:xero_link_ids]
 
         unless xero_link_ids.present? && xero_link_ids.is_a?(Array)
-          return render json: { success: false, error: "xero_link_ids array is required" }, status: :bad_request
+          return render_error("xero_link_ids array is required", status: :bad_request)
         end
 
         begin
@@ -2883,11 +2829,11 @@ module Api
           }
         rescue XeroApiClient::AuthenticationError => e
           Rails.logger.error("[Xero] pull_contact_details auth error: #{e.message}")
-          render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+          render_error("Xero authentication failed: #{e.message}", status: :unauthorized)
         rescue StandardError => e
           Rails.logger.error("[Xero] pull_contact_details error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: { success: false, error: "Failed to pull contact details: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to pull contact details: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -2897,7 +2843,7 @@ module Api
         updates = params[:updates]
 
         unless updates.present? && updates.is_a?(Array)
-          return render json: { success: false, error: "updates array is required" }, status: :bad_request
+          return render_error("updates array is required", status: :bad_request)
         end
 
         begin
@@ -2996,7 +2942,7 @@ module Api
           }
         rescue StandardError => e
           Rails.logger.error("[Xero] apply_xero_updates error: #{e.message}")
-          render json: { success: false, error: "Failed to apply updates: #{e.message}" }, status: :internal_server_error
+          render_error("Failed to apply updates: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -3019,10 +2965,7 @@ module Api
             .where(corporate_xero_connections: { xero_tenant_id: sync_cred_scope.pluck(:tenant_id) })
 
           if companies_with_xero.empty?
-            return render json: {
-              success: false,
-              error: "No companies are connected to Xero"
-            }, status: :bad_request
+            return render_error("No companies are connected to Xero", status: :bad_request)
           end
 
           results = []
@@ -3058,7 +3001,7 @@ module Api
                 bank_result = sync_service.sync_bank_accounts(auto_create: true)
                 tx_result = sync_service.sync_transactions(
                   from_date: 3.months.ago.to_date,
-                  to_date: Date.today
+                  to_date: Date.current
                 )
               rescue StandardError => e
                 Rails.logger.warn("[Xero] Bank sync failed for #{company.name}: #{e.message}")
@@ -3130,10 +3073,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("[Xero] sync_all_companies error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to sync companies: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to sync companies: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -3186,10 +3126,7 @@ module Api
         rescue StandardError => e
           Rails.logger.error("Xero stale_xero_links error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
-          render json: {
-            success: false,
-            error: "Failed to get stale Xero links: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to get stale Xero links: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -3200,10 +3137,7 @@ module Api
           link = ContactExternalLink.find(params[:id])
 
           unless link.xero_contact_status == 'not_found'
-            return render json: {
-              success: false,
-              error: "This link is not stale - cannot delete"
-            }, status: :bad_request
+            return render_error("This link is not stale - cannot delete", status: :bad_request)
           end
 
           link.destroy!
@@ -3213,17 +3147,24 @@ module Api
             message: "Stale link deleted. Update the invoices in Xero to prevent it from reappearing."
           }
         rescue ActiveRecord::RecordNotFound
-          render json: { success: false, error: "Link not found" }, status: :not_found
+          render_error("Link not found", status: :not_found)
         rescue StandardError => e
           Rails.logger.error("Xero delete_stale_link error: #{e.message}")
-          render json: {
-            success: false,
-            error: "Failed to delete stale link: #{e.message}"
-          }, status: :internal_server_error
+          render_error("Failed to delete stale link: #{e.message}", status: :internal_server_error)
         end
       end
 
       private
+
+      # SSoT: Get Xero org UUIDs belonging to the current TEEEM tenant's XeroCredentials
+      # FRC (Feb 2026): Prevents cross-tenant data leaks where invoices from another
+      # tenant's Xero org were imported with the wrong tenant_id.
+      # Master tenants see only their own orgs (not all) to prevent data confusion.
+      def current_tenant_xero_org_ids
+        @current_tenant_xero_org_ids ||= XeroCredential
+          .for_teeem_tenant(current_tenant)
+          .pluck(:tenant_id)
+      end
 
       # Compute sync stats using batch queries (XeroSyncStatsService)
       # This reduces query count from O(n) to O(1) for per-tenant stats
@@ -3433,7 +3374,7 @@ module Api
           credential.reload
         end
 
-        url = "https://api.xero.com/api.xro/2.0/#{endpoint}"
+        url = "#{XeroConstants::XERO_API_BASE_URL}/#{endpoint}"
 
         headers = {
           "Authorization" => "Bearer #{credential.access_token}",
@@ -3482,23 +3423,18 @@ module Api
       # ============================================
 
       # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
+      # FRC (Feb 2026): Query by xero_org_id directly, NOT via contact_ids.
+      # The old contact_ids approach broke because:
+      # 1. ExternalInvoice.active applies acts_as_tenant (filters to logged-in tenant)
+      # 2. Invoices for a Xero org may span multiple TEEEM tenants
+      # 3. Using contact_ids leaked cross-tenant counts
       def count_remaining_for_tenant(xero_tenant_id)
-        # Get all invoices for this Xero org via ContactExternalLink
-        contact_ids = ContactExternalLink
-          .where(source: "xero", xero_org_id: xero_tenant_id)
-          .pluck(:contact_id)
-
-        # FRC (Feb 2026): Xero only generates PDFs for certain invoice types:
-        # - sales_invoice, quote, credit_note: YES (Xero auto-generates PDF)
-        # - bill: NO - Xero does NOT auto-generate PDFs for bills (supplier invoices)
-        # Without excluding bills, the percentage is misleading (shows ~50% when actually complete)
-        total_scope = ExternalInvoice.active
-          .where(contact_id: contact_ids)
-          .where.not(status: "draft")
+        # All invoice types can have PDFs (including bills - supplier invoices are attached)
+        total = ExternalInvoice.unscoped
+          .where(xero_org_id: xero_tenant_id)
           .where.not(status: %w[voided deleted])
-          .where.not(invoice_type: "bill")  # Bills don't have auto-generated PDFs
-
-        total = total_scope.count
+          .where.not(status: "draft")
+          .count
 
         # Count invoices WITH synced PDFs
         synced = WarehouseDocument
@@ -3508,10 +3444,9 @@ module Api
           .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
           .where(documentable_type: "ExternalInvoice")
           .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-          .where(external_invoices: { contact_id: contact_ids })
+          .where(external_invoices: { xero_org_id: xero_tenant_id })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
-          .where.not(external_invoices: { invoice_type: "bill" })  # Match total_scope
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max

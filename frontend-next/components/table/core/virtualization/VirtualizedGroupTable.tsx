@@ -7,7 +7,7 @@
  * within grouped table sections.
  */
 
-import React, { useRef, memo } from "react";
+import { useRef, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 import {

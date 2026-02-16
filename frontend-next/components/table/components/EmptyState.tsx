@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Search, Filter, Database, AlertCircle, Plus, RefreshCw } from "lucide-react";

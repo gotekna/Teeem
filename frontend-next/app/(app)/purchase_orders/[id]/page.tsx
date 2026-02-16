@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatDateWithFallback } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -71,7 +72,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 import {
@@ -307,7 +307,6 @@ export default function PurchaseOrderDetailPage() {
     const handleFocus = () => {
       const timeSinceLastFetch = Date.now() - lastFetchTimeRef.current;
       if (timeSinceLastFetch > STALE_THRESHOLD_MS) {
-        console.log('[PO Detail] Window focused after stale period - reloading data');
         loadPurchaseOrder();
       }
     };
@@ -342,7 +341,6 @@ export default function PurchaseOrderDetailPage() {
     ) {
       const matchingTask = taskItems.find((t) => t.taskId === selectedTaskId);
       if (matchingTask?.start_date) {
-        console.log('[PO Detail] Auto-populating required date from linked task:', matchingTask.start_date);
         setRequiredDate(matchingTask.start_date);
       }
     }
@@ -525,16 +523,6 @@ export default function PurchaseOrderDetailPage() {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateStr: string | undefined | null): string => {
-    if (!dateStr) return "Not set";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   // Helper to check if a line item is blank (no meaningful data)
   const isBlankLineItem = (item: LineItem) => {
@@ -576,13 +564,10 @@ export default function PurchaseOrderDetailPage() {
         },
       };
 
-      console.log('[PO Save] Sending update with schedule_task_id:', selectedTaskId, 'updateData:', updateData);
       const patchResponse = await api.patch(`/api/v1/purchase_orders/${recordId}`, updateData);
-      console.log('[PO Save] Patch response:', patchResponse);
 
       // Reload the purchase order data
       const response = await api.get<PurchaseOrder>(`/api/v1/purchase_orders/${recordId}`);
-      console.log('[PO Save] Reloaded PO, sm_tasks:', response.sm_tasks, 'response:', response);
       setPurchaseOrder(response);
 
       // Initialize editable fields
@@ -591,7 +576,6 @@ export default function PurchaseOrderDetailPage() {
       const linkedTaskId = response.sm_tasks && response.sm_tasks.length > 0
         ? response.sm_tasks[0].id
         : null;
-      console.log('[PO Save] Setting linkedTaskId to:', linkedTaskId);
       const stat = response.status || "draft";
       const budg = response.budget?.toString() || "";
       // SSoT: Auto-populate required_date from linked task's start_date if not already set
@@ -833,17 +817,10 @@ export default function PurchaseOrderDetailPage() {
 
     try {
       setLoadingPreview(true);
-      const baseUrl = getApiBaseUrl();
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${recordId}/generate_pdf?format=html`, {
-        headers,
-        credentials: "include",
+      // Use api.getText() for HTML preview
+      const html = await api.getText(`/api/v1/purchase_orders/${recordId}/generate_pdf`, {
+        params: { format: 'html' }
       });
-      const html = await response.text();
       setPreviewHtml(html);
       setPreviewModalOpen(true);
     } catch (err) {
@@ -1374,7 +1351,7 @@ export default function PurchaseOrderDetailPage() {
               {budgetLocked && budgetLockedBy && (
                 <p className="text-xs text-muted-foreground mt-2">
                   Locked by {budgetLockedBy}
-                  {budgetLockedAt && ` on ${formatDate(budgetLockedAt)}`}
+                  {budgetLockedAt && ` on ${formatDateWithFallback(budgetLockedAt, "Not set")}`}
                 </p>
               )}
             </div>
@@ -1587,18 +1564,6 @@ export default function PurchaseOrderDetailPage() {
                     item.pricebook_item_id &&
                     selectedSupplier.supplied_pricebook_item_ids &&
                     !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
-
-                  // Debug logging
-                  if (item.pricebook_item && hasPriceChanged) {
-                    console.log('Price mismatch detected:', {
-                      item_code: item.pricebook_item.item_code,
-                      po_unit_price: item.unit_price,
-                      pricebook_active_price: item.pricebook_item.active_price,
-                      po_as_number: Number(item.unit_price),
-                      pricebook_as_number: Number(item.pricebook_item.active_price),
-                      are_equal: Number(item.unit_price) === Number(item.pricebook_item.active_price)
-                    });
-                  }
 
                   // Determine background color (priority: grey out > not supplied > price changed > normal)
                   // Not supplied = amber, Price changed = orange
@@ -1855,11 +1820,11 @@ export default function PurchaseOrderDetailPage() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">Start Date:</span>{" "}
-                          <span className="font-medium">{formatDate(task.start_date)}</span>
+                          <span className="font-medium">{formatDateWithFallback(task.start_date, "Not set")}</span>
                         </div>
                         <div>
                           <span className="text-muted-foreground">End Date:</span>{" "}
-                          <span className="font-medium">{formatDate(task.end_date)}</span>
+                          <span className="font-medium">{formatDateWithFallback(task.end_date, "Not set")}</span>
                         </div>
                       </div>
 
@@ -1871,7 +1836,7 @@ export default function PurchaseOrderDetailPage() {
                             {task.predecessors.map((pred) => (
                               <li key={pred.id} className="flex items-center gap-2 text-muted-foreground">
                                 <span>• {pred.name}</span>
-                                <span className="text-xs">(ends {formatDate(pred.end_date)})</span>
+                                <span className="text-xs">(ends {formatDateWithFallback(pred.end_date, "Not set")})</span>
                               </li>
                             ))}
                           </ul>
@@ -1905,8 +1870,8 @@ export default function PurchaseOrderDetailPage() {
                       <TableBody>
                         <TableRow className="border-t">
                           <TableCell className="p-3">Required Date</TableCell>
-                          <TableCell className="p-3">{formatDate(syncPreview.po.required_date)}</TableCell>
-                          <TableCell className="p-3">{formatDate(syncPreview.linked_tasks[0]?.start_date)}</TableCell>
+                          <TableCell className="p-3">{formatDateWithFallback(syncPreview.po.required_date, "Not set")}</TableCell>
+                          <TableCell className="p-3">{formatDateWithFallback(syncPreview.linked_tasks[0]?.start_date, "Not set")}</TableCell>
                           <TableCell className="p-3 text-center">
                             {syncPreview.linked_tasks[0]?.date_matches ? (
                               <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 inline" />
@@ -1943,7 +1908,7 @@ export default function PurchaseOrderDetailPage() {
                       <ul className="mt-2 space-y-1 text-sm text-blue-700 dark:text-blue-300">
                         {syncPreview.sync_preview.will_update.required_date && (
                           <li>
-                            • Required Date: {formatDate(syncPreview.sync_preview.will_update.required_date.from)} → {formatDate(syncPreview.sync_preview.will_update.required_date.to)}
+                            • Required Date: {formatDateWithFallback(syncPreview.sync_preview.will_update.required_date.from, "Not set")} → {formatDateWithFallback(syncPreview.sync_preview.will_update.required_date.to, "Not set")}
                             {syncPreview.sync_preview.will_update.required_date.diff_days && (
                               <span className="text-xs ml-1">
                                 ({syncPreview.sync_preview.will_update.required_date.diff_days > 0 ? "+" : ""}

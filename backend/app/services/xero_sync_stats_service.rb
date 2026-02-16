@@ -16,6 +16,8 @@
 #
 # Part of "Scale Xero Sync to 15k" plan
 class XeroSyncStatsService
+  include XeroConstants
+
   class << self
     # Compute all stats for the given credential tenant IDs
     # Returns a hash with all pre-computed stats grouped by tenant_id
@@ -80,7 +82,7 @@ class XeroSyncStatsService
         rate_limits: rate_usage ? {
           daily_percentage: rate_usage.dig(:daily, :percentage)&.round(1) || 0,
           minute_percentage: rate_usage.dig(:minute, :percentage)&.round(1) || 0,
-          is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= 80
+          is_limited: (rate_usage.dig(:daily, :percentage) || 0) >= XeroConstants::XERO_RATE_LIMIT_WARNING_THRESHOLD
         } : nil
       }
     end

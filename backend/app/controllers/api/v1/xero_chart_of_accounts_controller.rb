@@ -49,10 +49,7 @@ module Api
             data: serialize_account(@account)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             data: serialize_account(@account)
           }
         else
-          render json: {
-            success: false,
-            errors: @account.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@account)
         end
       end
 
@@ -345,10 +339,10 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       rescue StandardError => e
         Rails.logger.error("[XeroChartOfAccountsController] with_company_presence error: #{e.message}")
-        render json: { success: false, error: e.message }, status: :internal_server_error
+        render_error(e.message, status: :internal_server_error)
       end
 
       # GET /api/v1/xero_chart_of_accounts/company_accounts
@@ -358,10 +352,7 @@ module Api
         connection = company.corporate_xero_connection
 
         unless connection
-          return render json: {
-            success: false,
-            error: "No Xero connection for this company"
-          }, status: :not_found
+          return render_error("No Xero connection for this company", status: :not_found)
         end
 
         @accounts = connection.corporate_xero_accounts
@@ -384,7 +375,7 @@ module Api
           }
         }
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       private
@@ -478,6 +469,7 @@ module Api
         {
           total_accounts: @accounts.count,
           by_type: @accounts.group(:account_type).count,
+          # Small lookup table (< 50 company groups typically), .all is fine
           groups: CompanyGroup.all.map { |g|
             { id: g.id, name: g.name, accounts_count: g.xero_chart_of_accounts.count }
           }

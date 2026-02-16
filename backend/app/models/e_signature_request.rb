@@ -382,7 +382,7 @@ class ESignatureRequest < ApplicationRecord
     if document_type&.download_name.present? && documentable.is_a?(Job)
       document_type.generate_proposed_name(job: documentable, file_extension: "pdf", description: "Signed")
     else
-      date = CompanySetting.in_company_timezone { Date.today }.strftime("%d-%m-%Y")
+      date = CompanySetting.in_company_timezone { Date.current }.strftime("%d-%m-%Y")
       sanitized_title = title.to_s.gsub(/[<>:"\/\\|?*]/, "_").strip[0..60]
       "#{sanitized_title} - Signed #{date}.pdf"
     end

@@ -54,6 +54,7 @@ import {
   Activity,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate, formatDateTime } from "@/utils/formatters";
 
 interface Transaction {
@@ -155,7 +156,7 @@ export default function AnomalyDetectionTab() {
           high_severity: number;
           medium_severity: number;
         };
-      }>(`/api/v1/gl/anomalies?days=${daysFilter}&limit=100`);
+      }>(`/api/v1/gl/anomalies?days=${daysFilter}&limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
 
       if (anomaliesResponse?.success) {
         setAnomalies(anomaliesResponse.data.anomalies || []);
@@ -185,7 +186,7 @@ export default function AnomalyDetectionTab() {
       const reviewsResponse = await api.get<{
         success: boolean;
         data: { reviews: AnomalyReview[]; count: number };
-      }>("/api/v1/gl/anomalies/reviews?limit=50");
+      }>(`/api/v1/gl/anomalies/reviews?limit=${API_PAGE_SIZES.LIST_VIEW}`);
 
       if (reviewsResponse?.success) {
         setReviews(reviewsResponse.data.reviews || []);

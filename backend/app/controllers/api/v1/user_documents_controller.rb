@@ -20,7 +20,11 @@ module Api
 
         # Filter by folder
         if params[:folder].present?
+          # Show documents in this folder (and subfolders)
           documents = documents.where("folder LIKE ?", "#{params[:folder]}%")
+        else
+          # Root level ("All Documents"): only show documents not in any folder
+          documents = documents.where(folder: [nil, ""])
         end
 
         # Search
@@ -35,14 +39,18 @@ module Api
         total_count = documents.count
         documents = documents.limit(limit).offset(offset)
 
-        # Get unique folders for tree display
-        all_folders = UserDocument.for_user(current_user.id)
+        # Get unique folders for tree display (merge document folders + persisted empty folders)
+        doc_folders = UserDocument.for_user(current_user.id)
                                   .my_docs
                                   .where.not(folder: [nil, ""])
                                   .distinct
                                   .pluck(:folder)
                                   .compact
-                                  .sort
+
+        persisted_folders = UserFolder.for_user(current_user.id)
+                                      .pluck(:path)
+
+        all_folders = (doc_folders + persisted_folders).uniq.sort
 
         # Cache provider for all documents in this request (avoids N+1 provider lookups)
         @document_provider = fetch_document_provider
@@ -74,7 +82,7 @@ module Api
       # Upload a new document
       def create
         unless params[:file].present?
-          return render json: { success: false, error: "No file provided" }, status: :unprocessable_entity
+          return render_error("No file provided", status: :unprocessable_entity)
         end
 
         file = params[:file]
@@ -100,7 +108,14 @@ module Api
           storage_provider: WarehouseProvider.instance.storage_provider_for_new_documents
         )
 
-        if document.save
+        # All-or-nothing: UserDocument + blob ref + WarehouseDocument in one transaction
+        # FRC (Feb 2026): Without transaction, UserDocument can save but WarehouseDocument
+        # creation fails, leaving orphans invisible to the data warehouse dashboard.
+        ActiveRecord::Base.transaction do
+          unless document.save
+            raise ActiveRecord::Rollback
+          end
+
           blob.increment_reference!
 
           # SSoT: WarehouseDocumentCreator handles metadata + callbacks
@@ -112,7 +127,9 @@ module Api
             content_type: document.content_type,
             file_size: document.file_size
           )
+        end
 
+        if document.persisted?
           @document_provider = fetch_document_provider
 
           render json: {
@@ -121,10 +138,7 @@ module Api
             message: "Document uploaded successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: document.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(document)
         end
       end
 
@@ -149,10 +163,7 @@ module Api
             message: "Document updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @document.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@document)
         end
       end
 
@@ -162,27 +173,41 @@ module Api
         render json: { success: true, message: "Document deleted successfully" }
       end
 
+      # GET /api/v1/user_documents/:id/content
+      # Streams file bytes through backend (bypasses CORS for mammoth.js / PDF.js preview)
+      # Accepts ?token= query param for auth (since fetch() from DocumentViewer can't set headers)
+      def content
+        unless @document.storage_blob
+          return render_error("No file content available", status: :not_found)
+        end
+
+        send_data @document.storage_blob.download,
+                  filename: @document.file_name || "document",
+                  type: @document.storage_blob.content_type || "application/octet-stream",
+                  disposition: "inline"
+      end
+
       # GET /api/v1/user_documents/:id/download
       def download
         unless @document.storage_blob&.storage_path.present?
-          return render json: { success: false, error: "File not available" }, status: :not_found
+          return render_error("File not available", status: :not_found)
         end
 
         provider = fetch_document_provider
         unless provider
-          return render json: { success: false, error: "Storage provider not configured" }, status: :service_unavailable
+          return render_error("Storage provider not configured", status: :service_unavailable)
         end
 
         begin
           url = provider.download_url(
             @document.storage_blob.storage_path,
-            expires_in: 3600,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
             filename: @document.file_name
           )
           render json: { success: true, url: url }
         rescue => e
           Rails.logger.error "[UserDocuments] Failed to generate download URL: #{e.message}"
-          render json: { success: false, error: "Failed to generate download URL" }, status: :service_unavailable
+          render_error("Failed to generate download URL", status: :service_unavailable)
         end
       end
 
@@ -191,12 +216,12 @@ module Api
       def save_to_job
         job_id = params[:job_id]
         unless job_id.present?
-          return render json: { success: false, error: "Job ID required" }, status: :unprocessable_entity
+          return render_error("Job ID required", status: :unprocessable_entity)
         end
 
         job = Job.find_by(id: job_id)
         unless job
-          return render json: { success: false, error: "Job not found" }, status: :not_found
+          return render_error("Job not found", status: :not_found)
         end
 
         # SSoT: WarehouseDocumentCreator handles metadata + callbacks
@@ -224,42 +249,66 @@ module Api
             warehouse_document_id: warehouse_doc.id
           }
         else
-          render json: {
-            success: false,
-            errors: warehouse_doc.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(warehouse_doc)
         end
       end
 
       # POST /api/v1/user_documents/create_folder
-      # Create a virtual folder (no physical storage - just updates folder path)
+      # Create a virtual folder - persisted in user_folders table
       def create_folder
         folder_name = params[:name]
         parent_folder = params[:parent]
 
         unless folder_name.present?
-          return render json: { success: false, error: "Folder name required" }, status: :unprocessable_entity
+          return render_error("Folder name required", status: :unprocessable_entity)
         end
 
         # Sanitize folder name
         sanitized_name = folder_name.gsub(/[<>:"|?*\\\/]/, "-").strip
         full_path = parent_folder.present? ? "#{parent_folder}/#{sanitized_name}" : sanitized_name
 
-        # Check for existing documents with this folder
-        existing_count = UserDocument.for_user(current_user.id)
-                                     .my_docs
-                                     .where(folder: full_path)
-                                     .count
+        # Persist the folder so it survives page reloads even when empty
+        user_folder = UserFolder.find_or_create_by(user_id: current_user.id, path: full_path)
+
+        unless user_folder.persisted?
+          return render_error("Failed to create folder: #{user_folder.errors.full_messages.join(', ')}", status: :unprocessable_entity)
+        end
 
         render json: {
           success: true,
           folder: {
             name: sanitized_name,
-            path: full_path,
-            documentCount: existing_count
+            path: full_path
           },
           message: "Folder created successfully"
         }
+      end
+
+      # DELETE /api/v1/user_documents/delete_folder
+      # Delete a virtual folder (only if empty)
+      def delete_folder
+        folder_path = params[:path]
+
+        unless folder_path.present?
+          return render_error("Folder path required", status: :unprocessable_entity)
+        end
+
+        # Check if folder has documents
+        doc_count = UserDocument.for_user(current_user.id)
+                                .my_docs
+                                .where("folder = ? OR folder LIKE ?", folder_path, "#{folder_path}/%")
+                                .count
+
+        if doc_count > 0
+          return render_error("Cannot delete folder with #{doc_count} document(s). Move or delete them first.", status: :unprocessable_entity)
+        end
+
+        # Delete the folder and any child folders
+        UserFolder.for_user(current_user.id)
+                  .where("path = ? OR path LIKE ?", folder_path, "#{folder_path}/%")
+                  .destroy_all
+
+        render json: { success: true, message: "Folder deleted" }
       end
 
       private
@@ -267,7 +316,7 @@ module Api
       def set_document
         @document = UserDocument.for_user(current_user.id).find_by(id: params[:id])
         unless @document
-          render json: { success: false, error: "Document not found" }, status: :not_found
+          render_error("Document not found", status: :not_found)
         end
       end
 
@@ -294,7 +343,7 @@ module Api
 
         if blob&.storage_path.present? && @document_provider
           begin
-            download_url = @document_provider.download_url(blob.storage_path, expires_in: 3600, filename: doc.file_name)
+            download_url = @document_provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: doc.file_name)
           rescue => e
             Rails.logger.warn "[UserDocuments] Failed to get download URL for doc #{doc.id}: #{e.message}"
           end

@@ -109,6 +109,7 @@ export interface Signer {
   id: string;
   email: string;
   name?: string;
+  contactId?: number; // TEEEM contact ID (if added via contact search)
   color: string;
   order: number; // Signing order (0 = parallel, 1+ = sequential)
 }
@@ -151,7 +152,7 @@ export interface SignatureField {
 export interface SignerPanelProps {
   signers: Signer[];
   selectedSigner: Signer | null;
-  onAddSigner: (email: string, name?: string) => void;
+  onAddSigner: (email: string, name?: string, contactId?: number) => void;
   onRemoveSigner: (signerId: string) => void;
   onSelectSigner: (signer: Signer | null) => void;
   onReorderSigners: (signers: Signer[]) => void;

@@ -23,15 +23,15 @@ class ExternalInvoice < ApplicationRecord
 
   # SSoT: ACCOUNTING_SYSTEMS, RECORD_SYNC_DIRECTIONS defined in ExternalSyncConstants concern
 
+  # ⚠️ STRUCTURAL CONSTANTS - DO NOT make tenant-configurable
+  # These are normalized mappings for external accounting system types/statuses.
+  # They MUST match what external APIs (Xero, MYOB, QuickBooks) send/expect.
+  # Changing these breaks integration. Add new values only when supporting new external systems.
+
   # Normalized invoice types (across all systems)
-  # - sales_invoice: Customer-facing invoice (Xero ACCREC)
-  # - bill: Supplier bill/purchase invoice (Xero ACCPAY)
-  # - credit_note: Credit note (Xero ACCRECREDIT or ACCPAYCREDIT)
-  # - quote: Quote/Estimate (Xero Quote)
   INVOICE_TYPES = %w[sales_invoice bill credit_note quote].freeze
 
   # Normalized statuses (across all systems)
-  # Note: quotes have their own status set: draft, sent, accepted, declined, invoiced
   STATUSES = %w[draft submitted approved paid voided deleted sent accepted declined invoiced].freeze
 
   validates :source, presence: true, inclusion: { in: ACCOUNTING_SYSTEMS }
@@ -46,6 +46,11 @@ class ExternalInvoice < ApplicationRecord
   scope :credit_notes, -> { where(invoice_type: "credit_note") }
   scope :quotes, -> { where(invoice_type: "quote") }
   scope :invoices_and_bills, -> { where(invoice_type: %w[sales_invoice bill]) }
+
+  # Filter scopes (extracted from controllers)
+  scope :with_status, ->(status) { where(status: status) if status.present? }
+  scope :for_job, ->(job_id) { where(job_id: job_id) if job_id.present? }
+  scope :for_contact, ->(contact_id) { where(contact_id: contact_id) if contact_id.present? }
 
   # Scopes by status
   scope :draft, -> { where(status: "draft") }
@@ -83,7 +88,7 @@ class ExternalInvoice < ApplicationRecord
     where("tracking_data @> ?", [ { "Option" => tracking_name } ].to_json)
   }
 
-  # Status mappings from Xero to normalized
+  # ⚠️ EXTERNAL API MAPPINGS - Must match Xero API exactly. Not tenant-configurable.
   XERO_STATUS_MAP = {
     "DRAFT" => "draft",
     "SUBMITTED" => "submitted",
@@ -241,10 +246,25 @@ class ExternalInvoice < ApplicationRecord
     tracking_data.map { |t| t["Option"] }.compact.uniq
   end
 
-  # Link to job based on tracking category
+  # Link to job based on tracking category (join table first, then legacy fallback)
   def link_to_job!
     return if job_id.present?
 
+    # Try join table by tracking option ID first
+    if tracking_data.present?
+      tracking_data.each do |tracking|
+        tracking_option_id = tracking["TrackingOptionID"]
+        next if tracking_option_id.blank?
+
+        job = XeroJobTrackingLink.job_for(tracking_option_id)
+        if job
+          update!(job: job)
+          return
+        end
+      end
+    end
+
+    # Legacy fallback: match by tracking option name
     tracking_option_names.each do |name|
       job = Job.find_by(xero_tracking_option_name: name)
       if job

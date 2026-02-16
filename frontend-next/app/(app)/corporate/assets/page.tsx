@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { BackButton } from "@/components/ui/back-button";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { TableRow } from "@/components/table/types";
 import { TablePage } from "@/components/ui/page-wrappers";
 
@@ -40,7 +41,7 @@ export default function AssetsPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="assets"
+        foundationId={FOUNDATION_SLUGS.ASSETS}
         autoFetchRecords={true}
         refreshTrigger={refreshKey}
         tableName="Assets"

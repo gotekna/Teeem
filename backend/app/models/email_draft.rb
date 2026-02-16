@@ -15,15 +15,24 @@ class EmailDraft < ApplicationRecord
   # SSoT (Feb 2026): Tenant is THE ONE for multi-tenancy isolation
   belongs_to :tenant
   belongs_to :imap_credential, optional: true
+  belongs_to :microsoft_credential, optional: true
+
+  # Constants
+  STATUSES = %w[draft sending sent].freeze
 
   # Drafts can have empty fields - only validate when sending
   validates :to_addresses, presence: true, unless: :draft?
   validates :subject, presence: true, unless: :draft?
   validates :body, presence: true, unless: :draft?
-  validates :status, presence: true, inclusion: { in: %w[draft sending sent] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   def draft?
     status == "draft"
+  end
+
+  # Can this draft be synced to a provider Drafts folder?
+  def provider_syncable?
+    draft? && (microsoft_credential_id.present? || imap_credential_id.present?)
   end
 
   # Scopes
@@ -32,6 +41,10 @@ class EmailDraft < ApplicationRecord
   scope :drafts_only, -> { where(status: "draft") }
   # SSoT (Feb 2026): Tenant-scoped lookup
   scope :for_tenant, ->(tenant) { where(tenant: tenant) }
+  # Provider sync scopes (for monitoring)
+  scope :synced, -> { where.not(provider_synced_at: nil) }
+  scope :unsynced, -> { where(provider_synced_at: nil) }
+  scope :sync_errors, -> { where.not(provider_sync_error: nil) }
 
   # Parse JSON addresses to array
   def to_list
@@ -51,6 +64,7 @@ class EmailDraft < ApplicationRecord
     {
       id: id.to_s,
       credential_id: imap_credential_id&.to_s,
+      microsoft_credential_id: microsoft_credential_id&.to_s,
       from_address: from_address,
       to: to_addresses_string,
       cc: cc_addresses_string,
@@ -60,6 +74,10 @@ class EmailDraft < ApplicationRecord
       reply_to_message_id: reply_to_message_id,
       attachment_names: attachment_names,
       status: status,
+      provider_draft_id: provider_draft_id,
+      provider_type: provider_type,
+      provider_synced_at: provider_synced_at&.iso8601,
+      provider_sync_error: provider_sync_error,
       created_at: created_at&.iso8601,
       updated_at: updated_at&.iso8601
     }

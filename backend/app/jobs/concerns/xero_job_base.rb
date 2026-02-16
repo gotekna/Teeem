@@ -116,12 +116,18 @@ module XeroJobBase
   private
 
   # Find the appropriate credential
+  # FRC (Feb 2026): Added teeem_tenant_id support to prevent cross-tenant leaks
   def find_credential(options)
     if options[:credential_id]
       XeroCredential.find(options[:credential_id])
     elsif options[:tenant_id]
       XeroCredential.find_by!(tenant_id: options[:tenant_id])
+    elsif options[:teeem_tenant_id]
+      XeroCredential.current_for(options[:teeem_tenant_id])
     else
+      # Fallback: No tenant context in background jobs - use unscoped .current
+      # Jobs should always pass credential_id or tenant_id to avoid this path
+      Rails.logger.warn("[#{self.class.name}] No credential_id or tenant_id provided, using unscoped XeroCredential.current")
       XeroCredential.current
     end
   end
@@ -204,5 +210,15 @@ module XeroJobBase
       error_class: error.class.name,
       records_processed: @records_processed || 0
     )
+  end
+
+  # SSoT: Extract retry_after seconds from RateLimitError message.
+  # Previously duplicated across 6 jobs with a 3600s (1 hour!) default.
+  # Xero's per-minute limit resets in 60s, so 120s default is plenty.
+  # record_lockout! also caps at MAX_LOCKOUT_DURATION as a safety net.
+  def extract_retry_after(message)
+    match = message.to_s.match(/retry after (\d+)/i)
+    match ||= message.to_s.match(/(\d+)\s*seconds?/i)
+    match ? match[1].to_i : 120
   end
 end

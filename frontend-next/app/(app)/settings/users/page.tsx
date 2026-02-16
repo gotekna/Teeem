@@ -6,8 +6,11 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { AddUserModal } from "@/components/admin/AddUserModal";
 import { UserDetailSheet } from "@/components/admin/UserDetailSheet";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { TableRow } from "@/components/table/types";
+import { API } from "@/lib/constants/api-endpoints";
+import type { User } from "@/lib/types";
 
 /**
  * Users Management Page - Organization Settings
@@ -21,17 +24,6 @@ import { TableRow } from "@/components/table/types";
  * - Built-in caching (instant back navigation)
  * - Server-side search
  */
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  assigned_role?: string;
-  last_login_at?: string;
-  role_ids?: Array<{ id: number; display_value: string; name: string }>;
-  [key: string]: unknown;
-}
 
 export default function UsersSettingsPage() {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -57,7 +49,7 @@ export default function UsersSettingsPage() {
 
     try {
       const response = await api.delete<{ success: boolean }>(
-        `/api/v1/users/${user.id}`
+        API.users.delete(user.id)
       );
       if (response?.success) {
         toast({
@@ -112,7 +104,7 @@ export default function UsersSettingsPage() {
     <TablePage>
       <TeeemTableView
         key={refreshKey}
-        foundationId="user-management"
+        foundationId={FOUNDATION_SLUGS.USER_MANAGEMENT}
         autoFetchRecords
         onDelete={handleDelete}
         onBulkDelete={handleBulkDelete}

@@ -204,21 +204,20 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
     >
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Scope tabs */}
-        <div className="flex items-center justify-between border-b px-4 py-2 shrink-0 bg-muted/30">
-          <TabsList className="h-8 bg-transparent p-0 gap-1">
+        <div className="px-4 pt-3 pb-2 shrink-0">
+          <TabsList className="flex-wrap h-auto gap-1">
               {scopes.map((s) => {
                 const Icon = s.icon;
                 return (
                   <TabsTrigger
                     key={s.id}
                     value={s.id}
-                    onClick={() => setActiveScope(s.id)}
-                    className="h-7 px-3 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                    className="text-xs sm:text-sm whitespace-nowrap gap-1.5"
                   >
-                    <Icon className="h-3.5 w-3.5 mr-1.5" />
+                    <Icon className="h-4 w-4" />
                     {s.label}
                     {scopeCounts[s.id] > 0 && (
-                      <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted rounded">
+                      <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
                         {scopeCounts[s.id]}
                       </span>
                     )}

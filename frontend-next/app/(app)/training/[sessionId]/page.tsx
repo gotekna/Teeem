@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ShareIcon, XMarkIcon, CheckIcon, ClipboardIcon } from "@heroicons/react/24/outline";
 import { copyToClipboard } from "@/utils/formatters";
 import { Button } from "@/components/ui/button";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import { BackButton } from "@/components/ui/back-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,11 +93,9 @@ export default function TrainingSessionPage() {
     const api = new window.JitsiMeetExternalAPI(domain, options);
 
     api.addListener("videoConferenceJoined", () => {
-      console.log("User joined the conference");
     });
 
     api.addListener("videoConferenceLeft", () => {
-      console.log("User left the conference");
       setMeetingEnded(true);
       router.push("/training");
     });
@@ -109,14 +108,14 @@ export default function TrainingSessionPage() {
   const copyInviteLink = () => {
     copyToClipboard(inviteLink);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
   };
 
   const copySessionId = () => {
     if (sessionId) {
       copyToClipboard(sessionId);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
     }
   };
 

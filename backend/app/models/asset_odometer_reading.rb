@@ -63,7 +63,7 @@ class AssetOdometerReading < ApplicationRecord
     storage_blob_id.present?
   end
 
-  def photo_url(expires_in: 3600)
+  def photo_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless storage_blob
 
     storage_blob.presigned_url(expires_in: expires_in)

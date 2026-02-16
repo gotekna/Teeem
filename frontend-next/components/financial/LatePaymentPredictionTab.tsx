@@ -52,6 +52,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import Link from "next/link";
 
@@ -160,7 +161,7 @@ export default function LatePaymentPredictionTab() {
       const invoicesResponse = await api.get<{
         success: boolean;
         data: { at_risk_invoices: AtRiskInvoice[]; count: number };
-      }>("/api/v1/gl/payment_predictions?limit=100&min_risk=0");
+      }>(`/api/v1/gl/payment_predictions?limit=${API_PAGE_SIZES.REFERENCE_LIST}&min_risk=0`);
 
       if (invoicesResponse?.success) {
         setAtRiskInvoices(invoicesResponse.data.at_risk_invoices || []);
@@ -180,7 +181,7 @@ export default function LatePaymentPredictionTab() {
       const behaviorsResponse = await api.get<{
         success: boolean;
         data: { contact_behaviors: ContactBehavior[]; count: number };
-      }>("/api/v1/gl/payment_predictions/contact_behaviors?limit=100");
+      }>(`/api/v1/gl/payment_predictions/contact_behaviors?limit=${API_PAGE_SIZES.REFERENCE_LIST}`);
 
       if (behaviorsResponse?.success) {
         setContactBehaviors(behaviorsResponse.data.contact_behaviors || []);

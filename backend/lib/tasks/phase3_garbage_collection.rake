@@ -3,20 +3,15 @@
 # Phase 3: Garbage Collection for StorageBlob
 #
 # Tasks:
-#   blob:cleanup:orphaned    - Delete blobs with no references
-#   blob:audit:integrity     - Verify reference_count matches actual refs
-#   blob:audit:duplicates    - Find duplicate blobs (same content_hash)
-#   blob:audit:warehouse     - Check WarehouseDocument→StorageBlob links
+#   blob:cleanup:orphaned         - Delete blobs with no references
+#   blob:audit:integrity          - Verify reference_count matches actual refs
+#   blob:audit:duplicates         - Find duplicate blobs (same content_hash)
+#   blob:audit:warehouse          - Check WarehouseDocument→StorageBlob links
+#   blob:backfill:email_attachments - Backfill WH docs for legacy email attachments
 #
-# Architecture:
-#   StorageBlob
-#   ├── has_many :warehouse_documents (Phase 3 universal table - SSoT)
-#   ├── has_many :chat_messages (legacy direct refs)
-#   └── has_many :bill_inboxes (legacy direct refs)
-#
-# An "orphaned" blob is one with:
-#   - No warehouse_documents referencing it
-#   - No legacy direct references (email_attachments, etc.)
+# SSoT: BlobReferenceScanner (app/services/blob_reference_scanner.rb)
+#   Checks ALL 20+ models/tables with storage_blob_id before declaring orphaned.
+#   FRC (Feb 2026): Previous version only checked 3 of 20+ models.
 #
 # Safety:
 #   - All cleanup tasks require explicit confirmation
@@ -25,7 +20,7 @@
 #
 namespace :blob do
   namespace :cleanup do
-    desc "Delete orphaned StorageBlobs (no references)"
+    desc "Delete orphaned StorageBlobs (no references from any model)"
     task :orphaned, [:mode, :age_days] => :environment do |_t, args|
       mode = args[:mode] || "dry_run"
       age_days = (args[:age_days] || 30).to_i
@@ -38,31 +33,20 @@ namespace :blob do
       puts "=" * 70
       puts ""
 
-      # Find blobs older than age_days with no references
       cutoff_date = age_days.days.ago
 
-      # SSoT (Jan 2026): WarehouseDocument is THE ONE table for all document metadata
-      warehouse_blob_ids = WarehouseDocument.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
+      # Collect ALL referenced blob IDs (SSoT: BlobReferenceScanner)
+      puts "Scanning all #{BlobReferenceScanner.source_count} reference sources..."
+      all_referenced_ids = BlobReferenceScanner.all_referenced_blob_ids do |source, count|
+        puts "  #{source}: #{count} unique blobs" if count > 0
+      end
 
-      # Legacy direct associations (not WarehouseDocument)
-      chat_blob_ids = ChatMessage.unscoped.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
-      bill_blob_ids = BillInbox.where.not(storage_blob_id: nil).distinct.pluck(:storage_blob_id)
-
-      # Combine all referenced blob IDs
-      all_referenced_ids = (warehouse_blob_ids + chat_blob_ids + bill_blob_ids).uniq
-
-      puts "Reference counts:"
-      puts "  WarehouseDocuments: #{warehouse_blob_ids.count} unique blobs"
-      puts "  ChatMessages: #{chat_blob_ids.count} unique blobs"
-      puts "  BillInboxes: #{bill_blob_ids.count} unique blobs"
       puts "  Total unique referenced: #{all_referenced_ids.count}"
       puts ""
 
       # Find orphaned blobs (older than cutoff, not in referenced list)
       orphaned_scope = StorageBlob.where("created_at < ?", cutoff_date)
-      if all_referenced_ids.any?
-        orphaned_scope = orphaned_scope.where.not(id: all_referenced_ids)
-      end
+      orphaned_scope = orphaned_scope.where.not(id: all_referenced_ids.to_a) if all_referenced_ids.any?
 
       orphan_count = orphaned_scope.count
       total_blobs = StorageBlob.count
@@ -88,27 +72,26 @@ namespace :blob do
         puts ""
       end
 
-      deleted_count = 0
-      deleted_size = 0
-      error_count = 0
-
       if execute
         puts "-" * 70
         puts "EXECUTING DELETION..."
         puts "-" * 70
 
+        # Set tenant context for storage provider access
+        tenant = Tenant.find_by(name: "Tekna") || Tenant.first
+        ActsAsTenant.current_tenant = tenant
+        provider = DocumentProviders.for_tenant(tenant)
+
+        deleted_count = 0
+        deleted_size = 0
+        error_count = 0
+
         orphaned_scope.find_each do |blob|
           begin
-            # Delete from S3
-            provider = DocumentProviders.for_organization(Organization.first)
             provider.delete_file(blob.storage_path) rescue nil
-
-            # Delete from database
             deleted_size += blob.file_size.to_i
             blob.destroy!
             deleted_count += 1
-
-            # Progress indicator
             print "." if deleted_count % 100 == 0
           rescue StandardError => e
             puts "\n  ERROR deleting blob #{blob.id}: #{e.message}"
@@ -153,12 +136,7 @@ namespace :blob do
       checked = 0
 
       StorageBlob.find_each do |blob|
-        # Count actual references (SSoT: WarehouseDocument + legacy direct associations)
-        warehouse_count = WarehouseDocument.where(storage_blob_id: blob.id).count
-        chat_count = ChatMessage.unscoped.where(storage_blob_id: blob.id).count
-        bill_count = BillInbox.where(storage_blob_id: blob.id).count
-
-        actual_count = warehouse_count + chat_count + bill_count
+        actual_count = BlobReferenceScanner.count_references_for(blob.id)
         stored_count = blob.reference_count
 
         if actual_count != stored_count
@@ -166,17 +144,10 @@ namespace :blob do
             id: blob.id,
             storage_path: blob.storage_path,
             stored: stored_count,
-            actual: actual_count,
-            breakdown: {
-              warehouse: warehouse_count,
-              chat: chat_count,
-              bill: bill_count
-            }
+            actual: actual_count
           }
 
-          if fix
-            blob.update_column(:reference_count, actual_count)
-          end
+          blob.update_column(:reference_count, actual_count) if fix
         end
 
         checked += 1
@@ -198,7 +169,6 @@ namespace :blob do
           puts "  Blob #{m[:id]}:"
           puts "    Path: #{m[:storage_path]&.truncate(50)}"
           puts "    Stored count: #{m[:stored]}, Actual: #{m[:actual]}"
-          puts "    Breakdown: #{m[:breakdown]}"
         end
 
         if fix
@@ -222,7 +192,6 @@ namespace :blob do
       puts "=" * 70
       puts ""
 
-      # Find content_hashes with multiple blobs
       duplicates = StorageBlob
         .where.not(content_hash: nil)
         .group(:content_hash)
@@ -280,7 +249,6 @@ namespace :blob do
       puts "  Without StorageBlob: #{without_blob} (#{(without_blob.to_f / total * 100).round(1)}%)"
       puts ""
 
-      # By source type
       puts "By source_type:"
       WarehouseDocument.group(:source_type).count.each do |source, count|
         with = WarehouseDocument.where(source_type: source).where.not(storage_blob_id: nil).count
@@ -289,7 +257,6 @@ namespace :blob do
       end
       puts ""
 
-      # Check for broken references (blob_id points to non-existent blob)
       puts "Checking for broken references..."
       blob_ids = StorageBlob.pluck(:id)
       broken = WarehouseDocument
@@ -304,7 +271,6 @@ namespace :blob do
       end
       puts ""
 
-      # Check documentable references
       puts "Checking documentable references..."
       orphaned_docs = 0
       WarehouseDocument.find_each do |wd|
@@ -323,6 +289,101 @@ namespace :blob do
     end
   end
 
+  namespace :backfill do
+    desc "Create WarehouseDocuments for email_attachments with blobs but no WH doc"
+    task email_attachments: :environment do
+      puts "=" * 70
+      puts "Backfill: email_attachments → WarehouseDocument"
+      puts "FRC (Feb 2026): Legacy email_attachments table has blobs without"
+      puts "WarehouseDocument entries. This creates them via WarehouseDocumentCreator."
+      puts "=" * 70
+      puts ""
+
+      unless ActiveRecord::Base.connection.table_exists?("email_attachments")
+        puts "email_attachments table does not exist. Nothing to backfill."
+        next
+      end
+
+      # Set tenant context
+      tenant = Tenant.find_by(name: "Tekna") || Tenant.first
+      unless tenant
+        puts "No tenant found"
+        next
+      end
+      ActsAsTenant.current_tenant = tenant
+
+      # Find email_attachment rows with storage_blob_id but no WarehouseDocument
+      existing_wh_blob_ids = WarehouseDocument
+        .where(source_type: "email_attachment")
+        .where.not(storage_blob_id: nil)
+        .pluck(:storage_blob_id)
+
+      rows = ActiveRecord::Base.connection.select_all(
+        "SELECT ea.id, ea.email_warehouse_id, ea.filename, ea.storage_blob_id, ea.content_hash, " \
+        "ea.storage_path, ea.content_id, ea.created_at " \
+        "FROM email_attachments ea " \
+        "WHERE ea.storage_blob_id IS NOT NULL"
+      )
+
+      total = rows.count
+      need_backfill = rows.reject { |r| existing_wh_blob_ids.include?(r["storage_blob_id"].to_i) }
+
+      puts "Total email_attachment rows with blob: #{total}"
+      puts "Already have WarehouseDocument: #{total - need_backfill.count}"
+      puts "Need backfill: #{need_backfill.count}"
+      puts ""
+
+      if need_backfill.empty?
+        puts "Nothing to backfill!"
+        next
+      end
+
+      created = 0
+      errors = 0
+
+      need_backfill.each do |row|
+        blob = StorageBlob.find_by(id: row["storage_blob_id"])
+        unless blob
+          puts "  SKIP: Blob #{row['storage_blob_id']} not found for email_attachment #{row['id']}"
+          errors += 1
+          next
+        end
+
+        # Find the parent SyncedEmail for linkable context
+        synced_email = SyncedEmail.find_by(id: row["email_warehouse_id"])
+
+        begin
+          WarehouseDocumentCreator.create!(
+            filename: row["filename"] || "attachment",
+            source_type: "email_attachment",
+            storage_blob: blob,
+            linkable: synced_email,
+            metadata: {
+              "backfilled_from" => "email_attachments",
+              "email_attachment_id" => row["id"],
+              "content_id" => row["content_id"],
+              "backfilled_at" => Time.current.iso8601
+            }
+          )
+          blob.increment_reference!
+          created += 1
+          print "." if created % 50 == 0
+        rescue StandardError => e
+          puts "\n  ERROR: email_attachment #{row['id']}: #{e.message}"
+          errors += 1
+        end
+      end
+
+      puts ""
+      puts ""
+      puts "=" * 70
+      puts "Backfill Complete"
+      puts "=" * 70
+      puts "Created: #{created} WarehouseDocuments"
+      puts "Errors: #{errors}"
+    end
+  end
+
   desc "Full StorageBlob health check"
   task health: :environment do
     puts "=" * 70
@@ -330,7 +391,6 @@ namespace :blob do
     puts "=" * 70
     puts ""
 
-    # Basic counts
     total_blobs = StorageBlob.count
     total_size = StorageBlob.sum(:file_size)
     orphaned = StorageBlob.orphaned.count
@@ -341,13 +401,11 @@ namespace :blob do
     puts "  Orphaned (ref_count=0): #{orphaned}"
     puts ""
 
-    # WarehouseDocument stats
     puts "WarehouseDocument Stats:"
     puts "  Total: #{WarehouseDocument.count}"
     puts "  By source: #{WarehouseDocument.group(:source_type).count}"
     puts ""
 
-    # Deduplication effectiveness
     warehouse_with_blob = WarehouseDocument.where.not(storage_blob_id: nil).count
     unique_blobs = WarehouseDocument.where.not(storage_blob_id: nil).distinct.count(:storage_blob_id)
     if warehouse_with_blob > 0 && unique_blobs > 0
@@ -359,14 +417,14 @@ namespace :blob do
       puts ""
     end
 
-    # Reference integrity quick check (SSoT: WarehouseDocument)
+    # Reference integrity quick check
     mismatched = 0
-    StorageBlob.where("reference_count > 0").find_each do |blob|
-      actual = WarehouseDocument.where(storage_blob_id: blob.id).count
+    StorageBlob.where("reference_count > 0").limit(1000).find_each do |blob|
+      actual = BlobReferenceScanner.count_references_for(blob.id)
       mismatched += 1 if actual != blob.reference_count
     end
 
-    puts "Reference Integrity:"
+    puts "Reference Integrity (sampled first 1000):"
     if mismatched > 0
       puts "  WARNING: #{mismatched} blobs have mismatched reference counts"
       puts "  Run: rails blob:audit:integrity[fix]"
@@ -375,7 +433,6 @@ namespace :blob do
     end
     puts ""
 
-    # Recommendations
     puts "=" * 70
     puts "Recommendations:"
     puts "=" * 70

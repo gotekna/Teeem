@@ -234,8 +234,8 @@ export function XeroInvoicesList({
                   )}
                 </TableCell>
                 <TableCell className="text-sm">
-                  {(invoice as any).reference ? (
-                    <span className="font-mono text-xs">{(invoice as any).reference}</span>
+                  {invoice.reference ? (
+                    <span className="font-mono text-xs">{invoice.reference}</span>
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}

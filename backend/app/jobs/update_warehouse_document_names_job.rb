@@ -103,10 +103,10 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
         context[:company_name] = company.name
       end
 
-      doc_type = documentable.try(:document_type_record) || documentable.try(:document_type)
+      doc_type = documentable&.document_type_record || documentable&.document_type
       if doc_type.respond_to?(:name)
         context[:doc_type_name] = doc_type.name
-        context[:doc_type_code] = doc_type.try(:abbreviation)
+        context[:doc_type_code] = doc_type&.abbreviation
       end
 
       if documentable.respond_to?(:subject)
@@ -125,9 +125,10 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
       when Contact
         context[:name] ||= linkable.display_name
         context[:contact_name] ||= linkable.display_name
-      when CorporateCompany
+      when Corporate
         context[:company_code] ||= linkable.company_code
         context[:company_name] ||= linkable.name
+        context[:company_group] ||= linkable.company_group&.name
       end
     end
 
@@ -137,6 +138,16 @@ class UpdateWarehouseDocumentNamesJob < ApplicationJob
     context[:contact_name] ||= meta["contact_name"] if meta["contact_name"].present?
     context[:company_code] ||= meta["company_code"] if meta["company_code"].present?
     context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
+
+    # SSoT: Look up company from metadata company_id if not found above
+    if context[:company_name].blank? && meta["company_id"].present?
+      company = Corporate.find_by(id: meta["company_id"])
+      if company
+        context[:company_code] ||= company.company_code
+        context[:company_name] ||= company.name
+        context[:company_group] ||= company.company_group&.name
+      end
+    end
 
     # Document type from WFDT association
     wfdt = wd.warehouse_folder_document_type

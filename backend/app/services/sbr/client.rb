@@ -13,8 +13,8 @@ module Sbr
   #
   class Client
     # Environment URLs
-    EVTE_URL = "https://test.sbr.gov.au/services/sbr"
-    PROD_URL = "https://sbr.gov.au/services/sbr"
+    EVTE_URL = "https://test.sbr.gov.au/services/sbr".freeze
+    PROD_URL = "https://sbr.gov.au/services/sbr".freeze
 
     # Required environment variables
     SBR_CONFIG = %w[

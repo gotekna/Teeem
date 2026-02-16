@@ -101,7 +101,7 @@ module Api
       # Update a quote request
       def update
         if @quote_request.closed?
-          render json: { success: false, error: "Cannot update closed quote requests" }, status: :unprocessable_entity
+          render_error("Cannot update closed quote requests", status: :unprocessable_entity)
           return
         end
 
@@ -135,14 +135,14 @@ module Api
       # Delete a quote request (only if no responses yet)
       def destroy
         if @quote_request.quote_responses.any?
-          render json: { success: false, error: "Cannot delete quote requests with responses" }, status: :unprocessable_entity
+          render_error("Cannot delete quote requests with responses", status: :unprocessable_entity)
           return
         end
 
         if @quote_request.destroy
           render json: { success: true, message: "Quote request deleted successfully" }
         else
-          render json: { success: false, error: "Failed to delete quote request" }, status: :unprocessable_entity
+          render_error("Failed to delete quote request", status: :unprocessable_entity)
         end
       end
 
@@ -153,7 +153,7 @@ module Api
         quote_response = @quote_request.quote_responses.find(quote_response_id)
 
         unless quote_response.submitted?
-          render json: { success: false, error: "Can only accept submitted quotes" }, status: :unprocessable_entity
+          render_error("Can only accept submitted quotes", status: :unprocessable_entity)
           return
         end
 
@@ -189,10 +189,7 @@ module Api
             data: quote_request_json(@quote_request)
           }
         else
-          render json: {
-            success: false,
-            error: "Failed to close quote request"
-          }, status: :unprocessable_entity
+          render_error("Failed to close quote request", status: :unprocessable_entity)
         end
       end
 
@@ -202,14 +199,14 @@ module Api
         quote_request = QuoteRequest.find(params[:id])
 
         unless quote_request.selected_quote_response
-          render json: { success: false, error: "No quote has been accepted yet" }, status: :unprocessable_entity
+          render_error("No quote has been accepted yet", status: :unprocessable_entity)
           return
         end
 
         # Check if PO already exists
         existing_po = PurchaseOrder.find_by(quote_response: quote_request.selected_quote_response)
         if existing_po
-          render json: { success: false, error: "Purchase order already exists for this quote" }, status: :unprocessable_entity
+          render_error("Purchase order already exists for this quote", status: :unprocessable_entity)
           return
         end
 

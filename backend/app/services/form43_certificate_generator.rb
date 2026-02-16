@@ -22,7 +22,7 @@
 class Form43CertificateGenerator
   class GenerationError < StandardError; end
 
-  TEMPLATE_PATH = "certificates/form_43"
+  TEMPLATE_PATH = "certificates/form_43".freeze
 
   attr_reader :job, :document_type, :supervisor
 

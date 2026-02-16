@@ -1,6 +1,6 @@
 class MicrosoftGraphClient
-  GRAPH_API_BASE = "https://graph.microsoft.com/v1.0"
-  TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+  GRAPH_API_BASE = MicrosoftGraphBase::GRAPH_API_BASE
+  TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token".freeze
 
   class AuthenticationError < StandardError; end
   class APIError < StandardError; end
@@ -120,7 +120,7 @@ class MicrosoftGraphClient
     params = {
       client_id: ENV["ONEDRIVE_CLIENT_ID"],
       client_secret: ENV["ONEDRIVE_CLIENT_SECRET"],
-      scope: "https://graph.microsoft.com/.default",
+      scope: MicrosoftGraphBase::GRAPH_DEFAULT_SCOPE,
       grant_type: "client_credentials"
     }
 

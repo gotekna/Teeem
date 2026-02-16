@@ -94,7 +94,7 @@ module Api
           )
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Agent not found" }, status: :not_found
+        render_error("Agent not found", status: :not_found)
       end
 
       # POST /api/v1/agent_definitions/:id/record_run
@@ -120,7 +120,7 @@ module Api
           data: agent.as_json
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Agent not found" }, status: :not_found
+        render_error("Agent not found", status: :not_found)
       end
 
       # POST /api/v1/agent_definitions (admin only)
@@ -131,7 +131,7 @@ module Api
         if agent.save
           render json: { success: true, data: agent }, status: :created
         else
-          render json: { success: false, errors: agent.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(agent)
         end
       end
 
@@ -143,10 +143,10 @@ module Api
         if agent.update(agent_params)
           render json: { success: true, data: agent }
         else
-          render json: { success: false, errors: agent.errors.full_messages }, status: :unprocessable_entity
+          render_validation_errors(agent)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Agent not found" }, status: :not_found
+        render_error("Agent not found", status: :not_found)
       end
 
       # DELETE /api/v1/agent_definitions/:id (admin only)
@@ -157,7 +157,7 @@ module Api
 
         render json: { success: true, message: "Agent deactivated" }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Agent not found" }, status: :not_found
+        render_error("Agent not found", status: :not_found)
       end
 
       private

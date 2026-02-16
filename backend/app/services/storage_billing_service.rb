@@ -12,8 +12,10 @@
 #   Backblaze:   $6.00/TB/month ($0.005/GB), first 10GB free, egress 3x storage free
 #
 class StorageBillingService
-  CACHE_KEY = "storage_billing_data"
-  CACHE_TTL = 1.hour
+  include CacheConstants
+
+  CACHE_KEY = "storage_billing_data".freeze
+  CACHE_TTL = CACHE_TTL_HOURLY
 
   # Wasabi pricing
   WASABI_RATE_PER_TB = 6.99
@@ -45,12 +47,36 @@ class StorageBillingService
       wasabi = fetch_wasabi_usage
       backblaze = fetch_backblaze_usage
 
+      # Save monthly snapshots for billing history
+      save_snapshot("wasabi", wasabi) if wasabi[:success]
+      save_snapshot("backblaze", backblaze) if backblaze[:success]
+
+      # Attach billing history to each provider
+      wasabi[:billingHistory] = StorageBillingSnapshot.history_for("wasabi") if wasabi[:success]
+      backblaze[:billingHistory] = StorageBillingSnapshot.history_for("backblaze") if backblaze[:success]
+
       {
         success: true,
         wasabi: wasabi,
         backblaze: backblaze,
         fetchedAt: Time.current.iso8601
       }
+    end
+
+    def save_snapshot(provider, data)
+      StorageBillingSnapshot.record_snapshot(
+        provider: provider,
+        total_size_gb: data[:totalSizeGB],
+        total_objects: data[:totalObjects],
+        estimated_cost: data[:estimatedCost],
+        details: {
+          bucket: data[:bucket],
+          billableTB: data[:billableTB],
+          ratePerTB: data[:ratePerTB]
+        }
+      )
+    rescue StandardError => e
+      Rails.logger.warn("[StorageBillingService] Failed to save #{provider} snapshot: #{e.message}")
     end
 
     def fetch_wasabi_usage
@@ -60,11 +86,14 @@ class StorageBillingService
       return { success: false, error: "Not S3-compatible provider" } unless provider.provider_type == "s3_compatible"
 
       credential_id = provider.storage_credential_id
+      # Tenant-scoped credential lookup (security)
       credential = if credential_id.present?
-        S3CompatibleCredential.find_by(id: credential_id)
-      else
-        S3CompatibleCredential.active.connected.first
-      end
+                     tenant ? S3CompatibleCredential.where(tenant_id: tenant.id).find_by(id: credential_id)
+                            : S3CompatibleCredential.find_by(id: credential_id)
+                   else
+                     tenant ? S3CompatibleCredential.where(tenant_id: tenant.id).active.connected.first
+                            : S3CompatibleCredential.active.connected.first
+                   end
       return { success: false, error: "No active Wasabi credential" } unless credential
 
       bucket = provider.bucket

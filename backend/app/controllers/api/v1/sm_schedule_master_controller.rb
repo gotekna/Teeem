@@ -65,10 +65,7 @@ module Api
             row: row_json(@row)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @row.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@row)
         end
       end
 
@@ -101,10 +98,7 @@ module Api
             row: row_json(@row)
           }
         else
-          render json: {
-            success: false,
-            errors: @row.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@row)
         end
       end
 
@@ -121,7 +115,7 @@ module Api
         new_position = params[:position].to_f
 
         if new_position <= 0
-          return render json: { success: false, error: "Invalid position" }, status: :unprocessable_entity
+          return render_error("Invalid position", status: :unprocessable_entity)
         end
 
         @row.update!(sequence_order: new_position, updated_by: current_user)
@@ -462,6 +456,7 @@ module Api
       # SSoT: Load roles lookup map (ID => display_name) from Role model
       # Memoized per request to avoid N+1 queries
       def roles_map
+        # Small lookup table (~20 roles), .all is fine
         @roles_map ||= Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
       end
 

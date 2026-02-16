@@ -86,10 +86,23 @@ class ApplicationController < ActionController::API
       end
     end
 
+    # Fallback: Try token query param (for streaming endpoints like /content
+    # where fetch() can't easily set Authorization headers)
+    unless @current_user
+      if params[:token].present?
+        begin
+          decoded = JsonWebToken.decode(params[:token])
+          @current_user = User.find(decoded[:user_id]) if decoded
+        rescue ActiveRecord::RecordNotFound, JWT::DecodeError
+          # Query param auth also failed
+        end
+      end
+    end
+
     # Require authentication - no default user fallback
     # Use throw :abort to properly halt the filter chain in Rails API mode
     unless @current_user
-      render json: { error: "Unauthorized" }, status: :unauthorized
+      render json: { success: false, error: "Unauthorized" }, status: :unauthorized
       return false  # Explicitly halt the filter chain
     end
     true
@@ -125,8 +138,10 @@ class ApplicationController < ActionController::API
 
   def require_admin
     unless current_user&.admin?
-      render json: { error: "Unauthorized. Admin access required." }, status: :forbidden
+      render_error("Unauthorized. Admin access required.", status: :forbidden)
+      return false  # Halt the filter chain
     end
+    true
   end
 
   # Try to set current_user from token if present, but don't require it
@@ -153,25 +168,38 @@ class ApplicationController < ActionController::API
     @current_user.update_column(:last_seen_at, Time.current)
   end
 
+  # SSoT: Standard response format helpers
+  # Use these helpers to ensure consistent API responses across all controllers
+
+  # SSoT error response format
+  def render_error(message, status: :unprocessable_entity)
+    render json: { success: false, error: message }, status: status
+  end
+
+  # SSoT success response format
+  def render_success(data = {}, status: :ok)
+    render json: { success: true, data: data }, status: status
+  end
+
+  # For ActiveRecord validation errors
+  def render_validation_errors(record, status: :unprocessable_entity)
+    render json: { success: false, error: record.errors.full_messages.join(", ") }, status: status
+  end
+
   # Exception handlers
   def handle_standard_error(exception)
     Rails.logger.error("Unhandled exception: #{exception.class} - #{exception.message}")
     Rails.logger.error(exception.backtrace.first(10).join("\n"))
 
-    render json: {
-      success: false,
-      error: "#{exception.class}: #{exception.message}"
-    }, status: :internal_server_error
+    render_error("#{exception.class}: #{exception.message}", status: :internal_server_error)
   end
 
   def handle_not_found(exception)
-    render json: {
-      success: false,
-      error: "Resource not found"
-    }, status: :not_found
+    render_error("Resource not found", status: :not_found)
   end
 
   def handle_validation_error(exception)
+    # Note: Keep 'errors' array for detailed validation feedback (special case)
     render json: {
       success: false,
       error: "Validation failed",
@@ -180,17 +208,29 @@ class ApplicationController < ActionController::API
   end
 
   def handle_parameter_missing(exception)
-    render json: {
-      success: false,
-      error: "Missing required parameter: #{exception.param}"
-    }, status: :bad_request
+    render_error("Missing required parameter: #{exception.param}", status: :bad_request)
   end
 
   def handle_delete_restriction(exception)
+    # Note: Keep error_code for frontend to handle dependencies (special case)
     render json: {
       success: false,
       error: "Cannot delete this record because it has associated dependencies. Please remove or reassign the dependent records first.",
       error_code: "HAS_DEPENDENCIES"
     }, status: :unprocessable_entity
+  end
+
+  # SSoT: Tenant scoping helpers - prevent duplicate tenant.users.pluck(:id) calls
+  # Returns array of user IDs for current tenant (empty array if no tenant)
+  # Memoized to avoid multiple queries per request
+  def tenant_user_ids
+    @tenant_user_ids ||= current_tenant&.users&.pluck(:id) || []
+  end
+
+  # SSoT: Tenant scoping helpers - prevent duplicate tenant.organizations.pluck(:id) calls
+  # Returns array of organization IDs for current tenant (empty array if no tenant)
+  # Memoized to avoid multiple queries per request
+  def tenant_organization_ids
+    @tenant_organization_ids ||= current_tenant&.organizations&.pluck(:id) || []
   end
 end

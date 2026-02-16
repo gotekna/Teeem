@@ -169,13 +169,11 @@ export function ColumnEditorModal({
       }
 
       const tableIdToLoad = editedColumn.lookup_table_id;
-      console.log('[ColumnEditorModal] Loading records for target table:', tableIdToLoad);
 
       try {
         const response = await api.get<{ records: Array<Record<string, unknown>> }>(
           `/api/v1/foundations/${tableIdToLoad}/records`
         );
-        console.log('[ColumnEditorModal] Records response for table', tableIdToLoad, ':', response);
 
         if (response?.records) {
           // Get display column from current config, default to 'name'
@@ -184,7 +182,6 @@ export function ColumnEditorModal({
             id: record.id as number,
             display: String(record[displayColumn] || record.name || record.title || record.id),
           }));
-          console.log('[ColumnEditorModal] Setting records for table', tableIdToLoad, ':', records);
           setTargetTableRecords(records);
         }
       } catch (error) {
@@ -198,9 +195,7 @@ export function ColumnEditorModal({
   // Sync state when column changes
   useEffect(() => {
     if (column) {
-      console.log('[ColumnEditorModal] Column changed:', column.key, 'lookup_foundation_id:', column.lookup_foundation_id);
       const newLookupTableId = column.lookup_foundation_id || null;
-      console.log('[ColumnEditorModal] Setting lookup_table_id to:', newLookupTableId);
 
       // SSoT: column_type should always be set - log error if missing (skip system columns)
       const systemColumns = ['id', 'created_at', 'updated_at'];
@@ -211,10 +206,10 @@ export function ColumnEditorModal({
         name: column.label || "",
         column_name: column.key || "",
         data_type: column.column_type || "single_line_text",
-        header_align: (column as any).header_align || "left",
-        data_align: (column as any).data_align || "left",
-        column_group: (column as any).column_group || "",
-        formula: (column as any).formula || "",
+        header_align: column.headerAlign || "left",
+        data_align: column.dataAlign || "left",
+        column_group: ((column as unknown as Record<string, unknown>).column_group as string) || "",
+        formula: ((column as unknown as Record<string, unknown>).formula as string) || "",
         choices: column.choices || [],
         lookup_table_id: newLookupTableId,
         lookup_display_column: column.lookup_display_column || "",
@@ -227,9 +222,9 @@ export function ColumnEditorModal({
     if (!column) return false;
     return (
       editedColumn.name !== column.label ||
-      editedColumn.header_align !== ((column as any).header_align || "left") ||
-      editedColumn.data_align !== ((column as any).data_align || "left") ||
-      editedColumn.column_group !== ((column as any).column_group || "")
+      editedColumn.header_align !== (column.headerAlign || "left") ||
+      editedColumn.data_align !== (column.dataAlign || "left") ||
+      editedColumn.column_group !== (((column as unknown as Record<string, unknown>).column_group as string) || "")
     );
   };
 
@@ -248,11 +243,6 @@ export function ColumnEditorModal({
     setSaving(true);
     try {
       const columnId = column.id;
-      console.log('[ColumnEditorModal] handleSave column:', {
-        column_key: column.key,
-        column_id: column.id,
-        foundationId,
-      });
       if (!columnId) {
         toast({
           title: "Error",
@@ -273,7 +263,6 @@ export function ColumnEditorModal({
         },
       });
 
-      console.log('[ColumnEditorModal] Saved column with choices:', editedColumn.choices);
       toast({ title: "Success", description: "Column updated successfully" });
 
       // Invalidate columns cache so ViewManagerSheet shows the updated column
@@ -367,7 +356,7 @@ export function ColumnEditorModal({
                 )}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                {metadata.icon} {metadata.label} • {(column as any).required ? "Required" : "Optional"}
+                {metadata.icon} {metadata.label} • {column.required ? "Required" : "Optional"}
               </DialogDescription>
             </div>
           </div>
@@ -984,7 +973,7 @@ export function ColumnEditorModal({
                           </div>
                         ) : (
                           editedColumn.choices.map((choice, index) => (
-                            <div key={index} className="flex items-center justify-between p-3 hover:bg-muted/50">
+                            <div key={`choice-${choice}-${index}`} className="flex items-center justify-between p-3 hover:bg-muted/50">
                               <span className="text-sm">{choice}</span>
                               <Button
                                 variant="ghost"

@@ -57,10 +57,7 @@ module Api
             )
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @job_claim.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_claim)
         end
       end
 
@@ -75,10 +72,7 @@ module Api
             )
           }
         else
-          render json: {
-            success: false,
-            errors: @job_claim.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@job_claim)
         end
       end
 
@@ -95,7 +89,7 @@ module Api
       # Batch delete with 1000 item cap for performance
       def bulk_delete
         ids = params[:ids]
-        return render json: { success: false, error: "No IDs provided" }, status: :bad_request if ids.blank?
+        return render_error("No IDs provided", status: :bad_request) if ids.blank?
 
         # Cap at 1000 items per request to prevent abuse
         ids = ids.first(1000) if ids.is_a?(Array)
@@ -127,7 +121,7 @@ module Api
       # Batch create with 1000 item cap for performance
       def bulk_create
         claims_data = params[:claims]
-        return render json: { success: false, error: "No claims data provided" }, status: :bad_request if claims_data.blank?
+        return render_error("No claims data provided", status: :bad_request) if claims_data.blank?
 
         # Cap at 1000 items per request
         claims_data = claims_data.first(1000) if claims_data.is_a?(Array)
@@ -183,13 +177,13 @@ module Api
       def set_job
         @job = Job.find(params[:job_id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job not found" }, status: :not_found
+        render_error("Job not found", status: :not_found)
       end
 
       def set_job_claim
         @job_claim = JobClaim.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Job claim not found" }, status: :not_found
+        render_error("Job claim not found", status: :not_found)
       end
 
       def job_claim_params

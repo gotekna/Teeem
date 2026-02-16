@@ -42,10 +42,7 @@ module Api
             data: serialize_type(@type)
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: @type.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@type)
         end
       end
 
@@ -62,20 +59,14 @@ module Api
             data: serialize_type(@type)
           }
         else
-          render json: {
-            success: false,
-            error: @type.errors.full_messages.join(', ')
-          }, status: :unprocessable_entity
+          render_validation_errors(@type)
         end
       end
 
       # DELETE /api/v1/plan_types/:id
       def destroy
         if @type.job_plans.exists?
-          return render json: {
-            success: false,
-            error: 'Cannot delete plan type that is in use by jobs.'
-          }, status: :unprocessable_entity
+          return render_error('Cannot delete plan type that is in use by jobs.', status: :unprocessable_entity)
         end
 
         @type.destroy

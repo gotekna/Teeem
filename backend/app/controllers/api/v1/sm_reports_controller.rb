@@ -173,7 +173,7 @@ module Api
           end
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Resource not found" }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       # GET /api/v1/sm_reports/task/:task_id
@@ -232,7 +232,7 @@ module Api
           end
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Task not found" }, status: :not_found
+        render_error("Task not found", status: :not_found)
       end
 
       private

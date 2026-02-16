@@ -188,6 +188,11 @@ class EmailSendingService
     # Determine the from email (used for mailbox_owner_email)
     from_email_addr = sender_email
 
+    # FRC (Feb 2026): Record attachment count so sent emails show correct attachment info.
+    # Previous bug: has_attachments/attachment_count were never set, so sent emails
+    # appeared to have 0 attachments in the UI until MS365/IMAP sync replaced the record.
+    att_count = @params.attachments_list.size
+
     synced_email = SyncedEmail.create!(
       internet_message_id: result.message_id || SecureRandom.uuid,
       source_type: @account_type,
@@ -207,6 +212,8 @@ class EmailSendingService
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: @params.user,
+      has_attachments: att_count > 0,
+      attachment_count: att_count,
       # SSoT: Multi-tenancy - set tenant_id from user
       tenant_id: @params.user&.tenant_id
     )
@@ -351,7 +358,14 @@ class EmailSendingService
 
   def find_ms365_credential
     credential_id = ms365_credential_id
-    credential = MicrosoftCredential.find_by(id: credential_id)
+    # Tenant-scoped lookup (security) - Use user's tenant
+    tenant = @params.user&.tenant
+    credential = if tenant
+                   MicrosoftCredential.where(tenant_id: tenant.id)
+                                     .find_by(id: credential_id)
+                 else
+                   MicrosoftCredential.find_by(id: credential_id)
+                 end
 
     raise CredentialNotFoundError, "MS365 credential not found" unless credential
     credential

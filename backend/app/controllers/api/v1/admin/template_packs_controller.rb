@@ -55,7 +55,7 @@ module Api
             template_pack: pack_json(pack, include_items: true)
           }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # POST /api/v1/admin/template_packs/:id/import
@@ -104,7 +104,7 @@ module Api
         # Delete a template pack (only if owned by current tenant)
         def destroy
           unless @pack.source_tenant_id == current_tenant&.id || current_user.teeem_staff?
-            return render json: { success: false, error: "Cannot delete packs from other tenants" }, status: :forbidden
+            return render_error("Cannot delete packs from other tenants", status: :forbidden)
           end
 
           @pack.destroy!
@@ -150,7 +150,7 @@ module Api
             }, status: :unprocessable_entity
           end
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         # GET /api/v1/admin/template_packs/sync_preview
@@ -173,7 +173,7 @@ module Api
             errors: preview[:errors]
           }
         rescue ArgumentError => e
-          render json: { success: false, error: e.message }, status: :unprocessable_entity
+          render_error(e.message, status: :unprocessable_entity)
         end
 
         private
@@ -183,20 +183,20 @@ module Api
 
           # Verify access
           unless TemplatePack.available_for(current_tenant).exists?(id: @pack.id) || current_user.teeem_staff?
-            render json: { success: false, error: "Template pack not found" }, status: :not_found
+            render_error("Template pack not found", status: :not_found)
           end
         end
 
         def require_admin!
           return if current_user&.admin? || current_user&.teeem_staff?
 
-          render json: { success: false, error: "Admin access required" }, status: :forbidden
+          render_error("Admin access required", status: :forbidden)
         end
 
         def require_teeem_staff!
           return if current_user&.teeem_staff?
 
-          render json: { success: false, error: "TEEEM staff access required" }, status: :forbidden
+          render_error("TEEEM staff access required", status: :forbidden)
         end
 
         def current_tenant

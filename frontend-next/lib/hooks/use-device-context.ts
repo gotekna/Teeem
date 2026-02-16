@@ -14,6 +14,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useMediaQuery, BREAKPOINT_QUERIES } from "./use-media-query";
 import { debounce } from "@/utils/debounce";
+import { DEBOUNCE_RESIZE_MS } from "@/lib/constants/timeout-constants";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types
@@ -97,8 +98,8 @@ export function useDeviceContext(): DeviceContext {
     // Set initial viewport on mount
     updateViewport();
 
-    // Debounced resize handler (100ms)
-    const debouncedUpdate = debounce(updateViewport, 100);
+    // Debounced resize handler
+    const debouncedUpdate = debounce(updateViewport, DEBOUNCE_RESIZE_MS);
     window.addEventListener("resize", debouncedUpdate);
 
     return () => {

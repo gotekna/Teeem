@@ -1,12 +1,16 @@
 # Tracks data quality issues detected by automated checks
 class DataQualityIssue < ApplicationRecord
   # Validations
+  # Constants
+  SEVERITIES = %w[info warning error critical].freeze
+  STATUSES = %w[open acknowledged resolved ignored].freeze
+
   validates :view_name, presence: true
   validates :check_name, presence: true
   validates :description, presence: true
   validates :detected_at, presence: true
-  validates :severity, presence: true, inclusion: { in: %w[info warning error critical] }
-  validates :status, presence: true, inclusion: { in: %w[open acknowledged resolved ignored] }
+  validates :severity, presence: true, inclusion: { in: SEVERITIES }
+  validates :status, presence: true, inclusion: { in: STATUSES }
 
   # Scopes
   scope :for_view, ->(name) { where(view_name: name) }

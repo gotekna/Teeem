@@ -27,9 +27,9 @@ export function ContactPortalTab({ contact }: ContactPortalTabProps) {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Check if contact has portal access
-  const hasPortalAccess = (contact as any).portal_enabled || false;
+  const hasPortalAccess = contact.portal_enabled || false;
   const portalEmail = contact.email;
-  const lastLogin = (contact as any).portal_last_login;
+  const lastLogin = contact.portal_last_login;
 
   const handleSendInvitation = async () => {
     if (!portalEmail) {

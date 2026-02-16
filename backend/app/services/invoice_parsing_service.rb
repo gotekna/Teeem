@@ -20,9 +20,9 @@ class InvoiceParsingService
 
     Rails.logger.info "[InvoiceParsing] Starting extraction for BillInbox ##{@bill.id}"
 
-    # Run OCR extraction (Tesseract) for exact coordinates
+    # Run OCR extraction (Claude Vision) for exact coordinates
     Rails.logger.info "[InvoiceParsing] Running OCR extraction..."
-    ocr_result = OcrExtractionService.new(@bill).extract!
+    ocr_result = OcrVisionExtractorService.new(@bill).extract!
 
     # Extract text from PDF
     pdf_text = extract_pdf_text
@@ -57,14 +57,14 @@ class InvoiceParsingService
 
   private
 
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   def extract_pdf_text
     # Download from SharePoint (SSoT)
     content = @bill.download_invoice_file
     return "" unless content
 
     if @bill.invoice_file_content_type == "application/pdf"
-      result = PdfTextExtractionService.extract(content, join_pages: true)
+      result = OcrTextExtractorService.extract(content, join_pages: true)
       result[:success] ? result[:text] : ""
     else
       # For images, we'll rely on Claude's vision capability
@@ -332,7 +332,7 @@ class InvoiceParsingService
       subtotal: result[:subtotal],
       tax_amount: result[:tax_amount],
       total_amount: result[:total_amount],
-      currency: result[:currency] || "AUD",
+      currency: result[:currency] || TenantSetting::DEFAULT_CURRENCY,
       line_items: result[:line_items] || [],
       ai_confidence: result[:confidence],
       ai_extraction_result: result,

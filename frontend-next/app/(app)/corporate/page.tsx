@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { useToast } from "@/components/ui/use-toast";
+import { ROUTES } from "@/lib/constants/route-paths";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { API_TIMEOUT_HEAVY_SYNC } from "@/lib/constants/timeout-constants";
 import {
   Table,
@@ -1333,18 +1335,18 @@ export default function CorporateDashboardPage() {
         <CardContent className="p-6">
           <h3 className="text-base font-medium mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <QuickAction label="Manage Groups" icon={Building2} href="/admin/system/company/groups" color="indigo" />
-            <QuickAction label="Manage Companies" icon={Plus} href="/admin/system/company/companies" color="blue" />
-            <QuickAction label="Add Asset" icon={Package} href="/corporate/assets/new" />
-            <QuickAction label="View Directors" icon={Users} href="/corporate/directors" />
-            <QuickAction label="Compliance Calendar" icon={Calendar} href="/corporate/compliance-calendar" />
-            <QuickAction label="Minute Templates" icon={FileText} href="/corporate/minute-templates" />
-            <QuickAction label="Xero Integration" icon={ExternalLink} href="/xero" />
+            <QuickAction label="Manage Groups" icon={Building2} href={ROUTES.ADMIN.SYSTEM_COMPANY_GROUPS} color="indigo" />
+            <QuickAction label="Manage Companies" icon={Plus} href={ROUTES.ADMIN.SYSTEM_COMPANY_COMPANIES} color="blue" />
+            <QuickAction label="Add Asset" icon={Package} href={ROUTES.CORPORATE_ASSETS_NEW} />
+            <QuickAction label="View Directors" icon={Users} href={ROUTES.CORPORATE_DIRECTORS} />
+            <QuickAction label="Compliance Calendar" icon={Calendar} href={ROUTES.CORPORATE_COMPLIANCE_CALENDAR} />
+            <QuickAction label="Minute Templates" icon={FileText} href={ROUTES.CORPORATE_MINUTE_TEMPLATES} />
+            <QuickAction label="Xero Integration" icon={ExternalLink} href={ROUTES.XERO} />
             <QuickAction label="Sync All Xero" icon={RefreshCw} onClick={handleSyncAllXero} loading={syncingXero} color="purple" />
-            <QuickAction label="Financial Dashboard" icon={DollarSign} href="/financial" color="green" />
-            <QuickAction label="ASIC Logins" icon={Key} href="/corporate/asic-logins" />
-            <QuickAction label="Document Types" icon={FileText} href="/corporate/document-types" />
-            <QuickAction label="Consolidation" icon={ArrowLeftRight} href="/corporate/consolidation" />
+            <QuickAction label="Financial Dashboard" icon={DollarSign} href={ROUTES.FINANCIAL} color="green" />
+            <QuickAction label="ASIC Logins" icon={Key} href={ROUTES.CORPORATE_ASIC_LOGINS} />
+            <QuickAction label="Document Types" icon={FileText} href={ROUTES.CORPORATE_DOCUMENT_TYPES} />
+            <QuickAction label="Consolidation" icon={ArrowLeftRight} href={ROUTES.CORPORATE_CONSOLIDATION} />
           </div>
         </CardContent>
       </Card>
@@ -1395,7 +1397,7 @@ export default function CorporateDashboardPage() {
                   Manage company groups to organize related entities
                 </CardDescription>
               </div>
-              <Button variant="outline" onClick={() => router.push("/admin/system/company/groups")}>
+              <Button variant="outline" onClick={() => router.push(ROUTES.ADMIN.SYSTEM_COMPANY_GROUPS)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Manage in Admin
               </Button>
@@ -1566,7 +1568,7 @@ export default function CorporateDashboardPage() {
         {/* Companies Tab */}
         <TabsContent value="companies" className="mt-4">
           <TeeemTableView
-            foundationId="corporate_companies"
+            foundationId={FOUNDATION_SLUGS.CORPORATE_COMPANIES}
             tableName="All Companies"
             entries={companies}
             onRowDoubleClick={(company) => router.push(`/corporate/companies/${company.id}`)}
@@ -1574,7 +1576,7 @@ export default function CorporateDashboardPage() {
             enableSchemaEditor={true}
             hideUpdateViewButton={true}
             leftActions={
-              <Button variant="outline" onClick={() => router.push("/admin/system/company/companies")}>
+              <Button variant="outline" onClick={() => router.push(ROUTES.ADMIN.SYSTEM_COMPANY_COMPANIES)}>
                 <Settings className="h-4 w-4 mr-2" />
                 Manage in Admin
               </Button>

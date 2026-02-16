@@ -48,7 +48,7 @@ import {
   type SignatureStyleId,
   DEFAULT_SIGNATURE_STYLE,
 } from "@/lib/email-signature";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { MAX_UPLOAD_SIZE, MAX_SIGNATURE_SIZE } from "@/lib/constants/file-size-limits";
 
 // QBCC Licence Classes relevant for Form 43 certificates
 const QBCC_LICENCE_CLASSES = [
@@ -119,14 +119,14 @@ export default function ProfileSettingsPage() {
     if (user) {
       setProfileName(user.name || "");
       setProfileEmail(user.email || "");
-      setProfilePhone((user as any).mobile_phone || "");
-      setProfileJobTitle((user as any).job_title || "");
+      setProfilePhone(user.mobile_phone || "");
+      setProfileJobTitle(user.job_title || "");
       // Profile photo
-      setPhotoUrl((user as any).photo_url || null);
+      setPhotoUrl(user.photo_url || null);
       // QBCC/Signature fields
-      setQbccLicenceNumber((user as any).qbcc_licence_number || "");
-      setQbccLicenceClass((user as any).qbcc_licence_class || "");
-      setSignatureUrl((user as any).signature_url || null);
+      setQbccLicenceNumber(user.qbcc_licence_number || "");
+      setQbccLicenceClass(user.qbcc_licence_class || "");
+      setSignatureUrl(user.signature_url || null);
     }
   }, [user]);
 
@@ -172,7 +172,7 @@ export default function ProfileSettingsPage() {
         return;
       }
       // Validate file size (max 10MB)
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > MAX_UPLOAD_SIZE) {
         toast({ title: "File Too Large", description: "Photo must be less than 10MB", variant: "destructive" });
         return;
       }
@@ -193,7 +193,7 @@ export default function ProfileSettingsPage() {
         return;
       }
       // Validate file size (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
+      if (file.size > MAX_SIGNATURE_SIZE) {
         toast({ title: "File Too Large", description: "Signature image must be less than 2MB", variant: "destructive" });
         return;
       }
@@ -232,16 +232,11 @@ export default function ProfileSettingsPage() {
           formData.append("user[signature]", signatureFile);
         }
 
-        // Use Next.js proxy route for FormData uploads (handles CORS)
-        const token = getStorageItem(STORAGE_KEYS.TOKEN, '', false);
-        const response = await fetch(`/api/v1/users/${user.id}`, {
-          method: "PATCH",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-        const data = await response.json();
+        // Use api.patch for FormData uploads (handles auth automatically)
+        const data = await api.patch<{ success?: boolean; errors?: string[] }>(
+          `/api/v1/users/${user.id}`,
+          formData
+        );
 
         if (data?.success) {
           setPhotoFile(null);
@@ -420,7 +415,7 @@ export default function ProfileSettingsPage() {
                 {signaturePreview || signatureUrl ? (
                   <img
                     src={signaturePreview || signatureUrl || ""}
-                    alt="Signature"
+                    alt="Digital signature preview"
                     className="max-w-full max-h-full object-contain"
                   />
                 ) : (
@@ -469,7 +464,7 @@ export default function ProfileSettingsPage() {
             </div>
 
             {/* Status Indicator */}
-            {(user as any)?.can_sign_certificates && (
+            {user?.can_sign_certificates && (
               <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
                 <Check className="h-4 w-4" />
                 Ready to sign certificates

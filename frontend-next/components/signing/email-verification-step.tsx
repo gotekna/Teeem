@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Mail, RefreshCw } from "lucide-react";
+import { COUNTDOWN_TICK_MS } from "@/lib/constants/timeout-constants";
 
 interface EmailVerificationStepProps {
   token: string;
@@ -33,7 +34,7 @@ export function EmailVerificationStep({
   // Countdown timer for resend
   useEffect(() => {
     if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      const timer = setTimeout(() => setCountdown(countdown - 1), COUNTDOWN_TICK_MS);
       return () => clearTimeout(timer);
     }
   }, [countdown]);

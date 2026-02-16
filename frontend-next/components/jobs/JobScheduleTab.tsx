@@ -392,7 +392,6 @@ export function JobScheduleTab({ jobId }: JobScheduleTabProps) {
 
           // Show warnings if some tasks were skipped
           if (deleteResponse.errors && deleteResponse.errors.length > 0) {
-            console.warn("Delete orphans warnings:", deleteResponse.errors);
             toast({
               title: "Some Tasks Skipped",
               description: `${deleteResponse.deleted} deleted, ${deleteResponse.errors.length} skipped (linked or has job reality)`,

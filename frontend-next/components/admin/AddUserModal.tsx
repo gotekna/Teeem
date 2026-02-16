@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
 import { User, UserPlus } from "lucide-react";
+import { DEBOUNCE_SEARCH_MS } from '@/lib/constants/timeout-constants';
 
 interface AddUserModalProps {
   isOpen: boolean;
@@ -106,7 +107,7 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
   // Debounce contact search
   useEffect(() => {
     if (!createNewContact && contactSearch.length >= 2) {
-      const timeout = setTimeout(() => searchContacts(contactSearch), 300);
+      const timeout = setTimeout(() => searchContacts(contactSearch), DEBOUNCE_SEARCH_MS);
       return () => clearTimeout(timeout);
     }
   }, [contactSearch, createNewContact, searchContacts]);

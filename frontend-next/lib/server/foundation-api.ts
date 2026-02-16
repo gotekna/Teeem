@@ -10,36 +10,18 @@ import { cookies } from 'next/headers';
 import { isHiddenSystemColumn, isVisibleSystemColumn } from '@/lib/constants/system-columns';
 import { selectDefaultView } from '@/lib/view-loading-utils';
 import type { SavedView } from '@/components/table/types';
+import { API_PAGE_SIZES } from '@/lib/constants/pagination-constants';
+import type { Foundation, ApiColumn } from '@/lib/types';
 
 // SSR always uses env variable directly - no localStorage on server
+// Prefer non-public API_URL (runtime, set per Vercel environment) with NEXT_PUBLIC fallback
 const getServerApiUrl = () => {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'https://teeem-production-121159e1ff9d.herokuapp.com';
-  console.log('[SSR] API URL:', url);
+  const url = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (!url) {
+    throw new Error('API_URL or NEXT_PUBLIC_API_URL environment variable is required');
+  }
   return url;
 };
-
-interface ApiColumn {
-  id: number;
-  foundation_id?: number;
-  column_name: string;
-  name: string;
-  column_type: string;
-  description?: string;
-  available_choices?: string[];
-  lookup_foundation_id?: number;
-  lookup_foundation_slug?: string;
-  lookup_display_column?: string;
-  required?: boolean;
-  is_unique?: boolean;
-  settings?: Record<string, unknown>;
-}
-
-interface Foundation {
-  id: number;
-  name: string;
-  slug: string;
-  columns: ApiColumn[];
-}
 
 interface TableColumn {
   id?: number;
@@ -86,7 +68,6 @@ interface FoundationData {
 async function getAuthToken(): Promise<string | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('auth_token')?.value || null;
-  console.log('[SSR] getAuthToken:', token ? `token found (${token.substring(0, 20)}...)` : 'no token');
   return token;
 }
 
@@ -95,11 +76,9 @@ async function getAuthToken(): Promise<string | null> {
  * This runs during SSR and provides initial data to components
  */
 export async function fetchFoundationBySlug(slug: string): Promise<FoundationData> {
-  console.log('[SSR] fetchFoundationBySlug starting for:', slug);
   const token = await getAuthToken();
 
   if (!token) {
-    console.log('[SSR] No auth token - returning empty data');
     return {
       foundation: null,
       columns: [],
@@ -131,7 +110,7 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Use cursor-based pagination: initial load is 100 records for instant page load
     // More records will be loaded in background by ContactsPageClient
     const recordsRes = await fetch(
-      `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/records?limit=100`,
+      `${getServerApiUrl()}/api/v1/foundations/${foundation.id}/records?limit=${API_PAGE_SIZES.REFERENCE_LIST}`,
       {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -155,7 +134,6 @@ export async function fetchFoundationBySlug(slug: string): Promise<FoundationDat
     // Transform columns to TeeemTableView format
     const columns = transformColumns(foundation);
 
-    console.log('[SSR] Successfully fetched:', slug, '- records:', records.length, '- hasMore:', hasMore);
     return {
       foundation,
       columns,
@@ -204,7 +182,7 @@ function transformColumns(foundation: Foundation): TableColumn[] {
       sortable: true,
       filterable: true,
       width: getDefaultWidth(col.column_name, col.column_type),
-      choices: col.available_choices,
+      choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
       lookup_foundation_id: col.lookup_foundation_id,
       lookup_foundation_slug: col.lookup_foundation_slug,
       lookup_display_column: col.lookup_display_column,
@@ -345,9 +323,7 @@ export async function fetchFoundationForSSR(
       ) || null;
 
       if (view) {
-        console.log('[SSR] Pre-loaded URL view:', view.name, 'with grouping:', view.group_by_columns);
       } else {
-        console.log('[SSR] View not found for slug:', viewSlug);
       }
     }
 
@@ -364,7 +340,6 @@ export async function fetchFoundationForSSR(
         // Find original ViewData by ID
         view = views.find(v => v.id === defaultView.id) || null;
         if (view) {
-          console.log('[SSR] Auto-selected default view:', view.name, 'with grouping:', view.group_by_columns);
         }
       }
     }
@@ -400,7 +375,6 @@ export async function fetchFoundationForSSR(
               totalRecords: groupsData.total_records || 0,
               displayValuesMap: groupsData.display_values_map || {},
             };
-            console.log('[SSR] Pre-loaded group counts:', groupCounts.groups.length, 'groups');
           }
         }
       } catch (groupErr) {
@@ -488,7 +462,6 @@ export async function fetchViewBySlug(
   const token = await getAuthToken();
 
   if (!token) {
-    console.log('[SSR] No auth token - cannot fetch view');
     return null;
   }
 
@@ -516,7 +489,6 @@ export async function fetchViewBySlug(
     const views = data.views as ViewData[];
 
     if (!views || !Array.isArray(views)) {
-      console.log('[SSR] No views found for foundation:', foundationSlug);
       return null;
     }
 
@@ -528,11 +500,9 @@ export async function fetchViewBySlug(
     );
 
     if (view) {
-      console.log('[SSR] Found view:', view.name, 'slug:', view.slug);
       return view;
     }
 
-    console.log('[SSR] View not found for slug:', viewSlug);
     return null;
   } catch (err) {
     console.error('[SSR] Failed to fetch view:', err);

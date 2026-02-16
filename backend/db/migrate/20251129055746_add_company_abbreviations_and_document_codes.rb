@@ -25,11 +25,11 @@ class AddCompanyAbbreviationsAndDocumentCodes < ActiveRecord::Migration[8.0]
         }
 
         company_codes.each do |name_pattern, code|
-          execute <<-SQL
-            UPDATE companies
-            SET abbreviation = '#{code}'
-            WHERE name ILIKE '%#{name_pattern}%'
-          SQL
+          execute sanitize_sql_array([
+            "UPDATE companies SET abbreviation = ? WHERE name ILIKE ?",
+            code,
+            "%#{name_pattern}%"
+          ])
         end
       end
     end

@@ -9,7 +9,10 @@ import {
   Minus,
   ArrowRight,
   RefreshCw,
+  AlertTriangle,
+  X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import {
   Popover,
   PopoverContent,
@@ -41,7 +44,33 @@ interface QueueStatusData {
     status: string;
     last_heartbeat: string | null;
     staleness_seconds: number | null;
+    circuit_breaker?: {
+      open: boolean;
+      cooled_down?: boolean;
+      cooldown_remaining_seconds?: number;
+      recent_restarts: number;
+    };
   };
+  backlog: Array<{ key: string; label: string; remaining: number }>;
+  dbConnections: { active: number; max: number } | null;
+  memory: { usedMb: number; maxMb: number } | null;
+  uptime: {
+    bootedAt: string;
+    uptimeSeconds: number;
+    uptimeHuman: string;
+  } | null;
+  xeroRateLimits: Array<{
+    tenantName: string;
+    lockedOut: boolean;
+    remainingSeconds: number;
+    lockedUntil: string | null;
+    dailyUsed: number;
+    dailyLimit: number;
+    minuteUsed: number;
+    invoiceCount: number;
+    syncedCount: number;
+  }>;
+  throughputHistory: Array<{ minutesAgo: number; count: number }>;
 }
 
 function getStatusIconColor(status: QueueStatusLevel) {
@@ -145,12 +174,90 @@ function friendlyJobName(className: string): { name: string; hint: string } {
   };
 }
 
+function ResourceBar({
+  label,
+  used,
+  max,
+  unit,
+}: {
+  label: string;
+  used: number;
+  max: number;
+  unit?: string;
+}) {
+  const pct = max > 0 ? used / max : 0;
+  const color =
+    pct > 0.8
+      ? "text-red-500 dark:text-red-400"
+      : pct > 0.6
+        ? "text-orange-500 dark:text-orange-400"
+        : "text-foreground";
+  const barColor =
+    pct > 0.8 ? "bg-red-500" : pct > 0.6 ? "bg-orange-500" : "bg-green-500";
+
+  return (
+    <div>
+      <div className="flex justify-between items-center text-xs">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="tabular-nums">
+          <span className={cn("font-medium", color)}>{used}</span>
+          <span className="text-muted-foreground">
+            /{max}
+            {unit ? ` ${unit}` : ""}
+          </span>
+        </span>
+      </div>
+      <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all", barColor)}
+          style={{
+            width: `${Math.min(pct * 100, 100)}%`,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function Sparkline({ data }: { data: number[] }) {
+  const max = Math.max(...data, 1);
+  const h = 24;
+  const w = 200;
+  const step = w / (data.length - 1 || 1);
+
+  const points = data
+    .map((v, i) => `${i * step},${h - (v / max) * h}`)
+    .join(" ");
+
+  return (
+    <svg
+      viewBox={`0 0 ${w} ${h}`}
+      className="w-full h-6"
+      preserveAspectRatio="none"
+    >
+      <polyline
+        points={points}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        className="text-primary"
+      />
+      <polyline
+        points={`0,${h} ${points} ${w},${h}`}
+        fill="currentColor"
+        className="text-primary/10"
+      />
+    </svg>
+  );
+}
+
 export function WorkerQueueStatus() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [data, setData] = useState<QueueStatusData | null>(null);
   const [status, setStatus] = useState<QueueStatusLevel>("unknown");
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const fetchQueueStatus = useCallback(async () => {
     setIsLoading(true);
@@ -160,6 +267,10 @@ export function WorkerQueueStatus() {
         data: QueueStatusData;
       }>("/api/v1/system/queue_status");
       if (response?.success && response?.data) {
+        // Un-dismiss banner if worker recovers then dies again
+        if (response.data.status === "error" && status !== "error") {
+          setBannerDismissed(false);
+        }
         setData(response.data);
         setStatus(response.data.status);
         setLastFetched(new Date());
@@ -170,11 +281,13 @@ export function WorkerQueueStatus() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [status]);
 
-  // Fetch on mount (for the status dot)
+  // Fetch on mount + poll every 60s for worker health visibility
   useEffect(() => {
     fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 60_000);
+    return () => clearInterval(interval);
   }, [fetchQueueStatus]);
 
   // Re-fetch when popover opens (for fresh detail data)
@@ -191,7 +304,47 @@ export function WorkerQueueStatus() {
   const hasQueueDepth =
     data?.queueDepth && data.queueDepth.some((q) => q.count > 0);
 
+  // Worker dead banner - portal to body so it renders above everything
+  const showBanner = status === "error" && !bannerDismissed;
+  const workerBanner = showBanner && typeof document !== "undefined"
+    ? createPortal(
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="fixed top-0 left-0 right-0 z-[60] px-4 py-2 flex items-center justify-between gap-3 text-sm font-medium bg-red-600 text-white dark:bg-red-900 dark:text-red-100 shadow-lg"
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+            <span>
+              Background processing offline &mdash; email sync, Xero sync, and scheduled jobs are paused
+              {data?.watchdog?.status === "dead" && " (auto-restart in progress)"}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchQueueStatus()}
+              className="p-1 rounded hover:bg-white/20 transition-colors"
+              aria-label="Refresh status"
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            </button>
+            <button
+              onClick={() => setBannerDismissed(true)}
+              className="p-1 rounded hover:bg-white/20 transition-colors"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>,
+        document.body
+      )
+    : null;
+
   return (
+    <>
+    {workerBanner}
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <button
@@ -266,6 +419,137 @@ export function WorkerQueueStatus() {
                 />
               </div>
             </div>
+
+            {/* Resources: DB, Memory, Uptime */}
+            {(data.dbConnections || data.memory || data.uptime) && (
+              <div className="p-3 border-b border-border space-y-2">
+                <div className="flex justify-between items-center">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Resources
+                  </p>
+                  {data.uptime && (
+                    <span className="text-[10px] text-muted-foreground">
+                      up {data.uptime.uptimeHuman}
+                    </span>
+                  )}
+                </div>
+                {data.dbConnections && (
+                  <ResourceBar
+                    label="DB Connections"
+                    used={data.dbConnections.active}
+                    max={data.dbConnections.max}
+                  />
+                )}
+                {data.memory && (
+                  <ResourceBar
+                    label="Memory"
+                    used={data.memory.usedMb}
+                    max={data.memory.maxMb}
+                    unit="MB"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Throughput sparkline */}
+            {data.throughputHistory && data.throughputHistory.length > 0 && (
+              <div className="p-3 border-b border-border">
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Throughput
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    last 60 min
+                  </p>
+                </div>
+                <Sparkline data={data.throughputHistory.map((b) => b.count)} />
+              </div>
+            )}
+
+            {/* Xero Rate Limits */}
+            {data.xeroRateLimits && data.xeroRateLimits.length > 0 && (
+              <div className="p-3 border-b border-border">
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                    Xero Orgs
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {data.xeroRateLimits.filter((r) => !r.lockedOut).length}/{data.xeroRateLimits.length} active
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  {data.xeroRateLimits.map((org) => {
+                    const syncPct = org.invoiceCount > 0
+                      ? Math.round((org.syncedCount / org.invoiceCount) * 100)
+                      : 0;
+                    return (
+                      <div key={org.tenantName}>
+                        <div className="flex justify-between text-xs items-center">
+                          <span className={cn(
+                            "truncate",
+                            org.lockedOut ? "text-orange-500 dark:text-orange-400" : "text-foreground"
+                          )}>
+                            {org.tenantName}
+                          </span>
+                          <span className="shrink-0 ml-2 text-[10px] flex items-center gap-1.5">
+                            <span className="text-muted-foreground tabular-nums">
+                              {(org.syncedCount ?? 0).toLocaleString()}/{(org.invoiceCount ?? 0).toLocaleString()}
+                            </span>
+                            {org.lockedOut ? (
+                              <span className="text-orange-500 dark:text-orange-400 w-6 text-right">
+                                {Math.ceil(org.remainingSeconds / 60)}m
+                              </span>
+                            ) : (
+                              <span className="text-green-500 dark:text-green-400 w-6 text-right">OK</span>
+                            )}
+                          </span>
+                        </div>
+                        {org.invoiceCount > 0 && (
+                          <div className="mt-0.5 h-1 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                syncPct >= 100
+                                  ? "bg-green-500"
+                                  : org.lockedOut
+                                    ? "bg-orange-500"
+                                    : "bg-blue-500"
+                              )}
+                              style={{ width: `${Math.min(syncPct, 100)}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Backlog - application-level remaining work */}
+            {data.backlog && data.backlog.length > 0 && (
+              <div className="p-3 border-b border-border">
+                <div className="flex justify-between items-center mb-1.5">
+                  <p className="text-[10px] font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
+                    Backlog
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    remaining
+                  </p>
+                </div>
+                {data.backlog.map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex justify-between text-xs py-0.5"
+                  >
+                    <span className="text-foreground">{item.label}</span>
+                    <span className="text-blue-500 dark:text-blue-400 shrink-0 ml-2 tabular-nums">
+                      {(item.remaining ?? 0).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Processes */}
             {processEntries.length > 0 && (
@@ -371,5 +655,6 @@ export function WorkerQueueStatus() {
         </div>
       </PopoverContent>
     </Popover>
+    </>
   );
 }

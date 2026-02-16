@@ -49,10 +49,7 @@ module Api
             data: serialize_minute(@minute, include_content: true)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @minute.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@minute)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             data: serialize_minute(@minute, include_content: true)
           }
         else
-          render json: {
-            success: false,
-            errors: @minute.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@minute)
         end
       end
 

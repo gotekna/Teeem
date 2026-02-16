@@ -27,6 +27,8 @@ Commits only THIS chat session's changes and deploys to Staging AND Beta environ
 | Pipeline promotion (build once on staging, promote slug to beta) | ~2-3 min |
 | Smart migration check (only if db/migrate changed) | ~10-20s |
 | Vercel branch filtering (each project builds only its branch) | ~6 duplicate builds eliminated |
+| Skip frontend merges on backend-only deploys | ~30s git ops + avoids unnecessary Vercel builds |
+| Turbopack production builds | ~1-2 min per Vercel build |
 
 ## Vercel Branch Filtering
 
@@ -135,22 +137,28 @@ git push origin Staging
 
 **This triggers Vercel auto-deploy for Beta frontend.**
 
+**Skip entirely if no frontend changes (saves ~30s git ops + prevents unnecessary Vercel builds).**
+
 ```bash
-echo "🔀 Merging frontend branch Staging → Beta..."
+if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^frontend-next/"; then
+  echo "🔀 Frontend changes detected - merging Staging → Beta..."
 
-# Save current branch
-CURRENT_BRANCH=$(git branch --show-current)
+  # Save current branch
+  CURRENT_BRANCH=$(git branch --show-current)
 
-# Merge Staging → Beta
-git checkout Beta
-git pull origin Beta
-git merge Staging -m "Merge Staging into Beta for deployment"
-git push origin Beta
-echo "✅ Beta frontend updated"
+  # Merge Staging → Beta
+  git checkout Beta
+  git pull origin Beta
+  git merge Staging -m "Merge Staging into Beta for deployment"
+  git push origin Beta
+  echo "✅ Beta frontend updated"
 
-# Return to original branch
-git checkout "$CURRENT_BRANCH"
-echo "✅ Frontend branch merged"
+  # Return to original branch
+  git checkout "$CURRENT_BRANCH"
+  echo "✅ Frontend branch merged"
+else
+  echo "⏭️  No frontend changes - skipping branch merge (Vercel won't rebuild)"
+fi
 ```
 
 ### Step 4.6 - Verify Backend Changes Were Committed
@@ -188,34 +196,32 @@ git add -A
 git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 git remote add staging https://git.heroku.com/teeem-staging.git
 
+# 1. Push to Staging (builds slug, runs release phase with migrations)
 echo "📦 Building slug on Staging..."
 git push staging HEAD:main --force
-STAGING_EXIT=$?
+if [ $? -ne 0 ]; then
+  cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+  echo "❌ Staging deploy failed - aborting pipeline"
+  exit 1
+fi
+echo "✅ Staging deployed"
 
-# Deploy to worker apps (separate slugs - not part of pipeline promotion)
-git remote add staging-worker https://git.heroku.com/teeem-shared-worker.git
-git push staging-worker HEAD:main --force
-
-git remote add beta-worker https://git.heroku.com/teeem-beta-worker.git 2>/dev/null && git push beta-worker HEAD:main --force || echo "⚠️ Beta worker app not yet created"
+# 2. Push to shared worker (same code, separate dyno)
+git remote add worker https://git.heroku.com/teeem-shared-worker.git
+echo "📦 Deploying shared worker..."
+git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+echo "✅ Shared worker deployed"
 
 cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
-if [ $STAGING_EXIT -ne 0 ]; then
-  echo "❌ Staging deploy failed - aborting pipeline"
-  exit 1
-fi
-echo "✅ Staging backend deployed (slug built)"
-
-# Promote compiled slug to Beta (no rebuild - instant copy)
+# 3. Promote compiled slug to Beta (no rebuild - instant copy)
 echo "📦 Promoting Staging → Beta..."
 heroku pipelines:promote --app teeem-staging --to teeem-beta
-BETA_EXIT=$?
-
-if [ $BETA_EXIT -eq 0 ]; then
-  echo "✅ Beta backend promoted"
+if [ $? -eq 0 ]; then
+  echo "✅ Beta promoted"
 else
-  echo "❌ Beta promotion failed (exit: $BETA_EXIT)"
+  echo "❌ Beta promotion failed"
 fi
 
 echo "✅ All backend deploys complete"
@@ -252,6 +258,7 @@ BRISBANE_TIME=$(TZ='Australia/Brisbane' date '+%H:%M %d/%m')
 COMMIT_HASH=$(git rev-parse --short HEAD)
 COMMIT_MSG=$(git log -1 --pretty=%s)
 BACKEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "deployed" || echo "skipped")
+FRONTEND_DEPLOYED=$(git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^frontend-next/" && echo "deployed" || echo "skipped")
 ```
 
 **Output format:**
@@ -262,7 +269,7 @@ Commit: [hash] - [message]
 ----------------------------------------
 Frontend (Vercel - auto-deploy on branch merge):
   ✅ Staging: Staging branch pushed
-  ✅ Beta: Staging → Beta merged
+  ✅ Beta: [merged/skipped (no frontend changes)]
 
 Backend (Heroku - pipeline promotion):
   ✅ Staging: [deployed/skipped] (slug built)

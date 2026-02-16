@@ -6,7 +6,7 @@ class DocumentVerificationService
 
   # SSoT: MAX_FILE_SIZE_FOR_AI defined in DocumentStorageConstants
   MAX_FILE_SIZE = DocumentStorageConstants::MAX_FILE_SIZE_FOR_AI
-  MODEL = "claude-sonnet-4-20250514"
+  MODEL = "claude-sonnet-4-20250514".freeze
 
   class VerificationError < StandardError; end
   class FileNotFoundError < VerificationError; end
@@ -410,9 +410,9 @@ class DocumentVerificationService
     end
   end
 
-  # SSoT: Uses PdfTextExtractionService for all PDF text extraction
+  # SSoT: Uses OcrTextExtractorService for all PDF text extraction
   def extract_pdf_text(content)
-    result = PdfTextExtractionService.extract(
+    result = OcrTextExtractorService.extract(
       content,
       max_chars_per_page: 1500,
       include_page_numbers: true

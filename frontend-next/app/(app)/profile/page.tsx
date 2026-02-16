@@ -9,15 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/components/ui/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { MAX_UPLOAD_SIZE } from "@/lib/constants/file-size-limits";
+import type { User } from "@/lib/types";
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  photo_url?: string | null;
-}
-
-const MAX_PHOTO_SIZE = 1 * 1024 * 1024; // 1MB
+const MAX_PHOTO_SIZE = MAX_UPLOAD_SIZE;
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 
 export default function ProfilePage() {
@@ -82,7 +77,7 @@ export default function ProfilePage() {
     if (file.size > MAX_PHOTO_SIZE) {
       toast({
         title: "File too large",
-        description: "Photo must be under 1MB.",
+        description: "Photo must be under 10MB.",
         variant: "destructive",
       });
       return;
@@ -178,9 +173,9 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="flex items-center gap-6">
                 <div className="h-24 w-24 overflow-hidden rounded-lg bg-muted">
-                  {user?.photo_url ? (
+                  {(user?.photo_url || user?.avatar_url) ? (
                     <img
-                      src={user.photo_url}
+                      src={user.photo_url || user.avatar_url}
                       alt="Avatar"
                       className="h-full w-full object-cover"
                     />
@@ -215,7 +210,7 @@ export default function ProfilePage() {
                     )}
                   </Button>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    JPG, GIF or PNG. 1MB max.
+                    JPG, GIF or PNG. 10MB max.
                   </p>
                 </div>
               </div>

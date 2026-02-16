@@ -43,17 +43,45 @@ class CaseRecord < ApplicationRecord
   has_many :document_duplicate_reviews, foreign_key: :case_id, dependent: :destroy
 
   # ============================================
+  # CONSTANTS (SSoT: single hash serves both validation and display)
+  # ============================================
+
+  STATUSES = {
+    "open" => "Open",
+    "in_progress" => "In Progress",
+    "review" => "Under Review",
+    "closed" => "Closed",
+    "archived" => "Archived"
+  }.freeze
+
+  PRIORITIES = {
+    "low" => "Low",
+    "normal" => "Normal",
+    "high" => "High",
+    "urgent" => "Urgent"
+  }.freeze
+
+  CASE_TYPES = {
+    "ato_audit" => "ATO Audit",
+    "legal_dispute" => "Legal Dispute",
+    "director_investigation" => "Director Investigation",
+    "compliance_review" => "Compliance Review",
+    "due_diligence" => "Due Diligence",
+    "fraud_investigation" => "Fraud Investigation",
+    "insolvency" => "Insolvency",
+    "bankruptcy" => "Bankruptcy",
+    "other" => "Other"
+  }.freeze
+
+  # ============================================
   # VALIDATIONS
   # ============================================
 
   validates :title, presence: true
   validates :case_number, presence: true, uniqueness: true
-  validates :status, inclusion: { in: %w[open in_progress review closed archived] }
-  validates :priority, inclusion: { in: %w[low normal high urgent] }
-  validates :case_type, inclusion: {
-    in: %w[ato_audit legal_dispute director_investigation compliance_review due_diligence fraud_investigation insolvency bankruptcy other],
-    allow_blank: true
-  }
+  validates :status, inclusion: { in: STATUSES.keys }
+  validates :priority, inclusion: { in: PRIORITIES.keys }
+  validates :case_type, inclusion: { in: CASE_TYPES.keys, allow_blank: true }
   validates :risk_score, numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }, allow_nil: true
 
   # ============================================
@@ -81,37 +109,6 @@ class CaseRecord < ApplicationRecord
   scope :root_cases, -> { where(parent_case_id: nil) }
   scope :child_cases_of, ->(parent_id) { where(parent_case_id: parent_id) }
   scope :with_children, -> { where(id: CaseRecord.select(:parent_case_id).distinct) }
-
-  # ============================================
-  # CONSTANTS
-  # ============================================
-
-  CASE_TYPES = {
-    "ato_audit" => "ATO Audit",
-    "legal_dispute" => "Legal Dispute",
-    "director_investigation" => "Director Investigation",
-    "compliance_review" => "Compliance Review",
-    "due_diligence" => "Due Diligence",
-    "fraud_investigation" => "Fraud Investigation",
-    "insolvency" => "Insolvency",
-    "bankruptcy" => "Bankruptcy",
-    "other" => "Other"
-  }.freeze
-
-  STATUSES = {
-    "open" => "Open",
-    "in_progress" => "In Progress",
-    "review" => "Under Review",
-    "closed" => "Closed",
-    "archived" => "Archived"
-  }.freeze
-
-  PRIORITIES = {
-    "low" => "Low",
-    "normal" => "Normal",
-    "high" => "High",
-    "urgent" => "Urgent"
-  }.freeze
 
   # ============================================
   # WAREHOUSE INTEGRATION

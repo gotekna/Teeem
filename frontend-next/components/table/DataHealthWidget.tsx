@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -20,6 +20,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { HealthFixDialog } from "@/components/table/HealthFixDialog";
 
 /**
  * Health check item from the API
@@ -29,11 +30,28 @@ interface HealthCheckItem {
   display?: string;
   item_name?: string;
   contacts?: unknown[];
+  source_contact_id?: number;
+  related_contact_id?: number;
+  valid_type_options?: { value: string; label: string }[];
+  [key: string]: unknown;
 }
 
 /**
  * Health check definition from the API
  */
+/**
+ * Fix option from backend health check
+ */
+interface HealthFixOption {
+  action: string;
+  label: string;
+  description: string;
+  destructive?: boolean;
+  requires_value?: boolean;
+  value_field?: string;
+  frontend_only?: boolean;
+}
+
 interface HealthCheck {
   id: number;
   name: string;
@@ -46,6 +64,7 @@ interface HealthCheck {
   action_path?: string;
   auto_fixable?: boolean;
   fix_type?: string;
+  fix_options?: HealthFixOption[] | null;
 }
 
 /**
@@ -157,6 +176,11 @@ export function DataHealthWidget({
 
   // State for auto-fix in progress
   const [fixingCheckName, setFixingCheckName] = useState<string | null>(null);
+
+  // State for fix dialog (multi-option per-item fixes)
+  const [fixDialogOpen, setFixDialogOpen] = useState(false);
+  const [fixDialogItem, setFixDialogItem] = useState<HealthCheckItem | null>(null);
+  const [fixDialogCheck, setFixDialogCheck] = useState<HealthCheck | null>(null);
 
   // Check if a health check supports auto-fix
   const isAutoFixable = (check: HealthCheck) => {
@@ -418,14 +442,22 @@ export function DataHealthWidget({
                     <div className="bg-muted/50 border-t">
                       <div className="max-h-64 overflow-y-auto">
                         <div className="divide-y">
-                          {check.items.map((item, idx) => (
+                          {check.items.map((item, idx) => {
+                            const hasFixOptions = check.fix_options && check.fix_options.length > 0;
+                            return (
                             <div
                               key={item.id || idx}
                               className="px-4 py-2 hover:bg-muted flex items-center justify-between"
                             >
                               <span className="text-sm truncate cursor-pointer flex-1" onClick={(e) => {
                                 e.stopPropagation();
-                                handleItemClick(item, check);
+                                if (hasFixOptions) {
+                                  setFixDialogItem(item);
+                                  setFixDialogCheck(check);
+                                  setFixDialogOpen(true);
+                                } else {
+                                  handleItemClick(item, check);
+                                }
                               }}>
                                 {item.display || item.item_name || `Item ${item.id}`}
                               </span>
@@ -434,13 +466,20 @@ export function DataHealthWidget({
                                 className="ml-2 flex-shrink-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleItemClick(item, check);
+                                  if (hasFixOptions) {
+                                    setFixDialogItem(item);
+                                    setFixDialogCheck(check);
+                                    setFixDialogOpen(true);
+                                  } else {
+                                    handleItemClick(item, check);
+                                  }
                                 }}
                               >
                                 Fix
                               </Button>
                             </div>
-                          ))}
+                            );
+                          })}
                           {check.count > check.items.length && (
                             <div key="more-items" className="px-4 py-2 text-center text-xs text-muted-foreground">
                               + {check.count - check.items.length} more items
@@ -467,6 +506,22 @@ export function DataHealthWidget({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* Fix dialog for multi-option per-item fixes */}
+      <HealthFixDialog
+        open={fixDialogOpen}
+        onOpenChange={(open) => {
+          setFixDialogOpen(open);
+          if (!open) {
+            setFixDialogItem(null);
+            setFixDialogCheck(null);
+          }
+        }}
+        item={fixDialogItem}
+        fixType={fixDialogCheck?.fix_type ?? ""}
+        fixOptions={fixDialogCheck?.fix_options ?? []}
+        onFixComplete={() => loadHealthData(true)}
+      />
     </div>
   );
 }

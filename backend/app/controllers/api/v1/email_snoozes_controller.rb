@@ -49,10 +49,7 @@ class Api::V1::EmailSnoozesController < ApplicationController
         reason: params[:reason]
       )
     else
-      return render json: {
-        success: false,
-        error: "Either preset or snooze_until is required"
-      }, status: :unprocessable_entity
+      return render_error("Either preset or snooze_until is required", status: :unprocessable_entity)
     end
 
     render json: {
@@ -61,15 +58,9 @@ class Api::V1::EmailSnoozesController < ApplicationController
       message: "Email snoozed until #{snooze.snooze_until.strftime('%b %d at %I:%M %p')}"
     }, status: :created
   rescue ArgumentError => e
-    render json: {
-      success: false,
-      error: e.message
-    }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   rescue ActiveRecord::RecordInvalid => e
-    render json: {
-      success: false,
-      error: e.record.errors.full_messages.join(", ")
-    }, status: :unprocessable_entity
+    render_error(e.record.errors.full_messages.join(", "), status: :unprocessable_entity)
   end
 
   # DELETE /api/v1/email_snoozes/:id
@@ -88,16 +79,13 @@ class Api::V1::EmailSnoozesController < ApplicationController
   def extend
     if params[:preset].present?
       preset_config = EmailSnooze::PRESETS[params[:preset].to_sym]
-      return render json: { success: false, error: "Unknown preset" }, status: :unprocessable_entity unless preset_config
+      return render_error("Unknown preset", status: :unprocessable_entity) unless preset_config
 
       new_time = preset_config[:calculate].call
     elsif params[:snooze_until].present?
       new_time = Time.parse(params[:snooze_until])
     else
-      return render json: {
-        success: false,
-        error: "Either preset or snooze_until is required"
-      }, status: :unprocessable_entity
+      return render_error("Either preset or snooze_until is required", status: :unprocessable_entity)
     end
 
     @snooze.extend!(new_time)
@@ -140,18 +128,18 @@ class Api::V1::EmailSnoozesController < ApplicationController
   def bulk_snooze
     email_ids = params[:email_ids] || []
 
-    return render json: { success: false, error: "No emails provided" }, status: :bad_request if email_ids.empty?
+    return render_error("No emails provided", status: :bad_request) if email_ids.empty?
 
     # Determine snooze time
     if params[:preset].present?
       preset_config = EmailSnooze::PRESETS[params[:preset].to_sym]
-      return render json: { success: false, error: "Unknown preset" }, status: :unprocessable_entity unless preset_config
+      return render_error("Unknown preset", status: :unprocessable_entity) unless preset_config
 
       until_time = preset_config[:calculate].call
     elsif params[:snooze_until].present?
       until_time = Time.parse(params[:snooze_until])
     else
-      return render json: { success: false, error: "Either preset or snooze_until is required" }, status: :unprocessable_entity
+      return render_error("Either preset or snooze_until is required", status: :unprocessable_entity)
     end
 
     snoozed = []

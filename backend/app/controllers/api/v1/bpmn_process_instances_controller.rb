@@ -70,11 +70,11 @@ module Api
           first_task_id: first_task&.id
         }, status: :created
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue Bpmn::EngineService::ProcessError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       def cancel
@@ -102,9 +102,9 @@ module Api
           instances: @instances.map { |i| serialize_instance(i) }
         }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :unprocessable_entity
+        render_error(e.message, status: :unprocessable_entity)
       rescue ActiveRecord::RecordNotFound => e
-        render json: { success: false, error: e.message }, status: :not_found
+        render_error(e.message, status: :not_found)
       end
 
       private

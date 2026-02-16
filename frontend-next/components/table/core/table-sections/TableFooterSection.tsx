@@ -7,7 +7,6 @@
  * @see Phase 6 refactoring - Render Functions extraction
  */
 
-import React from 'react';
 import type { TableColumn } from '../../types';
 import { isNumericColumn } from '@/lib/constants/column-types';
 

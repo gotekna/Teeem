@@ -182,7 +182,6 @@ function simpleGridLayout<T extends Record<string, unknown>>(
   // Ensure all nodes have positions - assign any missing nodes
   nodes.forEach(node => {
     if (!nodePositions.has(node.id)) {
-      console.warn(`Node ${node.id} not positioned, defaulting to row 1`);
       nodePositions.set(node.id, {col: maxCol + 3, row: 1});
     }
   });
@@ -199,7 +198,6 @@ function simpleGridLayout<T extends Record<string, unknown>>(
     const rowY = Math.round(rowCenterY - (dimensions.height / 2));
 
     // Debug logging
-    console.log(`Node: ${node.data?.name || node.id}, Row: ${pos.row}, Col: ${pos.col}, Y: ${rowY}, Height: ${dimensions.height}`);
 
     return {
       ...node,

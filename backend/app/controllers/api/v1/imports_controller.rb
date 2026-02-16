@@ -79,10 +79,7 @@ module Api
           Rails.logger.error "Import upload error: #{e.class} - #{e.message}"
           Rails.logger.error e.backtrace.join("\n")
 
-          render json: {
-            success: false,
-            error: e.message
-          }, status: :internal_server_error
+          render_error(e.message, status: :internal_server_error)
         end
       end
 
@@ -92,28 +89,19 @@ module Api
         session_key = params[:session_key]
 
         unless session_key.present?
-          return render json: {
-            success: false,
-            error: "Session key not provided. Please upload the file again."
-          }, status: :unprocessable_entity
+          return render_error("Session key not provided. Please upload the file again.", status: :unprocessable_entity)
         end
 
         # Find the import session
         import_session = ImportSession.valid.find_by(session_key: session_key)
 
         unless import_session
-          return render json: {
-            success: false,
-            error: "Import session expired or not found. Please upload the file again."
-          }, status: :unprocessable_entity
+          return render_error("Import session expired or not found. Please upload the file again.", status: :unprocessable_entity)
         end
 
         unless import_session.file_exists?
           import_session.destroy
-          return render json: {
-            success: false,
-            error: "Import file not found. Please upload the file again."
-          }, status: :unprocessable_entity
+          return render_error("Import file not found. Please upload the file again.", status: :unprocessable_entity)
         end
 
         # Extract parameters
@@ -132,7 +120,7 @@ module Api
 
         unless foundation.save
           Rails.logger.error "Foundation save failed: #{foundation.errors.full_messages.join(', ')}"
-          return render json: { success: false, errors: foundation.errors.full_messages }, status: :unprocessable_entity
+          return render_validation_errors(foundation)
         end
 
         # Create column records
@@ -151,7 +139,7 @@ module Api
           unless column.save
             Rails.logger.error "Column save failed: #{column.errors.full_messages.join(', ')}"
             foundation.destroy
-            return render json: { success: false, errors: column.errors.full_messages }, status: :unprocessable_entity
+            return render_validation_errors(column)
           end
         end
 
@@ -186,10 +174,7 @@ module Api
         import_session = ImportSession.find_by(session_key: session_key)
 
         unless import_session
-          return render json: {
-            success: false,
-            error: "Import session not found"
-          }, status: :not_found
+          return render_error("Import session not found", status: :not_found)
         end
 
         response = {

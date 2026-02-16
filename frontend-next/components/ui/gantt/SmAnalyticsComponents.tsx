@@ -473,7 +473,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
             <ScrollArea className="h-80">
               <div className="space-y-3 pr-4">
                 {suggestions.map((s, i) => (
-                  <div key={i} className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
+                  <div key={`suggestion-${s.type}-${i}`} className="rounded-lg bg-blue-50 p-3 dark:bg-blue-950/30">
                     <div className="flex items-start gap-2">
                       <span
                         className={`rounded px-2 py-0.5 text-xs ${getPriorityVariant(
@@ -504,7 +504,7 @@ export function AiSuggestionsPanel({ constructionId }: AiSuggestionsPanelProps) 
             <ScrollArea className="h-80">
               <div className="space-y-3 pr-4">
                 {predictions.map((p, i) => (
-                  <div key={i} className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
+                  <div key={`prediction-${p.task_name}-${i}`} className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/30">
                     <div className="flex items-center justify-between">
                       <span className="font-medium">{p.task_name}</span>
                       <span className={`rounded px-2 py-0.5 text-xs ${getRiskVariant(p.risk_level)}`}>

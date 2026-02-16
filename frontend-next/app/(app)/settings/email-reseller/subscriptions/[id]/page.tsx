@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
+import { usePathTabs } from "@/hooks/usePathTabs";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { formatDate } from "@/utils/formatters";
 import {
   Table,
   TableBody,
@@ -96,14 +98,20 @@ export default function SubscriptionDetailPage() {
 
   const [subscription, setSubscription] = React.useState<SubscriptionDetail | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState("mailboxes");
+  // URL is SSoT for tab state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
+  const [activeTab, setActiveTab] = usePathTabs(
+    `/settings/email-reseller/subscriptions/${subscriptionId}`,
+    "mailboxes",
+    ["mailboxes", "migrations", "billing", "dns", "settings"],
+    { redirectToDefault: true }
+  );
   const [showAddMailbox, setShowAddMailbox] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
 
   const fetchData = React.useCallback(async () => {
     try {
       const data = await getSubscription(subscriptionId);
-      console.log("[DEBUG] Subscription data received:", JSON.stringify(data, null, 2));
       setSubscription(data as SubscriptionDetail);
     } catch (err) {
       console.error("Failed to fetch subscription:", err);
@@ -134,13 +142,6 @@ export default function SubscriptionDetailPage() {
     await fetchData();
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const formatStorage = (usedGb: number | null | undefined, quotaGb: number) => {
     const used = usedGb ?? 0;

@@ -257,7 +257,6 @@ export function useEmailWebSocket(
     lastFailureTimeRef.current = now;
 
     if (failureCountRef.current >= MAX_FAILURES) {
-      console.warn(`[EmailWebSocket] Too many failures (${failureCountRef.current}), disabling WebSocket`);
       isDisabledRef.current = true;
       // Unsubscribe from channel
       if (subscriptionRef.current) {
@@ -271,7 +270,6 @@ export function useEmailWebSocket(
   const connect = useCallback(() => {
     if (!enabled) return;
     if (isDisabledRef.current) {
-      console.log("[EmailWebSocket] Disabled due to repeated failures");
       return;
     }
     if (subscriptionRef.current) return; // Already connected
@@ -287,18 +285,15 @@ export function useEmailWebSocket(
             setIsConnected(true);
             // Reset failure count on successful connection
             failureCountRef.current = 0;
-            console.log("[EmailWebSocket] Connected");
           },
           disconnected() {
             setIsConnected(false);
             setIsSyncing(false);
             trackFailure();
-            console.log("[EmailWebSocket] Disconnected");
           },
           rejected() {
             setIsConnected(false);
             trackFailure();
-            console.warn("[EmailWebSocket] Connection rejected");
           },
           received: handleReceived,
         }

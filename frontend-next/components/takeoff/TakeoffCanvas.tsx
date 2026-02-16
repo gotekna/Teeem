@@ -18,6 +18,9 @@ import { DEFAULT_DRAWING_STYLE } from "./types";
 import { useSnapPoints, type SnapConfig } from "./useSnapPoints";
 import { SnapIndicator, SnapPointsLayer, SnapMagnifier, PinnedMagnifier } from "./SnapIndicator";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { UI_ANIMATION_SHORT_MS } from "@/lib/constants/timeout-constants";
+import { Z_TOOLTIP } from "@/lib/constants/z-index-constants";
+import { TAILWIND_COLORS, COLORS } from "@/lib/constants/color-constants";
 
 // =============================================================================
 // Fabric.js Type Extensions
@@ -326,7 +329,6 @@ export function TakeoffCanvas({
       // Clean up stale Fabric objects when calibration is cancelled/completed/hidden
       clearTempDrawing();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [calibrationLine, calibrationStep, showCalibrationOverlay]);
 
   // Sync calibration line endpoint with snap point when cycling magnifier candidates
@@ -462,7 +464,7 @@ export function TakeoffCanvas({
 
     const isSelected = selectedMeasurement?.id === measurement.id;
     // Selected = vivid green highlight so user can confirm which shape they clicked
-    const effectiveColor = isSelected ? "#22C55E" : color;
+    const effectiveColor = isSelected ? TAILWIND_COLORS.green[500] : color;
     const strokeWidth = isSelected ? 3 : 2;
 
     switch (geometry_data.type) {
@@ -481,7 +483,7 @@ export function TakeoffCanvas({
               top: point.y - markerRadius - 6,
               radius: markerRadius + 6,
               fill: isBeingRepositioned ? "rgba(59,130,246,0.3)" : "rgba(34,197,94,0.2)",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: isBeingRepositioned ? 4 : 3,
               strokeDashArray: isBeingRepositioned ? [4, 3] : undefined,
               selectable: false,
@@ -495,8 +497,8 @@ export function TakeoffCanvas({
             left: point.x - markerRadius,
             top: point.y - markerRadius,
             radius: markerRadius,
-            fill: isBeingRepositioned ? "#3B82F680" : isSelected ? "#22C55E" : color,
-            stroke: isSelected ? "#fff" : "#fff",
+            fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : isSelected ? TAILWIND_COLORS.green[500] : color,
+            stroke: isSelected ? COLORS.white : COLORS.white,
             strokeWidth: isSelected ? 3 : 2,
             selectable: currentTool === "select",
             opacity: isBeingRepositioned ? 0.5 : 1,
@@ -512,7 +514,7 @@ export function TakeoffCanvas({
             left: point.x,
             top: point.y,
             fontSize: drawingStyle.fontSize,
-            fill: "#fff",
+            fill: COLORS.white,
             fontWeight: "bold",
             originX: "center",
             originY: "center",
@@ -529,7 +531,7 @@ export function TakeoffCanvas({
       case "polygon": {
         // Area/perimeter measurement
         const polygon = new fabric.Polygon(scaledPoints, {
-          fill: isSelected ? "#22C55E44" : `${color}33`,
+          fill: isSelected ? `${TAILWIND_COLORS.green[500]}44` : `${color}33`,
           stroke: effectiveColor,
           strokeWidth,
           selectable: currentTool === "select",
@@ -561,8 +563,8 @@ export function TakeoffCanvas({
               left: pt.x - 6,
               top: pt.y - 6,
               radius: 6,
-              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : COLORS.white,
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: 2,
               strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
               opacity: isBeingRepositioned ? 0.5 : 1,
@@ -612,8 +614,8 @@ export function TakeoffCanvas({
               left: pt.x - 6,
               top: pt.y - 6,
               radius: 6,
-              fill: isBeingRepositioned ? "#3B82F680" : "#fff",
-              stroke: isBeingRepositioned ? "#3B82F6" : "#22C55E",
+              fill: isBeingRepositioned ? `${TAILWIND_COLORS.blue[500]}80` : COLORS.white,
+              stroke: isBeingRepositioned ? TAILWIND_COLORS.blue[500] : TAILWIND_COLORS.green[500],
               strokeWidth: 2,
               strokeDashArray: isBeingRepositioned ? [3, 2] : undefined,
               opacity: isBeingRepositioned ? 0.5 : 1,
@@ -647,7 +649,7 @@ export function TakeoffCanvas({
     const line = new fabric.Line(
       [scaledLine[0].x, scaledLine[0].y, scaledLine[1].x, scaledLine[1].y],
       {
-        stroke: "#F59E0B",  // Amber
+        stroke: TAILWIND_COLORS.amber[500],  // Amber
         strokeWidth: 2,
         strokeDashArray: [5, 5],
         selectable: false,
@@ -672,7 +674,7 @@ export function TakeoffCanvas({
     const connector = new fabric.Line(
       [midX, midY, labelX, labelY],
       {
-        stroke: "#F59E0B",
+        stroke: TAILWIND_COLORS.amber[500],
         strokeWidth: 1,
         strokeDashArray: [2, 2],
         selectable: false,
@@ -692,7 +694,7 @@ export function TakeoffCanvas({
       left: labelX,
       top: labelY - 8,
       fontSize: 12,
-      fill: "#F59E0B",
+      fill: TAILWIND_COLORS.amber[500],
       backgroundColor: "rgba(255,255,255,0.9)",
       originX: "center",
       originY: "bottom",
@@ -733,7 +735,6 @@ export function TakeoffCanvas({
     canvas.on("mouse:move", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseMove(e));
     canvas.on("mouse:up", (e: fabric.TPointerEventInfo) => handlersRef.current.mouseUp(e));
     canvas.on("mouse:dblclick", () => handlersRef.current.doubleClick());
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     canvas.on("selection:created", ((e: SelectionEvent) => handlersRef.current.selectionCreated(e)) as any);
     canvas.on("selection:cleared", () => handlersRef.current.selectionCleared());
   };
@@ -769,7 +770,7 @@ export function TakeoffCanvas({
           } else {
             setCalibrationStep("waitingInput");
             setCalibrationInput("");
-            setTimeout(() => calibrationInputRef.current?.focus(), 100);
+            setTimeout(() => calibrationInputRef.current?.focus(), UI_ANIMATION_SHORT_MS);
           }
         }
         break;
@@ -1143,7 +1144,7 @@ export function TakeoffCanvas({
 
     // Draw new temp line (green when verifying, amber when calibrating)
     const isVerifyMode = pageScale?.calibrated && pageScale.scale_factor;
-    const lineColor = isVerifyMode ? "#16A34A" : "#F59E0B";
+    const lineColor = isVerifyMode ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.amber[500];
     const line = new fabric.Line([sx, sy, ex, ey], {
       stroke: lineColor,
       strokeWidth: 3,
@@ -1200,7 +1201,7 @@ export function TakeoffCanvas({
         left: labelX,
         top: labelY - 6,
         fontSize: 11,
-        fill: pageScale?.calibrated ? "#16A34A" : "#F59E0B",
+        fill: pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.amber[500],
         backgroundColor: "rgba(255,255,255,0.85)",
         originX: "center",
         originY: "bottom",
@@ -1334,7 +1335,7 @@ export function TakeoffCanvas({
           left: lastPt.x + 15,
           top: lastPt.y + 10,
           fontSize: 11,
-          fill: "#6B7280",
+          fill: TAILWIND_COLORS.gray[500],
           backgroundColor: "rgba(255,255,255,0.85)",
           selectable: false,
         }) as FabricObjectWithData;
@@ -1383,7 +1384,7 @@ export function TakeoffCanvas({
           left: fp.x + 26,
           top: fp.y - 10,
           fontSize: 13,
-          fill: "#fff",
+          fill: COLORS.white,
           fontWeight: "bold",
           backgroundColor: color,
           padding: 4,
@@ -1396,7 +1397,7 @@ export function TakeoffCanvas({
         left: fp.x - (isNearFirstPoint ? 8 : 5),
         top: fp.y - (isNearFirstPoint ? 8 : 5),
         radius: isNearFirstPoint ? 8 : 5,
-        fill: isNearFirstPoint ? `${color}44` : "#fff",
+        fill: isNearFirstPoint ? `${color}44` : COLORS.white,
         stroke: color,
         strokeWidth: isNearFirstPoint ? 3 : 2,
         selectable: false,
@@ -1665,7 +1666,7 @@ export function TakeoffCanvas({
         className="absolute inset-0 pointer-events-none"
         width={pageWidth * zoom}
         height={pageHeight * zoom}
-        style={{ overflow: "visible", zIndex: 20 }}
+        style={{ overflow: "visible", zIndex: Z_TOOLTIP }}
       >
         {/* Debug: Show all available snap points */}
         <SnapPointsLayer
@@ -1716,7 +1717,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label="Cal A"
-              color="#F59E0B"
+              color={TAILWIND_COLORS.amber[500]}
               preferSide="left"
               onSelect={(newPoint) => {
                 void onCalibrate({
@@ -1735,7 +1736,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label="Cal B"
-              color="#F59E0B"
+              color={TAILWIND_COLORS.amber[500]}
               preferSide={isVerticalCal ? "left" : "right"}
               onSelect={(newPoint) => {
                 void onCalibrate({
@@ -1762,7 +1763,7 @@ export function TakeoffCanvas({
               pageWidth={pageWidth}
               pageHeight={pageHeight}
               label={pageScale?.calibrated ? "Verify A" : "New A"}
-              color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
+              color={pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.blue[500]}
               preferSide="left"
               onSelect={(newPoint) => {
                 setCalibrationLine(prev => prev ? { ...prev, start: newPoint } : null);
@@ -1776,7 +1777,7 @@ export function TakeoffCanvas({
                 pageWidth={pageWidth}
                 pageHeight={pageHeight}
                 label={pageScale?.calibrated ? "Verify B" : "New B"}
-                color={pageScale?.calibrated ? "#16A34A" : "#3B82F6"}
+                color={pageScale?.calibrated ? TAILWIND_COLORS.green[600] : TAILWIND_COLORS.blue[500]}
                 preferSide={isVerticalActive ? "left" : "right"}
                 onSelect={(newPoint) => {
                   setCalibrationLine(prev => prev ? { ...prev, end: newPoint } : null);
@@ -1798,7 +1799,7 @@ export function TakeoffCanvas({
           : isAcceptable
           ? "bg-amber-500"
           : "bg-green-500";
-        const vColor = isProblem ? "#ef4444" : isAcceptable ? "#f59e0b" : "#22c55e";
+        const vColor = isProblem ? TAILWIND_COLORS.red[500] : isAcceptable ? TAILWIND_COLORS.amber[500] : TAILWIND_COLORS.green[500];
         const displayMm = `${Math.round(v.computedMm).toLocaleString()}mm`;
         const expectedDisplay = `${Math.round(v.expectedMm).toLocaleString()}mm`;
         const vIsVertical = Math.abs(v.line.end.y - v.line.start.y) > Math.abs(v.line.end.x - v.line.start.x);
@@ -1918,7 +1919,7 @@ export function TakeoffCanvas({
                 className="absolute inset-0 pointer-events-none"
                 width={pageWidth * zoom}
                 height={pageHeight * zoom}
-                style={{ overflow: "visible", zIndex: 25 }}
+                style={{ overflow: "visible", zIndex: Z_TOOLTIP }}
               >
                 {/* Dashed line from original position to cursor */}
                 <line
@@ -1926,7 +1927,7 @@ export function TakeoffCanvas({
                   y1={repositioning.originalPoint.y * zoom}
                   x2={repositionPreview.x * zoom}
                   y2={repositionPreview.y * zoom}
-                  stroke="#3B82F6"
+                  stroke={TAILWIND_COLORS.blue[500]}
                   strokeWidth={2}
                   strokeDasharray="6 4"
                   opacity={0.7}
@@ -1936,9 +1937,9 @@ export function TakeoffCanvas({
                   cx={repositionPreview.x * zoom}
                   cy={repositionPreview.y * zoom}
                   r={isCountType ? drawingStyle.markerSize / 2 : 6}
-                  fill="#3B82F6"
+                  fill={TAILWIND_COLORS.blue[500]}
                   fillOpacity={0.6}
-                  stroke="#fff"
+                  stroke={COLORS.white}
                   strokeWidth={2}
                 />
                 {/* Point number label — only for count markers */}
@@ -1948,7 +1949,7 @@ export function TakeoffCanvas({
                     y={repositionPreview.y * zoom}
                     textAnchor="middle"
                     dominantBaseline="central"
-                    fill="#fff"
+                    fill={COLORS.white}
                     fontWeight="bold"
                     fontSize={drawingStyle.fontSize}
                     style={{ pointerEvents: "none" }}

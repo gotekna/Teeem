@@ -26,8 +26,7 @@ module Api
           if rate.save
             render json: { success: true, data: rate }, status: :created
           else
-            render json: { success: false, error: rate.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(rate.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -38,8 +37,7 @@ module Api
           if rate.update(rate_params)
             render json: { success: true, data: rate }
           else
-            render json: { success: false, error: rate.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(rate.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -77,8 +75,7 @@ module Api
           if entry.save
             render json: { success: true, data: entry }, status: :created
           else
-            render json: { success: false, error: entry.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(entry.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -89,7 +86,7 @@ module Api
           if entry.approve!(current_user)
             render json: { success: true, data: entry, message: "Entry approved" }
           else
-            render json: { success: false, error: "Cannot approve entry" }, status: :unprocessable_entity
+            render_error("Cannot approve entry", status: :unprocessable_entity)
           end
         end
 
@@ -166,8 +163,7 @@ module Api
           if batch
             render json: { success: true, data: batch }, status: :created
           else
-            render json: { success: false, error: "No billable entries found for this period" },
-                   status: :unprocessable_entity
+            render_error("No billable entries found for this period", status: :unprocessable_entity)
           end
         end
 
@@ -178,7 +174,7 @@ module Api
           if batch.approve!
             render json: { success: true, data: batch, message: "Batch approved" }
           else
-            render json: { success: false, error: "Cannot approve batch" }, status: :unprocessable_entity
+            render_error("Cannot approve batch", status: :unprocessable_entity)
           end
         end
 
@@ -190,8 +186,7 @@ module Api
           if invoice
             render json: { success: true, data: { batch: batch, invoice: invoice }, message: "Invoice created" }
           else
-            render json: { success: false, error: "Cannot generate invoice. Batch must be approved." },
-                   status: :unprocessable_entity
+            render_error("Cannot generate invoice. Batch must be approved.", status: :unprocessable_entity)
           end
         end
 

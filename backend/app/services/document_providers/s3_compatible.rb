@@ -56,15 +56,22 @@ module DocumentProviders
     # This prevents the "backup credential picked over primary" bug that occurs when
     # multiple credentials exist (e.g., Wasabi primary + Backblaze B2 backup).
     # Fallback search only runs when credential_id is not configured (backward compat).
+    #
+    # Multi-tenancy (Feb 2026): The credential lookup is NOT tenant-scoped because
+    # WarehouseProvider IS already tenant-scoped (the security boundary).
+    # Multiple tenants can share ONE credential with different buckets.
+    # e.g., Tekna→teeem-tekna, TEEEM→teeem-teeem, Pilgrim→teeem-pilgrim, all using cred #1.
     def self.find_credential_for_tenant(tenant)
       return nil unless defined?(S3CompatibleCredential)
       return nil unless tenant
 
       # SSoT: Check WarehouseProvider for explicit credential_id first
+      # WarehouseProvider is tenant-scoped, so this is already secure.
+      # No additional tenant filter on the credential - shared credentials are valid.
       config = WarehouseProvider.for_tenant(tenant)
       explicit_id = config&.connection_config&.dig("credential_id")
       if explicit_id.present?
-        cred = S3CompatibleCredential.find_by(id: explicit_id)
+        cred = S3CompatibleCredential.unscoped.find_by(id: explicit_id)
         if cred&.is_active? && cred&.decryptable?
           return cred
         else
@@ -314,10 +321,14 @@ module DocumentProviders
         presign_params[:response_content_disposition] = "inline"
       end
 
-      # Use browser-safe client with virtual-hosted style URLs
-      # CORS preflight cannot follow 307 redirects from path-style to virtual-hosted
-      browser_client = build_browser_safe_client
-      signer = Aws::S3::Presigner.new(client: browser_client)
+      # FRC (Feb 2026): Use path-style client for downloads.
+      # Virtual-hosted style (build_browser_safe_client) returns 403 on Wasabi
+      # because the bucket DNS doesn't resolve for virtual-hosted requests.
+      # Path-style works because GET requests don't trigger CORS preflight,
+      # and Wasabi doesn't 307-redirect presigned GET URLs.
+      # The virtual-hosted fix in build_browser_safe_client is for UPLOADS only
+      # (PUT triggers CORS preflight which can't follow 307 redirects).
+      signer = Aws::S3::Presigner.new(client: @client)
       signer.presigned_url(:get_object, presign_params)
     end
 
@@ -623,12 +634,9 @@ module DocumentProviders
 
     # Configure CORS on the S3 bucket to allow direct browser uploads/downloads
     # Must be called once per bucket setup (not per-request)
-    # SSoT: Allowed origins match cors.rb (Rails CORS) for consistency
+    # SSoT: Allowed origins from InfrastructureUrls + dev URLs
     def configure_cors!
-      allowed_origins = [
-        "https://teeem.vercel.app",
-        "https://teeem-staging.vercel.app",
-        "https://teeem-beta.vercel.app",
+      allowed_origins = InfrastructureUrls.all_frontend_urls + [
         "https://teeemrob.vercel.app",
         "https://teeemsam.vercel.app",
         "https://teeemjake.vercel.app",

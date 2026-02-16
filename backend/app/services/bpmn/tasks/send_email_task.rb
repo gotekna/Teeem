@@ -42,7 +42,7 @@ module Bpmn
           recipients = User.with_role(role).pluck(:email)
         when "subject_field"
           field = @config["recipient_value"]
-          value = @subject.try(field)
+          value = @subject&.send(field)
           recipients = Array(value)
         when "contact"
           contact_id = @config["contact_id"] || @variables["contact_id"]

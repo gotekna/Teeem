@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { BackButton } from "@/components/ui/back-button";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { slugifyPricebookCode } from "@/lib/url-utils";
 import type { TableRow, TableColumn, SavedView } from "@/components/table/types";
@@ -88,7 +89,7 @@ export default function PricebookPageClient({
     <TablePage>
       <TeeemTableView
         key={refreshKey}
-        foundationId="pricebook-items"
+        foundationId={FOUNDATION_SLUGS.PRICEBOOK_ITEMS}
         tableName="Pricebook"
         enableExport
         enableImport

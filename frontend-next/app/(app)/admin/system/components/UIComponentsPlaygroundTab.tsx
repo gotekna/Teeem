@@ -15,6 +15,7 @@
 
 import * as React from "react";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS, DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
 import {
   Sun,
   Moon,
@@ -122,7 +123,7 @@ import { SharePointFolderBrowser } from "@/components/ui/sharepoint-folder-brows
 // Note: These require specific data/context to function:
 // - TeeemTableView: needs foundationId and entries
 // - BillsInvoiceViewer: needs invoice data
-// - DocumentPreviewModal: needs document data
+// - DocumentEditModal: needs document data
 
 // Registry
 import {
@@ -194,7 +195,7 @@ function AttachmentBadgeDemo() {
 
   const handleDownload = () => {
     setLoading(true);
-    setTimeout(() => setLoading(false), 1500);
+    setTimeout(() => setLoading(false), DEMO_LOADING_MS);
   };
 
   return (
@@ -332,7 +333,7 @@ function ConfirmationDialogDemo() {
 
   const handleConfirm = async () => {
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, DEMO_LOADING_MS));
     setLoading(false);
     setOpen(false);
   };
@@ -440,7 +441,7 @@ function FormModalDemo() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, DEMO_LOADING_MS));
     setLoading(false);
     setOpen(false);
     setName("");
@@ -1374,7 +1375,7 @@ function BillsInvoiceViewerDemo() {
   );
 }
 
-function DocumentPreviewModalDemo() {
+function DocumentEditModalDemo() {
   const [open, setOpen] = React.useState(false);
   return (
     <div className="space-y-2">
@@ -1470,7 +1471,7 @@ const COMPONENT_DEMOS: Record<string, () => React.ReactNode> = {
   "sharepoint-folder-browser": SharePointFolderBrowserDemo,
   "teeem-table-view": TeeemTableViewDemo,
   "bills-invoice-viewer": BillsInvoiceViewerDemo,
-  "document-preview-modal": DocumentPreviewModalDemo,
+  "document-edit-modal": DocumentEditModalDemo,
 };
 
 // =============================================================================
@@ -1483,7 +1484,7 @@ function CopyButton({ text }: { text: string }) {
   const handleCopy = async () => {
     await copyToClipboard(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
   };
 
   return (

@@ -314,6 +314,8 @@ export function SnoozePicker({ emailId, onSnooze, onCancel, trigger }: SnoozePic
       setCurrentSnooze(snoozeData.snooze);
     } catch (error) {
       console.error("Failed to load snooze data:", error);
+      const message = error instanceof Error ? error.message : "Failed to load snooze data";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -335,6 +337,8 @@ export function SnoozePicker({ emailId, onSnooze, onCancel, trigger }: SnoozePic
       setOpen(false);
     } catch (error) {
       console.error("Failed to snooze:", error);
+      const message = error instanceof Error ? error.message : "Failed to snooze email";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSnoozing(false);
     }
@@ -351,6 +355,8 @@ export function SnoozePicker({ emailId, onSnooze, onCancel, trigger }: SnoozePic
       setOpen(false);
     } catch (error) {
       console.error("Failed to snooze:", error);
+      const message = error instanceof Error ? error.message : "Failed to snooze email";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setSnoozing(false);
     }
@@ -366,6 +372,8 @@ export function SnoozePicker({ emailId, onSnooze, onCancel, trigger }: SnoozePic
       setOpen(false);
     } catch (error) {
       console.error("Failed to cancel snooze:", error);
+      const message = error instanceof Error ? error.message : "Failed to cancel snooze";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 
@@ -463,6 +471,7 @@ interface SnoozedEmailsListProps {
 }
 
 export function SnoozedEmailsList({ onEmailClick }: SnoozedEmailsListProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [snoozes, setSnoozes] = useState<EmailSnooze[]>([]);
 
@@ -473,10 +482,12 @@ export function SnoozedEmailsList({ onEmailClick }: SnoozedEmailsListProps) {
       setSnoozes(data);
     } catch (error) {
       console.error("Failed to load snoozed emails:", error);
+      const message = error instanceof Error ? error.message : "Failed to load snoozed emails";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     loadSnoozes();
@@ -488,6 +499,8 @@ export function SnoozedEmailsList({ onEmailClick }: SnoozedEmailsListProps) {
       setSnoozes((prev) => prev.filter((s) => s.id !== snooze.id));
     } catch (error) {
       console.error("Failed to cancel snooze:", error);
+      const message = error instanceof Error ? error.message : "Failed to cancel snooze";
+      toast({ title: "Error", description: message, variant: "destructive" });
     }
   };
 

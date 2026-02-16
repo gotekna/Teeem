@@ -34,7 +34,7 @@ module PlanIdentification
     REVIEW_THRESHOLD = 60            # Auto-assign but queue for review
     HUMAN_REQUIRED_THRESHOLD = 60    # Below this, require human review
 
-    SERVICE_TYPE = "plan_identification"
+    SERVICE_TYPE = "plan_identification".freeze
 
     def self.identify(pdf_content, job, page_number: 1, processable: nil)
       new(job).identify_from_pdf(pdf_content, page_number, processable: processable)
@@ -60,7 +60,7 @@ module PlanIdentification
       Rails.logger.info "[PlanIdentificationService] Starting identification for page #{page_number}"
 
       # Check for "All Plans" combined PDF by filename (early exit with 100% confidence)
-      filename = processable&.try(:file_name) || processable&.try(:current_revision)&.file_name
+      filename = processable.try(:file_name) || processable&.current_revision&.file_name
       if combined_pdf_filename?(filename)
         return build_combined_pdf_result(filename)
       end
@@ -72,7 +72,7 @@ module PlanIdentification
       )
 
       # Run the pipeline
-      pipeline_result = pipeline.process(pdf_content, filename: processable&.try(:file_name))
+      pipeline_result = pipeline.process(pdf_content, filename: processable&.file_name)
 
       # Extract plan type from result
       plan_type_id = pipeline_result[:type_id]

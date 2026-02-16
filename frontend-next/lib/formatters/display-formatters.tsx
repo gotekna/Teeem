@@ -12,12 +12,12 @@
  *   const rendered = formatValue(value, 'abn');  // Uses type definition config
  */
 
-import React from "react";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CheckCircle2, Circle, ExternalLink } from "lucide-react";
 import { getTypeDefinition, type ColumnTypeDefinition } from "../column-type-registry";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 
 // Consistent link styling
 const LINK_CLASSES = "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline text-[11px]";
@@ -181,9 +181,9 @@ const FORMATTERS: Record<string, FormatterFn> = {
       if (isNaN(date.getTime())) return <span className="text-[11px]">{String(value)}</span>;
 
       // Default format based on type
-      let dateFormat = "dd/MM/yyyy";
+      let dateFormat = DATE_DISPLAY;
       if (config.type_key === "datetime") {
-        dateFormat = "dd/MM/yyyy HH:mm";
+        dateFormat = DATETIME_DISPLAY;
       }
       // Override with display_format if provided
       if (config.display_format) {
@@ -260,7 +260,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
         {value.map((item, idx) => {
           const displayText = extractDisplayText(item);
           return (
-            <Badge key={idx} variant="secondary" className="text-[10px] px-1.5 py-0">
+            <Badge key={`${displayText}-${idx}`} variant="secondary" className="text-[10px] px-1.5 py-0">
               {displayText}
             </Badge>
           );
@@ -426,7 +426,7 @@ const FORMATTERS: Record<string, FormatterFn> = {
     return (
       <div className="flex flex-wrap gap-1">
         {value.map((item, idx) => (
-          <Badge key={idx} variant="outline" className="text-[10px] px-1.5 py-0">
+          <Badge key={`${String(item)}-${idx}`} variant="outline" className="text-[10px] px-1.5 py-0">
             {String(item)}
           </Badge>
         ))}
@@ -529,10 +529,10 @@ export { formatEmpty as displayEmpty };
 export interface ContactForDisplay {
   id: number;
   display_name?: string;
-  company_name?: string;
-  company_name_or_trust?: string;
-  first_name?: string;
-  last_name?: string;
+  company_name?: string | null;
+  company_name_or_trust?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
   employer_name?: string; // Company name for person contacts (from backend)
 }
 

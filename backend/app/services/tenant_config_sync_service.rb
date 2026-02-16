@@ -731,9 +731,9 @@ class TenantConfigSyncService
     skipped = []
     deleted_count = 0
 
-    # Get source records
+    # Get source records (enforce scope filter to prevent importing out-of-scope records)
     source_records = ActsAsTenant.with_tenant(source_tenant) do
-      model.where(id: record_ids)
+      scoped_query(model, config).where(id: record_ids)
     end
 
     # For price_histories with replace mode, delete existing prices for the same supplier+item
@@ -915,9 +915,9 @@ class TenantConfigSyncService
     updated = []
     skipped = []
 
-    # Get master records
+    # Get master records (enforce scope filter to prevent importing out-of-scope records)
     master_records = ActsAsTenant.with_tenant(master) do
-      model.where(id: record_ids)
+      scoped_query(model, config).where(id: record_ids)
     end
 
     # Get existing tenant records for matching (sync_key primary, legacy fallback)
@@ -943,6 +943,21 @@ class TenantConfigSyncService
 
         # Build attrs with FK remapping, deferring self-referential FKs
         attrs = build_sync_attrs(master_record, config)
+
+        # Skip orphaned records where a required FK couldn't be remapped to target tenant.
+        # Prevents importing child records whose parent doesn't exist in the target.
+        if config[:remap_fks].present?
+          orphaned = false
+          config[:remap_fks].each do |field, _rc|
+            next unless config[:sync_fields].include?(field)
+            next unless attrs.key?(field) && attrs[field].nil? && master_record.send(field).present?
+            skipped << { name: master_record.send(config[:name_field]), reason: "FK remap failed: #{field}" }
+            orphaned = true
+            break
+          end
+          next if orphaned
+        end
+
         deferred = {}
         if self_ref_fks.any?
           self_ref_fks.each_key do |field|
@@ -973,7 +988,7 @@ class TenantConfigSyncService
               end
               if master_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
                 new_record.sync_key = master_record.sync_key.presence || master_record.class.build_sync_key(
-                  *Array(master_record.class.try(:sync_key_source) || :name).map { |f| master_record.send(f).to_s }
+                  *Array(master_record.class&.sync_key_source || :name).map { |f| master_record.send(f).to_s }
                 )
               end
               new_record.save!
@@ -1403,6 +1418,19 @@ class TenantConfigSyncService
     # from source tenant were copied directly, causing constraint violations)
     attrs = build_sync_attrs(source_record, config)
 
+    # FRC (Feb 2026): Skip orphaned records where a required FK couldn't be remapped.
+    # Without this, reverse sync (tenant → master) imports orphaned child records
+    # whose parent doesn't exist in the target, creating duplicates.
+    # e.g. PO template line items whose parent item was deleted — remap returns nil.
+    if config[:remap_fks].present?
+      config[:remap_fks].each do |field, _remap_config|
+        next unless config[:sync_fields].include?(field)
+        next unless attrs.key?(field) && attrs[field].nil? && source_record.send(field).present?
+        # Source had a value but remap returned nil → parent doesn't exist in target
+        return { imported: false, reason: "FK remap failed: #{field} (orphaned record)" }
+      end
+    end
+
     # FRC (Feb 2026): For self-referential FKs (e.g. warehouse_folders.parent_id),
     # defer those fields to a second pass. First pass sets all other fields (including
     # warehouse_type_id) so the parent validation can pass in the second pass.
@@ -1432,7 +1460,7 @@ class TenantConfigSyncService
         end
         if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
           new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
-            *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+            *Array(source_record.class&.sync_key_source || :name).map { |f| source_record.send(f).to_s }
           )
         end
         new_record.save!
@@ -1470,7 +1498,7 @@ class TenantConfigSyncService
       # Copy sync_key from source so the link is established
       if source_record.respond_to?(:sync_key) && new_record.respond_to?(:sync_key=)
         new_record.sync_key = source_record.sync_key.presence || source_record.class.build_sync_key(
-          *Array(source_record.class.try(:sync_key_source) || :name).map { |f| source_record.send(f).to_s }
+          *Array(source_record.class&.sync_key_source || :name).map { |f| source_record.send(f).to_s }
         )
       end
       new_record.save!

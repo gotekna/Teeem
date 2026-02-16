@@ -34,12 +34,19 @@ import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
+import type { Contact as BaseContact, User } from '@/lib/types';
 
-interface Contact {
+// Local Role interface for combobox usage
+interface Role {
   id: number;
-  display_name?: string;
+  name: string;
+  value: string;
+  label: string;
+}
+
+// Local Contact interface with employee_names for supplier dropdown
+interface Contact extends BaseContact {
   employee_names?: string[];
-  employee_count?: number;
 }
 
 // Extended ComboboxItem with employee data for cascading view
@@ -60,18 +67,6 @@ interface SmTask {
   supplier_id?: number;
   assigned_user_id?: number;
   assigned_role?: string;
-}
-
-interface User {
-  id: number;
-  name: string;
-}
-
-// Role from /api/v1/roles
-interface Role {
-  id: number;
-  value: string;  // e.g., "supervisor"
-  label: string;  // e.g., "Supervisor"
 }
 
 // Job's internal team member (from job_contacts)
@@ -397,7 +392,6 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       );
 
       if (response?.success) {
-        console.log(`Budget ${response.action}: ${response.count} POs`);
         setRefreshKey((k) => k + 1);
         clearSelection();
       } else {

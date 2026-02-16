@@ -49,10 +49,7 @@ module Api
             allocation: allocation_to_json(@allocation)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @allocation.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@allocation)
         end
       end
 
@@ -64,10 +61,7 @@ module Api
             allocation: allocation_to_json(@allocation)
           }
         else
-          render json: {
-            success: false,
-            errors: @allocation.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@allocation)
         end
       end
 
@@ -139,7 +133,7 @@ module Api
           allocations: allocations.map { |a| allocation_to_json(a) }
         }
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Resource not found" }, status: :not_found
+        render_error("Resource not found", status: :not_found)
       end
 
       # GET /api/v1/sm_resource_allocations/gantt_data
@@ -184,19 +178,13 @@ module Api
       def set_task
         @task = SmTask.find(params[:sm_task_id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Task not found"
-        }, status: :not_found
+        render_error("Task not found", status: :not_found)
       end
 
       def set_allocation
         @allocation = SmResourceAllocation.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Allocation not found"
-        }, status: :not_found
+        render_error("Allocation not found", status: :not_found)
       end
 
       def allocation_params

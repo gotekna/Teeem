@@ -88,10 +88,12 @@ class XeroTokenManager
       return { success: false, error: "No credential provided" } unless credential
 
       # Use advisory lock to prevent concurrent refresh attempts
-      lock_id = 987654321 + credential.id
+      lock_id = 987654321 + credential.id.to_i
 
       begin
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_lock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_lock(?)", lock_id])
+        )
 
         # Reload to check if another process already refreshed
         credential.reload
@@ -104,7 +106,9 @@ class XeroTokenManager
 
         perform_refresh(credential)
       ensure
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{lock_id})")
+        ActiveRecord::Base.connection.execute(
+          ActiveRecord::Base.sanitize_sql_array(["SELECT pg_advisory_unlock(?)", lock_id])
+        )
       end
     end
 
@@ -223,6 +227,7 @@ class XeroTokenManager
       degraded = 0
       disconnected = 0
 
+      # Small lookup table (< 10 credentials typically), .all is fine
       XeroCredential.all.each do |cred|
         if cred.status == "disconnected" || cred.poisoned?
           disconnected += 1

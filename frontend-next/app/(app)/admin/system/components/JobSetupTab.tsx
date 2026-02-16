@@ -42,6 +42,7 @@ import {
   Layers,
   MapPin,
   GitBranch,
+  Home,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { WorkflowConfigTab } from "./WorkflowConfigTab";
@@ -70,42 +71,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-interface JobType {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  active: boolean;
-  sm_schedule_master_template_id?: number | null;
-  schedule_template_summary?: {
-    template_id: number;
-    template_name: string;
-    version_id: number | null;
-    version_number: number | null;
-    row_count: number;
-  } | null;
-}
+import type { JobType, JobStatus, JobStage } from '@/lib/types';
+import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
 
 interface ScheduleMasterTemplate {
   id: number;
   name: string;
 }
 
-interface JobStatus {
+interface JobDesign {
   id: number;
   name: string;
-  color: string;
-  position: number;
-  active: boolean;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-  color: string;
-  position: number;
-  active: boolean;
+  size: number | null;
+  frontage_required: number | null;
+  description: string | null;
+  is_active: boolean;
 }
 
 interface Suburb {
@@ -165,6 +145,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   const [jobTypes, setJobTypes] = React.useState<JobType[]>([]);
   const [jobStatuses, setJobStatuses] = React.useState<JobStatus[]>([]);
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
+  const [jobDesigns, setJobDesigns] = React.useState<JobDesign[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const [showDialog, setShowDialog] = React.useState(false);
@@ -172,10 +153,25 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   const [editingItem, setEditingItem] = React.useState<JobType | JobStatus | JobStage | null>(null);
   const [saving, setSaving] = React.useState(false);
 
-  const [formData, setFormData] = React.useState({
+  // Design Names dialog (separate - different fields from type/status/stage)
+  const [showDesignDialog, setShowDesignDialog] = React.useState(false);
+  const [editingDesign, setEditingDesign] = React.useState<JobDesign | null>(null);
+  const [designSaving, setDesignSaving] = React.useState(false);
+  const [designFormData, setDesignFormData] = React.useState({
     name: "",
-    color: "#3B82F6",
-    sm_schedule_master_template_id: null as number | null,
+    size: "",
+    frontage_required: "",
+    description: "",
+  });
+
+  const [formData, setFormData] = React.useState<{
+    name: string;
+    color: string;
+    sm_schedule_master_template_id: number | null;
+  }>({
+    name: "",
+    color: TAILWIND_COLORS.blue[500],
+    sm_schedule_master_template_id: null,
   });
 
   // Schedule Master Templates state
@@ -200,20 +196,21 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   // SSoT: Claim stages removed - now managed via Schedule Master CLAIM tasks
 
   const COLORS = [
-    "#3B82F6", // Blue
-    "#10B981", // Green
-    "#F59E0B", // Amber
-    "#EF4444", // Red
-    "#8B5CF6", // Purple
-    "#EC4899", // Pink
-    "#06B6D4", // Cyan
-    "#F97316", // Orange
-    "#6366F1", // Indigo
-    "#84CC16", // Lime
+    TAILWIND_COLORS.blue[500],
+    TAILWIND_COLORS.emerald[500],
+    TAILWIND_COLORS.amber[500],
+    TAILWIND_COLORS.red[500],
+    TAILWIND_COLORS.violet[500],
+    TAILWIND_COLORS.pink[500],
+    TAILWIND_COLORS.cyan[500],
+    TAILWIND_COLORS.orange[500],
+    TAILWIND_COLORS.indigo[500],
+    "#84CC16", // Lime - not in TAILWIND_COLORS, keep as-is
   ];
 
   React.useEffect(() => {
     loadData();
+    loadDesigns();
     loadSuburbs();
     loadScheduleTemplates();
   }, []);
@@ -226,6 +223,15 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       setScheduleTemplates(response.sm_schedule_master_templates || []);
     } catch (error) {
       console.error("Failed to load schedule templates:", error);
+    }
+  };
+
+  const loadDesigns = async () => {
+    try {
+      const response = await api.get<{ designs: JobDesign[] }>("/api/v1/job_designs");
+      setJobDesigns(response.designs || []);
+    } catch (error) {
+      console.error("Failed to load designs:", error);
     }
   };
 
@@ -243,24 +249,24 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       console.error("Failed to load data:", error);
       // Mock data
       setJobTypes([
-        { id: 1, name: "New Build", color: "#3B82F6", position: 1, active: true },
-        { id: 2, name: "Renovation", color: "#10B981", position: 2, active: true },
-        { id: 3, name: "Extension", color: "#F59E0B", position: 3, active: true },
+        { id: 1, name: "New Build", color: TAILWIND_COLORS.blue[500], position: 1, active: true },
+        { id: 2, name: "Renovation", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
+        { id: 3, name: "Extension", color: TAILWIND_COLORS.amber[500], position: 3, active: true },
       ]);
       setJobStatuses([
-        { id: 1, name: "Quote", color: "#8B5CF6", position: 1, active: true },
-        { id: 2, name: "Won", color: "#10B981", position: 2, active: true },
-        { id: 3, name: "In Progress", color: "#3B82F6", position: 3, active: true },
+        { id: 1, name: "Quote", color: TAILWIND_COLORS.violet[500], position: 1, active: true },
+        { id: 2, name: "Won", color: TAILWIND_COLORS.emerald[500], position: 2, active: true },
+        { id: 3, name: "In Progress", color: TAILWIND_COLORS.blue[500], position: 3, active: true },
         { id: 4, name: "Complete", color: "#84CC16", position: 4, active: true },
-        { id: 5, name: "Lost", color: "#EF4444", position: 5, active: true },
+        { id: 5, name: "Lost", color: TAILWIND_COLORS.red[500], position: 5, active: true },
       ]);
       setJobStages([
-        { id: 1, name: "Pre-Construction", color: "#F59E0B", position: 1, active: true },
-        { id: 2, name: "Foundation", color: "#6366F1", position: 2, active: true },
-        { id: 3, name: "Frame", color: "#06B6D4", position: 3, active: true },
-        { id: 4, name: "Lock Up", color: "#8B5CF6", position: 4, active: true },
-        { id: 5, name: "Fit Out", color: "#EC4899", position: 5, active: true },
-        { id: 6, name: "Handover", color: "#10B981", position: 6, active: true },
+        { id: 1, name: "Pre-Construction", color: TAILWIND_COLORS.amber[500], position: 1, active: true },
+        { id: 2, name: "Foundation", color: TAILWIND_COLORS.indigo[500], position: 2, active: true },
+        { id: 3, name: "Frame", color: TAILWIND_COLORS.cyan[500], position: 3, active: true },
+        { id: 4, name: "Lock Up", color: TAILWIND_COLORS.violet[500], position: 4, active: true },
+        { id: 5, name: "Fit Out", color: TAILWIND_COLORS.pink[500], position: 5, active: true },
+        { id: 6, name: "Handover", color: TAILWIND_COLORS.emerald[500], position: 6, active: true },
       ]);
     } finally {
       setLoading(false);
@@ -475,6 +481,69 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
     }
   };
 
+  // Design Name handlers
+  const handleOpenAddDesignDialog = () => {
+    setEditingDesign(null);
+    setDesignFormData({ name: "", size: "", frontage_required: "", description: "" });
+    setShowDesignDialog(true);
+  };
+
+  const handleOpenEditDesignDialog = (design: JobDesign) => {
+    setEditingDesign(design);
+    setDesignFormData({
+      name: design.name,
+      size: design.size?.toString() || "",
+      frontage_required: design.frontage_required?.toString() || "",
+      description: design.description || "",
+    });
+    setShowDesignDialog(true);
+  };
+
+  const handleSaveDesign = async () => {
+    if (!designFormData.name) {
+      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+      return;
+    }
+
+    setDesignSaving(true);
+    const payload: Record<string, unknown> = {
+      name: designFormData.name,
+      description: designFormData.description || null,
+      size: designFormData.size ? parseFloat(designFormData.size) : null,
+      frontage_required: designFormData.frontage_required ? parseFloat(designFormData.frontage_required) : null,
+    };
+
+    try {
+      if (editingDesign) {
+        await api.patch(`/api/v1/job_designs/${editingDesign.id}`, { design: payload });
+        toast({ title: "Success", description: "Design updated successfully" });
+      } else {
+        await api.post("/api/v1/job_designs", { design: payload });
+        toast({ title: "Success", description: "Design created successfully" });
+      }
+      setShowDesignDialog(false);
+      loadDesigns();
+    } catch (error) {
+      console.error("Failed to save design:", error);
+      toast({ title: "Error", description: "Failed to save design", variant: "destructive" });
+    } finally {
+      setDesignSaving(false);
+    }
+  };
+
+  const handleDeleteDesign = async (design: JobDesign) => {
+    if (!(await confirm("Are you sure you want to delete this design?"))) return;
+
+    try {
+      await api.delete(`/api/v1/job_designs/${design.id}`);
+      toast({ title: "Success", description: "Design deleted successfully" });
+      loadDesigns();
+    } catch (error) {
+      console.error("Failed to delete design:", error);
+      toast({ title: "Error", description: "Failed to delete design. It may be in use by jobs.", variant: "destructive" });
+    }
+  };
+
   const getDialogTitle = () => {
     const action = editingItem ? "Edit" : "Add";
     switch (dialogType) {
@@ -506,14 +575,14 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
         <div className="mt-6">
           {/* Lists Tab */}
           <TabsContent value="lists" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               <SetupTable
                 items={jobTypes}
                 title="Job Types"
                 icon={Briefcase}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("type")}
                 onEdit={(item) => handleOpenEditDialog(item, "type")}
                 onDelete={(item) => handleDelete(item.id, "type")}
@@ -526,7 +595,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={ListChecks}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("status")}
                 onEdit={(item) => handleOpenEditDialog(item, "status")}
                 onDelete={(item) => handleDelete(item.id, "status")}
@@ -539,11 +608,22 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 icon={Layers}
                 getLabel={(item) => item.name}
                 getColor={(item) => item.color}
-                getIsActive={(item) => item.active}
+                getIsActive={(item) => !!item.active}
                 onAdd={() => handleOpenAddDialog("stage")}
                 onEdit={(item) => handleOpenEditDialog(item, "stage")}
                 onDelete={(item) => handleDelete(item.id, "stage")}
                 onReorder={(items) => handleReorder(items, "stage")}
+                loading={loading}
+              />
+              <SetupTable
+                items={jobDesigns}
+                title="Design Names"
+                icon={Home}
+                getLabel={(item) => item.name}
+                getIsActive={(item) => item.is_active}
+                onAdd={handleOpenAddDesignDialog}
+                onEdit={handleOpenEditDesignDialog}
+                onDelete={handleDeleteDesign}
                 loading={loading}
               />
             </div>
@@ -772,6 +852,79 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 </>
               ) : (
                 "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Design Name Dialog */}
+      <Dialog open={showDesignDialog} onOpenChange={setShowDesignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingDesign ? "Edit" : "Add"} Design Name</DialogTitle>
+            <DialogDescription>
+              Configure the design name and optional dimensions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="design-name">Name</Label>
+              <Input
+                id="design-name"
+                placeholder="e.g. Modern Contemporary"
+                value={designFormData.name}
+                onChange={(e) => setDesignFormData({ ...designFormData, name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="design-size">Size (m²)</Label>
+                <Input
+                  id="design-size"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 250"
+                  value={designFormData.size}
+                  onChange={(e) => setDesignFormData({ ...designFormData, size: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="design-frontage">Frontage (m)</Label>
+                <Input
+                  id="design-frontage"
+                  type="number"
+                  step="0.01"
+                  placeholder="e.g. 15"
+                  value={designFormData.frontage_required}
+                  onChange={(e) => setDesignFormData({ ...designFormData, frontage_required: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="design-description">Description</Label>
+              <Input
+                id="design-description"
+                placeholder="Optional description"
+                value={designFormData.description}
+                onChange={(e) => setDesignFormData({ ...designFormData, description: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDesignDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDesign} disabled={designSaving}>
+              {designSaving ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Saving...
+                </>
+              ) : editingDesign ? (
+                "Update"
+              ) : (
+                "Create"
               )}
             </Button>
           </DialogFooter>

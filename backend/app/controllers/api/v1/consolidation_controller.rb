@@ -32,7 +32,7 @@ module Api
       # GET /api/v1/consolidation/:company_group_id
       # Returns detailed consolidation info for a group
       def show
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         relationships = service.intercompany_relationships
@@ -60,7 +60,7 @@ module Api
       # POST /api/v1/consolidation/:company_group_id/reconcile
       # Run reconciliation for a company group
       def reconcile
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         result = service.run_reconciliation
@@ -73,17 +73,14 @@ module Api
             discrepancies: result[:discrepancies]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
       # GET /api/v1/consolidation/:company_group_id/relationships
       # Returns intercompany relationships for a group
       def relationships
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(@company_group, as_of_date: as_of_date)
 
         render json: {
@@ -107,7 +104,7 @@ module Api
       # GET /api/v1/consolidation/mismatches
       # Returns all current mismatches across all groups (for health dashboard)
       def mismatches
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
 
         all_mismatches = []
 
@@ -140,17 +137,14 @@ module Api
       def company_summary
         company = Corporate.find_by_slug_or_id(params[:company_id])
         unless company
-          return render json: { success: false, error: "Company not found" }, status: :not_found
+          return render_error("Company not found", status: :not_found)
         end
 
         unless company.company_group
-          return render json: {
-            success: false,
-            error: "Company is not part of a group"
-          }, status: :bad_request
+          return render_error("Company is not part of a group", status: :bad_request)
         end
 
-        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.today
+        as_of_date = params[:as_of_date].present? ? Date.parse(params[:as_of_date]) : Date.current
         service = ConsolidationReconciliationService.new(company.company_group, as_of_date: as_of_date)
 
         render json: {
@@ -164,7 +158,7 @@ module Api
       def set_company_group
         @company_group = CompanyGroup.find(params[:company_group_id] || params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: { success: false, error: "Company group not found" }, status: :not_found
+        render_error("Company group not found", status: :not_found)
       end
 
       def format_report(report)

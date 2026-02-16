@@ -46,36 +46,7 @@ import { JobBudgetTab } from "@/components/jobs/JobBudgetTab";
 import { JobCommunicationsTab } from "@/components/jobs/JobCommunicationsTab";
 import { JobProfitTab } from "@/components/jobs/JobProfitTab";
 import { Spinner } from "@/components/ui/spinner";
-
-interface Contact {
-  id: number;
-  name: string;
-  email: string;
-  mobile?: string;
-  company?: string;
-  is_primary?: boolean;
-}
-
-interface Job {
-  id: number;
-  name: string;
-  status: string;
-  stage: string;
-  job_status?: { id: number; name: string; color?: string };
-  job_stage?: { id: number; name: string };
-  contract_value: number;
-  live_profit: number;
-  profit_percentage: number;
-  certifier_job_no?: string;
-  start_date?: string;
-  location?: string;
-  latitude?: number;
-  longitude?: number;
-  site_supervisor_name?: string;
-  site_supervisor_email?: string;
-  site_supervisor_phone?: string;
-  contacts?: Contact[];
-}
+import type { Contact, Job } from "@/lib/types";
 
 interface JobDetailDrawerProps {
   jobId: number | null;

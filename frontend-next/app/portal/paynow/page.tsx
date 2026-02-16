@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { portalApi } from "@/lib/portal-api";
+import { formatDate as formatDateSSoT, formatCurrency as formatCurrencySSoT } from "@/utils/formatters";
 
 interface PayNowRequest {
   id: number;
@@ -207,20 +208,12 @@ export default function PortalPayNow() {
     if (typeof amount === "string") {
       return amount; // Already formatted from backend
     }
-    return `$${Number(amount).toLocaleString("en-AU", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+    return formatCurrencySSoT(amount);
   };
 
   const formatDate = (dateString: string): string | null => {
     if (!dateString) return null;
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    return formatDateSSoT(dateString);
   };
 
   if (loading) {

@@ -16,16 +16,16 @@ class XeroHealthEvent < ApplicationRecord
   belongs_to :xero_credential, optional: true
 
   # Event types
-  STATUS_CHANGE = "status_change"
-  TOKEN_REFRESH = "token_refresh"
-  TOKEN_EXPIRED = "token_expired"
-  TOKEN_POISONED = "token_poisoned"
-  CIRCUIT_OPENED = "circuit_opened"
-  CIRCUIT_CLOSED = "circuit_closed"
-  SELF_HEAL_STARTED = "self_heal_started"
-  SELF_HEAL_COMPLETED = "self_heal_completed"
-  SELF_HEAL_FAILED = "self_heal_failed"
-  HEALTH_CHECK = "health_check"
+  STATUS_CHANGE = "status_change".freeze
+  TOKEN_REFRESH = "token_refresh".freeze
+  TOKEN_EXPIRED = "token_expired".freeze
+  TOKEN_POISONED = "token_poisoned".freeze
+  CIRCUIT_OPENED = "circuit_opened".freeze
+  CIRCUIT_CLOSED = "circuit_closed".freeze
+  SELF_HEAL_STARTED = "self_heal_started".freeze
+  SELF_HEAL_COMPLETED = "self_heal_completed".freeze
+  SELF_HEAL_FAILED = "self_heal_failed".freeze
+  HEALTH_CHECK = "health_check".freeze
 
   EVENT_TYPES = [
     STATUS_CHANGE, TOKEN_REFRESH, TOKEN_EXPIRED, TOKEN_POISONED,

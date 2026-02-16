@@ -67,10 +67,7 @@ module Api
             message: "Documentation entry created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @entry.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@entry)
         end
       end
 
@@ -85,10 +82,7 @@ module Api
             message: "Documentation entry updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @entry.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@entry)
         end
       end
 
@@ -162,10 +156,7 @@ module Api
         query = params[:q]
 
         if query.blank?
-          return render json: {
-            success: false,
-            error: 'Query parameter "q" is required'
-          }, status: :bad_request
+          return render_error('Query parameter "q" is required', status: :bad_request)
         end
 
         # Search dense_index using PostgreSQL text search
@@ -221,10 +212,7 @@ module Api
             total_entries: Trinity.lexicon_entries.count
           }
         else
-          render json: {
-            success: false,
-            error: "Export failed"
-          }, status: :internal_server_error
+          render_error("Export failed", status: :internal_server_error)
         end
       end
 
@@ -241,10 +229,7 @@ module Api
             total_entries: Trinity.teacher_entries.count
           }
         else
-          render json: {
-            success: false,
-            error: "Export failed"
-          }, status: :internal_server_error
+          render_error("Export failed", status: :internal_server_error)
         end
       end
 
@@ -253,10 +238,7 @@ module Api
       def set_trinity_entry
         @entry = Trinity.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Trinity entry not found"
-        }, status: :not_found
+        render_error("Trinity entry not found", status: :not_found)
       end
 
       def current_user_identifier

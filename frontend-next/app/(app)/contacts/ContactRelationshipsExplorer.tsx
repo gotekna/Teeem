@@ -17,14 +17,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
-
-interface Contact {
-  id: number;
-  display_name: string;
-  entity_type: string;
-  email: string | null;
-  mobile_phone: string | null;
-}
+import type { Contact } from "@/lib/types";
 
 interface ContactRelationship {
   id: number;
@@ -121,7 +114,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
   }, [initialContactId, loadRelationships]);
 
   // Get entity type icon
-  const getEntityIcon = (entityType: string) => {
+  const getEntityIcon = (entityType: string | null) => {
     switch (entityType) {
       case "person":
         return <User className="h-4 w-4" />;
@@ -135,7 +128,7 @@ export default function ContactRelationshipsExplorer({ initialContactId }: Conta
   };
 
   // Get entity type color
-  const getEntityColor = (entityType: string) => {
+  const getEntityColor = (entityType: string | null) => {
     switch (entityType) {
       case "person":
         return "bg-blue-500";

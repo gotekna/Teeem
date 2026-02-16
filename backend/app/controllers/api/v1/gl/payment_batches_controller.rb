@@ -45,16 +45,14 @@ module Api
           if @batch.save
             render json: { success: true, data: @batch }, status: :created
           else
-            render json: { success: false, error: @batch.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(@batch.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
         # DELETE /api/v1/gl/payment_batches/:id
         def destroy
           unless %w[draft failed].include?(@batch.status)
-            render json: { success: false, error: "Cannot delete batch in #{@batch.status} status" },
-                   status: :unprocessable_entity
+            render_error("Cannot delete batch in #{@batch.status} status", status: :unprocessable_entity)
             return
           end
 
@@ -95,8 +93,7 @@ module Api
           if @batch.submit_for_approval!
             render json: { success: true, data: @batch, message: "Batch submitted for approval" }
           else
-            render json: { success: false, error: @batch.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(@batch.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -105,7 +102,7 @@ module Api
           if @batch.approve!(current_user)
             render json: { success: true, data: @batch, message: "Batch approved" }
           else
-            render json: { success: false, error: "Cannot approve batch" }, status: :unprocessable_entity
+            render_error("Cannot approve batch", status: :unprocessable_entity)
           end
         end
 
@@ -114,7 +111,7 @@ module Api
           if @batch.reject!(params[:reason])
             render json: { success: true, data: @batch, message: "Batch rejected" }
           else
-            render json: { success: false, error: "Cannot reject batch" }, status: :unprocessable_entity
+            render_error("Cannot reject batch", status: :unprocessable_entity)
           end
         end
 
@@ -133,15 +130,14 @@ module Api
               message: "ABA file generated"
             }
           else
-            render json: { success: false, error: "Cannot generate ABA. Batch must be approved." },
-                   status: :unprocessable_entity
+            render_error("Cannot generate ABA. Batch must be approved.", status: :unprocessable_entity)
           end
         end
 
         # GET /api/v1/gl/payment_batches/:id/download_aba
         def download_aba
           unless @batch.aba_file_content.present?
-            render json: { success: false, error: "ABA file not generated" }, status: :not_found
+            render_error("ABA file not generated", status: :not_found)
             return
           end
 
@@ -156,7 +152,7 @@ module Api
           if @batch.mark_processing!
             render json: { success: true, data: @batch, message: "Batch marked as processing" }
           else
-            render json: { success: false, error: "Cannot process batch" }, status: :unprocessable_entity
+            render_error("Cannot process batch", status: :unprocessable_entity)
           end
         end
 
@@ -165,7 +161,7 @@ module Api
           if @batch.complete!
             render json: { success: true, data: @batch, message: "Batch completed" }
           else
-            render json: { success: false, error: "Cannot complete batch" }, status: :unprocessable_entity
+            render_error("Cannot complete batch", status: :unprocessable_entity)
           end
         end
 

@@ -314,7 +314,6 @@ export class StateManager {
       this.applyPersistedState(parsed);
       return true;
     } catch (e) {
-      console.warn('[StateManager] Failed to restore state:', e);
       return false;
     }
   }
@@ -325,9 +324,7 @@ export class StateManager {
   clearPersistedState(): void {
     try {
       removeStorageItem(this.persistence.key, false);
-    } catch (e) {
-      console.warn('[StateManager] Failed to clear persisted state:', e);
-    }
+    } catch (_) { /* Storage clear failure is non-critical */ }
   }
 
   // ============================================================================
@@ -483,9 +480,7 @@ export class StateManager {
       };
 
       setStorageItem(this.persistence.key, stateToSave, false);
-    } catch (e) {
-      console.warn('[StateManager] Failed to persist state:', e);
-    }
+    } catch (_) { /* Storage save failure is non-critical */ }
   }
 
   /**

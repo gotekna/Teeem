@@ -17,7 +17,7 @@
 
 'use client';
 
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useTableContext } from './TableContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

@@ -18,10 +18,13 @@ class DesktopClient < ApplicationRecord
   # TODO: Enable encryption when AR encryption is configured
   # encrypts :refresh_token
 
+  # Constants
+  PLATFORMS = %w[macos windows].freeze
+
   # Validations
   validates :device_id, presence: true, uniqueness: { scope: :user_id }
   validates :device_name, presence: true
-  validates :platform, inclusion: { in: %w[macos windows], allow_nil: true }
+  validates :platform, inclusion: { in: PLATFORMS, allow_nil: true }
 
   # Scopes
   scope :active, -> { where(is_active: true) }
@@ -92,7 +95,7 @@ class DesktopClient < ApplicationRecord
     {
       access_token: generate_access_token,
       refresh_token: refresh_token,
-      expires_in: 3600,  # 1 hour
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,  # 1 hour
       device_id: device_id
     }
   end
@@ -125,7 +128,7 @@ class DesktopClient < ApplicationRecord
 
     {
       access_token: generate_access_token,
-      expires_in: 3600
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
     }
   end
 

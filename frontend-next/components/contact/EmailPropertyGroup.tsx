@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { Plus, Star, Trash2, Mail, Check } from "lucide-react";
 import { EMAIL_REGEX } from "@/lib/email-constants";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 export interface ContactEmail {
   id?: number;
@@ -123,7 +124,7 @@ function EmailRow({
     try {
       await onSave({ email: trimmed });
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 1500);
+      setTimeout(() => setShowSuccess(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {

@@ -22,7 +22,7 @@ class DatabaseBackupJob < ApplicationJob
   BACKUPS_TO_KEEP = 12
 
   # Heroku app name for production database
-  HEROKU_APP = "teeem-production"
+  HEROKU_APP = HerokuPlatformService::PRODUCTION_APP
 
   def perform
     Rails.logger.info "[DatabaseBackup] Starting weekly database backup"
@@ -32,7 +32,7 @@ class DatabaseBackupJob < ApplicationJob
       return
     end
 
-    unless heroku_api_key.present?
+    unless HerokuPlatformService.api_key?
       Rails.logger.warn "[DatabaseBackup] Skipped - HEROKU_API_KEY not set"
       return
     end
@@ -71,7 +71,7 @@ class DatabaseBackupJob < ApplicationJob
   private
 
   def heroku_api_key
-    ENV["HEROKU_API_KEY"]
+    HerokuPlatformService.api_key
   end
 
   def fetch_heroku_backup_url

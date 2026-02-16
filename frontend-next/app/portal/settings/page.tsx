@@ -16,6 +16,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { portalApi } from "@/lib/portal-api";
+import { usePathTabs } from "@/hooks/usePathTabs";
 
 interface PortalUser {
   contact_name?: string;
@@ -38,7 +39,14 @@ export default function PortalSettings() {
   const { toast } = useToast();
   const { confirm } = useConfirm();
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState("profile");
+  // URL is SSoT for section state
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
+  const [activeSection, setActiveSection] = usePathTabs(
+    "/portal/settings",
+    "profile",
+    ["profile", "company", "security", "accounting"],
+    { redirectToDefault: true }
+  );
   const [accountingIntegrations, setAccountingIntegrations] = useState<
     AccountingIntegration[]
   >([]);
@@ -62,6 +70,12 @@ export default function PortalSettings() {
       }
     } catch (error) {
       console.error("Failed to load settings:", error);
+      const message = error instanceof Error ? error.message : "Failed to load settings";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

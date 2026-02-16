@@ -55,7 +55,7 @@ class SmTaskResetService
         start_date: job.start_date || Date.current,
         clear_existing: true,
         create_purchase_orders: false  # Don't auto-create new POs
-      }).execute
+      }).call
 
       if copy_result[:success]
         result[:tasks_deleted] = original_task_count

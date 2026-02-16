@@ -7,9 +7,12 @@ class AssetServiceHistory < ApplicationRecord
   belongs_to :invoice_blob, class_name: "StorageBlob", optional: true
   belongs_to :document_blob, class_name: "StorageBlob", optional: true
 
+  # Constants
+  SERVICE_TYPES = %w[regular_service repair inspection registration warranty_work other].freeze
+
   # Validations
   validates :service_date, presence: true
-  validates :service_type, inclusion: { in: %w[regular_service repair inspection registration warranty_work other] }, allow_blank: true
+  validates :service_type, inclusion: { in: SERVICE_TYPES, allow_blank: true }
   validates :cost, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   # Scopes
@@ -32,7 +35,7 @@ class AssetServiceHistory < ApplicationRecord
 
   def days_since_service
     return nil unless service_date.present?
-    (Date.today - service_date).to_i
+    (Date.current - service_date).to_i
   end
 
   # ========================================
@@ -43,7 +46,7 @@ class AssetServiceHistory < ApplicationRecord
     invoice_blob_id.present?
   end
 
-  def invoice_url(expires_in: 3600)
+  def invoice_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless invoice_blob
 
     invoice_blob.presigned_url(expires_in: expires_in)
@@ -65,7 +68,7 @@ class AssetServiceHistory < ApplicationRecord
     document_blob_id.present?
   end
 
-  def document_url(expires_in: 3600)
+  def document_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
     return nil unless document_blob
 
     document_blob.presigned_url(expires_in: expires_in)

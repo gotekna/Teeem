@@ -3,7 +3,7 @@
 # Background job to sync a job with Xero tracking categories
 # Creates a new tracking option in Xero and links it to the job
 class XeroTrackingSyncJob < ApplicationJob
-  queue_as :default
+  queue_as :xero_sync
 
   # Retry on temporary failures
   retry_on XeroApiClient::RateLimitError, wait: :polynomially_longer, attempts: 3

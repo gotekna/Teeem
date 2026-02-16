@@ -3,8 +3,10 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { SmTask, TaskAttachment, TaskAttachmentEmail, TaskActionItem, TaskFollower, useTaskHub, ActionItemType, AttachmentCategory } from '@/contexts/TaskHubContext';
 import { useAuth } from '@/contexts/AuthContext';
+import type { User } from '@/lib/types';
 import { copyToClipboard } from '@/utils/formatters';
 import { generateSimpleSignature } from '@/lib/email-signature';
+import { UI_ANIMATION_STANDARD_MS, MODAL_RESET_DELAY_MS } from '@/lib/constants/timeout-constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { SmartInput } from '@/components/ui/smart-input';
@@ -46,7 +48,7 @@ import { SubtaskList } from './SubtaskList';
 import TeeemTableView from '@/components/table/TeeemTableView';
 import { EmailDetailDialog } from '@/components/emails/EmailDetailDialog';
 import { api, getApiBaseUrl } from '@/lib/api';
-import { getStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { TABLE_ROW_LIMIT } from '@/lib/constants/pagination-constants';
 // Note: Uses sonner's toast (imported below) for toast.success/error/info API
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
@@ -98,7 +100,7 @@ import {
   Target,
   Trash2,
   Upload,
-  User,
+  User as UserIcon,
   Users,
   X,
   RefreshCw,
@@ -107,12 +109,13 @@ import {
 } from "lucide-react";
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { DATE_ISO, DATETIME_COMPACT, DATE_MEDIUM } from '@/lib/constants/date-formats';
 import { toast } from 'sonner';
 import { useWorkingDays } from '@/lib/hooks/useWorkingDays';
 import { ComboboxDropdown, ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ExpandChevron } from '@/components/ui/expand-chevron';
 import { CascadeCompletionDialog } from '@/components/schedule/CascadeCompletionDialog';
-import { DocumentViewerModal, getFileType } from '@/components/ui/document-viewer-modal';
+import { DocumentViewer, getFileType, type FileType } from '@/components/ui/document-viewer';
 import { RichTextEditorModal } from '@/components/ui/rich-text-editor-modal';
 import { AttachmentCategoryDialog } from './AttachmentCategoryDialog';
 import { ComposeEmailModal } from '@/components/emails/ComposeEmailModal';
@@ -120,15 +123,10 @@ import type { PreUploadedAttachment } from '@/lib/email-types';
 import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
+import { Job } from '@/lib/types';
 
 // Type for rich text editor modal
 type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
-
-interface Job {
-  id: number;
-  name: string;
-  client_name?: string;
-}
 
 interface TaskFullscreenViewProps {
   task: SmTask;
@@ -143,11 +141,6 @@ const statusColors = {
   supplier_confirm: 'data-[state=checked]:bg-purple-500 data-[state=checked]:border-purple-500',
   completed: 'data-[state=checked]:bg-muted0 data-[state=checked]:border-border',
 };
-
-interface User {
-  id: number;
-  name: string;
-}
 
 // Suggested email from the suggested_emails endpoint
 interface SuggestedEmail {
@@ -226,7 +219,7 @@ interface SortableQuestionItemProps {
   setRenamingAttachmentName?: (name: string) => void;
   handleRenameAttachment?: (attachmentId: number, newName: string) => void;
   // Document viewer props
-  onOpenDocument?: (url: string, fileName: string, fileType: 'pdf' | 'image' | 'other') => void;
+  onOpenDocument?: (url: string, fileName: string, fileType: FileType) => void;
   onDownloadAttachment?: (att: TaskAttachment) => void;
 }
 
@@ -310,7 +303,6 @@ function SortableQuestionItem({
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && onFileDrop) {
-      console.log('[SortableQuestionItem] File selected via picker:', file.name);
       onFileDrop(file, item.id);
     }
     // Reset input so same file can be selected again
@@ -478,7 +470,6 @@ function SortableQuestionItem({
     // Check for existing attachment being dragged (from "See attached" section)
     const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
     if (attachmentId && onAttachmentDrop) {
-      console.log('[SortableQuestionItem] Linking existing attachment:', attachmentId, 'to question:', item.id);
       onAttachmentDrop(parseInt(attachmentId), item.id);
       return;
     }
@@ -487,7 +478,6 @@ function SortableQuestionItem({
     const documentId = e.dataTransfer.getData('application/x-document-id');
     const documentSource = e.dataTransfer.getData('application/x-document-source');
     if (documentId && documentSource && onDocumentDrop) {
-      console.log('[SortableQuestionItem] Linking document:', documentId, 'source:', documentSource, 'to question:', item.id);
       onDocumentDrop(parseInt(documentId), documentSource, item.id);
       return;
     }
@@ -497,29 +487,13 @@ function SortableQuestionItem({
     const items = Array.from(e.dataTransfer.items);
     const types = e.dataTransfer.types;
 
-    console.log('[SortableQuestionItem] Drop event details:');
-    console.log('  - Question ID:', item.id);
-    console.log('  - Files count:', files.length);
-    console.log('  - Items count:', items.length);
-    console.log('  - Types:', types);
-
-    // Log each item's kind and type
-    items.forEach((dtItem, i) => {
-      console.log(`  - Item ${i}: kind=${dtItem.kind}, type=${dtItem.type}`);
-      if (dtItem.kind === 'string') {
-        dtItem.getAsString((s) => console.log(`    String data: ${s.substring(0, 200)}...`));
-      }
-    });
 
     if (files.length > 0 && onFileDrop) {
-      console.log('[SortableQuestionItem] Calling onFileDrop with file:', files[0].name);
       onFileDrop(files[0], item.id);
     } else if (files.length === 0) {
-      console.log('[SortableQuestionItem] No files in drop - might be URL/text drag from OneDrive');
       // Try to get URL or text data
       const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
       if (url) {
-        console.log('[SortableQuestionItem] Got URL/text:', url);
       }
     }
   };
@@ -739,11 +713,8 @@ function SortableQuestionItem({
               const fileName = att.document?.display_name || att.document?.file_name || 'Document';
               const isRenaming = renamingAttachmentId === att.id;
 
-              // Determine file type for viewer
-              const ext = (att.document?.file_name || '').split('.').pop()?.toLowerCase() || '';
-              const fileType: 'pdf' | 'image' | 'other' = ext === 'pdf' ? 'pdf'
-                : ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? 'image'
-                : 'other';
+              // Determine file type for viewer (uses SSoT getFileType from document-viewer)
+              const fileType = getFileType(att.document?.file_name || '');
 
               return (
                 <div key={att.id} className="flex items-center gap-1 text-xs group relative">
@@ -1241,7 +1212,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [viewerDocument, setViewerDocument] = useState<{
     url: string;
     fileName: string;
-    fileType: 'pdf' | 'image' | 'other';
+    fileType: FileType;
   } | null>(null);
 
   // Column collapse state
@@ -1270,6 +1241,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   const [editingAnswerText, setEditingAnswerText] = useState('');
 
   // Rich text editor modal state (SSoT for all text editing)
+  // NOTE: useState is CORRECT here - this is a standalone task page modal,
+  // NOT a table modal. activeTableModalAtom is only for table-related modals.
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editModalType, setEditModalType] = useState<EditModalType>(null);
   const [editModalItemId, setEditModalItemId] = useState<number | null>(null);
@@ -1739,10 +1712,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Get the mailbox email that received the original message (for Reply From address)
   // SSoT: Ensures reply is sent from the same mailbox the original was received at
   const originalEmailMailbox = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mailbox = (originalEmailData as any)?.mailbox_owner_email || null;
-    console.log('[TaskReply] originalEmailData:', originalEmailData);
-    console.log('[TaskReply] mailbox_owner_email:', mailbox);
     return mailbox;
   }, [originalEmailData]);
 
@@ -2234,7 +2204,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   useEffect(() => {
     const loadJobs = async () => {
       try {
-        const response = await api.get<{ jobs: Job[] }>('/api/v1/jobs', { params: { per_page: 100 } });
+        const response = await api.get<{ jobs: Job[] }>('/api/v1/jobs', { params: { per_page: TABLE_ROW_LIMIT } });
         if (response?.jobs) {
           setJobs(response.jobs);
         }
@@ -2655,7 +2625,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     sourceType: string,
     actionItemId: number
   ) => {
-    console.log('[TaskFullscreenView] handleDocumentDropOnQuestion:', { docId, sourceType, actionItemId });
     setAttachmentLoading(true);
     try {
       // Map source_type to attachment_type for backend API
@@ -2677,7 +2646,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       );
       if (response?.success) {
-        console.log('[TaskFullscreenView] Document linked to question successfully');
         await refresh();
       }
     } catch (error) {
@@ -2879,17 +2847,9 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     if (!task.purchase_order_id) return;
     try {
       setPoPdfLoading('preview');
-      const baseUrl = getApiBaseUrl();
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
-      const headers: HeadersInit = {};
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      const response = await fetch(`${baseUrl}/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf?format=html`, {
-        headers,
-        credentials: 'include',
+      const html = await api.getText(`/api/v1/purchase_orders/${task.purchase_order_id}/generate_pdf`, {
+        params: { format: 'html' }
       });
-      const html = await response.text();
       setPoPreviewHtml(html);
       setPoPreviewModalOpen(true);
     } catch (err) {
@@ -3000,7 +2960,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       toast.error('Failed to download file');
     } finally {
       // Brief delay so user sees the loading state
-      setTimeout(() => setDownloadingAttachmentId(null), 500);
+      setTimeout(() => setDownloadingAttachmentId(null), UI_ANIMATION_STANDARD_MS);
     }
   };
 
@@ -3023,7 +2983,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         downloadedCount++;
         // Small delay between downloads to avoid overwhelming the browser
         if (downloadedCount < downloadableFiles.length) {
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, MODAL_RESET_DELAY_MS));
         }
       }
       toast.success(`Downloaded ${downloadedCount} file${downloadedCount > 1 ? 's' : ''}`);
@@ -3593,48 +3553,40 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
   // Helper to upload file directly with a category (bypasses dialog)
   // Uses presigned URL flow: Browser → S3 directly (bypasses Heroku 30s timeout)
   const uploadFileWithCategory = async (file: File, category: AttachmentCategory, actionItemId?: number) => {
-    console.log('[TaskFullscreenView] uploadFileWithCategory:', file.name, 'category:', category, 'actionItemId:', actionItemId);
     setAttachmentLoading(true);
-
-    const token = getStorageItem(STORAGE_KEYS.TOKEN, null, false);
-    const baseUrl = getApiBaseUrl();
 
     try {
       // Step 1: Get presigned URL from backend
-      console.log('[TaskFullscreenView] Step 1: Getting presigned URL...');
-      const presignResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/presign`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          filename: file.name,
-          content_type: file.type || 'application/octet-stream',
-          category,
-        }),
+      const presignData = await api.post<{
+        success: boolean;
+        upload_url?: string;
+        key?: string;
+        content_type?: string;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/attachments/presign`, {
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        category,
       });
 
-      const presignData = await presignResponse.json();
-      if (!presignData.success || !presignData.upload_url) {
+      if (!presignData?.success || !presignData.upload_url) {
         console.error('[TaskFullscreenView] Failed to get presigned URL:', presignData);
-        toast.error(presignData.error || 'Failed to prepare upload. Please try again.');
+        toast.error(presignData?.error || 'Failed to prepare upload. Please try again.');
         setAttachmentLoading(false);
         return;
       }
 
-      console.log('[TaskFullscreenView] Got presigned URL, uploading file...');
 
       try {
+        // Step 2: Upload directly to S3 (external URL - keep as raw fetch)
         const s3Response = await fetch(presignData.upload_url, {
           method: 'PUT',
           headers: {
-            'Content-Type': presignData.content_type,
+            'Content-Type': presignData.content_type || 'application/octet-stream',
           },
           body: file,
         });
 
-        console.log('[TaskFullscreenView] S3 response status:', s3Response.status, s3Response.statusText);
 
         if (!s3Response.ok) {
           // Try to read error body if possible
@@ -3643,7 +3595,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           throw new Error(`S3 upload failed: ${s3Response.status} ${s3Response.statusText}`);
         }
 
-        console.log('[TaskFullscreenView] S3 upload complete');
       } catch (fetchError) {
         console.error('[TaskFullscreenView] S3 fetch error:', fetchError);
         // Re-throw with more context
@@ -3651,28 +3602,20 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
 
       // Step 3: Confirm upload with backend
-      console.log('[TaskFullscreenView] Step 3: Confirming upload...');
-      const confirmResponse = await fetch(`${baseUrl}/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          key: presignData.key,
-          filename: file.name,
-          content_type: file.type || 'application/octet-stream',
-          category,
-          action_item_id: actionItemId,
-        }),
+      const confirmData = await api.post<{
+        success: boolean;
+        attachment?: TaskAttachment;
+        error?: string;
+      }>(`/api/v1/sm_tasks/${task.id}/attachments/confirm`, {
+        key: presignData.key,
+        filename: file.name,
+        content_type: file.type || 'application/octet-stream',
+        category,
+        action_item_id: actionItemId,
       });
 
-      const confirmData = await confirmResponse.json();
-      console.log('[TaskFullscreenView] Confirm response:', confirmData);
-
-      if (confirmData.success && confirmData.attachment) {
-        console.log('[TaskFullscreenView] Adding attachment to local state:', confirmData.attachment);
-        setLocalAttachments(prev => [...prev, confirmData.attachment]);
+      if (confirmData?.success && confirmData.attachment) {
+        setLocalAttachments(prev => [...prev, confirmData.attachment!]);
         toast.success(`Uploaded ${file.name}`);
 
         // If linked to an action item, refresh to get updated action items
@@ -3681,7 +3624,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       } else {
         console.error('[TaskFullscreenView] Confirm failed:', confirmData);
-        toast.error(confirmData.error || 'Failed to save attachment. Please try again.');
+        toast.error(confirmData?.error || 'Failed to save attachment. Please try again.');
       }
     } catch (error) {
       console.error('[TaskFullscreenView] Upload error:', error);
@@ -3693,20 +3636,17 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Handle file drop on a specific question
   const handleFileDropOnQuestion = async (file: File, actionItemId: number) => {
-    console.log('[TaskFullscreenView] handleFileDropOnQuestion called:', file.name, 'actionItemId:', actionItemId);
     await uploadFileWithCategory(file, 'response', actionItemId);
   };
 
   // Handle linking an existing attachment to a question
   const handleAttachmentDropOnQuestion = async (attachmentId: number, actionItemId: number) => {
-    console.log('[TaskFullscreenView] handleAttachmentDropOnQuestion called:', attachmentId, 'to question:', actionItemId);
     try {
       const response = await api.patch<{ success: boolean; attachment: TaskAttachment }>(
         `/api/v1/sm_tasks/${task.id}/attachments/${attachmentId}`,
         { action_item_id: actionItemId }
       );
       if (response?.success) {
-        console.log('[TaskFullscreenView] Attachment linked to question successfully');
         // Refresh tasks to show updated attachments
         await refresh();
       }
@@ -3766,7 +3706,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Check for existing attachment being dragged (from Emails section)
     const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
     if (attachmentId) {
-      console.log('[TaskFullscreenView] handleDrop - Attachment ID detected:', attachmentId);
       // Open dialog to select which question to attach to
       setPendingAttachmentForQuestion(parseInt(attachmentId));
       return;
@@ -3776,7 +3715,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     const documentId = e.dataTransfer.getData('application/x-document-id');
     const documentSource = e.dataTransfer.getData('application/x-document-source');
     if (documentId && documentSource) {
-      console.log('[TaskFullscreenView] handleDrop - Document dropped:', documentId, 'source:', documentSource);
       // Add document as a general attachment (not linked to a question)
       handleDocumentDropAsAttachment(parseInt(documentId), documentSource);
       return;
@@ -3790,7 +3728,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
   // Handle dropping a document from the Documents tab as a general attachment (not linked to question)
   const handleDocumentDropAsAttachment = async (docId: number, sourceType: string) => {
-    console.log('[TaskFullscreenView] handleDocumentDropAsAttachment:', { docId, sourceType });
     setAttachmentLoading(true);
     try {
       // Map source_type to attachment_type for backend API
@@ -3811,7 +3748,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         }
       );
       if (response?.success && response.attachment) {
-        console.log('[TaskFullscreenView] Document attached successfully');
         setLocalAttachments(prev => [...prev, response.attachment]);
       }
     } catch (error) {
@@ -3842,16 +3778,13 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     // Check for existing attachment being dragged (from Emails section)
     const attachmentId = e.dataTransfer.getData('application/x-attachment-id');
     if (attachmentId) {
-      console.log('[TaskFullscreenView] handleQuestionsDrop - Attachment ID detected:', attachmentId);
       // Open dialog to select which question to attach to
       setPendingAttachmentForQuestion(parseInt(attachmentId));
       return;
     }
 
     const files = Array.from(e.dataTransfer.files);
-    console.log('[TaskFullscreenView] handleQuestionsDrop - Questions COLUMN drop handler fired, files:', files.length);
     if (files.length > 0) {
-      console.log('[TaskFullscreenView] Dropping file as response (column level):', files[0].name);
       // Auto-upload as response (skip category dialog)
       await uploadFileWithCategory(files[0], 'response');
     }
@@ -3966,7 +3899,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             allQA: context.allQA
           };
           const encoded = encodeViewerContext(viewerContext);
-          const enhancedUrl = `https://teeem.vercel.app/view/${encoded}`;
+          const enhancedUrl = `${window.location.origin}/view/${encoded}`;
 
           // URL length limit: browsers support ~2000 chars, but keep under 1800 to be safe
           // Presigned S3 URLs can be 300+ chars each, so fall back for long URLs
@@ -3975,7 +3908,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           } else if (viewerContextIdRef.current) {
             // Use server-stored context (preserves Q&A sidebar)
             const idx = context.currentIndex ?? 0;
-            viewerUrl = `https://teeem.vercel.app/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
+            viewerUrl = `${window.location.origin}/view/ctx/${viewerContextIdRef.current}?idx=${idx}`;
           } else {
             // Last resort: simple URL for this file only (pass type hint for blob URLs without extension)
             const viewerParams = new URLSearchParams({
@@ -3984,7 +3917,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               download: downloadUrl
             });
             if (typeHint) viewerParams.set('type', typeHint);
-            viewerUrl = `https://teeem.vercel.app/view?${viewerParams.toString()}`;
+            viewerUrl = `${window.location.origin}/view?${viewerParams.toString()}`;
           }
         } else {
           // Fallback to simple query params for single files without Q&A context
@@ -4025,18 +3958,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       answer: q.response || undefined
     }));
 
-    // Debug: Log ALL questions to diagnose filtering
-    console.log('[generateResponseBody] ALL questions:', questionItems.map(q => ({
-      id: q.id,
-      text: q.text.substring(0, 50),
-      include_in_response: q.include_in_response,
-      response: q.response ? q.response.substring(0, 30) + '...' : null,
-      hasResponse: !!q.response,
-      attachmentCount: q.attachments?.length || 0,
-      willBeIncluded: q.include_in_response && (!!q.response || (q.attachments && q.attachments.length > 0))
-    })));
-    console.log('[generateResponseBody] Filtered to include:', includedQuestions.length, 'of', questionItems.length);
-
     if (includedQuestions.length > 0) {
 
       // Group questions by their parent header
@@ -4063,17 +3984,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       // First, process headers in order
       let headerNum = 0;
-      console.log('[generateResponseBody] Processing headers:', groupedQuestions.headers.map(h => ({
-        id: h.id,
-        text: h.text.substring(0, 30),
-        childCount: h.children?.length || 0
-      })));
-      console.log('[generateResponseBody] headerMap keys:', Array.from(headerMap.keys()));
 
       groupedQuestions.headers.forEach(header => {
         headerNum++;
         const headerQuestions = headerMap.get(header.id) || [];
-        console.log(`[generateResponseBody] Header ${headerNum} "${header.text.substring(0, 20)}": ${headerQuestions.length} questions in map`);
         if (headerQuestions.length === 0) return; // Skip headers with no included questions
 
         // Add header with its number (bold)
@@ -4577,7 +4491,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
         // If document has storage_key, use it directly (no download/re-upload needed)
         if (att.document?.storage_key) {
-          console.log(`[prepareEmailResponse] Using storage_key for ${fileName}`);
           preUploadedAttachments.push({
             filename: fileName,
             storageKey: att.document.storage_key,
@@ -4619,7 +4532,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
         // If email has eml_storage_key, use it directly (no download/re-upload needed)
         if (att.email?.eml_storage_key) {
-          console.log(`[prepareEmailResponse] Using eml_storage_key for ${fileName}`);
           preUploadedAttachments.push({
             filename: fileName,
             storageKey: att.email.eml_storage_key,
@@ -4680,7 +4592,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             };
           } else {
             // Document file not found in storage - skip and warn user
-            console.warn(`[prepareEmailResponse] No share link for document ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
             docsWithoutShareLinks.push(fileName);
           }
         } catch (err) {
@@ -4715,7 +4626,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               open: openResponse?.share_url || downloadResponse.share_url
             };
           } else {
-            console.warn(`[prepareEmailResponse] No share link for email ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
           }
         } catch (err) {
           console.error(`Failed to create share link for email ${att.id}:`, err);
@@ -4752,7 +4662,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
             };
           } else {
             // Question attachment file not found - skip and add to warning
-            console.warn(`[prepareEmailResponse] No share link for question attachment ${att.id}`);
             docsWithoutShareLinks.push(fileName);
           }
         } catch (err) {
@@ -4789,7 +4698,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
               open: openResponse?.share_url || downloadResponse.share_url
             };
           } else {
-            console.warn(`[prepareEmailResponse] No share link for question email ${att.id}: ${downloadResponse?.error || 'unknown error'}`);
           }
         } catch (err) {
           console.error(`Failed to create share link for question email ${att.id}:`, err);
@@ -4898,7 +4806,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
         if (contextResponse?.success && contextResponse?.id) {
           viewerContextIdRef.current = contextResponse.id;
         } else {
-          console.warn('[prepareEmailResponse] Failed to store viewer context:', contextResponse?.error);
           viewerContextIdRef.current = null;
         }
       } catch (err) {
@@ -4957,7 +4864,6 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
           // Not critical - continue without it
         }
       } else {
-        console.log('[prepareEmailResponse] Not enough documents for download all:', allDocumentsToLink.length);
         downloadAllShareUrlRef.current = null;
         setDownloadAllShareUrl(null);
       }
@@ -5094,7 +5000,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           onSelect={(date) => {
                             if (date) {
                               setSelectedConfirmDate(date);
-                              confirmTask(task.id, format(date, 'yyyy-MM-dd'));
+                              confirmTask(task.id, format(date, DATE_ISO));
                               setConfirmDateOpen(false);
                             }
                           }}
@@ -5133,7 +5039,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           onSelect={(date) => {
                             if (date) {
                               setSelectedSupplierDate(date);
-                              supplierConfirmTask(task.id, format(date, 'yyyy-MM-dd'));
+                              supplierConfirmTask(task.id, format(date, DATE_ISO));
                               setSupplierConfirmDateOpen(false);
                             }
                           }}
@@ -5356,7 +5262,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                                <User className="h-3 w-3" />
+                                <UserIcon className="h-3 w-3" />
                                 <span className="font-medium">{note.user.name}</span>
                                 <span>·</span>
                                 <span>{format(new Date(note.created_at), 'dd MMM yyyy h:mm a')}</span>
@@ -5448,7 +5354,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             // When start date changes, recalculate end_date using working days
                             const newEndDate = calculateEndDate(date, task.duration_days);
                             await updateTask(task.id, {
-                              start_date: format(date, 'yyyy-MM-dd'),
+                              start_date: format(date, DATE_ISO),
                               end_date: newEndDate
                             });
                           }
@@ -5485,7 +5391,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                             // Ensure minimum duration of 1 day
                             const validDuration = Math.max(1, newDuration);
                             await updateTask(task.id, {
-                              end_date: format(date, 'yyyy-MM-dd'),
+                              end_date: format(date, DATE_ISO),
                               duration_days: validDuration
                             });
                             setDuration(validDuration);
@@ -5523,7 +5429,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                       selected={task.required_by ? new Date(task.required_by) : undefined}
                       onSelect={async (date) => {
                         await updateTask(task.id, {
-                          required_by: date ? format(date, 'yyyy-MM-dd') : undefined
+                          required_by: date ? format(date, DATE_ISO) : undefined
                         });
                       }}
                       initialFocus
@@ -6494,7 +6400,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                         }}
                                         disabled={client.emails.length === 0}
                                       >
-                                        <User className="h-3 w-3 mr-1" />
+                                        <UserIcon className="h-3 w-3 mr-1" />
                                         {client.name}
                                         {linkedCount > 0 && (
                                           <Badge variant="default" className="ml-1 h-4 px-1 text-[10px] bg-green-600">
@@ -8302,10 +8208,10 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
 
       {/* Document viewer modal with markup/annotation tools */}
       {viewerDocument && (
-        <DocumentViewerModal
+        <DocumentViewer
+          modal
           url={viewerDocument.url}
           fileName={viewerDocument.fileName}
-          fileType={viewerDocument.fileType}
           open={!!viewerDocument}
           onOpenChange={(open) => !open && setViewerDocument(null)}
           onSave={async (pdfBytes, fileName) => {
@@ -8505,7 +8411,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>
@@ -8560,7 +8466,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>
@@ -8615,7 +8521,7 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
                                   {email.from_name || email.from_email}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  {format(new Date(email.received_at), 'dd/MM/yy HH:mm')}
+                                  {format(new Date(email.received_at), DATETIME_COMPACT)}
                                 </span>
                               </div>
                               <p className="text-sm truncate">{email.subject}</p>

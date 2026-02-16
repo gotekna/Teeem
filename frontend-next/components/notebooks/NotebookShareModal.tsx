@@ -23,17 +23,18 @@ import {
 } from "@/components/ui/select";
 import { UserPlus, Trash2, Crown, Shield, Eye } from "lucide-react";
 import { api } from "@/lib/api";
+import { PAGE_SIZE_AUTOCOMPLETE } from "@/lib/constants/pagination-constants";
+import {
+  NOTEBOOK_PERMISSIONS,
+  NOTEBOOK_PERMISSION_LABELS,
+  type NotebookPermission,
+} from "@/lib/constants/roles";
 import {
   notebookActions,
   type Notebook,
   type NotebookShare,
 } from "./hooks/useNotebooks";
-
-interface User {
-  id: number;
-  display_name: string;
-  email: string;
-}
+import type { User } from "@/lib/types";
 
 interface NotebookShareModalProps {
   open: boolean;
@@ -42,11 +43,11 @@ interface NotebookShareModalProps {
   onUpdated?: () => void;
 }
 
-const PERMISSION_LABELS = {
-  view: { label: "Can view", icon: Eye, description: "Read-only access" },
-  edit: { label: "Can edit", icon: Shield, description: "Can edit pages" },
-  admin: { label: "Admin", icon: Crown, description: "Full control" },
-};
+const PERMISSION_ICONS = {
+  [NOTEBOOK_PERMISSIONS.VIEW]: Eye,
+  [NOTEBOOK_PERMISSIONS.EDIT]: Shield,
+  [NOTEBOOK_PERMISSIONS.ADMIN]: Crown,
+} as const;
 
 export function NotebookShareModal({
   open,
@@ -76,7 +77,7 @@ export function NotebookShareModal({
     setIsSearching(true);
     try {
       const response = await api.get<{ users: User[] }>("/users/search", {
-        params: { q: query, limit: 10 },
+        params: { q: query, limit: PAGE_SIZE_AUTOCOMPLETE },
       });
       // Filter out users who already have access
       const existingUserIds = new Set([
@@ -94,7 +95,7 @@ export function NotebookShareModal({
   };
 
   // Add a new share
-  const handleAddShare = async (user: User, permission: "view" | "edit" | "admin") => {
+  const handleAddShare = async (user: User, permission: NotebookPermission) => {
     try {
       const share = await notebookActions.share(notebook.id, {
         user_id: user.id,
@@ -113,7 +114,7 @@ export function NotebookShareModal({
   const handleUpdatePermission = async (
     shareId: number,
     userId: number,
-    permission: "view" | "edit" | "admin"
+    permission: NotebookPermission
   ) => {
     setIsUpdating(shareId);
     try {
@@ -172,7 +173,7 @@ export function NotebookShareModal({
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs">
-                            {user.display_name
+                            {(user.display_name || user.name)
                               .split(" ")
                               .map((n) => n[0])
                               .join("")
@@ -180,29 +181,35 @@ export function NotebookShareModal({
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="text-sm font-medium">{user.display_name}</div>
+                          <div className="text-sm font-medium">{user.display_name || user.name}</div>
                           <div className="text-xs text-muted-foreground">{user.email}</div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Select
-                          defaultValue="view"
+                          defaultValue={NOTEBOOK_PERMISSIONS.VIEW}
                           onValueChange={(value) =>
-                            handleAddShare(user, value as "view" | "edit" | "admin")
+                            handleAddShare(user, value as NotebookPermission)
                           }
                         >
                           <SelectTrigger className="w-28 h-8">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="view">Can view</SelectItem>
-                            <SelectItem value="edit">Can edit</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value={NOTEBOOK_PERMISSIONS.VIEW}>
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.VIEW].label}
+                            </SelectItem>
+                            <SelectItem value={NOTEBOOK_PERMISSIONS.EDIT}>
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.EDIT].label}
+                            </SelectItem>
+                            <SelectItem value={NOTEBOOK_PERMISSIONS.ADMIN}>
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.ADMIN].label}
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <Button
                           size="sm"
-                          onClick={() => handleAddShare(user, "view")}
+                          onClick={() => handleAddShare(user, NOTEBOOK_PERMISSIONS.VIEW)}
                         >
                           <UserPlus className="h-4 w-4" />
                         </Button>
@@ -243,7 +250,7 @@ export function NotebookShareModal({
 
               {/* Shared users */}
               {shares.map((share) => {
-                const PermIcon = PERMISSION_LABELS[share.permission].icon;
+                const PermIcon = PERMISSION_ICONS[share.permission];
                 return (
                   <div
                     key={share.id}
@@ -273,7 +280,7 @@ export function NotebookShareModal({
                           handleUpdatePermission(
                             share.id,
                             share.user.id,
-                            value as "view" | "edit" | "admin"
+                            value as NotebookPermission
                           )
                         }
                         disabled={isUpdating === share.id}
@@ -282,27 +289,27 @@ export function NotebookShareModal({
                           <SelectValue>
                             <span className="flex items-center gap-1">
                               <PermIcon className="h-3 w-3" />
-                              {PERMISSION_LABELS[share.permission].label}
+                              {NOTEBOOK_PERMISSION_LABELS[share.permission].label}
                             </span>
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="view">
+                          <SelectItem value={NOTEBOOK_PERMISSIONS.VIEW}>
                             <span className="flex items-center gap-2">
                               <Eye className="h-4 w-4" />
-                              Can view
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.VIEW].label}
                             </span>
                           </SelectItem>
-                          <SelectItem value="edit">
+                          <SelectItem value={NOTEBOOK_PERMISSIONS.EDIT}>
                             <span className="flex items-center gap-2">
                               <Shield className="h-4 w-4" />
-                              Can edit
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.EDIT].label}
                             </span>
                           </SelectItem>
-                          <SelectItem value="admin">
+                          <SelectItem value={NOTEBOOK_PERMISSIONS.ADMIN}>
                             <span className="flex items-center gap-2">
                               <Crown className="h-4 w-4" />
-                              Admin
+                              {NOTEBOOK_PERMISSION_LABELS[NOTEBOOK_PERMISSIONS.ADMIN].label}
                             </span>
                           </SelectItem>
                         </SelectContent>

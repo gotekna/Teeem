@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
+import { API } from "@/lib/constants/api-endpoints";
+import type { Company } from "@/lib/types";
 
 interface CompanyLink {
   id: number;
@@ -47,13 +49,6 @@ interface TeeemTenant {
   id: number;
   name: string;
   is_master: boolean;
-}
-
-interface Company {
-  id: number;
-  name: string;
-  company_group_id?: number;
-  entity_type?: string;
 }
 
 interface XeroConnectionsPopupProps {
@@ -142,7 +137,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
 
   const loadCompanies = async () => {
     try {
-      const response = await api.get<{ success: boolean; companies: Company[] }>("/api/v1/companies");
+      const response = await api.get<{ success: boolean; companies: Company[] }>(API.companies.list);
       setCompanies(response.companies || []);
     } catch (error) {
       console.error("Failed to load companies:", error);

@@ -14,10 +14,11 @@ class BasiqCredential < ApplicationRecord
 
   # Allowed polymorphic types for owner (security: prevents arbitrary type injection)
   ALLOWED_OWNER_TYPES = %w[Organization].freeze
+  STATUSES = %w[pending connected error disconnected].freeze
 
   # Validations
   validates :basiq_user_id, presence: true, uniqueness: true
-  validates :status, presence: true, inclusion: { in: %w[pending connected error disconnected] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :owner_type, inclusion: { in: ALLOWED_OWNER_TYPES }
 
   # Scopes
@@ -69,7 +70,7 @@ class BasiqCredential < ApplicationRecord
 
     # Create consent request
     redirect_url = Rails.application.routes.url_helpers.api_v1_basiq_callback_url(
-      host: ENV["APP_HOST"] || "teeemlive-ce8e2660a615.herokuapp.com",
+      host: InfrastructureUrls.backend_url.gsub(%r{^https?://}, ""),
       protocol: "https"
     )
 

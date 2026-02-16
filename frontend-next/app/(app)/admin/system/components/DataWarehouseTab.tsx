@@ -22,10 +22,17 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Database,
   HardDrive,
@@ -57,7 +64,9 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format } from "date-fns";
+import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 import { cn } from "@/lib/utils";
+import { getIcon } from "@/lib/icon-map";
 import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { formatFileSize } from "@/utils/formatters";
 
@@ -215,28 +224,27 @@ interface OrgDataStats {
   warehouse_breakdown?: Array<{
     source_type: string;
     label: string;
-    total: number;
+    icon?: string;          // Icon name from WarehouseType (DB-driven)
+    has_target?: boolean;   // true if Expected is a meaningful target (email)
+    total: number;          // Expected target (if has_target) or same as in_warehouse
+    in_warehouse: number;   // Actual WarehouseDocument count
     with_blob: number;
     with_file: number;
-    without_blob: number;
-    unfetchable?: number;  // Emails from deleted mailboxes (will never have file)
-    storage_rate: number;
+    missing: number; // Docs without files (Expected - Has File for targets, WH Docs - Has File for others)
+    unique_blobs?: number;  // Distinct storage blobs (deduplication count)
+    duplicates?: number;    // with_blob minus unique_blobs (shared blob references)
+    unfetchable?: number;   // Emails that can never be fetched (deleted mailbox, content_unavailable, no outlook_id)
+    no_outlook_id?: number;  // Subset: emails without outlook_id/mailbox (can't fetch from Microsoft)
     file_rate: number;
-    linked?: number;  // For Xero: WarehouseDocument records created
-    missing?: number; // For Xero: total - with_file (SSoT from external_invoices)
-    tenant_breakdown?: Array<{  // Per-org breakdown for Xero
-      tenant_id: string;
-      tenant_name: string;
-      total: number;
-      with_blob: number;
-      with_file: number;
-      linked: number;
-      missing: number;
-      file_rate: number;
-    }>;
   }>;
   blob_stats?: {
     total_blobs: number;
+    verified_blobs?: number;
+    unverified_blobs?: number;
+    orphan_blobs?: number;
+    docs_with_file?: number;
+    unclassified_total?: number;
+    unclassified_with_file?: number;
     total_bytes: number;
     blobs_format: number;
     legacy_format: number;
@@ -245,6 +253,9 @@ interface OrgDataStats {
     total_references?: number;
     duplicates_avoided?: number;
     bytes_saved?: number;
+    // Xero sync status
+    xero_total?: number;
+    xero_with_pdf?: number;
   };
   last_updated: string;
 }
@@ -613,7 +624,7 @@ export function DataWarehouseTab() {
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "Never";
-    return format(new Date(dateStr), "MMM d, yyyy h:mm a");
+    return format(new Date(dateStr), DATETIME_MEDIUM_12H);
   };
 
   if (loading) {
@@ -639,7 +650,7 @@ export function DataWarehouseTab() {
     if (typeof value === "object") return JSON.stringify(value);
     if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}/)) {
       try {
-        return format(new Date(value), "MMM d, yyyy h:mm a");
+        return format(new Date(value), DATETIME_MEDIUM_12H);
       } catch {
         return String(value);
       }
@@ -1364,7 +1375,18 @@ export function DataWarehouseTab() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.documents.total_documents.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Total Documents</p>
+                <p className="text-xs text-muted-foreground">WH Documents</p>
+                {stats.warehouse_breakdown && stats.warehouse_breakdown.length > 0 && (() => {
+                  const targetTotal = stats.warehouse_breakdown
+                    .filter((row) => row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment"))
+                    .reduce((sum, row) => sum + (row.total || 0), 0);
+                  if (targetTotal <= 0) return null;
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{targetTotal.toLocaleString()}</span> target (emails)
+                    </p>
+                  );
+                })()}
               </div>
             </div>
           </CardContent>
@@ -1427,40 +1449,106 @@ export function DataWarehouseTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Source Type</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Linked</TableHead>
-                  <TableHead className="text-right">Has File</TableHead>
-                  <TableHead className="text-right">Missing</TableHead>
-                  <TableHead className="text-right">Unfetchable</TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Expected</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Target count for types with 1:1 relationship (emails, invoices). Shows &quot;-&quot; for types where one record can have multiple documents.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">WH Docs</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">WarehouseDocument records created. Metadata exists but file may not be uploaded yet.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Has File</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">WarehouseDocuments with a verified file stored in Wasabi (StorageBlob with verified_at set).</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Missing</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Warehouse docs without files. For types with Expected targets, this is Expected minus Has File.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Dupes</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Duplicate blob references — multiple documents sharing the same file. Saves storage via deduplication.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
+                  <TableHead className="text-right">
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <span className="cursor-help border-b border-dotted border-muted-foreground/50">Unfetchable</span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <p className="max-w-xs text-xs">Emails that can never be fetched: deleted mailboxes, removed users, no Outlook ID, or content permanently unavailable from Microsoft.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {stats.warehouse_breakdown.map((row) => {
-                  // SSoT: Use row.missing if provided (for Xero), otherwise calculate
-                  const missingFile = row.missing ?? (row.with_blob - (row.with_file || 0));
+                  const missing = row.missing ?? 0;
+                  const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment");
                   return (
                     <React.Fragment key={row.source_type}>
                       <TableRow>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
-                            {row.source_type === "email_body" && <Mail className="h-4 w-4 text-purple-500" />}
-                            {row.source_type === "email_attachment" && <Paperclip className="h-4 w-4 text-purple-400" />}
-                            {row.source_type === "email" && <Mail className="h-4 w-4 text-purple-500" />}
-                            {row.source_type === "corporate" && <Building2 className="h-4 w-4 text-blue-500" />}
-                            {row.source_type === "contact" && <Users className="h-4 w-4 text-green-500" />}
-                            {row.source_type === "xero" && <FileText className="h-4 w-4 text-[#13B5EA]" />}
-                            {row.source_type === "job" && <Briefcase className="h-4 w-4 text-amber-600" />}
-                            {row.source_type === "task" && <CheckCircle className="h-4 w-4 text-teal-500" />}
-                            {row.source_type === "people" && <Users className="h-4 w-4 text-pink-500" />}
-                            {row.source_type === "warehouse" && <Box className="h-4 w-4 text-gray-500" />}
-                            {row.source_type === "user" && <Users className="h-4 w-4 text-indigo-500" />}
+                            {(() => {
+                              const IconComponent = getIcon(
+                                row.source_type === "email_body" ? "mail"
+                                : row.source_type === "email_attachment" ? "paperclip"
+                                : row.source_type === "unclassified" ? "alert-circle"
+                                : row.icon || "folder"
+                              );
+                              return <IconComponent className="h-4 w-4 text-muted-foreground" />;
+                            })()}
                             {row.label}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{row.total.toLocaleString()}</TableCell>
                         <TableCell className="text-right text-muted-foreground">
-                          {/* For Xero: linked = WarehouseDocument records, with_blob = has PDF */}
-                          {row.source_type === "xero" ? (row.linked ?? row.with_blob).toLocaleString() : row.with_blob.toLocaleString()}
+                          {hasTarget ? row.total.toLocaleString() : <span className="text-muted-foreground/50">-</span>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {row.in_warehouse.toLocaleString()}
                         </TableCell>
                         <TableCell className="text-right text-green-600 dark:text-green-400">
                           {(row.with_file || 0).toLocaleString()}
@@ -1471,10 +1559,17 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {missingFile > 0 ? (
-                            <span className="text-red-600 dark:text-red-400">{missingFile.toLocaleString()}</span>
+                          {missing > 0 ? (
+                            <span className="text-red-600 dark:text-red-400">{missing.toLocaleString()}</span>
                           ) : (
                             <span className="text-green-600 dark:text-green-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {(row.duplicates ?? 0) > 0 ? (
+                            <span className="text-blue-600 dark:text-blue-400">{(row.duplicates ?? 0).toLocaleString()}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -1485,73 +1580,154 @@ export function DataWarehouseTab() {
                           )}
                         </TableCell>
                       </TableRow>
-                      {/* Per-tenant breakdown for Xero */}
-                      {row.source_type === "xero" && row.tenant_breakdown && row.tenant_breakdown.map((tenant) => (
-                        <TableRow key={tenant.tenant_id} className="bg-muted/30">
-                          <TableCell className="pl-8 text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground/50">└</span>
-                              {tenant.tenant_name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">{tenant.total.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{tenant.linked.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-green-600/80 dark:text-green-400/80">
-                            {tenant.with_file.toLocaleString()}
-                            <span className="text-xs text-muted-foreground ml-1">
-                              ({tenant.file_rate}%)
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {tenant.missing > 0 ? (
-                              <span className="text-red-600/80 dark:text-red-400/80">{tenant.missing.toLocaleString()}</span>
-                            ) : (
-                              <span className="text-green-600/80 dark:text-green-400/80">-</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right text-muted-foreground">-</TableCell>
-                        </TableRow>
-                      ))}
+                      {/* Xero docs now count under their warehouse_type (contact/corporate) — no separate row */}
                     </React.Fragment>
                   );
                 })}
+                {/* Unclassified row is now sent as a proper breakdown row from backend */}
               </TableBody>
+              {(() => {
+                const rowTotals = stats.warehouse_breakdown.reduce(
+                  (acc, row) => {
+                    const hasTarget = row.has_target ?? (row.source_type === "email_body" || row.source_type === "email_attachment");
+                    return {
+                      expected: acc.expected + (hasTarget ? (row.total || 0) : 0),
+                      inWarehouse: acc.inWarehouse + (row.in_warehouse || 0),
+                      withFile: acc.withFile + (row.with_file || 0),
+                      missing: acc.missing + (row.missing ?? 0),
+                      duplicates: acc.duplicates + (row.duplicates ?? 0),
+                      unfetchable: acc.unfetchable + (row.unfetchable ?? 0),
+                    };
+                  },
+                  { expected: 0, inWarehouse: 0, withFile: 0, missing: 0, duplicates: 0, unfetchable: 0 }
+                );
+                // Unclassified is now a proper breakdown row — no manual addition needed
+                const grandExpected = rowTotals.expected;
+                const grandInWarehouse = rowTotals.inWarehouse;
+                const grandWithFile = rowTotals.withFile;
+                const grandMissing = rowTotals.missing;
+                const totalRate = grandInWarehouse > 0 ? ((grandWithFile / grandInWarehouse) * 100).toFixed(1) : "0";
+                return (
+                  <TableFooter>
+                    <TableRow className="font-medium">
+                      <TableCell>Total</TableCell>
+                      <TableCell className="text-right">{grandExpected.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{grandInWarehouse.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-green-600 dark:text-green-400">
+                        {grandWithFile.toLocaleString()}
+                        <span className="text-xs text-muted-foreground ml-1">({totalRate}%)</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {grandMissing > 0 ? (
+                          <span className="text-red-600 dark:text-red-400">{grandMissing.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-green-600 dark:text-green-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rowTotals.duplicates > 0 ? (
+                          <span className="text-blue-600 dark:text-blue-400">{rowTotals.duplicates.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {rowTotals.unfetchable > 0 ? (
+                          <span className="text-orange-600 dark:text-orange-400">{rowTotals.unfetchable.toLocaleString()}</span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableFooter>
+                );
+              })()}
             </Table>
-            {/* Blob Storage Summary */}
+            {/* Storage Summary — two distinct counts */}
             {stats.blob_stats && (
-              <div className="mt-4 pt-4 border-t flex flex-wrap gap-4 text-sm text-muted-foreground">
-                <div>
-                  <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span>{" "}
-                  unique blobs
+              <div className="mt-4 pt-4 border-t space-y-2 text-sm text-muted-foreground">
+                {/* Row 1: Physical files in Wasabi (StorageBlob) */}
+                <div className="flex flex-wrap gap-x-1">
+                  <span className="text-muted-foreground/70 mr-1">Wasabi:</span>
+                  <span>
+                    <span className="font-medium text-foreground">{stats.blob_stats.total_blobs.toLocaleString()}</span> files
+                  </span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>
+                    <span className="font-medium text-green-600 dark:text-green-400">{(stats.blob_stats.verified_blobs ?? stats.blob_stats.total_blobs).toLocaleString()}</span> verified
+                  </span>
+                  {(stats.blob_stats.unverified_blobs ?? 0) > 0 && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>
+                        <span className="font-medium text-orange-600 dark:text-orange-400">{(stats.blob_stats.unverified_blobs ?? 0).toLocaleString()}</span> unverified
+                      </span>
+                    </>
+                  )}
+                  {(stats.blob_stats.orphan_blobs ?? 0) > 0 && (
+                    <>
+                      <span className="text-muted-foreground/40">·</span>
+                      <TooltipProvider>
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help">
+                              <span className="font-medium text-red-600 dark:text-red-400">{(stats.blob_stats.orphan_blobs ?? 0).toLocaleString()}</span>{" "}
+                              <span className="border-b border-dotted border-muted-foreground/50">orphans</span>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <p className="max-w-xs text-xs">Files in Wasabi not linked to any WarehouseDocument. May be safe to clean up.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </>
+                  )}
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>
+                    <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>
+                  </span>
                 </div>
-                <div>
-                  <span className="font-medium text-foreground">{formatFileSize(stats.blob_stats.total_bytes)}</span>{" "}
-                  total storage
-                </div>
-                {stats.blob_stats.duplicates_avoided && stats.blob_stats.duplicates_avoided > 0 && (
-                  <>
-                    <div>
-                      <span className="font-medium text-blue-600 dark:text-blue-400">
-                        {stats.blob_stats.duplicates_avoided.toLocaleString()}
-                      </span>{" "}
-                      duplicates avoided
-                    </div>
-                    <div>
-                      <span className="font-medium text-green-600 dark:text-green-400">
-                        {formatFileSize(stats.blob_stats.bytes_saved || 0)}
-                      </span>{" "}
-                      saved via dedup
-                    </div>
-                  </>
-                )}
-                {stats.blob_stats.legacy_format > 0 && (
-                  <div>
-                    <span className="font-medium text-amber-600 dark:text-amber-400">
-                      {stats.blob_stats.legacy_format.toLocaleString()}
-                    </span>{" "}
-                    legacy format
+                {/* Row 2: Deduplication savings */}
+                {stats.blob_stats.duplicates_avoided != null && stats.blob_stats.duplicates_avoided > 0 && (
+                  <div className="flex flex-wrap gap-x-1">
+                    <span className="text-muted-foreground/70 mr-1">Dedup:</span>
+                    <span>
+                      <span className="font-medium text-blue-600 dark:text-blue-400">{stats.blob_stats.duplicates_avoided.toLocaleString()}</span> duplicates avoided
+                    </span>
+                    <span className="text-muted-foreground/40">·</span>
+                    <span>
+                      <span className="font-medium text-green-600 dark:text-green-400">{formatFileSize(stats.blob_stats.bytes_saved || 0)}</span> saved
+                    </span>
                   </div>
                 )}
+                {/* Row 3: Xero invoice sync status */}
+                {(stats.blob_stats.xero_total ?? 0) > 0 && (() => {
+                  const total = stats.blob_stats.xero_total ?? 0;
+                  const synced = stats.blob_stats.xero_with_pdf ?? 0;
+                  const pending = total - synced;
+                  const pct = total > 0 ? ((synced / total) * 100).toFixed(1) : "0";
+                  return (
+                    <div className="flex flex-wrap gap-x-1">
+                      <span className="text-muted-foreground/70 mr-1">Xero:</span>
+                      <span>
+                        <span className="font-medium text-foreground">{total.toLocaleString()}</span> invoices
+                      </span>
+                      <span className="text-muted-foreground/40">·</span>
+                      <span>
+                        <span className="font-medium text-green-600 dark:text-green-400">{synced.toLocaleString()}</span> synced
+                        <span className="text-xs text-muted-foreground ml-1">({pct}%)</span>
+                      </span>
+                      {pending > 0 && (
+                        <>
+                          <span className="text-muted-foreground/40">·</span>
+                          <span>
+                            <span className="font-medium text-red-600 dark:text-red-400">{pending.toLocaleString()}</span> need sync
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </CardContent>

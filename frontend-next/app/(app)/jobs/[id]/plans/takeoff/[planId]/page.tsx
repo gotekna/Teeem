@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { PdfChrome } from "@/components/ui/pdf-chrome";
 import { ChevronLeft } from "lucide-react";
+import { STORAGE_KEYS } from "@/lib/storage-utils";
 
 // Takeoff components - lazy-load TakeoffCanvas (pulls in fabric ~500KB)
 import dynamic from "next/dynamic";
@@ -84,14 +85,14 @@ export default function TakeoffPage() {
   // Sidebar state - pinned persists to localStorage
   const [sidebarPinned, setSidebarPinned] = React.useState(() => {
     if (typeof window === 'undefined') return false;
-    return localStorage.getItem('takeoff-sidebar-pinned') === 'true';
+    return localStorage.getItem(STORAGE_KEYS.TAKEOFF_SIDEBAR_PINNED) === 'true';
   });
   const [sidebarOpen, setSidebarOpen] = React.useState(sidebarPinned);
 
   const handleToggleSidebar = () => setSidebarOpen(prev => !prev);
   const handlePinSidebar = (pinned: boolean) => {
     setSidebarPinned(pinned);
-    localStorage.setItem('takeoff-sidebar-pinned', String(pinned));
+    localStorage.setItem(STORAGE_KEYS.TAKEOFF_SIDEBAR_PINNED, String(pinned));
     if (pinned) setSidebarOpen(true);
   };
 
@@ -1042,7 +1043,7 @@ export default function TakeoffPage() {
 
   // Assign pricebook item to measurement
   const handlePricebookSelect = React.useCallback(
-    async (pricebookItem: { id: number; code: string; name: string; current_price: number | null }) => {
+    async (pricebookItem: { id: number; code: string; name: string; current_price?: number | null }) => {
       if (!measurementForPricebook) return;
 
       try {

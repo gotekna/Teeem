@@ -25,6 +25,7 @@
 #
 class StorageBlob < ApplicationRecord
   include TenantResolvable
+  include MimeTypes
 
   # Multi-tenancy (Jan 2026)
   acts_as_tenant :tenant
@@ -199,7 +200,7 @@ class StorageBlob < ApplicationRecord
     return false unless content_type.present?
 
     content_type.start_with?("image/") ||
-      content_type == "application/pdf" ||
+      content_type == PDF ||
       content_type.start_with?("text/")
   end
 
@@ -227,28 +228,28 @@ class StorageBlob < ApplicationRecord
   # Curl uploads often send application/octet-stream for valid PDFs/images
   # This ensures we use filename extension when content_type is generic
   EXTENSION_CONTENT_TYPES = {
-    ".pdf" => "application/pdf",
-    ".jpg" => "image/jpeg",
-    ".jpeg" => "image/jpeg",
-    ".png" => "image/png",
-    ".gif" => "image/gif",
+    ".pdf" => PDF,
+    ".jpg" => JPEG,
+    ".jpeg" => JPEG,
+    ".png" => PNG,
+    ".gif" => GIF,
     ".webp" => "image/webp",
     ".svg" => "image/svg+xml",
     ".txt" => "text/plain",
-    ".csv" => "text/csv",
-    ".json" => "application/json",
+    ".csv" => CSV,
+    ".json" => JSON,
     ".xml" => "application/xml",
     ".doc" => "application/msword",
-    ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".docx" => DOCX,
     ".xls" => "application/vnd.ms-excel",
-    ".xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ".xlsx" => XLSX
   }.freeze
 
   def self.ensure_correct_content_type(detected_type, filename)
     return detected_type if filename.blank?
 
     # If detected type is generic (octet-stream or nil), use filename extension
-    if detected_type.blank? || detected_type == "application/octet-stream"
+    if detected_type.blank? || detected_type == OCTET_STREAM
       ext = File.extname(filename).downcase
       return EXTENSION_CONTENT_TYPES[ext] if EXTENSION_CONTENT_TYPES[ext]
     end

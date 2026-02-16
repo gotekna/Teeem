@@ -74,10 +74,7 @@ module Api
             sm_schedule_master_template: template_json(@template)
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @template.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -91,10 +88,7 @@ module Api
             sm_schedule_master_template: template_json(@template)
           }
         else
-          render json: {
-            success: false,
-            errors: @template.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@template)
         end
       end
 
@@ -132,10 +126,7 @@ module Api
             message: "Template duplicated successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: new_template.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(new_template)
         end
       end
 
@@ -172,10 +163,7 @@ module Api
             message: result[:message]
           }, status: :created
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       end
 
@@ -204,16 +192,10 @@ module Api
             message: result[:message]
           }
         else
-          render json: {
-            success: false,
-            error: result[:error]
-          }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         end
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Source template not found"
-        }, status: :not_found
+        render_error("Source template not found", status: :not_found)
       end
 
       # POST /api/v1/sm_schedule_master_templates/:id/copy_to_job
@@ -231,7 +213,7 @@ module Api
           start_date: params[:start_date],
           user: current_user,
           clear_existing: params[:clear_existing] == true || params[:clear_existing] == "true"
-        }).execute
+        }).call
 
         if result[:success]
           render json: {
@@ -812,7 +794,7 @@ module Api
           }
         }
       rescue ArgumentError => e
-        render json: { success: false, error: "Invalid date: #{e.message}" }, status: :unprocessable_entity
+        render_error("Invalid date: #{e.message}", status: :unprocessable_entity)
       rescue StandardError => e
         Rails.logger.error "[validate_dates] Error: #{e.class} - #{e.message}"
         Rails.logger.error e.backtrace.first(10).join("\n")
@@ -833,10 +815,7 @@ module Api
             sm_schedule_master_template: template_json(@template, include_rows: true)
           }
         else
-          render json: {
-            success: false,
-            error: "No default template found"
-          }, status: :not_found
+          render_error("No default template found", status: :not_found)
         end
       end
 
@@ -1161,6 +1140,7 @@ module Api
 
       # Load roles lookup map (ID => display_name) using Role model
       def load_roles_map
+        # Small lookup table (~20 roles), .all is fine
         Role.all.each_with_object({}) { |r, h| h[r.id] = r.display_name || r.name }
       end
 

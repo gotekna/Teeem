@@ -6,8 +6,11 @@ class EmailCaseProposal < ApplicationRecord
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :approved_by, class_name: "User", optional: true
 
+  # Constants
+  STATUSES = %w[pending approved rejected error].freeze
+
   # Validations
-  validates :status, presence: true, inclusion: { in: %w[pending approved rejected error] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :email_warehouse_id, presence: true
 
   # Scopes

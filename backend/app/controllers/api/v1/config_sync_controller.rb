@@ -51,12 +51,12 @@ module Api
         result = service.diff_with_master(params[:table])
 
         if result[:error]
-          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
+          render_error(result[:error], status: :unprocessable_entity)
         else
           render json: { success: true, **result }
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # POST /api/v1/config_sync/pull
@@ -98,19 +98,19 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # GET /api/v1/config_sync/master_records/:table
       # View master tenant's records for a specific table with sync preferences
       def master_records
         unless master_tenant
-          return render json: { success: false, error: "No master tenant found" }, status: :not_found
+          return render_error("No master tenant found", status: :not_found)
         end
 
         table_config = TenantConfigSyncService::CONFIG_TABLES[params[:table]&.to_sym]
         unless table_config
-          return render json: { success: false, error: "Unknown table" }, status: :bad_request
+          return render_error("Unknown table", status: :bad_request)
         end
 
         model = table_config[:model].constantize
@@ -175,7 +175,7 @@ module Api
           total_in_master: master_records.length
         }
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       # POST /api/v1/config_sync/auto_sync_compulsory
@@ -221,7 +221,7 @@ module Api
         table = params[:table]&.to_sym
         table_config = TenantConfigSyncService::CONFIG_TABLES[table]
         unless table_config
-          return render json: { success: false, error: "Unknown table: #{params[:table]}" }, status: :bad_request
+          return render_error("Unknown table: #{params[:table]}", status: :bad_request)
         end
 
         service = TenantConfigSyncService.new(current_tenant)
@@ -277,7 +277,7 @@ module Api
                 .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                 .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                 .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
-                .map(&:id)
+                .pluck(:id)
             else
               base.pluck(:id)
             end
@@ -496,7 +496,7 @@ module Api
                     .where("pricebook_item_id IS NOT NULL AND supplier_id IS NOT NULL")
                     .select("DISTINCT ON (pricebook_item_id, supplier_id) price_histories.id")
                     .order(:pricebook_item_id, :supplier_id, "date_effective DESC NULLS LAST", "created_at DESC")
-                    .map(&:id)
+                    .pluck(:id)
                 else
                   base.pluck(:id)
                 end
@@ -629,7 +629,7 @@ module Api
             last_config_sync_by: current_tenant.tenant_setting.last_config_sync_by
           }
         else
-          render json: { success: false, error: "No tenant setting found" }, status: :not_found
+          render_error("No tenant setting found", status: :not_found)
         end
       end
 
@@ -648,7 +648,7 @@ module Api
         require_teeem_staff!
 
         unless master_tenant
-          return render json: { success: false, error: "No master tenant found" }, status: :not_found
+          return render_error("No master tenant found", status: :not_found)
         end
 
         service = TenantConfigSyncService.new(master_tenant)
@@ -678,7 +678,7 @@ module Api
           }, status: :unprocessable_entity
         end
       rescue ArgumentError => e
-        render json: { success: false, error: e.message }, status: :bad_request
+        render_error(e.message, status: :bad_request)
       end
 
       private
@@ -686,13 +686,13 @@ module Api
       def require_teeem_staff!
         return if current_user&.teeem_staff?
 
-        render json: { success: false, error: "TEEEM staff access required" }, status: :forbidden
+        render_error("TEEEM staff access required", status: :forbidden)
       end
 
       def require_admin!
         return if current_user&.admin?
 
-        render json: { success: false, error: "Admin access required" }, status: :forbidden
+        render_error("Admin access required", status: :forbidden)
       end
 
       def current_tenant
@@ -794,6 +794,7 @@ module Api
         end
 
         # Filter: keep only records where ALL non-self-ref FKs have a matching target
+        # Note: Needs full records to call .send(fk_field), can't use SQL-only filtering
         kept_ids = source_records.select do |record|
           non_self_ref_fks.all? do |fk_field, remap_config|
             fk_value = record.send(fk_field)

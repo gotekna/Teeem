@@ -61,6 +61,7 @@ import {
   DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import EnvironmentsMap from "./EnvironmentsMap";
 import CostsMap from "./CostsMap";
 
@@ -736,7 +737,7 @@ export default function JobsPage() {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        foundationId="jobs"
+        foundationId={FOUNDATION_SLUGS.JOBS}
         autoFetchRecords={true}
       />
     </div>

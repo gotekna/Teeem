@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { UI_EXPORT_STATUS_MS } from "@/lib/constants/timeout-constants";
 
 // Types
 interface Agent {
@@ -300,7 +301,7 @@ export default function AgentTasksPage() {
       });
     } finally {
       setSaving(false);
-      setTimeout(() => setExportStatus(null), 5000);
+      setTimeout(() => setExportStatus(null), UI_EXPORT_STATUS_MS);
     }
   };
 

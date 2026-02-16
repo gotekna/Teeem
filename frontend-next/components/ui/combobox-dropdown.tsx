@@ -27,6 +27,8 @@ export type ComboboxItem = {
   disabled?: boolean;
   /** Additional text to search (e.g., employee names, aliases). Not displayed, only for filtering. */
   searchText?: string;
+  /** Depth for hierarchical display (0 = top level, 1 = child, etc.) */
+  depth?: number;
 };
 
 /** Group of items with a header label */
@@ -160,12 +162,12 @@ export function ComboboxDropdown<T extends ComboboxItem>({
             filteredItems.push(item);
           } else if (isParent) {
             // Check if any following items (until next parent at same/lower depth) match
-            const parentDepth = (item as any).depth ?? 0;
+            const parentDepth = item.depth ?? 0;
             let hasMatchingDescendant = false;
 
             for (let j = i + 1; j < itemsWithMatch.length; j++) {
               const descendant = itemsWithMatch[j];
-              const descendantDepth = (descendant.item as any).depth ?? 0;
+              const descendantDepth = descendant.item.depth ?? 0;
 
               // Stop when we hit another item at same or lower depth (sibling or uncle)
               if (descendantDepth <= parentDepth && !descendant.isParent) {

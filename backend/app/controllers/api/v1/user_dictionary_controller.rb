@@ -17,7 +17,7 @@ class Api::V1::UserDictionaryController < ApplicationController
     word = params[:word].to_s.strip
 
     if word.blank?
-      return render json: { success: false, error: "Word is required" }, status: :unprocessable_entity
+      return render_error("Word is required", status: :unprocessable_entity)
     end
 
     dictionary_word = UserDictionaryWord.new(user: current_user, word: word)
@@ -29,7 +29,7 @@ class Api::V1::UserDictionaryController < ApplicationController
       if dictionary_word.errors[:word].include?("has already been taken")
         render json: { success: true, data: { word: word.downcase } }
       else
-        render json: { success: false, error: dictionary_word.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        render_validation_errors(dictionary_word)
       end
     end
   end

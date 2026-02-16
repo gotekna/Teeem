@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
 import { SearchInput } from "@/components/ui/search-input";
 import {
   Accordion,
@@ -406,7 +407,7 @@ export function CreateRecordDialog({
           // Fetch directly using api - Foundation API accepts both IDs and slugs
           const response = await api.get<{ records: Record<string, unknown>[] }>(
             `/api/v1/foundations/${targetFoundation}/records`,
-            { params: { per_page: 500 } }
+            { params: { per_page: PAGE_SIZE_LARGE } }
           );
           const displayColumn = col.lookup_display_column || "name";
           const options: LookupOption[] = (response.records || []).map((record) => ({

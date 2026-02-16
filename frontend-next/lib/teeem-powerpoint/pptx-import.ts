@@ -28,6 +28,7 @@ import type {
   SlideBackground,
 } from "./types";
 import { DEFAULT_THEME } from "./types";
+import { TAILWIND_COLORS, COLORS } from '@/lib/constants/color-constants';
 
 // EMU (English Metric Units) to inches conversion
 // 1 inch = 914400 EMU
@@ -543,7 +544,7 @@ function parseLine(
   const lnContent = lnMatch[2];
 
   const colorMatch = lnContent.match(/<a:srgbClr val="([A-Fa-f0-9]+)"/);
-  const color = colorMatch ? `#${colorMatch[1]}` : "#000000";
+  const color = colorMatch ? `#${colorMatch[1]}` : COLORS.black;
 
   return { color, width };
 }
@@ -583,8 +584,8 @@ async function parseTheme(zip: JSZip): Promise<PresentationTheme> {
 
   // Parse theme colors (simplified - just grab first few scheme colors)
   const colors: PresentationTheme["colors"] = {
-    primary: "#0066CC",
-    secondary: "#333333",
+    primary: TAILWIND_COLORS.blue[600],
+    secondary: TAILWIND_COLORS.gray[700],
   };
 
   // Look for accent colors

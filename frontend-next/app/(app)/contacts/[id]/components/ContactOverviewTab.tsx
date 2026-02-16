@@ -180,7 +180,7 @@ export function ContactOverviewTab({
         params: {
           search: query,
           per_page: PAGE_SIZE_AUTOCOMPLETE,
-          entity_types: "company,trust,partnership,sole_trader"
+          entity_type: "company,trust,partnership,sole_trader"
         },
       });
       // Exclude self and already-linked companies
@@ -623,7 +623,6 @@ export function ContactOverviewTab({
         // Also sync primary email to legacy field
         const primaryEmail = emailsToSave.find((e) => e.is_primary && !e._destroy);
 
-        console.log("[saveEmails] Saving emails:", { emailsToSave, primaryEmail: primaryEmail?.email, contactId: contact.id });
 
         const response = await api.patch<{ contact: Contact }>(
           `/api/v1/contacts/${contact.id}`,
@@ -634,7 +633,6 @@ export function ContactOverviewTab({
             },
           }
         );
-        console.log("[saveEmails] Success:", response);
         onContactUpdate(response.contact);
       } catch (err) {
         console.error("[saveEmails] Error:", err);

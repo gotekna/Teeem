@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { Plus } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 
@@ -20,7 +21,7 @@ export default function WHSInspectionsPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="whs_inspections"
+        foundationId={FOUNDATION_SLUGS.WHS_INSPECTIONS}
         autoFetchRecords
         tableName="Site Inspections"
         enableExport

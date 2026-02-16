@@ -143,7 +143,6 @@ function topologicalSort(
 
   // If not all tasks are sorted, there's a cycle
   if (sorted.length !== tasks.length) {
-    console.warn('CriticalPath: Detected cycle in dependencies, returning original order');
     return tasks;
   }
 

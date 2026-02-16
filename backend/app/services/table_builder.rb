@@ -60,14 +60,14 @@ class TableBuilder
       end
 
       # Add index for lookup columns
-      if column.column_type == "lookup"
+      if column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
         ActiveRecord::Migration.add_index(
           @table.database_table_name.to_sym,
           column.column_name.to_sym
         )
       end
 
-      # Add foreign key for lookup columns
+      # Add foreign key for lookup columns (only single lookups, not multiple_lookups)
       if column.column_type == "lookup" && column.lookup_foundation
         begin
           ActiveRecord::Migration.add_foreign_key(
@@ -189,7 +189,7 @@ class TableBuilder
     end
 
     # Add index for lookup columns
-    if column.column_type == "lookup"
+    if column.column_type.in?(Column::LOOKUP_COLUMN_TYPES)
       table_definition.index column.column_name.to_sym
     end
   end

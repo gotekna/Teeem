@@ -12,9 +12,12 @@ module Gl
     belongs_to :ai_suggested_account, class_name: "Gl::Account", optional: true
     belongs_to :user_chosen_account, class_name: "Gl::Account"
 
+    # Constants
+    TRANSACTION_AMOUNT_TYPES = %w[credit debit].freeze
+
     # Validations
     validates :transaction_description, presence: true
-    validates :transaction_amount_type, presence: true, inclusion: { in: %w[credit debit] }
+    validates :transaction_amount_type, presence: true, inclusion: { in: TRANSACTION_AMOUNT_TYPES }
     validates :feedback_date, presence: true
 
     # Scopes

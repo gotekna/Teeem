@@ -13,6 +13,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
     end
 
     # Include chapter lookup data for TEEEMTableView
+    # Small lookup table (~20 chapters), .all is fine
     feature_chapters = FeatureChapter.all.map do |fc|
       {
         id: fc.id,
@@ -48,10 +49,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
         message: "Feature tracker created successfully"
       }, status: :created
     else
-      render json: {
-        success: false,
-        errors: @feature_tracker.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@feature_tracker)
     end
   end
 
@@ -63,10 +61,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
         message: "Feature tracker updated successfully"
       }
     else
-      render json: {
-        success: false,
-        errors: @feature_tracker.errors.full_messages
-      }, status: :unprocessable_entity
+      render_validation_errors(@feature_tracker)
     end
   end
 
@@ -83,10 +78,7 @@ class Api::V1::FeatureTrackersController < ApplicationController
   def set_feature_tracker
     @feature_tracker = FeatureTracker.find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    render json: {
-      success: false,
-      error: "Feature tracker not found"
-    }, status: :not_found
+    render_error("Feature tracker not found", status: :not_found)
   end
 
   def feature_stats

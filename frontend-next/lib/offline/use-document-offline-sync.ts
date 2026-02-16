@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useAtomValue } from "jotai";
 import { isOnlineAtom } from "./offline-atoms";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import {
   setDocumentInCache,
   getJobDocumentsFromCache,
@@ -143,7 +144,7 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
         success: boolean;
         jobs?: AssignedJob[];
         records?: AssignedJob[];
-      }>("/api/v1/jobs?filter[status]=active&filter[assigned_to_me]=true&per_page=50");
+      }>(`/api/v1/jobs?filter[status]=active&filter[assigned_to_me]=true&per_page=${API_PAGE_SIZES.LIST_VIEW}`);
 
       const assignedJobs = response?.jobs || response?.records || [];
 
@@ -197,7 +198,6 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
   // Sync documents for a single job
   const syncJob = useCallback(async (jobId: number) => {
     if (!isOnline) {
-      console.warn("[DocumentSync] Cannot sync while offline");
       return;
     }
 
@@ -292,15 +292,12 @@ export function useDocumentOfflineSync(): UseDocumentOfflineSyncResult {
               completed++;
             } else {
               failed++;
-              console.warn(`[DocumentSync] Failed to fetch ${doc.name}:`, blobResponse.status);
             }
           } else {
             failed++;
-            console.warn(`[DocumentSync] No download URL for ${doc.name}`);
           }
         } catch (docError) {
           failed++;
-          console.warn(`[DocumentSync] Error syncing ${doc.name}:`, docError);
         }
 
         // Update progress

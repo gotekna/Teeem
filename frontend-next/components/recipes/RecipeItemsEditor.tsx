@@ -11,6 +11,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import { SortableList, SortableItem } from "@/components/ui/dnd";
 import { api } from "@/lib/api";
+import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { toast } from "sonner";
 import {
   Plus,
@@ -98,7 +99,7 @@ export function RecipeItemsEditor({
     setIsSearchingPricebook(true);
     try {
       const response = await api.get<{ success: boolean; data: PricebookItem[] }>(
-        `/api/v1/foundations/pricebook-items/records?search=${encodeURIComponent(query)}&limit=20`
+        `/api/v1/foundations/pricebook-items/records?search=${encodeURIComponent(query)}&limit=${API_PAGE_SIZES.SEARCH_MODAL}`
       );
       if (response?.success) {
         setPricebookResults(response.data || []);

@@ -150,12 +150,9 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
       pendingChangesRef.current = { ...pendingChangesRef.current, title };
 
       // Optimistically update the sidebar immediately using the passed notebookId
-      console.log("🔄 Optimistic update:", { pageId, notebookId, title });
       if (notebookId) {
         queryClient.setQueryData(["notebook", notebookId], (oldData: any) => {
-          console.log("📦 Current notebook data:", oldData);
           if (!oldData?.notebook) {
-            console.log("❌ No notebook in oldData");
             return oldData;
           }
           const newData = {
@@ -170,11 +167,9 @@ export function useNotebookPage(pageId: number | null, notebookId: number | null
               })),
             },
           };
-          console.log("✅ Updated notebook data:", newData);
           return newData;
         });
       } else {
-        console.log("❌ No notebookId available");
       }
 
       debouncedSave(pageId, pendingChangesRef.current);
@@ -376,18 +371,16 @@ export const attachmentActions = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`/api/v1/notebook_pages/${pageId}/attachments`, {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
+    const response = await api.post<{ attachment: NotebookPageAttachment }>(
+      `/api/v1/notebook_pages/${pageId}/attachments`,
+      formData
+    );
 
-    if (!response.ok) {
+    if (!response?.attachment) {
       throw new Error("Failed to upload attachment");
     }
 
-    const data = await response.json();
-    return data.attachment;
+    return response.attachment;
   },
 
   async delete(attachmentId: number): Promise<void> {

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -208,7 +209,7 @@ export default function ABNLookupTab() {
   const handleCopy = async (text: string, field: string) => {
     await copyToClipboard(text);
     setCopied(field);
-    setTimeout(() => setCopied(null), 2000);
+    setTimeout(() => setCopied(null), UI_COPY_FEEDBACK_MS);
   };
 
   const formatABN = (abn: string) => {

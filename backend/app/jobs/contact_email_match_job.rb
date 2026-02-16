@@ -24,6 +24,8 @@ class ContactEmailMatchJob < ApplicationJob
 
   def perform(credential_id, rematch: false)
     # SSoT: Use MicrosoftCredential
+    # Security: Job is queued from tenant-scoped controller, so credential_id is already validated.
+    # However, we still verify the credential exists as a defensive measure.
     @credential = MicrosoftCredential.find_by(id: credential_id)
 
     unless @credential

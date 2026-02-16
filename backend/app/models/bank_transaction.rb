@@ -10,12 +10,16 @@ class BankTransaction < ApplicationRecord
   belongs_to :corporate, foreign_key: "company_id"
   belongs_to :bank_account, optional: true
 
+  # Constants
+  TRANSACTION_TYPES = %w[SPEND RECEIVE TRANSFER].freeze
+  STATUSES = %w[AUTHORISED DELETED VOIDED].freeze
+
   # Validations
   validates :xero_transaction_id, presence: true, uniqueness: true
   validates :transaction_date, presence: true
   validates :amount, presence: true
-  validates :transaction_type, inclusion: { in: %w[SPEND RECEIVE TRANSFER], allow_blank: true }
-  validates :status, inclusion: { in: %w[AUTHORISED DELETED VOIDED], allow_blank: true }
+  validates :transaction_type, inclusion: { in: TRANSACTION_TYPES, allow_blank: true }
+  validates :status, inclusion: { in: STATUSES, allow_blank: true }
 
   # Scopes
   scope :authorized, -> { where(status: "AUTHORISED") }
@@ -69,7 +73,7 @@ class BankTransaction < ApplicationRecord
       status: xero_transaction["Status"],
       line_amount_types: xero_transaction["LineAmountTypes"],
       is_reconciled: xero_transaction["IsReconciled"] == true,
-      currency_code: xero_transaction["CurrencyCode"] || "AUD",
+      currency_code: xero_transaction["CurrencyCode"] || TenantSetting::DEFAULT_CURRENCY,
       metadata: {
         bank_account_id: xero_transaction.dig("BankAccount", "AccountID"),
         bank_account_name: xero_transaction.dig("BankAccount", "Name"),

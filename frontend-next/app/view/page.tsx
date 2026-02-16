@@ -91,42 +91,78 @@ function parseEmlContent(content: string): {
     return content;
   };
 
-  // Handle multipart messages - extract first text part
+  // FRC (Feb 2026): Recursive multipart extraction. Item attachment emails from
+  // Outlook are typically multipart/related > multipart/alternative > text/html.
+  // Without recursion, the parser sees the nested multipart block as a single part
+  // and fails to extract the actual text content.
+  const extractTextParts = (
+    mimeBody: string,
+    mimeContentType: string,
+  ): { htmlPart: string; textPart: string } => {
+    let htmlPart = "";
+    let textPart = "";
+
+    const boundaryMatch = mimeContentType.match(/boundary="?([^";\s]+)"?/);
+    if (!boundaryMatch) return { htmlPart, textPart };
+
+    const boundary = boundaryMatch[1];
+    const parts = mimeBody.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+
+    for (const part of parts) {
+      if (part.trim() === "" || part.trim() === "--") continue;
+
+      // Parse this part's headers
+      // ⚠️ DO NOT SIMPLIFY - Leading empty line skip required (Feb 2026)
+      // After splitting by boundary, each part starts with \n (the newline
+      // right after "--boundary\n"). Without skipping, findIndex returns 0
+      // and all actual headers end up in the body instead.
+      const partLines = part.split(/\r?\n/);
+      let firstNonEmpty = 0;
+      while (firstNonEmpty < partLines.length && partLines[firstNonEmpty] === "") firstNonEmpty++;
+      const trimmedLines = partLines.slice(firstNonEmpty);
+      const blankIdx = trimmedLines.findIndex(l => l === "");
+      if (blankIdx === -1) continue;
+      const partHeaderStr = trimmedLines.slice(0, blankIdx).join("\n");
+      const partBody = trimmedLines.slice(blankIdx + 1).join("\n");
+
+      // Extract content-type for this part
+      const ctMatch = partHeaderStr.match(/content-type:\s*([^\r\n;]+)/i);
+      const partCt = ctMatch ? ctMatch[1].trim().toLowerCase() : "";
+      // Get full content-type line (including boundary param) for nested multipart
+      const fullCtMatch = partHeaderStr.match(/content-type:\s*([^\r\n]+(?:\r?\n\s+[^\r\n]+)*)/i);
+      const fullPartCt = fullCtMatch ? fullCtMatch[1].replace(/\r?\n\s+/g, " ") : "";
+
+      // If this part is itself multipart, recurse
+      if (partCt.includes("multipart")) {
+        const nested = extractTextParts(partBody, fullPartCt);
+        if (nested.htmlPart && !htmlPart) htmlPart = nested.htmlPart;
+        if (nested.textPart && !textPart) textPart = nested.textPart;
+        continue;
+      }
+
+      const encodingMatch = partHeaderStr.match(/content-transfer-encoding:\s*(\S+)/i);
+      const partEncoding = encodingMatch ? encodingMatch[1].toLowerCase() : "";
+
+      if (partCt.includes("text/html") && !htmlPart) {
+        htmlPart = decodePartContent(partBody, partEncoding);
+      } else if (partCt.includes("text/plain") && !textPart) {
+        textPart = decodePartContent(partBody, partEncoding);
+      }
+    }
+
+    return { htmlPart, textPart };
+  };
+
+  // Handle multipart messages - extract text parts (with recursive nesting support)
   if (contentType.includes("multipart")) {
-    const boundaryMatch = contentType.match(/boundary="?([^";\s]+)"?/);
-    if (boundaryMatch) {
-      const boundary = boundaryMatch[1];
-      const parts = body.split(new RegExp(`--${boundary.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    const { htmlPart, textPart } = extractTextParts(body, contentType);
 
-      // Find HTML part first, then text part
-      let htmlPart = "";
-      let textPart = "";
-
-      for (const part of parts) {
-        // Parse part headers to get content-transfer-encoding
-        const partLines = part.split(/\r?\n/);
-        const partBodyStart = partLines.findIndex(l => l === "") + 1;
-        const partHeaders = partLines.slice(0, partBodyStart).join("\n").toLowerCase();
-        const partBody = partLines.slice(partBodyStart).join("\n");
-
-        // Detect transfer encoding for this part
-        const encodingMatch = partHeaders.match(/content-transfer-encoding:\s*(\S+)/i);
-        const partEncoding = encodingMatch ? encodingMatch[1].toLowerCase() : "";
-
-        if (part.toLowerCase().includes("content-type: text/html")) {
-          htmlPart = decodePartContent(partBody, partEncoding);
-        } else if (part.toLowerCase().includes("content-type: text/plain")) {
-          textPart = decodePartContent(partBody, partEncoding);
-        }
-      }
-
-      if (htmlPart) {
-        body = htmlPart;
-        isHtml = true;
-      } else if (textPart) {
-        body = textPart;
-        isHtml = false;
-      }
+    if (htmlPart) {
+      body = htmlPart;
+      isHtml = true;
+    } else if (textPart) {
+      body = textPart;
+      isHtml = false;
     }
   } else {
     // Non-multipart: decode the body based on main content-transfer-encoding

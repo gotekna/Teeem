@@ -25,6 +25,7 @@ import {
   Paperclip,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
+import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 
 interface DraftsListProps {
   /** Called when a draft is selected to resume */
@@ -70,7 +71,7 @@ export function DraftsList({
     if (diffHours < 24) {
       return formatDistanceToNow(date, { addSuffix: true });
     }
-    return format(date, "MMM d, yyyy 'at' h:mm a");
+    return format(date, DATETIME_MEDIUM_12H);
   };
 
   const getDraftPreview = (draft: EmailDraft) => {

@@ -8,9 +8,11 @@
 #           VERCEL_TEAM_ID env var (team_xxx from Vercel)
 #
 class VercelBillingService
-  CACHE_KEY = "vercel_billing_data"
-  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2"
-  CACHE_TTL = 1.hour
+  include CacheConstants
+
+  CACHE_KEY = "vercel_billing_data".freeze
+  BREAKDOWN_CACHE_KEY = "vercel_usage_breakdown_v2".freeze
+  CACHE_TTL = CACHE_TTL_HOURLY
 
   class << self
     def usage_breakdown(force_refresh: false)
@@ -51,8 +53,8 @@ class VercelBillingService
       return { success: false, error: "VERCEL_TOKEN not configured" } unless token.present?
       return { success: false, error: "VERCEL_TEAM_ID not configured" } unless team_id.present?
 
-      # Fetch latest 2 paid invoices + upcoming (current period) in parallel
-      invoices_data = vercel_get(token, "/v1/invoices?teamId=#{team_id}&limit=2")
+      # Fetch paid invoices (up to 12 for billing history) + upcoming (current period)
+      invoices_data = vercel_get(token, "/v1/invoices?teamId=#{team_id}&limit=12")
       upcoming_data = vercel_get(token, "/v1/invoices/upcoming?teamId=#{team_id}")
 
       return { success: false, error: "Failed to fetch Vercel invoices" } unless invoices_data
@@ -89,6 +91,22 @@ class VercelBillingService
         }
       end
 
+      # Build billing history from all invoices
+      billing_history = invoices.map do |inv|
+        build = extract_build_minutes_detail(inv)
+        {
+          invoiceNumber: inv["invoiceNumber"],
+          periodStart: build&.dig(:periodStart),
+          periodEnd: build&.dig(:periodEnd),
+          buildMinutes: build&.dig(:minutes) || 0,
+          buildCost: build&.dig(:cost) || 0.0,
+          teamSeats: extract_team_seats(inv),
+          amountDue: inv["amountDue"].to_f,
+          status: inv["status"],
+          createdAt: inv["createdAt"]
+        }
+      end
+
       {
         success: true,
         plan: "pro",
@@ -107,6 +125,7 @@ class VercelBillingService
         buildMinutes: last_build ? { cost: last_build[:cost], minutes: last_build[:minutes] } : nil,
         previousBuildMinutes: prev_build ? { cost: prev_build[:cost], minutes: prev_build[:minutes] } : nil,
         teamSeats: extract_team_seats(last_paid),
+        billingHistory: billing_history,
         fetchedAt: Time.current.iso8601
       }
     end
@@ -189,16 +208,16 @@ class VercelBillingService
       # Split billing period into day-sized windows and fetch in parallel.
       # With ~10k deployments, sequential pagination takes >2 min (exceeds Heroku 30s limit).
       # Day-sized parallel fetches: ~18 days * ~1s each in 6 threads = ~3-4 seconds.
-      cycle_start_date = period_start.in_time_zone("Australia/Brisbane").to_date
-      period_end_date = period_end.in_time_zone("Australia/Brisbane").to_date
-      today = Time.current.in_time_zone("Australia/Brisbane").to_date
+      cycle_start_date = period_start.in_time_zone(TenantSetting.timezone).to_date
+      period_end_date = period_end.in_time_zone(TenantSetting.timezone).to_date
+      today = Time.current.in_time_zone(TenantSetting.timezone).to_date
 
       day_ranges = []
       d = cycle_start_date
       max_days = 35  # Safety: billing cycle is ~30 days, cap to prevent runaway
       while d <= today && day_ranges.length < max_days
-        day_start_ms = d.in_time_zone("Australia/Brisbane").beginning_of_day.to_i * 1000
-        day_end_ms = d.in_time_zone("Australia/Brisbane").end_of_day.to_i * 1000
+        day_start_ms = d.in_time_zone(TenantSetting.timezone).beginning_of_day.to_i * 1000
+        day_end_ms = d.in_time_zone(TenantSetting.timezone).end_of_day.to_i * 1000
         day_ranges << { date: d, since: day_start_ms, until_ms: day_end_ms }
         d += 1.day
       end

@@ -3,7 +3,7 @@
 # SmTaskImportService - Imports SmTasks from Excel/CSV files
 #
 # Usage:
-#   result = SmTaskImportService.new(job, file_path, options).execute
+#   result = SmTaskImportService.new(job, file_path, options).call
 #
 # Options:
 #   user: User performing the import (for audit trail)
@@ -107,7 +107,7 @@ class SmTaskImportService
     @calendar = WorkingDaysCalculator.new(TenantSetting.instance)
   end
 
-  def execute
+  def call
     return failure("Job is required") unless job.present?
     return failure("File path is required") unless file_path.present?
 

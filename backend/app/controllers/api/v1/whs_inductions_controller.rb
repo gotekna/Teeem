@@ -51,10 +51,7 @@ class Api::V1::WHSInductionsController < ApplicationController
         data: induction.reload.as_json(include: serialization_includes)
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: induction.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(induction)
     end
   end
 
@@ -66,10 +63,7 @@ class Api::V1::WHSInductionsController < ApplicationController
         data: @whs_induction.reload.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_induction.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_induction)
     end
   end
 
@@ -81,10 +75,7 @@ class Api::V1::WHSInductionsController < ApplicationController
         data: { message: "Induction deleted successfully" }
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to delete induction"
-      }, status: :unprocessable_entity
+      render_error("Failed to delete induction", status: :unprocessable_entity)
     end
   end
 
@@ -105,10 +96,7 @@ class Api::V1::WHSInductionsController < ApplicationController
     if @whs_induction.whs_induction_template.has_quiz?
       min_score = @whs_induction.whs_induction_template.min_passing_score || 0
       if quiz_score.nil? || quiz_score < min_score
-        return render json: {
-          success: false,
-          error: "Quiz score of #{quiz_score} is below minimum passing score of #{min_score}"
-        }, status: :unprocessable_entity
+        return render_error("Quiz score of #{quiz_score} is below minimum passing score of #{min_score}", status: :unprocessable_entity)
       end
     end
 
@@ -118,10 +106,7 @@ class Api::V1::WHSInductionsController < ApplicationController
         data: @whs_induction.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: @whs_induction.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@whs_induction)
     end
   end
 
@@ -133,10 +118,7 @@ class Api::V1::WHSInductionsController < ApplicationController
         data: @whs_induction.as_json(include: serialization_includes)
       }
     else
-      render json: {
-        success: false,
-        error: "Failed to mark induction as expired"
-      }, status: :unprocessable_entity
+      render_error("Failed to mark induction as expired", status: :unprocessable_entity)
     end
   end
 

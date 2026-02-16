@@ -50,10 +50,7 @@ module Api
             message: "Implementation pattern created successfully"
           }, status: :created
         else
-          render json: {
-            success: false,
-            errors: @pattern.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@pattern)
         end
       end
 
@@ -66,10 +63,7 @@ module Api
             message: "Implementation pattern updated successfully"
           }
         else
-          render json: {
-            success: false,
-            errors: @pattern.errors.full_messages
-          }, status: :unprocessable_entity
+          render_validation_errors(@pattern)
         end
       end
 
@@ -121,10 +115,7 @@ module Api
             total_entries: ImplementationPattern.count
           }
         else
-          render json: {
-            success: false,
-            error: "Export failed"
-          }, status: :internal_server_error
+          render_error("Export failed", status: :internal_server_error)
         end
       end
 
@@ -133,10 +124,7 @@ module Api
       def set_pattern
         @pattern = ImplementationPattern.find(params[:id])
       rescue ActiveRecord::RecordNotFound
-        render json: {
-          success: false,
-          error: "Implementation pattern not found"
-        }, status: :not_found
+        render_error("Implementation pattern not found", status: :not_found)
       end
 
       def pattern_params

@@ -8,12 +8,14 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import TransactionForm from "@/components/financial/TransactionForm";
 import { XeroStatementView } from "@/components/corporate/XeroStatementView";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { TablePage } from "@/components/ui/page-wrappers";
 import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/contexts/ConfirmationContext";
 import type { TableRow } from "@/components/table/types";
+import type { User } from "@/lib/types";
 
 // SSoT: Columns are now fetched from Foundation API (ID: 199)
 // Removed hardcoded TRANSACTION_COLUMNS - 2024-12-27
@@ -21,12 +23,6 @@ import type { TableRow } from "@/components/table/types";
 interface Construction {
   id: number;
   name?: string;
-}
-
-interface User {
-  id: number;
-  first_name: string;
-  last_name: string;
 }
 
 interface Transaction {
@@ -374,7 +370,7 @@ export default function FinancialTransactionsPage() {
           {/* Transactions Table */}
           <TeeemTableView
             category="financial"
-            foundationId="financial_transactions"
+            foundationId={FOUNDATION_SLUGS.FINANCIAL_TRANSACTIONS}
             tableName="Financial Transactions"
             entries={transactions}
             // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)

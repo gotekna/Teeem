@@ -53,7 +53,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
       success: true,
       data: {
         templates: templates.map(&:as_json),
-        categories: EmailTemplate::CATEGORIES,
+        categories: EmailTemplate.categories,
         system_variables: EmailTemplate::SYSTEM_VARIABLES
       }
     }
@@ -78,10 +78,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
         data: template.as_json
       }, status: :created
     else
-      render json: {
-        success: false,
-        error: template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(template)
     end
   end
 
@@ -89,10 +86,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
   def update
     # Only owner can edit
     unless @template.user_id == current_user.id
-      return render json: {
-        success: false,
-        error: "You can only edit your own templates"
-      }, status: :forbidden
+      return render_error("You can only edit your own templates", status: :forbidden)
     end
 
     if @template.update(template_params)
@@ -101,10 +95,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
         data: @template.as_json
       }
     else
-      render json: {
-        success: false,
-        error: @template.errors.full_messages.join(", ")
-      }, status: :unprocessable_entity
+      render_validation_errors(@template)
     end
   end
 
@@ -112,10 +103,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
   def destroy
     # Only owner can delete
     unless @template.user_id == current_user.id
-      return render json: {
-        success: false,
-        error: "You can only delete your own templates"
-      }, status: :forbidden
+      return render_error("You can only delete your own templates", status: :forbidden)
     end
 
     @template.destroy
@@ -167,20 +155,14 @@ class Api::V1::EmailTemplatesController < ApplicationController
       data: new_template.as_json
     }, status: :created
   rescue ActiveRecord::RecordInvalid => e
-    render json: {
-      success: false,
-      error: e.message
-    }, status: :unprocessable_entity
+    render_error(e.message, status: :unprocessable_entity)
   end
 
   # POST /api/v1/email_templates/:id/toggle_favorite
   def toggle_favorite
     # Only owner can toggle favorite
     unless @template.user_id == current_user.id
-      return render json: {
-        success: false,
-        error: "You can only favorite your own templates"
-      }, status: :forbidden
+      return render_error("You can only favorite your own templates", status: :forbidden)
     end
 
     @template.update!(is_favorite: !@template.is_favorite)
@@ -197,7 +179,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
   # GET /api/v1/email_templates/quick_replies
   # Get quick reply templates for fast access
   def quick_replies
-    templates = EmailTemplate.quick_replies_for(current_user).limit(10)
+    templates = EmailTemplate.quick_replies_for(current_user).limit(EmailConstants::QUICK_REPLIES_LIMIT)
 
     render json: {
       success: true,
@@ -213,7 +195,7 @@ class Api::V1::EmailTemplatesController < ApplicationController
     render json: {
       success: true,
       data: {
-        categories: EmailTemplate::CATEGORIES.map { |k, v| { value: k.to_s, label: v } }
+        categories: EmailTemplate.categories.map { |k, v| { value: k.to_s, label: v } }
       }
     }
   end

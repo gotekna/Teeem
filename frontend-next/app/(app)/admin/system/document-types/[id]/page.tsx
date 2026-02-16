@@ -1,9 +1,10 @@
- 
+
 "use client";
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useConfirm } from "@/contexts/ConfirmationContext";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,7 @@ import {
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
 import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
 // Re-export for local use (SSoT: @/lib/constants/document-types.ts)
@@ -214,6 +216,27 @@ interface DocumentType {
   certificate_template?: string; // Template to use (e.g., "form_43")
 }
 
+// Type definitions for tab/folder hierarchy
+interface TabNode {
+  id?: number | string;
+  name: string;
+  tab_key?: string;
+  tab_group?: string;
+  storage_path?: string;
+  children?: TabNode[];
+}
+
+interface ScopeNode extends TabNode {
+  isScope?: boolean;
+}
+
+interface XeroTabNode {
+  id?: number | string;
+  name: string;
+  key?: string;
+  children?: XeroTabNode[];
+}
+
 export default function DocumentTypeDetailPage() {
   // Use full-height layout mode for the detail form
   useSetLayoutMode("full-height");
@@ -251,9 +274,9 @@ export default function DocumentTypeDetailPage() {
   const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact'>('all'); // Filter tabs by scope
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
-  const [folderHierarchy, setFolderHierarchy] = React.useState<Array<{ id?: number | string; name: string; tab_key?: string; storage_path?: string; isScope?: boolean; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children?: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }> }>>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
-  const [allTabsForLookup, setAllTabsForLookup] = React.useState<Array<{ id?: number; name: string; tab_key?: string; storage_path?: string; children: Array<{ id?: number; name: string; tab_key?: string; storage_path?: string }> }>>([]); // All tabs (any group) for name lookups
-  const [xeroTabs, setXeroTabs] = React.useState<Array<{ id?: number; name: string; key: string; children: Array<{ id?: number; name: string; key: string }> }>>([]);
+  const [folderHierarchy, setFolderHierarchy] = React.useState<ScopeNode[]>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
+  const [allTabsForLookup, setAllTabsForLookup] = React.useState<TabNode[]>([]); // All tabs (any group) for name lookups
+  const [xeroTabs, setXeroTabs] = React.useState<XeroTabNode[]>([]);
   const [focusTextToken, setFocusTextToken] = React.useState<{ field: string; index: number } | null>(null);
   const [allDocumentTypes, setAllDocumentTypes] = React.useState<Array<{ id: number; name: string; scope: string }>>([]);
   const [dwellingTypes, setDwellingTypes] = React.useState<Array<{ value: string; description: string; displayLabel: string }>>([]);
@@ -272,11 +295,10 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: THE ONE function for tab name resolution in this component
   // Searches recursively through scope > tab > subtab hierarchy
-  const findTabName = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabName = React.useCallback((items: TabNode[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
-      // eslint-disable-next-line eqeqeq
       if (item.id == id) return item.name || null;
       if (item.children?.length) {
         const found = findTabName(item.children, id);
@@ -288,11 +310,10 @@ export default function DocumentTypeDetailPage() {
 
   // SSoT: Returns storage_path for display (shows full folder path)
   // Searches recursively through scope > tab > subtab hierarchy
-  const findTabPath = React.useCallback((items: any[], id: number | undefined): string | null => {
+  const findTabPath = React.useCallback((items: TabNode[], id: number | undefined): string | null => {
     if (!id || !items?.length) return null;
     for (const item of items) {
       // Compare with type coercion to handle string/number mismatches
-      // eslint-disable-next-line eqeqeq
       if (item.id == id) return item.storage_path || item.name || null;
       // Search in children (handles scope > tabs > subtabs structure)
       if (item.children?.length) {
@@ -320,15 +341,15 @@ export default function DocumentTypeDetailPage() {
       try {
         // Build folder hierarchy recursively for all depths
         // SSoT: Only include 'documents' tab_group folders (Feb 2026)
-        const mapTabRecursive = (tab: any): any => ({
-          id: tab.id,
-          name: tab.display_name,
-          tab_key: tab.tab_key,
-          tab_group: tab.tab_group,
+        const mapTabRecursive = (tab: any): TabNode => ({
+          id: tab.id as number | undefined,
+          name: String(tab.display_name || ""),
+          tab_key: tab.tab_key as string | undefined,
+          tab_group: tab.tab_group as string | undefined,
           // SSoT: Include storage path for display in dropdown
-          storage_path: tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path,
+          storage_path: (tab.effective_storage_path || tab.storage_folder_path || tab.hierarchy_path) as string | undefined,
           // Filter children to only 'documents' tab_group with warehouse_enabled (can receive uploads)
-          children: (tab.children || [])
+          children: (Array.isArray(tab.children) ? tab.children : [])
             .filter((c: any) => c.tab_group === 'documents' && c.warehouse_enabled)
             .map(mapTabRecursive)
         });
@@ -342,21 +363,21 @@ export default function DocumentTypeDetailPage() {
           { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
         ];
 
-        const scopeGroupedHierarchy: any[] = [];
-        const allTabsFromAllScopes: any[] = [];
+        const scopeGroupedHierarchy: ScopeNode[] = [];
+        const allTabsFromAllScopes: TabNode[] = [];
 
         for (const scopeCfg of scopeConfig) {
           try {
-            const scopeData = await api.get<{ success: boolean; data: { tabs: any[] } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
+            const scopeData = await api.get<{ success: boolean; data: { tabs: Array<Record<string, unknown>> } }>(`/api/v1/warehouse_folders?scope=${scopeCfg.apiScope}`);
             if (scopeData.success && scopeData.data?.tabs) {
               // SSoT: Only 'documents' tab_group with warehouse_enabled can store user uploads (Feb 2026)
               // Filter out 'data' tabs and tabs that can't receive documents
               // Include root tabs that are warehouse-enabled OR have warehouse-enabled children
               // Contact root folders (Financial, Corporate, etc.) have warehouse_enabled: false
               // but their children (Invoices, Bills, ID, Tax) have warehouse_enabled: true
-              const documentTabs = scopeData.data.tabs.filter((t: any) =>
+              const documentTabs = scopeData.data.tabs.filter((t: Record<string, unknown>) =>
                 (t.tab_group === 'documents' && t.warehouse_enabled) ||
-                (t.children?.some((c: any) => c.tab_group === 'documents' && c.warehouse_enabled))
+                (Array.isArray(t.children) && t.children.some((c: Record<string, unknown>) => c.tab_group === 'documents' && c.warehouse_enabled))
               );
 
               // Add to all tabs for lookup
@@ -386,7 +407,7 @@ export default function DocumentTypeDetailPage() {
 
           // Extract all tab names for folder options
           const rootNames = scopeGroupedHierarchy
-            .flatMap(scope => scope.children.map((t: any) => t.name))
+            .flatMap(scope => (scope.children || []).map((t: TabNode) => t.name))
             .sort();
           setFolderOptions(rootNames);
         } else {
@@ -408,18 +429,18 @@ export default function DocumentTypeDetailPage() {
   // With scope-first hierarchy, Xero is under Corporate > Xero
   React.useEffect(() => {
     // Find Corporate scope, then find Xero tab within it
-    const corporateScope = folderHierarchy.find((f: any) => f.tab_key === "corporate" || f.name === "Corporate");
+    const corporateScope = folderHierarchy.find((f: ScopeNode) => f.tab_key === "corporate" || f.name === "Corporate");
     if (corporateScope) {
-      const xeroFolder = (corporateScope.children || []).find((f: any) => f.name === "Xero" || f.tab_key === "xero");
+      const xeroFolder = (corporateScope.children || []).find((f: TabNode) => f.name === "Xero" || f.tab_key === "xero");
       if (xeroFolder) {
         setXeroTabs([{
           name: xeroFolder.name,
           key: xeroFolder.tab_key || "xero",
-          id: xeroFolder.id,
-          children: (xeroFolder.children || []).map((c: any) => ({
+          id: typeof xeroFolder.id === "number" ? xeroFolder.id : undefined,
+          children: (xeroFolder.children || []).map((c: TabNode) => ({
             name: c.name,
-            key: c.tab_key,
-            id: c.id
+            key: c.tab_key || "",
+            id: typeof c.id === "number" ? c.id : undefined,
           }))
         }]);
       }
@@ -459,11 +480,11 @@ export default function DocumentTypeDetailPage() {
   React.useEffect(() => {
     const fetchAllDocumentTypes = async () => {
       try {
-        const response = await api.get<{ success: boolean; data: any[] }>("/api/v1/document_types");
+        const response = await api.get<{ success: boolean; data: Array<Record<string, unknown>> }>("/api/v1/document_types");
         if (response.success && Array.isArray(response.data)) {
           // Sort by name for consistent navigation, include scope
           const sorted = response.data
-            .map((dt: any) => ({ id: dt.id, name: dt.name, scope: dt.scope || "company" }))
+            .map((dt: Record<string, unknown>) => ({ id: Number(dt.id), name: String(dt.name), scope: (dt.scope as string) || "company" }))
             .sort((a, b) => a.name.localeCompare(b.name));
           setAllDocumentTypes(sorted);
         }
@@ -553,7 +574,6 @@ export default function DocumentTypeDetailPage() {
           setPreviewCompanyId(defaultCompany ? defaultCompany.id : corporateLinkedCompanies[0].id);
         }
       } else {
-        console.warn("Companies data is not an array:", companiesData);
         setCompanies([]);
       }
     } catch (error) {
@@ -616,13 +636,25 @@ export default function DocumentTypeDetailPage() {
     return getInitialsSSoT(name) || "";
   };
 
-  // Initialize checkbox state based on whether uiName exists
+  // Initialize checkbox state by deriving from saved data
   React.useEffect(() => {
     if (documentType) {
-      // Always default all to true - user can uncheck if they want custom display name
       setDisplayNameSameAsFileName(true);
       setShowFullDescription(true);
-      setRemoveCompanyName(true);
+
+      // Derive removeCompanyName from saved uiName: if the uiName contains
+      // entity placeholders for its scope, the user had "Hide Company" unchecked
+      const uiName = documentType.uiName || "";
+      const scope = documentType.scope || "company";
+      let hasEntityPlaceholders = false;
+      if (scope === "contacts") {
+        hasEntityPlaceholders = /\{PersonName\}|\{PersonCode\}|\{Person\}/.test(uiName);
+      } else if (scope === "job") {
+        hasEntityPlaceholders = /\{JobTitle\}|\{JobCode\}|\{JobName\}/.test(uiName);
+      } else {
+        hasEntityPlaceholders = /\{CompanyName\}|\{CompanyCode\}/.test(uiName);
+      }
+      setRemoveCompanyName(!hasEntityPlaceholders);
     }
   }, [documentType?.id]); // Only run when document type changes
 
@@ -1309,7 +1341,7 @@ export default function DocumentTypeDetailPage() {
         params: {
           document_type_id: documentType.id,
           scope: documentType.scope === "job" ? "job" : "corporate",
-          limit: 50,
+          limit: PAGE_SIZE_LIST,
         },
       });
 
@@ -1357,6 +1389,7 @@ export default function DocumentTypeDetailPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="h-full flex flex-col px-6 pt-8">
       {/* Header - Fixed at top */}
       <div className="flex items-start justify-between pb-4 shrink-0">
@@ -1621,7 +1654,7 @@ export default function DocumentTypeDetailPage() {
                                   // Tab with subtabs - parent is selectable too (so Select value matches when assigned to parent)
                                   return (
                                     <React.Fragment key={tab.id}>
-                                      <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                      <SelectItem value={String(tab.id ?? "")} className="pl-4 font-medium">
                                         <span className="text-muted-foreground">
                                           {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
                                         </span>
@@ -1631,7 +1664,7 @@ export default function DocumentTypeDetailPage() {
                                         )}
                                       </SelectItem>
                                       {filteredSubTabs.map((subtab: any, subtabIdx: number) => (
-                                        <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                        <SelectItem key={subtab.id} value={String(subtab.id ?? "")} className="pl-8">
                                           <span className="text-muted-foreground">
                                             {subtabIdx === filteredSubTabs.length - 1 ? '└─' : '├─'}
                                           </span>
@@ -1646,7 +1679,7 @@ export default function DocumentTypeDetailPage() {
                                 } else if (matchesSearch(tab.name, tab.storage_path)) {
                                   // Leaf tab - directly selectable (only if it matches search)
                                   return (
-                                    <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                    <SelectItem key={tab.id} value={String(tab.id ?? "")} className="pl-4">
                                       <span className="text-muted-foreground">
                                         {tabIdx === filteredTabs.length - 1 ? '└─' : '├─'}
                                       </span>
@@ -1840,7 +1873,7 @@ export default function DocumentTypeDetailPage() {
                                     return (
                                       <React.Fragment key={tab.id}>
                                         {tabAvailable ? (
-                                          <SelectItem value={tab.id.toString()} className="pl-4 font-medium">
+                                          <SelectItem value={String(tab.id ?? "")} className="pl-4 font-medium">
                                             <span className="text-muted-foreground">
                                               {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
                                             </span>
@@ -1852,7 +1885,7 @@ export default function DocumentTypeDetailPage() {
                                           </SelectLabel>
                                         )}
                                         {availableSubTabs.map((subtab: any, subtabIdx: number) => (
-                                          <SelectItem key={subtab.id} value={subtab.id.toString()} className="pl-8">
+                                          <SelectItem key={subtab.id} value={String(subtab.id ?? "")} className="pl-8">
                                             <span className="text-muted-foreground">
                                               {subtabIdx === availableSubTabs.length - 1 ? '└─' : '├─'}
                                             </span>
@@ -1864,7 +1897,7 @@ export default function DocumentTypeDetailPage() {
                                   } else if (tabAvailable) {
                                     // Leaf tab - directly selectable
                                     return (
-                                      <SelectItem key={tab.id} value={tab.id.toString()} className="pl-4">
+                                      <SelectItem key={tab.id} value={String(tab.id ?? "")} className="pl-4">
                                         <span className="text-muted-foreground">
                                           {tabIdx === availableTabs.length - 1 ? '└─' : '├─'}
                                         </span>
@@ -2798,5 +2831,6 @@ export default function DocumentTypeDetailPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </ErrorBoundary>
   );
 }

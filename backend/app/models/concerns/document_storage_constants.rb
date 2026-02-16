@@ -85,6 +85,16 @@ module DocumentStorageConstants
   MAX_FILE_SIZE_FOR_AI = 20.megabytes  # AI document verification/analysis
   MAX_FILE_SIZE_FOR_AI_PLANS = 25.megabytes  # AI working drawings categorization (larger PDFs)
 
+  # ═══════════════════════════════════════════════════════════════
+  # PRESIGNED URL EXPIRY DURATIONS (THE ONE definition)
+  # ═══════════════════════════════════════════════════════════════
+  # SSoT: Use these constants for presigned URL expiry times
+  # For user-facing share links, use TenantSetting.link_expiry_seconds instead
+  PRESIGNED_URL_EXPIRY_SHORT = 900       # 15 minutes - email attachments, sync operations
+  PRESIGNED_URL_EXPIRY_DEFAULT = 3600    # 1 hour - standard document access, API responses
+  PRESIGNED_URL_EXPIRY_MEDIUM = 1800     # 30 minutes - SharePoint URLs
+  PRESIGNED_URL_EXPIRY_LONG = 604800     # 7 days - share links (prefer TenantSetting.link_expiry_seconds)
+
   included do
     # Provide scopes for common queries
     scope :with_provider, ->(provider) { where(storage_provider: provider) }

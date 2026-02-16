@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "@/components/ui/use-toast";
 import { copyToClipboard } from "@/utils/formatters";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
 
 export interface DocumentFile {
   id?: number;
@@ -80,7 +81,7 @@ export function DocumentActions({
         title: "Link copied",
         description: "Download link copied to clipboard",
       });
-      setTimeout(() => setCopied(false), 2000);
+      setTimeout(() => setCopied(false), UI_COPY_FEEDBACK_MS);
     } catch {
       toast({
         title: "Copy failed",

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import type { Corporate } from "@/lib/types/corporate";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -32,7 +33,6 @@ interface SelectedBankAccount {
 }
 
 export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [entries, setEntries] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [syncing, setSyncing] = React.useState(false);
@@ -45,7 +45,6 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
       setLoading(true);
 
       // Load bank account entries for this company
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const entriesResponse = await api.get<{ success: boolean; bank_accounts: any[] }>(
         `/api/v1/companies/${effectiveCompanyId}/bank_accounts`
       );
@@ -157,7 +156,6 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleRowClick = (row: any) => {
     setSelectedAccount({
       id: row.id,
@@ -179,7 +177,7 @@ export function BankAccountsTab({ company, companyId }: BankAccountsTabProps) {
       <TeeemTableView
         entries={entries}
         // columns prop removed - TeeemTableView auto-fetches from Foundation API (SSoT)
-        foundationId="bank_accounts"
+        foundationId={FOUNDATION_SLUGS.BANK_ACCOUNTS}
         tableName="Bank Accounts"
         enableExport={true}
         enableImport={false}

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { getApiBaseUrl } from "@/lib/api";
+import { formatCurrency, formatDate } from "@/utils/formatters";
 import {
   CreditCardIcon,
   CheckCircleIcon,
@@ -196,20 +197,6 @@ export default function PaymentPage({ params }: { params: Promise<{ token: strin
     }
   };
 
-  const formatCurrency = (amount: number, currency: string = "AUD"): string => {
-    return new Intl.NumberFormat("en-AU", {
-      style: "currency",
-      currency: currency,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString("en-AU", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
 
   // Loading state
   if (status === "loading") {

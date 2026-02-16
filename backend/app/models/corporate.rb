@@ -162,16 +162,22 @@ class Corporate < ApplicationRecord
     nil
   end
 
+  # Constants
+  STATUSES = %w[active struck_off in_liquidation dormant].freeze
+  GST_REGISTRATION_STATUSES = %w[registered not_registered].freeze
+  ACCOUNTING_METHODS = %w[cash accrual].freeze
+  BAS_FREQUENCIES = %w[quarterly monthly].freeze
+
   # Validations
   validates :name, presence: true
   validates :acn, uniqueness: { allow_blank: true }, format: { with: /\A\d{9}\z/, message: "must be 9 digits", allow_blank: true }
   validates :abn, uniqueness: { allow_blank: true }, format: { with: /\A\d{11}\z/, message: "must be 11 digits", allow_blank: true }
-  validates :status, inclusion: { in: %w[active struck_off in_liquidation dormant] }
+  validates :status, inclusion: { in: STATUSES }
   # Legacy company_group validation - now using company_group_id relation
   # validates :company_group, inclusion: { in: %w[tekna team_harder promise charity other] }, allow_blank: true
-  validates :gst_registration_status, inclusion: { in: %w[registered not_registered] }, allow_blank: true
-  validates :accounting_method, inclusion: { in: %w[cash accrual] }, allow_blank: true
-  validates :bas_frequency, inclusion: { in: %w[quarterly monthly] }, allow_blank: true
+  validates :gst_registration_status, inclusion: { in: GST_REGISTRATION_STATUSES, allow_blank: true }
+  validates :accounting_method, inclusion: { in: ACCOUNTING_METHODS, allow_blank: true }
+  validates :bas_frequency, inclusion: { in: BAS_FREQUENCIES, allow_blank: true }
   validates :code, uniqueness: true, allow_blank: true, format: { with: /\A[A-Z0-9\-]+\z/, message: "must be uppercase letters, numbers, or hyphens", allow_blank: true }
   validates :slug, uniqueness: true, allow_blank: true
 
@@ -186,7 +192,7 @@ class Corporate < ApplicationRecord
   scope :trusts, -> { where.not(trust_name: [ nil, "" ]) }
   scope :compliance_due_soon, -> {
     joins(:corporate_compliance_items)
-      .where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.today, 90.days.from_now)
+      .where("corporate_compliance_items.due_date BETWEEN ? AND ?", Date.current, 90.days.from_now)
       .where(corporate_compliance_items: { completed: false })
       .distinct
   }
@@ -310,13 +316,13 @@ class Corporate < ApplicationRecord
   end
 
   def overdue_compliance_items
-    corporate_compliance_items.where("due_date < ? AND completed = ?", Date.today, false)
+    corporate_compliance_items.where("due_date < ? AND completed = ?", Date.current, false)
   end
 
   def upcoming_compliance_items(days = 30)
     corporate_compliance_items.where(
       "due_date BETWEEN ? AND ? AND completed = ?",
-      Date.today,
+      Date.current,
       days.days.from_now,
       false
     ).order(:due_date)
@@ -347,7 +353,8 @@ class Corporate < ApplicationRecord
     warnings << "No bank accounts" if bank_accounts.empty?
     warnings << "No shareholders recorded" if corporate_shareholdings.empty?
     warnings << "Missing incorporation date" if date_incorporated.blank?
-    warnings << "No secretary appointed" if corporate_directors.where(is_current: true, position: "secretary").empty?
+    warnings << "No secretary appointed" unless corporate_directors.where(is_current: true, position: "secretary").exists?
+    # Note: This requires loading records to check notes content - can't use .exists? with complex condition
     warnings << "No public officer" unless corporate_directors.where(is_current: true).any? { |d| d.notes&.downcase&.include?("public officer") }
 
     # Only check for corporate credentials if this is an actual company (has ACN)

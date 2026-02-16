@@ -1,8 +1,8 @@
 # Service to extract addresses from job titles and geocode them using Mapbox
 # Also standardizes job titles to a consistent format
 class JobAddressService
-  MAPBOX_BASE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places"
-  BRISBANE_PROXIMITY = "153.0251,-27.4698" # Brisbane CBD coordinates for biasing results
+  MAPBOX_BASE_URL = "https://api.mapbox.com/geocoding/v5/mapbox.places".freeze
+  BRISBANE_PROXIMITY = "153.0251,-27.4698".freeze # Brisbane CBD coordinates for biasing results
 
   attr_reader :stats
 

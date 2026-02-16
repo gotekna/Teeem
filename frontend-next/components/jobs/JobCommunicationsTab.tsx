@@ -25,6 +25,7 @@ import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { useToast } from "@/components/ui/use-toast";
 import { getInitials } from "@/utils/formatters";
+import { POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 interface Message {
   id: number;
@@ -110,7 +111,7 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
     // Poll for new messages every 5 seconds
     const interval = setInterval(() => {
       loadMessages();
-    }, 5000);
+    }, POLLING_FAST_MS);
     return () => clearInterval(interval);
      
   }, [jobId]);

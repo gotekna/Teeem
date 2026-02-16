@@ -104,6 +104,8 @@ export const TAILWIND_COLORS = {
     500: '#f59e0b',
     600: '#d97706',
     700: '#b45309',
+    800: '#92400e',
+    900: '#78350f',
   },
   yellow: {
     400: '#facc15',
@@ -114,6 +116,8 @@ export const TAILWIND_COLORS = {
     400: '#fb923c',
     500: '#f97316',
     600: '#ea580c',
+    700: '#c2410c',
+    800: '#9a3412',
   },
   // Purple/Violet
   purple: {
@@ -362,6 +366,139 @@ export const COLORS = {
 
   // Semantic shortcuts
   ...STATUS_COLORS,
+} as const;
+
+// =============================================================================
+// RICH TEXT EDITOR COLORS
+// =============================================================================
+
+/**
+ * Color palettes for rich text editor (TipTap).
+ * These arrays are used for color pickers in the editor toolbar.
+ */
+export const RICH_TEXT_COLORS = {
+  /** Text color palette - quick access colors for text */
+  textColors: [
+    COLORS.black,              // #000000
+    TAILWIND_COLORS.red[500],  // #ef4444
+    TAILWIND_COLORS.orange[500], // #f97316
+    TAILWIND_COLORS.yellow[500], // #eab308
+    TAILWIND_COLORS.green[500], // #22c55e
+    TAILWIND_COLORS.blue[500],  // #3b82f6
+    TAILWIND_COLORS.violet[500], // #8b5cf6
+    TAILWIND_COLORS.pink[500],  // #ec4899
+  ] as const,
+
+  /** Grayscale palette - 10 shades from black to white */
+  grayscale: [
+    '#000000', '#424242', '#666666', '#808080',
+    '#999999', '#b3b3b3', '#cccccc', '#e0e0e0',
+    '#f0f0f0', COLORS.white,
+  ] as const,
+
+  /** Full color palette - organized by hue with 10 shades each */
+  fullPalette: {
+    red: ['#7f1d1d', '#991b1b', '#b91c1c', '#dc2626', '#ef4444', '#f87171', '#fca5a5', '#fecaca', '#fee2e2', '#fef2f2'],
+    orange: ['#7c2d12', '#9a3412', '#c2410c', '#ea580c', '#f97316', '#fb923c', '#fdba74', '#fed7aa', '#ffedd5', '#fff7ed'],
+    yellow: ['#713f12', '#854d0e', '#a16207', '#ca8a04', '#eab308', '#facc15', '#fde047', '#fef08a', '#fef9c3', '#fefce8'],
+    green: ['#14532d', '#166534', '#15803d', '#16a34a', '#22c55e', '#4ade80', '#86efac', '#bbf7d0', '#dcfce7', '#f0fdf4'],
+    blue: ['#1e3a8a', '#1e40af', '#1d4ed8', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe', '#eff6ff'],
+    purple: ['#4c1d95', '#5b21b6', '#6d28d9', '#7c3aed', '#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe', '#f5f3ff'],
+    pink: ['#831843', '#9d174d', '#be185d', '#db2777', '#ec4899', '#f472b6', '#f9a8d4', '#fbcfe8', '#fce7f3', '#fdf2f8'],
+  } as const,
+
+  /** Highlight color palettes - for text background highlighting */
+  highlightPalettes: {
+    light: ['#fef2f2', '#fff7ed', '#fefce8', '#f0fdf4', '#eff6ff', '#f5f3ff'] as const,
+    lighter: ['#fee2e2', '#ffedd5', '#fef9c3', '#dcfce7', '#dbeafe', '#ede9fe'] as const,
+    medium: ['#fecaca', '#fed7aa', '#fef08a', '#bbf7d0', '#bfdbfe', '#ddd6fe'] as const,
+    mediumDark: ['#fca5a5', '#fdba74', '#fde047', '#86efac', '#93c5fd', '#c4b5fd'] as const,
+    dark: ['#f87171', '#fb923c', '#facc15', '#4ade80', '#60a5fa', '#a78bfa'] as const,
+    pink: ['#fce7f3', '#fbcfe8', '#f9a8d4', '#f472b6', '#e5e5e5', '#d4d4d4'] as const,
+  } as const,
+
+  /** Default colors */
+  defaults: {
+    textColor: COLORS.black,        // #000000
+    highlightColor: '#fef08a',      // yellow-200 - default highlight
+  } as const,
+
+  /** Drawing tool colors with sizes */
+  drawingTools: [
+    { color: COLORS.black, size: 2 },              // #000000
+    { color: TAILWIND_COLORS.red[500], size: 2 },  // #ef4444
+    { color: TAILWIND_COLORS.blue[500], size: 2 }, // #3b82f6
+    { color: TAILWIND_COLORS.green[500], size: 4 }, // #22c55e
+    { color: TAILWIND_COLORS.yellow[500], size: 8, opacity: 0.4 }, // #eab308
+  ] as const,
+} as const;
+
+// =============================================================================
+// CANVAS/SVG SPECIFIC COLORS
+// =============================================================================
+
+/**
+ * Colors used in canvas/SVG rendering contexts.
+ * Organized semantically by purpose.
+ */
+export const CANVAS_COLORS = {
+  /** Corporate structure chart edge colors */
+  edges: {
+    hierarchy: TAILWIND_COLORS.gray[500],      // #6b7280 - company hierarchy
+    ownership: TAILWIND_COLORS.emerald[500],   // #10b981 - company owns company
+    personOwnership: TAILWIND_COLORS.amber[500], // #f59e0b - person owns company
+  } as const,
+
+  /** MiniMap node colors (corporate chart) */
+  minimap: {
+    trust: '#fda4af',      // rose-300 - trust entities
+    trustee: '#a5b4fc',    // indigo-300 - trustee companies
+    company: '#93c5fd',    // blue-300 - regular companies
+  } as const,
+
+  /** Gantt overlay checkbox colors (hex fallbacks for inline styles) */
+  checkboxes: {
+    started: TAILWIND_COLORS.emerald[500],    // #10b981
+    hold: TAILWIND_COLORS.amber[500],         // #f59e0b
+    confirm: TAILWIND_COLORS.orange[500],     // #f97316
+    supplierConfirm: TAILWIND_COLORS.purple[500], // #a855f7
+    completed: TAILWIND_COLORS.gray[700],     // #374151
+  } as const,
+
+  /** Dependency line colors */
+  dependency: {
+    default: TAILWIND_COLORS.gray[400],       // #9ca3af
+    striped: COLORS.black,                    // #000000 - stripe color
+    amber: TAILWIND_COLORS.amber[400],        // #fbbf24 - warning dep
+    blue: TAILWIND_COLORS.blue[400],          // #60a5fa - normal dep
+  } as const,
+
+  /** Task bar status colors */
+  taskStatus: {
+    done: TAILWIND_COLORS.gray[800],          // #1f2937 - dark gray
+    supplierConfirm: TAILWIND_COLORS.purple[500], // #a855f7
+    supervisorConfirm: TAILWIND_COLORS.orange[500], // #f97316
+    hold: '#D4A574',                          // Tan - custom brand color
+    started: TAILWIND_COLORS.emerald[500],    // #10b981
+  } as const,
+
+  /** Odd/even row alternating colors */
+  rows: {
+    light: {
+      odd: '#fafafa',   // Very light gray
+      even: COLORS.white,
+    },
+    dark: {
+      odd: '#263040',   // Dark blue-gray
+      even: TAILWIND_COLORS.gray[800], // #1f2937
+    },
+  } as const,
+
+  /** Generic UI colors */
+  ui: {
+    focusRing: TAILWIND_COLORS.blue[500],     // #3b82f6
+    clickableText: TAILWIND_COLORS.blue[500], // #3b82f6
+  } as const,
 } as const;
 
 // =============================================================================

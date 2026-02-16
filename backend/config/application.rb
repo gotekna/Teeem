@@ -33,9 +33,9 @@ module Backend
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # Set default timezone to Australia/Brisbane (matches company_settings default)
-    # This can be overridden per-company via CompanySetting.instance.timezone
-    config.time_zone = "Australia/Brisbane"
+    # Set default timezone (SSoT: TenantSetting::DEFAULT_TIMEZONE)
+    # Per-tenant override via TenantSetting.timezone
+    config.time_zone = "Australia/Brisbane"  # Must be string literal for Rails boot (before models load)
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Only loads a smaller set of middleware suitable for API only apps.

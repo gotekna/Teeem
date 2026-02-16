@@ -60,9 +60,16 @@ export function KanbanCard({
   const dragOccurredRef = React.useRef(false);
   const pointerStartRef = React.useRef<{ x: number; y: number } | null>(null);
 
-  // Delay single-click to distinguish from double-click
-  // Without this, the first click of a double-click opens the sheet,
-  // covering the card before the second click can be detected
+  // ⚠️ DO NOT SIMPLIFY - PointerDown-based double-click detection (Feb 2026)
+  // ════════════════════════════════════════════════════════════════════════
+  // Why: dnd-kit's useSortable captures pointer events and can call
+  //      preventDefault(), which prevents the browser from generating
+  //      click/dblclick events ~20% of the time. By detecting double-click
+  //      from pointerDown timing ourselves, we bypass this entirely.
+  // ❌ WRONG: Rely on browser onDoubleClick event (blocked by dnd-kit)
+  // ✅ CORRECT: Track pointerDown timestamps, detect double-tap ourselves
+  // ════════════════════════════════════════════════════════════════════════
+  const lastPointerDownRef = React.useRef<number>(0);
   const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Cleanup timeout on unmount
@@ -79,11 +86,31 @@ export function KanbanCard({
     transition,
   };
 
-  // Handle pointer down - track start position
+  // Handle pointer down - track start position AND detect double-click
   const handlePointerDown = (e: React.PointerEvent) => {
     dragOccurredRef.current = false;
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    // Call dnd-kit's pointer down handler
+
+    // Detect double-click from pointerDown timing (bypass browser dblclick)
+    const now = Date.now();
+    const timeSinceLast = now - lastPointerDownRef.current;
+    lastPointerDownRef.current = now;
+
+    if (timeSinceLast < 400 && onDoubleClick) {
+      // Double-click detected! Cancel pending single-click and fire immediately
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
+      // Fire double-click handler (synthesize a MouseEvent-like object)
+      onDoubleClick(e as unknown as React.MouseEvent);
+      // Reset to prevent triple-click from firing another double-click
+      lastPointerDownRef.current = 0;
+      // Don't forward to dnd-kit - this is a double-click, not a drag
+      return;
+    }
+
+    // Call dnd-kit's pointer down handler (single click / potential drag)
     listeners?.onPointerDown?.(e);
   };
 
@@ -99,13 +126,6 @@ export function KanbanCard({
   };
 
   // Handle click - delay to distinguish from double-click
-  // ⚠️ DO NOT SIMPLIFY - Single vs double-click timing (Jan 2026)
-  // ════════════════════════════════════════════════════════════
-  // Why: Without delay, first click opens sheet covering the card,
-  //      preventing second click of double-click from registering
-  // ❌ WRONG: Immediate onClick fires, sheet opens, dblclick lost
-  // ✅ CORRECT: Delay onClick, cancel if dblclick detected
-  // ════════════════════════════════════════════════════════════
   const handleClick = (e: React.MouseEvent) => {
     if (dragOccurredRef.current) {
       pointerStartRef.current = null;
@@ -118,19 +138,18 @@ export function KanbanCard({
       clickTimeoutRef.current = null;
     }
 
-    // Delay single-click to allow double-click to fire first
+    // Delay single-click to allow double-click detection from pointerDown
     if (onClick) {
       clickTimeoutRef.current = setTimeout(() => {
         clickTimeoutRef.current = null;
         onClick(e);
-      }, 200); // Standard double-click threshold
+      }, 250);
     }
     pointerStartRef.current = null;
   };
 
-  // Handle double-click - cancel pending single-click and fire
+  // Keep onDoubleClick handler as fallback (fires when browser does generate the event)
   const handleDoubleClick = (e: React.MouseEvent) => {
-    // Cancel pending single-click
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;

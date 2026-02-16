@@ -13,11 +13,14 @@ class ScheduledEmail < ApplicationRecord
   belongs_to :imap_credential, optional: true
   belongs_to :created_by, class_name: "User", optional: true
 
+  # Constants
+  STATUSES = %w[pending sent cancelled failed].freeze
+
   validates :to_addresses, presence: true
   validates :subject, presence: true
   validates :body, presence: true
   validates :scheduled_for, presence: true
-  validates :status, presence: true, inclusion: { in: %w[pending sent cancelled failed] }
+  validates :status, presence: true, inclusion: { in: STATUSES }
   validates :account_type, inclusion: { in: ACCOUNT_TYPES }, allow_nil: true
 
   # Scopes

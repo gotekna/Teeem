@@ -1,6 +1,12 @@
 class ChatMessage < ApplicationRecord
   include StorageUploadable
+  include WarehouseDocumentable
+  warehouse_type :warehouse
+
   acts_as_tenant :tenant
+
+  # Fallback folder path when tenant/config is unavailable
+  FALLBACK_FOLDER_PATH = "Uncategorized/Chat".freeze
 
   # Cross-tenant chat: unscope user lookups so messages from Teeem support
   # (different tenant) still load the sender/recipient correctly
@@ -16,12 +22,13 @@ class ChatMessage < ApplicationRecord
   # SSoT: Link to deduplicated file storage (Jan 2026)
   belongs_to :storage_blob, optional: true
 
-  # Phase 4: Universal warehouse metadata (SSoT for display_name, folder)
-  # Chat messages with files appear under Warehousing/Chat folder in File Warehouse
-  has_one :warehouse_document, as: :documentable, dependent: :destroy
+  # NOTE: has_one :warehouse_document is provided by WarehouseDocumentable concern
+
+  # Constants
+  MESSAGE_TYPES = %w[text image file].freeze
 
   validates :content, presence: true
-  validates :message_type, inclusion: { in: %w[text image file] }, allow_nil: true
+  validates :message_type, inclusion: { in: MESSAGE_TYPES }, allow_nil: true
 
   # Ensure tenant_id is set from user before validation
   before_validation :set_tenant_from_user, on: :create
@@ -30,7 +37,6 @@ class ChatMessage < ApplicationRecord
 
   # Upload to storage after file is attached
   after_commit :upload_to_storage, on: [:create, :update], if: :should_upload_to_storage?
-  after_create :create_warehouse_entry
 
   scope :in_channel, ->(channel) { where(channel: channel).order(created_at: :asc) }
   scope :for_job, ->(job_id) { where(job_id: job_id).order(created_at: :asc) }
@@ -101,11 +107,11 @@ class ChatMessage < ApplicationRecord
   # ⚠️ FRC (Jan 2026): Must use for_tenant(), not instance
   def virtual_folder_path
     tenant = resolve_tenant_for_config
-    return "Warehousing/Chat/Unknown" unless tenant
+    return FALLBACK_FOLDER_PATH unless tenant
 
     config = WarehouseProvider.for_tenant(tenant) rescue nil
     template = config&.path_for(:chat)
-    return "Warehousing/Chat/Unknown" unless template
+    return FALLBACK_FOLDER_PATH unless template
 
     year = (created_at || Time.current).year.to_s
     month = format("%02d", (created_at || Time.current).month)
@@ -133,9 +139,20 @@ class ChatMessage < ApplicationRecord
     result
   end
 
-  # Display name for File Warehouse
-  def display_name_for_warehouse
+  # WarehouseDocumentable: display name for warehouse entry
+  def warehouse_display_name
     storage_blob&.original_filename || "Chat attachment #{id}"
+  end
+
+  # WarehouseDocumentable: custom metadata for warehouse entry
+  def warehouse_entry_metadata
+    {
+      chat_message_id: id,
+      user_id: user_id,
+      job_id: job_id,
+      contact_id: contact_id,
+      message_type: message_type
+    }
   end
 
   def has_file?
@@ -175,13 +192,6 @@ class ChatMessage < ApplicationRecord
     nil
   end
 
-  # SSoT: Folder path for File Warehouse Doc Tree
-  # Produces: "Warehousing/Chat/General/{Year}/{Month}"
-  def warehouse_folder_path
-    date = created_at || Time.current
-    "Warehousing/Chat/General/#{date.strftime('%Y/%m')}"
-  end
-
   private
 
   # Set tenant from user on create (defense-in-depth)
@@ -198,7 +208,7 @@ class ChatMessage < ApplicationRecord
     self.job_id ||= chat_guest_session&.job_id
   end
 
-  # Resolve tenant for WarehouseProvider access
+  # Resolve tenant for WarehouseProvider access (used by virtual_folder_path)
   # ⚠️ FRC (Jan 2026): Model callbacks don't have ActsAsTenant context
   # Derive tenant from: user → tenant, or job → tenant, or contact → tenant
   def resolve_tenant_for_config
@@ -219,36 +229,6 @@ class ChatMessage < ApplicationRecord
 
     # Fall back to ActsAsTenant if available
     ActsAsTenant.current_tenant
-  end
-
-  # Create WarehouseDocument entry for chat messages with files
-  # ⚠️ FRC (Jan 2026): Must set tenant_id explicitly - model callbacks don't have
-  # ActsAsTenant context, and WarehouseDocument validates tenant presence
-  def create_warehouse_entry
-    return unless storage_blob
-
-    tenant = resolve_tenant_for_config
-    unless tenant
-      Rails.logger.warn("[ChatMessage] ##{id}: No tenant found, skipping warehouse entry")
-      return
-    end
-
-    create_warehouse_document!(
-      tenant_id: tenant.id,
-      source_type: "warehouse",
-      display_name: display_name_for_warehouse,
-      original_filename: storage_blob.original_filename,
-      storage_blob: storage_blob,
-      metadata: {
-        chat_message_id: id,
-        user_id: user_id,
-        job_id: job_id,
-        contact_id: contact_id,
-        message_type: message_type
-      }
-    )
-  rescue StandardError => e
-    Rails.logger.error("[ChatMessage] ##{id}: Failed to create warehouse entry: #{e.message}")
   end
 
   def should_upload_to_storage?

@@ -37,12 +37,12 @@ const DEFAULT_TAB = "navigation";
 
 export default function SystemSettingsPage() {
   // URL is SSoT for tab state (path-based navigation)
-  // Default to DEFAULT_TAB if no tab specified - no redirect needed
-  // This allows breadcrumb navigation to /settings/system to work
+  // redirectToDefault ensures URL always includes tab for breadcrumb visibility
   const [activeTab, setActiveTab] = usePathTabs(
     "/settings/system",
     DEFAULT_TAB,
-    SYSTEM_TABS.map(t => t.id)
+    SYSTEM_TABS.map(t => t.id),
+    { redirectToDefault: true }
   );
 
   return (

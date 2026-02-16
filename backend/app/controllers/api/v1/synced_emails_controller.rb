@@ -1,6 +1,6 @@
 # Renamed from EmailWarehouseController (Jan 2026)
 class Api::V1::SyncedEmailsController < ApplicationController
-  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :download_attachment, :download_eml, :attachment_presigned_url ]
+  before_action :set_email, only: [ :show, :assign_to_job, :unassign, :mark_as_spam, :mark_read, :delete_from_outlook, :move_to_folder, :summarize, :link_contact, :unlink_contact, :quick_create_contact, :send_to_docsort, :send_to_bill_inbox, :download_attachment, :download_eml, :attachment_presigned_url, :download_blob ]
   before_action :require_admin, only: [ :bulk_delete_spam, :sync_dashboard ]
 
   # GET /api/v1/synced_emails
@@ -190,8 +190,9 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Filter by Microsoft 365 credential (org-level app credentials)
     # Also validates user has access to this credential's mailboxes
     if params[:microsoft_credential_id].present?
-      # SSoT: Use MicrosoftCredential
-      org_cred = MicrosoftCredential.find_by(id: params[:microsoft_credential_id])
+      # SSoT: Use MicrosoftCredential with tenant scoping (security)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: params[:microsoft_credential_id])
       if org_cred
         # Get the mailboxes this user is authorized to access
         # SSoT: Match the same logic as all_accounts endpoint
@@ -217,16 +218,24 @@ class Api::V1::SyncedEmailsController < ApplicationController
         if user_mailboxes.any?
           # Ultra Email Architecture: Filter via mailbox_appearances join table
           # This allows emails sent to multiple recipients to be seen by all of them
-          # ⚠️ FRC (Jan 2026): Do NOT filter on synced_emails.microsoft_credential_id!
-          # An email may be synced by Org A (cred 9) but have a mailbox appearance for Org B (cred 11).
-          # Example: Derick sends to robert@tekna AND james@hoh - synced once via Tekna, but visible in both.
-          # We filter on the JOIN TABLE's credential, not the main table's.
+          #
+          # ⚠️ FRC (Feb 2026): Do NOT filter on microsoft_credential_id in the join table!
+          # Root cause: When multiple credentials share a Microsoft tenant (sync_all: true),
+          # they ALL sync the same mailboxes. ensure_mailbox_appearance uses find_or_initialize_by
+          # keyed on mailbox_owner_email, so the LAST credential to sync overwrites credential_id.
+          # Example: Cred 9 (Tekna) syncs rachel@tekna.com.au → appearance.credential_id = 9
+          #          Cred 12 (LYW) syncs same mailbox later → overwrites to credential_id = 12
+          #          Rachel views Tekna account (cred 9) → query WHERE credential_id=9 misses all recent emails!
+          #
+          # Fix: Filter ONLY by mailbox_owner_email. Access control is already handled by
+          # user_mailbox_access config (line 198), which limits which mailboxes each user sees
+          # per credential. The credential_id filter is redundant and harmful.
+          #
           # Accept both :mailbox and :mailbox_owner_email params (frontend sends mailbox_owner_email)
           specific_mailbox = params[:mailbox].presence || params[:mailbox_owner_email].presence
           if specific_mailbox.present? && user_mailboxes.map(&:downcase).include?(specific_mailbox.downcase)
-            # Specific mailbox requested - filter by mailbox and credential on JOIN table
+            # Specific mailbox requested - filter by mailbox_owner_email only
             emails = emails.joins(:mailbox_appearances)
-              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) = LOWER(?)", specific_mailbox)
               .distinct
 
@@ -243,9 +252,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
               end
             end
           else
-            # All user's mailboxes - filter by mailboxes and credential on JOIN table
+            # All user's mailboxes - filter by mailbox_owner_email only
             emails = emails.joins(:mailbox_appearances)
-              .where("synced_email_mailboxes.microsoft_credential_id = ?", params[:microsoft_credential_id])
               .where("LOWER(synced_email_mailboxes.mailbox_owner_email) IN (?)", user_mailboxes.map(&:downcase))
               .distinct
 
@@ -279,7 +287,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load job association and paginate
@@ -421,7 +429,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load and batch contacts
@@ -492,26 +500,37 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # GET /api/v1/synced_email/sync_status
   # Get sync status - org-wide sync runs automatically every 15 minutes
   def sync_status
-    # SSoT: Use MicrosoftCredential
-    org_cred = MicrosoftCredential.app_credentials.find_by(name: "Tekna")
+    # FRC (Feb 2026): Was hardcoded to find_by(name: "Tekna") - SSoT violation.
+    # Use tenant-scoped credentials and report the most recent sync across all orgs.
+    org_creds = MicrosoftCredential.refreshable_app
+                                   .where(organization_id: tenant_organization_ids)
+
+    last_sync = org_creds.maximum(:last_sync_at)
 
     render json: {
       status: "automatic",
       message: "Email sync runs automatically every 15 minutes via org-wide sync",
-      last_sync_at: org_cred&.last_sync_at,
-      sync_interval: "15 minutes"
+      last_sync_at: last_sync,
+      sync_interval: "15 minutes",
+      organizations: org_creds.map { |c| { id: c.id, name: c.name, last_sync_at: c.last_sync_at } }
     }
   end
 
   # POST /api/v1/synced_email/sync
   # Trigger manual email sync from Office 365
-  # FRC (Jan 2026): Push to :default queue instead of perform_now or :low queue
-  # Root cause: perform_now blocks web worker causing cascading timeouts.
-  # Using :low queue puts it behind 80+ background jobs, useless for manual refresh.
-  # Solution: :default queue = highest priority, processes immediately, non-blocking.
+  # ⚠️ FRC (Feb 2026): Two modes - targeted (inline) and full (async)
+  # ════════════════════════════════════════════════════════════════
+  # Problem: Background worker has only 3 threads. Recurring Pilgrim Homes sync
+  # (56 mailboxes, 3 credentials) occupies all threads for 10+ min every 15 min.
+  # Manual sync jobs (even on :critical queue) can't run when all threads are blocked.
+  #
+  # Solution: When user views a specific mailbox, run sync INLINE on web dyno.
+  # One mailbox incremental sync = ~2-3 seconds (just fetch delta from Graph API).
+  # Full tenant sync still goes async for background refresh.
+  # ════════════════════════════════════════════════════════════════
   def sync
-    # SSoT: Sync ALL connected MS365 organizations (not just one)
     connected_orgs = MicrosoftCredential.refreshable_app
+                                         .where(organization_id: tenant_organization_ids)
 
     if connected_orgs.empty?
       return render json: {
@@ -520,10 +539,51 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
-    # Push to :default queue (high priority) so manual refresh jumps the queue
-    # Manual sync only fetches delta since last auto-sync (~few seconds of work)
+    # Targeted sync: specific mailbox, run inline for instant results
+    if params[:mailbox_email].present?
+      mailbox = params[:mailbox_email].to_s.downcase.strip
+      Rails.logger.info "[SYNC-DEBUG] Targeted sync requested for mailbox: #{mailbox}"
+      Rails.logger.info "[SYNC-DEBUG] Connected orgs: #{connected_orgs.map { |c| "#{c.id}:#{c.name}" }.join(', ')}"
+
+      cred = connected_orgs.detect do |c|
+        config = c.sync_config || {}
+        mailbox_access = config["user_mailbox_access"] || {}
+        all_mailboxes = mailbox_access.values.flatten.compact.map(&:downcase)
+        Rails.logger.info "[SYNC-DEBUG] Cred #{c.id} (#{c.name}) mailboxes: #{all_mailboxes.join(', ')}"
+        all_mailboxes.include?(mailbox)
+      end
+
+      unless cred
+        Rails.logger.warn "[SYNC-DEBUG] Mailbox #{mailbox} NOT FOUND in any credential"
+        return render json: { success: false, message: "Mailbox not found in any connected organization" }
+      end
+
+      Rails.logger.info "[SYNC-DEBUG] Found cred #{cred.id} (#{cred.name}) for #{mailbox}. Starting perform_now..."
+      started_at = Time.current
+      begin
+        result = OrgEmailSyncJob.perform_now("incremental", credential_id: cred.id, target_mailbox: mailbox)
+        elapsed = (Time.current - started_at).round(1)
+        Rails.logger.info "[SYNC-DEBUG] perform_now completed in #{elapsed}s. Result: #{result.inspect}"
+      rescue => e
+        elapsed = (Time.current - started_at).round(1)
+        Rails.logger.error "[SYNC-DEBUG] perform_now FAILED after #{elapsed}s: #{e.class}: #{e.message}"
+        Rails.logger.error "[SYNC-DEBUG] #{e.backtrace.first(5).join("\n")}"
+        return render json: { success: false, message: "Sync failed: #{e.message}" }, status: :internal_server_error
+      end
+
+      total = result.is_a?(Hash) ? (result[:total_synced] || 0) : 0
+
+      return render json: {
+        success: true,
+        message: "Synced #{total} email(s) for #{mailbox} in #{elapsed}s",
+        total_synced: total,
+        inline: true
+      }
+    end
+
+    # Full tenant sync: async via worker (fallback for "all accounts" view)
     connected_orgs.each do |cred|
-      OrgEmailSyncJob.set(queue: :default).perform_later("incremental", credential_id: cred.id)
+      OrgEmailSyncJob.set(queue: :critical).perform_later("incremental", credential_id: cred.id)
     end
 
     render json: {
@@ -538,7 +598,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     return render json: { error: "Search query required" }, status: :bad_request if params[:q].blank?
 
     # Performance: Eager load and batch contacts
-    emails = SyncedEmail.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(100)
+    emails = SyncedEmail.search_text(params[:q]).includes(:job).latest_in_thread.recent_first.limit(EmailConstants::SEARCH_RESULTS_LIMIT)
     all_contact_ids = emails.flat_map { |e| [e.primary_contact_id, *(e.contact_ids || [])] }.compact.uniq
     contacts_cache = Contact.where(id: all_contact_ids).index_by(&:id)
 
@@ -571,12 +631,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # FRC (Feb 2026): Tenant-scope ALL queries. MicrosoftCredential and ImapCredential
     # are indirectly related to tenant (via Organization/User) so need manual filtering.
     # SyncedEmail and StorageBlob have acts_as_tenant and are auto-scoped.
-    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
-    tenant_user_ids = current_tenant&.users&.pluck(:id) || []
 
     # MS365 Organizations - scoped to current tenant's organizations
     ms_credentials = MicrosoftCredential.refreshable_app
-                                         .where(organization_id: tenant_org_ids)
+                                         .where(organization_id: tenant_organization_ids)
                                          .includes(:organization)
 
     ms365_orgs = ms_credentials.map do |cred|
@@ -596,6 +654,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         last_sync_at: cred.last_sync_at,
         total_emails: mailboxes.sum { |m| m[:email_count] },
         mailboxes: mailboxes,
+        tenant_users: cred.list_tenant_users,
         sync_config: {
           sync_all: cred.sync_config&.dig("sync_all") || false,
           sync_years: cred.sync_config&.dig("sync_years") || 3
@@ -670,13 +729,21 @@ class Api::V1::SyncedEmailsController < ApplicationController
       .where(synced_email_id: tenant_email_ids_subquery)
       .select(:mailbox_owner_email).distinct.count
 
+    # Existing TEEEM user emails (for import button: shows which M365 users aren't in TEEEM yet)
+    # Uses current_tenant (respects tenant override/switcher) not current_user.tenant_id
+    teeem_user_emails = User.where(tenant_id: current_tenant.id)
+                            .pluck(:email)
+                            .compact
+                            .map(&:downcase)
+
     render json: {
       success: true,
       data: {
         total_emails: SyncedEmail.count,
         total_mailboxes: tenant_mailbox_count,
         organizations: all_organizations,
-        storage: blob_stats
+        storage: blob_stats,
+        teeem_user_emails: teeem_user_emails
       }
     }
   end
@@ -814,7 +881,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # Pagination
     page = (params[:page] || 1).to_i
-    per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+    per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
     total = emails.count
 
     # Performance: Eager load and batch contacts
@@ -840,7 +907,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
 
     # SSoT: Use MicrosoftCredential for email operations (per-user Outlook removed)
     if delete_from_outlook && @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: @email.microsoft_credential_id)
       if org_cred&.connected?
         graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
         graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
@@ -880,34 +948,50 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # DELETE /api/v1/synced_email/:id/delete_from_outlook
   # Delete a single email from Outlook (without marking as spam)
   # SSoT: Uses org credentials (per-user Outlook removed)
+  # FRC (Feb 2026): Uses delete_user_email! to propagate actual error to user.
+  # 404 from Graph API = email already deleted = treated as success.
   def delete_from_outlook
-    unless @email.outlook_id.present?
+    # ⚠️ FRC (Feb 2026): Use mailbox appearance for correct outlook_id and credential
+    # Root cause: The email-level outlook_id and microsoft_credential_id are backward-compat
+    # fields set on first sync. When viewing from a different mailbox (e.g., rach@100xbestlife.com
+    # vs rachel@tekna.com.au), the email-level fields may point to the wrong mailbox/credential.
+    # Fix: If mailbox_owner_email param is provided, use the mailbox appearance's outlook_id
+    # and credential. Fallback to email-level fields for backward compat.
+    mailbox_email = params[:mailbox_owner_email].presence
+    appearance = mailbox_email && @email.mailbox_appearances.for_mailbox(mailbox_email).first
+
+    outlook_id = appearance&.outlook_id || @email.outlook_id
+    credential_id = appearance&.microsoft_credential_id || @email.microsoft_credential_id
+    owner_email = mailbox_email || @email.mailbox_owner_email
+
+    unless outlook_id.present?
       return render json: { error: "Email has no Outlook ID" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use MicrosoftCredential for email operations
-    org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+    # SSoT: Use MicrosoftCredential for email operations with tenant scoping (security)
+    org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                  .find_by(id: credential_id)
     unless org_cred&.connected?
       return render json: { error: "Organization MS365 not connected" }, status: :unprocessable_entity
     end
 
     graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
-    result = graph_client.delete_user_email(@email.mailbox_owner_email, @email.outlook_id)
+    graph_client.delete_user_email!(owner_email, outlook_id)
 
-    if result
-      # Mark as deleted in our database
-      @email.update!(
-        email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
-      )
+    # Mark as deleted in our database (also reached when 404 = already deleted)
+    @email.update!(
+      email_classification: (@email.email_classification || {}).merge("deleted_from_outlook" => true, "deleted_at" => Time.current.iso8601)
+    )
 
-      render json: {
-        success: true,
-        message: "Email deleted from Outlook",
-        email_id: @email.id
-      }
-    else
-      render json: { error: "Failed to delete email from Outlook" }, status: :unprocessable_entity
-    end
+    render json: {
+      success: true,
+      message: "Email deleted from Outlook",
+      email_id: @email.id
+    }
+  rescue MicrosoftAppGraphClient::ApiError => e
+    render json: { error: "Outlook delete failed: #{e.message}" }, status: :unprocessable_entity
+  rescue MicrosoftAppGraphClient::NotConnectedError => e
+    render json: { error: "MS365 connection issue: #{e.message}" }, status: :unprocessable_entity
   end
 
   # POST /api/v1/synced_email/:id/move_to_folder
@@ -921,9 +1005,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
       return render json: { error: "folder_id or folder_name required" }, status: :unprocessable_entity
     end
 
-    # SSoT: Use MicrosoftCredential for MS365 emails
+    # SSoT: Use MicrosoftCredential for MS365 emails with tenant scoping (security)
     if @email.microsoft_credential_id.present? && @email.outlook_id.present?
-      org_cred = MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: @email.microsoft_credential_id)
       unless org_cred&.connected?
         return render json: { error: "MS365 organization not connected" }, status: :unprocessable_entity
       end
@@ -1018,7 +1103,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email: email_json(@email)
     }
   rescue ActiveRecord::RecordNotFound
-    render json: { success: false, error: "Contact not found" }, status: :not_found
+    render_error("Contact not found", status: :not_found)
   end
 
   # POST /api/v1/synced_email/:id/unlink_contact
@@ -1115,7 +1200,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     else
       render json: {
         success: false,
-        error: result[:errors]&.first || "Failed to create contact"
+        error: result[:errors]&.map { |e| e.is_a?(Hash) ? e[:error] : e.to_s }&.join(", ").presence || "Failed to create contact"
       }, status: :unprocessable_entity
     end
   rescue StandardError => e
@@ -1125,6 +1210,77 @@ class Api::V1::SyncedEmailsController < ApplicationController
       success: false,
       error: e.message
     }, status: :internal_server_error
+  end
+
+  # POST /api/v1/synced_emails/:id/send_to_docsort
+  # Sends email attachments to DocSort (DocumentInbox) for classification
+  def send_to_docsort
+    attachments = @email.attachment_documents.where.not(storage_blob_id: nil)
+
+    if attachments.empty?
+      return render json: {
+        success: false,
+        error: "No attachments to send to DocSort"
+      }, status: :unprocessable_entity
+    end
+
+    created_items = []
+    attachments.each do |att|
+      item = DocumentInbox.create_from_email!(
+        email: @email,
+        attachment_doc: att,
+        source: 'email'
+      )
+      begin
+        item.classify!
+      rescue StandardError => e
+        Rails.logger.error "[SendToDocSort] Classification failed for #{item.id}: #{e.message}"
+      end
+      created_items << item
+    end
+
+    render json: {
+      success: true,
+      message: "#{created_items.size} attachment(s) sent to DocSort",
+      items: created_items.map { |i| { id: i.id, filename: i.original_filename, status: i.status } }
+    }
+  rescue StandardError => e
+    Rails.logger.error "[SendToDocSort] Error: #{e.message}"
+    render json: { success: false, error: e.message }, status: :internal_server_error
+  end
+
+  # POST /api/v1/synced_emails/:id/send_to_bill_inbox
+  # Sends email attachments to Bill Inbox for processing
+  def send_to_bill_inbox
+    attachments = @email.attachment_documents.where.not(storage_blob_id: nil)
+
+    if attachments.empty?
+      return render json: {
+        success: false,
+        error: "No attachments to send to Bill Inbox"
+      }, status: :unprocessable_entity
+    end
+
+    created_items = []
+    attachments.each do |att|
+      item = DocumentInbox.create_from_email!(
+        email: @email,
+        attachment_doc: att,
+        source: 'email'
+      )
+      # Pre-classify as invoice/bill for Bill Inbox
+      item.update!(document_type: 'invoice', status: 'classified')
+      created_items << item
+    end
+
+    render json: {
+      success: true,
+      message: "#{created_items.size} attachment(s) sent to Bill Inbox",
+      items: created_items.map { |i| { id: i.id, filename: i.original_filename, status: i.status } }
+    }
+  rescue StandardError => e
+    Rails.logger.error "[SendToBillInbox] Error: #{e.message}"
+    render json: { success: false, error: e.message }, status: :internal_server_error
   end
 
   # GET /api/v1/synced_email/:id/suggest_contacts
@@ -1142,7 +1298,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     suggestions = Contact.joins(:contact_emails)
                          .where("LOWER(contact_emails.email) IN (?)", email_addresses)
                          .distinct
-                         .limit(10)
+                         .limit(EmailConstants::CLASSIFICATION_EXAMPLES_LIMIT)
 
     # Also check AI-extracted entities if available
     if email.extracted_entities.present?
@@ -1168,154 +1324,138 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Download an attachment - tries local storage first (SSoT via WarehouseDocument), then Outlook
   # attachment_id is WarehouseDocument ID
   # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # SSoT: Wasabi is THE ONE storage. No Outlook API fallback.
+  # If attachment isn't in Wasabi, that's a sync bug - fail fast.
   def download_attachment
     attachment_id = params[:attachment_id]
-    filename_param = params[:filename]  # SSoT: Frontend sends filename for local file matching
+    filename_param = params[:filename]
 
-    # Try to find WarehouseDocument attachment first
-    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
-    filename_hint = filename_param || attachment_doc&.original_filename || attachment_doc&.ui_name
-    content_type_hint = attachment_doc&.content_type || attachment_doc&.storage_blob&.content_type
+    doc = find_attachment_doc(attachment_id, filename_param)
 
-    # SSoT: Try WarehouseDocument + StorageBlob first (primary path since Jan 2026)
-    # Priority 1: Use attachment found by ID if it has a storage blob
-    if attachment_doc&.storage_blob.present?
-      Rails.logger.info "[SyncedEmail] Downloading attachment from storage by ID: #{attachment_doc.id} (#{attachment_doc.ui_name})"
-      content = attachment_doc.storage_blob.download
-      # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-      content = content&.b
-      if content.present?
-        return send_data(
-          content,
-          filename: attachment_doc.original_filename || attachment_doc.ui_name,
-          type: content_type_hint || "application/octet-stream",
-          disposition: "attachment"
-        )
-      end
+    unless doc&.storage_blob.present?
+      Rails.logger.error "[SyncedEmail] Attachment not in storage: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
+      return render json: { error: "Attachment not in storage - sync may have failed for this email" }, status: :not_found
     end
 
-    # Priority 2: Search by filename if ID lookup didn't work
-    if @email.attachment_documents.any? && filename_hint.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_hint }
-      if doc&.storage_blob.present?
-        Rails.logger.info "[SyncedEmail] Downloading attachment from storage by filename: #{filename_hint}"
-        content = doc.storage_blob.download
-        # Force binary encoding immediately after download to prevent UTF-8 errors in .present? check
-        content = content&.b
-        if content.present?
-          return send_data(
-            content,
-            filename: filename_hint,
-            type: doc.content_type || doc.storage_blob&.content_type || "application/octet-stream",
-            disposition: "attachment"
-          )
-        end
-      end
+    content = doc.storage_blob.download&.b
+    unless content.present?
+      return render json: { error: "Attachment blob is empty" }, status: :not_found
     end
 
-    # Fallback: Download from Outlook API
-    # SSoT: Use MicrosoftCredential - same pattern as sync_attachments!
-    credential = if @email.microsoft_credential_id.present?
-                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
-                 else
-                   MicrosoftCredential.refreshable_app.first
-                 end
-
-    unless credential&.valid_credential?
-      return render json: { error: "No valid Microsoft credentials configured" }, status: :unprocessable_entity
-    end
-
-    # Get mailbox email
-    mailbox = @email.mailbox_owner_email
-    unless mailbox.present?
-      return render json: { error: "Mailbox information not available" }, status: :unprocessable_entity
-    end
-
-    # Fetch attachment from Microsoft Graph (Outlook)
-    Rails.logger.info "[SyncedEmail] Downloading attachment from Outlook: #{outlook_attachment_id} for email #{@email.id} (outlook_id: #{@email.outlook_id})"
-    client = MicrosoftAppGraphClient.new(credential)
-    attachment_data = client.download_email_attachment(mailbox, @email.outlook_id, outlook_attachment_id)
-    # Force binary encoding immediately after download to prevent UTF-8 errors
-    attachment_data[:content] = attachment_data[:content]&.b if attachment_data
-
-    if attachment_data && attachment_data[:content]
-      filename = filename_hint || attachment_data[:filename] || "attachment"
-      content_type = attachment_data[:content_type] || "application/octet-stream"
-
-      send_data(
-        attachment_data[:content],
-        filename: filename,
-        type: content_type,
-        disposition: "attachment"
-      )
-    else
-      # Attachment not found or unsupported type
-      Rails.logger.warn "[SyncedEmail] Attachment not available: email_id=#{@email.id}, attachment_id=#{attachment_id}, outlook_attachment_id=#{outlook_attachment_id}"
-      render json: { error: "Attachment not available - it may have been deleted from email server" }, status: :not_found
-    end
+    send_data(
+      content,
+      filename: doc.original_filename || doc.ui_name || filename_param || "attachment",
+      type: doc.content_type || doc.storage_blob.content_type || "application/octet-stream",
+      disposition: "attachment"
+    )
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Attachment download failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(10).join("\n")}"
-    render json: { error: "Download failed: #{e.class} - #{e.message.truncate(100)}" }, status: :internal_server_error
+    render json: { error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
-  # GET /api/v1/synced_emails/:id/attachments/:attachment_id/presigned_url
-  # Returns a presigned URL for direct download (no Rails streaming)
-  # SSoT: Same pattern as document_storage_controller#presigned_url
-  # Why: Avoids double transfer (S3 → Rails → Browser), browser fetches directly from S3
-  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
+  # SSoT: Wasabi is THE ONE storage. Presigned URL = direct S3 download.
+  # Two-step aware (Feb 2026): If doc exists but has no blob, trigger on-demand download first.
   def attachment_presigned_url
     attachment_id = params[:attachment_id]
     filename_param = params[:filename]
 
-    # Try to find WarehouseDocument attachment first
-    attachment_doc = @email.attachment_documents.find_by(id: attachment_id)
+    doc = find_attachment_doc(attachment_id, filename_param)
 
-    # Priority 1: Use attachment found by ID if it has storage_blob
-    if attachment_doc&.storage_blob.present?
-      filename = attachment_doc.original_filename || attachment_doc.ui_name
-      url = attachment_doc.storage_blob.presigned_url(
-        expires_in: 900,  # 15 minutes
-        filename: filename
-      )
-
-      return render json: {
-        success: true,
-        url: url,
-        filename: filename,
-        content_type: attachment_doc.content_type || attachment_doc.storage_blob.content_type,
-        expires_in: 900
-      }
+    unless doc
+      Rails.logger.error "[SyncedEmail] Presigned URL: attachment not found: email_id=#{@email.id}, attachment_id=#{attachment_id}, filename=#{filename_param}"
+      return render json: { success: false, error: "Attachment not found" }
     end
 
-    # Priority 2: Search by filename if ID lookup didn't find a blob
-    if @email.attachment_documents.any? && filename_param.present?
-      doc = @email.attachment_documents.find { |d| (d.original_filename || d.ui_name) == filename_param && d.storage_blob.present? }
-      if doc&.storage_blob.present?
-        url = doc.storage_blob.presigned_url(
-          expires_in: 900,
-          filename: filename_param
-        )
-
-        return render json: {
-          success: true,
-          url: url,
-          filename: filename_param,
-          content_type: doc.content_type || doc.storage_blob.content_type,
-          expires_in: 900
-        }
+    # Two-step: If doc exists but has no blob, try on-demand download
+    if doc.storage_blob_id.nil?
+      outlook_att_id = doc.metadata&.dig("outlook_attachment_id")
+      if outlook_att_id.present?
+        downloaded_doc = sync_attachment_on_demand(outlook_att_id, existing_doc: doc)
+        doc = downloaded_doc if downloaded_doc&.storage_blob_id.present?
       end
     end
 
-    # No local storage - fall back to proxy download (SharePoint/Outlook)
+    unless doc.storage_blob.present?
+      return render json: {
+        success: false,
+        error: "Attachment not yet downloaded from email server",
+        blob_status: doc.metadata&.dig("blob_status") || "pending"
+      }
+    end
+
+    filename = doc.original_filename || doc.ui_name
+    url = doc.storage_blob.presigned_url(
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+      filename: filename
+    )
+
     render json: {
-      success: false,
-      error: "Attachment not in local storage - use download endpoint",
-      fallback_to_proxy: true
-    }, status: :not_found
+      success: true,
+      url: url,
+      filename: filename,
+      content_type: doc.content_type || doc.storage_blob.content_type,
+      expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT
+    }
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] Presigned URL failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
-    render json: { success: false, error: "Failed to get presigned URL: #{e.message}" }, status: :internal_server_error
+    render json: { success: false, error: "Failed to get presigned URL" }
+  end
+
+  # POST /api/v1/synced_emails/:id/attachments/:attachment_id/download_blob
+  # Two-step sync: On-demand blob download for a metadata-only attachment.
+  # If blob already exists, returns presigned URL immediately.
+  # If not, downloads from MS365 using outlook_attachment_id in metadata.
+  def download_blob
+    doc = @email.attachment_documents.find_by(id: params[:attachment_id])
+    unless doc
+      return render json: { success: false, error: "Attachment not found" }, status: :not_found
+    end
+
+    # Already has blob - return presigned URL
+    if doc.storage_blob.present?
+      url = doc.storage_blob.presigned_url(
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+        filename: doc.original_filename || doc.ui_name
+      )
+      return render json: {
+        success: true,
+        url: url,
+        filename: doc.original_filename || doc.ui_name,
+        content_type: doc.content_type || doc.storage_blob.content_type,
+        blob_status: "downloaded"
+      }
+    end
+
+    # Download from MS365
+    outlook_att_id = doc.metadata&.dig("outlook_attachment_id")
+    unless outlook_att_id.present?
+      return render json: { success: false, error: "No outlook_attachment_id in metadata - cannot download" }
+    end
+
+    downloaded_doc = sync_attachment_on_demand(outlook_att_id, existing_doc: doc)
+
+    if downloaded_doc&.storage_blob.present?
+      url = downloaded_doc.storage_blob.presigned_url(
+        expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_SHORT,
+        filename: downloaded_doc.original_filename || downloaded_doc.ui_name
+      )
+      render json: {
+        success: true,
+        url: url,
+        filename: downloaded_doc.original_filename || downloaded_doc.ui_name,
+        content_type: downloaded_doc.content_type || downloaded_doc.storage_blob.content_type,
+        blob_status: "downloaded"
+      }
+    else
+      render json: {
+        success: false,
+        error: "Failed to download attachment from email server",
+        blob_status: doc.reload.metadata&.dig("blob_status") || "failed"
+      }
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] download_blob failed: email_id=#{@email&.id}, attachment_id=#{params[:attachment_id]}, error=#{e.class}: #{e.message}"
+    render json: { success: false, error: "Download failed: #{e.message.truncate(100)}" }, status: :internal_server_error
   end
 
   # GET /api/v1/synced_email/:id/download_eml
@@ -1346,7 +1486,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     Rails.logger.error "[SyncedEmail] EML download failed: email_id=#{@email&.id}, error=#{e.class}: #{e.message}"
     Rails.logger.error "[SyncedEmail] Email state: subject=#{@email&.subject.present?}, from=#{@email&.from_email.present?}, body_html=#{@email&.body_html.present?}, body_text=#{@email&.body_text.present?}"
     Rails.logger.error "[SyncedEmail] Backtrace: #{e.backtrace.first(5).join("\n")}"
-    render json: { success: false, error: "EML reconstruction failed: #{e.message}" }, status: :unprocessable_entity
+    render_error("EML reconstruction failed: #{e.message}", status: :unprocessable_entity)
   end
 
   # POST /api/v1/synced_email/bulk_delete_spam
@@ -1362,9 +1502,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     failed_count = 0
     errors = []
 
-    # SSoT: Group by credential to minimize client creation
+    # SSoT: Group by credential to minimize client creation (tenant-scoped for security)
     spam_emails.group_by(&:microsoft_credential_id).each do |cred_id, emails|
-      org_cred = MicrosoftCredential.find_by(id: cred_id)
+      org_cred = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: cred_id)
       next unless org_cred&.connected?
 
       graph_client = MicrosoftAppGraphClient.for_org(org_cred.organization)
@@ -1406,9 +1547,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Fetch MIME content from Outlook via Microsoft Graph
   def fetch_outlook_eml
     credential = if @email.microsoft_credential_id.present?
-                   MicrosoftCredential.find_by(id: @email.microsoft_credential_id)
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .find_by(id: @email.microsoft_credential_id)
                  else
-                   MicrosoftCredential.refreshable_app.first
+                   MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                     .refreshable_app.first
                  end
 
     return nil unless credential&.valid_credential?
@@ -1576,7 +1719,168 @@ class Api::V1::SyncedEmailsController < ApplicationController
     }
   end
 
+  # GET /api/v1/synced_emails/suggest_recipients?q=docsort
+  # Returns recently-used email addresses matching the query
+  # Searches from_email, to_emails (array), and cc_emails (array) via unnest
+  # Auto-scoped by tenant_id via raw SQL (acts_as_tenant doesn't apply to raw queries)
+  def suggest_recipients
+    query = params[:q].to_s.strip.downcase
+    return render json: { recipients: [] } if query.length < 2
+
+    tenant_id = ActsAsTenant.current_tenant&.id
+    return render json: { recipients: [] } unless tenant_id
+
+    sql = <<~SQL
+      SELECT email, COUNT(*) as usage_count, MAX(last_used) as last_used
+      FROM (
+        SELECT LOWER(from_email) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND from_email IS NOT NULL
+        UNION ALL
+        SELECT LOWER(unnest(to_emails)) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND to_emails IS NOT NULL
+        UNION ALL
+        SELECT LOWER(unnest(cc_emails)) as email, received_at as last_used
+        FROM synced_emails
+        WHERE tenant_id = $1 AND cc_emails IS NOT NULL
+      ) all_emails
+      WHERE email LIKE $2
+      GROUP BY email
+      ORDER BY usage_count DESC
+      LIMIT 10
+    SQL
+
+    results = ActiveRecord::Base.connection.exec_query(
+      sql,
+      "SuggestRecipients",
+      [
+        ActiveRecord::Relation::QueryAttribute.new("tenant_id", tenant_id, ActiveRecord::Type::BigInteger.new),
+        ActiveRecord::Relation::QueryAttribute.new("query", "%#{query}%", ActiveRecord::Type::String.new)
+      ]
+    )
+
+    recipients = results.map do |r|
+      { email: r["email"], count: r["usage_count"].to_i, lastUsed: r["last_used"] }
+    end
+
+    render json: { recipients: recipients }
+  end
+
   private
+
+  # SSoT: Single lookup for attachment WarehouseDocument
+  # Two-step aware (Feb 2026): Returns docs even without blobs (metadata-only)
+  # Caller decides whether to trigger on-demand download based on blob presence.
+  # Tries: DB ID → Graph attachment ID (metadata) → filename match
+  def find_attachment_doc(attachment_id, filename = nil)
+    docs = @email.attachment_documents.includes(:storage_blob)
+
+    # 1. By numeric DB ID
+    if attachment_id.to_s.match?(/\A\d+\z/)
+      doc = docs.find_by(id: attachment_id)
+      return doc if doc
+    end
+
+    # 2. By Microsoft Graph attachment ID (stored in metadata during sync)
+    doc = docs.find { |d| d.metadata&.dig("outlook_attachment_id") == attachment_id }
+    return doc if doc
+
+    # 3. By filename
+    if filename.present?
+      doc = docs.find { |d| (d.original_filename || d.ui_name) == filename }
+      return doc if doc
+    end
+
+    nil
+  end
+
+  # Fetch a single attachment from MS365 and store in Wasabi on-demand.
+  # Two-step aware (Feb 2026): If existing_doc is provided (blobless metadata doc),
+  # updates it with the downloaded blob instead of creating a new WarehouseDocument.
+  def sync_attachment_on_demand(outlook_attachment_id, existing_doc: nil)
+    credential = find_email_credential(@email)
+    return nil unless credential&.valid_credential?
+
+    mailbox = @email.mailbox_owner_email
+    return nil unless mailbox.present?
+
+    # Try mailbox appearances if primary outlook_id is nil
+    outlook_id = @email.outlook_id
+    unless outlook_id.present?
+      appearance = @email.mailbox_appearances.where.not(outlook_id: [nil, ""]).first
+      outlook_id = appearance&.outlook_id
+      mailbox = appearance&.mailbox_owner_email || mailbox
+    end
+    return nil unless outlook_id.present?
+
+    client = MicrosoftAppGraphClient.new(credential)
+    result = client.download_email_attachment(mailbox, outlook_id, outlook_attachment_id)
+
+    unless result
+      existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+      return nil
+    end
+
+    ActsAsTenant.with_tenant(@email.tenant) do
+      blob = StorageBlob.find_or_create_for_content!(
+        result[:content], filename: result[:filename], content_type: result[:content_type]
+      )
+
+      if existing_doc
+        # Update the existing blobless doc with the downloaded blob
+        existing_doc.update!(
+          storage_blob: blob,
+          file_size: result[:content].bytesize,
+          content_type: result[:content_type] || blob.content_type,
+          metadata: (existing_doc.metadata || {}).merge(
+            "content_id" => result[:content_id],
+            "blob_status" => "downloaded",
+            "synced_on_demand" => true
+          ).compact
+        )
+        blob.increment!(:reference_count)
+        Rails.logger.info "[SyncedEmail] On-demand filled blob for existing doc #{existing_doc.id}: #{result[:filename]}"
+        existing_doc
+      else
+        doc = WarehouseDocumentCreator.create!(
+          filename: result[:filename],
+          source_type: "email_attachment",
+          linkable: @email,
+          storage_blob: blob,
+          file_size: result[:content].bytesize,
+          content_type: result[:content_type] || blob.content_type,
+          metadata: {
+            "synced_email_id" => @email.id.to_s,
+            "content_id" => result[:content_id],
+            "outlook_attachment_id" => outlook_attachment_id,
+            "mailbox" => mailbox,
+            "blob_status" => "downloaded",
+            "synced_on_demand" => true
+          }.compact
+        )
+        blob.increment!(:reference_count)
+        Rails.logger.info "[SyncedEmail] On-demand synced attachment: #{result[:filename]} for email #{@email.id}"
+        doc
+      end
+    end
+  rescue StandardError => e
+    Rails.logger.error "[SyncedEmail] On-demand sync failed for attachment #{outlook_attachment_id}: #{e.message}"
+    existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+    nil
+  end
+
+  # Find a working MS365 credential for an email
+  def find_email_credential(email)
+    if email.microsoft_credential_id.present?
+      MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                         .find_by(id: email.microsoft_credential_id) ||
+      MicrosoftCredential.find_by(id: email.microsoft_credential_id)
+    else
+      MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                         .refreshable_app.first
+    end
+  end
 
   def set_email
     @email = SyncedEmail.includes(:job).find(params[:id])
@@ -1585,14 +1889,14 @@ class Api::V1::SyncedEmailsController < ApplicationController
     email = SyncedEmail.unscoped.includes(:job).find_by(id: params[:id])
 
     if email.nil?
-      render json: { success: false, error: "Email not found" }, status: :not_found
+      render_error("Email not found", status: :not_found)
     elsif email.tenant_id.nil? && current_tenant.present?
       # Auto-fix legacy emails with NULL tenant_id
       Rails.logger.info "[SyncedEmails] Auto-fixing NULL tenant_id on email #{email.id}"
       email.update_column(:tenant_id, current_tenant.id)
       @email = email
     else
-      render json: { success: false, error: "Email not accessible" }, status: :not_found
+      render_error("Email not accessible", status: :not_found)
     end
   end
 
@@ -1743,100 +2047,43 @@ class Api::V1::SyncedEmailsController < ApplicationController
     json
   end
 
-  # Build attachments list - merge synced records (WarehouseDocument) with MS365
-  # Note: email_attachments table DROPPED (Jan 2026) - use attachment_documents (WarehouseDocument)
-  # FRC (Feb 2026): Fixed to always check MS365 for missing attachments
-  # Previously only showed synced attachments, missing real PDFs while showing signature images
+  # Build attachments list - local WarehouseDocuments only (SSoT)
+  # Two-step sync (Feb 2026): Local data is SSoT. No MS365 queries at view time.
+  # Attachments without blobs show has_blob: false for on-demand download via frontend.
   def build_attachments_list(email)
     result = []
-    synced_filenames = Set.new
 
-    # First add local attachment_documents (already synced via WarehouseDocument)
     synced = email.attachment_documents.includes(:storage_blob)
     synced.each do |doc|
-      # For inline images: content_id matches cid: references in HTML
       content_id = doc.metadata&.dig('content_id')
       content_type = doc.content_type || doc.storage_blob&.content_type
       file_size = doc.file_size || doc.storage_blob&.file_size || 0
+      has_blob = doc.storage_blob_id.present?
+      blob_status = doc.metadata&.dig("blob_status") || (has_blob ? "downloaded" : "unknown")
 
       # Mark inline images (signature logos) - they're embedded in the body via cid:
       # Keep large images (>100KB) as they're likely real photos, not signatures
       is_inline_signature = content_id.present? && content_type&.start_with?('image/') && file_size < 100_000
 
       # Generate presigned URL for inline images (to replace cid: references)
-      inline_url = if doc.storage_blob.present? && content_id.present?
-                     doc.storage_blob.presigned_url(expires_in: 3600)
+      inline_url = if has_blob && content_id.present?
+                     doc.storage_blob.presigned_url(expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT)
                    end
+
       filename = doc.original_filename || doc.ui_name || "Unknown"
-      synced_filenames << filename.downcase
 
       result << {
         id: doc.id,
         name: filename,
         content_type: content_type,
         size: file_size,
-        outlook_attachment_id: nil,
+        outlook_attachment_id: doc.metadata&.dig("outlook_attachment_id"),
         content_id: content_id,
         inline_url: inline_url,
-        is_inline: is_inline_signature  # Flag for frontend to hide from attachment list
+        is_inline: is_inline_signature,
+        has_blob: has_blob,
+        blob_status: blob_status
       }
-    end
-
-    # Also fetch from MS365 to find any attachments not yet synced (e.g., large PDFs)
-    return result unless email.has_attachments && email.outlook_id.present?
-
-    begin
-      credential = if email.microsoft_credential_id.present?
-                     MicrosoftCredential.find_by(id: email.microsoft_credential_id)
-                   else
-                     MicrosoftCredential.refreshable_app.first
-                   end
-
-      return result unless credential&.valid_credential?
-
-      mailbox = email.mailbox_owner_email
-      return result unless mailbox.present?
-
-      client = MicrosoftAppGraphClient.new(credential)
-      ms_attachments = client.get_email_attachments(mailbox, email.outlook_id)
-
-      # Filter out embedded images/signatures - be conservative to not lose real attachments
-      # Only filter if: isInline=true, OR (has contentId AND is small image = signature)
-      # FRC (Feb 2026): Previous filter was too aggressive - rejected any attachment with contentId
-      filtered = ms_attachments.reject do |att|
-        is_inline = att["isInline"] == true
-        content_type = att["contentType"]&.to_s&.downcase || ""
-        file_size = att["size"].to_i
-        has_content_id = att["contentId"].present?
-        is_image = content_type.start_with?("image/")
-        is_small = file_size < 100_000  # 100KB threshold
-
-        # Reject if explicitly inline, OR if it's a small image with contentId (signature)
-        is_inline || (has_content_id && is_image && is_small)
-      end
-
-      # Add MS365 attachments that aren't already synced locally
-      filtered.each do |att|
-        filename = att["name"] || "attachment"
-        next if synced_filenames.include?(filename.downcase)
-
-        result << {
-          id: nil,  # No local ID yet - needs to be fetched on download
-          name: filename,
-          content_type: att["contentType"],
-          size: att["size"],
-          outlook_attachment_id: att["id"]
-        }
-      end
-
-      # SSoT: Update attachment_count when we discover actual count from Outlook
-      # Count non-inline attachments (real documents)
-      real_attachment_count = result.reject { |a| a[:content_id].present? }.size
-      if real_attachment_count > 0 && email.attachment_count.to_i != real_attachment_count
-        email.update_column(:attachment_count, real_attachment_count)
-      end
-    rescue StandardError => e
-      Rails.logger.warn "[SyncedEmail] Failed to fetch attachments from MS365: #{e.message}"
     end
 
     result
@@ -1951,7 +2198,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email: contact.email,
       phone: contact.phone,
       company_name: contact.company_name,
-      avatar_url: contact.try(:avatar_url)
+      avatar_url: contact&.avatar_url
     }
   end
 
@@ -1966,7 +2213,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
     if params[:category].present?
       category = params[:category].to_sym
       page = (params[:page] || 1).to_i
-      per_page = [ (params[:per_page] || 50).to_i, 200 ].min
+      per_page = [ (params[:per_page] || EmailConstants::DEFAULT_PER_PAGE).to_i, EmailConstants::MAX_PER_PAGE ].min
 
       emails = service.emails_for_category(category, page: page, per_page: per_page)
       total = service.category_counts[category] || 0

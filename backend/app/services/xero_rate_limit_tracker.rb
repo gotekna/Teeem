@@ -15,12 +15,13 @@
 # until it expires.
 #
 class XeroRateLimitTracker
+  include CacheConstants
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
   CONCURRENT_LIMIT = 5
 
   # Cache key for Xero-enforced rate limit lockout
-  LOCKOUT_KEY = "xero:rate:lockout"
+  LOCKOUT_KEY = "xero:rate:lockout".freeze
 
   class << self
     # Record a Xero-enforced rate limit (from 429 response)
@@ -31,24 +32,33 @@ class XeroRateLimitTracker
     # FRC (Feb 2026): Each Xero org has its OWN rate limit - don't use global lockout!
     # Previously wrote to both global and per-tenant keys, which blocked ALL orgs
     # when any single org hit its limit. Now only writes per-tenant lockouts.
+    # FRC (Feb 2026): Cap lockout to MAX_LOCKOUT_DURATION at record time.
+    # Xero's per-minute limit resets in 60s, so locking for 1 hour is absurd.
+    # If still rate limited after cap, we'll get another 429 and wait again.
+    # Previously stored raw retry_after (up to 3600s default) with cache
+    # expires_in matching, so lockouts persisted for a full hour even though
+    # MAX_LOCKOUT_AGE (5 min) was supposed to self-heal them. The self-heal
+    # was lazy (only triggered on next current_lockout call), so between sync
+    # cycles nobody cleared them.
+    MAX_LOCKOUT_DURATION = 2.minutes
+
     def record_lockout!(retry_after, tenant_id: nil)
-      lockout_until = Time.current + retry_after.seconds
+      # Cap at MAX_LOCKOUT_DURATION - don't store unreasonable values
+      capped_retry = [retry_after, MAX_LOCKOUT_DURATION.to_i].min
+      lockout_until = Time.current + capped_retry.seconds
       lockout_data = {
         locked_until: lockout_until.iso8601,
-        retry_after_seconds: retry_after,
+        retry_after_seconds: capped_retry,
         recorded_at: Time.current.iso8601,
         tenant_id: tenant_id
       }
 
-      # FRC (Feb 2026): Only store per-tenant lockout - each Xero org has independent limits
-      # Global lockout was blocking all 10 orgs when only 1 hit its limit
       if tenant_id.present?
-        Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: retry_after.seconds + 60)
-        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Tenant #{tenant_id} rate limited for #{retry_after} seconds (until #{lockout_until})")
+        Rails.cache.write("#{LOCKOUT_KEY}:#{tenant_id}", lockout_data, expires_in: capped_retry.seconds + 30)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Tenant #{tenant_id} for #{capped_retry}s (requested #{retry_after}s, capped)")
       else
-        # Fallback: Only use global if no tenant_id (shouldn't happen in normal operation)
-        Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: retry_after.seconds + 60)
-        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Global rate limit for #{retry_after} seconds (until #{lockout_until})")
+        Rails.cache.write(LOCKOUT_KEY, lockout_data, expires_in: capped_retry.seconds + 30)
+        Rails.logger.warn("[XeroRateLimitTracker] LOCKOUT RECORDED: Global for #{capped_retry}s (requested #{retry_after}s, capped)")
       end
 
       lockout_data
@@ -169,15 +179,15 @@ class XeroRateLimitTracker
 
       # Increment minute counter
       minute_key = minute_key_for(tenant_id)
-      Rails.cache.increment(minute_key, 1, expires_in: 2.minutes, initial: 0)
+      Rails.cache.increment(minute_key, 1, expires_in: CacheConstants::CACHE_TTL_SHORT, initial: 0)
 
       # Increment daily counter
       daily_key = daily_key_for(tenant_id)
-      Rails.cache.increment(daily_key, 1, expires_in: 25.hours, initial: 0)
+      Rails.cache.increment(daily_key, 1, expires_in: CacheConstants::CACHE_TTL_DAILY + 1.hour, initial: 0)
 
       # Increment total counter (all time)
       total_key = total_key_for(tenant_id)
-      Rails.cache.increment(total_key, 1, expires_in: 7.days, initial: 0)
+      Rails.cache.increment(total_key, 1, expires_in: CacheConstants::CACHE_TTL_WEEKLY, initial: 0)
     end
 
     # Get current usage for a tenant
@@ -288,6 +298,54 @@ class XeroRateLimitTracker
       else
         0
       end
+    end
+
+    # Pre-request throttle check - call before making ANY Xero API request.
+    # Proactively waits if we're near the per-minute limit (60 req/min)
+    # instead of blasting requests until we get a 429.
+    #
+    # Returns immediately if plenty of headroom.
+    # Sleeps briefly if approaching limit.
+    # Waits for minute reset if at limit.
+    #
+    # Max wait capped at 60s (one minute window) to avoid blocking threads.
+    THROTTLE_SOFT_LIMIT = 50   # Start slowing at 50/60
+    THROTTLE_HARD_LIMIT = 58   # Stop at 58/60 (leave 2 for safety)
+
+    def throttle_before_request!(tenant_id)
+      return unless tenant_id.present?
+
+      # Check for Xero-enforced lockout first
+      lockout = current_lockout(tenant_id: tenant_id)
+      if lockout
+        remaining = lockout_remaining_seconds(tenant_id: tenant_id)
+        if remaining > 0 && remaining <= 60
+          Rails.logger.info("[XeroRateLimitTracker] Pre-request: locked out, waiting #{remaining}s")
+          sleep(remaining)
+        elsif remaining > 60
+          # Don't block thread for >60s, let the job retry logic handle it
+          raise XeroApiClient::RateLimitError, "Rate limit exceeded. Retry after #{remaining} seconds"
+        end
+        return
+      end
+
+      usage = usage_for(tenant_id)
+      return unless usage
+
+      minute_used = usage.dig(:minute, :used) || 0
+
+      if minute_used >= THROTTLE_HARD_LIMIT
+        # At hard limit - wait for minute reset
+        wait = [60 - Time.current.sec, 1].max
+        Rails.logger.info("[XeroRateLimitTracker] Pre-request: at #{minute_used}/60, waiting #{wait}s for minute reset")
+        sleep(wait)
+      elsif minute_used >= THROTTLE_SOFT_LIMIT
+        # Approaching limit - add progressive delay (100ms-1s)
+        delay = ((minute_used - THROTTLE_SOFT_LIMIT).to_f / (THROTTLE_HARD_LIMIT - THROTTLE_SOFT_LIMIT)) * 1.0
+        delay = [[delay, 0.1].max, 1.0].min
+        sleep(delay)
+      end
+      # Below soft limit - no delay, full speed
     end
 
     # Reset counters for a tenant (for testing)

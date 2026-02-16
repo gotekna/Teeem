@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { TablePage } from "@/components/ui/page-wrappers";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import type { TableRow } from "@/components/table/types";
@@ -111,7 +112,7 @@ export default function RecipesPage() {
   return (
     <TablePage>
       <TeeemTableView
-        foundationId="recipes"
+        foundationId={FOUNDATION_SLUGS.RECIPES}
         autoFetchRecords={true}
         tableName="Recipes"
         enableExport={true}

@@ -8,8 +8,11 @@
 #   SystemSetting.set('some_key', 'some_value')
 #
 class SystemSetting < ApplicationRecord
+  # Constants
+  SETTING_TYPES = %w[string integer boolean json].freeze
+
   validates :setting_key, presence: true, uniqueness: true
-  validates :setting_type, inclusion: { in: %w[string integer boolean json] }
+  validates :setting_type, inclusion: { in: SETTING_TYPES }
 
   # Get a setting value by key
   # Returns nil if not found

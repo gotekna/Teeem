@@ -18,7 +18,7 @@ import {
 import { ComboboxDropdown, ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Building2,
-  User,
+  User as UserIcon,
   Users,
   DollarSign,
   Wrench,
@@ -48,6 +48,7 @@ import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { useSearchParams, usePathname } from "next/navigation";
 import dynamic from "next/dynamic";
+import type { JobType, JobStatus, JobStage, Contact, User } from '@/lib/types';
 
 interface SuburbSearchResult {
   id: number;
@@ -81,37 +82,6 @@ interface JobFormData {
   contract_value: string;
   latitude: number | null;
   longitude: number | null;
-}
-
-interface JobType {
-  id: number;
-  name: string;
-}
-
-interface JobStatus {
-  id: number;
-  name: string;
-}
-
-interface JobStage {
-  id: number;
-  name: string;
-}
-
-interface Contact {
-  id: number;
-  display_name?: string;
-  company_name?: string;
-  email?: string;
-  mobile_phone?: string;
-  employer_name?: string; // Company name for person contacts (company-aware search)
-}
-
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role_names?: string[];
 }
 
 interface PeopleFormData {
@@ -303,10 +273,8 @@ export default function NewJobPage() {
             matchedStatus = statusesData.job_statuses.find(s => s.name === "Enquiry");
           }
           const defaultStatus = matchedStatus || statusesData.job_statuses[0];
-          console.log("[loadLookupData] Setting job_status_id to:", defaultStatus.id.toString(), "status name:", defaultStatus.name);
           setFormData(prev => ({ ...prev, job_status_id: defaultStatus.id.toString() }));
         } else {
-          console.warn("[loadLookupData] No job_statuses received from API");
         }
       } catch (error) {
         console.error("Failed to load lookup data:", error);
@@ -324,7 +292,6 @@ export default function NewJobPage() {
       setLoadingContacts(true);
       const response = await api.get<{ contacts?: Contact[] } | Contact[]>("/api/v1/contacts");
       const contacts = Array.isArray(response) ? response : response?.contacts || [];
-      console.log("[loadContacts] Loaded", contacts.length, "contacts");
       setAllContacts(contacts);
     } catch (error) {
       console.error("Failed to load contacts:", error);
@@ -423,17 +390,6 @@ export default function NewJobPage() {
           postcode = addressMatch[6] || "";
         }
 
-        console.log("Pre-filling form with:", {
-          address: propertyAddress,
-          description: description.substring(0, 100) + "...",
-          contract_value: data.contract_value,
-          streetNumber,
-          streetName,
-          streetType,
-          suburb,
-          state,
-          postcode
-        });
 
         setFormData(prev => ({
           ...prev,
@@ -462,9 +418,6 @@ export default function NewJobPage() {
           external_sales_id: data.external_sales?.[0]?.contact_id || null,
         };
 
-        console.log("Proposal loaded with contact IDs:", contactIdsToPopulate);
-        console.log("Enrichment data:", data.customer?.enrichment);
-        console.log("Internal sales user_id:", data.internal_sales?.user_id);
 
         // Set people data IDs
         setPeopleData(prev => ({
@@ -475,7 +428,6 @@ export default function NewJobPage() {
 
         // If enrichment created a new company, reload contacts to include it in the list
         if (data.customer?.enrichment?.company_id) {
-          console.log("[loadProposal] Enrichment created company, reloading contacts to include ID:", data.customer.enrichment.company_id);
           await loadContacts();
         }
 
@@ -501,7 +453,6 @@ export default function NewJobPage() {
     }
 
     if (!proposal?.extracted_data?.job_type || jobTypes.length === 0) {
-      console.log("[Proposal JobType Mapping] Skipping - missing data");
       return;
     }
 
@@ -527,25 +478,20 @@ export default function NewJobPage() {
       'office': 'Office Fitout',
     };
 
-    console.log("[Proposal JobType Mapping] Available job types:", jobTypes.map(jt => jt.name));
 
     const targetTypeName = typeMapping[aiJobType];
     if (targetTypeName) {
       // Case-insensitive match for job type name
       const matchedType = jobTypes.find(jt => jt.name.toLowerCase() === targetTypeName.toLowerCase());
       if (matchedType) {
-        console.log(`[Proposal JobType Mapping] SUCCESS: "${aiJobType}" → "${matchedType.name}" (ID: ${matchedType.id})`);
         // Set the flag FIRST to prevent re-runs, then set the form data
         setHasSetJobTypeFromProposal(true);
         setFormData(prev => {
-          console.log("[Proposal JobType Mapping] Setting job_type_id, prev:", prev.job_type_id, "new:", matchedType.id.toString());
           return { ...prev, job_type_id: matchedType.id.toString() };
         });
       } else {
-        console.warn(`[Proposal JobType Mapping] No match found for target type "${targetTypeName}" in:`, jobTypes.map(jt => jt.name));
       }
     } else {
-      console.warn(`[Proposal JobType Mapping] No mapping defined for AI job type "${aiJobType}"`);
     }
   }, [proposal, jobTypes, loadingLookups, hasSetJobTypeFromProposal]);
 
@@ -590,7 +536,6 @@ export default function NewJobPage() {
     }
 
     if (Object.keys(newSelectedContacts).length > 0) {
-      console.log("Populating contacts from proposal:", newSelectedContacts);
       setSelectedContacts(newSelectedContacts);
       setHasPopulatedFromProposal(true);
     }
@@ -850,8 +795,6 @@ export default function NewJobPage() {
     setLoading(true);
 
     // Debug: Log what's being submitted
-    console.log("[handleSubmit] formData.job_status_id:", formData.job_status_id);
-    console.log("[handleSubmit] Full formData:", formData);
 
     try {
       const response = await api.post<{ id: number }>("/api/v1/jobs", {
@@ -1350,7 +1293,7 @@ export default function NewJobPage() {
                 {/* Referral & Sales */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <User className="h-4 w-4 text-green-500 dark:text-green-400" />
+                    <UserIcon className="h-4 w-4 text-green-500 dark:text-green-400" />
                     Referral & Sales
                   </h3>
                   <div className="space-y-2">

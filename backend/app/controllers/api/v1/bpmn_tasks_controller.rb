@@ -50,7 +50,7 @@ module Api
 
       def complete
         unless @task.can_action?(current_user)
-          return render json: { success: false, error: "You cannot complete this task" }, status: :forbidden
+          return render_error("You cannot complete this task", status: :forbidden)
         end
 
         @task.update!(form_data: params[:form_data].to_unsafe_h) if params[:form_data].present?
@@ -63,7 +63,7 @@ module Api
 
       def claim
         unless @task.claim!(current_user)
-          return render json: { success: false, error: "Cannot claim this task" }, status: :unprocessable_entity
+          return render_error("Cannot claim this task", status: :unprocessable_entity)
         end
 
         render json: { success: true, task: serialize_task(@task) }
@@ -71,11 +71,11 @@ module Api
 
       def unclaim
         unless @task.assigned_to == current_user
-          return render json: { success: false, error: "You can only unclaim tasks assigned to you" }, status: :forbidden
+          return render_error("You can only unclaim tasks assigned to you", status: :forbidden)
         end
 
         unless @task.unclaim!
-          return render json: { success: false, error: "Cannot unclaim this task" }, status: :unprocessable_entity
+          return render_error("Cannot unclaim this task", status: :unprocessable_entity)
         end
 
         render json: { success: true, task: serialize_task(@task) }
@@ -84,7 +84,7 @@ module Api
       def skip
         # SSoT: admin? now checks user_roles join table
         unless current_user&.admin?
-          return render json: { success: false, error: "Only admins can skip tasks" }, status: :forbidden
+          return render_error("Only admins can skip tasks", status: :forbidden)
         end
 
         @task.skip!

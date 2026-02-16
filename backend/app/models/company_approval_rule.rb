@@ -7,16 +7,14 @@ class CompanyApprovalRule < ApplicationRecord
   belongs_to :approver, class_name: "User", optional: true, foreign_key: :approver_id
   belongs_to :escalation_to, class_name: "User", optional: true, foreign_key: :escalation_to_user_id
 
-  # Validations
-  validates :rule_type, presence: true, inclusion: {
-    in: %w[bill_approval payment_batch po_variance workflow_config]
-  }
-  validates :name, presence: true
-  validates :approver_type, presence: true, inclusion: { in: %w[user role group] }
-
   # Constants
   RULE_TYPES = %w[bill_approval payment_batch po_variance workflow_config].freeze
   APPROVER_TYPES = %w[user role group].freeze
+
+  # Validations
+  validates :rule_type, presence: true, inclusion: { in: RULE_TYPES }
+  validates :name, presence: true
+  validates :approver_type, presence: true, inclusion: { in: APPROVER_TYPES }
 
   # Scopes
   scope :active, -> { where(is_active: true) }

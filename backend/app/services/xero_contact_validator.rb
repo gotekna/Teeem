@@ -105,7 +105,7 @@ class XeroContactValidator
     end
 
     # Entity type must be valid
-    unless Contact::ENTITY_TYPES.include?(contact.entity_type)
+    unless Contact.entity_types.include?(contact.entity_type)
       @errors << {
         field: :entity_type,
         message: "Invalid entity type: #{contact.entity_type}"

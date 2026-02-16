@@ -1,7 +1,7 @@
 class ConsolidationReconciliationService
   attr_reader :company_group, :as_of_date
 
-  def initialize(company_group, as_of_date: Date.today)
+  def initialize(company_group, as_of_date: Date.current)
     @company_group = company_group
     @as_of_date = as_of_date
   end

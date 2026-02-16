@@ -53,7 +53,7 @@ module Api
           if waiver.approve!
             render json: { success: true, data: waiver }
           else
-            render json: { success: false, error: "Cannot approve waiver" }, status: :unprocessable_entity
+            render_error("Cannot approve waiver", status: :unprocessable_entity)
           end
         end
 
@@ -89,8 +89,7 @@ module Api
           if order.save
             render json: { success: true, data: order }, status: :created
           else
-            render json: { success: false, error: order.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(order.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -102,8 +101,7 @@ module Api
             order.calculate_totals!
             render json: { success: true, data: order }
           else
-            render json: { success: false, error: order.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(order.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -114,7 +112,7 @@ module Api
           if order.submit!
             render json: { success: true, data: order }
           else
-            render json: { success: false, error: "Cannot submit change order" }, status: :unprocessable_entity
+            render_error("Cannot submit change order", status: :unprocessable_entity)
           end
         end
 
@@ -125,7 +123,7 @@ module Api
           if order.approve!(current_user)
             render json: { success: true, data: order }
           else
-            render json: { success: false, error: "Cannot approve change order" }, status: :unprocessable_entity
+            render_error("Cannot approve change order", status: :unprocessable_entity)
           end
         end
 
@@ -159,8 +157,7 @@ module Api
           if equipment.save
             render json: { success: true, data: equipment }, status: :created
           else
-            render json: { success: false, error: equipment.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(equipment.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 
@@ -171,8 +168,7 @@ module Api
           if equipment.update(equipment_params)
             render json: { success: true, data: equipment }
           else
-            render json: { success: false, error: equipment.errors.full_messages.join(", ") },
-                   status: :unprocessable_entity
+            render_error(equipment.errors.full_messages.join(", "), status: :unprocessable_entity)
           end
         end
 

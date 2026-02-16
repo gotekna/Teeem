@@ -1,4 +1,6 @@
 class FindMissingAbnsJob < ApplicationJob
+  include XeroConstants  # For ABR_API_SLEEP_SEC
+
   queue_as :default
 
   def perform
@@ -32,7 +34,7 @@ class FindMissingAbnsJob < ApplicationJob
           Rails.logger.info "#{index + 1}/#{total}: #{contact.display_name} - FOUND: #{match[:abn_formatted]}"
 
           # Auto-verify the new ABN
-          sleep(0.5)
+          sleep(ABR_API_SLEEP_SEC)
           contact.verify_abn! rescue nil
         else
           # Multiple matches - auto-select best match (highest score)
@@ -44,7 +46,7 @@ class FindMissingAbnsJob < ApplicationJob
           results.first(3).each { |m| Rails.logger.info "  - #{m[:abn_formatted]}: #{m[:name]} (score: #{m[:score]})" }
 
           # Auto-verify the new ABN
-          sleep(0.5)
+          sleep(ABR_API_SLEEP_SEC)
           contact.verify_abn! rescue nil
         end
       rescue => e
@@ -53,7 +55,7 @@ class FindMissingAbnsJob < ApplicationJob
       end
 
       # Rate limiting
-      sleep(0.5)
+      sleep(ABR_API_SLEEP_SEC)
     end
 
     Rails.logger.info "=== ABN Search Complete ==="

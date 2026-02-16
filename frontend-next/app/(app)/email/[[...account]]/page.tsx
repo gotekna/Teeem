@@ -82,6 +82,8 @@ import {
   ListTodo,
   UserPlus,
   Printer,
+  Receipt,
+  FolderSearch,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -97,6 +99,8 @@ import {
 import { api } from "@/lib/api";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { formatDistanceToNow, format, isToday, differenceInDays } from "date-fns";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
+import { UI_ANIMATION_STANDARD_MS } from "@/lib/constants/timeout-constants";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { DraftsList } from "@/components/emails/DraftsList";
@@ -308,7 +312,7 @@ function formatEmailDate(dateStr: string): string {
     return format(date, "EEE h:mm a");
   } else {
     // Older: just date
-    return format(date, "dd/MM/yyyy");
+    return format(date, DATE_DISPLAY);
   }
 }
 
@@ -333,12 +337,14 @@ interface Email {
   job_id: number | null;
   job_number: string | null;
   attachments?: Array<{
-    id: number;
+    id: number | null;
     name: string;
     content_type: string;
     size: number;
     content_id?: string;
     inline_url?: string;
+    outlook_attachment_id?: string;
+    is_inline?: boolean;
   }>;
   // Threading fields
   internet_message_id?: string;
@@ -434,6 +440,7 @@ const EmailListItem = memo(function EmailListItem({
   accountType = "outlook",
   sourceFolder,
   enableDrag = false,
+  mailboxEmail,
 }: {
   email: Email;
   isSelected: boolean;
@@ -457,6 +464,7 @@ const EmailListItem = memo(function EmailListItem({
   accountType?: "imap" | "outlook" | "ms365";
   sourceFolder?: string;
   enableDrag?: boolean;
+  mailboxEmail?: string;
 }) {
   const hasThread = threadCount > 1;
 
@@ -467,6 +475,7 @@ const EmailListItem = memo(function EmailListItem({
       fromEmail={email.from_email || email.from_address}
       fromName={email.from_name || undefined}
       subject={email.subject}
+      mailboxEmail={mailboxEmail}
       onReply={() => onReply?.(email)}
       onReplyAll={() => onReplyAll?.(email)}
       onForward={() => onForward?.(email)}
@@ -591,6 +600,7 @@ const EmailListItem = memo(function EmailListItem({
             <QuickEmailActions
               emailId={email.id}
               isRead={email.is_read}
+              mailboxEmail={mailboxEmail}
               onAction={onQuickAction}
               onSnooze={() => onSnooze?.(email)}
               onReply={() => onReply?.(email)}
@@ -726,6 +736,8 @@ export default function EmailPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // Ref to track if we should skip the next auto-fetch (prevents flashing on account/folder change)
   const skipNextAutoFetchRef = useRef(false);
+  // Ref for fetchEmails - allows callbacks defined before fetchEmails to call it
+  const fetchEmailsRef = useRef<(page?: number, force?: boolean) => void>(() => {});
 
   // Folder/account state (SSoT: atoms)
   const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
@@ -740,6 +752,8 @@ export default function EmailPage() {
   const [lastLocalSyncAt, setLastLocalSyncAt] = useState<Date | null>(null);
   const [creatingTask, setCreatingTask] = useAtom(creatingTaskAtom);
   const [creatingContact, setCreatingContact] = useAtom(creatingContactAtom);
+  const [sendingToDocsort, setSendingToDocsort] = useState(false);
+  const [sendingToBillInbox, setSendingToBillInbox] = useState(false);
 
   // SSoT: Uses PAGE_SIZE_LIST from pagination-constants.ts via paginationAtom
   const [pagination, setPagination] = useAtom(paginationAtom);
@@ -812,7 +826,7 @@ export default function EmailPage() {
   const [resumeDraft, setResumeDraft] = useAtom(resumeDraftAtom);
   const [replyToAtomValue, setReplyToAtomValue] = useAtom(replyToDataAtom);
   // Backwards compatible type (has extra fields)
-  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string } | null;
+  const replyTo = replyToAtomValue as { to: string; cc?: string; subject: string; body?: string; messageId?: string; fromAccountId?: string; fromEmail?: string; replyToMessageId?: string; forwardEmailId?: number; forwardAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}>; originalEmailId?: number; originalAttachments?: Array<{id: number | null; name: string; content_type: string; size: number; outlook_attachment_id?: string}> } | null;
   const setReplyTo = setReplyToAtomValue as unknown as React.Dispatch<React.SetStateAction<typeof replyTo>>;
 
   const [isPending, startTransition] = useTransition();
@@ -965,13 +979,24 @@ export default function EmailPage() {
     fetchAccounts();
     // Update local sync time for immediate UI feedback
     setLastLocalSyncAt(new Date());
+
+    // FRC (Feb 2026): Refresh email list after sync completes
+    // Root cause: Sync is async (perform_later), so the fetchEmails() in handleSync
+    // runs BEFORE the sync job finishes. This fetchEmails() runs AFTER sync is done,
+    // ensuring the user sees newly synced emails without manual page refresh.
+    if (viewMode === "split") {
+      splitInbox.refresh();
+    } else {
+      fetchEmailsRef.current(1, true);
+    }
+
     if (stats.new_count > 0) {
       toast({
         title: "Sync complete",
         description: `${stats.new_count} new email${stats.new_count > 1 ? 's' : ''} synced`,
       });
     }
-  }, [toast]);
+  }, [toast, viewMode, splitInbox]);
 
   const { isConnected, isSyncing: wsIsSyncing, newEmailCount } = useEmailWebSocket({
     onNewEmail: handleNewEmail,
@@ -1153,7 +1178,6 @@ export default function EmailPage() {
     // Performance: Debounce rapid re-fetches (unless forced or appending for infinite scroll)
     const now = Date.now();
     if (!force && !append && now - lastFetchTimeRef.current < FETCH_DEBOUNCE_MS) {
-      console.log("[Email] Skipping fetch - too soon since last fetch");
       return;
     }
 
@@ -1253,6 +1277,9 @@ export default function EmailPage() {
     }
   }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox, accounts]);
 
+  // Keep ref in sync so callbacks defined before fetchEmails can call it
+  fetchEmailsRef.current = fetchEmails;
+
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
   // Use refs to store latest state to avoid effect re-running on every state change
   const infiniteScrollStateRef = useRef({ hasMorePages, page: pagination.page, isLoadingMore, loading });
@@ -1274,7 +1301,6 @@ export default function EmailPage() {
           !state.loading &&
           !skipNextAutoFetchRef.current
         ) {
-          console.log("[Email] Infinite scroll triggered - loading page", state.page + 1);
           fetchEmails(state.page + 1, true, undefined, true); // append = true
         }
       },
@@ -1490,7 +1516,7 @@ export default function EmailPage() {
       if (matchingAccount && String(matchingAccount.id) !== selectedAccount) {
         // Skip auto-fetch during account transition to prevent flashing
         skipNextAutoFetchRef.current = true;
-        setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+        setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
         const accountId = String(matchingAccount.id);
         setSelectedAccount(accountId);
@@ -1583,9 +1609,13 @@ export default function EmailPage() {
             ).catch(() => ({}));
             if (imapResult) results.push(imapResult);
           } else if (account.type === "outlook" || account.type === "ms365") {
-            // Sync specific Office 365 account
+            // FRC (Feb 2026): Pass mailbox_email for targeted inline sync.
+            // Root cause: Async worker has only 3 threads, often all blocked by
+            // Pilgrim Homes recurring sync. Passing mailbox_email triggers inline
+            // sync on the web dyno for just this one mailbox (~2-3 seconds).
             const ms365Result = await api.post<{ total_synced?: number; message?: string }>(
-              "/api/v1/synced_emails/sync"
+              "/api/v1/synced_emails/sync",
+              { mailbox_email: account.email_address }
             ).catch(() => ({}));
             if (ms365Result) results.push(ms365Result);
           }
@@ -1603,21 +1633,26 @@ export default function EmailPage() {
         }
       }
 
-      // Show results
-      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
-      if (totalSynced > 0) {
-        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
-      } else {
-        toast({ title: "No new emails" });
-      }
-
       // Update local sync time immediately for visual feedback
       setLastLocalSyncAt(new Date());
 
-      // Refresh the email list and account timestamps
-      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
-      fetchEmails();
-      fetchAccounts();
+      // Check if any result was inline (targeted mailbox sync)
+      const inlineResult = results.find((r: Record<string, unknown>) => r && (r as Record<string, unknown>).inline);
+      if (inlineResult) {
+        // Inline sync: results are immediate, just refresh the email list
+        const total = (inlineResult as Record<string, unknown>).total_synced as number || 0;
+        toast({ title: total > 0 ? `Synced ${total} new email(s)` : "No new emails" });
+        fetchEmails(1, true);
+        fetchAccounts();
+      } else {
+        // Async sync: results will arrive via WebSocket
+        toast({ title: "Syncing..." });
+        fetchEmails(1, true);
+        fetchAccounts();
+        // Fallback re-fetches in case WebSocket doesn't fire
+        setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 3000);
+        setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 8000);
+      }
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
@@ -1643,21 +1678,17 @@ export default function EmailPage() {
         if (ms365Result) results.push(ms365Result);
       }
 
-      // Show results
-      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
-      if (totalSynced > 0) {
-        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
-      } else {
-        toast({ title: "No new emails" });
-      }
-
       // Update local sync time immediately for visual feedback
       setLastLocalSyncAt(new Date());
 
-      // Refresh the split inbox and account timestamps
-      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
+      // FRC (Feb 2026): MS365 sync is ASYNC - don't claim "No new emails" yet
+      toast({ title: "Syncing..." });
+
+      // Immediate refresh + fallback re-fetches at 3s and 8s
       splitInbox.refresh();
       fetchAccounts();
+      setTimeout(() => { splitInbox.refresh(); fetchAccounts(); }, 3000);
+      setTimeout(() => { splitInbox.refresh(); fetchAccounts(); }, 8000);
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
@@ -1798,9 +1829,29 @@ export default function EmailPage() {
     setLastClickedEmailId(email.id);
   }, [selection]);
 
+  // Sanitize email HTML for quoting: strip <style>/<head>/<html>/<body> wrappers
+  const sanitizeEmailHtml = useCallback((email: Email) => {
+    if (email.body_html) {
+      return email.body_html
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<head[\s\S]*?<\/head>/gi, "")
+        .replace(/<\/?(?:html|body|!doctype)[^>]*>/gi, "")
+        .trim();
+    }
+    if (email.body_text) {
+      return email.body_text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .map(line => line || "<br>")
+        .join("<br>");
+    }
+    return "";
+  }, []);
+
   const handleReply = useCallback((email: Email) => {
     // Build quoted original message as HTML to preserve formatting
-    const originalBody = email.body_html || email.body_text || "";
+    const originalBody = sanitizeEmailHtml(email);
     // Start with empty paragraph for typing, then quoted content below
     const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
@@ -1811,15 +1862,20 @@ export default function EmailPage() {
 ${originalBody}
 </div>`;
 
+    // Include original attachments metadata so user can optionally attach them
+    const nonInlineAttachments = email.attachments?.filter(a => !a.content_id && !a.is_inline) || [];
+
     setReplyTo({
       to: email.from_email || email.from_address,
       subject: email.subject?.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
       body: quotedBody,
       fromAccountId: selectedAccount, // Reply from the same account that received the email
       replyToMessageId: email.internet_message_id, // For email threading
+      originalEmailId: nonInlineAttachments.length > 0 ? email.id : undefined,
+      originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
-  }, [selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, selectedAccount, setComposeOpen]);
 
   const handleReplyAll = useCallback((email: Email) => {
     // Get the current user's email from the selected account
@@ -1837,7 +1893,7 @@ ${originalBody}
     const ccRecipients = [...new Set([...originalTo, ...originalCc])]; // Dedupe
 
     // Build quoted original message as HTML to preserve formatting
-    const originalBody = email.body_html || email.body_text || "";
+    const originalBody = sanitizeEmailHtml(email);
     // Start with empty paragraph for typing, then quoted content below
     const quotedBody = `<p></p>
 <div style="border-left: 2px solid #ccc; padding-left: 10px; margin-left: 5px; color: #555;">
@@ -1848,6 +1904,9 @@ ${originalBody}
 ${originalBody}
 </div>`;
 
+    // Include original attachments metadata so user can optionally attach them
+    const nonInlineAttachments = email.attachments?.filter(a => !a.content_id && !a.is_inline) || [];
+
     setReplyTo({
       to,
       cc: ccRecipients.join(", "),
@@ -1855,9 +1914,11 @@ ${originalBody}
       body: quotedBody,
       fromAccountId: selectedAccount,
       replyToMessageId: email.internet_message_id, // For email threading
+      originalEmailId: nonInlineAttachments.length > 0 ? email.id : undefined,
+      originalAttachments: nonInlineAttachments.length > 0 ? nonInlineAttachments : undefined,
     });
     setComposeOpen(true);
-  }, [accounts, selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, accounts, selectedAccount, setComposeOpen]);
 
   const handleCompose = () => {
     setReplyTo(null);
@@ -1865,25 +1926,21 @@ ${originalBody}
   };
 
   const handleForward = useCallback((email: Email) => {
-    // Build forwarded message header
-    const forwardHeader = `---------- Forwarded message ----------
-From: ${email.from_email || email.from_address}
-Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}
-Subject: ${email.subject}
-To: ${email.to_emails?.join(", ") || ""}
+    // Build forwarded message as HTML to preserve formatting
+    const forwardHeaderHtml = `---------- Forwarded message -----------<br>From: ${email.from_email || email.from_address}<br>Date: ${email.received_at ? format(new Date(email.received_at), "PPpp") : "Unknown"}<br>Subject: ${email.subject}<br>To: ${email.to_emails?.join(", ") || ""}<br><br>`;
 
-`;
-    // Use body_text for plain text forwarding (html will be stripped)
-    const originalBody = email.body_text || email.body_html || "";
+    const forwardBody = `<blockquote spellcheck="false" style="margin: 1em 0; padding-left: 1em; border-left: 2px solid #ccc;">${forwardHeaderHtml}${sanitizeEmailHtml(email)}</blockquote>`;
 
     setReplyTo({
       to: "", // Forward to new recipient
       subject: email.subject?.startsWith("Fwd:") ? email.subject : `Fwd: ${email.subject}`,
-      body: forwardHeader + originalBody,
+      body: forwardBody,
       fromAccountId: selectedAccount,
+      forwardEmailId: email.id,
+      forwardAttachments: email.attachments?.filter(a => !a.is_inline) || [],
     });
     setComposeOpen(true);
-  }, [selectedAccount, setComposeOpen]);
+  }, [sanitizeEmailHtml, selectedAccount, setComposeOpen]);
 
   // Print handler - opens email in new window for printing
   const handlePrint = useCallback((email: Email) => {
@@ -1954,6 +2011,54 @@ To: ${email.to_emails?.join(", ") || ""}
       });
     } finally {
       setCreatingTask(false);
+    }
+  };
+
+  // Send email attachments to DocSort for classification
+  const handleSendToDocsort = async (email: Email) => {
+    if (sendingToDocsort) return;
+    setSendingToDocsort(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string; error?: string }>(
+        `/api/v1/synced_emails/${email.id}/send_to_docsort`
+      );
+      if (response?.success) {
+        toast({ title: "Sent to DocSort", description: response.message });
+      } else {
+        throw new Error(response?.error || "Failed to send to DocSort");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send to DocSort",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToDocsort(false);
+    }
+  };
+
+  // Send email attachments to Bill Inbox
+  const handleSendToBillInbox = async (email: Email) => {
+    if (sendingToBillInbox) return;
+    setSendingToBillInbox(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string; error?: string }>(
+        `/api/v1/synced_emails/${email.id}/send_to_bill_inbox`
+      );
+      if (response?.success) {
+        toast({ title: "Sent to Bill Inbox", description: response.message });
+      } else {
+        throw new Error(response?.error || "Failed to send to Bill Inbox");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send to Bill Inbox",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingToBillInbox(false);
     }
   };
 
@@ -2230,7 +2335,7 @@ To: ${email.to_emails?.join(", ") || ""}
             onClick={() => {
               // Skip auto-fetch during account transition to prevent flashing
               skipNextAutoFetchRef.current = true;
-              setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+              setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
               setSelectedAccount("all");
               setHistoricalMailbox(null);
@@ -2297,7 +2402,7 @@ To: ${email.to_emails?.join(", ") || ""}
                     onClick={() => {
                       // Skip auto-fetch during account transition to prevent flashing
                       skipNextAutoFetchRef.current = true;
-                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, 500);
+                      setTimeout(() => { skipNextAutoFetchRef.current = false; }, UI_ANIMATION_STANDARD_MS);
 
                       const accountId = String(account.id);
                       setSelectedAccount(accountId);
@@ -2573,6 +2678,7 @@ To: ${email.to_emails?.join(", ") || ""}
                       accountId={selectedAccount}
                       accountType={accounts.find(a => String(a.id) === selectedAccount)?.type as "imap" | "outlook" | "ms365" || "outlook"}
                       sourceFolder={selectedFolder}
+                      mailboxEmail={accounts.find(a => String(a.id) === selectedAccount)?.email_address ?? undefined}
                     />
                   </div>
                 );
@@ -2654,7 +2760,7 @@ To: ${email.to_emails?.join(", ") || ""}
                 Print
               </Button>
 
-              {/* Right-aligned actions: Contact + Task Creation */}
+              {/* Right-aligned actions */}
               <div className="ml-auto flex items-center gap-2">
                 <Button
                   variant="outline"
@@ -2682,6 +2788,34 @@ To: ${email.to_emails?.join(", ") || ""}
                     <ListTodo className="h-4 w-4 mr-2" />
                   )}
                   + Task
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSendToBillInbox(selectedEmail)}
+                  disabled={sendingToBillInbox || !selectedEmail.has_attachments}
+                  title={selectedEmail.has_attachments ? "Send attachments to Bill Inbox" : "No attachments to send"}
+                >
+                  {sendingToBillInbox ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <Receipt className="h-4 w-4 mr-2" />
+                  )}
+                  Bill Inbox
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSendToDocsort(selectedEmail)}
+                  disabled={sendingToDocsort || !selectedEmail.has_attachments}
+                  title={selectedEmail.has_attachments ? "Send attachments to DocSort" : "No attachments to send"}
+                >
+                  {sendingToDocsort ? (
+                    <Spinner className="h-4 w-4 mr-2" />
+                  ) : (
+                    <FolderSearch className="h-4 w-4 mr-2" />
+                  )}
+                  DocSort
                 </Button>
               </div>
             </div>
@@ -2815,6 +2949,10 @@ To: ${email.to_emails?.join(", ") || ""}
         defaultFromAccountId={replyTo?.fromAccountId}
         defaultFromEmail={replyTo?.fromEmail}
         replyToMessageId={replyTo?.replyToMessageId}
+        forwardEmailId={replyTo?.forwardEmailId}
+        forwardAttachments={replyTo?.forwardAttachments}
+        originalEmailId={replyTo?.originalEmailId}
+        originalAttachments={replyTo?.originalAttachments}
         draft={resumeDraft || undefined}
         onSent={() => {
           fetchEmails();
