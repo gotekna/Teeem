@@ -657,7 +657,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
         tenant_users: cred.list_tenant_users,
         sync_config: {
           sync_all: cred.sync_config&.dig("sync_all") || false,
-          sync_years: cred.sync_config&.dig("sync_years") || 3
+          sync_years: cred.sync_config&.dig("sync_years") || 3,
+          mailbox_synced_at: cred.sync_config&.dig("mailbox_synced_at") || {}
         }
       }
     end

@@ -52,6 +52,12 @@ class XeroTrackingAddressParser
     return empty_result if tracking_option_name.blank?
 
     name = tracking_option_name.strip
+
+    # Step -1: Normalize dash separator between code and address
+    # "34AHAMIL - 34A, Hamilton Street Tingalpa" → "34AHAMIL 34A, Hamilton Street Tingalpa"
+    # Some Xero tracking options use " - " to separate code from address
+    name = name.sub(/\A(\S+)\s+-\s+/, '\1 ')
+
     result = empty_result.merge(raw_name: name)
 
     # Step 0: Underscore-delimited format (suburb-first)

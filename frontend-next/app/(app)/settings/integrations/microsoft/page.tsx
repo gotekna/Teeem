@@ -129,6 +129,11 @@ interface OrgSyncStats {
   total_emails: number;
   mailboxes: MailboxStat[];
   tenant_users?: TenantUser[];
+  sync_config?: {
+    sync_all: boolean;
+    sync_years: number;
+    mailbox_synced_at?: Record<string, string>;
+  };
 }
 
 interface SyncDashboard {
@@ -970,6 +975,11 @@ function EmailSyncTab({
         const syncedEmailMap = new Map(
           (orgStats?.mailboxes || []).map(m => [m.email.toLowerCase(), m])
         );
+        // FRC (Feb 2026): Use per-mailbox sync tracking (SSoT) to determine "synced" status.
+        // A mailbox is "synced" if it has email records OR has been processed by the sync job.
+        // Without this, mailboxes with 0 emails (room mailboxes, service accounts) show as
+        // "not synced" forever, making the X/Y counter misleading.
+        const mailboxSyncedAt: Record<string, string> = orgStats?.sync_config?.mailbox_synced_at || {};
 
         type CombinedRow = {
           email: string;
@@ -990,7 +1000,7 @@ function EmailSyncTab({
           combined.push({
             email: user.email,
             name: user.name,
-            synced: syncedEmailMap.has(emailLower),
+            synced: syncedEmailMap.has(emailLower) || !!mailboxSyncedAt[emailLower],
             mailboxStat: syncedEmailMap.get(emailLower) || null,
             tenantUser: user,
           });
