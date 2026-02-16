@@ -55,6 +55,16 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+
+interface ClaimTemplateOption {
+  id: number;
+  name: string;
+  lineCount: number;
+  totalPercentage: number;
+  percentagesValid: boolean;
+  description: string | null;
+}
 
 interface ClaimStage {
   id: number;
@@ -151,6 +161,8 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
+  const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplateOption[]>([]);
+  const [applyingTemplate, setApplyingTemplate] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -183,6 +195,50 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load claim templates for empty state template picker
+  const loadClaimTemplates = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: ClaimTemplateOption[] }>(
+        "/api/v1/claim_stage_templates"
+      );
+      setClaimTemplates(response?.data || []);
+    } catch {
+      // Non-critical - template picker just won't show options
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (stages.length === 0 && !loading) {
+      loadClaimTemplates();
+    }
+  }, [stages.length, loading, loadClaimTemplates]);
+
+  const handleApplyTemplate = async (templateId: number) => {
+    setApplyingTemplate(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { stages_created: number; template_name: string } }>(
+        `/api/v1/claim_stage_templates/${templateId}/apply`,
+        { job_id: jobId }
+      );
+      if (response?.success) {
+        toast({
+          title: "Template Applied",
+          description: `Created ${response.data.stages_created} claim stages from "${response.data.template_name}"`,
+        });
+        loadData();
+      }
+    } catch (error) {
+      console.error("Failed to apply template:", error);
+      toast({
+        title: "Error",
+        description: "Failed to apply claim template",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
 
   const handleAutoMatch = async () => {
     setAutoMatching(true);
@@ -480,10 +536,31 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No Claim Stages</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            No claim stages have been configured for this job type.
-            <br />
-            Configure templates in Admin &rarr; System &rarr; Job Setup.
+            Apply a claim template to set up progress claim stages for this job.
           </p>
+          {claimTemplates.length > 0 ? (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-72">
+                <ComboboxDropdown
+                  placeholder="Select a claim template..."
+                  items={claimTemplates.map((t) => ({
+                    id: t.id.toString(),
+                    label: `${t.name} (${t.lineCount} stages, ${t.totalPercentage}%)`,
+                  }))}
+                  onSelect={(item) => handleApplyTemplate(parseInt(item.id, 10))}
+                  disabled={applyingTemplate}
+                  isLoading={applyingTemplate}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Manage templates in Settings &rarr; Operations &rarr; Claim Templates
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No templates available. Create them in Settings &rarr; Operations &rarr; Claim Templates.
+            </p>
+          )}
         </CardContent>
       </Card>
     );

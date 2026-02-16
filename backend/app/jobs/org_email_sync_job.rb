@@ -155,14 +155,23 @@ class OrgEmailSyncJob < ApplicationJob
       # Fix: Track per-mailbox sync timestamps. Sort unsynced-first. Use per-mailbox since dates.
       # ════════════════════════════════════════════
       mailbox_synced_at = sync_config["mailbox_synced_at"] || {}
+      # ⚠️ FRC (Feb 2026): Toxic Mailbox Fix
+      # Root cause: Errored mailboxes never got mailbox_synced_at updated, so they
+      # always sorted to the front of the queue and consumed the entire time budget
+      # every cycle, starving valid unsynced mailboxes (stuck at 18/56 forever).
+      # Fix: Track last ATTEMPT time (success or failure) separately from last SUCCESS time.
+      # Sort by attempt time for round-robin fairness. Skip permanently broken mailboxes.
+      mailbox_last_attempted_at = sync_config["mailbox_last_attempted_at"] || {}
+      mailbox_error_counts = sync_config["mailbox_error_counts"] || {}
 
-      # Sort: never-synced mailboxes FIRST, then oldest-synced first
-      # This ensures new mailboxes get priority within the time budget
-      user_emails.sort_by! { |email| mailbox_synced_at[email.downcase] || "0000-00-00" }
+      # Sort: never-attempted mailboxes FIRST, then oldest-attempted first
+      # This ensures fair round-robin: errored mailboxes rotate to the back after each attempt
+      user_emails.sort_by! { |email| mailbox_last_attempted_at[email.downcase] || "0000-00-00" }
 
       synced_count = user_emails.count { |e| mailbox_synced_at[e.downcase].present? }
       unsynced_count = user_emails.count - synced_count
-      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} mailboxes (#{synced_count} synced, #{unsynced_count} unsynced) (tenant: #{tenant.name})"
+      errored_count = mailbox_error_counts.count { |_, v| v >= 10 }
+      Rails.logger.info "[OrgEmailSync] Starting #{sync_type} sync for #{@credential.name}: #{user_emails.count} mailboxes (#{synced_count} synced, #{unsynced_count} unsynced, #{errored_count} permanently errored) (tenant: #{tenant.name})"
 
       total_synced = 0
       errors = []
@@ -171,33 +180,58 @@ class OrgEmailSyncJob < ApplicationJob
       # Broadcast sync_started to all tenant users via WebSocket
       broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
 
+      skipped_count = 0
       user_emails.each_with_index do |user_email, idx|
         # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
         elapsed = Time.current - sync_started_at
         Rails.logger.info "[SYNC-DEBUG] Mailbox #{idx + 1}/#{user_emails.count}: #{user_email} (elapsed: #{elapsed.round(1)}s)"
         if elapsed > PER_CREDENTIAL_TIMEOUT
-          remaining = user_emails.count - total_synced - errors.count
+          remaining = user_emails.count - total_synced - errors.count - skipped_count
           Rails.logger.warn "[SYNC-DEBUG] TIME BUDGET EXCEEDED (#{PER_CREDENTIAL_TIMEOUT.to_i}s) after #{total_synced} mailboxes, #{remaining} remaining"
           break
+        end
+
+        # ⚠️ FRC (Feb 2026): Skip permanently broken mailboxes (10+ consecutive errors)
+        # These are likely deleted users, disabled accounts, or permission-denied mailboxes.
+        # Without this, they consume the entire time budget every cycle.
+        error_count = mailbox_error_counts[user_email.downcase] || 0
+        if error_count >= 10
+          Rails.logger.warn "[OrgEmailSync] Skipping #{user_email} - #{error_count} consecutive errors (permanently broken?)"
+          skipped_count += 1
+          next
         end
 
         begin
           # Use per-mailbox last_synced_at for accurate since date
           mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
-          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
           synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?)
           sync_elapsed = (Time.current - sync_start).round(1)
           total_synced += synced
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
 
-          # Update per-mailbox sync timestamp
+          # Update per-mailbox sync timestamp and clear error count on success
           mailbox_synced_at[user_email.downcase] = Time.current.iso8601
-          updated_config = sync_config.merge("mailbox_synced_at" => mailbox_synced_at)
+          mailbox_last_attempted_at[user_email.downcase] = Time.current.iso8601
+          mailbox_error_counts.delete(user_email.downcase)
+          updated_config = sync_config.merge(
+            "mailbox_synced_at" => mailbox_synced_at,
+            "mailbox_last_attempted_at" => mailbox_last_attempted_at,
+            "mailbox_error_counts" => mailbox_error_counts
+          )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
           Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
           errors << { user: user_email, error: e.message }
+          # Track attempt time and increment error count so this mailbox rotates to the back
+          mailbox_last_attempted_at[user_email.downcase] = Time.current.iso8601
+          mailbox_error_counts[user_email.downcase] = error_count + 1
+          updated_config = sync_config.merge(
+            "mailbox_last_attempted_at" => mailbox_last_attempted_at,
+            "mailbox_error_counts" => mailbox_error_counts
+          )
+          @credential.update_columns(sync_config: updated_config)
         end
       end
 
@@ -207,7 +241,7 @@ class OrgEmailSyncJob < ApplicationJob
       # when credential is modified elsewhere. update_columns is safe for timestamps.
       @credential.update_columns(last_sync_at: Time.current)
 
-      Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors"
+      Rails.logger.info "[OrgEmailSync] Completed: #{total_synced} emails synced, #{errors.count} errors, #{skipped_count} skipped (permanently errored)"
 
       # Broadcast sync_completed to all tenant users via WebSocket
       duration = (Time.current - sync_started_at).round

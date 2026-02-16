@@ -13,6 +13,7 @@ import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/Supe
 import { SMTasksTab } from "@/app/(app)/admin/system/components/SMTasksTab";
 import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
 import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
+import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
 
 /**
@@ -33,6 +34,7 @@ const OPERATIONS_TABS = [
   { id: "supervisor", label: "Supervisor Checklist" },
   { id: "cost", label: "Cost" },
   { id: "po-templates", label: "PO Templates" },
+  { id: "claim-templates", label: "Claim Templates" },
   { id: "profit-centres", label: "Profit Centres" },
 ];
 
@@ -87,6 +89,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="po-templates" className="absolute inset-0 overflow-auto">
             <PoTemplatesTab />
+          </TabsContent>
+          <TabsContent value="claim-templates" className="absolute inset-0 overflow-auto">
+            <ClaimTemplatesTab />
           </TabsContent>
           <TabsContent value="profit-centres" className="absolute inset-0 h-full">
             <ProfitCentresTab />

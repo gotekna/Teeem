@@ -998,15 +998,21 @@
     },
     "/settings/operations": {
       "title": "Operations Settings",
-      "description": "Configure operational settings like schedule master, contact types, and PO templates.",
-      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click"],
-      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs"]
+      "description": "Configure operational settings like schedule master, contact types, PO templates, and claim stage templates.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click", "Claim Templates define progress claim stages with percentage splits"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs", "Create claim stage templates"]
     },
     "/settings/operations/po-templates": {
       "title": "PO Template Packs",
       "description": "Define template packs (e.g., Standard House, Townhouse) to stamp purchase orders onto new jobs in one click.",
       "tips": ["Create packs from existing jobs using 'Create from Job'", "Each pack contains multiple PO definitions with line items", "Templates link to SM tasks and suppliers for automatic matching", "Duplicate a pack to create variations (e.g., 2-storey house)"],
       "tasks": ["Create a template pack", "Create pack from existing job", "Edit pack items and line items", "Duplicate a pack", "Apply template to a job"]
+    },
+    "/settings/operations/claim-templates": {
+      "title": "Claim Stage Templates",
+      "description": "Define reusable progress claim templates with percentage-based stages. Apply templates to jobs to auto-generate claim stages.",
+      "tips": ["Each template defines stages with percentage splits that should total 100%", "Templates are applied on a job's Claims tab when no stages exist", "Duplicate templates to create variations for different project types", "Default retainage % applies to all stages unless overridden per stage"],
+      "tasks": ["Create a claim template", "Edit template stages", "Duplicate a template", "Apply template to a job from the Claims tab"]
     },
     "/settings/connections": {
       "title": "Connections",

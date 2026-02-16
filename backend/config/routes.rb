@@ -875,6 +875,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Claim Stage Templates - define reusable claim stage configurations
+      resources :claim_stage_templates do
+        member do
+          post :apply
+          post :duplicate
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
