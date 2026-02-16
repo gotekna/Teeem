@@ -106,7 +106,7 @@ export default function AgentTasksPage() {
   const loadAgents = async () => {
     try {
       const response = await api.get<{ data: { success: boolean; data: Agent[] } }>(
-        "/agent_definitions"
+        "/api/v1/agent_definitions"
       );
       if (response?.data?.success) {
         const agentsData = response.data.data;
@@ -211,7 +211,7 @@ export default function AgentTasksPage() {
       const tasks = agentTasks[agentId] || [];
       const taskList = tasks.map((t) => `- ${t.description}`).join("\n");
 
-      await api.post(`/agent_definitions/${agentId}/record_run`, {
+      await api.post(`/api/v1/agent_definitions/${agentId}/record_run`, {
         status: "success",
         message: `Executed tasks:\n${taskList}`,
         details: {
@@ -229,7 +229,7 @@ export default function AgentTasksPage() {
       loadAgents();
     } catch (error) {
       console.error(`Failed to run agent ${agentId}:`, error);
-      await api.post(`/agent_definitions/${agentId}/record_run`, {
+      await api.post(`/api/v1/agent_definitions/${agentId}/record_run`, {
         status: "failure",
         message: String(error),
         details: { error: String(error) },
