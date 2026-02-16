@@ -387,6 +387,108 @@ class Api::V1::UsersController < ApplicationController
     render json: { error: "User not found" }, status: :not_found
   end
 
+  # POST /api/v1/users/import_from_microsoft
+  # Bulk-import M365 licensed users as TEEEM users (admin only)
+  # Creates Contact + User + default role + tenant company link for each
+  def import_from_microsoft
+    unless current_user&.admin?
+      return render_error("Admin access required", status: :forbidden)
+    end
+
+    organization_id = params[:organization_id]
+    return render_error("organization_id is required", status: :bad_request) if organization_id.blank?
+
+    # Tenant-scope: only allow credentials from current tenant's organizations
+    unless tenant_organization_ids.include?(organization_id.to_i)
+      return render_error("Organization not found in your tenant", status: :not_found)
+    end
+
+    credential = MicrosoftCredential.find_by(organization_id: organization_id, credential_type: "app")
+    unless credential&.status == "connected"
+      return render_error("No connected Microsoft credential for this organization", status: :not_found)
+    end
+
+    # Get M365 tenant users (cached 1hr)
+    m365_users = credential.list_tenant_users
+
+    # Get existing TEEEM user emails for dedup
+    existing_emails = User.where(tenant_id: current_user.tenant_id)
+                          .pluck(:email)
+                          .compact
+                          .map(&:downcase)
+                          .to_set
+
+    # Filter: licensed + user mailbox type + not already in TEEEM
+    importable = m365_users.select do |u|
+      u[:has_license] == true &&
+        u[:mailbox_type] == "user" &&
+        u[:email].present? &&
+        !existing_emails.include?(u[:email].downcase)
+    end
+
+    imported = 0
+    skipped = 0
+    errors = []
+
+    importable.each do |m365_user|
+      ActiveRecord::Base.transaction do
+        name = m365_user[:name].to_s.strip
+        email = m365_user[:email].to_s.strip
+        parts = name.split(/\s+/)
+
+        # Create contact
+        contact = Contact.create!(
+          display_name: name,
+          first_name: parts[0],
+          last_name: parts.length > 1 ? parts[1..].join(" ") : nil,
+          contact_type: "person",
+          is_user_cached: true
+        )
+
+        contact.contact_emails.create!(
+          email: email,
+          label: "login",
+          is_primary: true,
+          position: 1
+        )
+
+        # Create user with random password (they'll use invite/reset flow)
+        user = User.new(
+          name: name,
+          email: email,
+          password: SecureRandom.urlsafe_base64(16) + "!A1",
+          tenant_id: current_user.tenant_id
+        )
+        user.contact = contact
+
+        unless user.save
+          errors << "#{email}: #{user.errors.full_messages.join(', ')}"
+          skipped += 1
+          raise ActiveRecord::Rollback
+        end
+
+        # Assign default 'user' role
+        default_role = Role.find_by(name: "user")
+        user.roles << default_role if default_role && !user.roles.exists?(id: default_role.id)
+
+        # Link to tenant company
+        link_user_to_tenant_company(user)
+
+        imported += 1
+      end
+    rescue => e
+      errors << "#{m365_user[:email]}: #{e.message}"
+      skipped += 1
+    end
+
+    render json: {
+      success: true,
+      imported: imported,
+      skipped: skipped,
+      errors: errors
+    }
+  end
+
   # POST /api/v1/users/bulk_delete
   def bulk_delete
     ids = params[:ids]

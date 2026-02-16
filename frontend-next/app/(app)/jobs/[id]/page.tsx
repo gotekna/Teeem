@@ -976,12 +976,14 @@ export default function JobDetailPage() {
         jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
-      const data = await requestPromise;
+      const response = await requestPromise;
 
       // Clean up cache after request completes
       jobRequestCache.delete(cacheKey);
 
-      setJob(data);
+      // API returns { success: true, data: {...} } envelope
+      const jobData = (response as unknown as { data?: Job })?.data || response;
+      setJob(jobData as Job);
     } catch (error) {
       // Clean up cache on error too
       jobRequestCache.delete(`job-${jobId}`);
@@ -1236,10 +1238,11 @@ export default function JobDetailPage() {
     if (!job) return;
     setSaving(true);
     try {
-      const updatedJob = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
+      const response = await api.patch<{ success: boolean; data: Job }>(`/api/v1/jobs/${job.id}`, {
         job: editForm,
       });
-      setJob({ ...job, ...updatedJob });
+      const updatedJob = response?.data || response;
+      setJob({ ...job, ...(updatedJob as Job) });
       setIsEditing(false);
       setEditForm({});
       // Reload to get fresh data with associations
@@ -1612,7 +1615,7 @@ export default function JobDetailPage() {
                     </div>
                     <div className="space-y-2">
                       <Label>Job Code</Label>
-                      <Input value={`J${job.id}`} readOnly className="bg-muted/50 font-mono" />
+                      <Input value={job.job_code || `J${job.id}`} readOnly className="bg-muted/50 font-mono" />
                     </div>
                   </div>
                   <div className="space-y-2">
