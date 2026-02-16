@@ -542,23 +542,40 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # Targeted sync: specific mailbox, run inline for instant results
     if params[:mailbox_email].present?
       mailbox = params[:mailbox_email].to_s.downcase.strip
+      Rails.logger.info "[SYNC-DEBUG] Targeted sync requested for mailbox: #{mailbox}"
+      Rails.logger.info "[SYNC-DEBUG] Connected orgs: #{connected_orgs.map { |c| "#{c.id}:#{c.name}" }.join(', ')}"
+
       cred = connected_orgs.detect do |c|
         config = c.sync_config || {}
         mailbox_access = config["user_mailbox_access"] || {}
         all_mailboxes = mailbox_access.values.flatten.compact.map(&:downcase)
+        Rails.logger.info "[SYNC-DEBUG] Cred #{c.id} (#{c.name}) mailboxes: #{all_mailboxes.join(', ')}"
         all_mailboxes.include?(mailbox)
       end
 
       unless cred
+        Rails.logger.warn "[SYNC-DEBUG] Mailbox #{mailbox} NOT FOUND in any credential"
         return render json: { success: false, message: "Mailbox not found in any connected organization" }
       end
 
-      result = OrgEmailSyncJob.perform_now("incremental", credential_id: cred.id, target_mailbox: mailbox)
+      Rails.logger.info "[SYNC-DEBUG] Found cred #{cred.id} (#{cred.name}) for #{mailbox}. Starting perform_now..."
+      started_at = Time.current
+      begin
+        result = OrgEmailSyncJob.perform_now("incremental", credential_id: cred.id, target_mailbox: mailbox)
+        elapsed = (Time.current - started_at).round(1)
+        Rails.logger.info "[SYNC-DEBUG] perform_now completed in #{elapsed}s. Result: #{result.inspect}"
+      rescue => e
+        elapsed = (Time.current - started_at).round(1)
+        Rails.logger.error "[SYNC-DEBUG] perform_now FAILED after #{elapsed}s: #{e.class}: #{e.message}"
+        Rails.logger.error "[SYNC-DEBUG] #{e.backtrace.first(5).join("\n")}"
+        return render json: { success: false, message: "Sync failed: #{e.message}" }, status: :internal_server_error
+      end
+
       total = result.is_a?(Hash) ? (result[:total_synced] || 0) : 0
 
       return render json: {
         success: true,
-        message: "Synced #{total} email(s) for #{mailbox}",
+        message: "Synced #{total} email(s) for #{mailbox} in #{elapsed}s",
         total_synced: total,
         inline: true
       }

@@ -1319,6 +1319,44 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/tracking_options
+      # Returns cached Xero tracking options with local job link data
+      # Used by the Tracking tab on the Xero Integration page
+      def tracking_options
+        options = XeroBillImportService.fetch_tracking_options
+
+        # Build a map of tracking_option_id → job link info from local DB
+        links = XeroJobTrackingLink.includes(:job).index_by(&:tracking_option_id)
+
+        enriched = options.map do |opt|
+          link = links[opt["TrackingOptionID"]]
+          {
+            id: opt["TrackingOptionID"],
+            name: opt["Name"],
+            status: opt["Status"],
+            linked_job: link ? {
+              id: link.job_id,
+              name: link.job&.name,
+              job_code: link.job&.job_code,
+              variant: link.variant,
+              is_primary: link.is_primary
+            } : nil
+          }
+        end
+
+        render json: {
+          success: true,
+          tracking_category: XeroConstants.tracking_category_name,
+          tracking_options: enriched,
+          total: enriched.length,
+          linked: enriched.count { |o| o[:linked_job].present? },
+          unlinked: enriched.count { |o| o[:linked_job].nil? }
+        }
+      rescue StandardError => e
+        Rails.logger.error("Xero tracking_options error: #{e.message}")
+        render_error("Failed to fetch tracking options: #{e.message}", status: :internal_server_error)
+      end
+
       # GET /api/v1/xero/pdf_sync_status
       # Returns PDF sync progress and health status for the Xero integration dashboard
       def pdf_sync_status

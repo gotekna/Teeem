@@ -129,16 +129,14 @@ class OrgEmailSyncJob < ApplicationJob
       end
 
       # FRC (Feb 2026): Target a single mailbox for quick inline sync from the UI.
-      # Root cause: Full credential sync iterates all mailboxes (56 for Pilgrim Homes),
-      # making it too slow for inline execution and too large for background when threads
-      # are occupied. When target_mailbox is set, we only sync that one mailbox (~2-3 seconds).
       if target_mailbox.present?
         target = target_mailbox.to_s.downcase.strip
+        Rails.logger.info "[SYNC-DEBUG] target_mailbox=#{target_mailbox}, user_emails count=#{user_emails.count}, user_emails=#{user_emails.first(5).join(', ')}"
         if user_emails.map(&:downcase).include?(target)
           user_emails = [target_mailbox]
-          Rails.logger.info "[OrgEmailSync] Targeted sync for single mailbox: #{target_mailbox}"
+          Rails.logger.info "[SYNC-DEBUG] Matched! Will sync single mailbox: #{target_mailbox}"
         else
-          Rails.logger.warn "[OrgEmailSync] Target mailbox #{target_mailbox} not found in configured mailboxes"
+          Rails.logger.warn "[SYNC-DEBUG] Target mailbox #{target_mailbox} NOT in user_emails list: #{user_emails.map(&:downcase).join(', ')}"
           return
         end
       end
@@ -170,23 +168,25 @@ class OrgEmailSyncJob < ApplicationJob
       # Broadcast sync_started to all tenant users via WebSocket
       broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
 
-      user_emails.each do |user_email|
+      user_emails.each_with_index do |user_email, idx|
         # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
-        # Without this, 56 mailboxes x 15 years exceeds Heroku's 30-min dyno timeout,
-        # the job dies, last_sync_at never updates, and the credential is permanently stuck.
         elapsed = Time.current - sync_started_at
+        Rails.logger.info "[SYNC-DEBUG] Mailbox #{idx + 1}/#{user_emails.count}: #{user_email} (elapsed: #{elapsed.round(1)}s)"
         if elapsed > PER_CREDENTIAL_TIMEOUT
           remaining = user_emails.count - total_synced - errors.count
-          Rails.logger.warn "[OrgEmailSync] Time budget (#{PER_CREDENTIAL_TIMEOUT.to_i}s) exceeded for #{@credential.name} after #{total_synced} mailboxes, #{remaining} remaining - will continue next run"
+          Rails.logger.warn "[SYNC-DEBUG] TIME BUDGET EXCEEDED (#{PER_CREDENTIAL_TIMEOUT.to_i}s) after #{total_synced} mailboxes, #{remaining} remaining"
           break
         end
 
         begin
           # Use per-mailbox last_synced_at for accurate since date
           mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, calling sync_user_emails..."
+          sync_start = Time.current
           synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced)
+          sync_elapsed = (Time.current - sync_start).round(1)
           total_synced += synced
-          Rails.logger.info "[OrgEmailSync] Synced #{synced} emails for #{user_email}"
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
 
           # Update per-mailbox sync timestamp
           mailbox_synced_at[user_email.downcase] = Time.current.iso8601

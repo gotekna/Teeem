@@ -25,12 +25,14 @@ import {
   FileText,
   Star,
   Clock,
+  Tag,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
+import { XeroTrackingTab } from "./components/XeroTrackingTab";
 import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroSyncStatusTab } from "./components/XeroSyncStatusTab";
@@ -419,7 +421,7 @@ export default function XeroIntegrationPage() {
         }}
         className="flex flex-col gap-6"
       >
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="flex w-full flex-wrap">
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
@@ -435,6 +437,10 @@ export default function XeroIntegrationPage() {
           <TabsTrigger value="health">
             <Database className="h-4 w-4 mr-2" />
             Health
+          </TabsTrigger>
+          <TabsTrigger value="tracking">
+            <Tag className="h-4 w-4 mr-2" />
+            Tracking
           </TabsTrigger>
           <TabsTrigger value="mapping">
             <ArrowRightLeft className="h-4 w-4 mr-2" />
