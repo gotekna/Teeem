@@ -67,7 +67,7 @@ module Api
       end
 
       def sentry_project
-        ENV["SENTRY_PROJECT_SLUG"] || "javascript-nextjs"
+        ENV["SENTRY_PROJECT_SLUG"] || "teeem-frontend"
       end
 
       def sentry_headers

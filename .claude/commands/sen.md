@@ -12,7 +12,7 @@ Call the Sentry API directly (no backend needed - works locally):
 
 ```bash
 curl -s -H "Authorization: Bearer $SENTRY_AUTH_TOKEN" \
-  "https://sentry.io/api/0/projects/teeem-pty-ltd/javascript-nextjs/issues/?query=is:unresolved&sort=freq&statsPeriod=14d" \
+  "https://sentry.io/api/0/projects/teeem-pty-ltd/teeem-frontend/issues/?query=is:unresolved&sort=freq&statsPeriod=14d" \
   | python3 -c "
 import sys, json
 issues = json.load(sys.stdin)

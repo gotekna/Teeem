@@ -523,8 +523,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Using :low queue puts it behind 80+ background jobs, useless for manual refresh.
   # Solution: :default queue = highest priority, processes immediately, non-blocking.
   def sync
-    # SSoT: Sync ALL connected MS365 organizations (not just one)
+    # FRC (Feb 2026): Tenant-scope manual sync to current tenant only.
+    # Root cause: Without tenant scoping, pressing sync for Tekna also queues
+    # Pilgrim Homes (56 mailboxes, 3 credentials). Those jobs monopolize all
+    # worker threads for 10+ minutes, so Tekna's sync never runs.
+    # Fix: Only sync current tenant's credentials (same pattern as sync_dashboard).
     connected_orgs = MicrosoftCredential.refreshable_app
+                                         .where(organization_id: tenant_organization_ids)
 
     if connected_orgs.empty?
       return render json: {
