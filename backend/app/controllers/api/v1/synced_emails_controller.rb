@@ -538,10 +538,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
       }
     end
 
-    # Push to :default queue (high priority) so manual refresh jumps the queue
-    # Manual sync only fetches delta since last auto-sync (~few seconds of work)
+    # FRC (Feb 2026): Use :critical queue so manual sync jumps ahead of recurring jobs.
+    # Root cause: AllOrgsEmailSyncJob queues Pilgrim Homes (56 mailboxes, 3 credentials)
+    # on :default every 15 min. Those jobs take 10+ min each and occupy all 3 worker threads.
+    # Tekna's manual sync jobs sit in :default behind them and never run promptly.
+    # Fix: Worker processes [critical, default, ...] so :critical runs first.
     connected_orgs.each do |cred|
-      OrgEmailSyncJob.set(queue: :default).perform_later("incremental", credential_id: cred.id)
+      OrgEmailSyncJob.set(queue: :critical).perform_later("incremental", credential_id: cred.id)
     end
 
     render json: {
