@@ -358,11 +358,13 @@ email_health_monitor:
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
 # Auto-discovers all tenants with pending emails (no manual tenant_id needed)
-# Runs every 15 mins with batch_size 250 (~1000+/hour with auto-continue)
+# FRC (Feb 2026): batch_size 500→100. 500 MIME contents in memory (50MB+)
+# plus OrgEmailSync running concurrently = 1.9GB on 1GB dyno (R14 crash).
+# 100 per iteration × auto-continue loop = same throughput, 5x less peak memory.
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: default
-  args: [{ batch_size: 500 }]
+  args: [{ batch_size: 100 }]
   schedule: every 5 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
