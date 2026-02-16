@@ -92,21 +92,31 @@ export function useUndoSend() {
           content_type: att.contentType,
         }));
 
+      if (email.preUploadedAttachments.length > 0) {
+        console.log(`[useUndoSend] ${email.preUploadedAttachments.length} pre-uploaded attachment(s)`);
+      }
+
       // Upload new attachments via presigned URL (only for files not already in storage)
       // Use 'chat' scope for email attachments - no record needed, just the S3 key
+      console.log(`[useUndoSend] Uploading ${email.attachments.length} attachment(s) to S3...`);
       for (const file of email.attachments) {
+        console.log(`[useUndoSend] Uploading: ${file.name} (${file.size} bytes, ${file.type})`);
         const uploadResult = await uploadFile(file, 'chat');
         if (uploadResult.success && uploadResult.key) {
+          console.log(`[useUndoSend] Upload OK: ${file.name} → ${uploadResult.key}`);
           attachmentData.push({
             key: uploadResult.key,
             filename: file.name,
             content_type: file.type || undefined,
           });
         } else {
-          console.error('[useUndoSend] Failed to upload attachment:', file.name, uploadResult.error);
+          console.error('[useUndoSend] Upload FAILED:', file.name, uploadResult.error);
           throw new Error(`Failed to upload attachment: ${file.name}`);
         }
       }
+
+      console.log(`[useUndoSend] Sending with ${attachmentData.length} attachment(s):`,
+        attachmentData.map(a => `${a.filename} (${a.key})`));
 
       // Send email with attachment data (key + filename) instead of just keys
       await api.post("/api/v1/imap_credentials/send_email", {

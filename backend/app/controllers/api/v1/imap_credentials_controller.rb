@@ -1096,8 +1096,12 @@ class Api::V1::ImapCredentialsController < ApplicationController
   end
 
   # SSoT: Build attachments array from either uploaded files or storage keys
+  # ⚠️ FRC (Feb 2026): NEVER silently skip attachments.
+  # If the user attached files, ALL must be included or the send MUST fail.
+  # Previous bug: silent `next` on download failure → email sent without attachments.
   def build_attachments_from_params
     attachments = []
+    failed_attachments = []
 
     # Handle direct file uploads
     if params[:attachments].present?
@@ -1123,7 +1127,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
         content_type = att_data[:content_type] || att_data["content_type"]
 
         if storage_key.blank?
-          Rails.logger.warn "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key, skipping"
+          Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': No storage_key"
+          failed_attachments << filename
           next
         end
 
@@ -1132,6 +1137,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
 
         unless file
           Rails.logger.error "[SendEmail] Attachment #{idx + 1}/#{att_data_array.size} '#{filename}': FAILED to download from #{storage_key}"
+          failed_attachments << filename
           next
         end
 
@@ -1149,14 +1155,23 @@ class Api::V1::ImapCredentialsController < ApplicationController
         }
       end
 
-      Rails.logger.info "[SendEmail] Processed #{attachments.size} of #{att_data_array.size} attachments successfully"
+      # FRC (Feb 2026): FAIL if any attachments could not be downloaded.
+      # An email with missing attachments is worse than a failed send.
+      if failed_attachments.any?
+        Rails.logger.error "[SendEmail] BLOCKING SEND: #{failed_attachments.size} attachment(s) failed: #{failed_attachments.join(', ')}"
+        raise "Failed to load #{failed_attachments.size} attachment(s): #{failed_attachments.join(', ')}. Email not sent."
+      end
+
+      Rails.logger.info "[SendEmail] All #{att_data_array.size} attachments loaded successfully (#{attachments.sum { |a| a[:content]&.bytesize || 0 }} bytes total)"
     end
 
     # Legacy: Handle storage keys (from presigned URL uploads) - for backwards compatibility
     if params[:attachment_storage_keys].present?
       Array(params[:attachment_storage_keys]).each do |storage_key|
         file = download_from_storage(storage_key)
-        next unless file
+        unless file
+          raise "Failed to download attachment from storage: #{storage_key}. Email not sent."
+        end
 
         attachments << {
           filename: file.original_filename,
@@ -1166,6 +1181,7 @@ class Api::V1::ImapCredentialsController < ApplicationController
       end
     end
 
+    Rails.logger.info "[SendEmail] Total attachments resolved: #{attachments.size}" if attachments.any?
     attachments
   end
 

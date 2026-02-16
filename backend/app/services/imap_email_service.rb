@@ -901,6 +901,10 @@ class ImapEmailService
   end
 
   def save_sent_email_to_warehouse(mail)
+    # FRC (Feb 2026): Count attachments from the mail object so sent emails
+    # show correct attachment info immediately (before IMAP sync replaces the record).
+    att_count = mail.attachments.size
+
     SyncedEmail.create!(
       internet_message_id: mail.message_id.gsub(/[<>]/, ""),
       source_type: "imap",
@@ -919,6 +923,8 @@ class ImapEmailService
       first_synced_at: Time.current,
       last_synced_at: Time.current,
       synced_by_user: credential.user,
+      has_attachments: att_count > 0,
+      attachment_count: att_count,
       # SSoT: Multi-tenancy - set tenant_id from user
       tenant_id: credential.user&.tenant_id
     )
