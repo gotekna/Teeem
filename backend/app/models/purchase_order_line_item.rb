@@ -112,7 +112,10 @@ class PurchaseOrderLineItem < ApplicationRecord
 
   # Trigger parent PO to recalculate totals when line items change
   def update_purchase_order_totals
-    # Reload to get fresh line_items, then save to trigger calculate_totals callback
-    purchase_order.reload.save! if purchase_order.present?
+    return unless purchase_order.present?
+    po = purchase_order.reload
+    po.calculate_totals
+    po.calculate_variances
+    po.save!
   end
 end

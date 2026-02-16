@@ -7,9 +7,7 @@ module HealthChecks
   # Checks:
   #   - Items without default supplier (warning)
   #   - Items with supplier but no price history (info)
-  #   - Items requiring photo without image (info)
   #   - Price mismatches between current_price and latest history (warning)
-  #   - Suppliers with incomplete category coverage (info)
   #
   class PricebookCheck < BaseCheck
     FOUNDATION_SLUG = "pricebook-items".freeze
@@ -56,23 +54,6 @@ module HealthChecks
       )
     end
 
-    # Items marked as requiring photo but without image
-    def check_items_missing_photos
-      items = PricebookItem.active
-                          .where(requires_photo: true)
-                          .where("image_url IS NULL OR image_url = ''")
-                          .select(:id, :item_code, :item_name)
-
-      build_result(
-        name: "Items Missing Required Photos",
-        description: "Items marked as requiring a photo but without an image uploaded. Photos help identify items during quotes and on-site.",
-        severity: :info,
-        items: items,
-        icon: "photo",
-        action_path: "/pricebook/:id"
-      )
-    end
-
     # Items where current_price doesn't match latest price history
     def check_price_mismatches
       mismatches = find_price_mismatches(limit: 50)
@@ -84,20 +65,6 @@ module HealthChecks
         items: mismatches,
         icon: "currency-dollar",
         action_path: "/pricebook/:id"
-      )
-    end
-
-    # Suppliers with incomplete category coverage
-    def check_incomplete_supplier_coverage
-      coverage_issues = find_incomplete_category_coverage(limit: 20)
-
-      build_result(
-        name: "Suppliers with Incomplete Category Pricing",
-        description: "Suppliers who have prices for some items in a category but not all. May indicate missing price updates.",
-        severity: :info,
-        items: coverage_issues,
-        icon: "chart-pie",
-        action_path: "/contacts/:id"
       )
     end
 
@@ -155,57 +122,5 @@ module HealthChecks
       mismatches
     end
 
-    def find_incomplete_category_coverage(limit: 20)
-      issues = []
-
-      # Get all categories with their item counts
-      categories = PricebookItem.active
-                               .where.not(category: [ nil, "" ])
-                               .group(:category)
-                               .count
-
-      # Get all suppliers who have any price history
-      supplier_ids = PriceHistory.distinct.pluck(:supplier_id).compact
-
-      Contact.where(id: supplier_ids).find_each do |supplier|
-        # Get categories this supplier has priced
-        # Note: PricebookItem table is named 'pricebooks'
-        priced_items = PriceHistory.joins(:pricebook_item)
-                                   .where(supplier_id: supplier.id)
-                                   .where(pricebooks: { is_active: true })
-                                   .distinct
-                                   .pluck("pricebooks.category", "pricebooks.id")
-
-        priced_by_category = priced_items.group_by(&:first)
-
-        priced_by_category.each do |category, items|
-          next if category.blank?
-
-          total_in_category = categories[category] || 0
-          priced_count = items.size
-          coverage = total_in_category > 0 ? (priced_count.to_f / total_in_category * 100).round(1) : 0
-
-          # Flag if partial coverage (10-90%)
-          next unless coverage >= 10 && coverage < 90
-
-          issues << {
-            id: supplier.id,
-            display: "#{supplier.display_name || supplier.company_name}: #{category} (#{coverage}%)",
-            supplier_id: supplier.id,
-            supplier_name: supplier.display_name || supplier.company_name,
-            category: category,
-            coverage_percentage: coverage,
-            priced_count: priced_count,
-            total_count: total_in_category
-          }
-
-          break if issues.size >= limit
-        end
-
-        break if issues.size >= limit
-      end
-
-      issues
-    end
   end
 end

@@ -376,6 +376,13 @@ class SmScheduleMasterTemplateCopyService
       end
     end
 
+    # Recalculate totals now that line items exist
+    # (Line items were saved individually, so the before_save callback didn't re-trigger)
+    if po.line_items.any?
+      po.calculate_totals
+      po.calculate_variances
+    end
+
     # SSoT: Link PO to task via sm_task_id (Option B - single column)
     po.update!(sm_task_id: task.id)
 

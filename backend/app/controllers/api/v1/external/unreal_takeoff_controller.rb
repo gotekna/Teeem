@@ -3,7 +3,9 @@ module Api
     module External
       class UnrealTakeoffController < ApplicationController
         skip_before_action :authorize_request
+        skip_before_action :set_tenant
         before_action :authenticate_api_key!
+        before_action :set_tenant_from_job
 
         # GET /api/v1/external/unreal_takeoff/jobs/:id
         # Get job details with plan summary for Unreal 3D Takeoff
@@ -489,6 +491,18 @@ module Api
         end
 
         private
+
+        # External API has no user session, so we derive tenant from the job being accessed.
+        # Without this, acts_as_tenant scopes all queries to tenant=NULL and nothing is found.
+        def set_tenant_from_job
+          job_id = params[:job_id] || params[:id]
+          return unless job_id.present?
+
+          job = ActsAsTenant.without_tenant { Job.find_by(id: job_id) }
+          if job&.tenant_id
+            set_current_tenant(Tenant.find(job.tenant_id))
+          end
+        end
 
         def authenticate_api_key!
           api_key = request.headers["X-API-Key"]
