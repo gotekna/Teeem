@@ -924,6 +924,11 @@ export default function XeroIntegrationPage() {
           </Button>
         </TabsContent>
 
+        {/* Tracking Tab */}
+        <TabsContent value="tracking">
+          <XeroTrackingTab />
+        </TabsContent>
+
         {/* Field Mapping Tab */}
         <TabsContent value="mapping">
           <XeroFieldMapping />
