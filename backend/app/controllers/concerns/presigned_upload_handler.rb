@@ -82,9 +82,13 @@ module PresignedUploadHandler
   # @param storage_key [String] S3 key to download
   # @return [ActionDispatch::Http::UploadedFile, nil]
   def download_from_storage(storage_key)
-    provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+    # FRC (Feb 2026): MUST use for_tenant (SSoT) not deprecated for_organization.
+    # for_organization resolves to a DIFFERENT credential (Backblaze B2 backup)
+    # than for_tenant (Wasabi primary), so downloads fail with "file not found"
+    # because the file was uploaded to Wasabi but we'd look in Backblaze.
+    provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
-    # Log root path for debugging
+    # Log for debugging
     Rails.logger.info "[PresignedUploadHandler] download_from_storage: key=#{storage_key}, root_path=#{provider.instance_variable_get(:@root_path).inspect}, bucket=#{provider.instance_variable_get(:@bucket)}"
 
     # Download file content

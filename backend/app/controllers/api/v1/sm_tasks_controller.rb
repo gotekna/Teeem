@@ -1189,8 +1189,8 @@ module Api
         end
 
         begin
-          # Get S3 provider
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          # Get S3 provider - use for_tenant (SSoT) not deprecated for_organization
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
           # Generate unique key in Blobs folder (will be moved after upload)
           # Use timestamp + random to avoid collisions
@@ -1237,7 +1237,7 @@ module Api
         end
 
         begin
-          provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
 
           # Verify the file exists in S3
           file_info = provider.get_file(key)

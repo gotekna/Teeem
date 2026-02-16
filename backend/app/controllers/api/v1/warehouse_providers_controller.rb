@@ -285,7 +285,7 @@ module Api
           # Auto-configure CORS for browser uploads (presigned URLs)
           cors_configured = false
           begin
-            provider = DocumentProviders::S3Compatible.for_organization(current_organization)
+            provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
             provider.configure_cors!
             cors_configured = true
           rescue => e
