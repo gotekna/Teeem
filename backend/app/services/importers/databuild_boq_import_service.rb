@@ -154,8 +154,24 @@ module Importers
     # ============================================
 
     def detect_format(csv_content)
-      rows = CSV.parse(csv_content, headers: true, liberal_parsing: true)
+      # Handle encoding - Crystal Reports exports are often ISO-8859-1
+      safe_content = if csv_content.encoding == Encoding::UTF_8 && !csv_content.valid_encoding?
+        csv_content.encode("UTF-8", "ISO-8859-1", invalid: :replace, undef: :replace, replace: "")
+      else
+        csv_content.force_encoding("UTF-8")
+      end
+      safe_content = safe_content.encode("UTF-8", invalid: :replace, undef: :replace, replace: "")
+
+      rows = CSV.parse(safe_content, headers: true, liberal_parsing: true)
       headers = rows.headers.map { |h| h.to_s.strip.downcase }
+
+      # Detect Crystal Reports flat BOQ format (Databuild report export)
+      # Signature: "bill of quantities" appears as a header value because the first row
+      # is report metadata, not real column headers. Every row contains the full report
+      # layout with literal "Item","Description",... labels followed by actual data.
+      if headers.any? { |h| h&.include?("bill of quantities") }
+        return detect_crystal_reports_boq(csv_content)
+      end
 
       format = if cost_centre_headers?(headers)
         :cost_centre_summary
@@ -170,6 +186,58 @@ module Importers
       end
 
       { format: format, rows: rows, headers: headers }
+    end
+
+    # Detect and normalize Crystal Reports flat BOQ export
+    # These have NO header row - every row contains metadata + literal header labels + data:
+    #   [page],[report type],[company],[date],[job label],[job code],[client],[address],
+    #   [section name],"Item","Description","Quantity","Units","Rate","Amount","Lvl","Ld",
+    #   [actual item],[actual desc],[actual qty],[actual units],[actual rate],[actual amount],[actual lvl],[actual ld],
+    #   [comments],[section total label],[section total],[footer...]
+    def detect_crystal_reports_boq(csv_content)
+      # Force encoding to handle Crystal Reports exports (often ISO-8859-1)
+      safe_content = csv_content.encode("UTF-8", "ISO-8859-1", invalid: :replace, undef: :replace, replace: "")
+      raw_rows = CSV.parse(safe_content, liberal_parsing: true)
+      return { format: :unknown, rows: [], headers: [] } if raw_rows.empty?
+
+      first_row = raw_rows.first
+
+      # Find the marker sequence: "Item","Description","Quantity" in the row
+      marker_start = nil
+      first_row.each_with_index do |val, idx|
+        if val&.strip == "Item" &&
+           first_row[idx + 1]&.strip == "Description" &&
+           first_row[idx + 2]&.strip == "Quantity"
+          marker_start = idx
+          break
+        end
+      end
+
+      return { format: :unknown, rows: [], headers: [] } unless marker_start
+
+      # Data columns start 8 positions after the markers (Item,Description,Quantity,Units,Rate,Amount,Lvl,Ld)
+      data_start = marker_start + 8
+      # Cost centre section label is just before the marker columns
+      section_col = marker_start - 1
+
+      normalized = raw_rows.filter_map do |row|
+        next nil if row.length < data_start + 8
+
+        {
+          "Item" => row[data_start]&.to_s&.strip,
+          "Description" => row[data_start + 1]&.to_s&.strip,
+          "Quantity" => row[data_start + 2]&.to_s&.strip,
+          "Units" => row[data_start + 3]&.to_s&.strip,
+          "Rate" => row[data_start + 4]&.to_s&.strip,
+          "Amount" => row[data_start + 5]&.to_s&.strip,
+          "Lvl" => row[data_start + 6]&.to_s&.strip,
+          "Ld" => row[data_start + 7]&.to_s&.strip,
+          "Section" => row[section_col]&.to_s&.strip
+        }
+      end
+
+      headers = %w[item description quantity units rate amount lvl ld section]
+      { format: :boq_detail, rows: normalized, headers: headers }
     end
 
     def cost_centre_headers?(headers)
@@ -551,11 +619,23 @@ module Importers
               next
             end
 
+            has_load = item[:load].present? && item[:load].to_s.strip != "0"
+            load_num = item[:load].to_s.strip if has_load
+
             SmScheduleMaster.create!(
               name: item[:description],
               description: "#{item[:code]} - Qty: #{item[:quantity]} #{item[:unit]} @ #{item[:unit_price]}",
               duration_days: 1,
               cost_centre: cost_centre.id,
+              po_required: has_load,
+              po_line_items: has_load ? {
+                load_number: load_num.to_i,
+                code: item[:code],
+                quantity: item[:quantity],
+                unit: item[:unit],
+                unit_price: item[:unit_price],
+                total_price: item[:total_price]
+              } : nil,
               sm_template_ids: [],
               predecessor_ids: []
             )
@@ -587,51 +667,88 @@ module Importers
     end
 
     # Parse BOQ rows into sections grouped by cost centre
+    # Handles two formats:
+    # 1. Crystal Reports (has "Section" key): group by Section column value
+    # 2. Standard BOQ (has Lvl column): group by Lvl -1 section headers
     def parse_boq_sections(rows)
       sections = []
       current_section = nil
+      last_section_label = nil
 
       rows.each do |row|
-        level = find_header_value(row, ["Lvl", "Level"])&.to_i
+        level_val = find_header_value(row, ["Lvl", "Level"])
+        level = level_val.present? ? level_val.to_i : nil
         code = find_header_value(row, ["Code", "Item"])
         description = row["Description"]&.strip
+        section_label = row["Section"]&.to_s&.strip.presence  # Crystal Reports format
 
         next if code.blank? && description.blank?
 
-        if level.present? && level < 0
-          # Section header (Lvl -1) = new cost centre
-          cc_code = extract_cost_centre_code(code)
-          next if cc_code.blank?
+        # Detect new section
+        new_section = false
+        cc_code = nil
+        cc_name = nil
 
+        if section_label.present? && section_label != last_section_label
+          # Crystal Reports format: section change detected from Section column
+          # e.g., "102  Engineering - Design & Inspectio" → code "102"
+          cc_code = extract_section_code(section_label)
+          cc_name = section_label.sub(/^\d+\s*/, "").strip
+          new_section = true if cc_code.present?
+          last_section_label = section_label
+        elsif section_label.blank? && level.present? && level < 0
+          # Standard BOQ format: section header from Lvl -1
+          cc_code = extract_cost_centre_code(code)
+          cc_name = description
+          new_section = true if cc_code.present?
+        end
+
+        if new_section && cc_code.present?
           current_section = {
             code: cc_code,
-            name: description || "Cost Centre #{cc_code}",
+            name: cc_name.presence || "Cost Centre #{cc_code}",
             raw_code: code,
             items: []
           }
           sections << current_section
-        elsif current_section && code.present? && description.present?
-          # Line item under current section
-          quantity = (find_header_value(row, ["Quantity", "Qty"]))&.to_f || 0
-          unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"])) || 0
-          total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"])) || 0
-
-          # Skip zero-value items (likely totals or empty rows)
-          next if quantity.zero? && total_price.zero?
-
-          current_section[:items] << {
-            code: code,
-            description: description,
-            quantity: quantity,
-            unit: find_header_value(row, ["Units", "Unit", "UOM"]),
-            unit_price: unit_price,
-            total_price: total_price,
-            load: find_header_value(row, ["Load", "Ld"])
-          }
+          # If Lvl -1, this row is just a section header - skip adding as line item
+          next if level.present? && level < 0
         end
+
+        # Skip section header rows (Lvl -1) that didn't create a new section
+        next if level.present? && level < 0
+
+        # Add line item to current section
+        next unless current_section && code.present? && description.present?
+
+        quantity = (find_header_value(row, ["Quantity", "Qty"]))&.to_f || 0
+        unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"])) || 0
+        total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"])) || 0
+
+        # Skip zero-value items (likely totals or empty rows)
+        next if quantity.zero? && total_price.zero?
+
+        current_section[:items] << {
+          code: code,
+          description: description,
+          quantity: quantity,
+          unit: find_header_value(row, ["Units", "Unit", "UOM"]),
+          unit_price: unit_price,
+          total_price: total_price,
+          load: find_header_value(row, ["Load", "Ld"])
+        }
       end
 
       sections
+    end
+
+    # Extract cost centre code from Section column label
+    # "102  Engineering - Design & Inspectio" → "102"
+    # "90  Contract Allowances" → "90"
+    def extract_section_code(section_label)
+      return nil if section_label.blank?
+      match = section_label.match(/^(\d+)/)
+      match ? match[1] : nil
     end
 
     # Extract cost centre code from Databuild item code
