@@ -26,12 +26,14 @@ import {
   BarChart3,
   Package,
   Settings,
+  Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/utils/formatters";
 import { JobQuantityVariablesForm } from "./JobQuantityVariablesForm";
 import { JobRecipesPanel } from "./JobRecipesPanel";
+import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
 
 interface LineItem {
   id: number;
@@ -90,6 +92,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
   const [boqData, setBOQData] = useState<BOQData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     loadBOQData();
@@ -254,10 +257,16 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
             Collapse All
           </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={loadBOQData}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowImportModal(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadBOQData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Side-by-Side Comparison Table */}
@@ -421,6 +430,13 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       <TabsContent value="variables">
         <JobQuantityVariablesForm jobId={jobId} onSave={loadBOQData} />
       </TabsContent>
+
+      <DatabuildImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportComplete={loadBOQData}
+        preSelectedJobId={jobId}
+      />
     </Tabs>
   );
 }

@@ -127,6 +127,7 @@ interface DatabuildImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportComplete?: () => void;
+  preSelectedJobId?: number | string;
 }
 
 type Step = "select" | "preview" | "importing" | "results";
@@ -154,7 +155,7 @@ const FORMAT_LABELS: Record<string, { label: string; icon: React.ReactNode; desc
   },
 };
 
-export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: DatabuildImportModalProps) {
+export function DatabuildImportModal({ isOpen, onClose, onImportComplete, preSelectedJobId }: DatabuildImportModalProps) {
   const { toast } = useToast();
   const [step, setStep] = React.useState<Step>("select");
   const [loading, setLoading] = React.useState(false);
@@ -182,10 +183,12 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
       setSelectedFile(null);
       setPreview(null);
       setImportResult(null);
-      setSelectedJobId("");
-      fetchJobs();
+      setSelectedJobId(preSelectedJobId ? String(preSelectedJobId) : "");
+      if (!preSelectedJobId) {
+        fetchJobs();
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, preSelectedJobId]);
 
   const fetchJobs = async () => {
     setLoadingJobs(true);

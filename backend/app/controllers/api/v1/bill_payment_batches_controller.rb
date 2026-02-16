@@ -246,8 +246,8 @@ module Api
         elsif params[:company_id].present?
           @corporate = Corporate.find(params[:company_id])
         else
-          # For top-level route without company filter, use the user's default company
-          @corporate = current_user&.corporate || Corporate.first
+          # For top-level route without company filter, use the first company
+          @corporate = Corporate.first
         end
       end
 

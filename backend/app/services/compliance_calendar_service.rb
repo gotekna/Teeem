@@ -13,13 +13,13 @@ class ComplianceCalendarService
   def calendar_items
     # Use left outer join to include companies without company_groups
     items = CorporateComplianceItem
-      .joins(:company)
-      .left_joins(company: :company_group)
+      .joins(:corporate)
+      .left_joins(corporate: :company_group)
       .where("corporate_compliance_items.due_date BETWEEN ? AND ?", @start_date, @end_date)
       .includes(:corporate)
 
     items = items.where(company_id: @company_id) if @company_id.present?
-    items = items.where(companies: { company_group_id: @company_group_id }) if @company_group_id.present?
+    items = items.where(corporates: { company_group_id: @company_group_id }) if @company_group_id.present?
     items = items.where(completed: @completed) unless @completed.nil?
     items = items.where(completed: false) unless @include_completed
 
@@ -53,8 +53,8 @@ class ComplianceCalendarService
   # Get overdue items
   def overdue_items
     CorporateComplianceItem
-      .joins(:company)
-      .left_joins(company: :company_group)
+      .joins(:corporate)
+      .left_joins(corporate: :company_group)
       .where("corporate_compliance_items.due_date < ? AND corporate_compliance_items.completed = ?", Date.current, false)
       .includes(:corporate)
       .order(:due_date)
@@ -63,8 +63,8 @@ class ComplianceCalendarService
   # Get upcoming items (next 30 days)
   def upcoming_items(days = 30)
     CorporateComplianceItem
-      .joins(:company)
-      .left_joins(company: :company_group)
+      .joins(:corporate)
+      .left_joins(corporate: :company_group)
       .where("corporate_compliance_items.due_date BETWEEN ? AND ? AND corporate_compliance_items.completed = ?", Date.current, days.days.from_now, false)
       .includes(:corporate)
       .order(:due_date)
