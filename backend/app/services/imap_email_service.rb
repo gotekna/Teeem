@@ -753,9 +753,13 @@ class ImapEmailService
     tenant = email.tenant || credential.user&.tenant
     return unless tenant
 
+    # Strip redundant attachment data from .eml before storing
+    # Attachments are already stored as separate StorageBlobs
+    stripped_content = EmailContentStripper.strip_attachments(raw_content)
+
     # Store to content-addressed blob storage
     blob = StorageBlob.find_or_create_for_content!(
-      raw_content,
+      stripped_content,
       filename: "#{email.id}.eml",
       content_type: "message/rfc822"
     )
