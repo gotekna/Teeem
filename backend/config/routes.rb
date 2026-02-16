@@ -1292,6 +1292,7 @@ Rails.application.routes.draw do
       resources :users, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :bulk_delete
+          post :import_from_microsoft
           get :for_select
           get "by_contact/:contact_id/personal_details", action: :personal_details_by_contact
         end

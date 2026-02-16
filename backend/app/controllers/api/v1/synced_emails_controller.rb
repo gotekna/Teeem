@@ -682,13 +682,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
       .where(synced_email_id: tenant_email_ids_subquery)
       .select(:mailbox_owner_email).distinct.count
 
+    # Existing TEEEM user emails (for import button: shows which M365 users aren't in TEEEM yet)
+    teeem_user_emails = User.where(tenant_id: current_user.tenant_id)
+                            .pluck(:email)
+                            .compact
+                            .map(&:downcase)
+
     render json: {
       success: true,
       data: {
         total_emails: SyncedEmail.count,
         total_mailboxes: tenant_mailbox_count,
         organizations: all_organizations,
-        storage: blob_stats
+        storage: blob_stats,
+        teeem_user_emails: teeem_user_emails
       }
     }
   end

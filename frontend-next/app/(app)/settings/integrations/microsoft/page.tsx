@@ -32,6 +32,7 @@ import {
   Link,
   Plus,
   ChevronDown,
+  UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { BackButton } from "@/components/ui/back-button";
@@ -131,6 +132,7 @@ interface SyncDashboard {
   total_emails: number;
   total_mailboxes: number;
   organizations: OrgSyncStats[];
+  teeem_user_emails?: string[];
 }
 
 interface SharePointStatus {
@@ -851,6 +853,7 @@ function EmailSyncTab({
   const [expandedOrgs, setExpandedOrgs] = React.useState<Set<number>>(
     new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
+  const [importing, setImporting] = React.useState(false);
 
   const toggleOrg = (orgId: number) => {
     setExpandedOrgs(prev => {
@@ -886,6 +889,41 @@ function EmailSyncTab({
 
   const connectedOrgs = orgs.filter(o => o.status === "connected");
 
+  // Compute importable user count: licensed M365 users not already in TEEEM
+  const teeemEmails = new Set(
+    (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
+  );
+  const importableByOrg = new Map<number, number>();
+  for (const org of connectedOrgs) {
+    const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
+    const count = (orgStats?.tenant_users || []).filter(
+      u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
+    ).length;
+    if (count > 0) importableByOrg.set(org.id, count);
+  }
+  const totalImportable = Array.from(importableByOrg.values()).reduce((a, b) => a + b, 0);
+
+  const handleImport = async (orgId: number) => {
+    setImporting(true);
+    try {
+      const result = await api.post<{ success: boolean; imported: number; skipped: number; errors: string[] }>(
+        "/api/v1/users/import_from_microsoft",
+        { organization_id: orgId }
+      );
+      if (result?.imported) {
+        alert(`Imported ${result.imported} user${result.imported !== 1 ? "s" : ""} successfully.${result.skipped ? ` ${result.skipped} skipped.` : ""}`);
+      } else {
+        alert("No new users to import.");
+      }
+      onRefresh();
+    } catch (err) {
+      console.error("Import failed:", err);
+      alert("Failed to import users. Check console for details.");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {/* Overview */}
@@ -894,10 +932,27 @@ function EmailSyncTab({
           <span className="font-medium text-foreground">{(syncDashboard.total_emails ?? 0).toLocaleString()}</span> emails across{" "}
           <span className="font-medium text-foreground">{syncDashboard.total_mailboxes ?? 0}</span> mailboxes
         </p>
-        <Button variant="outline" size="sm" onClick={onRefresh}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {totalImportable > 0 && connectedOrgs.length === 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleImport(connectedOrgs[0].id)}
+              disabled={importing}
+            >
+              {importing ? (
+                <Spinner size={14} className="mr-1" />
+              ) : (
+                <UserPlus className="h-3.5 w-3.5 mr-1" />
+              )}
+              Import {totalImportable} User{totalImportable !== 1 ? "s" : ""}
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={onRefresh}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Per-org sections */}
@@ -979,6 +1034,22 @@ function EmailSyncTab({
                     </span>
                   )}
                 </div>
+                {importableByOrg.has(org.id) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => { e.stopPropagation(); handleImport(org.id); }}
+                    disabled={importing}
+                    className="shrink-0"
+                  >
+                    {importing ? (
+                      <Spinner size={14} className="mr-1" />
+                    ) : (
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                    )}
+                    Import {importableByOrg.get(org.id)} User{(importableByOrg.get(org.id) ?? 0) !== 1 ? "s" : ""}
+                  </Button>
+                )}
               </div>
             </CardHeader>
             {isExpanded && (
