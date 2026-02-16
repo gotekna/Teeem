@@ -601,68 +601,25 @@ module Api
                               .where.not(status: "cancelled")
                               .includes(:supplier, :line_items, sm_task: :sm_schedule_master)
 
-        # Group PO line items by category (using PO description as category)
-        # Build a hierarchical structure: Category -> PO -> Line Items
-        categories = {}
+        cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
 
-        purchase_orders.each do |po|
-          category_name = po.description.presence || po.sm_task&.name.presence || "Uncategorized"
-          # Clean up category name - remove "Req " prefix if present
-          category_name = category_name.sub(/^Req\s+/i, "")
-
-          categories[category_name] ||= {
-            name: category_name,
-            purchase_orders: [],
-            boq_total: 0,
-            po_total: 0
-          }
-
-          po_data = {
-            id: po.id,
-            po_number: po.purchase_order_number,
-            supplier_name: po.supplier&.display_name || "Unknown",
-            status: po.status,
-            budget: (po.budget || 0).to_f,
-            total: (po.total || 0).to_f,
-            _seq: po.sm_task&.sm_schedule_master&.sequence_order,
-            line_items: po.line_items.map do |item|
-              {
-                id: item.id,
-                description: item.description,
-                quantity: item.quantity.to_f,
-                unit_price: item.unit_price.to_f,
-                total: item.total_amount.to_f
-              }
-            end
-          }
-
-          categories[category_name][:purchase_orders] << po_data
-          categories[category_name][:boq_total] += po_data[:budget]
-          categories[category_name][:po_total] += po_data[:total]
-        end
-
-        # Sort POs within each category by SM sequence_order, then sort categories
-        # by the lowest sequence_order of their POs (matching Schedule Master order)
-        categories.each_value do |cat|
-          cat[:purchase_orders].sort_by! { |po| po[:_seq] || Float::INFINITY }
-          cat[:_min_seq] = cat[:purchase_orders].map { |po| po[:_seq] || Float::INFINITY }.min
-        end
-        boq_categories = categories.values.sort_by { |c| c[:_min_seq] || Float::INFINITY }
-        # Clean up internal sort keys
-        boq_categories.each do |cat|
-          cat.delete(:_min_seq)
-          cat[:purchase_orders].each { |po| po.delete(:_seq) }
+        # If we have JobCostBudget records (from Databuild import), use cost centres as categories
+        # Otherwise, fall back to PO-based categories
+        if cost_budgets.any?
+          categories = build_cost_centre_categories(cost_budgets, purchase_orders)
+        else
+          categories = build_po_categories(purchase_orders)
         end
 
         # Calculate variance for each category
-        boq_categories.each do |cat|
+        categories.each do |cat|
           cat[:variance] = cat[:po_total] - cat[:boq_total]
           cat[:variance_percent] = cat[:boq_total] > 0 ? (cat[:variance] / cat[:boq_total] * 100).round(1) : 0
         end
 
         # Calculate totals
-        total_boq = boq_categories.sum { |c| c[:boq_total] }
-        total_po = boq_categories.sum { |c| c[:po_total] }
+        total_boq = categories.sum { |c| c[:boq_total] }
+        total_po = categories.sum { |c| c[:po_total] }
         total_variance = total_po - total_boq
 
         render json: {
@@ -672,7 +629,7 @@ module Api
             name: @job.name,
             contract_value: @job.contract_value.to_f
           },
-          categories: boq_categories,
+          categories: categories,
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),
@@ -680,7 +637,7 @@ module Api
             variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
             contract_value: @job.contract_value.to_f,
             po_count: purchase_orders.count,
-            category_count: boq_categories.count
+            category_count: categories.count
           }
         }
       end
@@ -1060,6 +1017,117 @@ module Api
       end
 
       private
+
+      # Build BOQ categories from JobCostBudget records (Databuild import data)
+      # Cost centres become categories, POs are matched by SM cost_centre or description
+      def build_cost_centre_categories(cost_budgets, purchase_orders)
+        categories = {}
+        matched_po_ids = Set.new
+
+        cost_budgets.each do |budget|
+          cc = budget.cost_centre
+          cat_name = cc ? "#{cc.code} - #{cc.name}" : "Unassigned Budget"
+
+          categories[cat_name] = {
+            name: cat_name,
+            purchase_orders: [],
+            boq_total: (budget.total_budget || 0).to_f,
+            po_total: 0
+          }
+
+          # Try to match POs to this cost centre via SM cost_centre field
+          if cc
+            matching_pos = purchase_orders.select do |po|
+              sm = po.sm_task&.sm_schedule_master
+              sm&.cost_centre == cc.id || sm&.cost_centre.to_s == cc.code
+            end
+
+            matching_pos.each do |po|
+              po_data = serialize_po(po)
+              categories[cat_name][:purchase_orders] << po_data
+              categories[cat_name][:po_total] += po_data[:total]
+              matched_po_ids << po.id
+            end
+          end
+        end
+
+        # Add unmatched POs in their own categories (same as PO-only mode)
+        unmatched_pos = purchase_orders.reject { |po| matched_po_ids.include?(po.id) }
+        unmatched_pos.each do |po|
+          cat_name = po.description.presence || po.sm_task&.name.presence || "Other POs"
+          cat_name = cat_name.sub(/^Req\s+/i, "")
+
+          categories[cat_name] ||= {
+            name: cat_name,
+            purchase_orders: [],
+            boq_total: 0,
+            po_total: 0
+          }
+
+          po_data = serialize_po(po)
+          categories[cat_name][:purchase_orders] << po_data
+          categories[cat_name][:boq_total] += po_data[:budget]
+          categories[cat_name][:po_total] += po_data[:total]
+        end
+
+        # Sort: cost centre categories first (by code), then PO-only categories
+        categories.values.sort_by { |c| c[:name] }
+      end
+
+      # Build BOQ categories from POs only (fallback when no cost budgets exist)
+      def build_po_categories(purchase_orders)
+        categories = {}
+
+        purchase_orders.each do |po|
+          category_name = po.description.presence || po.sm_task&.name.presence || "Uncategorized"
+          category_name = category_name.sub(/^Req\s+/i, "")
+
+          categories[category_name] ||= {
+            name: category_name,
+            purchase_orders: [],
+            boq_total: 0,
+            po_total: 0
+          }
+
+          po_data = serialize_po(po)
+          categories[category_name][:purchase_orders] << po_data
+          categories[category_name][:boq_total] += po_data[:budget]
+          categories[category_name][:po_total] += po_data[:total]
+        end
+
+        # Sort by SM sequence_order
+        categories.each_value do |cat|
+          cat[:purchase_orders].sort_by! { |po| po[:_seq] || Float::INFINITY }
+          cat[:_min_seq] = cat[:purchase_orders].map { |po| po[:_seq] || Float::INFINITY }.min
+        end
+        result = categories.values.sort_by { |c| c[:_min_seq] || Float::INFINITY }
+        result.each do |cat|
+          cat.delete(:_min_seq)
+          cat[:purchase_orders].each { |po| po.delete(:_seq) }
+        end
+        result
+      end
+
+      def serialize_po(po)
+        {
+          id: po.id,
+          po_number: po.purchase_order_number,
+          supplier_name: po.supplier&.display_name || "Unknown",
+          status: po.status,
+          budget: (po.budget || 0).to_f,
+          total: (po.total || 0).to_f,
+          _seq: po.sm_task&.sm_schedule_master&.sequence_order,
+          line_items: po.line_items.map do |item|
+            {
+              id: item.id,
+              description: item.description,
+              quantity: item.quantity.to_f,
+              unit_price: item.unit_price.to_f,
+              total: item.total_amount.to_f
+            }
+          end
+        }
+      end
 
       # Single-link mode: link one tracking option (backward compatible)
       def link_xero_tracking_single

@@ -62,7 +62,7 @@ class Job < ApplicationRecord
   # Site Presence & Cost Intelligence
   has_many :site_presence_sessions, dependent: :destroy
   has_many :labour_cost_entries, dependent: :destroy
-  has_one :job_cost_budget, dependent: :destroy
+  has_many :job_cost_budgets, dependent: :destroy
   belongs_to :cost_centre, optional: true
 
   # Activity tracking

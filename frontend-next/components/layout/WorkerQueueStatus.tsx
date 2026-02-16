@@ -226,10 +226,14 @@ function getHourlyProgress(key: string): { processed: number; stalled: boolean; 
 
   const processed = oldest.remaining - latest.remaining;
 
-  // Check if stalled: no change in last 5 minutes (at least 3 data points needed)
+  // Check if stalled: no change in last 5 minutes
+  // Require oldest data point to be 3+ min old to avoid false positives on first load
   const fiveMinAgo = now - 5 * 60_000;
+  const threeMinAgo = now - 3 * 60_000;
   const recentPoints = points.filter((p) => p.timestamp >= fiveMinAgo);
-  const stalled = recentPoints.length >= 2 &&
+  const hasEnoughHistory = recentPoints.length >= 2 &&
+    recentPoints[0].timestamp <= threeMinAgo;
+  const stalled = hasEnoughHistory &&
     recentPoints.every((p) => p.remaining === latest.remaining) &&
     latest.remaining > 0;
 
@@ -237,9 +241,12 @@ function getHourlyProgress(key: string): { processed: number; stalled: boolean; 
 }
 
 function formatProcessed(processed: number): string {
-  if (processed <= 0) return "";
-  if (processed >= 1000) return `${(processed / 1000).toFixed(1)}k`;
-  return processed.toLocaleString();
+  if (processed === 0) return "";
+  const abs = Math.abs(processed);
+  const formatted = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toLocaleString();
+  // Negative = backlog growing (more added than processed)
+  if (processed < 0) return `+${formatted}`;
+  return formatted;
 }
 
 function ResourceBar({
@@ -508,7 +515,10 @@ export function WorkerQueueStatus() {
                                 <CircleAlert className="h-3 w-3" /> stalled
                               </span>
                             ) : hourly.hasData && processedText ? (
-                              <span className="text-green-600 dark:text-green-400">
+                              <span className={hourly.processed < 0
+                                ? "text-orange-500 dark:text-orange-400"
+                                : "text-green-600 dark:text-green-400"
+                              }>
                                 {processedText}/hr
                               </span>
                             ) : eta ? (
