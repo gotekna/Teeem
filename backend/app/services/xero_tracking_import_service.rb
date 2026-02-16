@@ -496,8 +496,21 @@ class XeroTrackingImportService
       end
     end
 
-    # Then try fuzzy name match using the Production (SSoT) option
+    # Then try address-based dedup: same street_number + street_name + suburb = same job
+    # FRC (Feb 2026): Different Xero tracking codes (e.g., "97FINGAL" vs "P-97FING")
+    # can refer to the same physical address. Code matching misses these because the
+    # codes are different. Address matching catches them.
     primary = XeroTrackingAddressParser.primary_option(options)
+    parsed = primary["_parsed"] || XeroTrackingAddressParser.parse(primary["Name"])
+    if parsed[:street_name].present? && parsed[:suburb].present?
+      scope = Job.where(street_name: parsed[:street_name], suburb: parsed[:suburb])
+      scope = scope.where(street_number: parsed[:street_number]) if parsed[:street_number].present?
+      scope = scope.where(lot_number: parsed[:lot_number]) if parsed[:lot_number].present?
+      existing = scope.first
+      return existing if existing
+    end
+
+    # Then try fuzzy name match using the Production (SSoT) option
     find_job_by_name(primary["Name"])
   end
 
