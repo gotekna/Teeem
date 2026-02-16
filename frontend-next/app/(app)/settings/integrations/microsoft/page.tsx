@@ -26,7 +26,6 @@ import {
   Building2,
   Database,
   Shield,
-  Users,
   Activity,
   Heart,
   Cloud,
@@ -37,6 +36,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -103,6 +103,10 @@ interface TenantUser {
   id: string;
   name: string;
   email: string;
+  account_enabled?: boolean;
+  has_license?: boolean;
+  license_names?: string[];
+  mailbox_type?: "user" | "shared";
 }
 
 interface MailboxStat {
@@ -120,6 +124,7 @@ interface OrgSyncStats {
   name: string;
   total_emails: number;
   mailboxes: MailboxStat[];
+  tenant_users?: TenantUser[];
 }
 
 interface SyncDashboard {
@@ -165,6 +170,19 @@ function formatRelativeTime(dateStr: string | null): string {
   const diffDays = Math.floor(diffHrs / 24);
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
+function formatAbsoluteTime(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function tokenExpiryBadge(expiresAt: string | null): React.ReactNode {
@@ -829,27 +847,10 @@ function EmailSyncTab({
   orgs: OrgCredential[];
   onRefresh: () => void;
 }) {
-  // Per-org tenant users (loaded on demand)
-  const [tenantUsersMap, setTenantUsersMap] = React.useState<Record<number, TenantUser[]>>({});
-  const [loadingUsersOrgId, setLoadingUsersOrgId] = React.useState<number | null>(null);
   // Per-org collapsible state - default all expanded
   const [expandedOrgs, setExpandedOrgs] = React.useState<Set<number>>(
     new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
-
-  const handleLoadUsers = async (orgId: number) => {
-    setLoadingUsersOrgId(orgId);
-    try {
-      const response = await api.get<{ users: TenantUser[] }>("/api/v1/microsoft_app/users", {
-        params: { organization_id: orgId }
-      });
-      setTenantUsersMap(prev => ({ ...prev, [orgId]: response?.users || [] }));
-    } catch (err) {
-      console.error("Failed to load users:", err);
-    } finally {
-      setLoadingUsersOrgId(null);
-    }
-  };
 
   const toggleOrg = (orgId: number) => {
     setExpandedOrgs(prev => {
@@ -902,14 +903,62 @@ function EmailSyncTab({
       {/* Per-org sections */}
       {connectedOrgs.map((org) => {
         const orgStats = syncDashboard.organizations?.find(o => o.id === org.id);
-        const tenantUsers = tenantUsersMap[org.id] || [];
         const isExpanded = expandedOrgs.has(org.id);
 
-        // Build combined list: synced mailboxes + pending
-        const syncedEmails = new Set(orgStats?.mailboxes?.map(m => m.email.toLowerCase()) || []);
-        const pendingUsers = tenantUsers
-          .filter(u => u.email && !syncedEmails.has(u.email.toLowerCase()))
-          .sort((a, b) => a.email.localeCompare(b.email));
+        // Build unified row list: merge tenant users with synced mailbox stats
+        const tenantUsers = orgStats?.tenant_users || [];
+        const syncedEmailMap = new Map(
+          (orgStats?.mailboxes || []).map(m => [m.email.toLowerCase(), m])
+        );
+
+        type CombinedRow = {
+          email: string;
+          name: string;
+          synced: boolean;
+          mailboxStat: MailboxStat | null;
+          tenantUser: TenantUser | null;
+        };
+
+        const combined: CombinedRow[] = [];
+        const seenEmails = new Set<string>();
+
+        // Add all tenant users (with sync data merged in)
+        for (const user of tenantUsers) {
+          if (!user.email) continue;
+          const emailLower = user.email.toLowerCase();
+          seenEmails.add(emailLower);
+          combined.push({
+            email: user.email,
+            name: user.name,
+            synced: syncedEmailMap.has(emailLower),
+            mailboxStat: syncedEmailMap.get(emailLower) || null,
+            tenantUser: user,
+          });
+        }
+
+        // Add synced mailboxes that aren't in tenant users (edge case: external/removed users)
+        for (const m of orgStats?.mailboxes || []) {
+          if (!seenEmails.has(m.email.toLowerCase())) {
+            combined.push({
+              email: m.email,
+              name: m.email.split("@")[0],
+              synced: true,
+              mailboxStat: m,
+              tenantUser: null,
+            });
+          }
+        }
+
+        // Sort: synced first (by email count desc), then unsynced (alphabetical)
+        combined.sort((a, b) => {
+          if (a.synced && !b.synced) return -1;
+          if (!a.synced && b.synced) return 1;
+          if (a.synced && b.synced) return (b.mailboxStat?.email_count ?? 0) - (a.mailboxStat?.email_count ?? 0);
+          return a.email.localeCompare(b.email);
+        });
+
+        const syncedCount = combined.filter(r => r.synced).length;
+        const totalCount = combined.length;
 
         return (
           <Card key={org.id}>
@@ -922,7 +971,7 @@ function EmailSyncTab({
                   <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "" : "-rotate-90"}`} />
                   <CardTitle className="text-base">{org.name}</CardTitle>
                   <Badge variant="outline" className="text-xs">
-                    {orgStats?.mailboxes?.length || 0} mailboxes
+                    {syncedCount}/{totalCount} synced
                   </Badge>
                   {orgStats && (
                     <span className="text-xs text-muted-foreground">
@@ -930,63 +979,100 @@ function EmailSyncTab({
                     </span>
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleLoadUsers(org.id);
-                  }}
-                  disabled={loadingUsersOrgId === org.id}
-                >
-                  {loadingUsersOrgId === org.id ? (
-                    <Spinner size={12} className="mr-1" />
-                  ) : (
-                    <Users className="h-3.5 w-3.5 mr-1" />
-                  )}
-                  Load Tenant Users
-                </Button>
               </div>
             </CardHeader>
             {isExpanded && (
               <CardContent className="pt-0">
-                {orgStats && orgStats.mailboxes.length > 0 ? (
+                {combined.length > 0 ? (
                   <div className="border rounded-lg overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Mailbox</TableHead>
-                          <TableHead className="text-right">Emails</TableHead>
-                          <TableHead className="text-right">Last Synced</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orgStats.mailboxes.map((m) => (
-                          <TableRow key={m.email}>
-                            <TableCell className="font-mono text-xs">{m.email}</TableCell>
-                            <TableCell className="text-right tabular-nums">{(m.email_count ?? 0).toLocaleString()}</TableCell>
-                            <TableCell className="text-right text-muted-foreground text-xs">
-                              {formatRelativeTime(m.last_synced_at)}
-                            </TableCell>
+                    <TooltipProvider>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>License</TableHead>
+                            <TableHead className="text-right">Emails</TableHead>
+                            <TableHead className="text-right">Last Synced</TableHead>
                           </TableRow>
-                        ))}
-                        {pendingUsers.map((u) => (
-                          <TableRow key={u.email}>
-                            <TableCell className="font-mono text-xs text-muted-foreground">{u.email}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">—</TableCell>
-                            <TableCell className="text-right">
-                              <Badge variant="outline" className="text-xs font-normal text-muted-foreground">
-                                Pending
-                              </Badge>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {combined.map((row) => (
+                            <TableRow key={row.email} className={row.synced ? "" : "opacity-60"}>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium">{row.name}</span>
+                                  <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {row.tenantUser ? (
+                                  row.tenantUser.account_enabled !== false ? (
+                                    <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                                      Active
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                                      Disabled
+                                    </Badge>
+                                  )
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {row.tenantUser?.mailbox_type === "shared" ? (
+                                  <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20">
+                                    Shared
+                                  </Badge>
+                                ) : row.tenantUser ? (
+                                  <span className="text-xs text-muted-foreground">User</span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {row.tenantUser?.license_names && row.tenantUser.license_names.length > 0 ? (
+                                  <span className="text-xs">{row.tenantUser.license_names.join(", ")}</span>
+                                ) : row.tenantUser ? (
+                                  <span className="text-xs text-muted-foreground">None</span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right tabular-nums">
+                                {row.synced ? (row.mailboxStat?.email_count ?? 0).toLocaleString() : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-xs">
+                                {row.synced && row.mailboxStat?.last_synced_at ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-muted-foreground cursor-default">
+                                        {formatRelativeTime(row.mailboxStat.last_synced_at)}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{formatAbsoluteTime(row.mailboxStat.last_synced_at)}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : row.synced ? (
+                                  <span className="text-muted-foreground">Never</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TooltipProvider>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground py-4 text-center">
-                    No mailbox data yet. Load tenant users to see pending mailboxes.
+                    No mailbox data available for this organization.
                   </p>
                 )}
               </CardContent>

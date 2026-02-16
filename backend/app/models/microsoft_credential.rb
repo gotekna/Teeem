@@ -536,7 +536,7 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   # Get list of users in the tenant (for sync configuration and mailbox access)
-  # Returns array of { id:, name:, email: } hashes
+  # Returns array of { id:, name:, email:, account_enabled:, has_license:, license_names:, mailbox_type: } hashes
   # PERFORMANCE: Cached for 1 hour to avoid slow Graph API calls on every navigation request
   # Tenant user lists rarely change, and cache is cleared when tenant is modified
   def list_tenant_users
@@ -545,7 +545,7 @@ class MicrosoftCredential < ApplicationRecord
     # Cache tenant users for 1 hour - tenant user list rarely changes
     # This fixes slow navigation requests (was 2-4 seconds due to Graph API latency)
     # P95 was 3.8s when cache expired every 10 min; 1 hour reduces cache miss frequency 6x
-    cache_key = "microsoft_credential:#{id}:tenant_users"
+    cache_key = "microsoft_credential:#{id}:tenant_users:v2"
     Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_HOURLY) do
       fetch_tenant_users_from_api
     end
@@ -553,26 +553,51 @@ class MicrosoftCredential < ApplicationRecord
 
   # Clear the cached tenant users (call when tenant changes)
   def clear_tenant_users_cache
-    Rails.cache.delete("microsoft_credential:#{id}:tenant_users")
+    Rails.cache.delete("microsoft_credential:#{id}:tenant_users:v2")
   end
 
   private
+
+  # Common Microsoft 365 license SKU GUIDs → friendly names
+  MICROSOFT_LICENSE_SKUS = {
+    "6fd2c87f-b296-42f0-b197-1e91e994b900" => "E3",
+    "c7df2760-2c81-4ef7-b578-5b5392b571df" => "E5",
+    "18181a46-0d4e-45cd-891e-60aabd171b4e" => "E1",
+    "3b555118-da6a-4418-894f-7df1e2096870" => "Business Basic",
+    "f245ecc8-75af-4f8e-b61f-27d8114de5f3" => "Business Standard",
+    "cbdc14ab-d96c-4c30-b9f4-6ada7cdc1d46" => "Business Premium",
+    "4b585984-651b-4235-8c1f-00b8f0e4c18d" => "Exchange Online Plan 2",
+    "19ec0d23-8335-4cbd-94ac-6050e30712fa" => "Exchange Online Plan 1",
+    "05e9a617-0261-4cee-bb44-138d3ef5d965" => "E3 (no Teams)",
+    "1f2f344a-700d-42c9-9427-5cea45d7c179" => "Business Basic (Teams)",
+    "4ef96642-f096-40de-a3e9-d83fb2f90211" => "Defender for Office 365 P1",
+    "a403ebcc-fae0-4ca2-8c8c-7a907fd6c235" => "Power BI Free",
+    "dcb1a3ae-b33f-4487-846a-a640262fadf4" => "Power BI Pro",
+  }.freeze
 
   def fetch_tenant_users_from_api
     token = valid_access_token
     return [] if token.blank?
 
     response = HTTP.auth("Bearer #{token}")
-                   .get("#{MicrosoftGraphBase::GRAPH_API_BASE}/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses&$top=999")
+                   .get("#{MicrosoftGraphBase::GRAPH_API_BASE}/users?$select=id,displayName,mail,userPrincipalName,assignedLicenses,accountEnabled&$top=999")
 
     if response.status.success?
       data = response.parse
       data["value"].map do |user|
+        licenses = user["assignedLicenses"] || []
+        license_names = resolve_license_names(licenses)
+        has_license = license_names.any?
+        account_enabled = user["accountEnabled"] == true
+
         {
           id: user["id"],
           name: user["displayName"],
           email: user["mail"] || user["userPrincipalName"],
-          has_license: user["assignedLicenses"].present? && user["assignedLicenses"].any?
+          account_enabled: account_enabled,
+          has_license: has_license,
+          license_names: license_names,
+          mailbox_type: detect_mailbox_type(user, has_license)
         }
       end
     else
@@ -582,6 +607,27 @@ class MicrosoftCredential < ApplicationRecord
   rescue StandardError => e
     Rails.logger.error "[MicrosoftCredential] Error listing users for #{name}: #{e.message}"
     []
+  end
+
+  def resolve_license_names(assigned_licenses)
+    return [] if assigned_licenses.blank?
+
+    assigned_licenses.filter_map do |lic|
+      MICROSOFT_LICENSE_SKUS[lic["skuId"]]
+    end.uniq
+  end
+
+  def detect_mailbox_type(user, has_license)
+    # Heuristic: no licenses + enabled + has mail address = likely shared mailbox
+    # Shared mailboxes in M365 don't need licenses but have mail addresses
+    account_enabled = user["accountEnabled"] == true
+    has_mail = user["mail"].present?
+
+    if !has_license && account_enabled && has_mail
+      "shared"
+    else
+      "user"
+    end
   end
 
   def extract_error_code(error_message)

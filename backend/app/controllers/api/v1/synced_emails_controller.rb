@@ -607,6 +607,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         last_sync_at: cred.last_sync_at,
         total_emails: mailboxes.sum { |m| m[:email_count] },
         mailboxes: mailboxes,
+        tenant_users: cred.list_tenant_users,
         sync_config: {
           sync_all: cred.sync_config&.dig("sync_all") || false,
           sync_years: cred.sync_config&.dig("sync_years") || 3
