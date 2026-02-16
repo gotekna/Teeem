@@ -63,6 +63,7 @@ import {
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { formatCurrency, getInitials } from "@/utils/formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { safePercent } from "@/lib/utils";
@@ -1266,6 +1267,8 @@ export default function JobDetailPage() {
       setJob({ ...job, ...(updatedJob as Job) });
       setIsEditing(false);
       setEditForm({});
+      // SSoT: Clear Foundation cache so Jobs table shows fresh data
+      clearCachedRecords("jobs");
       // Reload to get fresh data with associations
       loadJob();
     } catch (error) {
