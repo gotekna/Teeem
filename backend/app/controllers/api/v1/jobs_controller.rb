@@ -608,30 +608,112 @@ module Api
         cc_lookup = {}
         cost_budgets.each do |budget|
           next unless budget.cost_centre
-          cc_lookup[budget.cost_centre.id] = budget.cost_centre
-          cc_lookup[budget.cost_centre.code] = budget.cost_centre
+          cc_lookup[budget.cost_centre.id] = budget
+          cc_lookup[budget.cost_centre.code&.to_s] = budget
         end
 
-        # Build BOQGroup[] for BillOfQuantities component
-        # Each PO becomes a group, line items become items
-        boq_groups = purchase_orders.map do |po|
-          sm = po.sm_task&.sm_schedule_master
-          cc = cc_lookup[sm&.cost_centre] || cc_lookup[sm&.cost_centre.to_s]
+        # Match POs to cost centres via their SM task's cost_centre
+        po_by_cc = Hash.new { |h, k| h[k] = [] }
+        unmatched_pos = []
 
-          {
-            id: po.id,
-            name: po.purchase_order_number || "PO-#{po.id}",
-            supplierId: po.supplier_id,
-            supplierName: po.supplier&.display_name,
-            taskName: po.sm_task&.name || po.description,
-            tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
-            stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
-            stagePosition: sm&.sequence_order,
-            costCentreName: cc ? "#{cc.code} - #{cc.name}" : nil,
-            items: po.line_items.sort_by(&:line_number).map do |item|
-              {
+        purchase_orders.each do |po|
+          sm = po.sm_task&.sm_schedule_master
+          cc_key = sm&.cost_centre&.to_s
+          budget = cc_key.present? ? cc_lookup[cc_key] : nil
+
+          if budget
+            po_by_cc[budget.id] << po
+          else
+            unmatched_pos << po
+          end
+        end
+
+        # Build BOQGroup[] - one group per cost centre budget
+        boq_groups = if cost_budgets.any?
+          cost_budgets.sort_by { |b| b.cost_centre&.code || "" }.map do |budget|
+            cc = budget.cost_centre
+            matched_pos = po_by_cc[budget.id] || []
+            cc_name = cc ? "#{cc.code} - #{cc.name}" : "Budget ##{budget.id}"
+
+            # Build items: budget line + any matched PO line items
+            items = []
+
+            # Add a budget summary line
+            items << {
+              id: "budget-#{budget.id}",
+              description: "Budget allocation",
+              quantity: 1,
+              unitPrice: (budget.total_budget || 0).to_f,
+              gstCode: "BUD",
+              subtotal: (budget.total_budget || 0).to_f,
+              pricebookItemCode: nil
+            }
+
+            # Add matched PO line items
+            matched_pos.each do |po|
+              po.line_items.sort_by(&:line_number).each do |item|
+                items << {
+                  id: item.id,
+                  description: "#{po.purchase_order_number}: #{item.description}",
+                  quantity: item.quantity.to_f,
+                  unitPrice: item.unit_price.to_f,
+                  gstCode: item.gst_code || "GST",
+                  subtotal: item.total_amount.to_f,
+                  pricebookItemCode: item.pricebook_item&.item_code
+                }
+              end
+            end
+
+            {
+              id: "cc-#{budget.id}",
+              name: cc_name,
+              supplierId: nil,
+              supplierName: nil,
+              taskName: nil,
+              tradeName: nil,
+              stageName: nil,
+              stagePosition: nil,
+              costCentreName: cc_name,
+              items: items
+            }
+          end
+        else
+          # Fallback: PO-only mode (no cost budgets)
+          purchase_orders.map do |po|
+            sm = po.sm_task&.sm_schedule_master
+            {
+              id: po.id,
+              name: po.purchase_order_number || "PO-#{po.id}",
+              supplierId: po.supplier_id,
+              supplierName: po.supplier&.display_name,
+              taskName: po.sm_task&.name || po.description,
+              tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
+              stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+              stagePosition: sm&.sequence_order,
+              costCentreName: nil,
+              items: po.line_items.sort_by(&:line_number).map do |item|
+                {
+                  id: item.id,
+                  description: item.description,
+                  quantity: item.quantity.to_f,
+                  unitPrice: item.unit_price.to_f,
+                  gstCode: item.gst_code || "GST",
+                  subtotal: item.total_amount.to_f,
+                  pricebookItemCode: item.pricebook_item&.item_code
+                }
+              end
+            }
+          end
+        end
+
+        # Add unmatched POs as a separate group (when cost budgets exist)
+        if cost_budgets.any? && unmatched_pos.any?
+          unmatched_items = []
+          unmatched_pos.each do |po|
+            po.line_items.sort_by(&:line_number).each do |item|
+              unmatched_items << {
                 id: item.id,
-                description: item.description,
+                description: "#{po.purchase_order_number}: #{item.description}",
                 quantity: item.quantity.to_f,
                 unitPrice: item.unit_price.to_f,
                 gstCode: item.gst_code || "GST",
@@ -639,11 +721,23 @@ module Api
                 pricebookItemCode: item.pricebook_item&.item_code
               }
             end
-          }
-        end
+          end
 
-        # Sort by stage position, then PO number
-        boq_groups.sort_by! { |g| [g[:stagePosition] || Float::INFINITY, g[:name]] }
+          if unmatched_items.any?
+            boq_groups << {
+              id: "unallocated",
+              name: "Unallocated POs",
+              supplierId: nil,
+              supplierName: nil,
+              taskName: nil,
+              tradeName: nil,
+              stageName: nil,
+              stagePosition: nil,
+              costCentreName: nil,
+              items: unmatched_items
+            }
+          end
+        end
 
         # Calculate summary from cost budgets + POs
         total_boq = cost_budgets.sum { |b| (b.total_budget || 0).to_f }

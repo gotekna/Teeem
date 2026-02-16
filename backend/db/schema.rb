@@ -8799,6 +8799,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
+    t.string "sync_key"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"

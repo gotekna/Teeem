@@ -23,7 +23,7 @@ import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
 import { BillOfQuantities, type BOQGroup } from "@/components/ui/bill-of-quantities";
 
 interface BOQApiGroup {
-  id: number;
+  id: number | string;
   name: string;
   supplierId: number | null;
   supplierName: string | null;
@@ -33,7 +33,7 @@ interface BOQApiGroup {
   stagePosition: number | null;
   costCentreName: string | null;
   items: Array<{
-    id: number;
+    id: number | string;
     description: string;
     quantity: number;
     unitPrice: number;
