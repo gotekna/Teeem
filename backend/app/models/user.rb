@@ -48,8 +48,23 @@ class User < ApplicationRecord
 
   # Placeholder for company association (not yet implemented)
   # Returns nil - callers should handle this gracefully
+  # Many controllers call current_user.corporate, current_user.corporate_id,
+  # or current_user.corporates - all must return nil safely until a real
+  # User→Corporate link is implemented.
   def company
     nil
+  end
+
+  def corporate
+    nil
+  end
+
+  def corporate_id
+    nil
+  end
+
+  def corporates
+    Corporate.none
   end
 
   # SSoT: Get user's Microsoft credential (replaces has_one :microsoft_token)
