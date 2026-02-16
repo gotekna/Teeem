@@ -64,6 +64,17 @@ interface PreviewItem {
   unit_price?: number;
   total_price?: number;
   load?: string;
+  // BOQ fields
+  cost_centre_code?: string;
+  cost_centre_name?: string;
+}
+
+interface BoqCostCentre {
+  code: string;
+  name: string;
+  item_count: number;
+  total_amount: number;
+  status: string;
 }
 
 interface PreviewSummary {
@@ -73,13 +84,19 @@ interface PreviewSummary {
   total_bill_amount?: number;
   total_budget?: number;
   total_amount?: number;
+  // BOQ summary fields
+  total_cost_centres?: number;
+  new_cost_centres?: number;
+  existing_cost_centres?: number;
+  total_items?: number;
 }
 
 interface PreviewResponse {
   success: boolean;
-  format: "cost_centre_summary" | "load_summary" | "line_item_detail";
+  format: "cost_centre_summary" | "load_summary" | "line_item_detail" | "boq_detail";
   job: { id: number; name: string; job_code: string };
   items: PreviewItem[];
+  cost_centres?: BoqCostCentre[];
   summary: PreviewSummary;
   error?: string;
 }
@@ -91,6 +108,8 @@ interface ImportStats {
   purchase_orders_skipped: number;
   line_items_created: number;
   budgets_created: number;
+  sm_tasks_created: number;
+  sm_tasks_skipped: number;
   errors: string[];
 }
 
@@ -124,9 +143,14 @@ const FORMAT_LABELS: Record<string, { label: string; icon: React.ReactNode; desc
     description: "Subcontractor loads with amounts and suppliers",
   },
   line_item_detail: {
-    label: "Line Items (BOQ)",
+    label: "Line Items",
     icon: <ListOrdered className="h-4 w-4" />,
     description: "Detailed line items with quantities and prices",
+  },
+  boq_detail: {
+    label: "BOQ (Bill of Quantities)",
+    icon: <Layers className="h-4 w-4" />,
+    description: "Cost centre sections with line items → SM Tasks",
   },
 };
 
@@ -244,6 +268,7 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
         if (s.cost_centres_created > 0) parts.push(`${s.cost_centres_created} cost centres`);
         if (s.purchase_orders_created > 0) parts.push(`${s.purchase_orders_created} POs`);
         if (s.line_items_created > 0) parts.push(`${s.line_items_created} line items`);
+        if (s.sm_tasks_created > 0) parts.push(`${s.sm_tasks_created} SM tasks`);
 
         toast({
           title: "Databuild Import Complete",
@@ -407,19 +432,42 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
                   </Badge>
                 )}
                 <span className="text-sm text-muted-foreground">
-                  {preview.summary.total} item{preview.summary.total !== 1 ? "s" : ""}
+                  {preview.format === "boq_detail" ? (
+                    <>
+                      {preview.summary.total_cost_centres} cost centre{preview.summary.total_cost_centres !== 1 ? "s" : ""}
+                      {", "}
+                      {preview.summary.total_items} SM task{preview.summary.total_items !== 1 ? "s" : ""}
+                    </>
+                  ) : (
+                    <>{preview.summary.total} item{preview.summary.total !== 1 ? "s" : ""}</>
+                  )}
                   {" "}for job{" "}
                   <span className="font-mono font-medium text-foreground">
                     {preview.job.job_code || preview.job.name}
                   </span>
                 </span>
-                {preview.summary.new != null && preview.summary.new > 0 && (
-                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                    {preview.summary.new} new
-                  </Badge>
-                )}
-                {preview.summary.existing != null && preview.summary.existing > 0 && (
-                  <Badge variant="secondary">{preview.summary.existing} already exist</Badge>
+                {preview.format === "boq_detail" ? (
+                  <>
+                    {(preview.summary.new_cost_centres ?? 0) > 0 && (
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        {preview.summary.new_cost_centres} new CC
+                      </Badge>
+                    )}
+                    {(preview.summary.existing_cost_centres ?? 0) > 0 && (
+                      <Badge variant="secondary">{preview.summary.existing_cost_centres} CC exist</Badge>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {preview.summary.new != null && preview.summary.new > 0 && (
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                        {preview.summary.new} new
+                      </Badge>
+                    )}
+                    {preview.summary.existing != null && preview.summary.existing > 0 && (
+                      <Badge variant="secondary">{preview.summary.existing} already exist</Badge>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -436,7 +484,45 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
                 )}
               </div>
 
+              {/* BOQ: Cost Centres summary table */}
+              {preview.format === "boq_detail" && preview.cost_centres && preview.cost_centres.length > 0 && (
+                <div className="border rounded-md">
+                  <div className="px-3 py-2 bg-muted/50 text-xs font-medium text-muted-foreground">
+                    Cost Centres
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/30">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left font-medium text-xs">Code</th>
+                        <th className="px-3 py-1.5 text-left font-medium text-xs">Name</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-xs">Items</th>
+                        <th className="px-3 py-1.5 text-right font-medium text-xs">Amount</th>
+                        <th className="px-3 py-1.5 text-center font-medium text-xs">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {preview.cost_centres.map((cc, idx) => (
+                        <tr key={idx} className="hover:bg-accent/50">
+                          <td className="px-3 py-1.5 font-mono text-xs">{cc.code}</td>
+                          <td className="px-3 py-1.5 text-xs">{cc.name}</td>
+                          <td className="px-3 py-1.5 text-right text-xs tabular-nums">{cc.item_count}</td>
+                          <td className="px-3 py-1.5 text-right text-xs tabular-nums">{formatMoney(cc.total_amount)}</td>
+                          <td className="px-3 py-1.5 text-center">
+                            <StatusBadge status={cc.status} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* Items table */}
+              {preview.format === "boq_detail" && (
+                <div className="px-1 text-xs font-medium text-muted-foreground">
+                  SM Tasks (Line Items)
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto border rounded-md">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 sticky top-0">
@@ -471,7 +557,9 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
               </Button>
               <Button onClick={handleImport} disabled={preview.items.length === 0}>
                 <CheckCircle2 className="h-4 w-4 mr-2" />
-                Import {preview.summary.total} Item{preview.summary.total !== 1 ? "s" : ""}
+                {preview.format === "boq_detail"
+                  ? `Import ${preview.summary.total_cost_centres ?? 0} Cost Centres + ${preview.summary.total_items ?? 0} Tasks`
+                  : `Import ${preview.summary.total} Item${preview.summary.total !== 1 ? "s" : ""}`}
               </Button>
             </DialogFooter>
           </>
@@ -514,6 +602,12 @@ export function DatabuildImportModal({ isOpen, onClose, onImportComplete }: Data
                 )}
                 {importResult.stats.line_items_created > 0 && (
                   <ResultCard label="Line Items Created" value={importResult.stats.line_items_created} color="purple" />
+                )}
+                {importResult.stats.sm_tasks_created > 0 && (
+                  <ResultCard label="SM Tasks Created" value={importResult.stats.sm_tasks_created} color="purple" />
+                )}
+                {importResult.stats.sm_tasks_skipped > 0 && (
+                  <ResultCard label="SM Tasks Skipped" value={importResult.stats.sm_tasks_skipped} color="gray" />
                 )}
                 {importResult.stats.budgets_created > 0 && (
                   <ResultCard label="Budgets Linked" value={importResult.stats.budgets_created} color="amber" />
@@ -578,6 +672,18 @@ function PreviewTableHeader({ format }: { format: string }) {
       </tr>
     );
   }
+  if (format === "boq_detail") {
+    return (
+      <tr>
+        <th className="px-3 py-2 text-left font-medium">Cost Centre</th>
+        <th className="px-3 py-2 text-left font-medium">Code</th>
+        <th className="px-3 py-2 text-left font-medium">Description</th>
+        <th className="px-3 py-2 text-right font-medium">Qty</th>
+        <th className="px-3 py-2 text-right font-medium">Rate</th>
+        <th className="px-3 py-2 text-right font-medium">Amount</th>
+      </tr>
+    );
+  }
   // line_item_detail
   return (
     <tr>
@@ -624,6 +730,22 @@ function PreviewTableRow({
         <td className="px-3 py-2 text-center">
           <StatusBadge status={item.status} />
         </td>
+      </tr>
+    );
+  }
+  if (format === "boq_detail") {
+    return (
+      <tr className="hover:bg-accent/50">
+        <td className="px-3 py-2">
+          {item.cost_centre_code && (
+            <Badge variant="outline" className="text-xs font-mono">{item.cost_centre_code}</Badge>
+          )}
+        </td>
+        <td className="px-3 py-2 font-mono text-xs">{item.code}</td>
+        <td className="px-3 py-2 truncate max-w-[250px]">{item.description}</td>
+        <td className="px-3 py-2 text-right tabular-nums">{item.quantity}</td>
+        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.unit_price)}</td>
+        <td className="px-3 py-2 text-right tabular-nums">{formatMoney(item.total_price)}</td>
       </tr>
     );
   }

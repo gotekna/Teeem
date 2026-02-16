@@ -790,7 +790,7 @@ module Api
 
           # Pre-compute all warehouse_type counts in 4 queries (not N+1)
           # Groups by warehouse_type (WHERE docs are stored), not source_type (WHERE they came from).
-          # Xero docs are stored under contact/corporate, so they count there — no exclusion needed.
+          # Note: email and contact types use custom split logic below (not these pre-computed maps).
           base_wt_scope = WarehouseDocument.where.not(warehouse_type: [nil, ""])
           by_wt = base_wt_scope.group(:warehouse_type).count
           blob_by_wt = base_wt_scope.where.not(storage_blob_id: nil).group(:warehouse_type).count
@@ -848,8 +848,25 @@ module Api
               next
             end
 
+            # Contact type: split into Contact + Xero sub-rows
+            if wt.code == "contact"
+              # Contact docs (non-Xero)
+              contact_scope = WarehouseDocument.where(warehouse_type: "contact").where.not(source_type: "xero")
+              contact_count = contact_scope.count
+              if contact_count > 0
+                results << build_row.call("contact", wt.display_name, contact_scope)
+              end
+
+              # Xero docs (stored under contact warehouse_type, or legacy unassigned)
+              xero_scope = WarehouseDocument.where(source_type: "xero")
+                .where(warehouse_type: ["contact", "unassigned", nil])
+              xero_expected = defined?(ExternalInvoice) ? ExternalInvoice.where.not(status: "draft").where.not(contact_id: nil).count : 0
+              xero_row = build_row.call("xero", "Xero", xero_scope, expected: xero_expected)
+              results << xero_row if xero_expected > 0 || xero_scope.exists?
+              next
+            end
+
             # Standard row for this warehouse type
-            # Xero docs are stored under contact/corporate warehouse_type — they count there naturally.
             in_warehouse = by_wt[wt.code] || 0
             expected = expected_counts[wt.code]
             has_target = expected.present?

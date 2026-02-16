@@ -8,6 +8,7 @@ module Importers
   # Databuild exports BOQ data as CSV with cost centres, loads (subcontractor orders),
   # and line items. This service matches to existing TEEEM jobs by job_code and creates:
   # - CostCentres from Databuild cost centre codes (510, 511, 520, etc.)
+  # - SmScheduleMaster templates from BOQ line items (linked to cost centres)
   # - PurchaseOrders from Databuild "Loads" (Load 1, Load 2, etc.)
   # - PurchaseOrderLineItems from Databuild line items within cost centres
   # - JobCostBudgets linking cost centres to jobs with budget amounts
@@ -22,7 +23,12 @@ module Importers
   #    Load, Amount, Supplier, Order Date, Comments
   #    Load 1, $8427.46, Flooring Creations Pty Ltd, 4/08/2025
   #
-  # 3. Line Item Detail (BOQ export):
+  # 3. BOQ Detail (Bill of Quantities with cost centre sections):
+  #    Item, Description, Quantity, Units, Rate, Amount, Lvl, Ld
+  #    090-00000, Contract Allowances, 0, EACH, $0.00, $0.00, -1, 1
+  #    10.0004, Allowance, 1, EACH, $100.00, $100.00, 0, 1
+  #
+  # 4. Line Item Detail:
   #    Code, Description, Quantity, Units, Unit Price, Price, Load
   #    520-0001, Supply and Install Floor Coverings, 1, Quote, $8427.46, $8427.46, 1
   #
@@ -42,6 +48,8 @@ module Importers
         line_items_created: 0,
         budgets_created: 0,
         budgets_updated: 0,
+        sm_tasks_created: 0,
+        sm_tasks_skipped: 0,
         errors: []
       }
     end
@@ -55,10 +63,12 @@ module Importers
         preview_cost_centres(detected[:rows])
       when :load_summary
         preview_loads(detected[:rows])
+      when :boq_detail
+        preview_boq(detected[:rows])
       when :line_item_detail
         preview_line_items(detected[:rows])
       else
-        { success: false, error: "Unrecognized CSV format. Expected Databuild Cost Centre Summary, Load Summary, or Line Item Detail export." }
+        { success: false, error: "Unrecognized CSV format. Expected Databuild Cost Centre Summary, Load Summary, BOQ, or Line Item Detail export." }
       end
     rescue CSV::MalformedCSVError => e
       { success: false, error: "Invalid CSV: #{e.message}" }
@@ -117,6 +127,8 @@ module Importers
         import_cost_centre_rows(detected[:rows])
       when :load_summary
         import_load_rows(detected[:rows])
+      when :boq_detail
+        import_boq_rows(detected[:rows])
       when :line_item_detail
         import_line_item_rows(detected[:rows])
       else
@@ -149,6 +161,8 @@ module Importers
         :cost_centre_summary
       elsif load_headers?(headers)
         :load_summary
+      elsif boq_headers?(headers)
+        :boq_detail
       elsif line_item_headers?(headers)
         :line_item_detail
       else
@@ -172,6 +186,13 @@ module Importers
       has_amount = headers.any? { |h| h == "amount" }
       has_supplier = headers.any? { |h| h == "supplier" }
       has_load && has_amount && has_supplier
+    end
+
+    def boq_headers?(headers)
+      # BOQ = line item headers PLUS a level column (Lvl/Level)
+      # Databuild BOQ exports include Lvl column for section hierarchy
+      has_level = headers.any? { |h| h == "lvl" || h == "level" }
+      has_level && line_item_headers?(headers)
     end
 
     def line_item_headers?(headers)
@@ -456,6 +477,174 @@ module Importers
       end
 
       { success: true, stats: @stats }
+    end
+
+    # ============================================
+    # BOQ (BILL OF QUANTITIES) IMPORT
+    # ============================================
+    # BOQ exports contain cost centre sections (Lvl -1) and line items (Lvl >= 0).
+    # Creates CostCentre records from sections and SmScheduleMaster templates
+    # from line items, linked to their parent cost centre.
+
+    def preview_boq(rows)
+      sections = parse_boq_sections(rows)
+
+      cost_centres = sections.map do |section|
+        existing = CostCentre.find_by(code: section[:code])
+        {
+          code: section[:code],
+          name: section[:name],
+          item_count: section[:items].length,
+          total_amount: section[:items].sum { |i| i[:total_price] || 0 },
+          status: existing ? "exists" : "new"
+        }
+      end
+
+      items = sections.flat_map do |section|
+        section[:items].map do |item|
+          item.merge(cost_centre_code: section[:code], cost_centre_name: section[:name])
+        end
+      end
+
+      {
+        success: true,
+        format: "boq_detail",
+        job: { id: @job.id, name: @job.name, job_code: @job.job_code },
+        cost_centres: cost_centres,
+        items: items,
+        summary: {
+          total_cost_centres: cost_centres.length,
+          new_cost_centres: cost_centres.count { |c| c[:status] == "new" },
+          existing_cost_centres: cost_centres.count { |c| c[:status] == "exists" },
+          total_items: items.length,
+          total_amount: items.sum { |i| i[:total_price] || 0 }
+        }
+      }
+    end
+
+    def import_boq_rows(rows)
+      sections = parse_boq_sections(rows)
+
+      ActiveRecord::Base.transaction do
+        sections.each do |section|
+          # 1. Create or find CostCentre from section header
+          cost_centre = CostCentre.find_by(code: section[:code])
+          if cost_centre
+            @stats[:cost_centres_skipped] += 1
+          else
+            cost_centre = CostCentre.create!(
+              code: section[:code],
+              name: section[:name].presence || "Cost Centre #{section[:code]}",
+              centre_type: "project",
+              budget_amount: section[:items].sum { |i| i[:total_price] || 0 },
+              active: true
+            )
+            @stats[:cost_centres_created] += 1
+          end
+
+          # 2. Create SmScheduleMaster templates for each line item
+          section[:items].each do |item|
+            # Dedup by name + cost_centre to avoid duplicates on re-import
+            existing = SmScheduleMaster.find_by(name: item[:description], cost_centre: cost_centre.id)
+            if existing
+              @stats[:sm_tasks_skipped] += 1
+              next
+            end
+
+            SmScheduleMaster.create!(
+              name: item[:description],
+              description: "#{item[:code]} - Qty: #{item[:quantity]} #{item[:unit]} @ #{item[:unit_price]}",
+              duration_days: 1,
+              cost_centre: cost_centre.id,
+              sm_template_ids: [],
+              predecessor_ids: []
+            )
+            @stats[:sm_tasks_created] += 1
+          rescue StandardError => e
+            @stats[:errors] << "SM Task '#{item[:code]}': #{e.message}"
+          end
+
+          # 3. Create JobCostBudget linking cost centre to job
+          existing_budget = JobCostBudget.find_by(job: @job, cost_centre: cost_centre)
+          unless existing_budget
+            section_total = section[:items].sum { |i| i[:total_price] || 0 }
+            if section_total > 0
+              JobCostBudget.create!(
+                job: @job,
+                cost_centre: cost_centre,
+                total_budget: section_total,
+                materials_budget: section_total
+              )
+              @stats[:budgets_created] += 1
+            end
+          end
+        rescue StandardError => e
+          @stats[:errors] << "Section '#{section[:code]}': #{e.message}"
+        end
+      end
+
+      { success: true, stats: @stats }
+    end
+
+    # Parse BOQ rows into sections grouped by cost centre
+    def parse_boq_sections(rows)
+      sections = []
+      current_section = nil
+
+      rows.each do |row|
+        level = find_header_value(row, ["Lvl", "Level"])&.to_i
+        code = find_header_value(row, ["Code", "Item"])
+        description = row["Description"]&.strip
+
+        next if code.blank? && description.blank?
+
+        if level.present? && level < 0
+          # Section header (Lvl -1) = new cost centre
+          cc_code = extract_cost_centre_code(code)
+          next if cc_code.blank?
+
+          current_section = {
+            code: cc_code,
+            name: description || "Cost Centre #{cc_code}",
+            raw_code: code,
+            items: []
+          }
+          sections << current_section
+        elsif current_section && code.present? && description.present?
+          # Line item under current section
+          quantity = (find_header_value(row, ["Quantity", "Qty"]))&.to_f || 0
+          unit_price = parse_money(find_header_value(row, ["Unit Price", "Rate"])) || 0
+          total_price = parse_money(find_header_value(row, ["Price", "Amount", "Total"])) || 0
+
+          # Skip zero-value items (likely totals or empty rows)
+          next if quantity.zero? && total_price.zero?
+
+          current_section[:items] << {
+            code: code,
+            description: description,
+            quantity: quantity,
+            unit: find_header_value(row, ["Units", "Unit", "UOM"]),
+            unit_price: unit_price,
+            total_price: total_price,
+            load: find_header_value(row, ["Load", "Ld"])
+          }
+        end
+      end
+
+      sections
+    end
+
+    # Extract cost centre code from Databuild item code
+    # "090-00000" → "90", "510-00000" → "510"
+    def extract_cost_centre_code(raw_code)
+      return nil if raw_code.blank?
+
+      # Take segment before dash (e.g., "090" from "090-00000")
+      code = raw_code.split("-").first&.strip
+      return nil if code.blank?
+
+      # Strip leading zeros but keep at least one digit
+      code.gsub(/^0+(?=\d)/, "")
     end
 
     # ============================================

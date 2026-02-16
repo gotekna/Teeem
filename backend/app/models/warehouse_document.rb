@@ -564,12 +564,18 @@ class WarehouseDocument < ApplicationRecord
 
   # Compute and store the warehouse_type code from warehouse_folder FK chain.
   # materialize_folder_path runs first (before_save order), so warehouse_folder_id is already set.
+  # Fallback chain: warehouse_folder → linkable_type → source_type → "unassigned"
   def materialize_warehouse_type
     self.warehouse_type = if warehouse_folder_id.present?
                             wf = warehouse_folder || WarehouseFolder.find_by(id: warehouse_folder_id)
                             wf&.warehouse_type&.code || "unassigned"
                           else
-                            "unassigned"
+                            # No warehouse_folder — derive from linkable or source_type
+                            computer = WarehousePathComputer.new
+                            code = if linkable_type.present?
+                                     computer.send(:linkable_type_to_warehouse_type_code, linkable_type)
+                                   end
+                            code || computer.send(:source_type_to_warehouse_type_code, source_type) || "unassigned"
                           end
   end
 
