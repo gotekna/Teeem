@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_17_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -4833,6 +4833,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.decimal "this_claim_amount", precision: 15, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
+    t.index ["profit_centre_id"], name: "index_gl_progress_claim_lines_on_profit_centre_id"
     t.index ["progress_claim_id", "sort_order"], name: "idx_progress_claim_lines_sort"
     t.index ["progress_claim_id"], name: "index_gl_progress_claim_lines_on_progress_claim_id"
   end
@@ -5890,9 +5892,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.bigint "contact_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
     t.index ["contact_id"], name: "index_job_claims_on_contact_id"
     t.index ["invoice_number"], name: "index_job_claims_on_invoice_number"
     t.index ["job_id"], name: "index_job_claims_on_job_id"
+    t.index ["profit_centre_id"], name: "index_job_claims_on_profit_centre_id"
     t.index ["status"], name: "index_job_claims_on_status"
     t.index ["xero_contact_id"], name: "index_job_claims_on_xero_contact_id"
     t.index ["xero_invoice_id"], name: "index_job_claims_on_xero_invoice_id", unique: true
@@ -6304,6 +6308,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.string "project_type", default: "construction", null: false
     t.string "design_name"
     t.bigint "job_design_id"
+    t.bigint "default_profit_centre_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6311,6 +6316,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.index ["cost_centre_id"], name: "index_jobs_on_cost_centre_id"
     t.index ["council"], name: "index_jobs_on_council"
     t.index ["created_at"], name: "index_jobs_on_created_at"
+    t.index ["default_profit_centre_id"], name: "index_jobs_on_default_profit_centre_id"
     t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
     t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
     t.index ["job_code"], name: "index_jobs_on_job_code", unique: true
@@ -7135,7 +7141,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -7537,6 +7544,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
   end
 
+  create_table "profit_centres", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id"
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.string "centre_type", limit: 30
+    t.text "description"
+    t.boolean "is_template", default: false
+    t.boolean "active", default: true
+    t.integer "sort_order", default: 0
+    t.decimal "budget_amount", precision: 15, scale: 2
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_profit_centres_on_active"
+    t.index ["centre_type"], name: "index_profit_centres_on_centre_type"
+    t.index ["is_template"], name: "index_profit_centres_on_is_template"
+    t.index ["job_id"], name: "index_profit_centres_on_job_id"
+    t.index ["tenant_id", "code"], name: "idx_profit_centres_global_unique_code", unique: true, where: "(job_id IS NULL)"
+    t.index ["tenant_id", "job_id", "code"], name: "idx_profit_centres_job_unique_code", unique: true, where: "(job_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_profit_centres_on_tenant_id"
+  end
+
   create_table "profit_loss_reports", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "company_name", null: false
@@ -7607,7 +7637,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
     t.string "colour"
     t.string "colour_code"
     t.string "spec_reference"
+    t.bigint "profit_centre_id"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
+    t.index ["profit_centre_id"], name: "index_purchase_order_line_items_on_profit_centre_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
   end
@@ -11420,6 +11452,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
   add_foreign_key "gl_portal_tokens", "contacts"
   add_foreign_key "gl_portal_tokens", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claim_lines", "gl_progress_claims", column: "progress_claim_id"
+  add_foreign_key "gl_progress_claim_lines", "profit_centres", on_delete: :nullify
   add_foreign_key "gl_progress_claims", "contacts"
   add_foreign_key "gl_progress_claims", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claims", "gl_invoices", column: "invoice_id"
@@ -11519,6 +11552,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
   add_foreign_key "job_claim_stages", "jobs"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
+  add_foreign_key "job_claims", "profit_centres", on_delete: :nullify
   add_foreign_key "job_colour_selections", "jobs"
   add_foreign_key "job_colour_selections", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "job_contacts", "contacts"
@@ -11563,6 +11597,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
+  add_foreign_key "jobs", "profit_centres", column: "default_profit_centre_id", on_delete: :nullify
   add_foreign_key "jobs", "tenants"
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "client_coordinator_id", on_delete: :nullify
@@ -11682,12 +11717,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200007) do
   add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"
   add_foreign_key "pricebooks", "tenants"
+  add_foreign_key "profit_centres", "jobs", on_delete: :cascade
+  add_foreign_key "profit_centres", "tenants"
   add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
   add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "purchase_order_line_items", "profit_centres", on_delete: :nullify
   add_foreign_key "purchase_order_line_items", "purchase_orders"
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"

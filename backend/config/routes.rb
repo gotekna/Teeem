@@ -2188,6 +2188,13 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :profit_centres, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :create_variation
+          get :report
+        end
+      end
+
       resources :labour_cost_entries, only: [ :index, :show, :create, :update ] do
         collection do
           get :for_job

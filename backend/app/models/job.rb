@@ -65,6 +65,10 @@ class Job < ApplicationRecord
   has_many :job_cost_budgets, dependent: :destroy
   belongs_to :cost_centre, optional: true
 
+  # Profit Centres
+  belongs_to :default_profit_centre, class_name: "ProfitCentre", optional: true
+  has_many :profit_centres, dependent: :destroy
+
   # Activity tracking
   has_many :job_activities, dependent: :destroy
 

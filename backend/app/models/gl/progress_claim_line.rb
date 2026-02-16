@@ -6,6 +6,7 @@ module Gl
     self.table_name = "gl_progress_claim_lines"
 
     belongs_to :progress_claim, class_name: "Gl::ProgressClaim"
+    belongs_to :profit_centre, optional: true
 
     validates :description, presence: true
     validates :contract_value, presence: true, numericality: { greater_than_or_equal_to: 0 }

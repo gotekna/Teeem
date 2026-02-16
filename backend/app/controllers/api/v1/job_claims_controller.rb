@@ -198,7 +198,8 @@ module Api
           :xero_invoice_id,
           :xero_contact_id,
           :contact_name,
-          :contact_id
+          :contact_id,
+          :profit_centre_id
         )
       end
     end

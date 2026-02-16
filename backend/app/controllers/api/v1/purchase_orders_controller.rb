@@ -931,6 +931,7 @@ module Api
           line_items_attributes: [
             :id,
             :pricebook_item_id,
+            :profit_centre_id,
             :description,
             :quantity,
             :unit_price,

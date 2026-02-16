@@ -338,7 +338,7 @@ export function ViewManagerSheet({
     setEditName(view.name);
     setEditIsGlobal(view.is_global || false);
     setEditViewType(view.view_display_type || "table");
-    setEditFilters(view.filters || []);
+    setEditFilters((view.filters || []).map(f => f.id ? f : { ...f, id: String(Date.now()) + Math.random().toString(36).slice(2) }));
     setEditFilterGroups(view.filterGroups || [{ id: "default", logic: "AND" }]);
     setEditInterGroupLogic(view.interGroupLogic || "OR");
     setEditSortColumns(view.sortColumns || []);

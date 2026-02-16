@@ -236,7 +236,7 @@ module Api
             :job_id, :contact_id, :claim_date, :claim_number,
             :period_from, :period_to, :contract_value, :variations_approved,
             :this_claim_pct, :retainage_pct, :notes,
-            lines_attributes: [:id, :description, :category, :contract_value, :previous_pct, :this_pct, :sort_order, :_destroy]
+            lines_attributes: [:id, :description, :category, :contract_value, :previous_pct, :this_pct, :sort_order, :profit_centre_id, :_destroy]
           )
         end
 

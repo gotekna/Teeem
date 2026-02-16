@@ -9,6 +9,7 @@ class PurchaseOrderLineItem < ApplicationRecord
   # Associations
   belongs_to :purchase_order
   belongs_to :pricebook_item, optional: true
+  belongs_to :profit_centre, optional: true
 
   # Validations
   validates :description, presence: true
@@ -28,7 +29,7 @@ class PurchaseOrderLineItem < ApplicationRecord
 
   # Eager loading: nested sm_task needed for po_task_name display via lookup_display_column
   def self.safe_eager_load_associations
-    [{ purchase_order: :sm_task }, :pricebook_item]
+    [{ purchase_order: :sm_task }, :pricebook_item, :profit_centre]
   end
 
   # Scopes

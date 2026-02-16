@@ -642,7 +642,7 @@ module Api
         boq_groups = if cost_budgets.any?
           groups = []
 
-          cost_budgets.sort_by { |b| b.cost_centre&.code || "" }.each do |budget|
+          cost_budgets.sort_by { |b| b.cost_centre&.code&.to_i || 0 }.each do |budget|
             cc = budget.cost_centre
             matched_pos = po_by_cc[budget.id] || []
             cc_name = cc ? "#{cc.code} - #{cc.name}" : "Budget ##{budget.id}"
