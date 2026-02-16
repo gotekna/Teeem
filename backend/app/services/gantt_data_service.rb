@@ -48,14 +48,14 @@ class GanttDataService
   def get_start_date(record)
     override = @date_overrides[record.task_number]
     return override[:start_date] if override && override[:start_date]
-    record&.start_date
+    record.respond_to?(:start_date) ? record&.start_date : nil
   end
 
   # Get end_date for a record, checking date_overrides first (for templates)
   def get_end_date(record)
     override = @date_overrides[record.task_number]
     return override[:end_date] if override && override[:end_date]
-    record&.end_date
+    record.respond_to?(:end_date) ? record&.end_date : nil
   end
 
   def build_response
@@ -387,17 +387,17 @@ class GanttDataService
       broken_successor_ids: @broken_successors_map&.dig(record.task_number) || [],
       # PO-related fields
       po_required: record.po_required || false,
-      supplier_id: (record.respond_to?(:supplier_id) ? record.supplier_id : nil) || record&.po_supplier_id,
-      supplier_name: (record.respond_to?(:supplier) ? record.supplier&.name : nil) || record&.po_supplier&.name,
+      supplier_id: (record.class.column_names.include?("supplier_id") ? record.supplier_id : nil) || (record.class.column_names.include?("po_supplier_id") ? record.po_supplier_id : nil),
+      supplier_name: (record.class.column_names.include?("supplier_id") ? record.supplier&.name : nil) || (record.class.column_names.include?("po_supplier_id") ? record.po_supplier&.name : nil),
       purchase_order_id: record.respond_to?(:linked_purchase_order) ? record.linked_purchase_order&.id : nil,
       # Claim-related fields
       is_claim_task: record.respond_to?(:is_claim_task?) ? record.is_claim_task? : false,
-      job_claim_stage_id: record&.job_claim_stage_id,
+      job_claim_stage_id: record.respond_to?(:job_claim_stage_id) ? record.job_claim_stage_id : nil,
       # Header/parent info - now supports 2-level nesting
       header_gantt: determine_header_gantt(record),
       # SSoT: Explicit allow_header flag for canvas renderer header detection
       allow_header: is_header?(record),
-      parent_id: record&.parent_task_id,
+      parent_id: record.respond_to?(:parent_task_id) ? record.parent_task_id : nil,
       # Nesting level for 2-level hierarchy (0=Level1 header, 1=Level2 header/child of L1, 2=child of L2)
       nesting_level: calculate_nesting_level(record, @header_task_numbers || Set.new, @header_by_task_number || {}),
       # Ordering
