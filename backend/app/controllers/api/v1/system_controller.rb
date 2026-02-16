@@ -242,7 +242,7 @@ module Api
             queueDepth: queue_depth,
             pausedQueues: paused_queues,
             topFailed: top_failed,
-            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds),
+            watchdog: WorkerWatchdog.last_status.slice(:status, :last_heartbeat, :staleness_seconds, :circuit_breaker),
             backlog: backlog,
             dbConnections: db_connections,
             memory: memory,

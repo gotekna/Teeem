@@ -485,10 +485,8 @@ module Api
       # GET /api/v1/jobs/:id/xero_tracking_options
       # Get available Xero tracking options and current linked options for this job
       def xero_tracking_options
-        tracking_options = XeroBillImportService.fetch_tracking_options
-
-        # Find suggested match based on job title/location
-        suggested_match = XeroBillImportService.match_job_to_tracking_option(@job, tracking_options)
+        # SSoT: Read from local xero_tracking_options table (not Xero API)
+        local_options = XeroTrackingOption.active.order(:name)
 
         # Return all linked options from join table (multi-link)
         current_links = @job.xero_tracking_links.order(is_primary: :desc, created_at: :asc)
@@ -513,14 +511,10 @@ module Api
 
         render json: {
           success: true,
-          tracking_options: tracking_options.map { |o| { id: o["TrackingOptionID"], name: o["Name"] } },
+          tracking_options: local_options.map { |o| { id: o.xero_tracking_option_id, name: o.name } },
           current_options: current_options,
-          # Legacy single-option field for backward compat
           current_option: current_options.find { |o| o[:is_primary] } || current_options.first,
-          suggested_match: suggested_match ? {
-            id: suggested_match["TrackingOptionID"],
-            name: suggested_match["Name"]
-          } : nil
+          suggested_match: nil
         }
       rescue StandardError => e
         render_error(e.message, status: :internal_server_error)

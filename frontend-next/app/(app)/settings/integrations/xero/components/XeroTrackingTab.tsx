@@ -82,9 +82,9 @@ export function XeroTrackingTab() {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // Clear backend cache by calling import
-      await api.post<{ success: boolean }>("/api/v1/xero/import_tracking_categories");
-      toast({ title: "Success", description: "Tracking categories refreshed from Xero" });
+      // Sync from Xero API into local xero_tracking_options table
+      const result = await api.post<{ success: boolean; synced: number; archived: number }>("/api/v1/xero/sync_tracking_options");
+      toast({ title: "Success", description: `Synced ${result?.synced || 0} tracking options from Xero` });
       await loadOptions();
     } catch (error) {
       console.error("Failed to refresh:", error);

@@ -2579,6 +2579,7 @@ Rails.application.routes.draw do
           get :contacts
           get :tracking_categories
           get :tracking_options
+          post :sync_tracking_options
           get :validate_contacts
           get :pdf_sync_status
           get :sync_health

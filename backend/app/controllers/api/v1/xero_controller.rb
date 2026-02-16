@@ -1323,20 +1323,21 @@ module Api
       end
 
       # GET /api/v1/xero/tracking_options
-      # Returns cached Xero tracking options with local job link data
-      # Used by the Tracking tab on the Xero Integration page
+      # Returns tracking options from LOCAL DB (SSoT) with linked job data
+      # Used by the Tracking tab on the Xero Integration page AND job dropdown
       def tracking_options
-        options = XeroBillImportService.fetch_tracking_options
+        # SSoT: Read from local xero_tracking_options table (not Xero API)
+        local_options = XeroTrackingOption.all.order(:name)
 
-        # Build a map of tracking_option_id → job link info from local DB
+        # Build a map of tracking_option_id → job link info
         links = XeroJobTrackingLink.includes(:job).index_by(&:tracking_option_id)
 
-        enriched = options.map do |opt|
-          link = links[opt["TrackingOptionID"]]
+        enriched = local_options.map do |opt|
+          link = links[opt.xero_tracking_option_id]
           {
-            id: opt["TrackingOptionID"],
-            name: opt["Name"],
-            status: opt["Status"],
+            id: opt.xero_tracking_option_id,
+            name: opt.name,
+            status: opt.status,
             linked_job: link ? {
               id: link.job_id,
               name: link.job&.name,
@@ -1358,6 +1359,68 @@ module Api
       rescue StandardError => e
         Rails.logger.error("Xero tracking_options error: #{e.message}")
         render_error("Failed to fetch tracking options: #{e.message}", status: :internal_server_error)
+      end
+
+      # POST /api/v1/xero/sync_tracking_options
+      # Fetch tracking options from Xero API and upsert into local xero_tracking_options table
+      def sync_tracking_options
+        tracking_category_name = XeroConstants.tracking_category_name
+        client = XeroApiClient.new(teeem_tenant: current_tenant)
+        result = client.get("TrackingCategories")
+
+        unless result[:success]
+          return render_error("Failed to fetch from Xero: #{result[:error]}", status: :bad_gateway)
+        end
+
+        categories = result[:data]["TrackingCategories"] || []
+        job_category = categories.find { |c| c["Name"] == tracking_category_name }
+
+        unless job_category
+          available = categories.map { |c| c["Name"] }.join(", ")
+          return render_error("Tracking category '#{tracking_category_name}' not found in Xero. Available: #{available}")
+        end
+
+        xero_options = job_category["Options"] || []
+        category_id = job_category["TrackingCategoryID"]
+        synced = 0
+        archived = 0
+
+        # Upsert each option from Xero
+        xero_option_ids = []
+        xero_options.each do |opt|
+          xero_option_ids << opt["TrackingOptionID"]
+          record = XeroTrackingOption.find_or_initialize_by(xero_tracking_option_id: opt["TrackingOptionID"])
+          record.assign_attributes(
+            name: opt["Name"],
+            status: opt["Status"],
+            xero_tracking_category_id: category_id,
+            tenant_id: current_tenant.id
+          )
+          record.save! if record.new_record? || record.changed?
+          synced += 1
+        end
+
+        # Archive local options no longer in Xero
+        if xero_option_ids.any?
+          stale = XeroTrackingOption.where.not(xero_tracking_option_id: xero_option_ids).where(status: "ACTIVE")
+          archived = stale.count
+          stale.update_all(status: "ARCHIVED")
+        end
+
+        render json: {
+          success: true,
+          synced: synced,
+          archived: archived,
+          total: XeroTrackingOption.active.count,
+          tracking_category: tracking_category_name
+        }
+      rescue XeroApiClient::RateLimitError => e
+        render_error("Xero rate limit exceeded. Try again later.", status: :too_many_requests)
+      rescue XeroApiClient::AuthenticationError => e
+        render_error("Not authenticated with Xero. Please reconnect.", status: :unauthorized)
+      rescue StandardError => e
+        Rails.logger.error("Xero sync_tracking_options error: #{e.message}")
+        render_error("Failed to sync tracking options: #{e.message}", status: :internal_server_error)
       end
 
       # GET /api/v1/xero/pdf_sync_status
