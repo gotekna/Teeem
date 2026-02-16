@@ -736,6 +736,8 @@ export default function EmailPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   // Ref to track if we should skip the next auto-fetch (prevents flashing on account/folder change)
   const skipNextAutoFetchRef = useRef(false);
+  // Ref for fetchEmails - allows callbacks defined before fetchEmails to call it
+  const fetchEmailsRef = useRef<(page?: number, force?: boolean) => void>(() => {});
 
   // Folder/account state (SSoT: atoms)
   const [showAllMailboxes, setShowAllMailboxes] = useAtom(showAllMailboxesAtom);
@@ -985,7 +987,7 @@ export default function EmailPage() {
     if (viewMode === "split") {
       splitInbox.refresh();
     } else {
-      fetchEmails(1, true);
+      fetchEmailsRef.current(1, true);
     }
 
     if (stats.new_count > 0) {
@@ -994,7 +996,7 @@ export default function EmailPage() {
         description: `${stats.new_count} new email${stats.new_count > 1 ? 's' : ''} synced`,
       });
     }
-  }, [toast, viewMode, splitInbox, fetchEmails]);
+  }, [toast, viewMode, splitInbox]);
 
   const { isConnected, isSyncing: wsIsSyncing, newEmailCount } = useEmailWebSocket({
     onNewEmail: handleNewEmail,
@@ -1274,6 +1276,9 @@ export default function EmailPage() {
       }
     }
   }, [toURLParams, selectedAccount, selectedFolder, historicalMailbox, accounts]);
+
+  // Keep ref in sync so callbacks defined before fetchEmails can call it
+  fetchEmailsRef.current = fetchEmails;
 
   // Performance: Infinite scroll - auto-load more emails when scrolling near bottom
   // Use refs to store latest state to avoid effect re-running on every state change
