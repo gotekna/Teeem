@@ -118,7 +118,8 @@ class Job < ApplicationRecord
   # Default format: "J" + id (e.g., "J201")
   # Auto-generated on create, can be customized by user
   validates :job_code, presence: true, uniqueness: { scope: :tenant_id }, on: :update
-  after_create :generate_job_code_if_blank
+  before_create :set_temporary_job_code
+  after_create :generate_job_code_from_id
 
   # Description placeholder for document templates
   def description
@@ -572,17 +573,16 @@ class Job < ApplicationRecord
   end
 
   # Validate stage is valid for current type+status
+  # Only enforced when JobStatusStage constraints are configured for this combo
   def stage_must_be_valid_for_type_and_status
     return if job_stage_id.nil?
     return if job_type_id.nil? || job_status_id.nil?
 
-    valid_stage = JobStatusStage.exists?(
-      job_type_id: job_type_id,
-      job_status_id: job_status_id,
-      job_stage_id: job_stage_id
-    )
+    # If no constraints configured for this type+status, allow any stage
+    configured = JobStatusStage.where(job_type_id: job_type_id, job_status_id: job_status_id)
+    return if configured.none?
 
-    unless valid_stage
+    unless configured.exists?(job_stage_id: job_stage_id)
       errors.add(:job_stage, "is not valid for this job type and status")
     end
   end
@@ -714,8 +714,15 @@ class Job < ApplicationRecord
 
   # SSoT: Auto-generate job_code on create (e.g., "J201")
   # User can customize after creation
-  def generate_job_code_if_blank
+  # Two-step process: before_create sets a temp value to satisfy NOT NULL,
+  # then after_create updates to "J#{id}" once we have the real ID.
+  def set_temporary_job_code
     return if job_code.present?
+    self.job_code = "J-PENDING-#{SecureRandom.hex(4)}"
+  end
+
+  def generate_job_code_from_id
+    return if job_code.present? && !job_code.start_with?("J-PENDING-")
     update_column(:job_code, "J#{id}")
   end
 end
