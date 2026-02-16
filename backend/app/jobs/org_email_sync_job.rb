@@ -49,7 +49,8 @@ class OrgEmailSyncJob < ApplicationJob
   # With 3 threads per folder batch + main thread, we exceed pool capacity.
   # Each user syncs multiple folders, causing cascading connection failures.
   # Fix: 2 threads is safer while still providing parallelism benefit.
-  PARALLEL_FOLDER_THREADS = 2  # Number of folders to sync concurrently
+  PARALLEL_FOLDER_THREADS = 2       # Background worker: conservative (limited connection pool)
+  INLINE_PARALLEL_THREADS = 8       # Web dyno inline sync: more headroom, must finish in 30s
   SYNC_TIMEOUT_SECONDS = 300   # 5 minute timeout per folder
   # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
   # Root cause: Pilgrim Homes (56 mailboxes x 15 years) would take ~56 hours to fully sync.
@@ -275,7 +276,8 @@ class OrgEmailSyncJob < ApplicationJob
     # Performance: Parallel folder sync with thread batching
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
     parallel_start = Time.current
-    total_synced = sync_folders_parallel(client, user_email, folders, since)
+    thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
+    total_synced = sync_folders_parallel(client, user_email, folders, since, thread_count: thread_count)
     parallel_elapsed = (Time.current - parallel_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
@@ -296,7 +298,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Performance: Sync folders in parallel batches
   # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
   # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
-  def sync_folders_parallel(client, user_email, folders, since)
+  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
@@ -306,11 +308,11 @@ class OrgEmailSyncJob < ApplicationJob
     # Capture tenant for child threads (ActsAsTenant uses thread-local storage)
     current_tenant = ActsAsTenant.current_tenant
 
-    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, PARALLEL_FOLDER_THREADS=#{PARALLEL_FOLDER_THREADS}, SYNC_TIMEOUT_SECONDS=#{SYNC_TIMEOUT_SECONDS}"
+    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, threads=#{thread_count}, SYNC_TIMEOUT_SECONDS=#{SYNC_TIMEOUT_SECONDS}"
 
     # Process folders in parallel batches
     batch_num = 0
-    folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
+    folders.each_slice(thread_count) do |folder_batch|
       batch_num += 1
       batch_start = Time.current
       Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num}: #{folder_batch.map { |f| f[:name] }.join(', ')}"
