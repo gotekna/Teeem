@@ -486,6 +486,7 @@ export function WorkerQueueStatus() {
                     const eta = formatEta(item.remaining, data.completedPerMin);
                     const hourly = getHourlyProgress(item.key);
                     const processedText = formatProcessed(hourly.processed);
+                    const systemStuck = data.trend === "stuck";
                     return (
                       <div key={item.key}>
                         <div className="flex justify-between text-xs items-center">
@@ -502,17 +503,17 @@ export function WorkerQueueStatus() {
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all",
-                                hourly.stalled
+                                systemStuck
                                   ? "bg-orange-500 dark:bg-orange-400"
                                   : "bg-blue-500 dark:bg-blue-400 animate-pulse"
                               )}
-                              style={{ width: hourly.stalled ? "100%" : "15%" }}
+                              style={{ width: systemStuck ? "100%" : "15%" }}
                             />
                           </div>
                           <span className="text-[10px] shrink-0 tabular-nums">
-                            {hourly.stalled ? (
+                            {systemStuck ? (
                               <span className="text-orange-500 dark:text-orange-400 flex items-center gap-0.5">
-                                <CircleAlert className="h-3 w-3" /> stalled
+                                <CircleAlert className="h-3 w-3" /> stuck
                               </span>
                             ) : hourly.hasData && processedText ? (
                               <span className={hourly.processed < 0

@@ -71,12 +71,14 @@ refresh_integration_tokens:
 # ============================================
 # Syncs ALL mailboxes for ALL connected MS365 organizations.
 # Dispatcher job iterates all credentials and enqueues OrgEmailSyncJob for each.
-# FRC (Jan 2026): Moved from :low to :default queue.
-# Root cause: :low queue gets backed up with slow jobs (email uploads, MV refresh),
-# causing email sync to be delayed hours despite "every 15 minutes" schedule.
+# FRC (Feb 2026): Moved from :default to :email_sync queue.
+# Root cause: OrgEmailSyncJob is long-running (10-30 min per org). When dispatched
+# on :default, all 5 threads would be consumed by email sync, starving health monitors
+# and recurring tasks for 2+ hours. On :email_sync (lower priority than default),
+# health monitors always get a thread first.
 all_orgs_email_sync:
   class: AllOrgsEmailSyncJob
-  queue: default
+  queue: email_sync
   schedule: every 15 minutes
 
 # ============================================

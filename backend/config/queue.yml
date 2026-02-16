@@ -8,8 +8,9 @@
 #
 # QUEUE PRIORITY ORDER (first = highest priority):
 # - critical: SmRolloverJob, time-sensitive operations
-# - default: BPMN workflows, user-triggered jobs, email sync, health monitors
+# - default: BPMN workflows, user-triggered jobs, health monitors
 # - solid_queue_recurring: SolidQueue's internal recurring task scheduler
+# - email_sync: OrgEmailSyncJob, AllOrgsEmailSyncJob (long-running, capped at 3 threads)
 # - xero_sync: Xero sync operations (invoice, contact, bank txn, tracking, health)
 # - xero_bulk: Xero batch operations (contact batch fetch/process, attachment sync)
 # - low: Background analytics, warehouse jobs, email blob uploads, email-to-job/task (can wait)
@@ -24,15 +25,21 @@
 # Previously 9 Xero job types were on :default (3 threads) while Worker 2 (6 threads)
 # sat idle for those jobs. Now Worker 2 handles all Xero work, freeing Worker 1
 # for user-facing operations.
+#
+# FRC (Feb 2026): Moved OrgEmailSyncJob/AllOrgsEmailSyncJob to :email_sync queue.
+# These are long-running (10-30 min per org, syncing 10k+ emails via MS Graph).
+# When all 5 default threads ran email sync, health monitors + recurring tasks
+# were starved for 2+ hours. Now email_sync is lower priority than default,
+# so health monitors always get a thread.
 
 production:
   workers:
-    # Priority worker: user-facing + critical operations
-    # FRC (Feb 2026): Increased 3→5 threads. With non-critical jobs moved to :low,
-    # Worker 1 handles fewer job types but needs throughput for AllOrgsEmailSync
-    # (12min inline) + OrgEmailSyncJob + health monitors running concurrently.
-    # IO-bound work (HTTP to MS Graph) = safe to have more threads than cores.
-    - queues: [critical, default, solid_queue_recurring]
+    # Priority worker: user-facing + critical operations + email sync
+    # FRC (Feb 2026): email_sync placed AFTER default so health monitors + recurring
+    # tasks always get priority. With 5 threads: worst case 2 for critical/default,
+    # 3 for email sync. Previously all 5 would be consumed by OrgEmailSyncJob,
+    # starving health monitors for 2+ hours.
+    - queues: [critical, default, solid_queue_recurring, email_sync]
       threads: 5
       processes: 1
       polling_interval: 0.1
@@ -57,7 +64,7 @@ production:
 
 development:
   workers:
-    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
+    - queues: [critical, default, solid_queue_recurring, email_sync, xero_sync, xero_bulk, low, low_priority]
       threads: 3
       processes: 1
       polling_interval: 0.1
@@ -71,7 +78,7 @@ development:
 
 test:
   workers:
-    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
+    - queues: [critical, default, solid_queue_recurring, email_sync, xero_sync, xero_bulk, low, low_priority]
       threads: 1
       processes: 1
       polling_interval: 0.1
