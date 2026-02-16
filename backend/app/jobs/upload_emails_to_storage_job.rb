@@ -19,12 +19,11 @@
 #
 # ⚠️ DO NOT SIMPLIFY - Auto-continue loop replaced perform_later chain (Feb 2026)
 # ════════════════════════════════════════════
-
-# Why: DeduplicatableJob.before_enqueue silently aborted the chained perform_later
-#      because the CURRENT job was still running (finished_at: nil). This reduced
-#      throughput from ~3000/hour to ~1000/hour (only 250 per 15-min scheduler run).
+# Why: Chaining perform_later from within a running job would create a second
+#      instance while the current one is still executing. DeduplicatableJob
+#      (now before_perform) would skip it since the current job is still claimed.
 # ❌ WRONG: UploadEmailsToStorageJob.set(wait: 5.seconds).perform_later(...)
-#           → DeduplicatableJob sees current job unfinished → throw :abort → chain breaks
+#           → DeduplicatableJob sees current job running → skips → chain breaks
 # ✅ CORRECT: Loop within same job execution with time limit (10 min max for Heroku)
 # ════════════════════════════════════════════
 class UploadEmailsToStorageJob < ApplicationJob

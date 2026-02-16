@@ -303,8 +303,8 @@ export default function MicrosoftIntegrationPage() {
     if (loadedTabsRef.current.has("email-sync")) return;
     setSyncLoading(true);
     try {
-      const data = await api.get<SyncDashboard>("/api/v1/synced_emails/sync_dashboard");
-      setSyncDashboard(data);
+      const response = await api.get<{ success: boolean; data: SyncDashboard }>("/api/v1/synced_emails/sync_dashboard");
+      setSyncDashboard(response?.data || null);
       loadedTabsRef.current.add("email-sync");
     } catch (err) {
       console.error("Failed to fetch sync dashboard:", err);
@@ -890,8 +890,8 @@ function EmailSyncTab({
       {/* Overview */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{syncDashboard.total_emails.toLocaleString()}</span> emails across{" "}
-          <span className="font-medium text-foreground">{syncDashboard.total_mailboxes}</span> mailboxes
+          <span className="font-medium text-foreground">{(syncDashboard.total_emails ?? 0).toLocaleString()}</span> emails across{" "}
+          <span className="font-medium text-foreground">{syncDashboard.total_mailboxes ?? 0}</span> mailboxes
         </p>
         <Button variant="outline" size="sm" onClick={onRefresh}>
           <RefreshCw className="h-3.5 w-3.5 mr-1" />
@@ -926,7 +926,7 @@ function EmailSyncTab({
                   </Badge>
                   {orgStats && (
                     <span className="text-xs text-muted-foreground">
-                      {orgStats.total_emails.toLocaleString()} emails
+                      {(orgStats.total_emails ?? 0).toLocaleString()} emails
                     </span>
                   )}
                 </div>
@@ -964,7 +964,7 @@ function EmailSyncTab({
                         {orgStats.mailboxes.map((m) => (
                           <TableRow key={m.email}>
                             <TableCell className="font-mono text-xs">{m.email}</TableCell>
-                            <TableCell className="text-right tabular-nums">{m.email_count.toLocaleString()}</TableCell>
+                            <TableCell className="text-right tabular-nums">{(m.email_count ?? 0).toLocaleString()}</TableCell>
                             <TableCell className="text-right text-muted-foreground text-xs">
                               {formatRelativeTime(m.last_synced_at)}
                             </TableCell>
