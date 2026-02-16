@@ -34,6 +34,9 @@ class XeroTrackingImportService
     tracking_options = fetch_tracking_options
     Rails.logger.info("Found #{tracking_options.length} tracking options in Xero")
 
+    # Pre-fetch client map from Xero sales invoices (one batch, reused for all jobs)
+    prefetch_client_map
+
     # Group by base job code to handle variants (e.g., "106HAR" + "P-106HAR" → one job)
     grouped = XeroTrackingAddressParser.group_by_job(tracking_options)
     Rails.logger.info("Grouped into #{grouped.length} unique jobs (#{tracking_options.length} tracking options)")
@@ -73,6 +76,8 @@ class XeroTrackingImportService
     selected = tracking_options.select { |o| option_ids.include?(o["TrackingOptionID"]) }
 
     Rails.logger.info("Found #{selected.length} matching tracking options")
+
+    prefetch_client_map
 
     grouped = XeroTrackingAddressParser.group_by_job(selected)
 
@@ -120,6 +125,7 @@ class XeroTrackingImportService
         },
         parsed: {
           job_code: parsed[:code],
+          lot_number: parsed[:lot_number],
           street_number: parsed[:street_number],
           street_name: parsed[:street_name],
           street_type: parsed[:street_type],
@@ -139,6 +145,65 @@ class XeroTrackingImportService
       total_jobs: grouped.length,
       items: preview_items
     }
+  end
+
+  # Re-parse existing jobs that have tracking options but failed address parsing
+  # AND link clients from Xero sales invoices for ALL Xero-linked jobs
+  def reparse_existing_jobs
+    Rails.logger.info("Re-parsing existing Xero-linked jobs with improved parser")
+
+    # Pre-fetch client map for client linking
+    prefetch_client_map
+
+    # ALL jobs with tracking links
+    all_linked_jobs = Job.joins(:xero_tracking_links).distinct
+
+    fixed = 0
+    clients_linked = 0
+    all_linked_jobs.find_each do |job|
+      primary_link = job.xero_tracking_links.find_by(is_primary: true) || job.xero_tracking_links.first
+      next unless primary_link
+
+      # Re-parse address if missing
+      if job.street_name.blank?
+        parsed = XeroTrackingAddressParser.parse(primary_link.tracking_option_name)
+        if parsed[:parsed] && parsed[:street_name].present? && parsed[:suburb].present?
+          attrs = {
+            street_number: parsed[:street_number],
+            street_name: parsed[:street_name],
+            street_type: parsed[:street_type],
+            suburb: parsed[:suburb],
+            state: "QLD"
+          }
+          attrs[:lot_number] = parsed[:lot_number] if parsed[:lot_number].present?
+
+          # Use job_code from parsed if current is temporary
+          if parsed[:code].present? && (job.job_code&.start_with?("XERO-") || job.job_code&.start_with?("J"))
+            attrs[:job_code] = parsed[:code] unless Job.where.not(id: job.id).exists?(job_code: parsed[:code])
+          end
+
+          job.update!(attrs)
+          fixed += 1
+          Rails.logger.info("Re-parsed job ##{job.id}: '#{job.name}'")
+        end
+      end
+
+      # Link client if not already linked (for ALL jobs, not just re-parsed ones)
+      if job.job_contacts.where(role: "client").none?
+        tracking_options = job.xero_tracking_links.map do |link|
+          { "TrackingOptionID" => link.tracking_option_id, "Name" => link.tracking_option_name,
+            "_parsed" => XeroTrackingAddressParser.parse(link.tracking_option_name) }
+        end
+        link_client_to_job(job, tracking_options)
+        clients_linked += 1 if job.job_contacts.where(role: "client").any?
+      end
+    rescue StandardError => e
+      Rails.logger.error("Error processing job ##{job.id}: #{e.message}")
+      @stats[:errors] << "Error processing job ##{job.id}: #{e.message}"
+    end
+
+    Rails.logger.info("Re-parse complete: #{fixed} addresses fixed, #{clients_linked} clients linked (#{all_linked_jobs.count} total jobs)")
+    { success: true, fixed: fixed, clients_linked: clients_linked, total_jobs: all_linked_jobs.count, stats: @stats }
   end
 
   # Fetch all tracking options for the configured category
@@ -221,6 +286,7 @@ class XeroTrackingImportService
       attrs[:street_name] = parsed[:street_name]
       attrs[:street_type] = parsed[:street_type]
       attrs[:suburb] = parsed[:suburb]
+      attrs[:lot_number] = parsed[:lot_number] if parsed[:lot_number].present?
       attrs[:state] = "QLD"  # Default: all Pilgrim/Tekna jobs are in Queensland
       # name will be auto-generated from address components by Job model callback
     else
@@ -296,6 +362,87 @@ class XeroTrackingImportService
     end
   end
 
+  # Pre-fetch client map from Xero sales invoices
+  # Builds: { tracking_option_id => { contact_name:, xero_contact_id: } }
+  def prefetch_client_map
+    @xero_client_map = {}
+
+    # Get tracking category ID
+    tracking_category_id = fetch_tracking_category_id
+    unless tracking_category_id
+      Rails.logger.info("No tracking category found - skipping client map prefetch")
+      return
+    end
+
+    Rails.logger.info("Fetching Xero sales invoices for client detection...")
+
+    # Fetch ACCREC (sales invoices) - paginated
+    all_invoices = []
+    page = 1
+
+    loop do
+      result = @client.get("Invoices", { where: 'Type=="ACCREC"', page: page })
+      break unless result[:success]
+
+      invoices = result[:data]["Invoices"] || []
+      break if invoices.empty?
+
+      all_invoices.concat(invoices)
+      page += 1
+      break if invoices.length < 100
+
+      sleep(XERO_PAGE_SLEEP_SEC)
+    end
+
+    Rails.logger.info("Found #{all_invoices.length} sales invoices, fetching tracking details...")
+
+    # Fetch details for each invoice to get line item tracking
+    all_invoices.each_with_index do |invoice, index|
+      Rails.logger.info("Fetching invoice #{index + 1}/#{all_invoices.length}...") if (index + 1) % 50 == 0
+
+      detail_result = @client.get("Invoices/#{invoice['InvoiceID']}")
+      sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
+
+      next unless detail_result[:success]
+
+      detail = (detail_result[:data]["Invoices"] || []).first
+      next unless detail
+
+      contact_name = detail.dig("Contact", "Name")
+      xero_contact_id = detail.dig("Contact", "ContactID")
+      next unless contact_name
+
+      # Check line items for tracking options
+      (detail["LineItems"] || []).each do |line|
+        (line["Tracking"] || []).each do |tracking|
+          next unless tracking["TrackingCategoryID"] == tracking_category_id
+
+          option_id = tracking["TrackingOptionID"]
+          # First client found wins (most invoices for a job go to the same client)
+          @xero_client_map[option_id] ||= {
+            contact_name: contact_name,
+            xero_contact_id: xero_contact_id
+          }
+        end
+      end
+    end
+
+    Rails.logger.info("Client map built: #{@xero_client_map.length} tracking options → clients")
+  rescue StandardError => e
+    Rails.logger.error("Failed to prefetch client map: #{e.message}")
+    @xero_client_map = {}
+  end
+
+  # Get tracking category UUID from Xero
+  def fetch_tracking_category_id
+    result = @client.get("TrackingCategories")
+    return nil unless result[:success]
+
+    categories = result[:data]["TrackingCategories"] || []
+    job_category = categories.find { |c| c["Name"].downcase == @tracking_category_name.downcase }
+    job_category&.dig("TrackingCategoryID")
+  end
+
   # Find existing job for a group of tracking options
   def find_existing_job_for_group(options)
     # First check join table by tracking option ID
@@ -325,20 +472,33 @@ class XeroTrackingImportService
   end
 
   # Find client contact from sales invoices that reference these tracking options
+  # Checks local ExternalInvoice table first, then falls back to pre-fetched Xero data
   def find_client_for_tracking_options(options)
-    option_names = options.map { |o| o["Name"] }
+    client_name = nil
+    xero_contact_id = nil
 
-    # Look for sales invoices with matching tracking data
+    # Strategy 1: Check local ExternalInvoice table
+    option_names = options.map { |o| o["Name"] }
     invoices = ExternalInvoice.where(invoice_type: "sales_invoice")
                               .where.not(contact_name: nil)
 
-    # Check tracking_data JSONB for matching option names
-    client_name = nil
     option_names.each do |opt_name|
       matching = invoices.where("tracking_data::text ILIKE ?", "%#{opt_name.gsub("'", "''")}%").first
       if matching
         client_name = matching.contact_name
         break
+      end
+    end
+
+    # Strategy 2: Use pre-fetched Xero client map (from sales invoices API)
+    if client_name.nil? && @xero_client_map.present?
+      options.each do |option|
+        entry = @xero_client_map[option["TrackingOptionID"]]
+        if entry
+          client_name = entry[:contact_name]
+          xero_contact_id = entry[:xero_contact_id]
+          break
+        end
       end
     end
 
@@ -349,6 +509,7 @@ class XeroTrackingImportService
 
     {
       name: client_name,
+      xero_contact_id: xero_contact_id,
       is_couple: couple_analysis[:is_couple],
       person1: couple_analysis[:is_couple] ? couple_analysis[:person1] : nil,
       person2: couple_analysis[:is_couple] ? couple_analysis[:person2] : nil
@@ -358,7 +519,10 @@ class XeroTrackingImportService
   # Link client contact(s) to a job from sales invoices
   def link_client_to_job(job, options)
     client_info = find_client_for_tracking_options(options)
-    return unless client_info
+    unless client_info
+      Rails.logger.debug("No client found in sales invoices for job ##{job.id} '#{job.name}'")
+      return
+    end
 
     if client_info[:is_couple]
       # Split couple and link both as clients
@@ -375,8 +539,18 @@ class XeroTrackingImportService
       @stats[:contacts_split] += 1 if contacts.length == 2
       Rails.logger.info("Split couple '#{client_info[:name]}' into #{contacts.length} contacts for job ##{job.id}")
     else
-      # Find or create single client contact
-      contact = Contact.find_by("LOWER(display_name) = ?", client_info[:name].downcase)
+      # Find existing client contact:
+      # 1. By Xero contact ID (ContactExternalLink - SSoT for Xero contacts)
+      # 2. By display_name or company_name
+      contact = nil
+
+      if client_info[:xero_contact_id].present?
+        link = ContactExternalLink.xero.find_by(external_contact_id: client_info[:xero_contact_id])
+        contact = link&.contact
+      end
+
+      contact ||= Contact.find_by("LOWER(display_name) = ?", client_info[:name].downcase)
+      contact ||= Contact.find_by("LOWER(company_name) = ?", client_info[:name].downcase)
 
       if contact
         JobContact.find_or_create_by!(job: job, contact: contact) do |jc|
@@ -384,6 +558,8 @@ class XeroTrackingImportService
         end
         @stats[:clients_linked] += 1
         Rails.logger.info("Linked client '#{contact.display_name}' to job ##{job.id}")
+      else
+        Rails.logger.info("Client '#{client_info[:name]}' found in sales invoices but no matching Contact record for job ##{job.id}")
       end
     end
   end

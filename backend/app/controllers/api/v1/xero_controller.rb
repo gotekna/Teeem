@@ -954,6 +954,18 @@ module Api
         end
       end
 
+      # POST /api/v1/xero/reparse_tracking_jobs
+      # Re-parse existing Xero-linked jobs that have no address (e.g., "New Job (Pending Address)")
+      def reparse_tracking_jobs
+        service = XeroTrackingImportService.new(teeem_tenant: current_tenant)
+        result = service.reparse_existing_jobs
+        render json: result
+      rescue StandardError => e
+        Rails.logger.error("Xero reparse_tracking_jobs error: #{e.message}")
+        Rails.logger.error(e.backtrace.join("\n"))
+        render_error("Failed to re-parse jobs: #{e.message}", status: :internal_server_error)
+      end
+
       # GET /api/v1/xero/tracking_categories_preview
       # Preview tracking categories with parsed job data, client info, and couple detection
       def tracking_categories_preview

@@ -6,6 +6,11 @@
 #   → code: "106HAR", street_number: "106", street_name: "Harold",
 #     street_type: "Street", suburb: "Holland Park"
 #
+# Lot+comma format: "IL23031 Lot2, 90 Uplands Terrace Wynnum"
+#   → code: "IL23031", lot_number: "2", street_number: "90",
+#     street_name: "Uplands", street_type: "Terrace", suburb: "Wynnum"
+#   (comma separates lot from address, NOT address from suburb)
+#
 # Variant tracking categories (same job, different phases):
 #   "106HAR 106 Harold Street, Holland Park"   → code: "106HAR", variant: nil
 #   "P-106HAR 106 Harold St, Holland Park"     → code: "106HAR", variant: "P" (Production = SSoT)
@@ -13,6 +18,7 @@
 #
 # Also handles simpler formats like:
 #   "J201 45 Smith St" → code: "J201", street_number: "45", street_name: "Smith", street_type: "St"
+#   "CODE 90 Uplands Tce Wynnum" → suburb extracted after street type (no comma needed)
 #   "Custom Job Name"  → code: nil, title: "Custom Job Name" (unparseable)
 #
 class XeroTrackingAddressParser
@@ -51,6 +57,14 @@ class XeroTrackingAddressParser
       address_part = name
     end
 
+    # Step 1.5: Extract lot number from address_part if present
+    # Handles: "CODE Lot2 NUM Street...", "CODE Lot 5A NUM Street..."
+    lot_in_address = address_part.match(/\bLot\s*(\d+[A-Za-z]?)\b,?\s*/i)
+    if lot_in_address
+      result[:lot_number] = lot_in_address[1]
+      address_part = address_part.sub(lot_in_address[0], "").strip
+    end
+
     # Step 2: Try to extract street components with regex
     # Pattern: optional_code street_number street_name street_type
     street_match = address_part.match(
@@ -80,15 +94,59 @@ class XeroTrackingAddressParser
         result[:street_type] = normalize_street_type(no_code_match[3])
         result[:parsed] = true
       else
-        # Try to extract just the code (first word if it looks like a code)
-        first_word = address_part.split(/\s+/).first
-        if first_word && first_word.match?(/\A[A-Z0-9\-]{3,}[A-Z0-9]*\z/i)
-          variant_info = extract_variant(first_word)
-          result[:code] = variant_info[:code]
-          result[:variant] = variant_info[:variant]
-          result[:title] = address_part.sub(/\A#{Regexp.escape(first_word)}\s*/, "").strip
-        else
-          result[:title] = address_part
+        # ─── FALLBACK A: Lot+comma format ───
+        # "IL23031 Lot2, 90 Uplands Terrace Wynnum"
+        # Comma separated lot from address instead of address from suburb.
+        # Detected when "suburb" contains a street type (it's actually the address).
+        if result[:suburb].present? && result[:suburb].match?(/\b(#{STREET_TYPE_PATTERN})\b/i)
+          parse_lot_comma_format(result, name)
+        end
+
+        # ─── FALLBACK B: No comma, suburb after street type ───
+        # "CODE 90 Uplands Terrace Wynnum" (suburb follows street type, no comma)
+        unless result[:parsed]
+          with_suburb = address_part.match(
+            /^(\S+)\s+(\d+[A-Za-z]?)\s+(.+?)\s+(#{STREET_TYPE_PATTERN})\s+(.+)$/i
+          )
+          if with_suburb
+            raw_code = with_suburb[1]
+            variant_info = extract_variant(raw_code)
+            result[:code] = variant_info[:code]
+            result[:variant] = variant_info[:variant]
+            result[:street_number] = with_suburb[2]
+            result[:street_name] = with_suburb[3].strip
+            result[:street_type] = normalize_street_type(with_suburb[4])
+            result[:suburb] = with_suburb[5].strip
+            result[:parsed] = true
+          end
+        end
+
+        # ─── FALLBACK C: No code, suburb after street type ───
+        # "90 Uplands Terrace Wynnum"
+        unless result[:parsed]
+          no_code_with_suburb = address_part.match(
+            /^(\d+[A-Za-z]?)\s+(.+?)\s+(#{STREET_TYPE_PATTERN})\s+(.+)$/i
+          )
+          if no_code_with_suburb
+            result[:street_number] = no_code_with_suburb[1]
+            result[:street_name] = no_code_with_suburb[2].strip
+            result[:street_type] = normalize_street_type(no_code_with_suburb[3])
+            result[:suburb] = no_code_with_suburb[4].strip
+            result[:parsed] = true
+          end
+        end
+
+        # Original fallback: extract just the code
+        unless result[:parsed]
+          first_word = address_part.split(/\s+/).first
+          if first_word && first_word.match?(/\A[A-Z0-9\-]{3,}[A-Z0-9]*\z/i)
+            variant_info = extract_variant(first_word)
+            result[:code] = variant_info[:code]
+            result[:variant] = variant_info[:variant]
+            result[:title] = address_part.sub(/\A#{Regexp.escape(first_word)}\s*/, "").strip
+          else
+            result[:title] = address_part
+          end
         end
       end
     end
@@ -153,6 +211,61 @@ class XeroTrackingAddressParser
     end
   end
 
+  # Parse "CODE LotX, NUM STREET TYPE SUBURB" format
+  # where comma incorrectly separates lot from address instead of address from suburb
+  def self.parse_lot_comma_format(result, full_name)
+    # Remove commas and work with clean text
+    clean = full_name.gsub(",", " ").squeeze(" ").strip
+
+    # Extract code (first word)
+    code_match = clean.match(/^(\S+)\s+(.+)$/)
+    return unless code_match
+
+    raw_code = code_match[1]
+    remaining = code_match[2]
+
+    # Check if first word looks like a code
+    if raw_code.match?(/\A[A-Z0-9\-]{3,}[A-Z0-9]*\z/i)
+      variant_info = extract_variant(raw_code)
+      result[:code] = variant_info[:code]
+      result[:variant] = variant_info[:variant]
+    else
+      remaining = clean # Not a code, use full text
+    end
+
+    # Extract lot number
+    lot_match = remaining.match(/\bLot\s*(\d+[A-Za-z]?)\b/i)
+    if lot_match
+      result[:lot_number] = lot_match[1]
+      remaining = remaining.sub(lot_match[0], "").strip
+    end
+
+    # Parse: NUM STREET TYPE SUBURB
+    addr_match = remaining.match(
+      /^(\d+[A-Za-z]?)\s+(.+?)\s+(#{STREET_TYPE_PATTERN})\s+(.+)$/i
+    )
+
+    if addr_match
+      result[:street_number] = addr_match[1]
+      result[:street_name] = addr_match[2].strip
+      result[:street_type] = normalize_street_type(addr_match[3])
+      result[:suburb] = addr_match[4].strip
+      result[:parsed] = true
+    else
+      # Try without suburb (street type at end)
+      addr_no_suburb = remaining.match(
+        /^(\d+[A-Za-z]?)\s+(.+?)\s+(#{STREET_TYPE_PATTERN})\s*$/i
+      )
+      if addr_no_suburb
+        result[:street_number] = addr_no_suburb[1]
+        result[:street_name] = addr_no_suburb[2].strip
+        result[:street_type] = normalize_street_type(addr_no_suburb[3])
+        result[:suburb] = nil
+        result[:parsed] = true
+      end
+    end
+  end
+
   # Normalize abbreviated street types to full form
   def self.normalize_street_type(type)
     return type if type.blank?
@@ -166,7 +279,7 @@ class XeroTrackingAddressParser
       "hwy" => "Highway", "gr" => "Grove"
     }
 
-    mapping[type.downcase] || type
+    mapping[type.downcase] || type.capitalize
   end
 
   def self.empty_result
@@ -174,6 +287,7 @@ class XeroTrackingAddressParser
       raw_name: nil,
       code: nil,
       variant: nil,
+      lot_number: nil,
       street_number: nil,
       street_name: nil,
       street_type: nil,
