@@ -181,9 +181,9 @@ class OrgEmailSyncJob < ApplicationJob
         begin
           # Use per-mailbox last_synced_at for accurate since date
           mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
-          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, calling sync_user_emails..."
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
-          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced)
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?)
           sync_elapsed = (Time.current - sync_start).round(1)
           total_synced += synced
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
@@ -217,8 +217,16 @@ class OrgEmailSyncJob < ApplicationJob
 
   private
 
-  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil)
-    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email}"
+  # ⚠️ FRC (Feb 2026): inline_quick param for perform_now (web dyno, 30s Heroku timeout)
+  # Root cause: Rachel's mailbox has 217 folders with 15 years of history. Syncing all
+  # folders inline takes 5+ minutes, but Heroku kills web requests at 30s (H12 timeout).
+  # Fix: When inline_quick=true, only sync Inbox + Sent Items with 7-day lookback.
+  # The recurring background job handles full history and all folders.
+  INLINE_QUICK_FOLDERS = ["Inbox", "Sent Items", "Drafts"].freeze
+  INLINE_QUICK_LOOKBACK = 7.days
+
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false)
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email} (inline_quick=#{inline_quick})"
     client = MicrosoftAppGraphClient.new(@credential)
 
     # Determine since date - prefer sync_days over sync_years if both are set
@@ -254,6 +262,15 @@ class OrgEmailSyncJob < ApplicationJob
               end
     end
 
+    # ⚠️ FRC (Feb 2026): For inline sync, cap lookback to 7 days when never synced.
+    # Root cause: Never-synced mailbox gets since=2011 (15 years). With 217 folders,
+    # this creates millions of API calls that exceed the 30s Heroku timeout.
+    # The recurring background job handles full history sync.
+    if inline_quick && mailbox_last_synced_at.nil?
+      since = INLINE_QUICK_LOOKBACK.ago
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: inline_quick + never synced → capped since to #{since.iso8601} (#{INLINE_QUICK_LOOKBACK.inspect})"
+    end
+
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: since=#{since&.iso8601 || 'nil'}, sync_type=#{sync_type}"
 
     # Get all mail folders
@@ -261,7 +278,17 @@ class OrgEmailSyncJob < ApplicationJob
     folder_start = Time.current
     folders = client.get_user_mail_folders(user_email)
     folder_elapsed = (Time.current - folder_start).round(1)
-    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s: #{folders.map { |f| f[:name] }.join(', ')}"
+
+    # ⚠️ FRC (Feb 2026): For inline sync, only sync key folders (Inbox, Sent Items, Drafts).
+    # Root cause: Rachel has 217 folders. Even at 1s per folder that's 3+ minutes.
+    # Users pressing "Sync" want their latest Inbox/Sent emails, not all 217 folders.
+    if inline_quick
+      all_count = folders.count
+      folders = folders.select { |f| INLINE_QUICK_FOLDERS.include?(f[:name]) }
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: inline_quick filtered #{all_count} → #{folders.count} folders: #{folders.map { |f| f[:name] }.join(', ')}"
+    else
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s"
+    end
 
     # Performance: Parallel folder sync with thread batching
     # Sync folders in parallel (PARALLEL_FOLDER_THREADS at a time) for ~3x speedup
@@ -272,11 +299,14 @@ class OrgEmailSyncJob < ApplicationJob
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
     # Auto-match unassigned emails after sync
-    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
-    match_start = Time.current
-    auto_match_user_emails(user_email)
-    match_elapsed = (Time.current - match_start).round(1)
-    Rails.logger.info "[SYNC-DEBUG] #{user_email}: auto_match completed in #{match_elapsed}s"
+    # Skip for inline_quick to stay within Heroku 30s timeout
+    unless inline_quick
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
+      match_start = Time.current
+      auto_match_user_emails(user_email)
+      match_elapsed = (Time.current - match_start).round(1)
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: auto_match completed in #{match_elapsed}s"
+    end
 
     Rails.logger.info "[SYNC-DEBUG] sync_user_emails DONE for #{user_email}: #{total_synced} total"
     total_synced
