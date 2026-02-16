@@ -3,7 +3,9 @@ module Api
     module External
       class UnrealPurchaseOrdersController < ApplicationController
         skip_before_action :authorize_request
+        skip_before_action :set_tenant
         before_action :authenticate_api_key!
+        before_action :set_tenant_from_job
 
         # POST /api/v1/external/unreal_purchase_orders
         # Creates a PO shell linked to an existing SmTask (job-level task)
@@ -382,6 +384,29 @@ module Api
         end
 
         private
+
+        # External API has no user session, so we derive tenant from the job/PO being accessed.
+        # Without this, acts_as_tenant scopes all queries to tenant=NULL and nothing is found.
+        def set_tenant_from_job
+          tenant_id = nil
+
+          # Try job_id first (create endpoint)
+          if params[:job_id].present?
+            job = ActsAsTenant.without_tenant { Job.find_by(id: params[:job_id]) }
+            tenant_id = job&.tenant_id
+          end
+
+          # Fallback: derive from PO id (add_line_items / create_line_item endpoints)
+          if tenant_id.nil? && (params[:id].present? || params[:po_ID].present?)
+            po_id = params[:id] || params[:po_ID]
+            po = ActsAsTenant.without_tenant { PurchaseOrder.find_by(id: po_id) }
+            tenant_id = po&.tenant_id
+          end
+
+          if tenant_id
+            set_current_tenant(Tenant.find(tenant_id))
+          end
+        end
 
         def authenticate_api_key!
           api_key = request.headers["X-API-Key"]
