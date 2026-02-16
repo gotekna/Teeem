@@ -218,6 +218,7 @@ class OrgEmailSyncJob < ApplicationJob
   private
 
   def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil)
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email}"
     client = MicrosoftAppGraphClient.new(@credential)
 
     # Determine since date - prefer sync_days over sync_years if both are set
@@ -253,16 +254,31 @@ class OrgEmailSyncJob < ApplicationJob
               end
     end
 
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: since=#{since&.iso8601 || 'nil'}, sync_type=#{sync_type}"
+
     # Get all mail folders
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Fetching mail folders..."
+    folder_start = Time.current
     folders = client.get_user_mail_folders(user_email)
+    folder_elapsed = (Time.current - folder_start).round(1)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s: #{folders.map { |f| f[:name] }.join(', ')}"
 
     # Performance: Parallel folder sync with thread batching
     # Sync folders in parallel (PARALLEL_FOLDER_THREADS at a time) for ~3x speedup
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
+    parallel_start = Time.current
     total_synced = sync_folders_parallel(client, user_email, folders, since)
+    parallel_elapsed = (Time.current - parallel_start).round(1)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
     # Auto-match unassigned emails after sync
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
+    match_start = Time.current
     auto_match_user_emails(user_email)
+    match_elapsed = (Time.current - match_start).round(1)
+    Rails.logger.info "[SYNC-DEBUG] #{user_email}: auto_match completed in #{match_elapsed}s"
 
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails DONE for #{user_email}: #{total_synced} total"
     total_synced
   end
 
@@ -279,8 +295,15 @@ class OrgEmailSyncJob < ApplicationJob
     # Capture tenant for child threads (ActsAsTenant uses thread-local storage)
     current_tenant = ActsAsTenant.current_tenant
 
+    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, PARALLEL_FOLDER_THREADS=#{PARALLEL_FOLDER_THREADS}, SYNC_TIMEOUT_SECONDS=#{SYNC_TIMEOUT_SECONDS}"
+
     # Process folders in parallel batches
+    batch_num = 0
     folders.each_slice(PARALLEL_FOLDER_THREADS) do |folder_batch|
+      batch_num += 1
+      batch_start = Time.current
+      Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num}: #{folder_batch.map { |f| f[:name] }.join(', ')}"
+
       threads = folder_batch.map do |folder|
         Thread.new do
           # Set tenant context in child thread (thread-local, not inherited)
@@ -290,24 +313,34 @@ class OrgEmailSyncJob < ApplicationJob
             begin
               # Create a new client instance per thread (thread-safe HTTP)
               thread_client = MicrosoftAppGraphClient.new(@credential)
+              folder_start = Time.current
               synced = sync_folder(thread_client, user_email, folder, since)
+              folder_elapsed = (Time.current - folder_start).round(1)
+              Rails.logger.info "[SYNC-DEBUG] Folder '#{folder[:name]}' done: #{synced} emails in #{folder_elapsed}s"
               total_synced.increment(synced)
             rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
               # Database connection error - mark for retry
-              Rails.logger.warn "[OrgEmailSync] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
+              Rails.logger.warn "[SYNC-DEBUG] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"
               failed_folders << folder
             rescue StandardError => e
-              Rails.logger.error "[OrgEmailSync] Parallel sync error for folder #{folder[:name]}: #{e.message}"
+              Rails.logger.error "[SYNC-DEBUG] Parallel sync error for folder #{folder[:name]}: #{e.class}: #{e.message}"
+              Rails.logger.error "[SYNC-DEBUG] #{e.backtrace.first(3).join("\n")}"
             end
           end
         end
       end
 
       # Wait for all threads in this batch to complete (with timeout)
-      threads.each do |thread|
-        thread.join(SYNC_TIMEOUT_SECONDS)
-        thread.kill if thread.alive?  # Kill timed-out threads
+      threads.each_with_index do |thread, i|
+        joined = thread.join(SYNC_TIMEOUT_SECONDS)
+        if joined.nil?
+          Rails.logger.error "[SYNC-DEBUG] Thread #{i} TIMED OUT after #{SYNC_TIMEOUT_SECONDS}s - killing"
+          thread.kill
+        end
       end
+
+      batch_elapsed = (Time.current - batch_start).round(1)
+      Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num} completed in #{batch_elapsed}s (total so far: #{total_synced.value})"
     end
 
     # Retry failed folders sequentially (connection pool should have connections now)
@@ -333,6 +366,7 @@ class OrgEmailSyncJob < ApplicationJob
     max_pages = 200 # Increased from 50 to handle large mailboxes (200 * 100 = 20,000 emails per folder)
 
     loop do
+      page_start = Time.current
       emails = client.get_user_emails(
         user_email,
         folder: folder[:id],
@@ -340,14 +374,19 @@ class OrgEmailSyncJob < ApplicationJob
         since: since,
         skip: skip
       )
+      api_elapsed = (Time.current - page_start).round(1)
 
       break if emails.empty?
 
+      upsert_start = Time.current
       emails.each do |email_data|
         # Upsert into SyncedEmail
         warehouse_email = upsert_email(email_data, user_email, folder[:name])
         synced += 1 if warehouse_email
       end
+      upsert_elapsed = (Time.current - upsert_start).round(1)
+
+      Rails.logger.info "[SYNC-DEBUG] #{folder[:name]} page #{page}: #{emails.count} emails (API: #{api_elapsed}s, upsert: #{upsert_elapsed}s, total synced: #{synced})"
 
       page += 1
       skip += 100 # Move to next page
