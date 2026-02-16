@@ -12,7 +12,9 @@
 class ProcessNewTaskEmailsJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
+  # Processes newtask@ mailbox every 5 min - not latency-critical
+  queue_as :low
 
   def perform
     # SSoT: Get the monitored mailbox from configuration

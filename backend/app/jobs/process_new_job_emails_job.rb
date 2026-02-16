@@ -2,7 +2,9 @@
 class ProcessNewJobEmailsJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
+  # Processes newjob@ mailbox every 5 min - not latency-critical
+  queue_as :low
 
   # Legacy folder name (kept for backwards compatibility)
   NEW_JOB_FOLDER_NAME = "A - New Job".freeze

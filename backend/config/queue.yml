@@ -8,11 +8,11 @@
 #
 # QUEUE PRIORITY ORDER (first = highest priority):
 # - critical: SmRolloverJob, time-sensitive operations
-# - default: BPMN workflows, user-triggered jobs, email sync, email storage uploads
+# - default: BPMN workflows, user-triggered jobs, email sync, health monitors
 # - solid_queue_recurring: SolidQueue's internal recurring task scheduler
 # - xero_sync: Xero sync operations (invoice, contact, bank txn, tracking, health)
 # - xero_bulk: Xero batch operations (contact batch fetch/process, attachment sync)
-# - low: Background analytics, warehouse jobs (can wait)
+# - low: Background analytics, warehouse jobs, email blob uploads, email-to-job/task (can wait)
 # - low_priority: Long-running backfill, non-urgent maintenance
 #
 # FRC (Feb 2026): Split into two worker groups so low-priority bulk jobs
@@ -28,8 +28,12 @@
 production:
   workers:
     # Priority worker: user-facing + critical operations
+    # FRC (Feb 2026): Increased 3→5 threads. With non-critical jobs moved to :low,
+    # Worker 1 handles fewer job types but needs throughput for AllOrgsEmailSync
+    # (12min inline) + OrgEmailSyncJob + health monitors running concurrently.
+    # IO-bound work (HTTP to MS Graph) = safe to have more threads than cores.
     - queues: [critical, default, solid_queue_recurring]
-      threads: 3
+      threads: 5
       processes: 1
       polling_interval: 0.1
 

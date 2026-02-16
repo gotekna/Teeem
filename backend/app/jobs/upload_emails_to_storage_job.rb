@@ -29,7 +29,9 @@
 class UploadEmailsToStorageJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
+  # Blob uploads are background work, not user-facing. Frees Worker 1 for sync.
+  queue_as :low
 
   # Max runtime before yielding back to the scheduler (Heroku dynos have 30min limit,
   # but we want to leave headroom for other jobs on the low queue)
