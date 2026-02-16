@@ -42,19 +42,24 @@ class XeroBillImportService
   end
 
   # Fetch all tracking categories and their options from Xero
+  # Cached for 1 hour to avoid hitting Xero rate limits on every job page load
   # Returns empty array if Xero is not configured (graceful degradation for local dev)
   def self.fetch_tracking_options
-    client = XeroApiClient.new
-    result = client.get("TrackingCategories")
+    tracking_category_name = XeroConstants.tracking_category_name
 
-    return [] unless result[:success]
+    Rails.cache.fetch("xero_tracking_options/#{tracking_category_name}", expires_in: 1.hour) do
+      client = XeroApiClient.new
+      result = client.get("TrackingCategories")
 
-    categories = result[:data]["TrackingCategories"] || []
-    job_category = categories.find { |c| c["Name"] == @tracking_category_name }
+      next [] unless result[:success]
 
-    return [] unless job_category
+      categories = result[:data]["TrackingCategories"] || []
+      job_category = categories.find { |c| c["Name"] == tracking_category_name }
 
-    job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+      next [] unless job_category
+
+      job_category["Options"]&.select { |o| o["Status"] == "ACTIVE" } || []
+    end
   rescue XeroApiClient::AuthenticationError => e
     # Graceful degradation: return empty if Xero not configured (common in local dev)
     Rails.logger.info("[Xero] Not configured: #{e.message}")

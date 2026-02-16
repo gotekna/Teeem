@@ -443,7 +443,7 @@ class Api::V1::UsersController < ApplicationController
           display_name: name,
           first_name: parts[0],
           last_name: parts.length > 1 ? parts[1..].join(" ") : nil,
-          contact_type: "person",
+          entity_type: "person",
           is_user_cached: true
         )
 
@@ -575,7 +575,7 @@ class Api::V1::UsersController < ApplicationController
         display_name: name,
         first_name: parts[0],
         last_name: parts.length > 1 ? parts[1..-1].join(' ') : nil,
-        contact_type: 'person',
+        entity_type: 'person',
         is_user_cached: true
       ).tap do |contact|
         # Add email to contact_emails table

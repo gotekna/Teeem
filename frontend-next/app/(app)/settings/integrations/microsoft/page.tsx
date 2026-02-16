@@ -915,6 +915,8 @@ function EmailSyncTab({
       );
       if (result?.imported) {
         alert(`Imported ${result.imported} user${result.imported !== 1 ? "s" : ""} successfully.${result.skipped ? ` ${result.skipped} skipped.` : ""}`);
+      } else if (result?.errors?.length) {
+        alert(`Import failed:\n${result.errors.slice(0, 5).join("\n")}${result.errors.length > 5 ? `\n...and ${result.errors.length - 5} more` : ""}`);
       } else {
         alert("No new users to import.");
       }
