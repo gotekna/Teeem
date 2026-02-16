@@ -1692,27 +1692,32 @@ export default function JobDetailPage() {
                   <div className="space-y-2">
                     <Label>Design Name</Label>
                     {isEditing ? (
-                      <Input
-                        value={editForm.design_name || ""}
-                        onChange={(e) => setEditForm({ ...editForm, design_name: e.target.value })}
+                      <ComboboxDropdown
+                        items={jobDesigns.map(d => ({ id: String(d.id), label: d.name }))}
+                        selectedItem={editForm.job_design_id ? {
+                          id: String(editForm.job_design_id),
+                          label: jobDesigns.find(d => d.id === editForm.job_design_id)?.name || editForm.design_name || ""
+                        } : undefined}
+                        onSelect={(item) => setEditForm({
+                          ...editForm,
+                          job_design_id: Number(item.id),
+                          design_name: item.label,
+                        })}
+                        placeholder="Select design..."
                       />
                     ) : (
-                      <Input value={job.design_name || ""} readOnly />
+                      <Input value={job.job_design?.name || job.design_name || ""} readOnly />
                     )}
                   </div>
                   <div className="space-y-2">
                     <Label>Xero Job Categories</Label>
-                    {xeroTrackingOptions.length > 0 ? (
-                      <ComboboxDropdown
-                        items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
-                        selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
-                        onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
-                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
-                        disabled={linkingXero}
-                      />
-                    ) : (
-                      <Input value={currentXeroOptions[0]?.name || job.xero_tracking_option_name || ""} readOnly />
-                    )}
+                    <ComboboxDropdown
+                      items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
+                      selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
+                      onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
+                      placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
+                      disabled={linkingXero}
+                    />
                     {currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">
                         Suggested match: {suggestedXeroMatch.name}

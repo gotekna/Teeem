@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_16_200002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_16_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6303,6 +6303,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200002) do
     t.bigint "tenant_id"
     t.string "project_type", default: "construction", null: false
     t.string "design_name"
+    t.bigint "job_design_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6313,6 +6314,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200002) do
     t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
     t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
     t.index ["job_code"], name: "index_jobs_on_job_code", unique: true
+    t.index ["job_design_id"], name: "index_jobs_on_job_design_id"
     t.index ["job_stage_id"], name: "index_jobs_on_job_stage_id"
     t.index ["job_status_id"], name: "index_jobs_on_job_status_id"
     t.index ["job_type_id"], name: "index_jobs_on_job_type_id"
@@ -11543,6 +11545,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200002) do
   add_foreign_key "job_types", "sm_schedule_master_templates"
   add_foreign_key "job_types", "tenants"
   add_foreign_key "jobs", "cost_centres", on_delete: :nullify
+  add_foreign_key "jobs", "job_designs"
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
