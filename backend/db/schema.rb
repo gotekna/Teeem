@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_16_200005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1471,47 +1471,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.date "expiry_date"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_contact_documents_on_content_hash"
-    t.index ["document_date"], name: "index_contact_documents_on_document_date"
-    t.index ["document_type"], name: "index_contact_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["expiry_date"], name: "index_contact_documents_on_expiry_date"
-    t.index ["external_id"], name: "index_contact_documents_on_external_id"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -8840,7 +8799,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
     t.string "response_zip_path"
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
-    t.string "sync_key"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -10029,6 +9987,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
+  create_table "units_of_measure", force: :cascade do |t|
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 50, null: false
+    t.string "description", limit: 100
+    t.integer "sort_order", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
+    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
+  end
+
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -10372,9 +10342,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
+    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
@@ -11126,7 +11098,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_200004) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
