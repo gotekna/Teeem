@@ -413,7 +413,8 @@ class Api::V1::UsersController < ApplicationController
     m365_users = credential.list_tenant_users
 
     # Get existing TEEEM user emails for dedup
-    existing_emails = User.where(tenant_id: current_user.tenant_id)
+    # Uses current_tenant (respects tenant override/switcher) not current_user.tenant_id
+    existing_emails = User.where(tenant_id: current_tenant.id)
                           .pluck(:email)
                           .compact
                           .map(&:downcase)
@@ -458,7 +459,7 @@ class Api::V1::UsersController < ApplicationController
           name: name,
           email: email,
           password: SecureRandom.urlsafe_base64(16) + "!A1",
-          tenant_id: current_user.tenant_id
+          tenant_id: current_tenant.id
         )
         user.contact = contact
 

@@ -688,7 +688,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
       .select(:mailbox_owner_email).distinct.count
 
     # Existing TEEEM user emails (for import button: shows which M365 users aren't in TEEEM yet)
-    teeem_user_emails = User.where(tenant_id: current_user.tenant_id)
+    # Uses current_tenant (respects tenant override/switcher) not current_user.tenant_id
+    teeem_user_emails = User.where(tenant_id: current_tenant.id)
                             .pluck(:email)
                             .compact
                             .map(&:downcase)
