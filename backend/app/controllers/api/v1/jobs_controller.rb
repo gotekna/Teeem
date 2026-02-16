@@ -285,6 +285,7 @@ module Api
         job_json[:job_type] = @job.job_type&.as_json
         job_json[:job_status] = @job.job_status&.as_json
         job_json[:job_stage] = @job.job_stage&.as_json
+        job_json[:job_design] = @job.job_design&.as_json
 
         # Use already-eager-loaded job_contacts from set_job
         # Sort in Ruby since we already have the data loaded
@@ -1220,6 +1221,7 @@ module Api
           :site_supervisor_phone,
           :design_id,
           :design_name,
+          :job_design_id,
           :job_type_id,
           :job_status_id,
           :job_stage_id,

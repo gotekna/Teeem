@@ -376,6 +376,15 @@ imap_email_storage_upload:
   args: [{ batch_size: 100 }]
   schedule: every 5 minutes
 
+# Retry pending attachment blob downloads (self-healing)
+# FRC (Feb 2026): Two-step sync creates metadata in step 1 but step 2 (blob download)
+# can fail silently. This job retries those orphaned attachments every 15 minutes.
+retry_pending_attachment_blobs:
+  class: RetryPendingAttachmentBlobsJob
+  queue: default
+  args: [{ batch_size: 50 }]
+  schedule: every 15 minutes
+
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped
 # Email attachments now stored directly in WarehouseDocument with source_type='email_attachment'
 

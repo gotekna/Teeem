@@ -115,6 +115,9 @@ interface MailboxStat {
   email_count: number;
   unread_count: number;
   attachment_count: number;
+  blob_count: number;
+  email_blob_count: number;
+  content_unavailable_count: number;
   last_synced_at: string | null;
   last_email_received_at: string | null;
 }
@@ -1065,6 +1068,8 @@ function EmailSyncTab({
                             <TableHead>Type</TableHead>
                             <TableHead>License</TableHead>
                             <TableHead className="text-right">Emails</TableHead>
+                            <TableHead className="text-right">Upload .eml Body</TableHead>
+                            <TableHead className="text-right">Download Attachments</TableHead>
                             <TableHead className="text-right">Last Synced</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1114,6 +1119,58 @@ function EmailSyncTab({
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {row.synced ? (row.mailboxStat?.email_count ?? 0).toLocaleString() : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-xs tabular-nums">
+                                {row.synced && row.mailboxStat ? (() => {
+                                  const total = row.mailboxStat.email_count;
+                                  const uploaded = row.mailboxStat.email_blob_count ?? 0;
+                                  const unavailable = row.mailboxStat.content_unavailable_count ?? 0;
+                                  const pending = total - uploaded - unavailable;
+                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
+                                  const isComplete = pending <= 0;
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" />}
+                                          {uploaded.toLocaleString()}/{total.toLocaleString()}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{uploaded.toLocaleString()} .eml files uploaded to storage</p>
+                                        {unavailable > 0 && <p>{unavailable.toLocaleString()} permanently unavailable</p>}
+                                        {pending > 0 && <p>{pending.toLocaleString()} pending upload (runs every 5 min)</p>}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })() : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-xs tabular-nums">
+                                {row.synced && row.mailboxStat ? (() => {
+                                  const total = row.mailboxStat.attachment_count ?? 0;
+                                  const downloaded = row.mailboxStat.blob_count ?? 0;
+                                  const pending = total - downloaded;
+                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
+                                  const isComplete = pending <= 0;
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <AlertTriangle className="h-3 w-3 inline mr-1" />}
+                                          {downloaded.toLocaleString()}/{total.toLocaleString()}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{downloaded.toLocaleString()} attachment files downloaded</p>
+                                        {pending > 0 && <p>{pending.toLocaleString()} pending download</p>}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })() : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
                               </TableCell>

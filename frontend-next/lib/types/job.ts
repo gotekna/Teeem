@@ -92,6 +92,8 @@ export interface Job {
   // Certification & Tracking
   certifier_job_no?: string;
   design_name?: string;
+  job_design_id?: number | null;
+  job_design?: { id: number; name: string; size?: number; frontage_required?: number; description?: string; is_active?: boolean } | null;
   xero_tracking_option_id?: string;
   xero_tracking_option_name?: string;
   plan_number?: string;

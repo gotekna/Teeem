@@ -768,6 +768,9 @@ export default function JobDetailPage() {
   const [jobStages, setJobStages] = React.useState<JobStage[]>([]);
   const [lookupLoading, setLookupLoading] = React.useState(false);
 
+  // Job designs state (for ComboboxDropdown)
+  const [jobDesigns, setJobDesigns] = React.useState<{id: number, name: string}[]>([]);
+
   // Xero tracking category state (multi-link)
   const [xeroTrackingOptions, setXeroTrackingOptions] = React.useState<{id: string, name: string}[]>([]);
   const [currentXeroOptions, setCurrentXeroOptions] = React.useState<{id: string, name: string, variant?: string, is_primary?: boolean}[]>([]);
@@ -1034,6 +1037,20 @@ export default function JobDetailPage() {
     }
   }, [jobId]);
 
+  // Load job designs for ComboboxDropdown
+  const loadJobDesigns = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; designs: { id: number; name: string }[] }>(
+        "/api/v1/job_designs?active=true"
+      );
+      if (response?.success) {
+        setJobDesigns(response.designs || []);
+      }
+    } catch (error) {
+      console.error("Failed to load job designs:", error);
+    }
+  }, []);
+
   // Link job to multiple Xero tracking options
   const handleLinkXeroMulti = async (selected: {value: string, label: string}[]) => {
     if (!job) return;
@@ -1167,9 +1184,10 @@ export default function JobDetailPage() {
     if (jobId) {
       loadJob();
       loadXeroTrackingOptions();
+      loadJobDesigns();
       loadChoiceColumns();
     }
-  }, [jobId, loadJob, loadXeroTrackingOptions, loadChoiceColumns]);
+  }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
@@ -1184,6 +1202,7 @@ export default function JobDetailPage() {
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
         design_name: job.design_name,
+        job_design_id: job.job_design_id || job.job_design?.id || null,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
@@ -1211,6 +1230,7 @@ export default function JobDetailPage() {
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
         design_name: job.design_name,
+        job_design_id: job.job_design_id || job.job_design?.id || null,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
