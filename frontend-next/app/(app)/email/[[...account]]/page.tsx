@@ -1629,22 +1629,23 @@ export default function EmailPage() {
         }
       }
 
-      // Show results
-      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
-      if (totalSynced > 0) {
-        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
-      } else {
-        toast({ title: "No new emails" });
-      }
-
       // Update local sync time immediately for visual feedback
       setLastLocalSyncAt(new Date());
 
-      // Refresh the email list and account timestamps
-      // FRC (Feb 2026): Must use force=true to bypass debounce after sync
-      // Without force, fetchEmails() may be skipped if called within FETCH_DEBOUNCE_MS (1500ms)
+      // FRC (Feb 2026): MS365 sync is ASYNC (perform_later). The API returns immediately
+      // but the job hasn't finished yet. Don't show "No new emails" — we don't know yet.
+      // WebSocket handleSyncCompleted will show the real count when the job finishes.
+      // Fallback: re-fetch emails after delays in case WebSocket is disconnected.
+      toast({ title: "Syncing..." });
+
+      // Immediate fetch (catches already-synced emails)
       fetchEmails(1, true);
       fetchAccounts();
+
+      // Fallback re-fetches at 3s and 8s in case WebSocket doesn't fire
+      // If WebSocket IS connected, handleSyncCompleted also fetches (harmless duplicate)
+      setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 3000);
+      setTimeout(() => { fetchEmailsRef.current(1, true); fetchAccounts(); }, 8000);
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
@@ -1670,21 +1671,17 @@ export default function EmailPage() {
         if (ms365Result) results.push(ms365Result);
       }
 
-      // Show results
-      const totalSynced = results.reduce((sum, r) => sum + (r?.total_synced || 0), 0);
-      if (totalSynced > 0) {
-        toast({ title: `Synced ${totalSynced} new email${totalSynced === 1 ? '' : 's'}` });
-      } else {
-        toast({ title: "No new emails" });
-      }
-
       // Update local sync time immediately for visual feedback
       setLastLocalSyncAt(new Date());
 
-      // Refresh the split inbox and account timestamps
-      // FRC (Jan 2026): Must refresh accounts to update "Last sync" timestamps in UI
+      // FRC (Feb 2026): MS365 sync is ASYNC - don't claim "No new emails" yet
+      toast({ title: "Syncing..." });
+
+      // Immediate refresh + fallback re-fetches at 3s and 8s
       splitInbox.refresh();
       fetchAccounts();
+      setTimeout(() => { splitInbox.refresh(); fetchAccounts(); }, 3000);
+      setTimeout(() => { splitInbox.refresh(); fetchAccounts(); }, 8000);
     } catch (error) {
       console.error("Failed to sync:", error);
       toast({ title: "Sync failed", variant: "destructive" });
