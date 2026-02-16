@@ -60,6 +60,24 @@ class OrgEmailSyncJob < ApplicationJob
   # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
   # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
   PER_CREDENTIAL_TIMEOUT = 10.minutes
+  # ⚠️ FRC (Feb 2026): Toxic Mailbox Classification
+  # Root cause: All errors were treated the same. Permanent errors (deleted user, no license)
+  # were retried every cycle, consuming the entire time budget and starving valid mailboxes.
+  # Fix: Classify errors. Only permanent errors count toward the skip threshold.
+  # Transient errors (rate limit, timeout, service unavailable) don't count - they'll succeed next time.
+  PERMANENT_ERROR_PATTERNS = [
+    "MailboxNotEnabledForRESTAPI",     # No Exchange Online license
+    "MailboxNotFound",                 # Mailbox doesn't exist
+    "ErrorMailboxMoveInProgress",      # Mailbox being migrated (temporary but long-lived)
+    "ErrorAccessDenied",               # App doesn't have permission
+    "ResourceNotFound",                # User/mailbox deleted
+    "InvalidUser",                     # Invalid user identifier
+    "MailboxInactiveOrSoftDeleted",    # Deactivated mailbox
+    "UserNotFound",                    # Azure AD user removed
+    "404 -",                           # Generic 404 from Graph API
+    "403 -",                           # Generic 403 from Graph API
+  ].freeze
+  MAX_CONSECUTIVE_ERRORS = 10  # Skip mailbox after this many permanent errors
 
   # ⚠️ ULTRA FIX (Jan 2026): Never lose emails due to timing issues
   # ════════════════════════════════════════════════════════════════
@@ -191,12 +209,12 @@ class OrgEmailSyncJob < ApplicationJob
           break
         end
 
-        # ⚠️ FRC (Feb 2026): Skip permanently broken mailboxes (10+ consecutive errors)
+        # ⚠️ FRC (Feb 2026): Skip permanently broken mailboxes
         # These are likely deleted users, disabled accounts, or permission-denied mailboxes.
         # Without this, they consume the entire time budget every cycle.
         error_count = mailbox_error_counts[user_email.downcase] || 0
-        if error_count >= 10
-          Rails.logger.warn "[OrgEmailSync] Skipping #{user_email} - #{error_count} consecutive errors (permanently broken?)"
+        if error_count >= MAX_CONSECUTIVE_ERRORS
+          Rails.logger.warn "[OrgEmailSync] Skipping #{user_email} - #{error_count} consecutive permanent errors"
           skipped_count += 1
           next
         end
@@ -211,25 +229,48 @@ class OrgEmailSyncJob < ApplicationJob
           total_synced += synced
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
 
-          # Update per-mailbox sync timestamp and clear error count on success
+          # Update per-mailbox sync timestamp and clear error tracking on success
           mailbox_synced_at[user_email.downcase] = Time.current.iso8601
           mailbox_last_attempted_at[user_email.downcase] = Time.current.iso8601
           mailbox_error_counts.delete(user_email.downcase)
+          mailbox_errors = sync_config["mailbox_errors"] || {}
+          mailbox_errors.delete(user_email.downcase)
           updated_config = sync_config.merge(
             "mailbox_synced_at" => mailbox_synced_at,
             "mailbox_last_attempted_at" => mailbox_last_attempted_at,
-            "mailbox_error_counts" => mailbox_error_counts
+            "mailbox_error_counts" => mailbox_error_counts,
+            "mailbox_errors" => mailbox_errors
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
-          Rails.logger.error "[OrgEmailSync] Error syncing #{user_email}: #{e.message}"
-          errors << { user: user_email, error: e.message }
-          # Track attempt time and increment error count so this mailbox rotates to the back
+          error_msg = e.message
+          is_permanent = PERMANENT_ERROR_PATTERNS.any? { |pattern| error_msg.include?(pattern) }
+          error_type = is_permanent ? "PERMANENT" : "TRANSIENT"
+          Rails.logger.error "[OrgEmailSync] #{error_type} error syncing #{user_email}: #{error_msg}"
+          errors << { user: user_email, error: error_msg, permanent: is_permanent }
+
+          # Always track attempt time so this mailbox rotates to the back
           mailbox_last_attempted_at[user_email.downcase] = Time.current.iso8601
-          mailbox_error_counts[user_email.downcase] = error_count + 1
+
+          if is_permanent
+            # Only permanent errors count toward the skip threshold
+            mailbox_error_counts[user_email.downcase] = error_count + 1
+          end
+          # Transient errors (rate limit, timeout) don't increment - they'll succeed next time
+
+          # Store last error details for UI visibility
+          mailbox_errors = sync_config["mailbox_errors"] || {}
+          mailbox_errors[user_email.downcase] = {
+            "message" => error_msg.truncate(200),
+            "type" => error_type.downcase,
+            "count" => mailbox_error_counts[user_email.downcase] || 0,
+            "last_at" => Time.current.iso8601
+          }
+
           updated_config = sync_config.merge(
             "mailbox_last_attempted_at" => mailbox_last_attempted_at,
-            "mailbox_error_counts" => mailbox_error_counts
+            "mailbox_error_counts" => mailbox_error_counts,
+            "mailbox_errors" => mailbox_errors
           )
           @credential.update_columns(sync_config: updated_config)
         end

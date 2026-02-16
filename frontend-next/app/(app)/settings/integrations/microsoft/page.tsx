@@ -133,6 +133,13 @@ interface OrgSyncStats {
     sync_all: boolean;
     sync_years: number;
     mailbox_synced_at?: Record<string, string>;
+    mailbox_error_counts?: Record<string, number>;
+    mailbox_errors?: Record<string, {
+      message: string;
+      type: "permanent" | "transient";
+      count: number;
+      last_at: string;
+    }>;
   };
 }
 
@@ -981,12 +988,16 @@ function EmailSyncTab({
         // "not synced" forever, making the X/Y counter misleading.
         const mailboxSyncedAt: Record<string, string> = orgStats?.sync_config?.mailbox_synced_at || {};
 
+        const mailboxErrors = orgStats?.sync_config?.mailbox_errors || {};
+        const mailboxErrorCounts = orgStats?.sync_config?.mailbox_error_counts || {};
+
         type CombinedRow = {
           email: string;
           name: string;
           synced: boolean;
           mailboxStat: MailboxStat | null;
           tenantUser: TenantUser | null;
+          errorInfo: { message: string; type: string; count: number; last_at: string } | null;
         };
 
         const combined: CombinedRow[] = [];
@@ -1003,23 +1014,26 @@ function EmailSyncTab({
             synced: syncedEmailMap.has(emailLower) || !!mailboxSyncedAt[emailLower],
             mailboxStat: syncedEmailMap.get(emailLower) || null,
             tenantUser: user,
+            errorInfo: mailboxErrors[emailLower] || null,
           });
         }
 
         // Add synced mailboxes that aren't in tenant users (edge case: external/removed users)
         for (const m of orgStats?.mailboxes || []) {
-          if (!seenEmails.has(m.email.toLowerCase())) {
+          const emailLower = m.email.toLowerCase();
+          if (!seenEmails.has(emailLower)) {
             combined.push({
               email: m.email,
               name: m.email.split("@")[0],
               synced: true,
               mailboxStat: m,
               tenantUser: null,
+              errorInfo: mailboxErrors[emailLower] || null,
             });
           }
         }
 
-        // Sort: synced first (by email count desc), then unsynced (alphabetical)
+        // Sort: synced first, then errored (by error count desc), then unsynced (alphabetical)
         combined.sort((a, b) => {
           if (a.synced && !b.synced) return -1;
           if (!a.synced && b.synced) return 1;
@@ -1028,6 +1042,7 @@ function EmailSyncTab({
         });
 
         const syncedCount = combined.filter(r => r.synced).length;
+        const erroredCount = combined.filter(r => r.errorInfo?.type === "permanent").length;
         const totalCount = combined.length;
 
         return (
@@ -1043,6 +1058,11 @@ function EmailSyncTab({
                   <Badge variant="outline" className="text-xs">
                     {syncedCount}/{totalCount} synced
                   </Badge>
+                  {erroredCount > 0 && (
+                    <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                      {erroredCount} errored
+                    </Badge>
+                  )}
                   {orgStats && (
                     <span className="text-xs text-muted-foreground">
                       {(orgStats.total_emails ?? 0).toLocaleString()} emails
@@ -1087,7 +1107,7 @@ function EmailSyncTab({
                         </TableHeader>
                         <TableBody>
                           {combined.map((row) => (
-                            <TableRow key={row.email} className={row.synced ? "" : "opacity-60"}>
+                            <TableRow key={row.email} className={row.synced ? "" : row.errorInfo?.type === "permanent" ? "opacity-80 bg-red-500/5" : "opacity-60"}>
                               <TableCell>
                                 <div className="flex flex-col">
                                   <span className="text-sm font-medium">{row.name}</span>
@@ -1095,7 +1115,33 @@ function EmailSyncTab({
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {row.tenantUser ? (
+                                {row.errorInfo?.type === "permanent" ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 cursor-help">
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        Sync Error
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p className="font-medium">Permanently failing ({row.errorInfo.count}x)</p>
+                                      <p className="text-xs mt-1 opacity-80">{row.errorInfo.message}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : row.errorInfo?.type === "transient" ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 cursor-help">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Retrying
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p className="font-medium">Transient error (will retry)</p>
+                                      <p className="text-xs mt-1 opacity-80">{row.errorInfo.message}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : row.tenantUser ? (
                                   row.tenantUser.account_enabled !== false ? (
                                     <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                                       Active
