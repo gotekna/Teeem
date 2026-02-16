@@ -545,7 +545,7 @@ class MicrosoftCredential < ApplicationRecord
     # Cache tenant users for 1 hour - tenant user list rarely changes
     # This fixes slow navigation requests (was 2-4 seconds due to Graph API latency)
     # P95 was 3.8s when cache expired every 10 min; 1 hour reduces cache miss frequency 6x
-    cache_key = "microsoft_credential:#{id}:tenant_users:v4"
+    cache_key = "microsoft_credential:#{id}:tenant_users:v5"
     Rails.cache.fetch(cache_key, expires_in: CACHE_TTL_HOURLY) do
       fetch_tenant_users_from_api
     end
@@ -553,7 +553,7 @@ class MicrosoftCredential < ApplicationRecord
 
   # Clear the cached tenant users (call when tenant changes)
   def clear_tenant_users_cache
-    Rails.cache.delete("microsoft_credential:#{id}:tenant_users:v4")
+    Rails.cache.delete("microsoft_credential:#{id}:tenant_users:v5")
   end
 
   private
@@ -617,13 +617,13 @@ class MicrosoftCredential < ApplicationRecord
   end
 
   def detect_mailbox_type(user, raw_licenses)
-    # Shared mailboxes in M365 don't require licenses (free 50GB) but have mail addresses.
-    # They also typically have accountEnabled: false (can't sign in directly).
-    # Key signal: zero raw licenses + has mail = shared mailbox.
-    # accountEnabled is NOT checked — shared mailboxes are usually disabled.
+    # Shared mailboxes in M365: no licenses + accountEnabled=false + has mail.
+    # They can't be signed into directly, so Azure AD disables them.
+    # Active users with no licenses (e.g. Riyan) keep accountEnabled=true → "user".
+    account_disabled = user["accountEnabled"] == false
     has_mail = user["mail"].present?
 
-    if raw_licenses.empty? && has_mail
+    if raw_licenses.empty? && account_disabled && has_mail
       "shared"
     else
       "user"

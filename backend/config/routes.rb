@@ -395,6 +395,7 @@ Rails.application.routes.draw do
 
       # Sentry Error Tracking (admin-only proxy)
       get "sentry/issues", to: "sentry#issues"
+      get "sentry/issues/:id/detail", to: "sentry#detail"
       post "sentry/issues/:id/resolve", to: "sentry#resolve"
 
       # Performance Observatory - Metrics Ingestion

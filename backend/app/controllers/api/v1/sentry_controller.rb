@@ -28,6 +28,19 @@ module Api
         end
       end
 
+      # GET /api/v1/sentry/issues/:id/detail
+      # Fetches the latest event for an issue including stack trace
+      def detail
+        issue_id = params[:id]
+        response = fetch_issue_detail(issue_id)
+
+        if response[:success]
+          render json: { success: true, data: response[:data] }
+        else
+          render json: { success: false, error: response[:error] }, status: response[:status] || :bad_gateway
+        end
+      end
+
       # POST /api/v1/sentry/issues/:id/resolve
       # Marks an issue as resolved in Sentry
       def resolve
@@ -99,6 +112,74 @@ module Api
       rescue StandardError => e
         Rails.logger.error "[Sentry] Error: #{e.message}"
         { success: false, error: "Failed to contact Sentry API", status: :bad_gateway }
+      end
+
+      def fetch_issue_detail(issue_id)
+        unless sentry_token.present?
+          return { success: false, error: "SENTRY_AUTH_TOKEN not configured", status: :service_unavailable }
+        end
+
+        # Fetch the latest event for this issue
+        uri = URI("#{SENTRY_API_BASE}/issues/#{issue_id}/events/latest/")
+
+        response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 15) do |http|
+          request = Net::HTTP::Get.new(uri)
+          sentry_headers.each { |k, v| request[k] = v }
+          http.request(request)
+        end
+
+        if response.code.to_i == 200
+          event = JSON.parse(response.body)
+          { success: true, data: format_event_detail(event) }
+        else
+          Rails.logger.error "[Sentry] Detail error: #{response.code} - #{response.body}"
+          { success: false, error: "Sentry API returned #{response.code}", status: :bad_gateway }
+        end
+      rescue Net::OpenTimeout, Net::ReadTimeout => e
+        Rails.logger.error "[Sentry] Timeout: #{e.message}"
+        { success: false, error: "Sentry API timeout", status: :gateway_timeout }
+      rescue StandardError => e
+        Rails.logger.error "[Sentry] Error: #{e.message}"
+        { success: false, error: "Failed to contact Sentry API", status: :bad_gateway }
+      end
+
+      def format_event_detail(event)
+        # Extract stack trace frames
+        exception_entry = event.dig("entries")&.find { |e| e["type"] == "exception" }
+        frames = exception_entry&.dig("data", "values")&.flat_map { |v|
+          (v.dig("stacktrace", "frames") || []).map { |f|
+            {
+              filename: f["filename"],
+              function: f["function"],
+              line_no: f["lineNo"],
+              col_no: f["colNo"],
+              context: f["context"],
+              in_app: f["inApp"]
+            }
+          }
+        } || []
+
+        # Extract breadcrumbs (last 10)
+        breadcrumb_entry = event.dig("entries")&.find { |e| e["type"] == "breadcrumbs" }
+        breadcrumbs = (breadcrumb_entry&.dig("data", "values") || []).last(10).map { |b|
+          { category: b["category"], message: b["message"], level: b["level"], timestamp: b["timestamp"] }
+        }
+
+        {
+          event_id: event["eventID"],
+          title: event["title"],
+          message: event["message"],
+          level: event["context"]&.dig("level") || event["tags"]&.find { |t| t["key"] == "level" }&.dig("value"),
+          timestamp: event["dateCreated"],
+          url: event["context"]&.dig("url") || event["tags"]&.find { |t| t["key"] == "url" }&.dig("value"),
+          browser: event["tags"]&.find { |t| t["key"] == "browser" }&.dig("value"),
+          os: event["tags"]&.find { |t| t["key"] == "os" }&.dig("value"),
+          exception_type: exception_entry&.dig("data", "values", 0, "type"),
+          exception_value: exception_entry&.dig("data", "values", 0, "value"),
+          stack_frames: frames.select { |f| f[:in_app] }.reverse,
+          all_frames: frames.reverse,
+          breadcrumbs: breadcrumbs
+        }
       end
 
       def update_sentry_issue(issue_id, updates)
