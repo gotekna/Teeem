@@ -395,17 +395,18 @@ class Api::V1::UsersController < ApplicationController
       return render_error("Admin access required", status: :forbidden)
     end
 
-    organization_id = params[:organization_id]
-    return render_error("organization_id is required", status: :bad_request) if organization_id.blank?
+    credential_id = params[:organization_id]
+    return render_error("organization_id is required", status: :bad_request) if credential_id.blank?
 
-    # Tenant-scope: only allow credentials from current tenant's organizations
-    unless tenant_organization_ids.include?(organization_id.to_i)
-      return render_error("Organization not found in your tenant", status: :not_found)
+    # Frontend passes MicrosoftCredential.id (from sync dashboard), not Organization.id
+    credential = MicrosoftCredential.find_by(id: credential_id, credential_type: "app")
+    unless credential&.status == "connected"
+      return render_error("No connected Microsoft credential found", status: :not_found)
     end
 
-    credential = MicrosoftCredential.find_by(organization_id: organization_id, credential_type: "app")
-    unless credential&.status == "connected"
-      return render_error("No connected Microsoft credential for this organization", status: :not_found)
+    # Tenant-scope: verify credential belongs to current tenant's organizations
+    unless tenant_organization_ids.include?(credential.organization_id)
+      return render_error("Organization not found in your tenant", status: :not_found)
     end
 
     # Get M365 tenant users (cached 1hr)
