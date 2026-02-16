@@ -830,9 +830,9 @@
     },
     "/system-health": {
       "title": "System Health",
-      "description": "Monitor system status, background jobs, and performance.",
-      "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention"],
-      "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage"]
+      "description": "Monitor system status, background jobs, performance, and error tracking.",
+      "tips": ["Green indicators mean healthy", "Yellow indicates warnings", "Red requires immediate attention", "The Sentry tab shows live production errors from Sentry"],
+      "tasks": ["Check overall system status", "View background job queue", "Monitor API performance", "Check storage usage", "Review and resolve Sentry errors"]
     },
     "/system-performance": {
       "title": "System Performance",

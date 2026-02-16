@@ -393,6 +393,10 @@ Rails.application.routes.draw do
       get "health/pricebook/missing_items", to: "health#missing_items"
       get "pricebook/price_health_check", to: "pricebook_items#price_health_check"
 
+      # Sentry Error Tracking (admin-only proxy)
+      get "sentry/issues", to: "sentry#issues"
+      post "sentry/issues/:id/resolve", to: "sentry#resolve"
+
       # Performance Observatory - Metrics Ingestion
       post "metrics", to: "metrics#create"              # Receive frontend Web Vitals
       get "metrics/buffer_status", to: "metrics#buffer_status"  # Debug buffer status

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_16_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_16_200002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6302,6 +6302,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_100001) do
     t.string "job_code", null: false
     t.bigint "tenant_id"
     t.string "project_type", default: "construction", null: false
+    t.string "design_name"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -10875,6 +10876,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_100001) do
     t.index ["xero_credential_id"], name: "index_xero_health_events_on_xero_credential_id"
   end
 
+  create_table "xero_job_tracking_links", force: :cascade do |t|
+    t.bigint "job_id", null: false
+    t.string "tracking_option_id", null: false
+    t.string "tracking_option_name"
+    t.string "variant"
+    t.boolean "is_primary", default: false
+    t.bigint "tenant_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id", "is_primary"], name: "index_xero_job_tracking_links_on_job_id_and_is_primary"
+    t.index ["job_id"], name: "index_xero_job_tracking_links_on_job_id"
+    t.index ["tenant_id"], name: "index_xero_job_tracking_links_on_tenant_id"
+    t.index ["tracking_option_id"], name: "index_xero_job_tracking_links_on_tracking_option_id", unique: true
+  end
+
   create_table "xero_sync_events", force: :cascade do |t|
     t.bigint "xero_credential_id"
     t.string "sync_type", null: false
@@ -11976,6 +11992,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_16_100001) do
   add_foreign_key "xero_duplicate_items", "contacts"
   add_foreign_key "xero_duplicate_items", "xero_duplicate_groups", column: "duplicate_group_id"
   add_foreign_key "xero_health_events", "xero_credentials"
+  add_foreign_key "xero_job_tracking_links", "jobs"
+  add_foreign_key "xero_job_tracking_links", "tenants"
   add_foreign_key "xero_sync_events", "xero_credentials"
   add_foreign_key "xero_sync_sessions", "tenants", column: "teeem_tenant_id"
 end

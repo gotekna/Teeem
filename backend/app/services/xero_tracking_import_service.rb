@@ -176,6 +176,7 @@ class XeroTrackingImportService
             state: "QLD"
           }
           attrs[:lot_number] = parsed[:lot_number] if parsed[:lot_number].present?
+          attrs[:design_name] = parsed[:house_name] if parsed[:house_name].present?
 
           # Use job_code from parsed if current is temporary
           if parsed[:code].present? && (job.job_code&.start_with?("XERO-") || job.job_code&.start_with?("J"))
@@ -287,6 +288,7 @@ class XeroTrackingImportService
       attrs[:street_type] = parsed[:street_type]
       attrs[:suburb] = parsed[:suburb]
       attrs[:lot_number] = parsed[:lot_number] if parsed[:lot_number].present?
+      attrs[:design_name] = parsed[:house_name] if parsed[:house_name].present?
       attrs[:state] = "QLD"  # Default: all Pilgrim/Tekna jobs are in Queensland
       # name will be auto-generated from address components by Job model callback
     else

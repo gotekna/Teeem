@@ -16,6 +16,12 @@
 #   "P-106HAR 106 Harold St, Holland Park"     → code: "106HAR", variant: "P" (Production = SSoT)
 #   Both map to the same job. P = Production is the authoritative source.
 #
+# Underscore-delimited format (suburb-first):
+#   "PILD2206 CAMP HILL_LOT 2_62 BROOKS ST_KYABEL"
+#   → code: "PILD2206", suburb: "Camp Hill", lot_number: "2",
+#     street_number: "62", street_name: "Brooks", street_type: "Street"
+#   Segments: CODE+SUBURB _ LOT _ ADDRESS _ (extra ignored)
+#
 # Also handles simpler formats like:
 #   "J201 45 Smith St" → code: "J201", street_number: "45", street_name: "Smith", street_type: "St"
 #   "CODE 90 Uplands Tce Wynnum" → suburb extracted after street type (no comma needed)
@@ -47,6 +53,13 @@ class XeroTrackingAddressParser
 
     name = tracking_option_name.strip
     result = empty_result.merge(raw_name: name)
+
+    # Step 0: Underscore-delimited format (suburb-first)
+    # "PILD2206 CAMP HILL_LOT 2_62 BROOKS ST_KYABEL"
+    if name.include?("_")
+      underscore_result = parse_underscore_format(name)
+      return underscore_result if underscore_result[:parsed]
+    end
 
     # Step 1: Split on comma to extract suburb (last segment)
     parts = name.split(",").map(&:strip)
@@ -282,6 +295,63 @@ class XeroTrackingAddressParser
     mapping[type.downcase] || type.capitalize
   end
 
+  # Parse underscore-delimited format (suburb-first)
+  # "PILD2206 CAMP HILL_LOT 2_62 BROOKS ST_KYABEL"
+  # Segments: [CODE SUBURB, LOT X, NUM STREET TYPE, HOUSE_NAME]
+  def self.parse_underscore_format(name)
+    result = empty_result.merge(raw_name: name)
+    segments = name.split("_").map(&:strip).reject(&:blank?)
+
+    return result if segments.length < 2
+
+    # First segment: CODE SUBURB (e.g., "PILD2206 CAMP HILL")
+    first_seg = segments[0]
+    first_words = first_seg.split(/\s+/)
+    if first_words.length >= 2 && first_words[0].match?(/\A[A-Z0-9\-]{3,}[A-Z0-9]*\z/i)
+      variant_info = extract_variant(first_words[0])
+      result[:code] = variant_info[:code]
+      result[:variant] = variant_info[:variant]
+      result[:suburb] = first_words[1..].join(" ").strip.titlecase
+    elsif first_words.length == 1 && first_words[0].match?(/\A[A-Z0-9\-]{3,}[A-Z0-9]*\z/i)
+      variant_info = extract_variant(first_words[0])
+      result[:code] = variant_info[:code]
+      result[:variant] = variant_info[:variant]
+    end
+
+    # Process remaining segments
+    segments[1..].each do |seg|
+      # LOT segment
+      lot_match = seg.match(/\ALOT\s*(\d+[A-Za-z]?)\z/i)
+      if lot_match
+        result[:lot_number] = lot_match[1]
+        next
+      end
+
+      # Address segment: NUM STREET TYPE
+      addr_match = seg.match(/\A(\d+[A-Za-z]?)\s+(.+?)\s+(#{STREET_TYPE_PATTERN})\z/i)
+      if addr_match
+        result[:street_number] = addr_match[1]
+        result[:street_name] = addr_match[2].strip.titlecase
+        result[:street_type] = normalize_street_type(addr_match[3])
+        result[:parsed] = true
+        next
+      end
+
+      # Remaining segment = house name (e.g., "KYABEL")
+      if result[:house_name].nil? && result[:parsed]
+        result[:house_name] = seg.strip.titlecase
+      end
+    end
+
+    # Build display title
+    if result[:parsed]
+      street_parts = [result[:street_number], result[:street_name], result[:street_type]].compact.join(" ")
+      result[:title] = [street_parts, result[:suburb]].compact.reject(&:blank?).join(", ")
+    end
+
+    result
+  end
+
   def self.empty_result
     {
       raw_name: nil,
@@ -292,6 +362,7 @@ class XeroTrackingAddressParser
       street_name: nil,
       street_type: nil,
       suburb: nil,
+      house_name: nil,
       title: nil,
       parsed: false
     }

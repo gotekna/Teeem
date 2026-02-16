@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import MultipleSelector from "@/components/ui/multiple-selector";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { HierarchicalTabsList } from "@/components/ui/hierarchical-tabs-list";
 // SSoT: Using unified WarehouseFolders API directly (Phase 5 - no adapter hooks)
@@ -1182,6 +1181,7 @@ export default function JobDetailPage() {
         name: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
+        design_name: job.design_name,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
@@ -1208,6 +1208,7 @@ export default function JobDetailPage() {
         name: job.name,
         contract_value: job.contract_value,
         certifier_job_no: job.certifier_job_no,
+        design_name: job.design_name,
         start_date: job.start_date,
         location: job.location,
         job_type_id: job.job_type?.id || job.job_type_id,
@@ -1666,18 +1667,28 @@ export default function JobDetailPage() {
                     )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Xero Job Categories</Label>
-                    {xeroTrackingOptions.length > 0 ? (
-                      <MultipleSelector
-                        value={currentXeroOptions.map(opt => ({ value: opt.id, label: opt.name }))}
-                        defaultOptions={xeroTrackingOptions.map(opt => ({ value: opt.id, label: opt.name }))}
-                        onChange={(selected) => handleLinkXeroMulti(selected)}
-                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Select Xero tracking options..."}
-                        disabled={linkingXero}
-                        hidePlaceholderWhenSelected
+                    <Label>Design Name</Label>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.design_name || ""}
+                        onChange={(e) => setEditForm({ ...editForm, design_name: e.target.value })}
                       />
                     ) : (
-                      <Input value={currentXeroOptions[0]?.name || "Loading..."} readOnly />
+                      <Input value={job.design_name || ""} readOnly />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Xero Job Categories</Label>
+                    {xeroTrackingOptions.length > 0 ? (
+                      <ComboboxDropdown
+                        items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
+                        selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
+                        onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
+                        disabled={linkingXero}
+                      />
+                    ) : (
+                      <Input value={currentXeroOptions[0]?.name || job.xero_tracking_option_name || ""} readOnly />
                     )}
                     {currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">

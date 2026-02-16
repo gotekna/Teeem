@@ -91,6 +91,7 @@ export interface Job {
 
   // Certification & Tracking
   certifier_job_no?: string;
+  design_name?: string;
   xero_tracking_option_id?: string;
   xero_tracking_option_name?: string;
   plan_number?: string;

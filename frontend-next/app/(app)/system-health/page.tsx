@@ -16,6 +16,7 @@ import {
   Brain,
   Trophy,
   Activity,
+  Bug,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ import {
   LeaderboardEntry,
 } from "@/components/health";
 import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
+import { SentryTab } from "@/components/health/SentryTab";
 
 // API response from new unified /api/v1/health/unified endpoint
 interface UnifiedHealthApiResponse {
@@ -466,6 +468,10 @@ export default function SystemHealthPage() {
             <Activity className="h-4 w-4" />
             Performance
           </TabsTrigger>
+          <TabsTrigger value="sentry" className="gap-2">
+            <Bug className="h-4 w-4" />
+            Sentry
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="health" className="space-y-6">
@@ -564,6 +570,10 @@ export default function SystemHealthPage() {
 
         <TabsContent value="performance">
           <PerformanceTab />
+        </TabsContent>
+
+        <TabsContent value="sentry">
+          <SentryTab />
         </TabsContent>
       </Tabs>
     </div>
