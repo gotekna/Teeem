@@ -1711,14 +1711,18 @@ export default function JobDetailPage() {
                   </div>
                   <div className="space-y-2">
                     <Label>Xero Job Categories</Label>
-                    <ComboboxDropdown
-                      items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
-                      selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
-                      onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
-                      placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
-                      disabled={linkingXero}
-                    />
-                    {currentXeroOptions.length === 0 && suggestedXeroMatch && (
+                    {isEditing ? (
+                      <ComboboxDropdown
+                        items={xeroTrackingOptions.map(opt => ({ id: opt.id, label: opt.name }))}
+                        selectedItem={currentXeroOptions.length > 0 ? { id: currentXeroOptions[0].id, label: currentXeroOptions[0].name } : undefined}
+                        onSelect={(item) => handleLinkXeroMulti([{ value: item.id, label: item.label }])}
+                        placeholder={suggestedXeroMatch ? `Suggested: ${suggestedXeroMatch.name}` : "Search Xero tracking options..."}
+                        disabled={linkingXero}
+                      />
+                    ) : (
+                      <Input value={currentXeroOptions[0]?.name || job.xero_tracking_option_name || ""} readOnly />
+                    )}
+                    {isEditing && currentXeroOptions.length === 0 && suggestedXeroMatch && (
                       <p className="text-xs text-muted-foreground">
                         Suggested match: {suggestedXeroMatch.name}
                       </p>
