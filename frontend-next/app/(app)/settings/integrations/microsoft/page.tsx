@@ -1132,8 +1132,7 @@ function EmailSyncTab({
                             <TableHead>Type</TableHead>
                             <TableHead>License</TableHead>
                             <TableHead className="text-right">Emails</TableHead>
-                            <TableHead className="text-right">.eml Stored</TableHead>
-                            <TableHead className="text-right">Attachments</TableHead>
+                            <TableHead className="text-right">Sync Progress</TableHead>
                             <TableHead className="text-right">Last Synced</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1231,55 +1230,55 @@ function EmailSyncTab({
                                 )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {row.synced ? (row.mailboxStat?.email_count ?? 0).toLocaleString() : (
+                                {row.synced ? (
+                                  <span className="text-green-600 dark:text-green-400">
+                                    <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                                    {(row.mailboxStat?.email_count ?? 0).toLocaleString()}
+                                  </span>
+                                ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-right text-xs tabular-nums">
                                 {row.synced && row.mailboxStat ? (() => {
-                                  const total = row.mailboxStat.email_count;
-                                  const uploaded = row.mailboxStat.email_blob_count ?? 0;
+                                  const emailTotal = row.mailboxStat.email_count;
+                                  const emlUploaded = row.mailboxStat.email_blob_count ?? 0;
                                   const unavailable = row.mailboxStat.content_unavailable_count ?? 0;
-                                  const pending = total - uploaded - unavailable;
-                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
-                                  const isComplete = pending <= 0;
+                                  const emlPending = emailTotal - emlUploaded - unavailable;
+                                  const emlDone = emlPending <= 0;
+
+                                  const attTotal = row.mailboxStat.attachment_count ?? 0;
+                                  const attDownloaded = row.mailboxStat.blob_count ?? 0;
+                                  const attPending = attTotal - attDownloaded;
+                                  const attDone = attTotal === 0 || attPending <= 0;
+
+                                  const allDone = emlDone && attDone;
+                                  if (emailTotal === 0) return <span className="text-muted-foreground">—</span>;
+
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <RefreshCw className="h-3 w-3 inline mr-1" />}
-                                          {uploaded.toLocaleString()}/{total.toLocaleString()}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-0.5">
+                                          <span className="flex items-center gap-1">
+                                            <span className={emlDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                              {emlDone ? "✓" : "◌"} .eml {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}
+                                            </span>
+                                          </span>
+                                          {attTotal > 0 && (
+                                            <span className={attDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                              {attDone ? "✓" : "◌"} attach {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p>{uploaded.toLocaleString()} .eml files uploaded to storage</p>
-                                        {unavailable > 0 && <p>{unavailable.toLocaleString()} permanently unavailable</p>}
-                                        {pending > 0 && <p>{pending.toLocaleString()} pending upload (runs every 5 min)</p>}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })() : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right text-xs tabular-nums">
-                                {row.synced && row.mailboxStat ? (() => {
-                                  const total = row.mailboxStat.attachment_count ?? 0;
-                                  const downloaded = row.mailboxStat.blob_count ?? 0;
-                                  const pending = total - downloaded;
-                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
-                                  const isComplete = pending <= 0;
-                                  return (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <AlertTriangle className="h-3 w-3 inline mr-1" />}
-                                          {downloaded.toLocaleString()}/{total.toLocaleString()}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{downloaded.toLocaleString()} attachment files downloaded</p>
-                                        {pending > 0 && <p>{pending.toLocaleString()} pending download</p>}
+                                        <div className="space-y-1">
+                                          <p className="font-medium">Three-stage sync:</p>
+                                          <p>① Metadata: {emailTotal.toLocaleString()} records ✓</p>
+                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
+                                          {unavailable > 0 && <p className="text-muted-foreground ml-3">{unavailable.toLocaleString()} permanently unavailable</p>}
+                                          <p>③ Attachments: {attTotal > 0 ? `${attDownloaded.toLocaleString()}/${attTotal.toLocaleString()}${attDone ? " ✓" : ` (${attPending.toLocaleString()} pending)`}` : "none"}</p>
+                                        </div>
                                       </TooltipContent>
                                     </Tooltip>
                                   );
@@ -1315,7 +1314,7 @@ function EmailSyncTab({
                             </TableRow>
                             {isMailboxExpanded && canExpand && (
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
-                                <TableCell colSpan={8} className="py-2 px-2">
+                                <TableCell colSpan={7} className="py-2 px-2">
                                   {hasFolders ? (
                                   <div className="ml-8 grid grid-cols-[1fr_auto_auto] gap-x-6 gap-y-0.5 text-xs">
                                     <span className="font-medium text-muted-foreground">Folder</span>
