@@ -561,17 +561,20 @@ module Api
         bills = invoices.where(invoice_type: "bill")
         credit_notes = invoices.where(invoice_type: "credit_note")
 
+        # Use subtotal (ex GST) by default, total (inc GST) when requested
+        amount_col = params[:inc_gst] == "true" ? :total : :subtotal
+
         # Build P&L data for each period
         income_by_period = fy_periods.map do |period|
-          sales.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
+          sales.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
         end
 
         expenses_by_period = fy_periods.map do |period|
-          bills.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
+          bills.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
         end
 
         credits_by_period = fy_periods.map do |period|
-          credit_notes.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
+          credit_notes.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
         end
 
         # Build rows in Xero-compatible format for frontend rendering
@@ -618,7 +621,7 @@ module Api
             titles: [
               "Profit & Loss - #{@job.name}",
               "#{@job.job_code}",
-              "From synced Xero data"
+              params[:inc_gst] == "true" ? "Including GST" : "Excluding GST"
             ],
             from_date: fy_periods.last[:from].to_s,
             to_date: fy_periods.first[:to].to_s,

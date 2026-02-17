@@ -65,6 +65,9 @@ class XeroHealthMonitorJob < ApplicationJob
       healed = 0
       orphans_cleaned = 0
 
+      # CLEAN UP STALE SYNC SESSIONS - backup safety net for orchestrator
+      cleanup_stale_sync_sessions
+
       # CLEAN UP ORPHANED JOBS FIRST - these block self-healing!
       orphans_cleaned = cleanup_orphaned_jobs
 
@@ -89,6 +92,28 @@ class XeroHealthMonitorJob < ApplicationJob
   end
 
   private
+
+  # CLEANUP: Cancel stale XeroSyncSessions that block contact sync.
+  # FRC (Feb 2026): Double defense - even if the orchestrator crashes before
+  # its own stale session cleanup runs, the health monitor catches it every
+  # 5 minutes. Without this, a stuck XeroSyncSession permanently locks a
+  # tenant out of contact sync because the orchestrator's active_session?
+  # check always returns true.
+  def cleanup_stale_sync_sessions
+    stale = XeroSyncSession.active.where("created_at < ?", MAX_IN_PROGRESS_DURATION.ago)
+    count = stale.count
+    return if count == 0
+
+    stale.update_all(
+      status: 'failed',
+      error_message: "Auto-cancelled by health monitor: exceeded #{MAX_IN_PROGRESS_DURATION.inspect}",
+      completed_at: Time.current
+    )
+
+    Rails.logger.warn "[XeroHealthMonitor] Auto-cancelled #{count} stale XeroSyncSession(s) older than #{MAX_IN_PROGRESS_DURATION.inspect}"
+  rescue StandardError => e
+    Rails.logger.error "[XeroHealthMonitor] Error cleaning stale sync sessions: #{e.message}"
+  end
 
   # CLEANUP: Remove orphaned jobs that block self-healing
   # An orphaned job exists in solid_queue_jobs but has no execution record

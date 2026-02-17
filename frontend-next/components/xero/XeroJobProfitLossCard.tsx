@@ -80,6 +80,7 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
   const [error, setError] = React.useState<string | null>(null);
   const [selectedPreset, setSelectedPreset] = React.useState("this_fy");
   const [periods, setPeriods] = React.useState(3);
+  const [incGst, setIncGst] = React.useState(false);
 
   const presets = React.useMemo(() => getPresets(), []);
   const resolvedJobId = jobId || job?.id;
@@ -100,6 +101,7 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
           from_date: currentPreset.from,
           to_date: currentPreset.to,
           periods,
+          inc_gst: incGst,
         },
       });
 
@@ -114,7 +116,7 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
     } finally {
       setLoading(false);
     }
-  }, [resolvedJobId, currentPreset.from, currentPreset.to, periods]);
+  }, [resolvedJobId, currentPreset.from, currentPreset.to, periods, incGst]);
 
   // Auto-load on mount and when preset/periods change
   React.useEffect(() => {
@@ -155,6 +157,15 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
             {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-2">Refresh</span>
           </Button>
+          <label className="flex items-center gap-2 cursor-pointer select-none ml-2">
+            <input
+              type="checkbox"
+              checked={incGst}
+              onChange={(e) => setIncGst(e.target.checked)}
+              className="h-4 w-4 rounded border-input"
+            />
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Inc. GST</span>
+          </label>
         </div>
 
         {/* Error */}

@@ -16,40 +16,30 @@
 # Queue: default (was xero_orchestrator, but SolidQueue uses default)
 #
 class XeroContactSyncOrchestratorJob < ApplicationJob
+  include DeduplicatableJob
+
   queue_as :xero_sync
 
-  # Lock key for preventing duplicate orchestrator runs
-  LOCK_KEY = "xero_contact_sync_orchestrator:running"
-  LOCK_TIMEOUT = 30.minutes  # Max time an orchestrator can run
+  # Sessions older than this are considered stuck and will be auto-cancelled.
+  # FRC (Feb 2026): Without this, a worker crash/OOM leaves XeroSyncSession
+  # stuck in "fetching" forever. The orchestrator checks active_session? BEFORE
+  # calling start! (which would cancel stale sessions), creating a deadlock
+  # where the tenant is permanently locked out of sync.
+  MAX_SESSION_AGE = 30.minutes
 
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
-
-    # Prevent duplicate orchestrator runs using cache lock
-    unless acquire_lock
-      Rails.logger.info("[XeroContactSyncOrchestrator] Another orchestrator is already running, skipping")
-      return
-    end
-
-    begin
-      run_orchestration(options)
-    ensure
-      release_lock
-    end
+    run_orchestration(options)
   end
 
   private
 
-  def acquire_lock
-    # Try to set the lock - returns true if we got it, false if already set
-    Rails.cache.write(LOCK_KEY, Time.current.to_s, unless_exist: true, expires_in: LOCK_TIMEOUT)
-  end
-
-  def release_lock
-    Rails.cache.delete(LOCK_KEY)
-  end
-
   def run_orchestration(options)
+    # FRC (Feb 2026): Break the deadlock - cancel stale sessions BEFORE
+    # checking active_session? per tenant. Without this, crashed sessions
+    # permanently block their tenant from syncing.
+    cancel_stale_sessions
+
     # Self-heal any stale lockouts before starting
     XeroRateLimitTracker.heal_all_lockouts!
 
@@ -73,6 +63,20 @@ class XeroContactSyncOrchestratorJob < ApplicationJob
     end
 
     Rails.logger.info("[XeroContactSyncOrchestrator] Dispatched sync jobs for all tenants")
+  end
+
+  def cancel_stale_sessions
+    stale = XeroSyncSession.active.where("created_at < ?", MAX_SESSION_AGE.ago)
+    count = stale.count
+    return if count == 0
+
+    stale.update_all(
+      status: 'failed',
+      error_message: "Auto-cancelled: exceeded #{MAX_SESSION_AGE.inspect} max session age",
+      completed_at: Time.current
+    )
+
+    Rails.logger.warn("[XeroContactSyncOrchestrator] Auto-cancelled #{count} stale session(s) older than #{MAX_SESSION_AGE.inspect}")
   end
 
   def process_tenant(credential, options)
