@@ -10,6 +10,17 @@
 #   OrgEmailSyncJob.perform_later         # Queue for background processing
 
 class OrgEmailSyncJob < ApplicationJob
+  # FRC (Feb 2026): Prevent duplicate queued jobs from running simultaneously.
+  # Root cause: EmailHealthMonitorJob (every 5 min) detects long-running syncs as
+  # "stalled" and enqueues recovery OrgEmailSyncJobs. For large orgs like Pilgrim
+  # (56 mailboxes, 12k+ emails), the initial sync takes 30+ min. Health monitor
+  # enqueued 4 duplicate jobs that all ran concurrently → 170% memory (R14) →
+  # all jobs fighting over the same data → "Internet message has already been taken"
+  # errors → everything slower instead of faster.
+  # ❌ WRONG: No dedup - 4 identical jobs consume 4x memory for zero benefit
+  # ✅ CORRECT: Only one OrgEmailSyncJob runs at a time; others exit immediately
+  include DeduplicatableJob
+
   # FRC (Feb 2026): Moved from :default to :email_sync queue
   # OrgEmailSyncJob is long-running (10-30 min per org, syncing 10k+ emails).
   # On :default it consumed all 5 threads, starving health monitors for 2+ hrs.
