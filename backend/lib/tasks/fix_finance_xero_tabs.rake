@@ -141,4 +141,48 @@ namespace :fix_finance_xero_tabs do
     puts "\nDone. Tab_keys are now clean single-dash slugs."
     puts "=" * 60
   end
+
+  desc "Fix typos and orphaned tabs in WarehouseFolder data"
+  task fix_data: :environment do
+    puts "=" * 60
+    puts "Fixing WarehouseFolder data quality issues..."
+    puts "=" * 60
+
+    fixed = 0
+
+    # 1. Fix "Certifcate of Occupancy" typo (missing 'i' in Certificate)
+    WarehouseFolder.where(tab_key: "certifcate-of-occupancy").find_each do |wf|
+      old_name = wf.display_name
+      old_key = wf.tab_key
+      old_path = wf.folder_path
+
+      wf.display_name = wf.display_name&.gsub("Certifcate", "Certificate")
+      wf.tab_key = "certificate-of-occupancy"
+      wf.folder_path = wf.folder_path&.gsub("Certifcate of Occupancy", "Certificate of Occupancy")
+      wf.save!
+
+      puts "  🔧 Typo fix (tenant #{wf.tenant_id}):"
+      puts "     display_name: '#{old_name}' → '#{wf.display_name}'"
+      puts "     tab_key: '#{old_key}' → '#{wf.tab_key}'"
+      puts "     folder_path: '#{old_path}' → '#{wf.folder_path}'" if old_path != wf.folder_path
+      fixed += 1
+    end
+
+    if fixed == 0
+      puts "  ✅ No 'certifcate-of-occupancy' typo found"
+    end
+
+    puts "\n" + "=" * 60
+    puts "Fixed: #{fixed} record(s)"
+    puts "=" * 60
+  end
+
+  desc "Run all fixes: sanitize tab_keys, fix component_names, fix data"
+  task all: :environment do
+    Rake::Task["fix_finance_xero_tabs:sanitize_tab_keys"].invoke
+    puts "\n"
+    Rake::Task["fix_finance_xero_tabs:fix"].invoke
+    puts "\n"
+    Rake::Task["fix_finance_xero_tabs:fix_data"].invoke
+  end
 end
