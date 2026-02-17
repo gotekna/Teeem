@@ -397,16 +397,8 @@ class SyncedEmail < ApplicationRecord
   # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
   # linkable is a proper polymorphic FK with index — faster and Rails-standard.
   # metadata['synced_email_id'] is kept as audit data, not for querying.
-  #
-  # FRC (Feb 2026): Also check documentable as fallback for IMAP attachments created
-  # before the linkable fix. ImapEmailService#attach_email_files previously used
-  # documentable: instead of linkable:, so older IMAP attachments only have documentable set.
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment').where(
-      "((linkable_type = 'SyncedEmail' AND linkable_id = :id) OR " \
-      "(documentable_type = 'SyncedEmail' AND documentable_id = :id))",
-      id: id
-    )
+    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
