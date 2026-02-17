@@ -555,23 +555,23 @@ module Api
           end
         end
 
-        # Income: job_claims (customer invoices) - exclude draft and voided
-        claims = @job.job_claims.where(status: [ "submitted", "authorised", "paid" ])
-
-        # Expenses: purchase_orders - exclude draft/cancelled
-        pos = @job.purchase_orders.where.not(status: [ "draft", "cancelled" ])
+        # SSoT: external_invoices table has all Xero-synced invoices and bills
+        invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
+        sales = invoices.where(invoice_type: "sales_invoice")
+        bills = invoices.where(invoice_type: "bill")
+        credit_notes = invoices.where(invoice_type: "credit_note")
 
         # Build P&L data for each period
         income_by_period = fy_periods.map do |period|
-          claims.where(date: period[:from]..period[:to]).sum(:amount) || 0
+          sales.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
         end
 
         expenses_by_period = fy_periods.map do |period|
-          # Use ordered_date (when PO was placed), fallback to created_at
-          pos.where(
-            "COALESCE(ordered_date, created_at::date) BETWEEN ? AND ?",
-            period[:from], period[:to]
-          ).sum(:total) || 0
+          bills.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
+        end
+
+        credits_by_period = fy_periods.map do |period|
+          credit_notes.where(invoice_date: period[:from]..period[:to]).sum(:total) || 0
         end
 
         # Build rows in Xero-compatible format for frontend rendering
@@ -582,25 +582,32 @@ module Api
           { row_type: "Section", title: "Income" },
           {
             row_type: "Row",
-            cells: [ { value: "Claims / Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Sales Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
           },
           {
             row_type: "SummaryRow",
             cells: [ { value: "Total Income" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
           },
-          { row_type: "Section", title: "Expenses" },
+          { row_type: "Section", title: "Less Cost of Sales" },
           {
             row_type: "Row",
-            cells: [ { value: "Purchase Orders" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Bills" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+          },
+          {
+            row_type: "Row",
+            cells: [ { value: "Credit Notes" } ] + credits_by_period.map { |v| { value: format_pl_amount(v.negative? ? v : -v) } }
           },
           {
             row_type: "SummaryRow",
-            cells: [ { value: "Total Expenses" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Total Cost of Sales" } ] + fy_periods.each_with_index.map { |_, i|
+              { value: format_pl_amount(expenses_by_period[i] - credits_by_period[i]) }
+            }
           },
           {
             row_type: "SummaryRow",
             cells: [ { value: "Net Profit" } ] + fy_periods.each_with_index.map { |_, i|
-              { value: format_pl_amount(income_by_period[i] - expenses_by_period[i]) }
+              net = income_by_period[i] - expenses_by_period[i] + credits_by_period[i]
+              { value: format_pl_amount(net) }
             }
           }
         ]
@@ -611,7 +618,7 @@ module Api
             titles: [
               "Profit & Loss - #{@job.name}",
               "#{@job.job_code}",
-              "From local data (Claims & Purchase Orders)"
+              "From synced Xero data"
             ],
             from_date: fy_periods.last[:from].to_s,
             to_date: fy_periods.first[:to].to_s,
