@@ -75,6 +75,7 @@ export function XeroConnectionsPopup({ isOpen, onClose }: XeroConnectionsPopupPr
   const [openCompanyDropdown, setOpenCompanyDropdown] = useState<string | null>(null);
   const [companySearchTerms, setCompanySearchTerms] = useState<Record<string, string>>({});
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isOpen) {
       loadConnections();

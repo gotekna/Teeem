@@ -636,44 +636,44 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Bills</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.bills.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.bills.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.bills?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.bills?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.bills.total > 0 ? (data.breakdown.bills.synced / data.breakdown.bills.total) * 100 : 0}
+                value={(data.breakdown?.bills?.total ?? 0) > 0 ? ((data.breakdown?.bills?.synced ?? 0) / (data.breakdown?.bills?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Invoices</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.sales_invoices.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.sales_invoices.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.sales_invoices?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.sales_invoices?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.sales_invoices.total > 0 ? (data.breakdown.sales_invoices.synced / data.breakdown.sales_invoices.total) * 100 : 0}
+                value={(data.breakdown?.sales_invoices?.total ?? 0) > 0 ? ((data.breakdown?.sales_invoices?.synced ?? 0) / (data.breakdown?.sales_invoices?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Credit Notes</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.credit_notes?.synced || 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.credit_notes?.total || 0}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.credit_notes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.credit_notes?.total ?? 0}</span>
               </div>
               <Progress
-                value={(data.breakdown.credit_notes?.total || 0) > 0 ? ((data.breakdown.credit_notes?.synced || 0) / (data.breakdown.credit_notes?.total || 1)) * 100 : 0}
+                value={(data.breakdown?.credit_notes?.total ?? 0) > 0 ? ((data.breakdown?.credit_notes?.synced ?? 0) / (data.breakdown?.credit_notes?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Quotes</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.quotes.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.quotes.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.quotes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.quotes?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.quotes.total > 0 ? (data.breakdown.quotes.synced / data.breakdown.quotes.total) * 100 : 0}
+                value={(data.breakdown?.quotes?.total ?? 0) > 0 ? ((data.breakdown?.quotes?.synced ?? 0) / (data.breakdown?.quotes?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>

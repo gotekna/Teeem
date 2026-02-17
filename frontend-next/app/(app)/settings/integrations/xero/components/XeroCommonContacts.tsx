@@ -52,7 +52,7 @@ export function XeroCommonContacts() {
   const [contacts, setContacts] = React.useState<CommonContact[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
 
-  const fetchCommonContacts = async () => {
+  const fetchCommonContacts = React.useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -69,11 +69,11 @@ export function XeroCommonContacts() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   React.useEffect(() => {
     fetchCommonContacts();
-  }, []);
+  }, [fetchCommonContacts]);
 
   if (loading) {
     return (
