@@ -1218,7 +1218,7 @@ class OrgEmailSyncJob < ApplicationJob
       SyncedEmailMailbox.upsert_all(
         appearances,
         unique_by: :idx_email_mailbox_unique,
-        update_only: [:folder_name, :is_read, :updated_at]
+        update_only: [:folder_name, :is_read]
       )
     end
 
