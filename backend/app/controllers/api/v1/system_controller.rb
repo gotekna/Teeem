@@ -158,8 +158,13 @@ module Api
         worker_count = processes.dig("Worker", :count) || 0
 
         # 2. Execution counts (all indexed COUNTs on small tables)
+        # Only count jobs claimed by alive workers - dead workers leave zombie claims
+        alive_process_ids = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .pluck(:id)
         pending = SolidQueue::ReadyExecution.count
-        running = SolidQueue::ClaimedExecution.count
+        running = alive_process_ids.any? ?
+          SolidQueue::ClaimedExecution.where(process_id: alive_process_ids).count : 0
         failed = SolidQueue::FailedExecution.count
         scheduled = SolidQueue::ScheduledExecution.count
         blocked = SolidQueue::BlockedExecution.count
@@ -396,7 +401,7 @@ module Api
       end
 
       def compute_queue_status(worker_count:, pending:, running:, failed:, trend:)
-        # Error: no workers at all
+        # Error: no workers with recent heartbeats
         if worker_count == 0
           return { level: "error", message: "No workers running" }
         end
@@ -422,7 +427,11 @@ module Api
         end
 
         # Healthy
-        msg = running > 0 ? "#{worker_count} workers, #{running} running" : "#{worker_count} workers, idle"
+        if running > 0
+          msg = worker_count > 0 ? "#{worker_count} workers, #{running} running" : "#{running} jobs running"
+        else
+          msg = worker_count > 0 ? "#{worker_count} workers, idle" : "Idle"
+        end
         { level: "healthy", message: msg }
       end
 
@@ -607,17 +616,24 @@ module Api
       end
 
       def compute_thread_capacity
-        # SSoT: Read thread_pool_size from live SolidQueue worker processes (shared DB)
-        # This works from any environment (local, staging, production) because
-        # they all share the same database and see the actual running workers.
+        alive_cutoff = 5.minutes.ago
+
+        # SSoT: Read thread_pool_size from live SolidQueue worker processes
         workers = SolidQueue::Process
-          .where("last_heartbeat_at > ?", 5.minutes.ago)
+          .where("last_heartbeat_at > ?", alive_cutoff)
           .where(kind: "Worker")
 
         total = workers.sum { |w| w.metadata&.dig("thread_pool_size").to_i }
-        total = 11 if total == 0 # Fallback: 5 + 6 from queue.yml
 
-        { total: total, used: SolidQueue::ClaimedExecution.count }
+        # Only count jobs claimed by alive workers (not zombie claims from dead workers)
+        alive_worker_ids = workers.pluck(:id)
+        used = if alive_worker_ids.any?
+          SolidQueue::ClaimedExecution.where(process_id: alive_worker_ids).count
+        else
+          0
+        end
+
+        { total: total, used: used }
       rescue StandardError => e
         Rails.logger.debug "[SystemController] compute_thread_capacity failed: #{e.message}"
         nil
