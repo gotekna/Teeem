@@ -7,23 +7,44 @@
 #
 class CreateAssetsFoundation < ActiveRecord::Migration[7.2]
   def up
-    foundation = Foundation.find_or_create_by!(slug: "assets") do |f|
-      f.name = "Assets"
-      f.singular_name = "Asset"
-      f.plural_name = "Assets"
-      f.database_table_name = "assets"
-      f.table_type = "system"
-      f.model_class = "Asset"
-      f.icon = "Package"
-      f.feature = "Corporate"
-      f.searchable = true
-      f.is_live = true
-      f.has_ui = true
-      f.has_saved_views = true
-      f.allow_reserved_name = false
-    end
+    # Check both slug and database_table_name to avoid unique constraint violations
+    foundation = Foundation.find_by(slug: "assets") || Foundation.find_by(database_table_name: "assets")
 
-    foundation.update!(model_class: "Asset") if foundation.model_class.blank?
+    if foundation
+      # Update existing foundation to ensure correct slug and settings
+      foundation.update!(
+        slug: "assets",
+        name: "Assets",
+        singular_name: "Asset",
+        plural_name: "Assets",
+        database_table_name: "assets",
+        table_type: "system",
+        model_class: "Asset",
+        icon: "Package",
+        feature: "Corporate",
+        searchable: true,
+        is_live: true,
+        has_ui: true,
+        has_saved_views: true
+      )
+    else
+      foundation = Foundation.create!(
+        slug: "assets",
+        name: "Assets",
+        singular_name: "Asset",
+        plural_name: "Assets",
+        database_table_name: "assets",
+        table_type: "system",
+        model_class: "Asset",
+        icon: "Package",
+        feature: "Corporate",
+        searchable: true,
+        is_live: true,
+        has_ui: true,
+        has_saved_views: true,
+        allow_reserved_name: false
+      )
+    end
 
     puts "  Created Foundation: #{foundation.name} (ID: #{foundation.id})"
 
