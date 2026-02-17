@@ -397,8 +397,19 @@ class SyncedEmail < ApplicationRecord
   # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
   # linkable is a proper polymorphic FK with index — faster and Rails-standard.
   # metadata['synced_email_id'] is kept as audit data, not for querying.
+  #
+  # ⚠️ DO NOT REMOVE .unscoped (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: WarehouseDocument has acts_as_tenant which filters by current_tenant.
+  #      IMAP emails may have a different tenant_id than the viewing user
+  #      (e.g., email tenant=1, user tenant=2). The linkable FK already ensures
+  #      we only get THIS email's attachments - tenant scoping is redundant here
+  #      and actively breaks attachment display.
+  # ❌ WRONG: WarehouseDocument.where(...) - silently returns [] due to tenant mismatch
+  # ✅ CORRECT: WarehouseDocument.unscoped.where(...) - linkable FK is sufficient security
+  # ════════════════════════════════════════════
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
+    WarehouseDocument.unscoped.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
