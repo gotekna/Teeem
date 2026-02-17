@@ -91,7 +91,6 @@ class RequestTimingMiddleware
 
     # Get user context
     user_id = env["warden"]&.user&.id
-    organization_id = extract_organization_id(env)
 
     # Update thread-local for SQL instrumentation (if user became available mid-request)
     Thread.current[:performance_current_user_id] = user_id if user_id
@@ -105,7 +104,6 @@ class RequestTimingMiddleware
       view_time_ms: view_time_ms,
       status_code: status,
       user_id: user_id,
-      organization_id: organization_id,
       controller_action: controller_action,
       metadata: {
         content_type: request.content_type,
@@ -118,14 +116,4 @@ class RequestTimingMiddleware
     Performance::Buffer.push_request(data)
   end
 
-  # Extract organization ID from various sources
-  def extract_organization_id(env)
-    # Try params
-    params = env["action_controller.instance"]&.params
-    return params[:organization_id].to_i if params&.key?(:organization_id)
-
-    # Try current user's organization
-    user = env["warden"]&.user
-    user&.organization_id
-  end
 end
