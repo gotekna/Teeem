@@ -282,6 +282,11 @@ class PurchaseOrder < ApplicationRecord
     )
   end
 
+  # Net total after credit notes are applied
+  def net_total
+    total - (credit_amount || 0)
+  end
+
   # Calculate payment percentage relative to PO total
   def payment_percentage
     return 0 if total.nil? || total.zero?
@@ -503,7 +508,9 @@ class PurchaseOrder < ApplicationRecord
       # Budget lockdown info
       'budget_locked' => budget_locked?,
       'budget_locked_by_name' => budget_locked_by&.name,
-      'budget_locked_at' => budget_locked_at&.iso8601
+      'budget_locked_at' => budget_locked_at&.iso8601,
+      # Credit note adjusted total
+      'net_total' => net_total
     )
     # Include labour summary if this is a labour PO
     result['labour_summary'] = labour_summary if labour_po?

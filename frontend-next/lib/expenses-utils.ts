@@ -41,6 +41,9 @@ export interface PurchaseOrderRecord {
   sm_task?: { id: number; display?: string; name?: string } | null;
   // Budget lock status
   budget_locked_at?: string | null;
+  // Credit notes applied to this PO
+  credit_amount?: number | null;
+  net_total?: number | null;
   [key: string]: unknown;
 }
 
@@ -150,6 +153,22 @@ function toNumber(value: unknown): number {
   return isNaN(num) ? 0 : num;
 }
 
+/**
+ * Get the net total for a PO (total minus credit notes)
+ * Uses backend-calculated net_total if available, otherwise derives from credit_amount
+ */
+function getNetTotal(po: PurchaseOrderRecord): number {
+  if (po.net_total != null) return toNumber(po.net_total);
+  return toNumber(po.total) - toNumber(po.credit_amount);
+}
+
+/**
+ * Calculate total credits across an array of POs
+ */
+export function getTotalCredits(pos: PurchaseOrderRecord[]): number {
+  return pos.reduce((sum, po) => sum + toNumber(po.credit_amount), 0);
+}
+
 // =============================================================================
 // GROUPING FUNCTION
 // =============================================================================
@@ -205,7 +224,7 @@ export function groupExpensesByHierarchy(
         key: `${level1Label}:${level2Label}`,
         label: level2Label,
         budget: level2Pos.reduce((sum, po) => sum + toNumber(po.budget), 0),
-        spent: level2Pos.reduce((sum, po) => sum + toNumber(po.total), 0),
+        spent: level2Pos.reduce((sum, po) => sum + getNetTotal(po), 0),
         paid: level2Pos.reduce((sum, po) => sum + toNumber(po.xero_amount_paid), 0),
         remaining: level2Pos.reduce((sum, po) => sum + toNumber(po.xero_still_to_be_paid), 0),
         variance: level2Pos.reduce((sum, po) => sum + toNumber(po.diff_po_with_allowance_versus_budget), 0),
@@ -336,7 +355,7 @@ export function isOverBilled(po: PurchaseOrderRecord): boolean {
  * Calculate cost to complete (PO total minus what's been paid)
  */
 export function getCostToComplete(po: PurchaseOrderRecord): number {
-  const total = Number(po.total) || 0;
+  const net = getNetTotal(po);
   const paid = Number(po.xero_amount_paid) || 0;
-  return Math.max(0, total - paid);
+  return Math.max(0, net - paid);
 }

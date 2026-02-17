@@ -1023,10 +1023,64 @@ class ExternalInvoiceSyncService
     link_to_job(record) if record.job_id.nil?
     link_to_contact(record) if record.contact_id.nil?
 
+    # Apply credit note allocations to matching Purchase Orders
+    apply_credit_to_purchase_orders(record)
+
   rescue StandardError => e
     error_msg = "Error processing credit note #{cn_data['CreditNoteNumber']}: #{e.message}"
     Rails.logger.error(error_msg)
     @stats[:errors] << error_msg
+  end
+
+  # Apply credit note allocations to Purchase Orders
+  # Xero credit notes have Allocations that reference the original invoices.
+  # We find matching POs via xero_invoice_id and accumulate credit_amount.
+  #
+  # Idempotent: recalculates total credit from ALL credit notes for each affected PO,
+  # so re-running sync won't double-count.
+  def apply_credit_to_purchase_orders(credit_note_record)
+    allocations = credit_note_record.raw_data&.dig("Allocations")
+    return if allocations.blank?
+
+    # Collect unique invoice IDs from this credit note's allocations
+    affected_invoice_ids = allocations
+      .filter_map { |a| a.dig("Invoice", "InvoiceID") }
+      .uniq
+    return if affected_invoice_ids.empty?
+
+    # Find POs that match these Xero invoice IDs
+    affected_pos = PurchaseOrder.where(xero_invoice_id: affected_invoice_ids)
+    if affected_pos.empty?
+      Rails.logger.debug("[CreditNote] No POs found for Xero invoices #{affected_invoice_ids.join(', ')} (credit note #{credit_note_record.invoice_number})")
+      return
+    end
+
+    # Load all credit notes for this tenant that reference any of these invoices
+    # Uses PostgreSQL JSONB containment to narrow the query
+    credit_notes = ExternalInvoice.where(
+      invoice_type: "credit_note",
+      tenant_id: credit_note_record.tenant_id
+    ).where.not(raw_data: nil)
+
+    # Build a map: xero_invoice_id → total credit amount
+    credit_totals = Hash.new(0)
+    credit_notes.find_each do |cn|
+      cn_allocations = cn.raw_data&.dig("Allocations") || []
+      cn_allocations.each do |a|
+        inv_id = a.dig("Invoice", "InvoiceID")
+        next unless affected_invoice_ids.include?(inv_id)
+        credit_totals[inv_id] += (a["Amount"]&.to_d || 0)
+      end
+    end
+
+    # Update each affected PO
+    affected_pos.each do |po|
+      total_credit = credit_totals[po.xero_invoice_id] || 0
+      po.update_column(:credit_amount, total_credit)
+      Rails.logger.info("[CreditNote] Updated PO #{po.purchase_order_number} credit_amount=#{total_credit} from credit notes")
+    end
+  rescue StandardError => e
+    Rails.logger.error("[CreditNote] Failed to apply credit to POs for #{credit_note_record.invoice_number}: #{e.message}")
   end
 
   # Fetch all quotes from Xero

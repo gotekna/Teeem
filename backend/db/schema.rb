@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_18_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_18_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7749,6 +7749,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_120000) do
     t.string "budget_unlock_reason"
     t.bigint "tenant_id"
     t.bigint "external_invoice_id"
+    t.decimal "credit_amount", precision: 15, scale: 2, default: "0.0"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"

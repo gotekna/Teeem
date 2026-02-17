@@ -14,6 +14,7 @@ import { ExpensesTree } from "@/components/expenses/ExpensesTree";
 import {
   groupExpensesByHierarchy,
   calculateJobTotals,
+  getTotalCredits,
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
 import { PAGE_SIZE_LARGE } from "@/lib/constants/pagination-constants";
@@ -103,6 +104,11 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
     return calculateJobTotals(groupedData);
   }, [groupedData]);
 
+  // Calculate total credits across all POs
+  const totalCredits = useMemo(() => {
+    return getTotalCredits(records);
+  }, [records]);
+
   const handleGroupingChange = useCallback((value: string) => {
     if (value) {
       setGroupingMode(value as GroupingMode);
@@ -171,6 +177,7 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
         totalRemaining={totals.totalRemaining}
         totalVariance={totals.totalVariance}
         poCount={totals.poCount}
+        totalCredits={totalCredits}
       />
 
       {/* Expenses Tree */}

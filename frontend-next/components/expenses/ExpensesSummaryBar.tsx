@@ -10,7 +10,7 @@ import {
   STATUS_COLORS,
 } from "@/lib/expenses-utils";
 import { BudgetProgressBar } from "./BudgetProgressBar";
-import { TrendingUp, TrendingDown, DollarSign, Receipt } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Receipt, CreditCard } from "lucide-react";
 
 interface ExpensesSummaryBarProps {
   totalBudget: number;
@@ -19,6 +19,7 @@ interface ExpensesSummaryBarProps {
   totalRemaining: number;
   totalVariance: number;
   poCount: number;
+  totalCredits?: number;
   className?: string;
 }
 
@@ -39,6 +40,7 @@ export function ExpensesSummaryBar({
   totalRemaining,
   totalVariance,
   poCount,
+  totalCredits = 0,
   className,
 }: ExpensesSummaryBarProps) {
   const status = getBudgetStatus(totalSpent, totalBudget);
@@ -77,6 +79,21 @@ export function ExpensesSummaryBar({
             </div>
           </div>
         </div>
+
+        {/* Credits (only show if > 0) */}
+        {totalCredits > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-md bg-purple-100 dark:bg-purple-900/30">
+              <CreditCard className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Credit Notes</div>
+              <div className="text-lg font-semibold tabular-nums text-purple-700 dark:text-purple-300">
+                -{formatCurrency(totalCredits)}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Paid */}
         <div className="flex items-center gap-2">
