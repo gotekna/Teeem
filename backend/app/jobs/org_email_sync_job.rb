@@ -444,9 +444,15 @@ class OrgEmailSyncJob < ApplicationJob
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
     parallel_start = Time.current
     thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
+    # ⚠️ FRC (Feb 2026): Disable folder skip during year-by-year backfill
+    # Root cause: Year 2024 sync marks "Inbox/Subfolders" as empty → skip for 1 hour.
+    # Year 2023 sync sees "recently empty" → skips folder. But the folder HAS emails in 2023!
+    # Each year is a different date window, so folder skip stats from other years are meaningless.
+    # Fix: Pass nil for existing_folder_stats when backfilling (depth_year set).
+    effective_folder_stats = depth_year ? {} : existing_folder_stats
     total_synced = sync_folders_parallel(client, user_email, folders, since,
       thread_count: thread_count, time_budget: time_budget,
-      existing_folder_stats: existing_folder_stats, folder_results: folder_results)
+      existing_folder_stats: effective_folder_stats, folder_results: folder_results)
     parallel_elapsed = (Time.current - parallel_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
