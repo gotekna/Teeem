@@ -167,11 +167,11 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const XeroBillsCard = dynamic(() => import("@/components/xero/XeroBillsCard").then(m => m.XeroBillsCard), {
+const XeroBillsCard = dynamic(() => import("@/components/xero/XeroBillsCard"), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
-const XeroInvoicesCard = dynamic(() => import("@/components/xero/XeroInvoicesCard").then(m => m.XeroInvoicesCard), {
+const XeroInvoicesCard = dynamic(() => import("@/components/xero/XeroInvoicesCard"), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });

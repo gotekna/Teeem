@@ -6,7 +6,7 @@ module Microsoft
   class EmailClient < BaseClient
     # List emails for a specific user
     # user_identifier: email address or user ID
-    def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, skip: nil)
+    def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, before: nil, skip: nil)
       endpoint = "/users/#{CGI.escape(user_identifier)}/mailFolders/#{folder}/messages"
 
       params = {
@@ -22,6 +22,15 @@ module Microsoft
       if since
         since_filter = "receivedDateTime ge #{since.iso8601}"
         params["$filter"] = params["$filter"] ? "(#{params['$filter']}) and #{since_filter}" : since_filter
+      end
+
+      # FRC (Feb 2026): Upper date bound for year-by-year backfill
+      # When syncing a specific year (e.g. 2025), we set before=2026-01-01 to avoid
+      # fetching emails from future years. Without this, the Graph API returns ALL emails
+      # newer than `since`, defeating the year-bounded approach.
+      if before
+        before_filter = "receivedDateTime lt #{before.iso8601}"
+        params["$filter"] = params["$filter"] ? "(#{params['$filter']}) and #{before_filter}" : before_filter
       end
 
       response = get(endpoint, params)

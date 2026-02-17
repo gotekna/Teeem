@@ -108,8 +108,8 @@ class MicrosoftAppGraphClient
   # Email Access (delegates to Microsoft::EmailClient)
   # ==========================================
 
-  def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, skip: nil)
-    @email.get_user_emails(user_identifier, folder: folder, top: top, filter: filter, search: search, since: since, skip: skip)
+  def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, before: nil, skip: nil)
+    @email.get_user_emails(user_identifier, folder: folder, top: top, filter: filter, search: search, since: since, before: before, skip: skip)
   end
 
   def get_user_email(user_identifier, message_id, include_body: true)

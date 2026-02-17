@@ -749,23 +749,47 @@ class ExternalInvoiceSyncService
     }
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Must use page parameter (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Xero API returns EMPTY LineItems when called without page parameter.
+  #      Without LineItems, tracking categories are never extracted, so bills
+  #      can't be matched to jobs via tracking_data.
+  # ❌ WRONG: @api_client.get("Invoices", { modifiedAfter: ... }) — no line items!
+  # ✅ CORRECT: @api_client.get("Invoices", { modifiedAfter: ..., page: N }) — includes line items
+  # ════════════════════════════════════════════
   def sync_tenant_incremental(tenant_id, since)
     Rails.logger.info("Starting incremental sync for tenant #{tenant_id} since #{since}")
 
-    # Xero supports modifiedAfter parameter
-    result = @api_client.get("Invoices", {
-      modifiedAfter: since.iso8601,
-      tenant_id: tenant_id
-    })
+    # Paginate with page parameter - Xero returns empty LineItems without it
+    all_invoices = []
+    page = 1
 
-    unless result[:success]
-      raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
+    loop do
+      result = @api_client.get("Invoices", {
+        modifiedAfter: since.iso8601,
+        page: page,
+        tenant_id: tenant_id
+      })
+
+      unless result[:success]
+        raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
+      end
+
+      invoices_page = result[:data]["Invoices"] || []
+      break if invoices_page.empty?
+
+      all_invoices.concat(invoices_page)
+      Rails.logger.info("Incremental sync page #{page}: #{invoices_page.length} invoices (total: #{all_invoices.length})")
+
+      page += 1
+      break if page > MAX_PAGES
+
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
-    invoices = result[:data]["Invoices"] || []
-    Rails.logger.info("Found #{invoices.length} modified invoices since #{since}")
+    Rails.logger.info("Found #{all_invoices.length} modified invoices since #{since}")
 
-    invoices.each do |invoice_data|
+    all_invoices.each do |invoice_data|
       process_invoice(invoice_data, tenant_id)
     end
 
