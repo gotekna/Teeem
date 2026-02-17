@@ -1130,12 +1130,13 @@ function EmailSyncTab({
                             const folderList = Object.values(mailboxFolders).sort((a, b) => b.email_count - a.email_count);
                             const hasFolders = folderList.length > 0;
                             const isMailboxExpanded = expandedMailboxes.has(emailLower);
+                            const canExpand = row.synced || hasFolders;
                             return (
                             <React.Fragment key={row.email}>
                             <TableRow className={row.synced ? "" : row.errorInfo?.type === "permanent" ? "opacity-80 bg-red-500/5" : "opacity-60"}>
                               <TableCell>
                                 <div className="flex items-center gap-1.5">
-                                  {hasFolders ? (
+                                  {canExpand ? (
                                     <button
                                       onClick={(e) => { e.stopPropagation(); toggleMailbox(emailLower); }}
                                       className="p-0.5 rounded hover:bg-muted/50 transition-colors shrink-0"
@@ -1298,9 +1299,10 @@ function EmailSyncTab({
                                 })()}
                               </TableCell>
                             </TableRow>
-                            {isMailboxExpanded && hasFolders && (
+                            {isMailboxExpanded && canExpand && (
                               <TableRow className="bg-muted/30 hover:bg-muted/30">
                                 <TableCell colSpan={8} className="py-2 px-2">
+                                  {hasFolders ? (
                                   <div className="ml-8 grid grid-cols-[1fr_auto_auto] gap-x-6 gap-y-0.5 text-xs">
                                     <span className="font-medium text-muted-foreground">Folder</span>
                                     <span className="font-medium text-muted-foreground text-right">New Emails</span>
@@ -1325,6 +1327,11 @@ function EmailSyncTab({
                                       );
                                     })}
                                   </div>
+                                  ) : (
+                                  <div className="ml-8 text-xs text-muted-foreground">
+                                    Folder details will appear after next sync cycle
+                                  </div>
+                                  )}
                                 </TableCell>
                               </TableRow>
                             )}
