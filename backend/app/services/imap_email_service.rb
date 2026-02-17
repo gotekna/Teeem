@@ -710,26 +710,28 @@ class ImapEmailService
     addr.display_name
   end
 
+  # ⚠️ DO NOT ADD rescue => e HERE (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Silent rescue hid ALL attachment failures. Emails showed has_attachments=true
+  #      but had zero WarehouseDocuments. Nobody knew until users reported missing attachments.
+  # ❌ WRONG: rescue => e + log (silently loses attachments)
+  # ✅ CORRECT: Let errors bubble to per-email handler in sync_to_warehouse (line ~531)
+  # ════════════════════════════════════════════
   def attach_email_files(email, attachments)
-    # Note: email_attachments table DROPPED (Jan 2026) - use WarehouseDocument + StorageBlob
-    # SSoT: StorageBlob handles content-addressed deduplication
     attachments.each do |attachment|
       next unless attachment[:content].present?
 
       content = attachment[:content]
-      filename = attachment[:filename]
+      filename = attachment[:filename].presence || "attachment_#{SecureRandom.hex(4)}"
       content_type = attachment[:content_type]
 
-      # Create StorageBlob (handles deduplication via content_hash)
       blob = StorageBlob.find_or_create_for_content!(
         content,
         filename: filename,
         content_type: content_type
       )
 
-      # Create WarehouseDocument via standard service
       # FRC (Feb 2026): Use linkable: (not documentable:) so attachment_documents query finds them.
-      # attachment_documents queries by linkable_type/linkable_id - documentable is legacy/audit only.
       metadata = { "synced_email_id" => email.id.to_s }
       metadata["content_id"] = attachment[:content_id] if attachment[:content_id].present?
 
@@ -744,10 +746,8 @@ class ImapEmailService
       )
 
       blob.increment!(:reference_count)
-      Rails.logger.debug "[ImapEmailService] Created attachment: #{filename}"
+      Rails.logger.info "[ImapEmailService] Created attachment: #{filename} for email #{email.id}"
     end
-  rescue => e
-    Rails.logger.error "[ImapEmailService] Error attaching files: #{e.message}"
   end
 
   # FRC (Jan 2026): Store raw .eml content to StorageBlob and create WarehouseDocument
