@@ -175,6 +175,10 @@ const XeroInvoicesCard = dynamic(() => import("@/components/xero/XeroInvoicesCar
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const XeroJobProfitLossCard = dynamic(() => import("@/components/xero/XeroJobProfitLossCard"), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/WarehouseTree").then(m => m.WarehouseTree), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -253,6 +257,14 @@ function TabLoadingSkeleton() {
 const jobRequestCache = new Map<string, { promise: Promise<Job>; timestamp: number }>();
 const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 
+// Module-level cache for resolved job data.
+// Prevents page-level skeleton flash when Next.js remounts the component
+// during sub-tab navigation (catch-all [..tab] route changes).
+// FRC (Feb 2026): Claims-XERO tab click caused full page skeleton because
+// component remounted with loading=true and no cached data.
+const jobDataCache = new Map<string, { data: Job; timestamp: number }>();
+const JOB_DATA_CACHE_TTL_MS = 60000; // 60 seconds for resolved data
+
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
 // Special tabs (overview, whs, plans) have inline JSX and are excluded.
@@ -286,6 +298,12 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "invoices": XeroInvoicesCard,
   "claims-xero": XeroInvoicesCard,
   "claims---xero": XeroInvoicesCard,
+  // Xero P&L report filtered by job tracking category
+  "p&l---xero": XeroJobProfitLossCard,
+  "p&l-xero": XeroJobProfitLossCard,
+  "pl-xero": XeroJobProfitLossCard,
+  "pl---xero": XeroJobProfitLossCard,
+  "profit-loss-xero": XeroJobProfitLossCard,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -735,8 +753,19 @@ export default function JobDetailPage() {
     return () => console.warn(`[JobPage] UNMOUNT jobId=${jobId}`);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [job, setJob] = React.useState<Job | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  // Use module-level cache to prevent skeleton flash on sub-tab navigation.
+  // When Next.js remounts this component (catch-all route change), we instantly
+  // show the cached job data instead of a loading skeleton.
+  const cachedJobData = React.useMemo(() => {
+    const cached = jobDataCache.get(`job-${jobId}`);
+    if (cached && Date.now() - cached.timestamp < JOB_DATA_CACHE_TTL_MS) {
+      return cached.data;
+    }
+    return null;
+  }, [jobId]);
+
+  const [job, setJob] = React.useState<Job | null>(cachedJobData);
+  const [loading, setLoading] = React.useState(!cachedJobData);
 
   // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
   const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
@@ -1019,6 +1048,8 @@ export default function JobDetailPage() {
       // API returns { success: true, data: {...} } envelope
       const jobData = (response as unknown as { data?: Job })?.data || response;
       setJob(jobData as Job);
+      // Cache resolved data for sub-tab navigation (prevents skeleton flash on remount)
+      jobDataCache.set(cacheKey, { data: jobData as Job, timestamp: Date.now() });
       console.warn(`[JobPage] loadJob SUCCESS jobId=${jobId} name=${(jobData as Job)?.name}`);
     } catch (error) {
       // Clean up cache on error too

@@ -4,7 +4,7 @@ module Api
       include DocumentProviderAware
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :boq, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :activities, :budget_tracking, :boq, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -518,6 +518,101 @@ module Api
         }
       rescue StandardError => e
         render_error(e.message, status: :internal_server_error)
+      end
+
+      # GET /api/v1/jobs/:id/xero_profit_loss
+      # Returns Xero Profit & Loss report filtered by this job's tracking category
+      # Params:
+      #   from_date: start date (default: start of financial year)
+      #   to_date: end date (default: today)
+      #   periods: number of comparison periods (default: 3)
+      #   timeframe: MONTH, QUARTER, YEAR (default: YEAR)
+      def xero_profit_loss
+        # Find tracking option for this job
+        tracking_option_id = @job.xero_tracking_option_id
+        if tracking_option_id.blank?
+          return render_error("This job has no Xero tracking option linked", status: :bad_request)
+        end
+
+        # Get tracking category ID from local tracking options table
+        tracking_option = XeroTrackingOption.find_by(xero_tracking_option_id: tracking_option_id)
+        tracking_category_id = tracking_option&.xero_tracking_category_id
+
+        if tracking_category_id.blank?
+          return render_error("Could not determine tracking category for this job", status: :bad_request)
+        end
+
+        # Find Xero connection for current tenant
+        connection = CorporateXeroConnection.joins(:corporate)
+          .where(corporates: { tenant_id: current_tenant.id })
+          .where.not(xero_tenant_id: nil)
+          .first
+
+        if connection.nil? || !connection.connected?
+          return render_error("No Xero connection found for this tenant", status: :bad_request)
+        end
+
+        # Refresh tokens if needed
+        if connection.needs_refresh?
+          unless connection.refresh_tokens!
+            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
+          end
+        end
+
+        begin
+          # Default to Australian financial year (1 Jul - 30 Jun)
+          today = Date.current
+          fy_start = today.month >= 7 ? Date.new(today.year, 7, 1) : Date.new(today.year - 1, 7, 1)
+          fy_end = fy_start + 1.year - 1.day
+
+          from_date = params[:from_date] || fy_start.to_s
+          to_date = params[:to_date] || fy_end.to_s
+          periods = (params[:periods] || 3).to_i
+          timeframe = params[:timeframe] || "YEAR"
+
+          client = XeroApiClient.new
+          result = client.get(
+            "Reports/ProfitAndLoss",
+            tenant_id: connection.xero_tenant_id,
+            fromDate: from_date,
+            toDate: to_date,
+            periods: periods,
+            timeframe: timeframe,
+            trackingCategoryID: tracking_category_id,
+            trackingOptionID: tracking_option_id
+          )
+
+          unless result[:success]
+            return render_error(result[:error] || "Failed to fetch Profit & Loss from Xero", status: :unprocessable_entity)
+          end
+
+          reports = result[:data]["Reports"] || []
+          report = reports.first
+
+          if report.nil?
+            return render_error("No Profit & Loss report returned from Xero", status: :unprocessable_entity)
+          end
+
+          # Parse report rows (reuse helper from CorporateXeroController pattern)
+          rows = parse_xero_pl_rows(report["Rows"] || [])
+
+          render json: {
+            success: true,
+            report: {
+              title: report["ReportTitles"]&.join(" - "),
+              titles: report["ReportTitles"],
+              from_date: from_date,
+              to_date: to_date,
+              periods: periods,
+              timeframe: timeframe,
+              tracking_option_name: @job.xero_tracking_option_name,
+              rows: rows
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Failed to fetch Xero P&L for job #{@job.id}: #{e.message}")
+          render_error(e.message, status: :internal_server_error)
+        end
       end
 
       # GET /api/v1/jobs/:id/activities
@@ -1200,6 +1295,31 @@ module Api
       end
 
       private
+
+      # Helper to parse Xero report rows into a flat structure
+      # Same pattern as CorporateXeroController#parse_xero_report_rows
+      def parse_xero_pl_rows(rows, depth = 0)
+        result = []
+        rows.each do |row|
+          row_type = row["RowType"]
+          case row_type
+          when "Header"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "Header", cells: cells }
+          when "Section"
+            title = row["Title"]
+            result << { row_type: "Section", title: title } if title.present?
+            result.concat(parse_xero_pl_rows(row["Rows"], depth + 1)) if row["Rows"].present?
+          when "Row"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "Row", cells: cells, depth: depth }
+          when "SummaryRow"
+            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
+            result << { row_type: "SummaryRow", cells: cells }
+          end
+        end
+        result
+      end
 
       # Single-link mode: link one tracking option (backward compatible)
       def link_xero_tracking_single

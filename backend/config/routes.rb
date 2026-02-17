@@ -594,6 +594,7 @@ Rails.application.routes.draw do
           post :import_xero_bills
           post :link_xero_tracking
           get :xero_tracking_options
+          get :xero_profit_loss
           # AI job analysis
           post :analyze, to: "job_estimator#analyze"
           # Merge jobs
