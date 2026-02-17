@@ -96,13 +96,38 @@ module Api
 
       # GET /api/v1/external_invoices/by_job/:job_id
       # Optimized endpoint for fetching all invoices/bills for a job
+      # Searches by job_id (fast, indexed) AND tracking option names (catches unlinked bills)
       def by_job
         job = Job.find(params[:job_id])
 
-        invoices = ExternalInvoice.active
-                                  .includes(:job, :warehouse_documents)
-                                  .where(job_id: job.id)
-                                  .order(invoice_date: :desc)
+        # Collect all tracking option names for this job
+        tracking_names = [job.xero_tracking_option_name]
+        tracking_names += XeroJobTrackingLink.where(job_id: job.id).pluck(:tracking_option_name)
+        tracking_names = tracking_names.compact.uniq
+
+        base = ExternalInvoice.active.includes(:job, :warehouse_documents)
+
+        if tracking_names.any?
+          # Find bills linked by job_id OR matching any tracking option name
+          # This catches bills synced from Xero that haven't been linked yet
+          conditions = ["external_invoices.job_id = ?"]
+          values = [job.id]
+
+          tracking_names.each do |name|
+            conditions << "external_invoices.tracking_data @> ?"
+            values << [{ "Option" => name }].to_json
+          end
+
+          invoices = base.where(conditions.join(" OR "), *values)
+        else
+          invoices = base.where(job_id: job.id)
+        end
+
+        invoices = invoices.order(invoice_date: :desc)
+
+        # Auto-link unlinked invoices found via tracking data (so future queries are fast)
+        unlinked = invoices.where(job_id: nil)
+        unlinked.update_all(job_id: job.id) if unlinked.any?
 
         sales_invoices = invoices.sales_invoices
         bills = invoices.bills
