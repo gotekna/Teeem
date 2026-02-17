@@ -21,6 +21,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
+  belongs_to :external_invoice, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
 
   # Budget Lockdown associations

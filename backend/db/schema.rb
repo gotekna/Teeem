@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_18_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_18_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7748,6 +7748,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_100000) do
     t.bigint "budget_unlocked_by_id"
     t.string "budget_unlock_reason"
     t.bigint "tenant_id"
+    t.bigint "external_invoice_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
@@ -7755,6 +7756,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_100000) do
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
     t.index ["estimate_id"], name: "index_purchase_orders_on_estimate_id"
+    t.index ["external_invoice_id"], name: "index_purchase_orders_on_external_invoice_id"
     t.index ["job_id", "status"], name: "index_purchase_orders_on_construction_and_status"
     t.index ["job_id", "supplier_id", "status"], name: "idx_po_job_supplier_status"
     t.index ["job_id"], name: "index_purchase_orders_on_job_id"
@@ -11771,6 +11773,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_100000) do
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"
+  add_foreign_key "purchase_orders", "external_invoices"
   add_foreign_key "purchase_orders", "jobs"
   add_foreign_key "purchase_orders", "quote_responses"
   add_foreign_key "purchase_orders", "tenants"
