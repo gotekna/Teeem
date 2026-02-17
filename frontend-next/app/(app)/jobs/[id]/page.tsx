@@ -167,6 +167,14 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const XeroBillsCard = dynamic(() => import("@/components/xero/XeroBillsCard").then(m => m.XeroBillsCard), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const XeroInvoicesCard = dynamic(() => import("@/components/xero/XeroInvoicesCard").then(m => m.XeroInvoicesCard), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/WarehouseTree").then(m => m.WarehouseTree), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -271,6 +279,13 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "revit": RevitTab,
   "revit-dwg": RevitTab,
   "warehouse": JobWarehouseTab,
+  // Xero Finance tabs - bills/invoices linked to this job
+  "bills": XeroBillsCard,
+  "bills-xero": XeroBillsCard,
+  "bills---xero": XeroBillsCard,
+  "invoices": XeroInvoicesCard,
+  "claims-xero": XeroInvoicesCard,
+  "claims---xero": XeroInvoicesCard,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -714,6 +729,12 @@ export default function JobDetailPage() {
   const pathname = usePathname();
   const jobId = params.id as string;
 
+  // Diagnostic: log mount and params
+  React.useEffect(() => {
+    console.warn(`[JobPage] MOUNT jobId=${jobId} pathname=${pathname} params=`, params);
+    return () => console.warn(`[JobPage] UNMOUNT jobId=${jobId}`);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -962,6 +983,8 @@ export default function JobDetailPage() {
   }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);
 
   const loadJob = React.useCallback(async () => {
+    const startTime = Date.now();
+    console.warn(`[JobPage] loadJob START jobId=${jobId}`);
     try {
       // Deduplicate in-flight requests - if same job is already being fetched, reuse the promise
       // Clear stale cache entries to prevent hanging on dead promises
@@ -971,6 +994,7 @@ export default function JobDetailPage() {
 
       // Check if cached promise is stale (older than TTL)
       if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
+        console.warn(`[JobPage] Clearing stale cache for ${cacheKey}`);
         jobRequestCache.delete(cacheKey);
       }
 
@@ -978,13 +1002,16 @@ export default function JobDetailPage() {
       const freshCached = jobRequestCache.get(cacheKey);
 
       if (freshCached) {
+        console.warn(`[JobPage] Using cached promise for ${cacheKey}`);
         requestPromise = freshCached.promise;
       } else {
+        console.warn(`[JobPage] Making fresh API call for ${cacheKey}`);
         requestPromise = api.get<Job>(`/api/v1/jobs/${jobId}`);
         jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
       const response = await requestPromise;
+      console.warn(`[JobPage] loadJob RESPONSE received in ${Date.now() - startTime}ms`, typeof response);
 
       // Clean up cache after request completes
       jobRequestCache.delete(cacheKey);
@@ -992,11 +1019,13 @@ export default function JobDetailPage() {
       // API returns { success: true, data: {...} } envelope
       const jobData = (response as unknown as { data?: Job })?.data || response;
       setJob(jobData as Job);
+      console.warn(`[JobPage] loadJob SUCCESS jobId=${jobId} name=${(jobData as Job)?.name}`);
     } catch (error) {
       // Clean up cache on error too
       jobRequestCache.delete(`job-${jobId}`);
-      console.error("Failed to fetch job:", error);
+      console.error(`[JobPage] loadJob ERROR jobId=${jobId} after ${Date.now() - startTime}ms:`, error);
     } finally {
+      console.warn(`[JobPage] loadJob FINALLY - setting loading=false after ${Date.now() - startTime}ms`);
       setLoading(false);
     }
   }, [jobId]);
@@ -1187,12 +1216,26 @@ export default function JobDetailPage() {
 
   React.useEffect(() => {
     if (jobId) {
+      console.warn(`[JobPage] useEffect triggered - calling loadJob for jobId=${jobId}`);
       loadJob();
       loadXeroTrackingOptions();
       loadJobDesigns();
       loadChoiceColumns();
+    } else {
+      console.warn(`[JobPage] useEffect triggered - NO jobId, skipping loadJob`);
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
+
+  // Safety timeout: if loading is stuck for 10 seconds, force it to false
+  // This prevents permanent skeleton state from hanging API calls or cache issues
+  React.useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.error(`[JobPage] SAFETY TIMEOUT - loading stuck for 10s, forcing loading=false for jobId=${jobId}`);
+      setLoading(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [loading, jobId]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
