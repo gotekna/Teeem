@@ -91,15 +91,34 @@ class WarehouseFolderQueryService
   end
 
   # Single grouped query for document counts
+  # FRC (Feb 2026): Was using metadata->>'document_type_id' JSONB extraction which
+  # caused full table scan on 139K+ rows (GIN index only helps @> containment).
+  # Fix: Use indexed warehouse_folder_document_type_id FK column instead.
   def preload_document_counts(document_type_ids)
     return {} if document_type_ids.empty?
 
-    counts = WarehouseDocument
-      .where("metadata->>'document_type_id' IN (?)", document_type_ids.map(&:to_s))
-      .group("metadata->>'document_type_id'")
+    # Map WFDT IDs to their document_type_id (indexed lookup)
+    wfdt_to_dt = WarehouseFolderDocumentType
+      .where(document_type_id: document_type_ids)
+      .pluck(:id, :document_type_id)
+
+    return {} if wfdt_to_dt.empty?
+
+    wfdt_ids = wfdt_to_dt.map(&:first)
+
+    # Count by indexed FK column (uses index_warehouse_documents_on_warehouse_folder_document_type_id)
+    counts_by_wfdt = WarehouseDocument
+      .where(warehouse_folder_document_type_id: wfdt_ids)
+      .group(:warehouse_folder_document_type_id)
       .count
 
-    counts.transform_keys(&:to_i)
+    # Aggregate back to document_type_id
+    result = Hash.new(0)
+    wfdt_to_dt.each do |wfdt_id, dt_id|
+      result[dt_id] += counts_by_wfdt[wfdt_id] || 0
+    end
+
+    result
   end
 
   # Load storage config once
