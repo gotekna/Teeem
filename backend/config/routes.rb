@@ -2454,6 +2454,7 @@ Rails.application.routes.draw do
           post :match
           post :approve
           post :reject
+          post :sync_pdf
         end
       end
 

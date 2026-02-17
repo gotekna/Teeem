@@ -26,6 +26,8 @@ import {
   ScanText,
   Wallet,
   RefreshCw,
+  Download,
+  Clock,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { PDFViewer, FieldHighlight } from "@/components/ui/pdf-viewer";
@@ -170,6 +172,7 @@ export interface BillDetail {
       status: string;
     } | null;
   }>;
+  external_invoice_id: number | null;
   "has_invoice_file?": boolean;
   invoice_file_content_type: string | null;
   invoice_file_filename: string | null;
@@ -280,6 +283,8 @@ export function BillsInvoiceViewer({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
   const [mismatchDetailsOpen, setMismatchDetailsOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "rate_limited" | "error">("idle");
+  const [rateLimitInfo, setRateLimitInfo] = useState<{ daily_used: number; daily_limit: number; resets_at: string } | null>(null);
 
   // Load PDF when bill changes
   useEffect(() => {
@@ -306,6 +311,61 @@ export function BillsInvoiceViewer({
       console.error("Failed to load PDF:", error);
     } finally {
       setPdfLoading(false);
+    }
+  };
+
+  // Reset sync state when bill changes
+  useEffect(() => {
+    setSyncStatus("idle");
+    setRateLimitInfo(null);
+  }, [bill?.id]);
+
+  const syncPdfFromXero = async (billId: number) => {
+    setSyncStatus("syncing");
+    try {
+      const res = await api.post(`/api/v1/bill_inbox/${billId}/sync_pdf`) as { success?: boolean; status?: string; rate_limit?: { daily_used: number; daily_limit: number; resets_at: string } };
+      if (res?.status === "rate_limited" || (!res?.success && res?.rate_limit)) {
+        setSyncStatus("rate_limited");
+        setRateLimitInfo(res.rate_limit ?? null);
+        return;
+      }
+      if (res?.status === "exists") {
+        // Already has PDF - just refresh
+        onRefresh?.();
+        setSyncStatus("idle");
+        return;
+      }
+      // Queued - poll for completion
+      const maxPolls = 10; // 10 * 3s = 30s timeout
+      let polls = 0;
+      const interval = setInterval(async () => {
+        polls++;
+        try {
+          const billData = await api.get(`/api/v1/bill_inbox/${billId}`) as { "has_invoice_file?"?: boolean };
+          if (billData?.["has_invoice_file?"]) {
+            clearInterval(interval);
+            setSyncStatus("idle");
+            onRefresh?.();
+          } else if (polls >= maxPolls) {
+            clearInterval(interval);
+            setSyncStatus("idle");
+            // Timeout - PDF may still be downloading, refresh to check
+            onRefresh?.();
+          }
+        } catch {
+          clearInterval(interval);
+          setSyncStatus("error");
+        }
+      }, 3000);
+    } catch (err: unknown) {
+      // Handle 429 from API response
+      const errorResponse = (err as { response?: { status?: number; data?: { rate_limit?: { daily_used: number; daily_limit: number; resets_at: string } } } })?.response;
+      if (errorResponse?.status === 429 && errorResponse?.data?.rate_limit) {
+        setSyncStatus("rate_limited");
+        setRateLimitInfo(errorResponse.data.rate_limit);
+      } else {
+        setSyncStatus("error");
+      }
     }
   };
 
@@ -818,9 +878,83 @@ export function BillsInvoiceViewer({
               <div className="flex flex-col items-center justify-center h-full text-center border rounded-lg bg-muted/30">
                 <ImageIcon className="h-16 w-16 text-muted-foreground mb-4 opacity-50" />
                 <h3 className="text-lg font-medium">No PDF Available</h3>
-                <p className="text-sm text-muted-foreground mt-1 max-w-xs">
-                  This bill doesn&apos;t have an attached invoice file.
-                </p>
+
+                {/* State A: Has Xero link - show download button */}
+                {bill?.external_invoice_id && syncStatus === "idle" && (
+                  <>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                      This bill was synced from Xero but the PDF hasn&apos;t been downloaded yet.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => syncPdfFromXero(bill.id)}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download from Xero
+                    </Button>
+                  </>
+                )}
+
+                {/* State A (syncing): Downloading in progress */}
+                {bill?.external_invoice_id && syncStatus === "syncing" && (
+                  <>
+                    <div className="flex items-center gap-2 mt-4">
+                      <Spinner className="h-4 w-4" />
+                      <p className="text-sm text-muted-foreground">Downloading from Xero...</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 max-w-xs">
+                      This usually takes a few seconds.
+                    </p>
+                  </>
+                )}
+
+                {/* State B: Rate limited */}
+                {syncStatus === "rate_limited" && rateLimitInfo && (
+                  <div className="mt-4 max-w-xs space-y-2">
+                    <div className="flex items-center gap-2 justify-center text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="text-sm font-medium">Xero API limit reached</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {rateLimitInfo.daily_used.toLocaleString()}/{rateLimitInfo.daily_limit.toLocaleString()} daily requests used
+                    </p>
+                    {rateLimitInfo.resets_at && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 justify-center">
+                        <Clock className="h-3 w-3" />
+                        Resets at {new Date(rateLimitInfo.resets_at).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
+                      </p>
+                    )}
+                    <Button variant="outline" size="sm" disabled className="mt-2">
+                      <Download className="h-4 w-4 mr-2" />
+                      Download from Xero
+                    </Button>
+                  </div>
+                )}
+
+                {/* State: Error */}
+                {syncStatus === "error" && (
+                  <>
+                    <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                      Failed to download PDF. Please try again.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => bill && syncPdfFromXero(bill.id)}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Retry
+                    </Button>
+                  </>
+                )}
+
+                {/* State C: No Xero link */}
+                {!bill?.external_invoice_id && syncStatus === "idle" && (
+                  <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                    This bill doesn&apos;t have an attached invoice file.
+                  </p>
+                )}
               </div>
             )}
           </CardContent>

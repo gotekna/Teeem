@@ -40,6 +40,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   // Extract values
   const budget = Number(po.budget) || 0;
   const total = Number(po.total) || 0;
+  const credit = Number(po.credit_amount) || 0;
   const invoiced = Number(po.total_billed) || 0;
   const paid = Number(po.xero_amount_paid) || 0;
   const costToComplete = getCostToComplete(po);
@@ -211,6 +212,7 @@ export function ExpensePORowHeader({ depth }: { depth: number }) {
       <div className="flex-1 min-w-[100px]">Supplier</div>
       <div className="w-[80px] shrink-0 text-right">Budget</div>
       <div className="w-[80px] shrink-0 text-right">PO Value</div>
+      <div className="w-[80px] shrink-0 text-right">Credit</div>
       <div className="w-[80px] shrink-0 text-right">Invoiced</div>
       <div className="w-[80px] shrink-0 text-right">Paid</div>
       <div className="w-[80px] shrink-0 text-right">To Complete</div>
@@ -228,6 +230,7 @@ export function ExpensePORowTotals({
   depth,
   budget,
   total,
+  credit,
   invoiced,
   paid,
   costToComplete,
@@ -237,6 +240,7 @@ export function ExpensePORowTotals({
   depth: number;
   budget: number;
   total: number;
+  credit: number;
   invoiced: number;
   paid: number;
   costToComplete: number;
@@ -266,6 +270,9 @@ export function ExpensePORowTotals({
       </div>
       <div className="w-[80px] shrink-0 text-right tabular-nums font-medium">
         {formatCurrency(total)}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums text-purple-600 dark:text-purple-400">
+        {credit > 0 ? `-${formatCurrency(credit)}` : '-'}
       </div>
       <div className="w-[80px] shrink-0 text-right tabular-nums">
         {invoiced > 0 ? formatCurrency(invoiced) : '-'}
