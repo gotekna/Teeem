@@ -101,6 +101,16 @@ class ExternalInvoiceSyncService
     @xero_tenant_id = xero_tenant_id
     @current_teeem_tenant_id = teeem_tenant_id_for(xero_tenant_id)
 
+    # ⚠️ DO NOT SIMPLIFY - Tenant scoping for contact resolution (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: link_to_contact and find_matching_contact query Contact.where(...)
+    #      which relies on acts_as_tenant scoping. Without setting the tenant,
+    #      workers have no tenant context and queries return cross-tenant results.
+    # ❌ WRONG: Contact.where(display_name: ...) without tenant → finds Tekna contacts for Pilgrim invoices
+    # ✅ CORRECT: Wrap in ActsAsTenant.with_tenant so all Contact queries are scoped
+    # ════════════════════════════════════════════════════════════════════
+    tenant = @current_teeem_tenant_id ? Tenant.find_by(id: @current_teeem_tenant_id) : nil
+
     begin
       # Fetch all invoices with pagination
       # If @fetch_details is true, also fetch full details including line items
@@ -109,9 +119,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}#{@fetch_details ? ' (with full details)' : ''}")
 
-      # Process each invoice
-      all_invoices.each do |invoice_data|
-        process_invoice(invoice_data, xero_tenant_id)
+      # Process each invoice within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_invoices.each do |invoice_data|
+          process_invoice(invoice_data, xero_tenant_id)
+        end
       end
 
       # Fetch all credit notes
@@ -120,9 +132,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_credit_notes.length} credit notes from #{@source}")
 
-      # Process each credit note
-      all_credit_notes.each do |cn_data|
-        process_credit_note(cn_data, xero_tenant_id)
+      # Process each credit note within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_credit_notes.each do |cn_data|
+          process_credit_note(cn_data, xero_tenant_id)
+        end
       end
 
       # Fetch all quotes
@@ -131,9 +145,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_quotes.length} quotes from #{@source}")
 
-      # Process each quote
-      all_quotes.each do |quote_data|
-        process_quote(quote_data, xero_tenant_id)
+      # Process each quote within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_quotes.each do |quote_data|
+          process_quote(quote_data, xero_tenant_id)
+        end
       end
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
@@ -910,8 +926,14 @@ class ExternalInvoiceSyncService
 
     Rails.logger.info("Found #{all_invoices.length} modified invoices since #{since}")
 
-    all_invoices.each do |invoice_data|
-      process_invoice(invoice_data, tenant_id)
+    # Scope contact queries to correct tenant (see sync_tenant comment for details)
+    teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(tenant_id)
+    tenant = teeem_tid ? Tenant.find_by(id: teeem_tid) : nil
+
+    ActsAsTenant.with_tenant(tenant) do
+      all_invoices.each do |invoice_data|
+        process_invoice(invoice_data, tenant_id)
+      end
     end
 
     # NOTE: XeroSyncStatus updates are handled by the Job, not the Service

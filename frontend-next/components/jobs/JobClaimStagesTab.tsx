@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -159,6 +169,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
   const [releasingRetainageId, setReleasingRetainageId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
+  const [unmatchConfirmStage, setUnmatchConfirmStage] = React.useState<ClaimStage | null>(null);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplateOption[]>([]);
@@ -446,11 +457,19 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       if (response.success && response.data?.pdfGenerationId) {
         toast({
           title: "PDF Generating",
-          description: response.data.message || "Opening in new tab...",
+          description: response.data.message || "Downloading...",
         });
-        const { getApiBaseUrl } = await import("@/lib/api");
-        const baseUrl = getApiBaseUrl();
-        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+        try {
+          const blob = await api.getBlob(`/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`);
+          const url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+        } catch {
+          toast({
+            title: "Error",
+            description: "Failed to download PDF",
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "Error",
@@ -810,7 +829,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7"
-                                  onClick={() => handleUnmatch(stage.id)}
+                                  onClick={() => setUnmatchConfirmStage(stage)}
                                   disabled={matchingStageId === stage.id}
                                   title="Unmatch invoice"
                                 >
@@ -1112,6 +1131,54 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unmatch Confirmation Dialog */}
+      <AlertDialog open={!!unmatchConfirmStage} onOpenChange={(open) => !open && setUnmatchConfirmStage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unmatch Invoice?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will unlink the invoice from the <strong>{unmatchConfirmStage?.name}</strong> stage.
+                  The invoice will remain in Xero but will no longer be associated with this claim stage.
+                </p>
+                {unmatchConfirmStage?.invoice && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Invoice:</span>
+                      <span className="font-medium">{unmatchConfirmStage.invoice.invoice_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Amount:</span>
+                      <span className="font-mono">{formatCurrency(unmatchConfirmStage.invoice.total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span>{unmatchConfirmStage.invoice.status}</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm">You can re-match it later using the Match button.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (unmatchConfirmStage) {
+                  handleUnmatch(unmatchConfirmStage.id);
+                  setUnmatchConfirmStage(null);
+                }
+              }}
+            >
+              Unmatch Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
