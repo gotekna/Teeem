@@ -1006,8 +1006,6 @@ export default function JobDetailPage() {
   }, [jobId, router, findParentOfTab, isParentTab, findFirstChildTab]);
 
   const loadJob = React.useCallback(async () => {
-    const startTime = Date.now();
-    console.warn(`[JobPage] loadJob START jobId=${jobId}`);
     try {
       // Deduplicate in-flight requests - if same job is already being fetched, reuse the promise
       // Clear stale cache entries to prevent hanging on dead promises
@@ -1017,7 +1015,6 @@ export default function JobDetailPage() {
 
       // Check if cached promise is stale (older than TTL)
       if (cached && now - cached.timestamp > REQUEST_CACHE_TTL_MS) {
-        console.warn(`[JobPage] Clearing stale cache for ${cacheKey}`);
         jobRequestCache.delete(cacheKey);
       }
 
@@ -1025,16 +1022,13 @@ export default function JobDetailPage() {
       const freshCached = jobRequestCache.get(cacheKey);
 
       if (freshCached) {
-        console.warn(`[JobPage] Using cached promise for ${cacheKey}`);
         requestPromise = freshCached.promise;
       } else {
-        console.warn(`[JobPage] Making fresh API call for ${cacheKey}`);
         requestPromise = api.get<Job>(`/api/v1/jobs/${jobId}`);
         jobRequestCache.set(cacheKey, { promise: requestPromise, timestamp: now });
       }
 
       const response = await requestPromise;
-      console.warn(`[JobPage] loadJob RESPONSE received in ${Date.now() - startTime}ms`, typeof response);
 
       // Clean up cache after request completes
       jobRequestCache.delete(cacheKey);
@@ -1044,13 +1038,11 @@ export default function JobDetailPage() {
       setJob(jobData as Job);
       // Cache resolved data for sub-tab navigation (prevents skeleton flash on remount)
       jobDataCache.set(cacheKey, { data: jobData as Job, timestamp: Date.now() });
-      console.warn(`[JobPage] loadJob SUCCESS jobId=${jobId} name=${(jobData as Job)?.name}`);
     } catch (error) {
       // Clean up cache on error too
       jobRequestCache.delete(`job-${jobId}`);
-      console.error(`[JobPage] loadJob ERROR jobId=${jobId} after ${Date.now() - startTime}ms:`, error);
+      console.error(`[JobPage] loadJob ERROR jobId=${jobId}:`, error);
     } finally {
-      console.warn(`[JobPage] loadJob FINALLY - setting loading=false after ${Date.now() - startTime}ms`);
       setLoading(false);
     }
   }, [jobId]);
@@ -1241,13 +1233,10 @@ export default function JobDetailPage() {
 
   React.useEffect(() => {
     if (jobId) {
-      console.warn(`[JobPage] useEffect triggered - calling loadJob for jobId=${jobId}`);
       loadJob();
       loadXeroTrackingOptions();
       loadJobDesigns();
       loadChoiceColumns();
-    } else {
-      console.warn(`[JobPage] useEffect triggered - NO jobId, skipping loadJob`);
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 

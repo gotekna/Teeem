@@ -533,7 +533,7 @@ module Api
         periods = (params[:periods] || 3).to_i
 
         # Australian financial year periods (1 Jul - 30 Jun)
-        today = CompanySetting.in_company_timezone { Date.today }
+        today = Date.current
         current_fy_start_year = today.month >= 7 ? today.year : today.year - 1
 
         # Build period ranges (current FY + comparison periods going back)

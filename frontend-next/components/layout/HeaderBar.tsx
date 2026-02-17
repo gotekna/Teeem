@@ -162,7 +162,6 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
           // Show specific message from backend (e.g., "Sync stalled: pdfs")
           const message = xeroData?.message || (needsReauth ? 'Token expired - click to reconnect' : 'Needs attention');
           setXeroTooltip(`Xero: ${message}`);
-          console.info(`[Xero] Issue detected: ${message}`);
         } else {
           // Not connected - show actual disconnected state
           setXeroStatus('disconnected');
