@@ -718,8 +718,7 @@ export function DataWarehouseTab() {
           ))}
           <TabsTrigger value="browse">Browse Views</TabsTrigger>
           <TabsTrigger value="data">View Data</TabsTrigger>
-          <TabsTrigger value="storage-config" className="gap-1">
-            <Settings className="h-3 w-3" />
+          <TabsTrigger value="storage-config">
             Storage Config
           </TabsTrigger>
         </TabsList>

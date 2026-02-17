@@ -135,8 +135,19 @@ class BulkContactUpsertService
       attrs.delete("updated_at")
       next if attrs.empty?
 
-      updated += Contact.where(id: op[:contact_id]).update_all(attrs)
-      contact_ids << op[:contact_id]
+      begin
+        updated += Contact.where(id: op[:contact_id]).update_all(attrs)
+        contact_ids << op[:contact_id]
+      rescue ActiveRecord::RecordNotUnique => e
+        # FRC (Feb 2026): Xero sends display_name that may collide with another contact.
+        # Skip display_name update and retry with remaining attrs.
+        Rails.logger.warn("[BulkContactUpsertService] UniqueViolation on update for contact #{op[:contact_id]}: #{e.message.truncate(100)}")
+        attrs_without_name = attrs.except(:display_name)
+        if attrs_without_name.any?
+          updated += Contact.where(id: op[:contact_id]).update_all(attrs_without_name)
+          contact_ids << op[:contact_id]
+        end
+      end
     end
 
     Contact.where(id: contact_ids).touch_all if contact_ids.any?

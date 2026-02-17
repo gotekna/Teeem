@@ -38,12 +38,10 @@ export function WarehouseTablesTab({ activeSubTab = "warehouse_types", basePath 
     <div className="space-y-4">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList>
-          <TabsTrigger value="warehouse_types" className="gap-1.5">
-            <Database className="h-4 w-4" />
+          <TabsTrigger value="warehouse_types">
             Warehouse Types
           </TabsTrigger>
-          <TabsTrigger value="warehouse_folders" className="gap-1.5">
-            <FolderOpen className="h-4 w-4" />
+          <TabsTrigger value="warehouse_folders">
             Warehouse Folders
           </TabsTrigger>
         </TabsList>

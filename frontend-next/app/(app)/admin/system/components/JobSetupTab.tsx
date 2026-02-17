@@ -562,15 +562,11 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
       {/* Sub-tab Navigation */}
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList>
-          {JOB_SETUP_SUB_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                <Icon className="h-4 w-4" />
+          {JOB_SETUP_SUB_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
                 {tab.label}
               </TabsTrigger>
-            );
-          })}
+          ))}
         </TabsList>
 
         <div className="mt-6">

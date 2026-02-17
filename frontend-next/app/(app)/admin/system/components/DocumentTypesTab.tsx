@@ -453,19 +453,16 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
         <TabsList className="grid w-full grid-cols-4 max-w-3xl shrink-0">
-          <TabsTrigger value="all" className="gap-2">
+          <TabsTrigger value="all">
             All ({documentTypes.length})
           </TabsTrigger>
-          <TabsTrigger value="company" className="gap-2">
-            <Building2 className="h-4 w-4" />
+          <TabsTrigger value="company">
             Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="job" className="gap-2">
-            <Briefcase className="h-4 w-4" />
+          <TabsTrigger value="job">
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="gap-2">
-            <Users className="h-4 w-4" />
+          <TabsTrigger value="contacts">
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
           </TabsTrigger>
         </TabsList>

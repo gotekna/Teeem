@@ -1521,19 +1521,27 @@ module Api
           pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
           total_pdf_eligible = pdf_eligible_invoices.count
 
-          # SSoT: Count PDFs synced via WarehouseDocument (universal document storage)
+          # SSoT: Count synced docs via WarehouseDocument (universal document storage)
           # WarehouseDocument + StorageBlob is THE ONE source of truth (Jan 2026)
+          # Feb 2026: Bills don't get auto-generated PDFs from Xero - is_bill_record = "processed"
           # Must use EXACT same filters as total_pdf_eligible
-          # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           pdf_query = WarehouseDocument.where(source_type: "xero")
-                                       .where("metadata->>'is_primary' = ?", "true")
-                                       .where.not(storage_blob_id: nil)
-                                       .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                        .where(documentable_type: "ExternalInvoice")
                                        .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
                                        .where.not(external_invoices: { contact_id: nil })
                                        .where.not(external_invoices: { status: "draft" })
                                        .where.not(external_invoices: { status: %w[voided deleted] })
+                                       .where(<<~SQL.squish)
+                                         (warehouse_documents.metadata->>'is_bill_record' = 'true')
+                                         OR
+                                         (warehouse_documents.metadata->>'is_primary' = 'true'
+                                          AND warehouse_documents.storage_blob_id IS NOT NULL
+                                          AND EXISTS (
+                                            SELECT 1 FROM storage_blobs
+                                            WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+                                            AND storage_blobs.content_hash IS NOT NULL
+                                          ))
+                                       SQL
 
           if xero_org_id.present?
             pdf_query = pdf_query.where(external_invoices: { xero_org_id: xero_org_id })
@@ -1607,15 +1615,24 @@ module Api
           # metadata->>'invoice_type' stores the invoice type from ExternalInvoice
           # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           bills_total = pdf_eligible_invoices.bills.count
+          # SSoT: Bills synced = has actual PDF blob OR has is_bill_record marker
+          # Bills don't get auto-generated PDFs from Xero - only supplier attachments
           bills_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                         .joins(:storage_blob)
                                          .where(source_type: "xero", documentable_type: "ExternalInvoice")
-                                         .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
-                                         .where.not(storage_blob_id: nil)
-                                         .where.not(storage_blobs: { content_hash: nil })
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
+                                         .where(<<~SQL.squish)
+                                           (warehouse_documents.metadata->>'is_bill_record' = 'true')
+                                           OR
+                                           (warehouse_documents.metadata->>'is_primary' = 'true'
+                                            AND warehouse_documents.storage_blob_id IS NOT NULL
+                                            AND EXISTS (
+                                              SELECT 1 FROM storage_blobs
+                                              WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+                                              AND storage_blobs.content_hash IS NOT NULL
+                                            ))
+                                         SQL
           bills_query = bills_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
@@ -1920,7 +1937,7 @@ module Api
                 schedule: pdfs_pending > 100 ? "Smart sync: max speed (every 5 min)" : pdfs_pending > 0 ? "Smart sync: slowing down (every 10 min)" : "Smart sync: near-live (every 30 min)",
                 synced_last_24h: pdfs_last_24h,
                 breakdown: {
-                  bills: { total: bills_total, synced: bills_with_pdfs },
+                  bills: { total: bills_total, synced: bills_with_pdfs, no_auto_pdf: true },
                   sales_invoices: { total: sales_total, synced: sales_with_pdfs },
                   credit_notes: { total: credit_notes_total, synced: credit_notes_with_pdfs },
                   quotes: { total: quotes_total, synced: quotes_with_pdfs }
@@ -3547,17 +3564,26 @@ module Api
           .where.not(status: "draft")
           .count
 
-        # Count invoices WITH synced PDFs
+        # Count invoices WITH synced PDFs OR bill record markers
+        # SSoT: Bills don't get auto-generated PDFs, so is_bill_record = "processed"
         synced = WarehouseDocument
           .where(source_type: "xero")
-          .where("metadata->>'is_primary' = ?", "true")
-          .where.not(storage_blob_id: nil)
-          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
           .where(documentable_type: "ExternalInvoice")
           .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
           .where(external_invoices: { xero_org_id: xero_tenant_id })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
+          .where(<<~SQL.squish)
+            (warehouse_documents.metadata->>'is_bill_record' = 'true')
+            OR
+            (warehouse_documents.metadata->>'is_primary' = 'true'
+             AND warehouse_documents.storage_blob_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1 FROM storage_blobs
+               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+               AND storage_blobs.content_hash IS NOT NULL
+             ))
+          SQL
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max

@@ -378,12 +378,10 @@ export function PoTemplatesTab() {
       >
         <div className="flex items-center justify-between px-2 shrink-0">
           <TabsList>
-            <TabsTrigger value="templates" className="gap-1.5">
-              <Package className="h-4 w-4" />
+            <TabsTrigger value="templates">
               Templates
             </TabsTrigger>
-            <TabsTrigger value="boq" className="gap-1.5">
-              <ClipboardList className="h-4 w-4" />
+            <TabsTrigger value="boq">
               Bill of Quantities
             </TabsTrigger>
           </TabsList>

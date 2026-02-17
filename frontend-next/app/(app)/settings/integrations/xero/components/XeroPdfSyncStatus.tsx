@@ -631,10 +631,10 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
 
         {/* Breakdown by Type */}
         <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground">PDF Progress by Type</div>
+          <div className="text-sm font-medium text-muted-foreground">Sync Progress by Type</div>
           <div className="grid grid-cols-4 gap-2">
             <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground">Bills</div>
+              <div className="text-xs text-muted-foreground" title="Bills don't have auto-generated PDFs in Xero. Count shows bill records marked as processed.">Bills (Records)</div>
               <div className="flex items-baseline gap-1">
                 <span className="text-sm font-semibold">{data.breakdown?.bills?.synced ?? 0}</span>
                 <span className="text-xs text-muted-foreground">/ {data.breakdown?.bills?.total ?? 0}</span>

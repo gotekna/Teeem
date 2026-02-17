@@ -2802,18 +2802,15 @@ export function WarehouseProviderTab() {
       {/* Tabs: Setup Info, Configuration, Live Preview */}
       <Tabs defaultValue="config" className="w-full">
         <TabsList className="grid w-full grid-cols-3 max-w-xl">
-          <TabsTrigger value="setup" className="flex items-center gap-2">
-            <BookOpen className="h-4 w-4" />
+          <TabsTrigger value="setup">
             Setup Info
           </TabsTrigger>
-          <TabsTrigger value="config" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
+          <TabsTrigger value="config">
             Configuration
           </TabsTrigger>
-          <TabsTrigger value="preview" className="flex items-center gap-2" onClick={() => {
+          <TabsTrigger value="preview" onClick={() => {
             if (!warehouseStats) loadWarehouseStats();
           }}>
-            <Eye className="h-4 w-4" />
             Live Preview
           </TabsTrigger>
         </TabsList>

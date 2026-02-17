@@ -162,19 +162,16 @@ export function HierarchicalTabsList({
       {/* SSoT: Child tabs use composite keys (parent__child) to prevent tab_key collisions */}
       {childrenToShow.length > 0 && selectedParent && (
         <TabsPrimitive.List
-          className="flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1 ml-4"
+          className="flex flex-wrap gap-1 rounded-lg bg-muted p-1"
         >
           {childrenToShow.map((child) => {
-            // SSoT: Use effective_icon_name for inherited icons
-            const ChildIcon = getIcon(child.effective_icon_name || child.icon_name || "file");
             // SSoT: Use composite key (parent__child) to prevent collision
             // e.g., parent "Photo" with child "site" → "photo__site"
             const compositeKey = `${selectedParent.tab_key}__${child.tab_key}`;
             const isChildActive = activeTab === compositeKey || activeTab === child.tab_key;
-            // SSoT: Child tabs can only be 'both' or 'text_only' (not 'icon_only')
-            const displayMode = child.display_mode || 'both';
-            const showIcon = displayMode !== 'text_only';
-            const showText = true; // Child tabs always show text
+            // SSoT: Child/sub-tabs are ALWAYS text-only (no icons)
+            // Brand guideline: parent tabs = icons + labels, sub-tabs = text only
+            // (matches Settings pattern: Company sub-tabs like Info, Brand Colors, etc.)
             return (
               <TabsPrimitive.Trigger
                 key={child.tab_key}
@@ -187,12 +184,10 @@ export function HierarchicalTabsList({
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   "disabled:pointer-events-none disabled:opacity-50",
                   "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
-                  "hover:bg-background/50",
-                  showIcon && "gap-2"
+                  "hover:bg-background/50"
                 )}
               >
-                {showIcon && <ChildIcon className="h-4 w-4" />}
-                {showText && child.display_name}
+                {child.display_name}
                 {badgeCounts?.[child.tab_key] != null && (
                   <span className="text-xs text-muted-foreground ml-0.5">
                     ({badgeCounts[child.tab_key]})

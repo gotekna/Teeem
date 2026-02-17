@@ -257,8 +257,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
       {/* Sub-tabs */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
         <TabsList>
-          <TabsTrigger value="overview" className="flex items-center gap-2">
-            <Heart className="h-4 w-4" />
+          <TabsTrigger value="overview">
             Overview
             {summary && summary.total_issues > 0 && (
               <Badge variant="destructive" className="ml-1">
@@ -266,8 +265,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="contacts" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
+          <TabsTrigger value="contacts">
             Contacts
           </TabsTrigger>
         </TabsList>
