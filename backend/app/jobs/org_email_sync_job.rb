@@ -79,6 +79,12 @@ class OrgEmailSyncJob < ApplicationJob
   # Fix: Cap each mailbox at 2 minutes. This allows ~5 mailboxes per cycle, making incremental
   # progress on each. Big mailboxes resume where they left off next cycle (folder-level progress).
   PER_MAILBOX_TIMEOUT = 2.minutes
+  # ⚠️ FRC (Feb 2026): Per-folder skip interval for incremental sync
+  # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
+  # Re-checking all 60 folders every 15-min cycle wasted API calls and consumed the time budget.
+  # Fix: Track per-folder results. Skip folders that returned 0 new emails within this interval.
+  # 1 hour = skip for ~4 cycles, then re-check. Max 1-hour delay for inactive folders.
+  FOLDER_SKIP_INTERVAL = 1.hour
   # ⚠️ FRC (Feb 2026): Toxic Mailbox Classification
   # Root cause: All errors were treated the same. Permanent errors (deleted user, no license)
   # were retried every cycle, consuming the entire time budget and starving valid mailboxes.
@@ -264,11 +270,20 @@ class OrgEmailSyncJob < ApplicationJob
           mailbox_error_counts.delete(user_email.downcase)
           mailbox_errors = sync_config["mailbox_errors"] || {}
           mailbox_errors.delete(user_email.downcase)
+
+          # Persist per-folder tracking data (FRC: enables skip of recently-empty folders)
+          folder_stats = sync_config["folder_stats"] || {}
+          if @last_folder_results
+            folder_stats.merge!(@last_folder_results)
+            @last_folder_results = nil
+          end
+
           updated_config = sync_config.merge(
             "mailbox_synced_at" => mailbox_synced_at,
             "mailbox_last_attempted_at" => mailbox_last_attempted_at,
             "mailbox_error_counts" => mailbox_error_counts,
-            "mailbox_errors" => mailbox_errors
+            "mailbox_errors" => mailbox_errors,
+            "folder_stats" => folder_stats
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
@@ -379,13 +394,25 @@ class OrgEmailSyncJob < ApplicationJob
     folder_elapsed = (Time.current - folder_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s"
 
-    # Performance: Parallel folder sync with thread batching
+    # ⚠️ FRC (Feb 2026): Per-folder tracking eliminates wasted API calls
+    # Root cause: 60+ folders all re-checked every cycle when only Inbox/Sent have new emails.
+    # Fix: Track per-folder results. Skip recently-empty folders on incremental sync.
+    existing_folder_stats = @credential.sync_config&.dig("folder_stats", user_email.downcase) || {}
+    folder_results = Concurrent::Hash.new
+
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
     parallel_start = Time.current
     thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
-    total_synced = sync_folders_parallel(client, user_email, folders, since, thread_count: thread_count, time_budget: time_budget)
+    total_synced = sync_folders_parallel(client, user_email, folders, since,
+      thread_count: thread_count, time_budget: time_budget,
+      existing_folder_stats: existing_folder_stats, folder_results: folder_results)
     parallel_elapsed = (Time.current - parallel_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
+
+    # Merge new folder results into existing stats (preserves skipped folders' old data)
+    merged_folder_stats = existing_folder_stats.merge(folder_results.to_h)
+    # Store back via instance variable for the mailbox loop to persist
+    @last_folder_results = { user_email.downcase => merged_folder_stats }
 
     # Auto-match unassigned emails after sync
     # Skip for inline_quick - background job handles it, saves time on web dyno
@@ -404,7 +431,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Performance: Sync folders in parallel batches
   # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
   # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
-  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS, time_budget: nil)
+  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS, time_budget: nil, existing_folder_stats: nil, folder_results: nil)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
@@ -415,17 +442,42 @@ class OrgEmailSyncJob < ApplicationJob
     current_tenant = ActsAsTenant.current_tenant
     mailbox_start = Time.current
 
-    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, threads=#{thread_count}, time_budget=#{time_budget || 'unlimited'}s"
+    # ⚠️ FRC (Feb 2026): Skip recently-empty folders on incremental sync
+    # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
+    # Re-checking all 60 folders every cycle wasted API calls and consumed the time budget.
+    # Fix: Skip folders that returned 0 new emails within FOLDER_SKIP_INTERVAL.
+    active_folders = folders
+    skipped_count = 0
+    if existing_folder_stats.present? && !@is_initial_sync
+      active_folders = folders.select do |folder|
+        stats = existing_folder_stats[folder[:id]]
+        if stats
+          last_synced = Time.parse(stats["synced_at"]) rescue nil
+          last_count = stats["email_count"] || 0
+          keep = !last_synced || last_synced < FOLDER_SKIP_INTERVAL.ago || last_count > 0
+          unless keep
+            skipped_count += 1
+            # Preserve existing stats for skipped folders
+            folder_results[folder[:id]] = stats.merge("skipped" => true) if folder_results
+          end
+          keep
+        else
+          true
+        end
+      end
+    end
+
+    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders (#{skipped_count} skipped, #{active_folders.count} active), threads=#{thread_count}, time_budget=#{time_budget || 'unlimited'}s"
 
     # Process folders in parallel batches
     batch_num = 0
-    folders.each_slice(thread_count) do |folder_batch|
+    active_folders.each_slice(thread_count) do |folder_batch|
       # ⚠️ FRC (Feb 2026): Per-mailbox time budget check between folder batches
       # Without this, one mailbox with 60+ folders consumed the entire credential budget,
       # starving all other mailboxes (stuck at 18/56 for 24+ hours).
       if time_budget && (Time.current - mailbox_start) > time_budget
-        remaining_folders = folders.count - (batch_num * thread_count)
-        Rails.logger.info "[SYNC-DEBUG] #{user_email}: MAILBOX TIME BUDGET (#{time_budget}s) exceeded after #{batch_num} batches, #{remaining_folders} folders deferred to next cycle"
+        remaining_folders = active_folders.count - (batch_num * thread_count)
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: MAILBOX TIME BUDGET (#{time_budget}s) exceeded after #{batch_num} batches, #{remaining_folders} active folders deferred to next cycle"
         break
       end
 
@@ -447,6 +499,15 @@ class OrgEmailSyncJob < ApplicationJob
               folder_elapsed = (Time.current - folder_start).round(1)
               Rails.logger.info "[SYNC-DEBUG] Folder '#{folder[:name]}' done: #{synced} emails in #{folder_elapsed}s"
               total_synced.increment(synced)
+              # Track per-folder results for skip optimization and UI
+              if folder_results
+                folder_results[folder[:id]] = {
+                  "name" => folder[:name],
+                  "synced_at" => Time.current.iso8601,
+                  "email_count" => synced,
+                  "skipped" => false
+                }
+              end
             rescue ActiveRecord::ConnectionNotEstablished, ActiveRecord::StatementInvalid => e
               # Database connection error - mark for retry
               Rails.logger.warn "[SYNC-DEBUG] DB connection error for folder #{folder[:name]}, will retry: #{e.message}"

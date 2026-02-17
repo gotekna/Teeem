@@ -32,6 +32,7 @@ import {
   Link,
   Plus,
   ChevronDown,
+  ChevronRight,
   UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -140,6 +141,12 @@ interface OrgSyncStats {
       count: number;
       last_at: string;
     }>;
+    folder_stats?: Record<string, Record<string, {
+      name: string;
+      synced_at: string;
+      email_count: number;
+      skipped: boolean;
+    }>>;
   };
 }
 
@@ -869,6 +876,16 @@ function EmailSyncTab({
     new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
   const [importing, setImporting] = React.useState(false);
+  const [expandedMailboxes, setExpandedMailboxes] = React.useState<Set<string>>(new Set());
+
+  const toggleMailbox = (email: string) => {
+    setExpandedMailboxes(prev => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  };
 
   const toggleOrg = (orgId: number) => {
     setExpandedOrgs(prev => {
@@ -990,6 +1007,7 @@ function EmailSyncTab({
 
         const mailboxErrors = orgStats?.sync_config?.mailbox_errors || {};
         const mailboxErrorCounts = orgStats?.sync_config?.mailbox_error_counts || {};
+        const folderStats: Record<string, Record<string, { name: string; synced_at: string; email_count: number; skipped: boolean }>> = orgStats?.sync_config?.folder_stats || {};
 
         type CombinedRow = {
           email: string;
@@ -1106,12 +1124,34 @@ function EmailSyncTab({
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {combined.map((row) => (
-                            <TableRow key={row.email} className={row.synced ? "" : row.errorInfo?.type === "permanent" ? "opacity-80 bg-red-500/5" : "opacity-60"}>
+                          {combined.map((row) => {
+                            const emailLower = row.email.toLowerCase();
+                            const mailboxFolders = folderStats[emailLower] || {};
+                            const folderList = Object.values(mailboxFolders).sort((a, b) => b.email_count - a.email_count);
+                            const hasFolders = folderList.length > 0;
+                            const isMailboxExpanded = expandedMailboxes.has(emailLower);
+                            return (
+                            <React.Fragment key={row.email}>
+                            <TableRow className={row.synced ? "" : row.errorInfo?.type === "permanent" ? "opacity-80 bg-red-500/5" : "opacity-60"}>
                               <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium">{row.name}</span>
-                                  <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                                <div className="flex items-center gap-1.5">
+                                  {hasFolders ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleMailbox(emailLower); }}
+                                      className="p-0.5 rounded hover:bg-muted/50 transition-colors shrink-0"
+                                    >
+                                      {isMailboxExpanded
+                                        ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                      }
+                                    </button>
+                                  ) : (
+                                    <span className="w-[22px] shrink-0" />
+                                  )}
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{row.name}</span>
+                                    <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell>
@@ -1258,7 +1298,39 @@ function EmailSyncTab({
                                 })()}
                               </TableCell>
                             </TableRow>
-                          ))}
+                            {isMailboxExpanded && hasFolders && (
+                              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                <TableCell colSpan={8} className="py-2 px-2">
+                                  <div className="ml-8 grid grid-cols-[1fr_auto_auto] gap-x-6 gap-y-0.5 text-xs">
+                                    <span className="font-medium text-muted-foreground">Folder</span>
+                                    <span className="font-medium text-muted-foreground text-right">New Emails</span>
+                                    <span className="font-medium text-muted-foreground text-right">Last Checked</span>
+                                    {folderList.map((f) => {
+                                      const isSkipped = f.skipped;
+                                      const syncedAt = f.synced_at ? formatRelativeTime(f.synced_at) : "—";
+                                      return (
+                                        <React.Fragment key={f.name}>
+                                          <span className={isSkipped ? "text-muted-foreground/60" : ""}>
+                                            <FolderOpen className="h-3 w-3 inline mr-1.5 -mt-0.5" />
+                                            {f.name}
+                                            {isSkipped && <span className="ml-1.5 text-[10px] text-muted-foreground/50">(skipped)</span>}
+                                          </span>
+                                          <span className={`text-right tabular-nums ${f.email_count > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground/60"}`}>
+                                            {f.email_count > 0 ? `+${f.email_count}` : "0"}
+                                          </span>
+                                          <span className={`text-right ${isSkipped ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                                            {syncedAt}
+                                          </span>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            </React.Fragment>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </TooltipProvider>

@@ -669,7 +669,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
           sync_years: cred.sync_config&.dig("sync_years") || 3,
           mailbox_synced_at: cred.sync_config&.dig("mailbox_synced_at") || {},
           mailbox_error_counts: cred.sync_config&.dig("mailbox_error_counts") || {},
-          mailbox_errors: cred.sync_config&.dig("mailbox_errors") || {}
+          mailbox_errors: cred.sync_config&.dig("mailbox_errors") || {},
+          folder_stats: cred.sync_config&.dig("folder_stats") || {}
         }
       }
     end
