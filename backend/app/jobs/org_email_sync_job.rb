@@ -460,10 +460,20 @@ class OrgEmailSyncJob < ApplicationJob
       end
 
       # Wait for all threads in this batch to complete (with timeout)
+      # ⚠️ FRC (Feb 2026): Thread join timeout must respect per-mailbox budget.
+      # Without this, SYNC_TIMEOUT_SECONDS (300s) allows one folder thread to run 5 minutes,
+      # defeating the 2-minute per-mailbox budget entirely.
+      if time_budget
+        elapsed = (Time.current - mailbox_start).to_i
+        remaining = [time_budget - elapsed, 5].max  # At least 5s to avoid instant kills
+        join_timeout = [SYNC_TIMEOUT_SECONDS, remaining].min
+      else
+        join_timeout = SYNC_TIMEOUT_SECONDS
+      end
       threads.each_with_index do |thread, i|
-        joined = thread.join(SYNC_TIMEOUT_SECONDS)
+        joined = thread.join(join_timeout)
         if joined.nil?
-          Rails.logger.error "[SYNC-DEBUG] Thread #{i} TIMED OUT after #{SYNC_TIMEOUT_SECONDS}s - killing"
+          Rails.logger.warn "[SYNC-DEBUG] Thread #{i} TIMED OUT after #{join_timeout}s - killing (budget: #{time_budget || 'unlimited'}s)"
           thread.kill
         end
       end

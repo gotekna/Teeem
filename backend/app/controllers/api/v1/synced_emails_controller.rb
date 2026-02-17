@@ -757,10 +757,16 @@ class Api::V1::SyncedEmailsController < ApplicationController
                             .compact
                             .map(&:downcase)
 
+    # FRC (Feb 2026): Use sum of per-org distinct counts for header total.
+    # Root cause: SyncedEmail.count includes orphaned emails not linked to any credential,
+    # so header showed 16,360 while the only org (Pilgrim) showed 16,350. The 10-email gap
+    # confused users. Now both use the same counting method.
+    header_total = all_organizations.sum { |org| org[:total_emails] }
+
     render json: {
       success: true,
       data: {
-        total_emails: SyncedEmail.count,
+        total_emails: header_total,
         total_mailboxes: tenant_mailbox_count,
         organizations: all_organizations,
         storage: blob_stats,

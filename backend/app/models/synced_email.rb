@@ -580,7 +580,11 @@ class SyncedEmail < ApplicationRecord
     matches.concat(find_jobs_via_contact_emails)
 
     # Deduplicate and sort by confidence
+    # FRC (Feb 2026): Guard against nil jobs (e.g., deleted jobs still referenced by
+    # JobAddressSearch records). Without this, .uniq crashes with "undefined method 'id' for nil"
+    # which causes transient errors in OrgEmailSync → "Retrying" status for all mailboxes.
     matches
+      .select { |m| m[:job].present? }
       .uniq { |m| m[:job].id }
       .sort_by { |m| -m[:confidence] }
   end
