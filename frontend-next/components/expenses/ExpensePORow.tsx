@@ -118,6 +118,16 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
         <span className="font-medium">{formatCurrency(total)}</span>
       </div>
 
+      {/* Credit Notes */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          credit > 0 ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+        )}>
+          {credit > 0 ? `-${formatCurrency(credit)}` : '-'}
+        </span>
+      </div>
+
       {/* Invoiced */}
       <div className="w-[80px] shrink-0 text-right tabular-nums">
         <span className={cn(

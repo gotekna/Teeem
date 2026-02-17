@@ -186,10 +186,19 @@ class XeroAttachmentSyncJob < ApplicationJob
         total_results[:errors].concat(batch_results[:errors] || [])
         total_results[:batches] += 1
 
-        # Nothing processed in this batch — no more work or rate limited
-        break if batch_results[:processed] == 0
-        break if batch_results[:skipped_rate_limit]
-        break if batch_results[:aborted_lockout]
+        # Nothing processed in this batch — check why before breaking
+        break if batch_results[:aborted_lockout]  # Hard lockout from Xero 429 — can't retry
+
+        # FRC (Feb 2026): Sleep instead of break for minute rate exhaustion.
+        # process_tenant_batch returns skipped_rate_limit when minute_remaining < 2 API calls.
+        # Instead of exiting and waiting 10 min for scheduler, sleep 30s for rolling window.
+        if batch_results[:skipped_rate_limit] || (batch_results[:processed] == 0 && total_results[:processed] > 0)
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Minute rate exhausted after #{total_results[:processed]} invoices, sleeping 30s...")
+          sleep(30)
+          next  # Retry — outer loop's time limit will stop us if needed
+        end
+
+        break if batch_results[:processed] == 0  # Genuinely no more work
 
         Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Batch #{total_results[:batches]} done (#{batch_results[:success]}/#{batch_results[:processed]}), continuing...")
       end
