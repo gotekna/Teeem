@@ -524,6 +524,21 @@ module Api
       # Returns Xero Profit & Loss report filtered by this job's tracking category
       # Params:
       #   from_date: start date (default: start of financial year)
+      # GET /api/v1/jobs/:id/finance_counts
+      # Lightweight endpoint for badge counts on finance sub-tabs
+      def finance_counts
+        invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
+        render json: {
+          success: true,
+          counts: {
+            "claims" => @job.job_claim_stages.count,
+            "expenses" => @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count,
+            "claims-xero" => invoices.where(invoice_type: "sales_invoice").count,
+            "bills-xero" => invoices.where(invoice_type: "bill").count
+          }
+        }
+      end
+
       #   to_date: end date (default: today)
       #   periods: number of comparison periods (default: 3)
       #   timeframe: MONTH, QUARTER, YEAR (default: YEAR)

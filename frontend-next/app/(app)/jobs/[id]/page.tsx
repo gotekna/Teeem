@@ -756,6 +756,7 @@ export default function JobDetailPage() {
 
   const [job, setJob] = React.useState<Job | null>(cachedJobData);
   const [loading, setLoading] = React.useState(!cachedJobData);
+  const [financeCounts, setFinanceCounts] = React.useState<Record<string, number>>({});
 
   // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
   const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
@@ -1237,6 +1238,10 @@ export default function JobDetailPage() {
       loadXeroTrackingOptions();
       loadJobDesigns();
       loadChoiceColumns();
+      // Finance sub-tab badge counts (lightweight, non-blocking)
+      api.get<{ success: boolean; counts: Record<string, number> }>(`/api/v1/jobs/${jobId}/finance_counts`)
+        .then(res => { if (res?.success) setFinanceCounts(res.counts); })
+        .catch(() => {});
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 
@@ -1567,6 +1572,7 @@ export default function JobDetailPage() {
                 activeTab={effectiveActiveTab}
                 activeParentTab={activeParentTab}
                 onTabChange={handleTabChange}
+                badgeCounts={financeCounts}
               />
             </Tabs>
           )}

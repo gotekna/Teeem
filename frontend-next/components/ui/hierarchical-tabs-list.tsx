@@ -19,6 +19,8 @@ interface HierarchicalTabsListProps {
   activeParentTab?: string;
   onTabChange?: (tabKey: string) => void;
   className?: string;
+  /** Optional badge counts for child tabs, keyed by tab_key */
+  badgeCounts?: Record<string, number | undefined>;
 }
 
 /**
@@ -47,6 +49,7 @@ export function HierarchicalTabsList({
   activeParentTab,
   onTabChange,
   className,
+  badgeCounts,
 }: HierarchicalTabsListProps) {
   // Find the parent tab that contains the active tab as a child
   const findParentOfActiveTab = React.useCallback((): WarehouseFolder | null => {
@@ -190,6 +193,11 @@ export function HierarchicalTabsList({
               >
                 {showIcon && <ChildIcon className="h-4 w-4" />}
                 {showText && child.display_name}
+                {badgeCounts?.[child.tab_key] != null && (
+                  <span className="text-xs text-muted-foreground ml-0.5">
+                    ({badgeCounts[child.tab_key]})
+                  </span>
+                )}
               </TabsPrimitive.Trigger>
             );
           })}
