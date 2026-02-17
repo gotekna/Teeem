@@ -646,13 +646,22 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.last_sync_at) }
         .sort_by { |m| -m[:email_count] }
 
+      # FRC (Feb 2026): Use distinct email count for org total to avoid double-counting.
+      # Root cause: emails appearing in multiple mailboxes (e.g., accounts@ and abbie@ both
+      # receive the same email) get counted once per mailbox. Summing mailbox counts = 14,066
+      # while unique emails = 13,971. The header uses SyncedEmail.count (unique), so the
+      # per-org total must also be unique for the numbers to add up.
+      distinct_email_count = SyncedEmailMailbox
+        .where(microsoft_credential_id: cred.id)
+        .select(:synced_email_id).distinct.count
+
       {
         id: cred.id,
         type: "microsoft",
         name: cred.name || cred.organization&.name || "Unknown",
         status: cred.status,
         last_sync_at: cred.last_sync_at,
-        total_emails: mailboxes.sum { |m| m[:email_count] },
+        total_emails: distinct_email_count,
         mailboxes: mailboxes,
         tenant_users: cred.list_tenant_users,
         sync_config: {
@@ -677,13 +686,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap, credential_last_synced_at: cred.last_synced_at) }
         .sort_by { |m| -m[:email_count] }
 
+      distinct_imap_count = SyncedEmailMailbox
+        .where(imap_credential_id: cred.id)
+        .select(:synced_email_id).distinct.count
+
       {
         id: cred.id,
         type: "imap",
         name: cred.name.presence || cred.email_address,
         status: cred.is_active ? "connected" : "disconnected",
         last_sync_at: cred.last_synced_at,
-        total_emails: mailboxes.sum { |m| m[:email_count] },
+        total_emails: distinct_imap_count,
         mailboxes: mailboxes,
         sync_config: {
           sync_all: cred.sync_all || false
@@ -707,13 +720,18 @@ class Api::V1::SyncedEmailsController < ApplicationController
       .sort_by { |m| -m[:email_count] }
 
     if orphaned_mailboxes.any?
+      orphaned_distinct_count = SyncedEmailMailbox
+        .where(synced_email_id: tenant_email_ids_subquery)
+        .where(microsoft_credential_id: nil, imap_credential_id: nil)
+        .select(:synced_email_id).distinct.count
+
       all_organizations << {
         id: 0,
         type: "orphaned",
         name: "Orphaned (No Credential)",
         status: "warning",
         last_sync_at: nil,
-        total_emails: orphaned_mailboxes.sum { |m| m[:email_count] },
+        total_emails: orphaned_distinct_count,
         mailboxes: orphaned_mailboxes,
         sync_config: { sync_all: false }
       }

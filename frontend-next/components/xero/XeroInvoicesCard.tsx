@@ -3,8 +3,9 @@
 /**
  * XeroInvoicesCard - Displays Sales Invoices from Xero
  *
- * Extracted from corporate page inline rendering for unified tab system.
- * Uses TeeemTableView with Foundation ID 523 (external_invoices).
+ * Supports two contexts:
+ * - Corporate: Uses companyId to look up Xero tenant, fetches all invoices for that tenant
+ * - Job: Uses jobId to fetch invoices linked to that job via by_job endpoint
  */
 
 import * as React from "react";
@@ -18,8 +19,9 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 interface XeroInvoicesCardProps {
-  companyId: string;
+  companyId?: string;
   entityId?: string; // Alias for companyId (TabComponentProps)
+  jobId?: string | number; // Job context: fetch invoices for this job
   tenantId?: string;
   onRefresh?: () => Promise<void>;
 }
@@ -27,6 +29,7 @@ interface XeroInvoicesCardProps {
 export function XeroInvoicesCard({
   companyId,
   entityId,
+  jobId,
   tenantId: propTenantId,
   onRefresh,
 }: XeroInvoicesCardProps) {
@@ -36,12 +39,14 @@ export function XeroInvoicesCard({
   const [error, setError] = React.useState<string | null>(null);
   const [tenantId, setTenantId] = React.useState<string | null>(propTenantId || null);
 
-  // Fetch tenant ID if not provided
+  // Fetch tenant ID if not provided (corporate context only)
   const fetchTenantId = React.useCallback(async () => {
     if (propTenantId) {
       setTenantId(propTenantId);
       return propTenantId;
     }
+
+    if (!effectiveCompanyId) return null;
 
     try {
       const response = await api.get<{
@@ -60,12 +65,28 @@ export function XeroInvoicesCard({
     }
   }, [effectiveCompanyId, propTenantId]);
 
-  // Fetch invoices
+  // Fetch invoices - uses job endpoint when jobId is available
   const fetchInvoices = React.useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Job context: use the by_job endpoint which returns invoices linked to this job
+      if (jobId) {
+        const response = await api.get<{
+          success: boolean;
+          data: { invoices: TableRow[] };
+        }>(`/api/v1/external_invoices/by_job/${jobId}`);
+
+        if (response?.success) {
+          setInvoices(response.data?.invoices || []);
+        } else {
+          setError("Failed to load invoices for this job");
+        }
+        return;
+      }
+
+      // Corporate context: use tenant-based endpoint
       const tid = tenantId || (await fetchTenantId());
       if (!tid) {
         setError("No Xero connection found for this company");
@@ -90,7 +111,7 @@ export function XeroInvoicesCard({
     } finally {
       setLoading(false);
     }
-  }, [tenantId, fetchTenantId]);
+  }, [jobId, tenantId, fetchTenantId]);
 
   React.useEffect(() => {
     fetchInvoices();

@@ -71,6 +71,14 @@ class OrgEmailSyncJob < ApplicationJob
   # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
   # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
   PER_CREDENTIAL_TIMEOUT = 10.minutes
+  # ⚠️ FRC (Feb 2026): Per-mailbox time budget for fair round-robin
+  # Root cause: One big mailbox (accounts@bypilgrim.co, 60+ folders) consumed the entire
+  # 10-minute PER_CREDENTIAL_TIMEOUT, so the mailbox loop only processed 1 mailbox per cycle.
+  # With 56 mailboxes and only 1 per cycle, 18/56 stayed stuck for 24+ hours because the same
+  # already-synced big mailboxes consumed every cycle's budget on incremental sync.
+  # Fix: Cap each mailbox at 2 minutes. This allows ~5 mailboxes per cycle, making incremental
+  # progress on each. Big mailboxes resume where they left off next cycle (folder-level progress).
+  PER_MAILBOX_TIMEOUT = 2.minutes
   # ⚠️ FRC (Feb 2026): Toxic Mailbox Classification
   # Root cause: All errors were treated the same. Permanent errors (deleted user, no license)
   # were retried every cycle, consuming the entire time budget and starving valid mailboxes.
@@ -240,9 +248,12 @@ class OrgEmailSyncJob < ApplicationJob
           # Fix: First-time mailbox sync = metadata only (5x faster). Attachments caught up
           # by RetryPendingAttachmentBlobsJob in background. Incremental = inline (few emails).
           @is_initial_sync = mb_last_synced.nil?
-          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, initial_sync=#{@is_initial_sync}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
+          # Calculate per-mailbox time budget: min(PER_MAILBOX_TIMEOUT, remaining credential budget)
+          remaining_credential_time = PER_CREDENTIAL_TIMEOUT - elapsed
+          mailbox_budget = [PER_MAILBOX_TIMEOUT.to_i, remaining_credential_time.to_i].min
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, initial_sync=#{@is_initial_sync}, budget=#{mailbox_budget}s, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
-          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?)
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?, time_budget: mailbox_budget)
           sync_elapsed = (Time.current - sync_start).round(1)
           total_synced += synced
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
@@ -322,7 +333,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Background sync keeps the original behavior (full lookback for truly never-synced mailboxes).
   INLINE_FALLBACK_LOOKBACK = 7.days
 
-  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false)
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false, time_budget: nil)
     Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email} (inline_quick=#{inline_quick})"
     client = MicrosoftAppGraphClient.new(@credential)
 
@@ -372,7 +383,7 @@ class OrgEmailSyncJob < ApplicationJob
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
     parallel_start = Time.current
     thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
-    total_synced = sync_folders_parallel(client, user_email, folders, since, thread_count: thread_count)
+    total_synced = sync_folders_parallel(client, user_email, folders, since, thread_count: thread_count, time_budget: time_budget)
     parallel_elapsed = (Time.current - parallel_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
@@ -393,7 +404,7 @@ class OrgEmailSyncJob < ApplicationJob
   # Performance: Sync folders in parallel batches
   # Impact: ~2x faster sync for users with many folders (Inbox, Sent, Archive, etc.)
   # ⚠️ FRC (Jan 2026): Added retry logic for database connection errors
-  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS)
+  def sync_folders_parallel(client, user_email, folders, since, thread_count: PARALLEL_FOLDER_THREADS, time_budget: nil)
     return 0 if folders.empty?
 
     # Thread-safe counter for total synced emails
@@ -402,12 +413,22 @@ class OrgEmailSyncJob < ApplicationJob
 
     # Capture tenant for child threads (ActsAsTenant uses thread-local storage)
     current_tenant = ActsAsTenant.current_tenant
+    mailbox_start = Time.current
 
-    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, threads=#{thread_count}, SYNC_TIMEOUT_SECONDS=#{SYNC_TIMEOUT_SECONDS}"
+    Rails.logger.info "[SYNC-DEBUG] sync_folders_parallel: #{folders.count} folders, threads=#{thread_count}, time_budget=#{time_budget || 'unlimited'}s"
 
     # Process folders in parallel batches
     batch_num = 0
     folders.each_slice(thread_count) do |folder_batch|
+      # ⚠️ FRC (Feb 2026): Per-mailbox time budget check between folder batches
+      # Without this, one mailbox with 60+ folders consumed the entire credential budget,
+      # starving all other mailboxes (stuck at 18/56 for 24+ hours).
+      if time_budget && (Time.current - mailbox_start) > time_budget
+        remaining_folders = folders.count - (batch_num * thread_count)
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: MAILBOX TIME BUDGET (#{time_budget}s) exceeded after #{batch_num} batches, #{remaining_folders} folders deferred to next cycle"
+        break
+      end
+
       batch_num += 1
       batch_start = Time.current
       Rails.logger.info "[SYNC-DEBUG] Batch #{batch_num}: #{folder_batch.map { |f| f[:name] }.join(', ')}"

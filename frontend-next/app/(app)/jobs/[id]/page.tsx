@@ -716,9 +716,24 @@ export default function JobDetailPage() {
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [loadingTimedOut, setLoadingTimedOut] = React.useState(false);
 
   // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
-  const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
+  const { tabs: jobTabs, loading: tabsLoading, refetch: refetchTabs } = useWarehouseFolders({ scope: "job" });
+
+  // Safety net: If loading takes >15s, show retry button instead of eternal skeleton
+  React.useEffect(() => {
+    if (!loading && !tabsLoading) {
+      setLoadingTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (loading || tabsLoading) {
+        setLoadingTimedOut(true);
+      }
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [loading, tabsLoading]);
 
   // User tab preferences (visibility, order, default tab)
   const {
@@ -1284,6 +1299,36 @@ export default function JobDetailPage() {
   // SSoT: Show skeleton layout during loading to prevent flash/CLS
   // The skeleton matches the actual page structure so there's no jarring layout shift
   if (loading || tabsLoading) {
+    // After 15 seconds, show retry UI instead of eternal skeleton
+    if (loadingTimedOut) {
+      return (
+        <div className="h-full flex flex-col overflow-auto">
+          <div className="px-3 pt-4">
+            <BackButton fallbackHref="/jobs" className="shrink-0" />
+          </div>
+          <div className="flex-1 flex items-center justify-center">
+            <Card className="max-w-md">
+              <CardContent className="py-8 text-center space-y-4">
+                <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto" />
+                <p className="text-lg font-medium">Taking longer than expected</p>
+                <p className="text-sm text-muted-foreground">
+                  The page is still loading. This may be due to a slow connection or server issue.
+                </p>
+                <Button onClick={() => {
+                  setLoadingTimedOut(false);
+                  setLoading(true);
+                  loadJob();
+                  refetchTabs();
+                }}>
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-full flex flex-col overflow-auto">
         {/* Skeleton header */}
@@ -1845,8 +1890,9 @@ export default function JobDetailPage() {
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           // Render JobDocumentsTab for:
           // 1. Photo categories (tab_type='photo') - shows photo gallery
-          // 2. Document categories with storage (folder_path set) - shows document viewer
-          if (tab.tab_type === 'photo' || tab.is_photo_category || tab.folder_path) {
+          // 2. Document categories (tab_type='document') - shows document viewer
+          // 3. Any tab with folder_path set - backward compat for legacy config
+          if (tab.tab_type === 'photo' || tab.tab_type === 'document' || tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>
