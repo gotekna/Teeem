@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_200005) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_17_200007) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7998,6 +7998,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200005) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.bigint "company_group_id"
+    t.index ["company_group_id", "as_of_date"], name: "idx_reconciliation_reports_on_group_and_date"
+    t.index ["company_group_id"], name: "index_reconciliation_reports_on_company_group_id"
     t.index ["status"], name: "index_reconciliation_reports_on_status"
     t.index ["tenant_id"], name: "index_reconciliation_reports_on_tenant_id"
   end
@@ -11791,6 +11794,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200005) do
   add_foreign_key "recipes", "contacts", column: "default_supplier_id"
   add_foreign_key "recipes", "recipe_categories"
   add_foreign_key "recipes", "tenants", on_delete: :cascade
+  add_foreign_key "reconciliation_reports", "company_groups"
   add_foreign_key "reconciliation_reports", "tenants"
   add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
   add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"
