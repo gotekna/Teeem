@@ -920,7 +920,7 @@ class ExternalInvoiceSyncService
     {
       success: true,
       tenant_id: tenant_id,
-      invoices_synced: invoices.length,
+      invoices_synced: all_invoices.length,
       stats: @stats
     }
   end

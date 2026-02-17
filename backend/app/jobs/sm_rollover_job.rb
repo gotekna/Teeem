@@ -257,9 +257,13 @@ class SmRolloverJob < ApplicationJob
   # Why: Tasks can have circular dependencies (A→B→C→A) which cause infinite recursion.
   # The visited set tracks already-cascaded task IDs to break cycles.
   # ════════════════════════════════════════════
-  def cascade_to_successors(task, days_shifted, visited = Set.new)
+  def cascade_to_successors(task, days_shifted, visited = Set.new, depth = 0)
     return 0 if days_shifted == 0
     return 0 if visited.include?(task.id)
+    if depth > 100
+      Rails.logger.warn "[SmRolloverJob] cascade_to_successors hit max depth (100) at task #{task.id}, stopping"
+      return 0
+    end
 
     visited.add(task.id)
     cascaded = 0
@@ -306,7 +310,7 @@ class SmRolloverJob < ApplicationJob
       cascaded += 1
 
       # Recursively cascade to further successors (pass visited set to detect cycles)
-      cascaded += cascade_to_successors(successor, days_shifted, visited)
+      cascaded += cascade_to_successors(successor, days_shifted, visited, depth + 1)
     end
 
     cascaded
