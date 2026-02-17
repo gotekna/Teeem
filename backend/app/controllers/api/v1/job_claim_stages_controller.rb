@@ -62,7 +62,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages/:id
       def show
-        render json: { success: true, data: stage_json(@stage) }
+        render json: { success: true, data: stage_detail_json(@stage) }
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages
@@ -575,6 +575,29 @@ module Api
           created_at: stage.created_at,
           updated_at: stage.updated_at
         }
+      end
+
+      def stage_detail_json(stage)
+        base = stage_json(stage)
+        invoice = stage.external_invoice
+
+        if invoice
+          base[:invoice] = base[:invoice].merge(
+            line_items: invoice.line_items || [],
+            tracking_data: invoice.tracking_data || [],
+            subtotal: invoice.subtotal&.to_f,
+            total_tax: invoice.total_tax&.to_f
+          )
+        end
+
+        # Find most recent completed PDF generation for this claim stage
+        pdf_gen = PdfGeneration.where("generator_params->>'claim_stage_id' = ?", stage.id.to_s)
+                               .where(status: "completed")
+                               .order(created_at: :desc)
+                               .first
+        base[:pdf_generation_id] = pdf_gen&.id
+
+        base
       end
 
       def available_invoices_json

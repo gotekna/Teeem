@@ -65,7 +65,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 
 interface ClaimTemplateOption {
   id: number;
@@ -124,7 +127,24 @@ interface ClaimStage {
     due_date: string | null;
     fully_paid_date: string | null;
     pending_push?: boolean;
+    // Detail fields (only from show endpoint)
+    line_items?: Array<{
+      Description?: string;
+      Quantity?: number;
+      UnitAmount?: number;
+      LineAmount?: number;
+      AccountCode?: string;
+      TaxType?: string;
+      TaxAmount?: number;
+      Tracking?: Array<{ Name: string; Option: string }>;
+    }>;
+    tracking_data?: Array<{ Name: string; Option: string }>;
+    subtotal?: number;
+    total_tax?: number;
   } | null;
+
+  // PDF (only from show endpoint)
+  pdf_generation_id?: number | null;
 }
 
 interface AvailableInvoice {
@@ -174,6 +194,12 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplateOption[]>([]);
   const [applyingTemplate, setApplyingTemplate] = React.useState(false);
+
+  // Detail modal state
+  const [detailStage, setDetailStage] = React.useState<ClaimStage | null>(null);
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [detailPdfUrl, setDetailPdfUrl] = React.useState<string | null>(null);
+  const [detailPdfLoading, setDetailPdfLoading] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -539,6 +565,54 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     }
   };
 
+  const openStageDetail = async (stage: ClaimStage) => {
+    // Show modal immediately with basic data
+    setDetailStage(stage);
+    setDetailLoading(true);
+    setDetailPdfUrl(null);
+    setDetailPdfLoading(false);
+
+    try {
+      // Fetch enriched detail from show endpoint
+      const response = await api.get<{ success: boolean; data: ClaimStage }>(
+        `/api/v1/jobs/${jobId}/claim_stages/${stage.id}`
+      );
+      if (response?.success && response.data) {
+        setDetailStage(response.data);
+
+        // If there's a PDF, fetch it
+        if (response.data.pdf_generation_id) {
+          setDetailPdfLoading(true);
+          try {
+            const blob = await api.getBlob(
+              `/api/v1/pdf_generations/${response.data.pdf_generation_id}/download`
+            );
+            const url = URL.createObjectURL(blob);
+            setDetailPdfUrl(url);
+          } catch {
+            // PDF fetch failed - show empty state
+          } finally {
+            setDetailPdfLoading(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load stage detail:", error);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeStageDetail = () => {
+    if (detailPdfUrl) {
+      URL.revokeObjectURL(detailPdfUrl);
+    }
+    setDetailStage(null);
+    setDetailPdfUrl(null);
+    setDetailLoading(false);
+    setDetailPdfLoading(false);
+  };
+
   // Check if any stages have retainage
   const hasRetainage = stages.some(s => s.retainage_percentage && s.retainage_percentage > 0);
 
@@ -724,7 +798,15 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
               </TableHeader>
               <TableBody className="divide-y">
                 {stages.map((stage) => (
-                  <TableRow key={stage.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={stage.id}
+                    className={cn(
+                      "hover:bg-muted/30",
+                      stage.invoice && "cursor-pointer"
+                    )}
+                    onDoubleClick={() => stage.invoice && openStageDetail(stage)}
+                    title={stage.invoice ? "Double-click to view claim details" : undefined}
+                  >
                     {/* Stage Name */}
                     <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -1179,6 +1261,309 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Claim Stage Detail Modal */}
+      <Dialog open={!!detailStage} onOpenChange={(open) => { if (!open) closeStageDetail(); }}>
+        <DialogContent className="max-w-[95vw] max-h-[90vh] h-[90vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" />
+              {detailStage?.name}
+              {detailStage?.invoice && (
+                <>
+                  <span className="text-muted-foreground">-</span>
+                  <span>{detailStage.invoice.invoice_number}</span>
+                </>
+              )}
+              {detailLoading && <Spinner size={16} />}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* LEFT: Details */}
+            <div className="w-1/2 border-r overflow-auto p-4 space-y-4">
+              {detailStage && (
+                <>
+                  {/* Stage Summary */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">Stage Summary</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Name</span>
+                        <span className="font-medium">
+                          {detailStage.name}
+                          {detailStage.percentage ? ` (${detailStage.percentage}%)` : ""}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Expected</span>
+                        <span className="font-mono">{formatCurrency(detailStage.expected_amount || 0)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Invoiced</span>
+                        <span className="font-mono text-blue-600 dark:text-blue-400">
+                          {formatCurrency(detailStage.amount_invoiced || 0)}
+                        </span>
+                      </div>
+                      <Separator />
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Payment</span>
+                        <PaymentStatusBadge
+                          status={detailStage.payment_status}
+                          dueDate={detailStage.invoice?.due_date}
+                        />
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Paid</span>
+                        <span className="font-mono text-green-600 dark:text-green-400">
+                          {formatCurrency(detailStage.amount_paid || 0)}
+                        </span>
+                      </div>
+                      {detailStage.has_variance && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Variance</span>
+                          <span className={cn(
+                            "font-mono",
+                            (detailStage.variance_amount || 0) > 0
+                              ? "text-amber-600 dark:text-amber-400"
+                              : "text-red-600 dark:text-red-400"
+                          )}>
+                            {(detailStage.variance_amount || 0) > 0 ? "+" : ""}
+                            {formatCurrency(detailStage.variance_amount || 0)}
+                            {detailStage.variance_percent != null && ` (${detailStage.variance_percent}%)`}
+                          </span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Invoice Details */}
+                  {detailStage.invoice && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          Invoice
+                          {detailStage.invoice.external_id && (
+                            <a
+                              href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${detailStage.invoice.external_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-xs font-normal"
+                            >
+                              Open in Xero
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Invoice #</span>
+                          <span className="font-medium">{detailStage.invoice.invoice_number}</span>
+                        </div>
+                        {detailStage.invoice.reference && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Reference</span>
+                            <span>{detailStage.invoice.reference}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Date</span>
+                          <span>{formatDate(detailStage.invoice.date)}</span>
+                        </div>
+                        {detailStage.invoice.due_date && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Due Date</span>
+                            <span className={cn(
+                              detailStage.payment_status !== "paid" && new Date(detailStage.invoice.due_date) < new Date()
+                                ? "text-red-500 dark:text-red-400 font-medium"
+                                : ""
+                            )}>
+                              {formatDate(detailStage.invoice.due_date)}
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status</span>
+                          <Badge variant="outline" className="text-xs capitalize">
+                            {detailStage.invoice.status}
+                          </Badge>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-mono">
+                            {formatCurrency(detailStage.invoice.subtotal ?? detailStage.invoice.total)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">GST</span>
+                          <span className="font-mono">
+                            {formatCurrency(detailStage.invoice.total_tax ?? 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between font-medium">
+                          <span>Total</span>
+                          <span className="font-mono">{formatCurrency(detailStage.invoice.total)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Amount Paid</span>
+                          <span className="font-mono text-green-600 dark:text-green-400">
+                            {formatCurrency(detailStage.invoice.amount_paid)}
+                          </span>
+                        </div>
+                        {detailStage.invoice.amount_due > 0 && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Amount Due</span>
+                            <span className="font-mono text-amber-600 dark:text-amber-400">
+                              {formatCurrency(detailStage.invoice.amount_due)}
+                            </span>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Tracking Categories */}
+                  {detailStage.invoice?.tracking_data && detailStage.invoice.tracking_data.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Tracking Categories</CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-1 text-sm">
+                        {detailStage.invoice.tracking_data.map((t, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="text-muted-foreground">{t.Name}</span>
+                            <span className="font-medium">{t.Option}</span>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Line Items */}
+                  {detailStage.invoice?.line_items && detailStage.invoice.line_items.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Line Items</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <div className="overflow-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow className="text-xs">
+                                <TableHead className="px-3 py-2">Description</TableHead>
+                                <TableHead className="px-3 py-2 text-right">Acct</TableHead>
+                                <TableHead className="px-3 py-2 text-right">Qty</TableHead>
+                                <TableHead className="px-3 py-2 text-right">Unit Price</TableHead>
+                                <TableHead className="px-3 py-2 text-right">Tax</TableHead>
+                                <TableHead className="px-3 py-2 text-right">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {detailStage.invoice.line_items.map((item, i) => (
+                                <TableRow key={i} className="text-xs">
+                                  <TableCell className="px-3 py-2 max-w-[200px] truncate">
+                                    {item.Description || "-"}
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-right text-muted-foreground">
+                                    {item.AccountCode || "-"}
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-right font-mono">
+                                    {item.Quantity ?? "-"}
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-right font-mono">
+                                    {item.UnitAmount != null ? formatCurrency(item.UnitAmount) : "-"}
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-right font-mono">
+                                    {item.TaxAmount != null ? formatCurrency(item.TaxAmount) : "-"}
+                                  </TableCell>
+                                  <TableCell className="px-3 py-2 text-right font-mono">
+                                    {item.LineAmount != null ? formatCurrency(item.LineAmount) : "-"}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {/* Footer totals */}
+                              <TableRow className="text-xs font-medium border-t-2">
+                                <TableCell colSpan={5} className="px-3 py-2 text-right">
+                                  Subtotal
+                                </TableCell>
+                                <TableCell className="px-3 py-2 text-right font-mono">
+                                  {formatCurrency(detailStage.invoice.subtotal ?? detailStage.invoice.total)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow className="text-xs">
+                                <TableCell colSpan={5} className="px-3 py-1 text-right text-muted-foreground">
+                                  GST
+                                </TableCell>
+                                <TableCell className="px-3 py-1 text-right font-mono text-muted-foreground">
+                                  {formatCurrency(detailStage.invoice.total_tax ?? 0)}
+                                </TableCell>
+                              </TableRow>
+                              <TableRow className="text-xs font-bold">
+                                <TableCell colSpan={5} className="px-3 py-2 text-right">
+                                  Total
+                                </TableCell>
+                                <TableCell className="px-3 py-2 text-right font-mono">
+                                  {formatCurrency(detailStage.invoice.total)}
+                                </TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* RIGHT: PDF */}
+            <div className="w-1/2 overflow-hidden flex flex-col p-2">
+              {detailPdfLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <Spinner size={32} />
+                    <p className="text-sm text-muted-foreground">Loading PDF...</p>
+                  </div>
+                </div>
+              ) : detailPdfUrl ? (
+                <PdfFrame className="flex-1">
+                  <PDFViewer url={detailPdfUrl} showToolbar />
+                </PdfFrame>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-3">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No PDF generated yet</p>
+                    {detailStage?.invoice && !detailStage.invoice.pending_push && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (detailStage) {
+                            handleGeneratePdf(detailStage);
+                          }
+                        }}
+                        disabled={generatingPdfId === detailStage?.id}
+                      >
+                        {generatingPdfId === detailStage?.id ? (
+                          <Spinner size={16} className="mr-1" />
+                        ) : (
+                          <FileDown className="h-4 w-4 mr-1" />
+                        )}
+                        Generate PDF
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
