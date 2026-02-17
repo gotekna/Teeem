@@ -38,6 +38,7 @@ export function XeroInvoicesCard({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [tenantId, setTenantId] = React.useState<string | null>(propTenantId || null);
+  const [totals, setTotals] = React.useState<{ total: number; totalExGst: number; paid: number; due: number } | null>(null);
 
   // Fetch tenant ID if not provided (corporate context only)
   const fetchTenantId = React.useCallback(async () => {
@@ -75,11 +76,23 @@ export function XeroInvoicesCard({
       if (jobId) {
         const response = await api.get<{
           success: boolean;
-          data: { invoices: TableRow[] };
+          data: {
+            invoices: TableRow[];
+            invoices_total?: number;
+            invoices_total_ex_gst?: number;
+            invoices_paid?: number;
+            invoices_due?: number;
+          };
         }>(`/api/v1/external_invoices/by_job/${jobId}`);
 
         if (response?.success) {
           setInvoices(response.data?.invoices || []);
+          setTotals({
+            total: response.data?.invoices_total || 0,
+            totalExGst: response.data?.invoices_total_ex_gst || 0,
+            paid: response.data?.invoices_paid || 0,
+            due: response.data?.invoices_due || 0,
+          });
         } else {
           setError("Failed to load invoices for this job");
         }
@@ -156,6 +169,15 @@ export function XeroInvoicesCard({
 
   return (
     <div className="flex flex-col h-full -mx-4">
+      {totals && (
+        <div className="flex flex-wrap gap-4 px-4 py-3 border-b bg-muted/30">
+          <SummaryItem label="Total (ex GST)" value={totals.totalExGst} />
+          <SummaryItem label="Total (inc GST)" value={totals.total} />
+          <SummaryItem label="Paid" value={totals.paid} className="text-green-600 dark:text-green-400" />
+          <SummaryItem label="Outstanding" value={totals.due} className="text-orange-600 dark:text-orange-400" />
+          <span className="text-xs text-muted-foreground self-center">{invoices.length} invoices</span>
+        </div>
+      )}
       <TeeemTableView
         entries={invoices}
         foundationId={FOUNDATION_SLUGS.EXTERNAL_INVOICES}
@@ -163,6 +185,18 @@ export function XeroInvoicesCard({
         onRefresh={handleRefresh}
         enableExport={true}
       />
+    </div>
+  );
+}
+
+function SummaryItem({ label, value, className }: { label: string; value: number; className?: string }) {
+  const formatted = Math.abs(value).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-sm font-semibold font-mono tabular-nums ${className || ""}`}>
+        ${formatted}
+      </span>
     </div>
   );
 }

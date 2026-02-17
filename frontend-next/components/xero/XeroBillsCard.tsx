@@ -42,6 +42,7 @@ export function XeroBillsCard({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [tenantId, setTenantId] = React.useState<string | null>(propTenantId || null);
+  const [totals, setTotals] = React.useState<{ total: number; totalExGst: number; paid: number; due: number } | null>(null);
 
   // Fetch tenant ID if not provided (corporate context only)
   const fetchTenantId = React.useCallback(async () => {
@@ -79,11 +80,23 @@ export function XeroBillsCard({
       if (jobId) {
         const response = await api.get<{
           success: boolean;
-          data: { bills: TableRow[] };
+          data: {
+            bills: TableRow[];
+            bills_total?: number;
+            bills_total_ex_gst?: number;
+            bills_paid?: number;
+            bills_due?: number;
+          };
         }>(`/api/v1/external_invoices/by_job/${jobId}`);
 
         if (response?.success) {
           setBills(response.data?.bills || []);
+          setTotals({
+            total: response.data?.bills_total || 0,
+            totalExGst: response.data?.bills_total_ex_gst || 0,
+            paid: response.data?.bills_paid || 0,
+            due: response.data?.bills_due || 0,
+          });
         } else {
           setError("Failed to load bills for this job");
         }
@@ -160,6 +173,15 @@ export function XeroBillsCard({
 
   return (
     <div className="flex flex-col h-full -mx-4">
+      {totals && (
+        <div className="flex flex-wrap gap-4 px-4 py-3 border-b bg-muted/30">
+          <SummaryItem label="Total (ex GST)" value={totals.totalExGst} />
+          <SummaryItem label="Total (inc GST)" value={totals.total} />
+          <SummaryItem label="Paid" value={totals.paid} className="text-green-600 dark:text-green-400" />
+          <SummaryItem label="Outstanding" value={totals.due} className="text-orange-600 dark:text-orange-400" />
+          <span className="text-xs text-muted-foreground self-center">{bills.length} bills</span>
+        </div>
+      )}
       <TeeemTableView
         entries={bills}
         foundationId={FOUNDATION_SLUGS.EXTERNAL_INVOICES}
@@ -169,6 +191,18 @@ export function XeroBillsCard({
         onRowDoubleClick={onRowDoubleClick}
         enableExport={true}
       />
+    </div>
+  );
+}
+
+function SummaryItem({ label, value, className }: { label: string; value: number; className?: string }) {
+  const formatted = Math.abs(value).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-sm font-semibold font-mono tabular-nums ${className || ""}`}>
+        ${formatted}
+      </span>
     </div>
   );
 }

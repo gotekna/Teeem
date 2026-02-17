@@ -2094,6 +2094,93 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/contact_sync_sessions
+      # Returns contact sync pipeline status: active sessions, recent completions,
+      # auto-cancelled sessions, and rate limit usage per tenant.
+      # FRC (Feb 2026): Added to give UI visibility into the self-healing pipeline
+      # so users can confirm contact sync is healthy after the deadlock fix.
+      def contact_sync_sessions
+        begin
+          # Get recent sessions (last 24h)
+          recent_sessions = XeroSyncSession.contacts
+                              .where("created_at > ?", 24.hours.ago)
+                              .order(created_at: :desc)
+
+          active = recent_sessions.active
+          completed = recent_sessions.completed
+          failed = recent_sessions.failed
+
+          # Auto-cancelled = failed with our specific error messages
+          auto_cancelled = failed.where("error_message LIKE ?", "Auto-cancelled%")
+
+          # Rate limit usage per tenant
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.where(status: %w[connected degraded])
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant).where(status: %w[connected degraded])
+                        end
+
+          rate_limits = credentials.map do |cred|
+            usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
+            {
+              tenant_id: cred.tenant_id,
+              tenant_name: cred.tenant_name,
+              daily_used: usage[:daily][:used],
+              daily_limit: usage[:daily][:limit],
+              daily_percentage: usage[:daily][:percentage],
+              minute_used: usage[:minute][:used],
+              minute_limit: usage[:minute][:limit],
+              can_make_request: usage[:can_make_request],
+              locked_out: usage[:locked_out]
+            }
+          end
+
+          # Overall pipeline status
+          any_locked = rate_limits.any? { |r| r[:locked_out] }
+          daily_max_pct = rate_limits.map { |r| r[:daily_percentage] }.max || 0
+
+          pipeline_status = if active.any?
+                              "syncing"
+                            elsif any_locked
+                              "rate_limited"
+                            elsif daily_max_pct >= 90
+                              "near_daily_limit"
+                            else
+                              "healthy"
+                            end
+
+          render json: {
+            success: true,
+            data: {
+              pipeline_status: pipeline_status,
+              active_sessions: active.count,
+              completed_24h: completed.count,
+              failed_24h: failed.count,
+              auto_cancelled_24h: auto_cancelled.count,
+              daily_max_percentage: daily_max_pct.round(1),
+              rate_limits: rate_limits,
+              recent_sessions: recent_sessions.limit(10).map { |s|
+                {
+                  id: s.id,
+                  tenant_id: s.tenant_id,
+                  status: s.status,
+                  sync_mode: s.sync_mode,
+                  fetched_count: s.fetched_count,
+                  processed_count: s.processed_count,
+                  error_message: s.error_message,
+                  created_at: s.created_at,
+                  completed_at: s.completed_at,
+                  duration_human: s.duration_human
+                }
+              }
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero contact_sync_sessions error: #{e.message}")
+          render_error("Failed to get contact sync sessions: #{e.message}", status: :internal_server_error)
+        end
+      end
+
       # GET /api/v1/xero/common_contacts
       # Returns contacts linked to multiple Xero organizations
       # Multi-tenancy: Filters by current tenant (master sees all, others see own)
