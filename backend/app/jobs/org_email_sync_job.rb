@@ -621,10 +621,21 @@ class OrgEmailSyncJob < ApplicationJob
       break if emails.empty?
 
       upsert_start = Time.current
-      emails.each do |email_data|
-        # Upsert into SyncedEmail
-        warehouse_email = upsert_email(email_data, user_email, folder[:name])
-        synced += 1 if warehouse_email
+      if @is_initial_sync
+        # ⚠️ FRC (Feb 2026): Batch upsert for ~50x speedup during initial sync
+        # Root cause: Per-email upsert does ~15 DB operations each (find_or_initialize,
+        # save!, ensure_mailbox_appearance, build_recipients!, apply_rules, etc.).
+        # For 100 emails = ~1,500 queries = ~106s per page. With PER_MAILBOX_TIMEOUT=2min,
+        # large mailboxes can't finish a single page.
+        # Fix: upsert_all does 100 emails in ~3 DB operations. Enrichment deferred to
+        # BatchEmailEnrichmentJob (recipients, rules, task attachment, read status).
+        synced += batch_upsert_emails(emails, user_email, folder[:name])
+      else
+        emails.each do |email_data|
+          # Upsert into SyncedEmail
+          warehouse_email = upsert_email(email_data, user_email, folder[:name])
+          synced += 1 if warehouse_email
+        end
       end
       upsert_elapsed = (Time.current - upsert_start).round(1)
 
@@ -1132,5 +1143,210 @@ class OrgEmailSyncJob < ApplicationJob
     end
   rescue StandardError => e
     Rails.logger.error "[OrgEmailSync] Failed to broadcast sync #{status}: #{e.message}"
+  end
+
+  # ════════════════════════════════════════════════════════════════
+  # Batch upsert for initial sync (~50x speedup)
+  # ════════════════════════════════════════════════════════════════
+  # Instead of ~15 DB operations per email (find_or_initialize, save!, mailbox appearance,
+  # build_recipients!, apply_rules, sync_read_status, etc.), this does:
+  #   1. upsert_all into synced_emails (1 query for 100 emails)
+  #   2. UPDATE searchable vectors (1 query)
+  #   3. upsert_all into synced_email_mailboxes (1 query)
+  #   4. Enqueue BatchEmailEnrichmentJob for deferred work
+  # Total: ~4 queries inline instead of ~1,500
+  # ════════════════════════════════════════════════════════════════
+
+  def batch_upsert_emails(emails_data, owner_email, folder_name)
+    return 0 if emails_data.empty?
+
+    now = Time.current
+    tenant_id = @credential&.organization&.tenant_id
+    credential_id = @credential&.id
+    teeem_user = find_teeem_user(owner_email)
+
+    # Phase 1: Filter and prepare (reuse existing blacklist/junk/internal logic)
+    filtered = emails_data.filter_map do |email_data|
+      prepare_email_record(email_data, owner_email, folder_name, now, tenant_id, credential_id, teeem_user)
+    end
+
+    return 0 if filtered.empty?
+
+    # Phase 2: Batch upsert into synced_emails
+    records = filtered.map { |r| r[:attrs] }
+    begin
+      result = SyncedEmail.upsert_all(
+        records,
+        unique_by: :idx_synced_emails_message_id_tenant,
+        returning: [:id, :internet_message_id],
+        update_only: [:last_synced_at]  # Don't overwrite content on existing records
+      )
+    rescue ActiveRecord::RecordNotUnique => e
+      # Fallback: if upsert_all fails on duplicate, fall back to per-email path
+      Rails.logger.warn "[OrgEmailSync] batch upsert_all failed (#{e.message.truncate(100)}), falling back to per-email"
+      count = 0
+      emails_data.each do |email_data|
+        warehouse_email = upsert_email(email_data, owner_email, folder_name)
+        count += 1 if warehouse_email
+      end
+      return count
+    end
+
+    # Build ID map: internet_message_id -> synced_email_id
+    id_map = result.rows.each_with_object({}) { |(id, msg_id), h| h[msg_id] = id }
+
+    # Phase 3: Batch searchable vector update (single SQL UPDATE)
+    update_searchable_vectors_batch(id_map.values)
+
+    # Phase 4: Batch mailbox appearances
+    appearances = filtered.filter_map do |record|
+      email_id = id_map[record[:internet_message_id]]
+      next unless email_id
+      {
+        synced_email_id: email_id,
+        mailbox_owner_email: owner_email.downcase,
+        outlook_id: record[:outlook_id],
+        folder_name: folder_name,
+        is_read: record[:is_read] || false,
+        microsoft_credential_id: credential_id,
+        created_at: now,
+        updated_at: now
+      }
+    end
+
+    if appearances.any?
+      SyncedEmailMailbox.upsert_all(
+        appearances,
+        unique_by: :idx_email_mailbox_unique,
+        update_only: [:folder_name, :is_read, :updated_at]
+      )
+    end
+
+    # Phase 5: Enqueue deferred enrichment for batch-inserted records
+    new_email_ids = id_map.values.compact
+    if new_email_ids.any?
+      SyncedEmail.where(id: new_email_ids).update_all(needs_enrichment: true)
+      # Process in chunks of 500 to avoid huge job payloads
+      new_email_ids.each_slice(500) do |chunk|
+        BatchEmailEnrichmentJob.perform_later(chunk, credential_id)
+      end
+    end
+
+    Rails.logger.info "[OrgEmailSync] Batch upserted #{filtered.count} emails (#{id_map.count} in DB)"
+    filtered.count
+  end
+
+  # Prepare a single email record for batch upsert (no DB calls except blacklist check)
+  # Returns nil if the email should be filtered out (junk, internal sent, blacklisted)
+  def prepare_email_record(email_data, owner_email, folder_name, now, tenant_id, credential_id, teeem_user)
+    internet_message_id = email_data["internetMessageId"] || email_data["id"]
+    from_data = email_data["from"]&.dig("emailAddress") || {}
+    from_email = from_data["address"]&.downcase
+    from_name = from_data["name"]
+    subject = email_data["subject"] || ""
+    has_attachments = email_data["hasAttachments"] || false
+
+    # Fallback for Sent/Drafts (sender is implicit)
+    if from_email.blank? && %w[Sent\ Items Drafts].include?(folder_name)
+      from_email = owner_email.downcase
+    end
+
+    # Filter: Junk
+    return nil if folder_name == "Junk Email"
+
+    # Filter: Internal sent (all recipients same domain)
+    if folder_name == "Sent Items"
+      to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+      cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address") }.compact
+      all_recipients = (to_emails + cc_emails).map(&:downcase)
+      org_domain = owner_email.split("@").last
+      return nil if all_recipients.any? && all_recipients.all? { |r| r.end_with?("@#{org_domain}") }
+    elsif has_attachments
+      # Never filter emails with attachments
+    else
+      # Filter: Blacklist
+      if EmailBlacklistItem.should_filter?(
+        from_email: from_email,
+        from_name: from_name,
+        subject: subject
+      )
+        return nil
+      end
+    end
+
+    # Extract fields
+    to_emails = (email_data["toRecipients"] || []).map { |r| r.dig("emailAddress", "address")&.downcase }.compact
+    cc_emails = (email_data["ccRecipients"] || []).map { |r| r.dig("emailAddress", "address")&.downcase }.compact
+    received_at = email_data["receivedDateTime"] || email_data["createdDateTime"]
+
+    body_data = email_data["body"] || {}
+    body_content = body_data["content"]
+    body_type = body_data["contentType"]&.downcase
+    if body_type == "html"
+      body_html = body_content
+      body_text = extract_text_from_html(body_content)
+    else
+      body_text = body_content
+      body_html = nil
+    end
+
+    is_read = folder_name == "Sent Items" ? true : (email_data["isRead"] || false)
+
+    {
+      internet_message_id: internet_message_id,
+      outlook_id: email_data["id"],
+      is_read: is_read,
+      attrs: {
+        internet_message_id: internet_message_id,
+        tenant_id: tenant_id,
+        subject: subject,
+        from_email: from_email,
+        from_name: from_name,
+        to_emails: to_emails,
+        cc_emails: cc_emails,
+        received_at: received_at,
+        sent_at: email_data["sentDateTime"],
+        has_attachments: has_attachments,
+        body_preview: email_data["bodyPreview"]&.truncate(500),
+        body_text: body_text,
+        body_html: body_html,
+        conversation_id: email_data["conversationId"],
+        importance: email_data["importance"],
+        in_reply_to: email_data["inReplyTo"],
+        microsoft_credential_id: credential_id,
+        mailbox_owner_email: owner_email.downcase,
+        outlook_id: email_data["id"],
+        folder_name: folder_name,
+        is_read: is_read,
+        first_synced_at: now,
+        last_synced_at: now,
+        synced_by_user_id: teeem_user&.id,
+        ssot_owner_id: teeem_user&.id,
+        needs_enrichment: true,
+        created_at: now,
+        updated_at: now
+      }
+    }
+  end
+
+  # Batch update searchable tsvector for multiple emails in a single SQL statement
+  def update_searchable_vectors_batch(email_ids)
+    return if email_ids.empty?
+
+    # Sanitize IDs to prevent SQL injection
+    sanitized_ids = email_ids.map(&:to_i).join(",")
+
+    SyncedEmail.connection.execute(<<~SQL)
+      UPDATE synced_emails
+      SET searchable = to_tsvector('english',
+        COALESCE(subject, '') || ' ' ||
+        COALESCE(from_email, '') || ' ' ||
+        COALESCE(from_name, '') || ' ' ||
+        COALESCE(array_to_string(to_emails, ' '), '') || ' ' ||
+        COALESCE(array_to_string(cc_emails, ' '), '') || ' ' ||
+        COALESCE(body_text, '')
+      )
+      WHERE id IN (#{sanitized_ids})
+    SQL
   end
 end

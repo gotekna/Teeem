@@ -61,6 +61,10 @@ class SyncedEmail < ApplicationRecord
   # Each mailbox appearance has its own outlook_id, folder_name, and is_read status.
   # SSoT: Email content here (once). Mailbox appearances in SyncedEmailMailbox.
   has_many :mailbox_appearances, class_name: 'SyncedEmailMailbox', dependent: :destroy
+  # Conventional alias: Rails resolves table name "synced_email_mailboxes" as association
+  # :synced_email_mailboxes. Without this, .joins/.where referencing the table by convention fails
+  # with ConfigurationError. Sentry TEEEM-BACKEND-6.
+  has_many :synced_email_mailboxes, dependent: :destroy
 
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze

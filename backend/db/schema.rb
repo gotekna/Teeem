@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_200007) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_17_200008) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9469,6 +9469,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200007) do
     t.bigint "tenant_id"
     t.boolean "content_unavailable", default: false, null: false
     t.string "content_unavailable_reason"
+    t.boolean "needs_enrichment", default: false
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
@@ -9481,11 +9482,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200007) do
     t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
+    t.index ["internet_message_id", "tenant_id"], name: "idx_synced_emails_message_id_tenant", unique: true
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
     t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
     t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
     t.index ["labels"], name: "index_synced_emails_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
+    t.index ["needs_enrichment"], name: "idx_synced_emails_needs_enrichment", where: "(needs_enrichment = true)"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
