@@ -163,10 +163,20 @@ class XeroAttachmentSyncJob < ApplicationJob
           break
         end
 
-        # Rate limit check before each batch
+        # FRC (Feb 2026): Sleep instead of break when hitting minute rate limit.
+        # Previously: hit 90% minute rate → BREAK → wait 10 min for next scheduler cycle.
+        # Now: hit 90% minute rate → SLEEP 30s for rolling window to reset → continue.
+        # The minute limit (60/min) resets on a rolling window, so 30s sleep is enough.
+        # The outer time limit (MAX_RUNTIME_SECONDS) still caps total runtime.
         if should_pause_for_rate_limit?(tenant_id)
-          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit approaching, pausing")
-          break
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit approaching, sleeping 30s for window to roll...")
+          sleep(30)
+          # Re-check after sleep - if still limited (daily or hard lockout), break
+          if should_pause_for_rate_limit?(tenant_id)
+            Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Still rate limited after sleep, pausing")
+            break
+          end
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit cleared, resuming")
         end
 
         batch_results = process_tenant_batch(tenant_id, options)

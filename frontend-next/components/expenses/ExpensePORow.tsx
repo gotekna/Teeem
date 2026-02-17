@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
@@ -11,6 +10,7 @@ import {
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
 import { FileText, CheckCircle2, Circle, AlertTriangle, Lock, LockOpen } from "lucide-react";
+import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 
 interface ExpensePORowProps {
   po: PurchaseOrderRecord;
@@ -35,7 +35,7 @@ interface ExpensePORowProps {
  * 11. Over-billed indicator (triggers red row)
  */
 export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
-  const router = useRouter();
+  const { open: openPOInvoice } = usePOInvoiceModal();
 
   // Extract values
   const budget = Number(po.budget) || 0;
@@ -54,10 +54,10 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   // Calculate indent based on depth
   const indentPx = (depth + 1) * 24;
 
-  // Double-click to open PO detail page
+  // Double-click to open PO vs Invoice split view modal
   const handleDoubleClick = () => {
     const slug = po.po_number?.replace("PO-", "") || po.id;
-    router.push(`/purchase_orders/${slug}`);
+    openPOInvoice(slug, po.po_number || undefined);
   };
 
   return (
@@ -73,7 +73,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       )}
       style={{ paddingLeft: `${indentPx}px` }}
       onDoubleClick={handleDoubleClick}
-      title="Double-click to open PO"
+      title="Double-click to view PO vs Invoice"
     >
       {/* Tree connector line */}
       <div className="flex items-center gap-1 text-muted-foreground shrink-0">
