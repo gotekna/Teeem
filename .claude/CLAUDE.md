@@ -519,14 +519,6 @@ Use `[id]` pattern for dynamic routes:
 - **Components accept `basePath` prop** for reusability across different URL contexts
 - **Catch-all routes** `[...tab]/page.tsx` re-export parent page for sub-tab URLs
 
-### SSoT Consolidations (Jan 2026)
-- ❌ `/settings/documents` → Moved to `/settings/company/documents`
-- ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
-- ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
-- ❌ Entity Config in Developer → Moved to `/settings/company/warehouse-config` (renamed Feb 2026)
-- ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
-- ❌ Doc Templates duplicate → Consolidated into Documents > Templates
-
 ## 🔴 Table Page Pattern
 
 ```tsx
@@ -814,15 +806,6 @@ WarehouseProvider.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans
 | `:tasks` | `"Tasks"` | `Task-{{TaskId}}/{{Category}}` |
 | `:accounts` | `"Accounts"` | `{{Source}}/{{ContactName}}/{{Category}}` |
 | `:emails` | `"Emails"` | `{{Year}}/{{Month}}` |
-
-### Deprecated (DO NOT USE)
-
-```ruby
-# ❌ REMOVED - Direct credential config access:
-credential.sharepoint_site_id    # Use WarehouseProvider.instance
-credential.sharepoint_drive_id   # Use WarehouseProvider.instance
-# All storage config is now in WarehouseProvider, not credentials
-```
 
 ### Admin UI
 

@@ -19,7 +19,7 @@ export function ProfitCentresTab() {
         foundationId={FOUNDATION_SLUGS.PROFIT_CENTRES}
         autoFetchRecords={true}
         initialFilters={[
-          { column: "is_template", operator: "equals", value: "true" },
+          { id: "template-filter", column: "is_template", operator: "=", value: "true" },
         ]}
       />
     </div>

@@ -397,8 +397,16 @@ class SyncedEmail < ApplicationRecord
   # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
   # linkable is a proper polymorphic FK with index — faster and Rails-standard.
   # metadata['synced_email_id'] is kept as audit data, not for querying.
+  #
+  # FRC (Feb 2026): Also check documentable as fallback for IMAP attachments created
+  # before the linkable fix. ImapEmailService#attach_email_files previously used
+  # documentable: instead of linkable:, so older IMAP attachments only have documentable set.
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
+    WarehouseDocument.where(source_type: 'email_attachment').where(
+      "((linkable_type = 'SyncedEmail' AND linkable_id = :id) OR " \
+      "(documentable_type = 'SyncedEmail' AND documentable_id = :id))",
+      id: id
+    )
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
@@ -1309,6 +1317,13 @@ class SyncedEmail < ApplicationRecord
         content, filename: filename, content_type: content_type
       )
 
+      metadata = {
+        "synced_email_id" => id.to_s,
+        "mailbox" => mailbox,
+        "source" => "imap"
+      }
+      metadata["content_id"] = att[:content_id] if att[:content_id].present?
+
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",
@@ -1316,11 +1331,7 @@ class SyncedEmail < ApplicationRecord
         storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
         content_type: content_type || blob.content_type,
-        metadata: {
-          "synced_email_id" => id.to_s,
-          "mailbox" => mailbox,
-          "source" => "imap"
-        }.compact
+        metadata: metadata.compact
       )
 
       blob.increment!(:reference_count)

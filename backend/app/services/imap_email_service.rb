@@ -677,11 +677,15 @@ class ImapEmailService
     attachments = []
 
     mail.attachments.each do |attachment|
+      # Extract content_id for inline images (cid: references in HTML body)
+      cid = attachment.content_id&.gsub(/[<>]/, '')
+
       attachments << {
         filename: attachment.filename,
         content_type: attachment.content_type,
         content: attachment.decoded,
-        size: attachment.decoded.bytesize
+        size: attachment.decoded.bytesize,
+        content_id: cid
       }
     end
 
@@ -724,14 +728,19 @@ class ImapEmailService
       )
 
       # Create WarehouseDocument via standard service
+      # FRC (Feb 2026): Use linkable: (not documentable:) so attachment_documents query finds them.
+      # attachment_documents queries by linkable_type/linkable_id - documentable is legacy/audit only.
+      metadata = { "synced_email_id" => email.id.to_s }
+      metadata["content_id"] = attachment[:content_id] if attachment[:content_id].present?
+
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",
-        documentable: email,
+        linkable: email,
         storage_blob: blob,
         file_size: content.bytesize,
         content_type: content_type || blob.content_type,
-        metadata: { "synced_email_id" => email.id.to_s }
+        metadata: metadata
       )
 
       blob.increment!(:reference_count)
