@@ -358,11 +358,11 @@ export function BillsInvoiceViewer({
         }
       }, 3000);
     } catch (err: unknown) {
-      // Handle 429 from API response
-      const errorResponse = (err as { response?: { status?: number; data?: { rate_limit?: { daily_used: number; daily_limit: number; resets_at: string } } } })?.response;
-      if (errorResponse?.status === 429 && errorResponse?.data?.rate_limit) {
+      // Handle 429 rate limit from ApiError (thrown by api.post on non-2xx)
+      const apiErr = err as { status?: number; data?: { rate_limit?: { daily_used: number; daily_limit: number; resets_at: string } } };
+      if (apiErr?.status === 429 && apiErr?.data?.rate_limit) {
         setSyncStatus("rate_limited");
-        setRateLimitInfo(errorResponse.data.rate_limit);
+        setRateLimitInfo(apiErr.data.rate_limit);
       } else {
         setSyncStatus("error");
       }
