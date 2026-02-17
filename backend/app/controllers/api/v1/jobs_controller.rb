@@ -528,13 +528,22 @@ module Api
       # Lightweight endpoint for badge counts on finance sub-tabs
       def finance_counts
         invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
+        claims_count = @job.job_claim_stages.count
+        expenses_count = @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count
+        sales_count = invoices.where(invoice_type: "sales_invoice").count
+        bills_count = invoices.where(invoice_type: "bill").count
+
+        # Return counts keyed by ALL known tab_key variants (tab_keys vary per tenant)
         render json: {
           success: true,
           counts: {
-            "claims" => @job.job_claim_stages.count,
-            "expenses" => @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count,
-            "claims-xero" => invoices.where(invoice_type: "sales_invoice").count,
-            "bills-xero" => invoices.where(invoice_type: "bill").count
+            "claims" => claims_count,
+            "expenses" => expenses_count,
+            "claims-xero" => sales_count,
+            "claims---xero" => sales_count,
+            "bills" => bills_count,
+            "bills-xero" => bills_count,
+            "bills---xero" => bills_count
           }
         }
       end
