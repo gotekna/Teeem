@@ -70,19 +70,18 @@ class OrgEmailSyncJob < ApplicationJob
   # Heroku kills dynos at 30 minutes, so the job dies mid-sync and last_sync_at never updates.
   # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
   # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
-  # ⚠️ ULTRA FIX (Feb 2026): Increased from 10→12min to match AllOrgsEmailSyncJob.MAX_RUNTIME.
-  # Multi-year backfill + batch upsert makes better use of the extra time.
-  PER_CREDENTIAL_TIMEOUT = 12.minutes
-  # ⚠️ FRC (Feb 2026): Per-mailbox time budget for fair round-robin
-  # Root cause: One big mailbox (accounts@bypilgrim.co, 60+ folders) consumed the entire
-  # credential timeout, so the mailbox loop only processed 1 mailbox per cycle.
-  # With 56 mailboxes and only 1 per cycle, 18/56 stayed stuck for 24+ hours because the same
-  # already-synced big mailboxes consumed every cycle's budget on incremental sync.
-  # Fix: Cap each mailbox at 3 minutes. This allows ~4 mailboxes per cycle, making incremental
-  # progress on each. Big mailboxes resume where they left off next cycle (folder-level progress).
-  # ⚠️ ULTRA FIX (Feb 2026): Increased from 2→3min because multi-year backfill now processes
-  # as many years as fit in the budget per mailbox (not just 1 year). More time = more years = faster.
-  PER_MAILBOX_TIMEOUT = 3.minutes
+  # ⚠️ ULTRA FIX (Feb 2026): Dynamic time budgets based on org size and backfill state
+  # ════════════════════════════════════════════════════════════════
+  # Root cause: Fixed 12 min credential + 3 min mailbox budgets meant Pilgrim (56 mailboxes)
+  # could only process ~4 mailboxes per 15-min cycle. 56/4 = 14 cycles = 3.5 hours just to
+  # touch each mailbox ONCE. With 15 years of backfill, each needing multiple passes = DAYS.
+  # Fix: Scale timeouts dynamically. Small orgs keep tight budgets. Large orgs get more time.
+  # The scheduler fires every 15 min with DeduplicatableJob, so a 14 min run is fine -
+  # the next enqueue just gets skipped (no pileup).
+  # ════════════════════════════════════════════════════════════════
+  BASE_CREDENTIAL_TIMEOUT = 14.minutes  # max time for one org (fits within 15 min scheduler)
+  BASE_MAILBOX_TIMEOUT = 3.minutes      # max time per mailbox (default)
+  MIN_MAILBOX_TIMEOUT = 30.seconds      # floor for large orgs during backfill
   # ⚠️ FRC (Feb 2026): Per-folder skip interval for incremental sync
   # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
   # Re-checking all 60 folders every 15-min cycle wasted API calls and consumed the time budget.
@@ -224,6 +223,21 @@ class OrgEmailSyncJob < ApplicationJob
       errors = []
       sync_started_at = Time.current
 
+      # ⚠️ ULTRA FIX (Feb 2026): Dynamic time budgets based on org size
+      # Small org (5 mailboxes): 3 min each = 15 min total, fits easily
+      # Large org (56 mailboxes): 15s each = 14 min total, ALL get progress each cycle
+      # This ensures every mailbox advances every cycle instead of starving the tail.
+      active_mailbox_count = user_emails.count - errored_count
+      credential_timeout = BASE_CREDENTIAL_TIMEOUT
+      if active_mailbox_count > 0
+        # Budget per mailbox = credential timeout / mailbox count, clamped to [MIN, BASE]
+        @dynamic_mailbox_timeout = [(credential_timeout.to_f / active_mailbox_count).to_i, MIN_MAILBOX_TIMEOUT.to_i].max
+        @dynamic_mailbox_timeout = [@dynamic_mailbox_timeout, BASE_MAILBOX_TIMEOUT.to_i].min
+      else
+        @dynamic_mailbox_timeout = BASE_MAILBOX_TIMEOUT.to_i
+      end
+      Rails.logger.info "[OrgEmailSync] Dynamic budgets: credential=#{credential_timeout.to_i}s, mailbox=#{@dynamic_mailbox_timeout}s (#{active_mailbox_count} active mailboxes)"
+
       # Broadcast sync_started to all tenant users via WebSocket
       broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
 
@@ -232,9 +246,9 @@ class OrgEmailSyncJob < ApplicationJob
         # ⚠️ FRC (Feb 2026): Per-credential time budget for incremental progress
         elapsed = Time.current - sync_started_at
         Rails.logger.info "[SYNC-DEBUG] Mailbox #{idx + 1}/#{user_emails.count}: #{user_email} (elapsed: #{elapsed.round(1)}s)"
-        if elapsed > PER_CREDENTIAL_TIMEOUT
+        if elapsed > credential_timeout
           remaining = user_emails.count - total_synced - errors.count - skipped_count
-          Rails.logger.warn "[SYNC-DEBUG] TIME BUDGET EXCEEDED (#{PER_CREDENTIAL_TIMEOUT.to_i}s) after #{total_synced} mailboxes, #{remaining} remaining"
+          Rails.logger.warn "[SYNC-DEBUG] TIME BUDGET EXCEEDED (#{credential_timeout.to_i}s) after #{total_synced} mailboxes, #{remaining} remaining"
           break
         end
 
@@ -291,9 +305,9 @@ class OrgEmailSyncJob < ApplicationJob
           # ════════════════════════════════════════════════════════════════
           @is_initial_sync = mb_last_synced.nil? || backfilling
 
-          # Calculate per-mailbox time budget: min(PER_MAILBOX_TIMEOUT, remaining credential budget)
-          remaining_credential_time = PER_CREDENTIAL_TIMEOUT - elapsed
-          mailbox_budget = [PER_MAILBOX_TIMEOUT.to_i, remaining_credential_time.to_i].min
+          # Calculate per-mailbox time budget: min(dynamic_timeout, remaining credential budget)
+          remaining_credential_time = credential_timeout - elapsed
+          mailbox_budget = [@dynamic_mailbox_timeout, remaining_credential_time.to_i].min
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, initial_sync=#{@is_initial_sync}, budget=#{mailbox_budget}s, depth_year=#{depth_year || 'done'}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
           synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?, time_budget: mailbox_budget, depth_year: backfilling ? depth_year : nil, target_year: backfilling ? target_year : nil)

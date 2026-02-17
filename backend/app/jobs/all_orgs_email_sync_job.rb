@@ -22,8 +22,10 @@ class AllOrgsEmailSyncJob < ApplicationJob
   queue_as :email_sync
 
   # Time budget: stop processing if we've been running longer than this
-  # Ensures the job completes before the next scheduled run (15 min)
-  MAX_RUNTIME = 12.minutes
+  # ⚠️ ULTRA FIX (Feb 2026): Increased to 14 min. The 15-min scheduler + DeduplicatableJob
+  # means overlap is impossible (next enqueue gets skipped). Using 14 of 15 min maximizes
+  # throughput for large orgs (Pilgrim: 56 mailboxes).
+  MAX_RUNTIME = 14.minutes
 
   def perform(sync_type = "incremental")
     started_at = Time.current
