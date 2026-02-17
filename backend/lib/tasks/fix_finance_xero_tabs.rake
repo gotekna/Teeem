@@ -55,16 +55,22 @@ namespace :fix_finance_xero_tabs do
 
     # Component name mapping by tab_key
     # These map WarehouseFolder tab_keys to React component names in tab-component-registry.ts
+    # FRC (Feb 2026): Include triple-dash variants from "Claims - XERO" slugification bug
     component_map = {
       "claims" => "JobClaimStagesTab",
       "expenses" => "JobExpensesTab",
       "profit" => "JobProfitTab",
       # Xero tabs - these need the Xero components that now support jobId
       "claims-xero" => "XeroInvoicesCard",
+      "claims---xero" => "XeroInvoicesCard", # Triple dashes from migration slugification
       "bills-xero" => "XeroBillsCard",
+      "bills---xero" => "XeroBillsCard", # Triple dashes from migration slugification
       # Fallback: if someone named the tab_key "bills" or "invoices" instead
       "bills" => "XeroBillsCard",
       "invoices" => "XeroInvoicesCard",
+      # P&L variants
+      "pl-xero" => "XeroJobProfitLossCard",
+      "p&l-xero" => "XeroJobProfitLossCard",
     }
 
     job_type = WarehouseType.find_by(code: "job")
@@ -104,6 +110,35 @@ namespace :fix_finance_xero_tabs do
 
     puts "\n" + "=" * 60
     puts "Fixed: #{fixed}, Skipped: #{skipped}"
+    puts "=" * 60
+  end
+
+  desc "Sanitize tab_keys with consecutive dashes (FRC Feb 2026: migration bug)"
+  task sanitize_tab_keys: :environment do
+    puts "=" * 60
+    puts "Sanitizing WarehouseFolder tab_keys with consecutive dashes..."
+    puts "=" * 60
+    puts "Root cause: Migration 20251221 used .gsub(/\\s+/, '-') on display_name"
+    puts "which converts 'Claims - XERO' to 'claims---xero' (space-dash-space = 3 dashes)"
+    puts "Model callback sync_tab_key_from_display_name now has .gsub(/-+/, '-')"
+    puts "but existing records were never re-saved."
+    puts ""
+
+    dirty = WarehouseFolder.where("tab_key LIKE '%---%'")
+    puts "Found #{dirty.count} folder(s) with consecutive dashes in tab_key"
+
+    dirty.find_each do |wf|
+      old_key = wf.tab_key
+      wf.save! # Triggers sync_tab_key_from_display_name which sanitizes
+      new_key = wf.reload.tab_key
+      if old_key != new_key
+        puts "  🔧 #{wf.display_name}: '#{old_key}' → '#{new_key}' (tenant: #{wf.tenant_id})"
+      else
+        puts "  ✅ #{wf.display_name}: '#{old_key}' unchanged (tenant: #{wf.tenant_id})"
+      end
+    end
+
+    puts "\nDone. Tab_keys are now clean single-dash slugs."
     puts "=" * 60
   end
 end

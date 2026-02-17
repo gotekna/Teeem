@@ -296,10 +296,43 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "bills-xero": XeroBillsCard,
   "invoices": XeroInvoicesCard,
   "claims-xero": XeroInvoicesCard,
+  "claims---xero": XeroInvoicesCard, // FRC: DB has triple dashes from "Claims - XERO" slugification
   // Xero P&L report filtered by job tracking category
   "p&l-xero": XeroJobProfitLossCard,
   "pl-xero": XeroJobProfitLossCard,
   "profit-loss-xero": XeroJobProfitLossCard,
+};
+
+// SSoT: Component Name Registry (FRC Feb 2026)
+// Maps WarehouseFolder.component_name → same next/dynamic imports above.
+// Defensive fallback when tab_key doesn't match (e.g., slugification produces
+// unexpected keys like "claims---xero" from "Claims - XERO").
+// Uses next/dynamic (not React.lazy) to avoid Suspense rendering freeze.
+const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
+  "JobContractTab": JobContractTab,
+  "SpecificationBuilder": SpecificationBuilder,
+  "ColourSelectionBuilder": ColourSelectionBuilder,
+  "JobClaimStagesTab": JobClaimStagesTab,
+  "JobExpensesTab": JobExpensesTab,
+  "JobProfitTab": JobProfitTab,
+  "JobBudgetTab": JobBudgetTab,
+  "JobPeopleTab": JobPeopleTab,
+  "JobPurchaseOrdersTab": JobPurchaseOrdersTab,
+  "JobPurchaseOrderLinesTab": JobPurchaseOrderLinesTab,
+  "JobEstimatorTab": JobEstimatorTab,
+  "JobQuoteTrackerTab": JobQuoteTrackerTab,
+  "JobBOQTab": JobBOQTab,
+  "JobActivityTab": JobActivityTab,
+  "JobScheduleTab": JobScheduleTab,
+  "JobSitePresenceTab": JobSitePresenceTab,
+  "RainLogTab": RainLogTab,
+  "JobDocumentsTab": JobDocumentsTab,
+  "JobCommunicationsTab": JobCommunicationsTab,
+  "RevitTab": RevitTab,
+  "JobWarehouseTab": JobWarehouseTab,
+  "XeroBillsCard": XeroBillsCard,
+  "XeroInvoicesCard": XeroInvoicesCard,
+  "XeroJobProfitLossCard": XeroJobProfitLossCard,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -1891,12 +1924,15 @@ export default function JobDetailPage() {
             );
           }
 
-          // SSoT: Registered components take priority over folder_path rendering
-          // This prevents tabs like "purchase-orders" (which have folder_path set
-          // from warehouse config) from being hijacked by the folder_path check below
-          // Fallback: If tab_key doesn't match (e.g., tab was renamed in admin),
-          // check component_name in TAB_COMPONENTS registry (uses React.lazy → needs Suspense)
-          const Component = JOB_TAB_COMPONENTS[tab.tab_key] || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
+          // SSoT: Component resolution order (FRC Feb 2026):
+          // 1. tab_key → JOB_TAB_COMPONENTS (direct dynamic() import, most common)
+          // 2. component_name → COMPONENT_BY_NAME (direct dynamic() import, SSoT fallback)
+          // 3. component_name → TAB_COMPONENTS (React.lazy, last resort for unknown components)
+          // Priority 2 prevents React.lazy freeze when tab_key has unexpected format
+          // (e.g., "claims---xero" from "Claims - XERO" slugification)
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key]
+            || (tab.component_name ? COMPONENT_BY_NAME[tab.component_name] : undefined)
+            || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
           if (Component) {
             const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
             return (
