@@ -55,9 +55,12 @@ class SendNameResolver
     end
 
     # 3. Fallback chain
+    # ⚠️ FRC (Feb 2026): Use respond_to? for duck-typed documentable methods.
+    # Not all documentables have file_name (e.g., ExternalInvoice).
+    documentable = warehouse_document.documentable
     fallback_name = warehouse_document.ui_name.presence ||
                     warehouse_document.original_filename.presence ||
-                    warehouse_document.documentable&.file_name.presence ||
+                    (documentable.respond_to?(:file_name) ? documentable&.file_name.presence : nil) ||
                     "document"
 
     sanitize_and_ensure_extension(fallback_name, warehouse_document)
@@ -116,10 +119,10 @@ class SendNameResolver
       end
     end
 
-    # Fallback
-    fallback = documentable&.file_name.presence ||
-               documentable&.filename.presence ||
-               documentable&.original_filename.presence ||
+    # Fallback - use respond_to? for duck-typed methods
+    fallback = (documentable.respond_to?(:file_name) ? documentable&.file_name.presence : nil) ||
+               (documentable.respond_to?(:filename) ? documentable&.filename.presence : nil) ||
+               (documentable.respond_to?(:original_filename) ? documentable&.original_filename.presence : nil) ||
                "document"
 
     sanitize_and_ensure_extension(fallback, documentable)
@@ -238,7 +241,7 @@ class SendNameResolver
 
     # Common fields
     context[:document_date] = documentable&.created_at || Time.current
-    context[:file_name] = documentable&.file_name
+    context[:file_name] = documentable.respond_to?(:file_name) ? documentable&.file_name : nil
 
     # Email-specific context (SyncedEmail)
     if documentable.respond_to?(:synced_email) && documentable.email_warehouse
