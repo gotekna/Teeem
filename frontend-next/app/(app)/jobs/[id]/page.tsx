@@ -71,6 +71,7 @@ import dynamic from "next/dynamic";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
+import { getTabComponent } from "@/lib/tab-component-registry";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { DocumentItem } from "@/components/warehouse/types";
 import type { Job, JobType, JobStatus, JobStage } from "@/lib/types";
@@ -901,7 +902,9 @@ export default function JobDetailPage() {
     const tabs: (WarehouseFolder & { compositeKey?: string })[] = [];
     for (const tab of visibleJobTabs) {
       // Add parent tab if it has a registered component and isn't special
-      if (!SPECIAL_TABS.includes(tab.tab_key) && JOB_TAB_COMPONENTS[tab.tab_key]) {
+      // Fallback: check component_name in registry when tab_key doesn't match (tab renamed in admin)
+      const hasComponent = JOB_TAB_COMPONENTS[tab.tab_key] || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
+      if (!SPECIAL_TABS.includes(tab.tab_key) && hasComponent) {
         tabs.push(tab);
       }
       // Add all children with composite keys (parent__child)
@@ -1817,18 +1820,22 @@ export default function JobDetailPage() {
           // SSoT: Registered components take priority over folder_path rendering
           // This prevents tabs like "purchase-orders" (which have folder_path set
           // from warehouse config) from being hijacked by the folder_path check below
-          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
+          // Fallback: If tab_key doesn't match (e.g., tab was renamed in admin),
+          // check component_name in TAB_COMPONENTS registry (uses React.lazy → needs Suspense)
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key] || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
           if (Component) {
             const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
             return (
               <TabsContent key={tabValue} value={tabValue} className={className}>
-                <Component
-                  jobId={job.id}
-                  job={job}
-                  jobTitle={job.name}
-                  onUpdate={loadJob}
-                  contractValue={job.contract_value}
-                />
+                <React.Suspense fallback={<TabLoadingSkeleton />}>
+                  <Component
+                    jobId={job.id}
+                    job={job}
+                    jobTitle={job.name}
+                    onUpdate={loadJob}
+                    contractValue={job.contract_value}
+                  />
+                </React.Suspense>
               </TabsContent>
             );
           }
