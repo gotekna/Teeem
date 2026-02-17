@@ -265,7 +265,7 @@ class OrgEmailSyncJob < ApplicationJob
           target_year = Date.current.year - sync_years
           backfilling = false
 
-          if @is_initial_sync || (depth_year && depth_year > target_year)
+          if @is_initial_sync || (depth_year && depth_year >= target_year)
             # Initial sync or still backfilling - use year-bounded sync
             depth_year ||= Date.current.year
             backfilling = true
