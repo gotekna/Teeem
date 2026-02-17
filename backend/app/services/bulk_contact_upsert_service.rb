@@ -99,6 +99,8 @@ class BulkContactUpsertService
     operations.filter_map do |op|
       begin
         contact = find_or_create_contact(op[:attrs])
+        next unless contact # find_or_create may return nil if both create and re-find fail
+
         {
           contact_id: contact.id,
           xero_contact_id: op[:xero_contact]['ContactID'],
@@ -227,6 +229,9 @@ class BulkContactUpsertService
   end
 
   # Fallback for individual create with duplicate handling
+  # FRC (Feb 2026): Must rescue RecordNotUnique OUTSIDE the transaction.
+  # Race condition: two threads both pass find_by (nil), both try create!,
+  # second hits unique constraint. Rescue retries the find to get the winner's record.
   def find_or_create_contact(attrs)
     Contact.transaction do
       # Try to find existing by display_name for companies
@@ -243,5 +248,15 @@ class BulkContactUpsertService
       # Create new contact
       Contact.create!(attrs.merge(tenant_id: @teeem_tenant_id, is_active: true))
     end
+  rescue ActiveRecord::RecordNotUnique
+    # Another process created this contact between our find and create.
+    # Re-find the winner's record.
+    Rails.logger.info("[BulkContactUpsertService] RecordNotUnique in find_or_create, retrying find for: #{attrs[:display_name]}")
+    Contact.find_by(
+      tenant_id: @teeem_tenant_id,
+      entity_type: attrs[:entity_type] || 'company',
+      display_name: attrs[:display_name],
+      is_active: true
+    )
   end
 end
