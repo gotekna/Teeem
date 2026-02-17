@@ -252,9 +252,16 @@ class SmRolloverJob < ApplicationJob
     { success: false, error: e.message, cascaded_count: 0 }
   end
 
-  def cascade_to_successors(task, days_shifted)
+  # ⚠️ DO NOT SIMPLIFY - Cycle detection required (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Tasks can have circular dependencies (A→B→C→A) which cause infinite recursion.
+  # The visited set tracks already-cascaded task IDs to break cycles.
+  # ════════════════════════════════════════════
+  def cascade_to_successors(task, days_shifted, visited = Set.new)
     return 0 if days_shifted == 0
+    return 0 if visited.include?(task.id)
 
+    visited.add(task.id)
     cascaded = 0
 
     # Find successor tasks that should cascade
@@ -298,8 +305,8 @@ class SmRolloverJob < ApplicationJob
 
       cascaded += 1
 
-      # Recursively cascade to further successors
-      cascaded += cascade_to_successors(successor, days_shifted)
+      # Recursively cascade to further successors (pass visited set to detect cycles)
+      cascaded += cascade_to_successors(successor, days_shifted, visited)
     end
 
     cascaded

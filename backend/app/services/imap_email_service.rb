@@ -478,52 +478,51 @@ class ImapEmailService
             next
           end
 
-          # Create new email warehouse entry
-          email = SyncedEmail.create!(
-            internet_message_id: email_data[:internet_message_id],
-            source_type: "imap",
-            imap_credential: credential,
-            mailbox_owner_email: credential.email_address,  # SSoT: Required for filtering by mailbox
-            uid: email_data[:uid],
-            subject: email_data[:subject],
-            body_text: email_data[:body_text],
-            body_html: email_data[:body_html],
-            from_email: email_data[:from_email],
-            from_name: email_data[:from_name],
-            to_emails: email_data[:to_emails],
-            cc_emails: email_data[:cc_emails],
-            received_at: email_data[:received_at],
-            has_attachments: email_data[:has_attachments],
-            attachment_count: email_data[:attachment_count],
-            is_read: email_data[:is_read],
-            folder_name: email_data[:folder_name],
-            in_reply_to: email_data[:in_reply_to],
-            references: email_data[:references],
-            first_synced_at: Time.current,
-            last_synced_at: Time.current,
-            synced_by_user: credential.user,
-            # SSoT: Multi-tenancy - set tenant_id from credential's user
-            tenant_id: credential.user&.tenant_id
-          )
+          # Transaction ensures email + attachments succeed together.
+          # If attach_email_files fails, the email rolls back so the next
+          # sync run re-processes it (self-healing via internet_message_id check).
+          email = nil
+          ActiveRecord::Base.transaction do
+            email = SyncedEmail.create!(
+              internet_message_id: email_data[:internet_message_id],
+              source_type: "imap",
+              imap_credential: credential,
+              mailbox_owner_email: credential.email_address,
+              uid: email_data[:uid],
+              subject: email_data[:subject],
+              body_text: email_data[:body_text],
+              body_html: email_data[:body_html],
+              from_email: email_data[:from_email],
+              from_name: email_data[:from_name],
+              to_emails: email_data[:to_emails],
+              cc_emails: email_data[:cc_emails],
+              received_at: email_data[:received_at],
+              has_attachments: email_data[:has_attachments],
+              attachment_count: email_data[:attachment_count],
+              is_read: email_data[:is_read],
+              folder_name: email_data[:folder_name],
+              in_reply_to: email_data[:in_reply_to],
+              references: email_data[:references],
+              first_synced_at: Time.current,
+              last_synced_at: Time.current,
+              synced_by_user: credential.user,
+              tenant_id: credential.user&.tenant_id
+            )
 
-          # FRC (Feb 2026): Populate the SyncedEmailMailbox join table
-          # This enables sync_attachments! to find IMAP credentials for backfill
-          email.ensure_mailbox_appearance(
-            mailbox_email: credential.email_address,
-            uid: email_data[:uid],
-            folder_name: email_data[:folder_name],
-            is_read: email_data[:is_read] || false,
-            imap_credential_id: credential.id
-          )
+            email.ensure_mailbox_appearance(
+              mailbox_email: credential.email_address,
+              uid: email_data[:uid],
+              folder_name: email_data[:folder_name],
+              is_read: email_data[:is_read] || false,
+              imap_credential_id: credential.id
+            )
 
-          # Attach files if present
-          attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+            # Attach files if present - inside transaction so failure rolls back email
+            attach_email_files(email, email_data[:attachments]) if email_data[:attachments].present?
+          end
 
-          # FRC (Jan 2026): Store raw .eml content to StorageBlob for EMAIL BLOBS tracking
-          # This mirrors what EmailStorageUploadService does for Microsoft emails
+          # These are non-critical - outside transaction so email isn't lost if they fail
           store_email_content_to_blob(email, email_data[:raw_content]) if email_data[:raw_content].present?
-
-          # Apply email rules to newly synced email
           apply_rules_to_email(email)
 
           results[:synced] += 1
