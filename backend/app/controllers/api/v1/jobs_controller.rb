@@ -528,92 +528,90 @@ module Api
       #   periods: number of comparison periods (default: 3)
       #   timeframe: MONTH, QUARTER, YEAR (default: YEAR)
       def xero_profit_loss
-        # Find tracking option for this job
-        tracking_option_id = @job.xero_tracking_option_id
-        if tracking_option_id.blank?
-          return render_error("This job has no Xero tracking option linked. Set it in the job's Overview tab under Xero Job Categories.", status: :bad_request)
+        # SSoT: Build P&L from local DB data (job_claims for income, purchase_orders for expenses)
+        # No Xero API call needed - all data already synced locally
+        periods = (params[:periods] || 3).to_i
+
+        # Australian financial year periods (1 Jul - 30 Jun)
+        today = CompanySetting.in_company_timezone { Date.today }
+        current_fy_start_year = today.month >= 7 ? today.year : today.year - 1
+
+        # Build period ranges (current FY + comparison periods going back)
+        fy_periods = (0..periods).map do |i|
+          start_year = current_fy_start_year - i
+          {
+            label: "FY#{start_year}/#{(start_year + 1).to_s[-2..]}",
+            from: Date.new(start_year, 7, 1),
+            to: Date.new(start_year + 1, 6, 30)
+          }
         end
 
-        begin
-          # SSoT: Use XeroApiClient with teeem_tenant (same pattern as Xero settings pages)
-          client = XeroApiClient.new(teeem_tenant: current_tenant)
+        # Income: job_claims (customer invoices) - exclude draft and voided
+        claims = @job.job_claims.where(status: [ "submitted", "authorised", "paid" ])
 
-          # Get tracking category ID - check local cache first, then fetch from Xero
-          tracking_option = XeroTrackingOption.find_by(xero_tracking_option_id: tracking_option_id)
-          tracking_category_id = tracking_option&.xero_tracking_category_id
+        # Expenses: purchase_orders - exclude draft/cancelled
+        pos = @job.purchase_orders.where.not(status: [ "draft", "cancelled" ])
 
-          if tracking_category_id.blank?
-            # Fetch from Xero API: find the category containing this option
-            cat_result = client.get("TrackingCategories")
-            if cat_result[:success]
-              categories = cat_result[:data]["TrackingCategories"] || []
-              categories.each do |cat|
-                options = cat["Options"] || []
-                if options.any? { |o| o["TrackingOptionID"] == tracking_option_id }
-                  tracking_category_id = cat["TrackingCategoryID"]
-                  # Cache it for future use
-                  tracking_option&.update_column(:xero_tracking_category_id, tracking_category_id) if tracking_option
-                  break
-                end
-              end
-            end
-          end
+        # Build P&L data for each period
+        income_by_period = fy_periods.map do |period|
+          claims.where(date: period[:from]..period[:to]).sum(:amount) || 0
+        end
 
-          if tracking_category_id.blank?
-            return render_error("Could not determine tracking category for this job. The tracking option may not exist in Xero.", status: :bad_request)
-          end
+        expenses_by_period = fy_periods.map do |period|
+          # Use ordered_date (when PO was placed), fallback to created_at
+          pos.where(
+            "COALESCE(ordered_date, created_at::date) BETWEEN ? AND ?",
+            period[:from], period[:to]
+          ).sum(:total) || 0
+        end
 
-          # Default to Australian financial year (1 Jul - 30 Jun)
-          today = Date.current
-          fy_start = today.month >= 7 ? Date.new(today.year, 7, 1) : Date.new(today.year - 1, 7, 1)
-          fy_end = fy_start + 1.year - 1.day
+        # Build rows in Xero-compatible format for frontend rendering
+        header_cells = [ { value: "" } ] + fy_periods.map { |p| { value: p[:label] } }
 
-          from_date = params[:from_date] || fy_start.to_s
-          to_date = params[:to_date] || fy_end.to_s
-          periods = (params[:periods] || 3).to_i
-          timeframe = params[:timeframe] || "YEAR"
-
-          result = client.get(
-            "Reports/ProfitAndLoss",
-            fromDate: from_date,
-            toDate: to_date,
-            periods: periods,
-            timeframe: timeframe,
-            trackingCategoryID: tracking_category_id,
-            trackingOptionID: tracking_option_id
-          )
-
-          unless result[:success]
-            return render_error(result[:error] || "Failed to fetch Profit & Loss from Xero", status: :unprocessable_entity)
-          end
-
-          reports = result[:data]["Reports"] || []
-          report = reports.first
-
-          if report.nil?
-            return render_error("No Profit & Loss report returned from Xero", status: :unprocessable_entity)
-          end
-
-          # Parse report rows (reuse helper from CorporateXeroController pattern)
-          rows = parse_xero_pl_rows(report["Rows"] || [])
-
-          render json: {
-            success: true,
-            report: {
-              title: report["ReportTitles"]&.join(" - "),
-              titles: report["ReportTitles"],
-              from_date: from_date,
-              to_date: to_date,
-              periods: periods,
-              timeframe: timeframe,
-              tracking_option_name: @job.xero_tracking_option_name,
-              rows: rows
+        rows = [
+          { row_type: "Header", cells: header_cells },
+          { row_type: "Section", title: "Income" },
+          {
+            row_type: "Row",
+            cells: [ { value: "Claims / Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Total Income" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
+          },
+          { row_type: "Section", title: "Expenses" },
+          {
+            row_type: "Row",
+            cells: [ { value: "Purchase Orders" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Total Expenses" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Net Profit" } ] + fy_periods.each_with_index.map { |_, i|
+              { value: format_pl_amount(income_by_period[i] - expenses_by_period[i]) }
             }
           }
-        rescue StandardError => e
-          Rails.logger.error("Failed to fetch Xero P&L for job #{@job.id}: #{e.message}")
-          render_error(e.message, status: :internal_server_error)
-        end
+        ]
+
+        render json: {
+          success: true,
+          report: {
+            titles: [
+              "Profit & Loss - #{@job.name}",
+              "#{@job.job_code}",
+              "From local data (Claims & Purchase Orders)"
+            ],
+            from_date: fy_periods.last[:from].to_s,
+            to_date: fy_periods.first[:to].to_s,
+            periods: periods,
+            timeframe: "YEAR",
+            tracking_option_name: @job.xero_tracking_option_name,
+            rows: rows
+          }
+        }
       end
 
       # GET /api/v1/jobs/:id/activities
@@ -1297,29 +1295,10 @@ module Api
 
       private
 
-      # Helper to parse Xero report rows into a flat structure
-      # Same pattern as CorporateXeroController#parse_xero_report_rows
-      def parse_xero_pl_rows(rows, depth = 0)
-        result = []
-        rows.each do |row|
-          row_type = row["RowType"]
-          case row_type
-          when "Header"
-            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
-            result << { row_type: "Header", cells: cells }
-          when "Section"
-            title = row["Title"]
-            result << { row_type: "Section", title: title } if title.present?
-            result.concat(parse_xero_pl_rows(row["Rows"], depth + 1)) if row["Rows"].present?
-          when "Row"
-            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
-            result << { row_type: "Row", cells: cells, depth: depth }
-          when "SummaryRow"
-            cells = row["Cells"]&.map { |c| { value: c["Value"] || "" } } || []
-            result << { row_type: "SummaryRow", cells: cells }
-          end
-        end
-        result
+      # Format amount for P&L display (comma-separated, 2 decimals)
+      def format_pl_amount(value)
+        return "-" if value.nil? || value.zero?
+        ActionController::Base.helpers.number_with_delimiter(value.round(2), delimiter: ",")
       end
 
       # Single-link mode: link one tracking option (backward compatible)
