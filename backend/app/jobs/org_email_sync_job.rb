@@ -70,15 +70,19 @@ class OrgEmailSyncJob < ApplicationJob
   # Heroku kills dynos at 30 minutes, so the job dies mid-sync and last_sync_at never updates.
   # Fix: Process as many mailboxes as possible within the budget, update last_sync_at after
   # each successful mailbox, and pick up remaining mailboxes on the next scheduled run.
-  PER_CREDENTIAL_TIMEOUT = 10.minutes
+  # ⚠️ ULTRA FIX (Feb 2026): Increased from 10→12min to match AllOrgsEmailSyncJob.MAX_RUNTIME.
+  # Multi-year backfill + batch upsert makes better use of the extra time.
+  PER_CREDENTIAL_TIMEOUT = 12.minutes
   # ⚠️ FRC (Feb 2026): Per-mailbox time budget for fair round-robin
   # Root cause: One big mailbox (accounts@bypilgrim.co, 60+ folders) consumed the entire
-  # 10-minute PER_CREDENTIAL_TIMEOUT, so the mailbox loop only processed 1 mailbox per cycle.
+  # credential timeout, so the mailbox loop only processed 1 mailbox per cycle.
   # With 56 mailboxes and only 1 per cycle, 18/56 stayed stuck for 24+ hours because the same
   # already-synced big mailboxes consumed every cycle's budget on incremental sync.
-  # Fix: Cap each mailbox at 2 minutes. This allows ~5 mailboxes per cycle, making incremental
+  # Fix: Cap each mailbox at 3 minutes. This allows ~4 mailboxes per cycle, making incremental
   # progress on each. Big mailboxes resume where they left off next cycle (folder-level progress).
-  PER_MAILBOX_TIMEOUT = 2.minutes
+  # ⚠️ ULTRA FIX (Feb 2026): Increased from 2→3min because multi-year backfill now processes
+  # as many years as fit in the budget per mailbox (not just 1 year). More time = more years = faster.
+  PER_MAILBOX_TIMEOUT = 3.minutes
   # ⚠️ FRC (Feb 2026): Per-folder skip interval for incremental sync
   # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
   # Re-checking all 60 folders every 15-min cycle wasted API calls and consumed the time budget.
@@ -247,14 +251,6 @@ class OrgEmailSyncJob < ApplicationJob
         begin
           # Use per-mailbox last_synced_at for accurate since date
           mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
-          # ⚠️ FRC (Feb 2026): Metadata-first sync for initial imports
-          # Root cause: Pilgrim Homes (56 mailboxes, 11k+ emails) stuck for a week because
-          # inline sync_attachments! (2-5s/email) consumed the entire 10-min time budget,
-          # leaving most mailboxes unprocessed each cycle.
-          # Fix: First-time mailbox sync = metadata only (5x faster). Attachments caught up
-          # by RetryPendingAttachmentBlobsJob in background. Incremental = inline (few emails).
-          @is_initial_sync = mb_last_synced.nil?
-
           # ⚠️ FRC (Feb 2026): Year-by-year backfill - newest first
           # Root cause: With sync_years=15, initial sync tries to fetch ALL 15 years at once,
           # consuming the entire time budget on one mailbox while others starve.
@@ -265,18 +261,29 @@ class OrgEmailSyncJob < ApplicationJob
           target_year = Date.current.year - sync_years
           backfilling = false
 
-          if @is_initial_sync || (depth_year && depth_year >= target_year)
+          if mb_last_synced.nil? || (depth_year && depth_year >= target_year)
             # Initial sync or still backfilling - use year-bounded sync
             depth_year ||= Date.current.year
             backfilling = true
           end
+
+          # ⚠️ ULTRA FIX (Feb 2026): Always use batch upsert during backfill
+          # ════════════════════════════════════════════════════════════════
+          # Root cause: @is_initial_sync was only true on the FIRST cycle (mb_last_synced nil).
+          # After first cycle, mb_last_synced gets set, so subsequent backfill cycles used
+          # per-email upsert (15 DB ops each) instead of batch upsert (4 DB ops for 100 emails).
+          # This made cycles 2-15 run ~50x slower than cycle 1 for no reason.
+          # Fix: Use batch upsert for the ENTIRE backfill, not just the first cycle.
+          # Batch upsert is safe (upsert_all with update_only: [:last_synced_at]).
+          # ════════════════════════════════════════════════════════════════
+          @is_initial_sync = mb_last_synced.nil? || backfilling
 
           # Calculate per-mailbox time budget: min(PER_MAILBOX_TIMEOUT, remaining credential budget)
           remaining_credential_time = PER_CREDENTIAL_TIMEOUT - elapsed
           mailbox_budget = [PER_MAILBOX_TIMEOUT.to_i, remaining_credential_time.to_i].min
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, initial_sync=#{@is_initial_sync}, budget=#{mailbox_budget}s, depth_year=#{depth_year || 'done'}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
-          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?, time_budget: mailbox_budget, depth_year: backfilling ? depth_year : nil)
+          synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?, time_budget: mailbox_budget, depth_year: backfilling ? depth_year : nil, target_year: backfilling ? target_year : nil)
           sync_elapsed = (Time.current - sync_start).round(1)
           total_synced += synced
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: synced #{synced} emails in #{sync_elapsed}s"
@@ -295,14 +302,13 @@ class OrgEmailSyncJob < ApplicationJob
             @last_folder_results = nil
           end
 
-          # ⚠️ FRC (Feb 2026): Year-by-year backfill tracking
-          # After successful sync, decrement depth_year for next cycle.
-          # Once depth_year <= target_year, backfill is complete - remove from tracking.
-          if backfilling && depth_year
-            next_depth = depth_year - 1
-            if next_depth >= target_year
-              mailbox_sync_depth[user_email.downcase] = next_depth
-              Rails.logger.info "[OrgEmailSync] #{user_email}: year #{depth_year} done, next cycle will sync #{next_depth}"
+          # ⚠️ ULTRA FIX (Feb 2026): Multi-year backfill tracking
+          # sync_user_emails now processes as many years as fit in the time budget.
+          # @next_depth_year tells us where it stopped (nil = all years complete).
+          if backfilling
+            if @next_depth_year
+              mailbox_sync_depth[user_email.downcase] = @next_depth_year
+              Rails.logger.info "[OrgEmailSync] #{user_email}: backfilled from #{depth_year} to #{@next_depth_year + 1}, next cycle starts at #{@next_depth_year}"
             else
               mailbox_sync_depth.delete(user_email.downcase)
               Rails.logger.info "[OrgEmailSync] #{user_email}: backfill complete (reached #{target_year})"
@@ -380,50 +386,131 @@ class OrgEmailSyncJob < ApplicationJob
   # Background sync keeps the original behavior (full lookback for truly never-synced mailboxes).
   INLINE_FALLBACK_LOOKBACK = 7.days
 
-  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false, time_budget: nil, depth_year: nil)
-    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email} (inline_quick=#{inline_quick}, depth_year=#{depth_year || 'nil'})"
+  def sync_user_emails(user_email, sync_type, sync_years, sync_days = nil, mailbox_last_synced_at: nil, inline_quick: false, time_budget: nil, depth_year: nil, target_year: nil)
+    Rails.logger.info "[SYNC-DEBUG] sync_user_emails START for #{user_email} (inline_quick=#{inline_quick}, depth_year=#{depth_year || 'nil'}, target_year=#{target_year || 'nil'})"
     client = MicrosoftAppGraphClient.new(@credential)
 
-    # ⚠️ FRC (Feb 2026): Year-by-year backfill - newest first
-    # When depth_year is set, we sync only that calendar year's emails.
-    # This ensures ALL mailboxes get their 2026 emails before ANY mailbox gets 2025.
+    # ⚠️ ULTRA FIX (Feb 2026): Multi-year backfill - process as many years as fit in budget
+    # ════════════════════════════════════════════════════════════════
+    # Root cause: Original year-by-year backfill only processed ONE year per mailbox per cycle.
+    # With 56 mailboxes and sync_years=15: 56 × 15 = 840 mailbox-years. At ~5 mailboxes/cycle
+    # (10min budget / 2min each), that's 5 mailbox-years/cycle × 4 cycles/hour = 20/hour.
+    # 840 / 20 = 42 HOURS to complete a full backfill.
+    #
+    # Fix: Fetch folders ONCE, then loop over years within the time budget. A mailbox with
+    # 200 emails/year can process all 15 years in ~30 seconds instead of needing 15 separate cycles.
+    # This reduces total backfill time from 42 hours to ~4-6 hours for large orgs.
+    # ════════════════════════════════════════════════════════════════
     if depth_year
-      since = Time.new(depth_year, 1, 1).beginning_of_day
-      # For current year, no upper bound. For past years, bound to end of year.
-      @sync_before = depth_year < Date.current.year ? Time.new(depth_year + 1, 1, 1).beginning_of_day : nil
-      Rails.logger.info "[SYNC-DEBUG] #{user_email}: year-by-year backfill: #{depth_year} (since=#{since.iso8601}#{@sync_before ? ", before=#{@sync_before.iso8601}" : ""})"
-    else
-      @sync_before = nil
-      # Determine since date - prefer sync_days over sync_years if both are set
-      lookback_time = if sync_days.present?
-                        if sync_days == 0
-                          Date.current.beginning_of_day  # Just today (from midnight)
-                        else
-                          sync_days.days.ago  # Last N days (24-hour periods)
-                        end
-      else
-                        sync_years.years.ago
+      final_target = target_year || (Date.current.year - sync_years)
+      total_synced = 0
+      current_year = depth_year
+      mailbox_start_time = Time.current
+
+      # Fetch folders ONCE - same folder structure across all years
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: Fetching mail folders..."
+      folder_start = Time.current
+      folders = client.get_user_mail_folders(user_email)
+      folder_elapsed = (Time.current - folder_start).round(1)
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s"
+
+      existing_folder_stats = @credential.sync_config&.dig("folder_stats", user_email.downcase) || {}
+      folder_results = Concurrent::Hash.new
+      thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
+
+      while current_year >= final_target
+        # Check remaining time budget before starting next year
+        elapsed = (Time.current - mailbox_start_time).to_i
+        remaining = time_budget ? (time_budget - elapsed) : nil
+
+        if remaining && remaining < 15  # Need at least 15s to do useful work
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: budget exhausted (#{remaining}s left), pausing at year #{current_year}"
+          break
+        end
+
+        since = Time.new(current_year, 1, 1).beginning_of_day
+        @sync_before = current_year < Date.current.year ? Time.new(current_year + 1, 1, 1).beginning_of_day : nil
+
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: backfill year #{current_year} (since=#{since.iso8601}#{@sync_before ? ", before=#{@sync_before.iso8601}" : ""}, budget=#{remaining || 'unlimited'}s)"
+
+        year_start = Time.current
+        year_synced = sync_folders_parallel(client, user_email, folders, since,
+          thread_count: thread_count, time_budget: remaining,
+          existing_folder_stats: {},  # No skip during backfill (different years = different content)
+          folder_results: folder_results)
+
+        total_synced += year_synced
+        year_elapsed = (Time.current - year_start).round(1)
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} complete: #{year_synced} emails in #{year_elapsed}s"
+
+        # Check if budget was exhausted during this year (folder loop broke early)
+        post_remaining = time_budget ? (time_budget - (Time.current - mailbox_start_time).to_i) : nil
+        if post_remaining && post_remaining < 5
+          # Year was partially synced - don't mark as complete, will resume next cycle
+          # (upsert_all handles duplicates safely so re-syncing is harmless)
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} interrupted (budget exhausted), will resume next cycle"
+          break
+        end
+
+        current_year -= 1
       end
 
-      since = case sync_type
-      when "full"
-                lookback_time
-      else
-                if mailbox_last_synced_at
-                  buffered_time = mailbox_last_synced_at - SYNC_OVERLAP_BUFFER
-                  minimum_time = SYNC_MINIMUM_LOOKBACK.ago
-                  [buffered_time, minimum_time].min
-                elsif inline_quick && @credential.last_sync_at
-                  buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
-                  minimum_time = SYNC_MINIMUM_LOOKBACK.ago
-                  Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced nil → fallback to credential.last_sync_at=#{@credential.last_sync_at.iso8601}"
-                  [buffered_time, minimum_time].min
-                elsif inline_quick
-                  INLINE_FALLBACK_LOOKBACK.ago
-                else
-                  lookback_time
-                end
+      # Track where we stopped for the caller
+      # current_year is either the year we interrupted on, or one below the last completed year
+      @next_depth_year = current_year >= final_target ? current_year : nil
+
+      total_elapsed = (Time.current - mailbox_start_time).round(1)
+      years_processed = depth_year - (current_year >= final_target ? current_year : final_target - 1)
+      Rails.logger.info "[SYNC-DEBUG] #{user_email}: multi-year backfill: #{years_processed} years processed, #{total_synced} emails in #{total_elapsed}s#{@next_depth_year ? ", next: #{@next_depth_year}" : ", COMPLETE"}"
+
+      # Merge folder results into existing stats
+      merged_folder_stats = existing_folder_stats.merge(folder_results.to_h)
+      @last_folder_results = { user_email.downcase => merged_folder_stats }
+
+      # Auto-match after all years are processed (not between years)
+      unless inline_quick
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
+        match_start = Time.current
+        auto_match_user_emails(user_email)
+        match_elapsed = (Time.current - match_start).round(1)
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: auto_match completed in #{match_elapsed}s"
       end
+
+      Rails.logger.info "[SYNC-DEBUG] sync_user_emails DONE for #{user_email}: #{total_synced} total"
+      return total_synced
+    end
+
+    # ── Non-backfill path (incremental/full sync) ──
+    @sync_before = nil
+    # Determine since date - prefer sync_days over sync_years if both are set
+    lookback_time = if sync_days.present?
+                      if sync_days == 0
+                        Date.current.beginning_of_day  # Just today (from midnight)
+                      else
+                        sync_days.days.ago  # Last N days (24-hour periods)
+                      end
+    else
+                      sync_years.years.ago
+    end
+
+    since = case sync_type
+    when "full"
+              lookback_time
+    else
+              if mailbox_last_synced_at
+                buffered_time = mailbox_last_synced_at - SYNC_OVERLAP_BUFFER
+                minimum_time = SYNC_MINIMUM_LOOKBACK.ago
+                [buffered_time, minimum_time].min
+              elsif inline_quick && @credential.last_sync_at
+                buffered_time = @credential.last_sync_at - SYNC_OVERLAP_BUFFER
+                minimum_time = SYNC_MINIMUM_LOOKBACK.ago
+                Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced nil → fallback to credential.last_sync_at=#{@credential.last_sync_at.iso8601}"
+                [buffered_time, minimum_time].min
+              elsif inline_quick
+                INLINE_FALLBACK_LOOKBACK.ago
+              else
+                lookback_time
+              end
     end
 
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: since=#{since&.iso8601 || 'nil'}, sync_type=#{sync_type}"
@@ -436,33 +523,24 @@ class OrgEmailSyncJob < ApplicationJob
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Got #{folders.count} folders in #{folder_elapsed}s"
 
     # ⚠️ FRC (Feb 2026): Per-folder tracking eliminates wasted API calls
-    # Root cause: 60+ folders all re-checked every cycle when only Inbox/Sent have new emails.
-    # Fix: Track per-folder results. Skip recently-empty folders on incremental sync.
     existing_folder_stats = @credential.sync_config&.dig("folder_stats", user_email.downcase) || {}
     folder_results = Concurrent::Hash.new
 
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting sync_folders_parallel..."
     parallel_start = Time.current
     thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
-    # ⚠️ FRC (Feb 2026): Disable folder skip during year-by-year backfill
-    # Root cause: Year 2024 sync marks "Inbox/Subfolders" as empty → skip for 1 hour.
-    # Year 2023 sync sees "recently empty" → skips folder. But the folder HAS emails in 2023!
-    # Each year is a different date window, so folder skip stats from other years are meaningless.
-    # Fix: Pass nil for existing_folder_stats when backfilling (depth_year set).
-    effective_folder_stats = depth_year ? {} : existing_folder_stats
+    effective_folder_stats = existing_folder_stats
     total_synced = sync_folders_parallel(client, user_email, folders, since,
       thread_count: thread_count, time_budget: time_budget,
       existing_folder_stats: effective_folder_stats, folder_results: folder_results)
     parallel_elapsed = (Time.current - parallel_start).round(1)
     Rails.logger.info "[SYNC-DEBUG] #{user_email}: sync_folders_parallel completed: #{total_synced} emails in #{parallel_elapsed}s"
 
-    # Merge new folder results into existing stats (preserves skipped folders' old data)
+    # Merge new folder results into existing stats
     merged_folder_stats = existing_folder_stats.merge(folder_results.to_h)
-    # Store back via instance variable for the mailbox loop to persist
     @last_folder_results = { user_email.downcase => merged_folder_stats }
 
     # Auto-match unassigned emails after sync
-    # Skip for inline_quick - background job handles it, saves time on web dyno
     unless inline_quick
       Rails.logger.info "[SYNC-DEBUG] #{user_email}: Starting auto_match_user_emails..."
       match_start = Time.current
