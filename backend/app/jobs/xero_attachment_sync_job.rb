@@ -476,12 +476,11 @@ class XeroAttachmentSyncJob < ApplicationJob
     return 0 unless xero_tenant_id.present?
 
     # ⚠️ DO NOT use .pluck() here - keeps all IDs in Ruby memory (Feb 2026)
-    # FRC (Feb 2026): Must match find_invoices_needing_pdfs subquery exactly
-    # Bills with WarehouseDocument (is_bill_record) are "synced" even without storage_blob
+    # FRC (Feb 2026): Must match find_invoices_needing_pdfs subquery EXACTLY
+    # SSoT: Both subqueries use the same definition — no is_primary check
     already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
-      .where("metadata->>'is_primary' = ?", "true")
       .where("storage_blob_id IS NOT NULL OR metadata->>'is_bill_record' = 'true'")
       .select(:documentable_id)
 
@@ -612,7 +611,16 @@ class XeroAttachmentSyncJob < ApplicationJob
       end
     end
 
-    Rails.logger.info("[XeroAttachmentSync] Excluding #{active.length} cooled-down invoices for #{tenant_id[0..7]}") if active.any?
+    # FRC (Feb 2026): Throttle log — only log once per 60s per tenant to avoid
+    # flooding logs when fair batch splitting calls this twice per batch iteration.
+    if active.any?
+      throttle_key = "xero:cooldown_log:#{tenant_id}"
+      unless Rails.cache.read(throttle_key)
+        Rails.logger.info("[XeroAttachmentSync] Excluding #{active.length} cooled-down invoices for #{tenant_id[0..7]}")
+        Rails.cache.write(throttle_key, true, expires_in: 60.seconds)
+      end
+    end
+
     active
   end
 end
