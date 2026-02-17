@@ -143,7 +143,7 @@ class ExternalInvoiceSyncService
 
       {
         success: true,
-        tenant_id: tenant_id,
+        tenant_id: xero_tenant_id,
         stats: @stats,
         synced_at: @sync_timestamp
       }
