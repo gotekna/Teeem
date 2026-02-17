@@ -531,28 +531,12 @@ module Api
         # Find tracking option for this job
         tracking_option_id = @job.xero_tracking_option_id
         if tracking_option_id.blank?
-          return render_error("This job has no Xero tracking option linked", status: :bad_request)
-        end
-
-        # Find Xero connection for current tenant
-        connection = CorporateXeroConnection.joins(:corporate)
-          .where(corporates: { tenant_id: current_tenant.id })
-          .where.not(xero_tenant_id: nil)
-          .first
-
-        if connection.nil? || !connection.connected?
-          return render_error("No Xero connection found for this tenant", status: :bad_request)
-        end
-
-        # Refresh tokens if needed
-        if connection.needs_refresh?
-          unless connection.refresh_tokens!
-            return render_error("Failed to refresh Xero tokens. Please reconnect.", status: :unauthorized)
-          end
+          return render_error("This job has no Xero tracking option linked. Set it in the job's Overview tab under Xero Job Categories.", status: :bad_request)
         end
 
         begin
-          client = XeroApiClient.new
+          # SSoT: Use XeroApiClient with teeem_tenant (same pattern as Xero settings pages)
+          client = XeroApiClient.new(teeem_tenant: current_tenant)
 
           # Get tracking category ID - check local cache first, then fetch from Xero
           tracking_option = XeroTrackingOption.find_by(xero_tracking_option_id: tracking_option_id)
@@ -560,7 +544,7 @@ module Api
 
           if tracking_category_id.blank?
             # Fetch from Xero API: find the category containing this option
-            cat_result = client.get("TrackingCategories", tenant_id: connection.xero_tenant_id)
+            cat_result = client.get("TrackingCategories")
             if cat_result[:success]
               categories = cat_result[:data]["TrackingCategories"] || []
               categories.each do |cat|
@@ -591,7 +575,6 @@ module Api
 
           result = client.get(
             "Reports/ProfitAndLoss",
-            tenant_id: connection.xero_tenant_id,
             fromDate: from_date,
             toDate: to_date,
             periods: periods,
