@@ -291,4 +291,88 @@ class MicrosoftAppGraphClient
   def create_share_link(drive_id:, item_id:, type: "view", scope: "anonymous")
     @drive.create_share_link(drive_id: drive_id, item_id: item_id, type: type, scope: scope)
   end
+
+  # ==========================================
+  # Legacy Compatibility Methods
+  # These match the MicrosoftGraphClient API used by document_storage_controller
+  # ==========================================
+
+  # Get a single item by ID (uses configured drive_id from WarehouseProvider)
+  def get_item(item_id)
+    drive_id = WarehouseProvider.instance&.drive_id
+    raise Microsoft::BaseClient::ApiError, "No drive configured in WarehouseProvider" unless drive_id
+    @drive.send(:get, "/drives/#{drive_id}/items/#{item_id}")
+  end
+
+  # List children of a folder (uses configured drive_id from WarehouseProvider)
+  def list_folder_items(folder_id = nil, include_thumbnails: false)
+    drive_id = WarehouseProvider.instance&.drive_id
+    raise Microsoft::BaseClient::ApiError, "No drive configured in WarehouseProvider" unless drive_id
+
+    folder_id ||= WarehouseProvider.instance&.root_folder_id
+    raise Microsoft::BaseClient::ApiError, "No folder ID provided and no root folder configured" unless folder_id
+
+    path = "/drives/#{drive_id}/items/#{folder_id}/children"
+    path += "?$expand=thumbnails" if include_thumbnails
+    @drive.send(:get, path)
+  end
+
+  # Find a job's folder in SharePoint (uses configured drive_id from WarehouseProvider)
+  def find_job_folder(job)
+    config = WarehouseProvider.instance
+    drive_id = config&.drive_id
+    raise Microsoft::BaseClient::ApiError, "No drive configured in WarehouseProvider" unless drive_id
+
+    job_folder_path = config&.job_path(job.job_code) || "/Jobs/#{job.job_code}"
+    expected_name = File.basename(job_folder_path)
+    normalized_title = job.title.to_s.downcase.gsub(/^lot\s+/i, "").strip
+    jobs_folder_name = config&.path_for(:jobs) || "Jobs"
+    search_folder_id = config&.root_folder_id
+
+    # If no root folder set, find the jobs folder in drive root
+    if search_folder_id.blank?
+      begin
+        root_results = @drive.send(:get, "/drives/#{drive_id}/root/children")
+        jobs_folder = root_results["value"]&.find { |item| item["folder"] && item["name"] == jobs_folder_name }
+        search_folder_id = jobs_folder["id"] if jobs_folder
+      rescue => e
+        Rails.logger.warn "[AppGraphClient::find_job_folder] Could not find #{jobs_folder_name} folder: #{e.message}"
+      end
+    end
+
+    # Try direct folder listing first
+    if search_folder_id.present?
+      begin
+        results = @drive.send(:get, "/drives/#{drive_id}/items/#{search_folder_id}/children")
+        folders = results["value"]&.select { |item| item["folder"] } || []
+
+        # Exact match
+        folder = folders.find { |item| item["name"] == expected_name }
+        return folder if folder
+
+        # Fuzzy match
+        folder = folders.find do |item|
+          name = item["name"].to_s.downcase
+          name.include?(normalized_title) ||
+            (normalized_title.length > 10 && name.include?(normalized_title.split(" ").first(3).join(" ")))
+        end
+        return folder if folder
+      rescue => e
+        Rails.logger.warn "[AppGraphClient::find_job_folder] Direct listing failed: #{e.message}"
+      end
+    end
+
+    # Fallback: search
+    [expected_name, job.title, normalized_title].uniq.compact_blank.each do |term|
+      begin
+        results = @drive.search_drive(drive_id, term)
+        folder = results&.find { |item| item[:type] == "folder" && item[:name].to_s.downcase.include?(normalized_title) }
+        return { "id" => folder[:id], "name" => folder[:name], "webUrl" => folder[:web_url] } if folder
+      rescue => e
+        Rails.logger.warn "[AppGraphClient::find_job_folder] Search for '#{term}' failed: #{e.message}"
+      end
+    end
+
+    nil
+  end
 end

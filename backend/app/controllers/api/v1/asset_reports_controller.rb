@@ -54,7 +54,7 @@ module Api
               total_book_value: assets.sum(:current_book_value) || 0,
               by_type: assets.group(:asset_type).count,
               by_status: assets.group(:status).count,
-              by_entity_type: assets.joins(:corporate).group("corporate_companies.entity_type").count
+              by_entity_type: assets.joins(:corporate).group("corporates.entity_type").count
             },
             assets: assets.map do |asset|
               {
@@ -274,7 +274,7 @@ module Api
             disposed_assets: disposed_assets.count,
             by_type: assets.group(:asset_type).count,
             by_status: assets.group(:status).count,
-            by_entity_type: assets.joins(:corporate).group("corporate_companies.entity_type").count,
+            by_entity_type: assets.joins(:corporate).group("corporates.entity_type").count,
             financials: {
               total_purchase_value: assets.sum(:purchase_price) || 0,
               total_book_value: active_assets.sum(:current_book_value) || 0,
@@ -308,7 +308,7 @@ module Api
       # Supports comma-separated multiple entity types
       def apply_entity_type_filter(assets)
         entity_types = params[:entity_type].to_s.split(",").map(&:strip)
-        assets.joins(:corporate).where(corporate_companies: { entity_type: entity_types })
+        assets.joins(:corporate).where(corporates: { entity_type: entity_types })
       end
     end
   end

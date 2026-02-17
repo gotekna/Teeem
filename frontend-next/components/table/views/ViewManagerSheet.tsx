@@ -881,9 +881,8 @@ export function ViewManagerSheet({
       }
     }
 
-    // SSoT: Use column's lookup_foundation_id (numeric) for API calls
-    // knownMapping uses slug for matching, but API still needs numeric ID from column
-    const effectiveLookupFoundationId = column.lookup_foundation_id;
+    // SSoT: Use slug for cacheKey (matches fetchLookupOptions which uses slug || id)
+    const effectiveLookupFoundationId = column.lookup_foundation_slug || column.lookup_foundation_id;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
     if (isLookup) {
@@ -895,7 +894,6 @@ export function ViewManagerSheet({
         if (!lookupOptionsCache[cacheKey] && !isLoading) {
           fetchLookupOptions({
             ...column,
-            lookup_foundation_id: effectiveLookupFoundationId,
             lookup_display_column: effectiveDisplayColumn,
           });
         }

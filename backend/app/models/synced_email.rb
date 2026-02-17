@@ -715,6 +715,7 @@ class SyncedEmail < ApplicationRecord
     # Find jobs via address search terms in body
     JobAddressSearch.where(term_type: %w[full_address street_name]).find_each do |search|
       next unless searchable_text.include?(search.search_term)
+      next if search.job.blank?
 
       confidence = case search.term_type
       when 'full_address' then 0.85
@@ -732,6 +733,7 @@ class SyncedEmail < ApplicationRecord
 
     # Deduplicate by job ID, keeping highest confidence
     matches
+      .select { |m| m[:job].present? }
       .group_by { |m| m[:job].id }
       .map { |_job_id, job_matches| job_matches.max_by { |m| m[:confidence] } }
       .sort_by { |m| -m[:confidence] }
