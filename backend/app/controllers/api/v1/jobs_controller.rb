@@ -528,24 +528,35 @@ module Api
       # Lightweight endpoint for badge counts on finance sub-tabs
       def finance_counts
         invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
-        claims_count = @job.job_claim_stages.count
-        expenses_count = @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count
-        sales_count = invoices.where(invoice_type: "sales_invoice").count
-        bills_count = invoices.where(invoice_type: "bill").count
 
-        # Return counts keyed by ALL known tab_key variants (tab_keys vary per tenant)
-        render json: {
-          success: true,
-          counts: {
-            "claims" => claims_count,
-            "expenses" => expenses_count,
-            "claims-xero" => sales_count,
-            "claims---xero" => sales_count,
-            "bills" => bills_count,
-            "bills-xero" => bills_count,
-            "bills---xero" => bills_count
-          }
-        }
+        # Look up actual finance tab_keys from WarehouseFolder for this tenant
+        job_type_ids = WarehouseType.where(code: "job").pluck(:id)
+        finance_tab = WarehouseFolder.find_by(
+          warehouse_type_id: job_type_ids,
+          tab_key: "finance",
+          parent_id: nil,
+          tenant_id: @job.tenant_id
+        )
+
+        counts = {}
+        if finance_tab
+          finance_tab.children.where(enabled: true).each do |child|
+            component = child.component_name || child.tab_key
+            count = case component
+                    when "JobClaimStagesTab", /claim/i
+                      @job.job_claim_stages.count
+                    when "JobExpensesTab", /expense/i
+                      @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count
+                    when "XeroInvoicesCard"
+                      invoices.where(invoice_type: "sales_invoice").count
+                    when "XeroBillsCard"
+                      invoices.where(invoice_type: "bill").count
+                    end
+            counts[child.tab_key] = count if count
+          end
+        end
+
+        render json: { success: true, counts: counts }
       end
 
       #   to_date: end date (default: today)
