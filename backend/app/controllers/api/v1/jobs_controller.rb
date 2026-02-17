@@ -577,41 +577,46 @@ module Api
           credit_notes.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
         end
 
+        # Totals across all periods
+        total_income = income_by_period.sum
+        total_expenses = expenses_by_period.sum
+        total_credits = credits_by_period.sum
+
         # Build rows in Xero-compatible format for frontend rendering
-        header_cells = [ { value: "" } ] + fy_periods.map { |p| { value: p[:label] } }
+        header_cells = [ { value: "" } ] + fy_periods.map { |p| { value: p[:label] } } + [ { value: "Total" } ]
 
         rows = [
           { row_type: "Header", cells: header_cells },
           { row_type: "Section", title: "Income" },
           {
             row_type: "Row",
-            cells: [ { value: "Sales Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Sales Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_income) } ]
           },
           {
             row_type: "SummaryRow",
-            cells: [ { value: "Total Income" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Total Income" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_income) } ]
           },
           { row_type: "Section", title: "Less Cost of Sales" },
           {
             row_type: "Row",
-            cells: [ { value: "Bills" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } }
+            cells: [ { value: "Bills" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_expenses) } ]
           },
           {
             row_type: "Row",
-            cells: [ { value: "Credit Notes" } ] + credits_by_period.map { |v| { value: format_pl_amount(v.negative? ? v : -v) } }
+            cells: [ { value: "Credit Notes" } ] + credits_by_period.map { |v| { value: format_pl_amount(v.negative? ? v : -v) } } + [ { value: format_pl_amount(total_credits.negative? ? total_credits : -total_credits) } ]
           },
           {
             row_type: "SummaryRow",
             cells: [ { value: "Total Cost of Sales" } ] + fy_periods.each_with_index.map { |_, i|
               { value: format_pl_amount(expenses_by_period[i] - credits_by_period[i]) }
-            }
+            } + [ { value: format_pl_amount(total_expenses - total_credits) } ]
           },
           {
             row_type: "SummaryRow",
             cells: [ { value: "Net Profit" } ] + fy_periods.each_with_index.map { |_, i|
               net = income_by_period[i] - expenses_by_period[i] + credits_by_period[i]
               { value: format_pl_amount(net) }
-            }
+            } + [ { value: format_pl_amount(total_income - total_expenses + total_credits) } ]
           }
         ]
 
