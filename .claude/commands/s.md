@@ -50,9 +50,9 @@ echo "🔍 Pre-commit validation..."
 # Check TypeScript compiles (catches type errors BEFORE they hit Vercel)
 if git status --short | grep -E "frontend-next/.*\.(ts|tsx)$" > /dev/null; then
   echo "Checking TypeScript..."
-  cd frontend-next && npx tsc --noEmit 2>&1 | head -30
+  # ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+  (cd frontend-next && npx tsc --noEmit 2>&1 | head -30)
   TSC_EXIT=$?
-  cd ..
   if [ $TSC_EXIT -ne 0 ]; then
     echo "❌ TypeScript errors - fix before committing"
     exit 1
@@ -137,12 +137,11 @@ git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BAC
 # Check migrations can run locally
 if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/db/migrate/" > /dev/null; then
   echo "Checking migrations..."
-  cd backend && bin/rails db:migrate:status > /dev/null 2>&1 || {
+  # ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+  (cd backend && bin/rails db:migrate:status > /dev/null 2>&1) || {
     echo "❌ Migration check failed - fix locally first"
-    cd ..
     exit 1
   }
-  cd ..
   echo "✅ Migrations OK"
 fi
 

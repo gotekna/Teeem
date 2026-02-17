@@ -16,7 +16,8 @@ brew services list | grep postgresql@17
 /opt/homebrew/bin/heroku ps --app teeem-production 2>&1 | head -5
 
 # Check for pending migrations locally
-cd /Users/robertharder/GitHub/teeem/backend && bin/rails db:migrate:status 2>&1 | grep "^\s*down" | wc -l
+# ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+(cd /Users/robertharder/GitHub/teeem/backend && bin/rails db:migrate:status 2>&1 | grep "^\s*down" | wc -l)
 ```
 
 If PostgreSQL shows "error" or "stopped", restart it:

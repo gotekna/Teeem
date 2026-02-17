@@ -72,9 +72,9 @@ echo "🔍 Pre-commit validation..."
 # Check TypeScript compiles (catches type errors BEFORE they hit Vercel)
 if git status --short | grep -E "frontend-next/.*\.(ts|tsx)$" > /dev/null; then
   echo "Checking TypeScript..."
-  cd frontend-next && npx tsc --noEmit 2>&1 | head -30
+  # ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+  (cd frontend-next && npx tsc --noEmit 2>&1 | head -30)
   TSC_EXIT=$?
-  cd ..
   if [ $TSC_EXIT -ne 0 ]; then
     echo "❌ TypeScript errors - fix before committing"
     exit 1

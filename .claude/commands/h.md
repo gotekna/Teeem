@@ -42,33 +42,34 @@ Pull the production database (teeem-production) to local environment.
 psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'teeem_development' AND pid <> pg_backend_pid();" 2>/dev/null || true
 
 # Step 2: Capture fresh backup and get URL
-cd /Users/robertharder/GitHub/teeem/backend
+# ⚠️ All commands use absolute paths - NEVER change cwd (protects VS Code extension host)
+BACKEND=/Users/robertharder/GitHub/teeem/backend
 echo "📸 Capturing fresh backup from production..."
 heroku pg:backups:capture --app teeem-production 2>&1 | tail -5
 BACKUP_URL=$(heroku pg:backups:url --app teeem-production)
 
 # Step 3: Download with aria2c (16 parallel connections, resume-capable)
-rm -f latest.dump
-aria2c -x 16 -s 16 --file-allocation=none -o latest.dump "$BACKUP_URL"
-echo "Downloaded: $(ls -lh latest.dump | awk '{print $5}')"
+rm -f "$BACKEND/latest.dump"
+aria2c -x 16 -s 16 --file-allocation=none -o "$BACKEND/latest.dump" "$BACKUP_URL"
+echo "Downloaded: $(ls -lh "$BACKEND/latest.dump" | awk '{print $5}')"
 
 # Step 4: Restore to local
 dropdb teeem_development 2>/dev/null || true
 createdb teeem_development
-pg_restore --verbose --no-acl --no-owner -d teeem_development latest.dump 2>&1 | tail -10
-rm -f latest.dump
+pg_restore --verbose --no-acl --no-owner -d teeem_development "$BACKEND/latest.dump" 2>&1 | tail -10
+rm -f "$BACKEND/latest.dump"
 
 # Step 5: Run migrations and ensure foundations exist
-bin/rails db:migrate
-bin/rails teeem:create_system_foundations 2>&1 | tail -5
+"$BACKEND/bin/rails" db:migrate
+"$BACKEND/bin/rails" teeem:create_system_foundations 2>&1 | tail -5
 
 # Step 6: Assign NULL tenant data to Tekna (pre-multi-tenancy data fix)
 # This ensures local dev works like production with proper tenant isolation
-bin/rails tenant:assign_null_to_tekna
+"$BACKEND/bin/rails" tenant:assign_null_to_tekna
 
 # Step 7: Clear encrypted credentials (can't decrypt with local keys)
 # Uses session_replication_role to bypass FK constraints (e.g. synced_email_mailboxes → microsoft_credentials)
-bin/rails runner "
+"$BACKEND/bin/rails" runner "
 ActiveRecord::Base.connection.execute('SET session_replication_role = replica')
 deleted_ms = MicrosoftCredential.delete_all
 deleted_app = OrganizationMicrosoftAppCredential.delete_all rescue 0
@@ -78,7 +79,7 @@ puts '🔑 Cleared ' + (deleted_ms + deleted_app + deleted_s3).to_s + ' credenti
 "
 
 # Step 8: Verify data pulled correctly
-bin/rails runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
+"$BACKEND/bin/rails" runner "puts '✅ Data verification:'; puts \"   Users: #{User.count}\"; puts \"   Foundations: #{Foundation.count}\"; puts \"   Jobs: #{Job.count}\"; puts \"   Contacts: #{Contact.count}\""
 
 # Step 9: Restart local servers using screen (persistent)
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true

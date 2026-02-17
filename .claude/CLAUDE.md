@@ -696,14 +696,23 @@ git -C "$DEPLOY_DIR" push heroku HEAD:main --force
 rm -rf "$DEPLOY_DIR"
 ```
 
-### 🔴 CRITICAL: Never `cd` to Temp Directories in Deploy Scripts
+### 🔴 CRITICAL: Never Change CWD in Bash Commands
 
-**Deploy scripts use temp directories for Heroku pushes. NEVER `cd` into them.**
+**VS Code tracks terminal CWD. Changing it crashes the extension host.**
 
-- ❌ WRONG: `cd "$DEPLOY_DIR" && git init && ...` (breaks VS Code working directory, crashes extension host)
-- ✅ RIGHT: `git -C "$DEPLOY_DIR" init && ...` (runs git in temp dir without changing cwd)
+| Pattern | Status | Fix |
+|---------|--------|-----|
+| `cd "$DEPLOY_DIR"` | ❌ BANNED | `git -C "$DEPLOY_DIR"` |
+| `cd frontend-next && npx tsc` | ❌ BANNED | `(cd frontend-next && npx tsc)` subshell |
+| `cd backend && bin/rails` | ❌ BANNED | `(cd backend && bin/rails)` subshell |
+| `cd /Users/.../teeem` | ✅ OK | Project root is always safe |
 
-**Why:** VS Code tracks the terminal's working directory. If you `cd` to a temp dir that gets deleted, VS Code loses its git context, the extension host crashes, and "Claude Code: Open in Terminal" stops working.
+**Rules:**
+1. **Temp dirs:** Use `git -C "$DEPLOY_DIR"` - NEVER `cd "$DEPLOY_DIR"`
+2. **Subdirectories:** Use subshells `(cd subdir && command)` - NEVER bare `cd subdir`
+3. **Only safe `cd`:** `cd /Users/robertharder/GitHub/teeem` (project root)
+
+**Why:** If bash times out or gets killed mid-execution, the CWD stays changed. With 4+ Claude sessions, this overwhelms the extension host and crashes VS Code.
 
 ## 🔴 Production Frontend (Vercel)
 

@@ -115,7 +115,8 @@ fi
 # Missing system columns
 echo ""
 echo "--- Foundations missing system columns ---"
-cd backend && bin/rails runner "
+# ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+(cd backend && bin/rails runner "
   missing = Foundation.find_each.select { |f|
     existing = f.columns.where(column_name: %w[id created_at updated_at]).pluck(:column_name)
     (%w[id created_at updated_at] - existing).any?
@@ -126,7 +127,7 @@ cd backend && bin/rails runner "
   else
     puts '✅ All foundations have system columns'
   end
-" 2>/dev/null || echo "(Backend check skipped)"
+") 2>/dev/null || echo "(Backend check skipped)"
 ```
 
 **Expected:** Zero duplicates, zero manual lists
@@ -293,7 +294,8 @@ grep -rn "<TabsContent" frontend-next/app --include="*.tsx" | grep -v "overflow-
 ```bash
 echo "=== GOLD STANDARD CHECK ==="
 
-cd backend && bin/rails runner "
+# ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+(cd backend && bin/rails runner "
 # Check invalid column types
 valid_types = Column::COLUMN_TYPE_MAP.keys
 invalid = Column.where.not(column_type: valid_types)
@@ -311,14 +313,14 @@ if null_searchable > 0
 else
   puts '✅ All columns have searchable set'
 end
-" 2>/dev/null || echo "(Backend check skipped)"
+") 2>/dev/null || echo "(Backend check skipped)"
 ```
 
 ### Step 6: Security Scan
 
 ```bash
 echo "=== SECURITY SCAN ==="
-cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -20 || echo "Brakeman not available"
+(cd backend && bundle exec brakeman -q --no-pager -w2 2>/dev/null | head -20) || echo "Brakeman not available"
 ```
 
 ### Step 7: Code Quality
@@ -400,7 +402,8 @@ Total: X issues to fix
 ### Backend Performance
 ```bash
 # N+1 detection
-cd backend && bin/rails runner "
+# ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+(cd backend && bin/rails runner "
   controllers = Dir.glob('app/controllers/**/*.rb')
   controllers.each do |file|
     content = File.read(file)
@@ -410,10 +413,11 @@ cd backend && bin/rails runner "
       puts \"⚠️  #{file} - Potential N+1\"
     end
   end
-"
+")
 
 # Missing indexes
-cd backend && bin/rails runner "
+# ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+(cd backend && bin/rails runner "
   ActiveRecord::Base.connection.tables.each do |table|
     next if %w[schema_migrations ar_internal_metadata].include?(table)
     columns = ActiveRecord::Base.connection.columns(table)
@@ -422,7 +426,7 @@ cd backend && bin/rails runner "
     missing = fk_columns.reject { |c| indexes.include?(c.name) }
     missing.each { |c| puts \"#{table}.#{c.name} - no index\" } if missing.any?
   end
-"
+")
 ```
 
 ### Network Performance
