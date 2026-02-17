@@ -222,7 +222,14 @@ class OrgEmailSyncJob < ApplicationJob
         begin
           # Use per-mailbox last_synced_at for accurate since date
           mb_last_synced = mailbox_synced_at[user_email.downcase]&.then { |t| Time.parse(t) rescue nil }
-          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
+          # ⚠️ FRC (Feb 2026): Metadata-first sync for initial imports
+          # Root cause: Pilgrim Homes (56 mailboxes, 11k+ emails) stuck for a week because
+          # inline sync_attachments! (2-5s/email) consumed the entire 10-min time budget,
+          # leaving most mailboxes unprocessed each cycle.
+          # Fix: First-time mailbox sync = metadata only (5x faster). Attachments caught up
+          # by RetryPendingAttachmentBlobsJob in background. Incremental = inline (few emails).
+          @is_initial_sync = mb_last_synced.nil?
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: mb_last_synced=#{mb_last_synced&.iso8601 || 'NEVER'}, errors=#{error_count}, initial_sync=#{@is_initial_sync}, calling sync_user_emails... (inline_quick=#{target_mailbox.present?})"
           sync_start = Time.current
           synced = sync_user_emails(user_email, sync_type, sync_years, sync_days, mailbox_last_synced_at: mb_last_synced, inline_quick: target_mailbox.present?)
           sync_elapsed = (Time.current - sync_start).round(1)
@@ -659,9 +666,17 @@ class OrgEmailSyncJob < ApplicationJob
         # Continue even if recipient building fails - email is still saved
       end
 
-      # SSoT: Sync attachments to local warehouse storage on first sync
-      # This ensures attachments are always available without hitting Outlook API
-      if is_new_record && email.has_attachments
+      # SSoT: Sync attachments to local warehouse storage
+      # ⚠️ FRC (Feb 2026): Metadata-first sync for initial imports
+      # ════════════════════════════════════════════
+      # Why: Initial sync of large orgs (56 mailboxes) was stuck for a week because
+      #   inline attachment downloads (2-5s/email) consumed the 10-min time budget.
+      # ❌ WRONG: Always sync attachments inline (blocks metadata sync for hours)
+      # ✅ CORRECT: Initial sync = metadata only (5x faster throughput).
+      #   RetryPendingAttachmentBlobsJob catches up on attachments in background.
+      #   Incremental sync = inline (only a few new emails, no bottleneck).
+      # ════════════════════════════════════════════
+      if is_new_record && email.has_attachments && !@is_initial_sync
         begin
           email.sync_attachments!
           Rails.logger.info "[OrgEmailSync] Synced attachments for email #{email.id}"
