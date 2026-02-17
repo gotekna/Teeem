@@ -1132,8 +1132,8 @@ function EmailSyncTab({
                             <TableHead>Type</TableHead>
                             <TableHead>License</TableHead>
                             <TableHead className="text-right">Emails</TableHead>
-                            <TableHead className="text-right">Upload .eml Body</TableHead>
-                            <TableHead className="text-right">Download Attachments</TableHead>
+                            <TableHead className="text-right">.eml Stored</TableHead>
+                            <TableHead className="text-right">Attachments</TableHead>
                             <TableHead className="text-right">Last Synced</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1247,7 +1247,7 @@ function EmailSyncTab({
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" />}
+                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <RefreshCw className="h-3 w-3 inline mr-1" />}
                                           {uploaded.toLocaleString()}/{total.toLocaleString()}
                                         </span>
                                       </TooltipTrigger>
