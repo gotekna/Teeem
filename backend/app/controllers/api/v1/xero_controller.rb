@@ -1489,6 +1489,29 @@ module Api
             nil
           end
 
+          # Data quality check: Bills with empty line_items need backfill
+          # Empty line_items means incremental sync fetched without pagination,
+          # resulting in truncated data (no line items, no tracking categories)
+          bills_scope = base_scope_no_drafts.bills
+          if xero_org_id.present?
+            bills_scope = bills_scope.where(xero_org_id: xero_org_id)
+          end
+          total_bills = bills_scope.count
+          bills_missing_line_items = bills_scope.where("line_items = '[]'::jsonb").count
+          bills_missing_tracking = bills_scope.where("tracking_data = '[]'::jsonb").count
+          bills_without_jobs = bills_scope.where(job_id: nil).count
+          needs_backfill = bills_missing_line_items > 0
+
+          data_quality = {
+            needs_backfill: needs_backfill,
+            bills_total: total_bills,
+            bills_missing_line_items: bills_missing_line_items,
+            bills_missing_tracking: bills_missing_tracking,
+            bills_without_jobs: bills_without_jobs,
+            backfill_message: needs_backfill ?
+              "#{bills_missing_line_items} of #{total_bills} bills have empty line items - run full sync to backfill" : nil
+          }
+
           # ============================================
           # STAGE 2: PDF Sync (Xero -> StorageBlob)
           # ============================================
@@ -1880,7 +1903,8 @@ module Api
                 next_sync_at: next_invoice_sync,
                 schedule: "Every 5 minutes",
                 breakdown: invoice_breakdown,
-                blocker: stage1_blocker
+                blocker: stage1_blocker,
+                data_quality: data_quality
               },
 
               # Stage 2: PDF Download (Xero -> Active Storage)

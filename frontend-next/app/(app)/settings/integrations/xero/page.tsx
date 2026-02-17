@@ -164,9 +164,15 @@ export default function XeroIntegrationPage() {
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
             const d = pdfSyncResponse.data;
+            // Feb 2026: Factor in data quality - bills with empty line_items aren't truly synced
+            const dq = d.stage1_data_sync?.data_quality;
+            const linked = d.stage1_data_sync?.linked_to_contacts || 0;
+            const stage1Completed = dq?.needs_backfill
+              ? Math.max(linked - (dq.bills_missing_line_items || 0), 0)
+              : linked;
             setPdfSyncHealth({
               stage1_percentage: d.stage1_data_sync?.total_in_database
-                ? Math.round((d.stage1_data_sync.linked_to_contacts / d.stage1_data_sync.total_in_database) * 100)
+                ? Math.round((stage1Completed / d.stage1_data_sync.total_in_database) * 100)
                 : 0,
               stage2_percentage: d.stage2_pdf_download?.progress_percentage || d.progress_percentage || 0,
               stage3_percentage: d.stage3_sharepoint?.progress_percentage || 0,
