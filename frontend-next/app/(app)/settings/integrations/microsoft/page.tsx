@@ -33,6 +33,7 @@ import {
   Plus,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
   UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -1113,7 +1114,20 @@ function EmailSyncTab({
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>User</TableHead>
+                            <TableHead>
+                              <div className="flex items-center gap-1.5">
+                                <span>User</span>
+                                {expandedMailboxes.size > 0 && (
+                                  <button
+                                    onClick={() => setExpandedMailboxes(new Set())}
+                                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Collapse all folders"
+                                  >
+                                    <ChevronsDownUp className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>License</TableHead>
