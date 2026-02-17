@@ -716,24 +716,9 @@ export default function JobDetailPage() {
 
   const [job, setJob] = React.useState<Job | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [loadingTimedOut, setLoadingTimedOut] = React.useState(false);
 
   // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
-  const { tabs: jobTabs, loading: tabsLoading, refetch: refetchTabs } = useWarehouseFolders({ scope: "job" });
-
-  // Safety net: If loading takes >15s, show retry button instead of eternal skeleton
-  React.useEffect(() => {
-    if (!loading && !tabsLoading) {
-      setLoadingTimedOut(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      if (loading || tabsLoading) {
-        setLoadingTimedOut(true);
-      }
-    }, 15000);
-    return () => clearTimeout(timer);
-  }, [loading, tabsLoading]);
+  const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
 
   // User tab preferences (visibility, order, default tab)
   const {
@@ -1296,39 +1281,10 @@ export default function JobDetailPage() {
     }
   };
 
-  // SSoT: Show skeleton layout during loading to prevent flash/CLS
-  // The skeleton matches the actual page structure so there's no jarring layout shift
-  if (loading || tabsLoading) {
-    // After 15 seconds, show retry UI instead of eternal skeleton
-    if (loadingTimedOut) {
-      return (
-        <div className="h-full flex flex-col overflow-auto">
-          <div className="px-3 pt-4">
-            <BackButton fallbackHref="/jobs" className="shrink-0" />
-          </div>
-          <div className="flex-1 flex items-center justify-center">
-            <Card className="max-w-md">
-              <CardContent className="py-8 text-center space-y-4">
-                <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto" />
-                <p className="text-lg font-medium">Taking longer than expected</p>
-                <p className="text-sm text-muted-foreground">
-                  The page is still loading. This may be due to a slow connection or server issue.
-                </p>
-                <Button onClick={() => {
-                  setLoadingTimedOut(false);
-                  setLoading(true);
-                  loadJob();
-                  refetchTabs();
-                }}>
-                  Try Again
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      );
-    }
-
+  // SSoT: Show skeleton layout during job data loading to prevent flash/CLS
+  // Only gate on job loading - tabs loading is handled inline (below) to prevent
+  // tabsLoading hangs from blocking the entire page permanently
+  if (loading) {
     return (
       <div className="h-full flex flex-col overflow-auto">
         {/* Skeleton header */}
@@ -1537,16 +1493,26 @@ export default function JobDetailPage() {
           </div>
         </div>
 
-        {/* Tabs trigger */}
+        {/* Tabs trigger - show skeleton while tabs are loading */}
         <div className="px-3 pb-2">
-          <Tabs value={effectiveActiveTab} onValueChange={handleTabChange}>
-            <HierarchicalTabsList
-              tabs={visibleJobTabs}
-              activeTab={effectiveActiveTab}
-              activeParentTab={activeParentTab}
-              onTabChange={handleTabChange}
-            />
-          </Tabs>
+          {tabsLoading && visibleJobTabs.length === 0 ? (
+            <div className="flex gap-2 py-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ) : (
+            <Tabs value={effectiveActiveTab} onValueChange={handleTabChange}>
+              <HierarchicalTabsList
+                tabs={visibleJobTabs}
+                activeTab={effectiveActiveTab}
+                activeParentTab={activeParentTab}
+                onTabChange={handleTabChange}
+              />
+            </Tabs>
+          )}
         </div>
       </div>
 
