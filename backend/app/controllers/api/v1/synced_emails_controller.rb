@@ -1934,6 +1934,12 @@ class Api::V1::SyncedEmailsController < ApplicationController
     email_ids = appearances.pluck(:synced_email_id)
     emails_for_stats = SyncedEmail.where(id: email_ids)
     last_received = emails_for_stats.maximum(:received_at)
+    # FRC (Feb 2026): Use per-mailbox last_synced_at from actual email data.
+    # Root cause: Using credential-level last_sync_at showed "2h ago" even while actively syncing,
+    # because it only updates when the ENTIRE OrgEmailSyncJob completes. For large orgs (Pilgrim,
+    # 56 mailboxes), the job takes multiple cycles, so the timestamp never updated.
+    # Fix: Use MAX(last_synced_at) from emails in this mailbox - shows "just now" during active sync.
+    mailbox_last_synced = emails_for_stats.maximum(:last_synced_at)
 
     # Attachment stats for this mailbox (SSoT Jan 2026: WarehouseDocument)
     attachments = WarehouseDocument.where(source_type: "email_attachment")
@@ -1959,7 +1965,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email_blob_count: email_blob_count,
       content_unavailable_count: content_unavailable_count,
       last_email_received_at: last_received,
-      last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
+      last_synced_at: mailbox_last_synced || credential_last_synced_at
     }
   end
 

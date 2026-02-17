@@ -1233,22 +1233,29 @@ function EmailSyncTab({
                                 )}
                               </TableCell>
                               <TableCell className="text-right text-xs">
-                                {row.synced && row.mailboxStat?.last_synced_at ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-muted-foreground cursor-default">
-                                        {formatRelativeTime(row.mailboxStat.last_synced_at)}
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{formatAbsoluteTime(row.mailboxStat.last_synced_at)}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ) : row.synced ? (
-                                  <span className="text-muted-foreground">Never</span>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
+                                {(() => {
+                                  const lastSynced = row.mailboxStat?.last_synced_at;
+                                  if (!row.synced || !lastSynced) {
+                                    return row.synced ? (
+                                      <span className="text-muted-foreground">Never</span>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    );
+                                  }
+                                  const isRecentlySyncing = (Date.now() - new Date(lastSynced).getTime()) < 5 * 60 * 1000;
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={isRecentlySyncing ? "text-green-600 dark:text-green-400 font-medium cursor-default" : "text-muted-foreground cursor-default"}>
+                                          {isRecentlySyncing ? "Syncing..." : formatRelativeTime(lastSynced)}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{formatAbsoluteTime(lastSynced)}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
                           ))}
