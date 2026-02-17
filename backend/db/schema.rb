@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_200008) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_17_200009) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3294,10 +3294,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200008) do
     t.boolean "is_global", default: false, null: false
     t.string "view_display_type", default: "table", null: false, comment: "Display mode: 'table' for traditional grid, 'relational' for network graph"
     t.string "slug"
-    t.index ["foundation_id", "slug"], name: "index_foundation_views_on_foundation_and_slug", unique: true
+    t.integer "tenant_id", null: false
     t.index ["foundation_id", "user_id", "display_order"], name: "index_foundation_views_on_foundation_user_order"
     t.index ["foundation_id", "user_id"], name: "index_foundation_views_on_foundation_id_and_user_id"
     t.index ["foundation_id"], name: "index_foundation_views_on_foundation_id"
+    t.index ["tenant_id", "foundation_id", "slug"], name: "index_foundation_views_on_tenant_foundation_slug", unique: true
+    t.index ["tenant_id", "foundation_id", "user_id"], name: "idx_fv_tenant_foundation_user"
+    t.index ["tenant_id"], name: "index_foundation_views_on_tenant_id"
     t.index ["user_id"], name: "index_foundation_views_on_user_id"
   end
 

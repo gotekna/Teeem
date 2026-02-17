@@ -294,15 +294,11 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   // Xero Finance tabs - bills/invoices linked to this job
   "bills": XeroBillsCard,
   "bills-xero": XeroBillsCard,
-  "bills---xero": XeroBillsCard,
   "invoices": XeroInvoicesCard,
   "claims-xero": XeroInvoicesCard,
-  "claims---xero": XeroInvoicesCard,
   // Xero P&L report filtered by job tracking category
-  "p&l---xero": XeroJobProfitLossCard,
   "p&l-xero": XeroJobProfitLossCard,
   "pl-xero": XeroJobProfitLossCard,
-  "pl---xero": XeroJobProfitLossCard,
   "profit-loss-xero": XeroJobProfitLossCard,
 };
 
@@ -747,12 +743,6 @@ export default function JobDetailPage() {
   const pathname = usePathname();
   const jobId = params.id as string;
 
-  // Diagnostic: log mount and params
-  React.useEffect(() => {
-    console.warn(`[JobPage] MOUNT jobId=${jobId} pathname=${pathname} params=`, params);
-    return () => console.warn(`[JobPage] UNMOUNT jobId=${jobId}`);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Use module-level cache to prevent skeleton flash on sub-tab navigation.
   // When Next.js remounts this component (catch-all route change), we instantly
   // show the cached job data instead of a loading skeleton.
@@ -933,12 +923,16 @@ export default function JobDetailPage() {
   const effectiveActiveTab = React.useMemo(() => {
     // If we have an explicit child tab, use composite key to prevent collision
     // e.g., parent "Site" (tab_key=site) vs child "Site" under Photo (also tab_key=site)
-    if (activeChildTab) return `${activeParentTab}__${activeChildTab}`;
+    if (activeChildTab) {
+      return `${activeParentTab}__${activeChildTab}`;
+    }
 
     // If parent tab has children, use first child with composite key
     if (visibleJobTabs.length > 0) {
       const firstChild = findFirstChildTab(activeParentTab);
-      if (firstChild) return `${activeParentTab}__${firstChild}`;
+      if (firstChild) {
+        return `${activeParentTab}__${firstChild}`;
+      }
     }
 
     // Otherwise use the parent tab itself

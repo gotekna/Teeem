@@ -10,13 +10,13 @@
 namespace :add_xero_pl_tab do
   desc "Check if P&L - XERO tab exists under Finance"
   task check: :environment do
-    job_type = WarehouseType.find_by(code: "job")
-    unless job_type
+    job_type_ids = WarehouseType.where(code: "job").pluck(:id)
+    if job_type_ids.empty?
       puts "No 'job' WarehouseType found"
       next
     end
 
-    finance_tabs = WarehouseFolder.where(warehouse_type: job_type, tab_key: "finance", parent_id: nil)
+    finance_tabs = WarehouseFolder.where(warehouse_type_id: job_type_ids, tab_key: "finance", parent_id: nil)
     finance_tabs.each do |finance_tab|
       puts "Finance tab ID: #{finance_tab.id} (tenant: #{finance_tab.tenant_id})"
       children = finance_tab.children.order(:order_position)
@@ -24,24 +24,24 @@ namespace :add_xero_pl_tab do
         puts "  #{child.display_name} (tab_key: #{child.tab_key}, position: #{child.order_position})"
       end
 
-      existing = finance_tab.children.find_by(tab_key: "p&l---xero")
+      existing = finance_tab.children.find_by(tab_key: "pl-xero")
       puts existing ? "  P&L - XERO tab EXISTS" : "  P&L - XERO tab NOT FOUND"
     end
   end
 
   desc "Add P&L - XERO tab under Finance for all tenants"
   task add: :environment do
-    job_type = WarehouseType.find_by(code: "job")
-    unless job_type
+    job_type_ids = WarehouseType.where(code: "job").pluck(:id)
+    if job_type_ids.empty?
       puts "No 'job' WarehouseType found"
       next
     end
 
-    finance_tabs = WarehouseFolder.where(warehouse_type: job_type, tab_key: "finance", parent_id: nil)
+    finance_tabs = WarehouseFolder.where(warehouse_type_id: job_type_ids, tab_key: "finance", parent_id: nil)
     added = 0
 
     finance_tabs.each do |finance_tab|
-      existing = finance_tab.children.find_by(tab_key: "p&l---xero")
+      existing = finance_tab.children.find_by(tab_key: "pl-xero")
       if existing
         puts "Tenant #{finance_tab.tenant_id}: P&L - XERO already exists (id: #{existing.id})"
         next
@@ -52,10 +52,10 @@ namespace :add_xero_pl_tab do
 
       tab = WarehouseFolder.create!(
         tenant_id: finance_tab.tenant_id,
-        warehouse_type: job_type,
+        warehouse_type_id: finance_tab.warehouse_type_id,
         parent_id: finance_tab.id,
         display_name: "P&L - XERO",
-        tab_key: "p&l---xero",
+        tab_key: "pl-xero",
         component_name: "XeroJobProfitLossCard",
         tab_type: "system",
         order_position: max_pos + 1
