@@ -531,19 +531,28 @@ module Api
         # SSoT: Build P&L from local DB data (job_claims for income, purchase_orders for expenses)
         # No Xero API call needed - all data already synced locally
         periods = (params[:periods] || 3).to_i
+        from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : nil
+        to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : nil
 
-        # Australian financial year periods (1 Jul - 30 Jun)
-        today = Date.current
-        current_fy_start_year = today.month >= 7 ? today.year : today.year - 1
-
-        # Build period ranges (current FY + comparison periods going back)
-        fy_periods = (0..periods).map do |i|
-          start_year = current_fy_start_year - i
-          {
-            label: "FY#{start_year}/#{(start_year + 1).to_s[-2..]}",
-            from: Date.new(start_year, 7, 1),
-            to: Date.new(start_year + 1, 6, 30)
-          }
+        # Build period ranges from frontend params, with comparison periods going back
+        if from_date && to_date
+          duration_days = (to_date - from_date).to_i
+          fy_periods = (0..periods).map do |i|
+            pf, pt = step_period_back(from_date, to_date, duration_days, i)
+            { label: format_period_label(pf, pt), from: pf, to: pt }
+          end
+        else
+          # Fallback: Australian financial year periods (1 Jul - 30 Jun)
+          today = Date.current
+          current_fy_start_year = today.month >= 7 ? today.year : today.year - 1
+          fy_periods = (0..periods).map do |i|
+            start_year = current_fy_start_year - i
+            {
+              label: "FY#{start_year}/#{(start_year + 1).to_s[-2..]}",
+              from: Date.new(start_year, 7, 1),
+              to: Date.new(start_year + 1, 6, 30)
+            }
+          end
         end
 
         # Income: job_claims (customer invoices) - exclude draft and voided
@@ -1299,6 +1308,36 @@ module Api
       def format_pl_amount(value)
         return "-" if value.nil? || value.zero?
         ActionController::Base.helpers.number_with_delimiter(value.round(2), delimiter: ",")
+      end
+
+      # Step a date range back by i periods, using smart month/quarter/year alignment
+      def step_period_back(from_date, to_date, duration_days, i)
+        return [from_date, to_date] if i == 0
+
+        if duration_days > 300 # ~year/FY
+          [from_date << (12 * i), to_date << (12 * i)]
+        elsif duration_days > 80 # ~quarter
+          [from_date << (3 * i), to_date << (3 * i)]
+        elsif duration_days > 25 # ~month
+          pf = from_date << i
+          pt = (pf >> 1) - 1 # last day of that month
+          [pf, pt]
+        else # custom range
+          offset = (duration_days + 1) * i
+          [from_date - offset, to_date - offset]
+        end
+      end
+
+      def format_period_label(from_date, to_date)
+        days = (to_date - from_date).to_i
+        if days > 300 # ~year / FY
+          fy_start = from_date.month >= 7 ? from_date.year : from_date.year - 1
+          "FY#{fy_start}/#{(fy_start + 1).to_s[-2..]}"
+        elsif days > 80 # ~quarter
+          "Q#{((from_date.month - 1) / 3) + 1} #{from_date.year}"
+        else # month or custom
+          from_date.strftime("%b %Y")
+        end
       end
 
       # Single-link mode: link one tracking option (backward compatible)

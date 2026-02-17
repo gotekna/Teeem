@@ -3,15 +3,13 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { RefreshCw, BarChart3 } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { XeroReportRow } from "./types";
 
 interface XeroJobPLReport {
-  title?: string;
   titles?: string[];
   from_date: string;
   to_date: string;
@@ -23,30 +21,70 @@ interface XeroJobPLReport {
 
 interface XeroJobProfitLossCardProps {
   jobId?: string | number;
-  job?: { id: number | string; name?: string; xero_tracking_option_name?: string };
+  job?: { id: number | string; name?: string };
 }
 
-/**
- * XeroJobProfitLossCard - Shows Xero P&L report filtered by this job's tracking category
- *
- * Displays a multi-year comparison table matching Xero's native P&L layout:
- * Trading Income, Cost of Sales, Operating Expenses, Net Profit
- */
+/** Australian FY helper: FY starting Jul of given year */
+function fyRange(startYear: number) {
+  return {
+    from: `${startYear}-07-01`,
+    to: `${startYear + 1}-06-30`,
+    label: `FY ${startYear}/${String(startYear + 1).slice(-2)}`,
+  };
+}
+
+/** Build date presets (Australian FY = 1 Jul - 30 Jun) */
+function getPresets() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed
+  const fyStart = m >= 6 ? y : y - 1; // FY starts in July (month 6)
+
+  const monthStart = `${y}-${String(m + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  const monthEnd = `${y}-${String(m + 1).padStart(2, "0")}-${lastDay}`;
+
+  const prevM = m === 0 ? 11 : m - 1;
+  const prevY = m === 0 ? y - 1 : y;
+  const prevLastDay = new Date(prevY, prevM + 1, 0).getDate();
+  const prevMonthStart = `${prevY}-${String(prevM + 1).padStart(2, "0")}-01`;
+  const prevMonthEnd = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${prevLastDay}`;
+
+  // Quarter (Australian: Jul-Sep, Oct-Dec, Jan-Mar, Apr-Jun)
+  const qStarts = [6, 9, 0, 3]; // month indices for AU quarter starts
+  const qIdx = qStarts.findLastIndex((qs) => m >= qs);
+  const qStartMonth = qStarts[qIdx];
+  const qStartYear = qStartMonth > m ? y - 1 : y;
+  const qEndMonth = qStartMonth + 2;
+  const qEndYear = qEndMonth > 11 ? qStartYear + 1 : qStartYear;
+  const qEndLastDay = new Date(qEndYear, (qEndMonth % 12) + 1, 0).getDate();
+  const thisQStart = `${qStartYear}-${String(qStartMonth + 1).padStart(2, "0")}-01`;
+  const thisQEnd = `${qEndYear}-${String((qEndMonth % 12) + 1).padStart(2, "0")}-${qEndLastDay}`;
+
+  const fy = fyRange(fyStart);
+  const lastFy = fyRange(fyStart - 1);
+
+  return [
+    { key: "this_fy", label: `This Financial Year (${fy.label})`, from: fy.from, to: fy.to },
+    { key: "last_fy", label: `Last Financial Year (${lastFy.label})`, from: lastFy.from, to: lastFy.to },
+    { key: "this_month", label: "This Month", from: monthStart, to: monthEnd },
+    { key: "last_month", label: "Last Month", from: prevMonthStart, to: prevMonthEnd },
+    { key: "this_quarter", label: "This Quarter", from: thisQStart, to: thisQEnd },
+    { key: "all_time", label: "All Time", from: "2015-01-01", to: fy.to },
+  ];
+}
+
 export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps) {
   const [report, setReport] = React.useState<XeroJobPLReport | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  // Default to Australian financial year (1 Jul - 30 Jun)
-  const now = new Date();
-  const fyStartYear = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-  const defaultFrom = `${fyStartYear}-07-01`;
-  const defaultTo = `${fyStartYear + 1}-06-30`;
-
-  const [dateRange, setDateRange] = React.useState({ from: defaultFrom, to: defaultTo });
+  const [selectedPreset, setSelectedPreset] = React.useState("this_fy");
   const [periods, setPeriods] = React.useState(3);
 
+  const presets = React.useMemo(() => getPresets(), []);
   const resolvedJobId = jobId || job?.id;
+
+  const currentPreset = presets.find((p) => p.key === selectedPreset) || presets[0];
 
   const loadReport = React.useCallback(async () => {
     if (!resolvedJobId) return;
@@ -59,10 +97,9 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
         error?: string;
       }>(`/api/v1/jobs/${resolvedJobId}/xero_profit_loss`, {
         params: {
-          from_date: dateRange.from,
-          to_date: dateRange.to,
+          from_date: currentPreset.from,
+          to_date: currentPreset.to,
           periods,
-          timeframe: "YEAR",
         },
       });
 
@@ -73,60 +110,50 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
       }
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { error?: string } } };
-      const errorMessage =
-        axiosError?.response?.data?.error ||
-        "Failed to load Profit & Loss report. This job may not have a Xero tracking option linked.";
-      setError(errorMessage);
+      setError(axiosError?.response?.data?.error || "Failed to load Profit & Loss report");
     } finally {
       setLoading(false);
     }
-  }, [resolvedJobId, dateRange.from, dateRange.to, periods]);
+  }, [resolvedJobId, currentPreset.from, currentPreset.to, periods]);
 
-  // Auto-load on mount
+  // Auto-load on mount and when preset/periods change
   React.useEffect(() => {
     if (resolvedJobId) {
       loadReport();
     }
-  }, [resolvedJobId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [resolvedJobId, loadReport]);
 
   return (
     <Card>
       <CardContent className="pt-6">
         {/* Controls */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
+          <select
+            value={selectedPreset}
+            onChange={(e) => setSelectedPreset(e.target.value)}
+            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          >
+            {presets.map((p) => (
+              <option key={p.key} value={p.key}>{p.label}</option>
+            ))}
+          </select>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Date range:</span>
-            <Input
-              type="date"
-              value={dateRange.from}
-              onChange={(e) => setDateRange({ ...dateRange, from: e.target.value })}
-              className="w-36"
-            />
-            <span className="text-muted-foreground">to</span>
-            <Input
-              type="date"
-              value={dateRange.to}
-              onChange={(e) => setDateRange({ ...dateRange, to: e.target.value })}
-              className="w-36"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground whitespace-nowrap">Compare with</span>
+            <span className="text-sm text-muted-foreground whitespace-nowrap">Compare</span>
             <select
               value={periods}
               onChange={(e) => setPeriods(Number(e.target.value))}
               className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             >
               <option value={0}>No comparison</option>
-              <option value={1}>1 year</option>
-              <option value={2}>2 years</option>
-              <option value={3}>3 years</option>
-              <option value={4}>4 years</option>
+              <option value={1}>+ 1 prior period</option>
+              <option value={2}>+ 2 prior periods</option>
+              <option value={3}>+ 3 prior periods</option>
+              <option value={4}>+ 4 prior periods</option>
             </select>
           </div>
           <Button onClick={loadReport} disabled={loading} size="sm" variant="outline">
             {loading ? <Spinner size={16} /> : <RefreshCw className="h-4 w-4" />}
-            <span className="ml-2">Update</span>
+            <span className="ml-2">Refresh</span>
           </Button>
         </div>
 
@@ -134,14 +161,6 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
         {error && (
           <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-lg text-sm mb-4">
             {error}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!report && !loading && !error && (
-          <div className="text-center py-12 text-muted-foreground">
-            <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <p>Loading Profit & Loss report from Xero...</p>
           </div>
         )}
 
@@ -155,33 +174,28 @@ export function XeroJobProfitLossCard({ jobId, job }: XeroJobProfitLossCardProps
         {/* Report */}
         {report && !loading && (
           <div>
-            {/* Report header */}
             {report.titles && report.titles.length > 0 && (
               <div className="mb-4">
                 <h3 className="text-lg font-semibold">{report.titles[0]}</h3>
                 {report.titles.slice(1).map((title, idx) => (
                   <p key={idx} className="text-sm text-muted-foreground">{title}</p>
                 ))}
-                {report.tracking_option_name && (
-                  <p className="text-sm text-muted-foreground">
-                    JOB ID is {report.tracking_option_name}
-                  </p>
-                )}
               </div>
             )}
-
-            {/* Report table */}
             <PLReportTable rows={report.rows} />
           </div>
+        )}
+
+        {/* Empty state */}
+        {!report && !loading && !error && (
+          <p className="text-center py-8 text-muted-foreground">Select a period to view the report</p>
         )}
       </CardContent>
     </Card>
   );
 }
 
-/**
- * PLReportTable - Renders the Xero P&L report rows as a financial statement table
- */
+/** Renders the P&L report rows as a financial statement table */
 function PLReportTable({ rows }: { rows: XeroReportRow[] }) {
   return (
     <div className="overflow-x-auto border rounded-lg">
