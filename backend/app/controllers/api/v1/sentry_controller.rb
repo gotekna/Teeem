@@ -8,9 +8,10 @@ module Api
 
       # GET /api/v1/sentry/issues
       # Proxies Sentry API to return unresolved issues sorted by frequency
+      # Queries ALL Sentry projects (frontend + backend) and merges results
       def issues
         force_refresh = params[:refresh] == "true"
-        cache_key = "sentry:issues:#{sentry_org}:#{sentry_project}"
+        cache_key = "sentry:issues:#{sentry_org}:all_projects"
 
         unless force_refresh
           cached = Rails.cache.read(cache_key)
@@ -19,7 +20,7 @@ module Api
           end
         end
 
-        response = fetch_sentry_issues
+        response = fetch_all_sentry_issues
         if response[:success]
           Rails.cache.write(cache_key, response[:data], expires_in: CACHE_TTL)
           render json: { success: true, data: response[:data] }
@@ -49,7 +50,7 @@ module Api
 
         if response[:success]
           # Invalidate cache so next fetch shows updated status
-          Rails.cache.delete("sentry:issues:#{sentry_org}:#{sentry_project}")
+          Rails.cache.delete("sentry:issues:#{sentry_org}:all_projects")
           render json: { success: true, data: response[:data] }
         else
           render json: { success: false, error: response[:error] }, status: response[:status] || :bad_gateway
@@ -70,6 +71,10 @@ module Api
         ENV["SENTRY_PROJECT_SLUG"] || "teeem-frontend"
       end
 
+      def sentry_projects
+        (ENV["SENTRY_PROJECT_SLUGS"] || "teeem-frontend,teeem-backend").split(",").map(&:strip)
+      end
+
       def sentry_headers
         {
           "Authorization" => "Bearer #{sentry_token}",
@@ -77,34 +82,47 @@ module Api
         }
       end
 
-      def fetch_sentry_issues
+      def fetch_all_sentry_issues
         unless sentry_token.present?
           return { success: false, error: "SENTRY_AUTH_TOKEN not configured", status: :service_unavailable }
         end
 
-        uri = URI("#{SENTRY_API_BASE}/projects/#{sentry_org}/#{sentry_project}/issues/?query=is:unresolved&sort=freq&statsPeriod=14d")
+        all_formatted = []
+        errors = []
 
-        response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 15) do |http|
-          request = Net::HTTP::Get.new(uri)
-          sentry_headers.each { |k, v| request[k] = v }
-          http.request(request)
+        sentry_projects.each do |project|
+          uri = URI("#{SENTRY_API_BASE}/projects/#{sentry_org}/#{project}/issues/?query=is:unresolved&sort=freq&statsPeriod=14d")
+
+          response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 15) do |http|
+            request = Net::HTTP::Get.new(uri)
+            sentry_headers.each { |k, v| request[k] = v }
+            http.request(request)
+          end
+
+          if response.code.to_i == 200
+            issues = JSON.parse(response.body)
+            all_formatted.concat(issues.map { |issue| format_issue(issue, project) })
+          else
+            Rails.logger.error "[Sentry] API error for #{project}: #{response.code} - #{response.body}"
+            errors << "#{project}: #{response.code}"
+          end
         end
 
-        if response.code.to_i == 200
-          issues = JSON.parse(response.body)
-          formatted = issues.map { |issue| format_issue(issue) }
+        # Sort merged results by count (frequency) descending
+        all_formatted.sort_by! { |i| -i[:count] }
+
+        if all_formatted.any? || errors.empty?
           {
             success: true,
             data: {
-              issues: formatted,
-              total_issues: formatted.size,
-              total_events: formatted.sum { |i| i[:count] },
-              critical_count: formatted.count { |i| i[:level] == "fatal" || i[:level] == "error" }
+              issues: all_formatted,
+              total_issues: all_formatted.size,
+              total_events: all_formatted.sum { |i| i[:count] },
+              critical_count: all_formatted.count { |i| i[:level] == "fatal" || i[:level] == "error" }
             }
           }
         else
-          Rails.logger.error "[Sentry] API error: #{response.code} - #{response.body}"
-          { success: false, error: "Sentry API returned #{response.code}", status: :bad_gateway }
+          { success: false, error: "Sentry API errors: #{errors.join(', ')}", status: :bad_gateway }
         end
       rescue Net::OpenTimeout, Net::ReadTimeout => e
         Rails.logger.error "[Sentry] Timeout: #{e.message}"
@@ -210,7 +228,7 @@ module Api
         { success: false, error: "Failed to contact Sentry API", status: :bad_gateway }
       end
 
-      def format_issue(issue)
+      def format_issue(issue, project = nil)
         {
           id: issue["id"],
           title: issue["title"],
@@ -223,6 +241,7 @@ module Api
           last_seen: issue["lastSeen"],
           permalink: issue["permalink"],
           short_id: issue["shortId"],
+          project: project,
           metadata: {
             type: issue.dig("metadata", "type"),
             value: issue.dig("metadata", "value")

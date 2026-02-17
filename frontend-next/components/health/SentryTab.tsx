@@ -29,6 +29,7 @@ interface SentryIssue {
   last_seen: string;
   permalink: string;
   short_id: string;
+  project: string | null;
   metadata: {
     type: string | null;
     value: string | null;
@@ -273,9 +274,19 @@ export function SentryTab() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="max-w-md">
-                        <p className="font-medium text-sm truncate" title={issue.title}>
-                          {issue.short_id}: {issue.title}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          {issue.project && (
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px] px-1.5 py-0 shrink-0", issue.project.includes("backend") ? "border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400" : "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400")}
+                            >
+                              {issue.project.includes("backend") ? "BE" : "FE"}
+                            </Badge>
+                          )}
+                          <p className="font-medium text-sm truncate" title={issue.title}>
+                            {issue.short_id}: {issue.title}
+                          </p>
+                        </div>
                         {issue.culprit && (
                           <p className="text-xs text-muted-foreground truncate" title={issue.culprit}>
                             {issue.culprit}

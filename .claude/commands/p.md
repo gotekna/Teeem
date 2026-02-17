@@ -177,29 +177,29 @@ cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
-cd "$DEPLOY_DIR"
-git init
-git add -A
-git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - it breaks VS Code's working directory tracking
+# Use 'git -C' to run git commands in temp dir without changing cwd
+git -C "$DEPLOY_DIR" init
+git -C "$DEPLOY_DIR" add -A
+git -C "$DEPLOY_DIR" commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
 # 1. Push to Staging (builds slug, runs release phase with migrations)
-git remote add staging https://git.heroku.com/teeem-staging.git
+git -C "$DEPLOY_DIR" remote add staging https://git.heroku.com/teeem-staging.git
 echo "📦 Building slug on Staging..."
-git push staging HEAD:main --force
+git -C "$DEPLOY_DIR" push staging HEAD:main --force
 if [ $? -ne 0 ]; then
-  cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+  rm -rf "$DEPLOY_DIR"
   echo "❌ Staging deploy failed - aborting pipeline"
   exit 1
 fi
 echo "✅ Staging deployed"
 
 # 2. Push to shared worker (same code, separate dyno)
-git remote add worker https://git.heroku.com/teeem-shared-worker.git
+git -C "$DEPLOY_DIR" remote add worker https://git.heroku.com/teeem-shared-worker.git
 echo "📦 Deploying shared worker..."
-git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+git -C "$DEPLOY_DIR" push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
 echo "✅ Shared worker deployed"
 
-cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 # 3. Promote compiled slug to Beta (no rebuild - instant copy)

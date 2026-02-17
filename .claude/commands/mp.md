@@ -49,27 +49,28 @@ sleep 1
 DEPLOY_DIR=$(mktemp -d)
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - it breaks VS Code's working directory tracking
+# Use 'git -C' to run git commands in temp dir without changing cwd
+git -C "$DEPLOY_DIR" init
+git -C "$DEPLOY_DIR" add .
+git -C "$DEPLOY_DIR" commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
 # Add all remotes upfront
-git remote add beta https://git.heroku.com/teeem-beta.git
-git remote add production https://git.heroku.com/teeem-production.git
+git -C "$DEPLOY_DIR" remote add beta https://git.heroku.com/teeem-beta.git
+git -C "$DEPLOY_DIR" remote add production https://git.heroku.com/teeem-production.git
 # 1. Deploy Beta web first (safety gate)
 echo "📦 Deploying → Beta..."
-git push beta HEAD:main --force
+git -C "$DEPLOY_DIR" push beta HEAD:main --force
 if [ $? -ne 0 ]; then
   echo "❌ Beta deploy failed - aborting pipeline"
-  cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+  rm -rf "$DEPLOY_DIR"
   exit 1
 fi
 echo "✅ Beta deployed"
 
 # 2. Deploy Production web
 echo "📦 Deploying → Production..."
-git push production HEAD:main --force
+git -C "$DEPLOY_DIR" push production HEAD:main --force
 if [ $? -eq 0 ]; then
   echo "✅ Production deployed"
 else
@@ -77,11 +78,10 @@ else
 fi
 
 # 3. Deploy shared worker
-git remote add worker https://git.heroku.com/teeem-shared-worker.git
+git -C "$DEPLOY_DIR" remote add worker https://git.heroku.com/teeem-shared-worker.git
 echo "📦 Deploying shared worker..."
-git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+git -C "$DEPLOY_DIR" push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
 
-cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 ```
 

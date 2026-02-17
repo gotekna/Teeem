@@ -141,24 +141,24 @@ DEPLOY_DIR=$(mktemp -d)
 # FIX (Feb 2026): Use rsync to copy ALL files including hidden (.slugignore)
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
 
-cd "$DEPLOY_DIR"
-git init
-git add -A
-git commit -m "Sync deploy $(date +%Y%m%d-%H%M%S)"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - it breaks VS Code's working directory tracking
+# Use 'git -C' to run git commands in temp dir without changing cwd
+git -C "$DEPLOY_DIR" init
+git -C "$DEPLOY_DIR" add -A
+git -C "$DEPLOY_DIR" commit -m "Sync deploy $(date +%Y%m%d-%H%M%S)"
 
 # Add all remotes upfront
-git remote add staging https://git.heroku.com/teeem-staging.git
-git remote add beta https://git.heroku.com/teeem-beta.git
-git remote add production https://git.heroku.com/teeem-production.git
+git -C "$DEPLOY_DIR" remote add staging https://git.heroku.com/teeem-staging.git
+git -C "$DEPLOY_DIR" remote add beta https://git.heroku.com/teeem-beta.git
+git -C "$DEPLOY_DIR" remote add production https://git.heroku.com/teeem-production.git
 
 # STEP 1: Deploy to Staging first (safety check)
 echo "📦 Deploying → Staging..."
-git push staging HEAD:main --force
+git -C "$DEPLOY_DIR" push staging HEAD:main --force
 STAGING_EXIT=$?
 
 if [ $STAGING_EXIT -ne 0 ]; then
   echo "❌ Staging deploy failed - aborting pipeline"
-  cd /Users/robertharder/GitHub/teeem
   rm -rf "$DEPLOY_DIR"
   exit 1
 fi
@@ -166,7 +166,7 @@ echo "✅ Staging backend deployed"
 
 # STEP 2: Deploy to Beta
 echo "📦 Deploying → Beta..."
-git push beta HEAD:main --force
+git -C "$DEPLOY_DIR" push beta HEAD:main --force
 if [ $? -eq 0 ]; then
   echo "✅ Beta deployed"
 else
@@ -175,7 +175,7 @@ fi
 
 # STEP 3: Deploy to Production
 echo "📦 Deploying → Production..."
-git push production HEAD:main --force
+git -C "$DEPLOY_DIR" push production HEAD:main --force
 if [ $? -eq 0 ]; then
   echo "✅ Production deployed"
 else
@@ -183,12 +183,11 @@ else
 fi
 
 # STEP 4: Deploy shared worker
-git remote add worker https://git.heroku.com/teeem-shared-worker.git
+git -C "$DEPLOY_DIR" remote add worker https://git.heroku.com/teeem-shared-worker.git
 echo "📦 Deploying shared worker..."
-git push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
+git -C "$DEPLOY_DIR" push worker HEAD:main --force || echo "⚠️ Shared worker deploy failed (non-blocking)"
 
 # Cleanup
-cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 
 echo "✅ All backend deploys complete"

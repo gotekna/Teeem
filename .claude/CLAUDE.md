@@ -688,13 +688,22 @@ If yes, batch the changes and wait until tomorrow unless it's a critical hotfix.
 ```bash
 cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
-# Use rsync to include hidden files like .slugignore
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
-cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
-git remote add heroku https://git.heroku.com/teeem-production.git
-git push heroku HEAD:main --force
-cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - use 'git -C' to avoid breaking VS Code cwd
+git -C "$DEPLOY_DIR" init && git -C "$DEPLOY_DIR" add . && git -C "$DEPLOY_DIR" commit -m "Fix deploy"
+git -C "$DEPLOY_DIR" remote add heroku https://git.heroku.com/teeem-production.git
+git -C "$DEPLOY_DIR" push heroku HEAD:main --force
+rm -rf "$DEPLOY_DIR"
 ```
+
+### 🔴 CRITICAL: Never `cd` to Temp Directories in Deploy Scripts
+
+**Deploy scripts use temp directories for Heroku pushes. NEVER `cd` into them.**
+
+- ❌ WRONG: `cd "$DEPLOY_DIR" && git init && ...` (breaks VS Code working directory, crashes extension host)
+- ✅ RIGHT: `git -C "$DEPLOY_DIR" init && ...` (runs git in temp dir without changing cwd)
+
+**Why:** VS Code tracks the terminal's working directory. If you `cd` to a temp dir that gets deleted, VS Code loses its git context, the extension host crashes, and "Claude Code: Open in Terminal" stops working.
 
 ## 🔴 Production Frontend (Vercel)
 

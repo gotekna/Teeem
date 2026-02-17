@@ -171,20 +171,20 @@ if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/" > /dev/null;
   done
 fi
 
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - it breaks VS Code's working directory tracking
+# Use 'git -C' to run git commands in temp dir without changing cwd
+git -C "$DEPLOY_DIR" init
+git -C "$DEPLOY_DIR" add .
+git -C "$DEPLOY_DIR" commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
 # Deploy to web app
-git remote add heroku https://git.heroku.com/teeem-staging.git
-git push heroku HEAD:main --force
+git -C "$DEPLOY_DIR" remote add heroku https://git.heroku.com/teeem-staging.git
+git -C "$DEPLOY_DIR" push heroku HEAD:main --force
 
 # Deploy to worker app (same code, separate slug with heavy gems)
-git remote add worker https://git.heroku.com/teeem-shared-worker.git
-git push worker HEAD:main --force
+git -C "$DEPLOY_DIR" remote add worker https://git.heroku.com/teeem-shared-worker.git
+git -C "$DEPLOY_DIR" push worker HEAD:main --force
 
-cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 ```
 
