@@ -1,4 +1,4 @@
-class CreateClaimStageTemplates < ActiveRecord::Migration[7.1]
+class RecreateClaimStageTemplates < ActiveRecord::Migration[7.1]
   def change
     create_table :claim_stage_templates do |t|
       t.bigint :tenant_id, null: false

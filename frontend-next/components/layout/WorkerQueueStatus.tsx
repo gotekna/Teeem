@@ -76,6 +76,16 @@ interface QueueStatusData {
     syncedCount: number;
   }>;
   throughputHistory: Array<{ minutesAgo: number; count: number }>;
+  dynos: Array<{
+    app: string;
+    environment: string;
+    dyno: string;
+    size: string;
+    quantity: number;
+    running: boolean;
+    cost: number;
+  }> | null;
+  threadCapacity: { total: number; used: number } | null;
 }
 
 function getStatusIconColor(status: QueueStatusLevel) {
@@ -671,8 +681,8 @@ export function WorkerQueueStatus() {
                     </div>
                   </div>
 
-                  {/* Resources: DB, Memory, Uptime */}
-                  {(data.dbConnections || data.memory || data.uptime) && (
+                  {/* Resources & Capacity */}
+                  {(data.dbConnections || data.memory || data.uptime || data.threadCapacity) && (
                     <div className="px-3 py-2 border-b border-border space-y-2">
                       <div className="flex justify-between items-center">
                         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
@@ -684,13 +694,16 @@ export function WorkerQueueStatus() {
                           </span>
                         )}
                       </div>
-                      {data.dbConnections && (
+
+                      {/* Worker thread capacity - works locally + production */}
+                      {data.threadCapacity && data.threadCapacity.total > 0 && (
                         <ResourceBar
-                          label="DB Connections"
-                          used={data.dbConnections.active}
-                          max={data.dbConnections.max}
+                          label="Worker Threads"
+                          used={data.threadCapacity.used}
+                          max={data.threadCapacity.total}
                         />
                       )}
+
                       {data.memory && (
                         <ResourceBar
                           label="Memory"
@@ -698,6 +711,43 @@ export function WorkerQueueStatus() {
                           max={data.memory.maxMb}
                           unit="MB"
                         />
+                      )}
+                      {data.dbConnections && (
+                        <ResourceBar
+                          label="DB Connections"
+                          used={data.dbConnections.active}
+                          max={data.dbConnections.max}
+                        />
+                      )}
+
+                      {/* Dyno list - only on deployed environments with Heroku API */}
+                      {data.dynos && data.dynos.length > 0 && (
+                        <div className="pt-1 space-y-0.5">
+                          {data.dynos.map((d) => (
+                            <div
+                              key={`${d.app}-${d.dyno}`}
+                              className="flex justify-between text-[10px] items-center"
+                            >
+                              <span className="flex items-center gap-1 min-w-0">
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full shrink-0",
+                                    d.running ? "bg-green-500" : "bg-muted-foreground"
+                                  )}
+                                />
+                                <span className="text-muted-foreground truncate">
+                                  {d.environment} {d.dyno}
+                                </span>
+                              </span>
+                              <span className={cn(
+                                "shrink-0 ml-2 tabular-nums",
+                                d.running ? "text-muted-foreground" : "text-orange-500 dark:text-orange-400"
+                              )}>
+                                {d.running ? d.size : "off"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   )}

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_200003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_17_200005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1250,6 +1250,36 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200003) do
     t.index ["style_key"], name: "index_claim_invoice_templates_on_style_key"
     t.index ["tenant_id", "sync_key"], name: "idx_claim_invoice_templates_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_claim_invoice_templates_on_tenant_id"
+  end
+
+  create_table "claim_stage_template_lines", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "claim_stage_template_id", null: false
+    t.string "name", limit: 100, null: false
+    t.decimal "percentage", precision: 5, scale: 2, null: false
+    t.integer "sequence_order", default: 0, null: false
+    t.string "description"
+    t.decimal "retainage_percentage", precision: 5, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
+    t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
+    t.index ["tenant_id"], name: "index_claim_stage_template_lines_on_tenant_id"
+  end
+
+  create_table "claim_stage_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0
+    t.decimal "default_retainage_pct", precision: 5, scale: 2
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "idx_claim_stage_templates_tenant_name", unique: true
+    t.index ["tenant_id"], name: "index_claim_stage_templates_on_tenant_id"
   end
 
   create_table "cloudflare_credentials", force: :cascade do |t|
@@ -11115,6 +11145,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200003) do
   add_foreign_key "chat_messages", "tenants"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
+  add_foreign_key "claim_stage_template_lines", "claim_stage_templates"
   add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
   add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "colour_selection_templates", "tenants", on_delete: :cascade

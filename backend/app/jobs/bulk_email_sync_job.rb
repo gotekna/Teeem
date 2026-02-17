@@ -182,7 +182,7 @@ class BulkEmailSyncJob < ApplicationJob
       .where(microsoft_credential_id: @credential.id)
       .where(has_attachments: true)
       .where.not(mailbox_owner_email: nil)
-      .where("NOT EXISTS (SELECT 1 FROM warehouse_documents WHERE warehouse_documents.metadata->>'synced_email_id' = synced_emails.id::text AND warehouse_documents.source_type = 'email_attachment')")
+      .where("NOT EXISTS (SELECT 1 FROM warehouse_documents WHERE warehouse_documents.linkable_type = 'SyncedEmail' AND warehouse_documents.linkable_id = synced_emails.id AND warehouse_documents.source_type = 'email_attachment')")
       .order(:id)
 
     # Resume from checkpoint if available
@@ -243,10 +243,11 @@ class BulkEmailSyncJob < ApplicationJob
 
       if existing_blob
         # Deduplicate - just create WarehouseDocument link
+        # FRC (Feb 2026): Use linkable: (not documentable:) — attachment_documents queries by linkable
         WarehouseDocumentCreator.create!(
           filename: filename,
           source_type: "email_attachment",
-          documentable: email,
+          linkable: email,
           storage_blob: existing_blob,
           file_size: file_size || existing_blob.file_size,
           content_type: content_type || existing_blob.content_type,
@@ -263,10 +264,11 @@ class BulkEmailSyncJob < ApplicationJob
           content_type: content_type
         )
 
+        # FRC (Feb 2026): Use linkable: (not documentable:) — attachment_documents queries by linkable
         WarehouseDocumentCreator.create!(
           filename: filename,
           source_type: "email_attachment",
-          documentable: email,
+          linkable: email,
           storage_blob: blob,
           file_size: file_size || blob.file_size,
           content_type: content_type || blob.content_type,
