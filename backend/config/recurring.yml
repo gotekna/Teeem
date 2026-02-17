@@ -265,6 +265,17 @@ warehouse_daily_snapshot:
   queue: low
   schedule: at 2am every day
 
+# Self-healing: Repair bills with empty line_items
+# FRC (Feb 2026): Original sync fetched summary data (no LineItems).
+# Pagination fix prevents new gaps. This repairs existing ones surgically.
+# Fetches 30 invoices/run individually from Xero API.
+# Self-disabling: exits immediately when no repairs needed.
+xero_invoice_repair:
+  class: XeroInvoiceRepairJob
+  queue: xero_sync
+  args: [{}]
+  schedule: every 30 minutes
+
 # Sync Xero invoice data from Xero API to database
 # Keeps Stage 1 (Xero Data) up-to-date even if webhooks fail
 # Syncs all connected tenants every 5 minutes

@@ -156,6 +156,127 @@ class ExternalInvoiceSyncService
     end
   end
 
+  # Self-healing repair: fetch individual invoices that have empty line_items
+  # Instead of re-syncing everything, surgically fixes only broken records.
+  # Rate-limit friendly: processes batch_size per run, spreads across many runs.
+  def repair_empty_line_items(batch_size: 50)
+    Rails.logger.info("[ExternalInvoiceSyncService] Starting repair_empty_line_items (batch_size: #{batch_size})")
+
+    # Find all tenants with broken bills
+    tenant_ids = if @xero_tenant_id.present?
+                   [@xero_tenant_id]
+                 else
+                   ActsAsTenant.without_tenant do
+                     ExternalInvoice.where(invoice_type: "bill")
+                                    .where("line_items = '[]'::jsonb")
+                                    .where.not(external_id: nil)
+                                    .distinct.pluck(:xero_org_id).compact
+                   end
+                 end
+
+    if tenant_ids.empty?
+      Rails.logger.info("[ExternalInvoiceSyncService] No bills with empty line_items found - nothing to repair")
+      return { success: true, repaired: 0, errors: [], tenants_processed: 0 }
+    end
+
+    total_repaired = 0
+    total_errors = []
+    remaining_budget = batch_size
+
+    tenant_ids.each do |xero_tenant_id|
+      break if remaining_budget <= 0
+
+      # Check rate limit before each tenant
+      lockout = XeroRateLimitTracker.current_lockout(tenant_id: xero_tenant_id)
+      if lockout
+        Rails.logger.warn("[RepairLineItems] Tenant #{xero_tenant_id} rate-limited, skipping")
+        next
+      end
+
+      # Get bills needing repair for this tenant
+      bills = ActsAsTenant.without_tenant do
+        ExternalInvoice.where(
+          invoice_type: "bill",
+          xero_org_id: xero_tenant_id
+        ).where("line_items = '[]'::jsonb")
+         .where.not(external_id: nil)
+         .order(:created_at)
+         .limit(remaining_budget)
+      end
+
+      next if bills.empty?
+
+      Rails.logger.info("[RepairLineItems] Repairing #{bills.size} bills for tenant #{xero_tenant_id}")
+
+      bills.each do |bill|
+        begin
+          # Fetch this single invoice from Xero by ID (returns full data with line items)
+          response = @api_client.get("Invoices/#{bill.external_id}", tenant_id: xero_tenant_id)
+
+          if response.is_a?(Hash) && response["Invoices"]&.first
+            invoice_data = response["Invoices"].first
+            line_items = invoice_data["LineItems"] || []
+
+            if line_items.present?
+              tracking_data = extract_tracking_categories(invoice_data)
+
+              ActsAsTenant.without_tenant do
+                bill.update!(
+                  line_items: line_items,
+                  tracking_data: tracking_data,
+                  raw_data: invoice_data,
+                  last_synced_at: Time.current
+                )
+              end
+
+              # Try to link to job if not already linked (tracking_data now available)
+              if bill.job_id.nil?
+                @current_teeem_tenant_id = bill.tenant_id
+                link_to_job(bill)
+              end
+
+              total_repaired += 1
+              Rails.logger.info("[RepairLineItems] Fixed #{bill.invoice_number} (#{line_items.size} line items)")
+            else
+              Rails.logger.warn("[RepairLineItems] #{bill.invoice_number} - Xero returned empty LineItems (invoice may be summary-only)")
+            end
+          else
+            Rails.logger.warn("[RepairLineItems] #{bill.invoice_number} - unexpected API response")
+          end
+
+          remaining_budget -= 1
+          sleep(XERO_API_SLEEP_MS / 1000.0)
+
+        rescue XeroApiClient::RateLimitError => e
+          retry_after = e.message[/Retry after (\d+)/, 1]&.to_i || 60
+          Rails.logger.warn("[RepairLineItems] Rate limited, stopping. Retry after #{retry_after}s")
+          XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: xero_tenant_id)
+          total_errors << "Rate limited on tenant #{xero_tenant_id}"
+          break
+        rescue StandardError => e
+          Rails.logger.error("[RepairLineItems] Error repairing #{bill.invoice_number}: #{e.message}")
+          total_errors << "#{bill.invoice_number}: #{e.message}"
+          remaining_budget -= 1
+          sleep(XERO_API_SLEEP_MS / 1000.0)
+        end
+      end
+    end
+
+    result = {
+      success: total_errors.empty?,
+      repaired: total_repaired,
+      errors: total_errors,
+      tenants_processed: tenant_ids.size
+    }
+
+    Rails.logger.info("[RepairLineItems] Complete: #{total_repaired} repaired, #{total_errors.size} errors")
+    result
+  rescue XeroApiClient::AuthenticationError => e
+    handle_sync_error("Authentication error during repair", e)
+  rescue StandardError => e
+    handle_sync_error("Repair failed", e, include_backtrace: true)
+  end
+
   # Incremental sync - only fetch invoices modified since last sync
   def sync_incremental(since: nil)
     since ||= ExternalInvoice.where(source: @source).maximum(:last_synced_at) || 1.year.ago
