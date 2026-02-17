@@ -266,17 +266,20 @@ module Api
           group_by_columns: []
         ).tap do |permitted|
           # Manually permit complex nested structures that Rails strong params can't handle
-          if params[:foundation_view][:filters].present?
-            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          # FRC (Feb 2026): Use .key? not .present? — empty arrays/hashes ARE valid values.
+          # [].present? returns false, so clearing group_by/filters/sort was silently ignored.
+          view_params = params[:foundation_view]
+          if view_params.key?(:filters)
+            permitted[:filters] = view_params[:filters].present? ? view_params[:filters].to_unsafe_h : {}
           end
-          if params[:foundation_view][:columns].present?
-            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          if view_params.key?(:columns)
+            permitted[:columns] = view_params[:columns].present? ? view_params[:columns].to_unsafe_h : {}
           end
-          if params[:foundation_view][:sort_order].present?
-            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          if view_params.key?(:sort_order)
+            permitted[:sort_order] = view_params[:sort_order].present? ? view_params[:sort_order].map(&:to_unsafe_h) : []
           end
-          if params[:foundation_view][:group_by_columns].present?
-            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          if view_params.key?(:group_by_columns)
+            permitted[:group_by_columns] = view_params[:group_by_columns].present? ? view_params[:group_by_columns].to_a : []
           end
         end
       end
@@ -297,17 +300,19 @@ module Api
           sort_order: [ :column, :dir ],
           group_by_columns: []
         ).tap do |permitted|
-          if params[:foundation_view][:filters].present?
-            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          # FRC (Feb 2026): Use .key? not .present? — same fix as create params above
+          view_params = params[:foundation_view]
+          if view_params.key?(:filters)
+            permitted[:filters] = view_params[:filters].present? ? view_params[:filters].to_unsafe_h : {}
           end
-          if params[:foundation_view][:columns].present?
-            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          if view_params.key?(:columns)
+            permitted[:columns] = view_params[:columns].present? ? view_params[:columns].to_unsafe_h : {}
           end
-          if params[:foundation_view][:sort_order].present?
-            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          if view_params.key?(:sort_order)
+            permitted[:sort_order] = view_params[:sort_order].present? ? view_params[:sort_order].map(&:to_unsafe_h) : []
           end
-          if params[:foundation_view][:group_by_columns].present?
-            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          if view_params.key?(:group_by_columns)
+            permitted[:group_by_columns] = view_params[:group_by_columns].present? ? view_params[:group_by_columns].to_a : []
           end
         end
       end

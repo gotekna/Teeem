@@ -534,14 +534,6 @@ module Api
           return render_error("This job has no Xero tracking option linked", status: :bad_request)
         end
 
-        # Get tracking category ID from local tracking options table
-        tracking_option = XeroTrackingOption.find_by(xero_tracking_option_id: tracking_option_id)
-        tracking_category_id = tracking_option&.xero_tracking_category_id
-
-        if tracking_category_id.blank?
-          return render_error("Could not determine tracking category for this job", status: :bad_request)
-        end
-
         # Find Xero connection for current tenant
         connection = CorporateXeroConnection.joins(:corporate)
           .where(corporates: { tenant_id: current_tenant.id })
@@ -560,6 +552,33 @@ module Api
         end
 
         begin
+          client = XeroApiClient.new
+
+          # Get tracking category ID - check local cache first, then fetch from Xero
+          tracking_option = XeroTrackingOption.find_by(xero_tracking_option_id: tracking_option_id)
+          tracking_category_id = tracking_option&.xero_tracking_category_id
+
+          if tracking_category_id.blank?
+            # Fetch from Xero API: find the category containing this option
+            cat_result = client.get("TrackingCategories", tenant_id: connection.xero_tenant_id)
+            if cat_result[:success]
+              categories = cat_result[:data]["TrackingCategories"] || []
+              categories.each do |cat|
+                options = cat["Options"] || []
+                if options.any? { |o| o["TrackingOptionID"] == tracking_option_id }
+                  tracking_category_id = cat["TrackingCategoryID"]
+                  # Cache it for future use
+                  tracking_option&.update_column(:xero_tracking_category_id, tracking_category_id) if tracking_option
+                  break
+                end
+              end
+            end
+          end
+
+          if tracking_category_id.blank?
+            return render_error("Could not determine tracking category for this job. The tracking option may not exist in Xero.", status: :bad_request)
+          end
+
           # Default to Australian financial year (1 Jul - 30 Jun)
           today = Date.current
           fy_start = today.month >= 7 ? Date.new(today.year, 7, 1) : Date.new(today.year - 1, 7, 1)
@@ -570,7 +589,6 @@ module Api
           periods = (params[:periods] || 3).to_i
           timeframe = params[:timeframe] || "YEAR"
 
-          client = XeroApiClient.new
           result = client.get(
             "Reports/ProfitAndLoss",
             tenant_id: connection.xero_tenant_id,
