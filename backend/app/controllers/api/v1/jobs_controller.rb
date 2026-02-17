@@ -538,21 +538,27 @@ module Api
           tenant_id: @job.tenant_id
         )
 
+        # Map component_name OR tab_key to the correct count query
+        # Uses JOB_TAB_COMPONENTS mapping (same as frontend) to identify tab purpose
+        claims_fn = -> { @job.job_claim_stages.count }
+        expenses_fn = -> { @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count }
+        xero_invoices_fn = -> { invoices.where(invoice_type: "sales_invoice").count }
+        xero_bills_fn = -> { invoices.where(invoice_type: "bill").count }
+
+        # component_name keys (when set) + tab_key keys (when component_name is nil)
+        count_map = {
+          "JobClaimStagesTab" => claims_fn, "claims" => claims_fn,
+          "JobExpensesTab" => expenses_fn, "expenses" => expenses_fn,
+          "XeroInvoicesCard" => xero_invoices_fn, "claims---xero" => xero_invoices_fn, "claims-xero" => xero_invoices_fn,
+          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn
+        }
+
         counts = {}
         if finance_tab
           finance_tab.children.where(enabled: true).each do |child|
-            component = child.component_name || child.tab_key
-            count = case component
-                    when "JobClaimStagesTab", /claim/i
-                      @job.job_claim_stages.count
-                    when "JobExpensesTab", /expense/i
-                      @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count
-                    when "XeroInvoicesCard"
-                      invoices.where(invoice_type: "sales_invoice").count
-                    when "XeroBillsCard"
-                      invoices.where(invoice_type: "bill").count
-                    end
-            counts[child.tab_key] = count if count
+            # Try component_name first (explicit), then tab_key (convention)
+            resolver = count_map[child.component_name] || count_map[child.tab_key]
+            counts[child.tab_key] = resolver.call if resolver
           end
         end
 
