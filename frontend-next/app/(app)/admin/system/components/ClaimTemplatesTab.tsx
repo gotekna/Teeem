@@ -46,6 +46,7 @@ interface TemplateLine {
   sequenceOrder: number;
   description: string | null;
   retainagePercentage: number | null;
+  matchKeywords: string | null;
 }
 
 interface ClaimTemplate {
@@ -70,6 +71,7 @@ interface EditingLine {
   percentage: string;
   description: string;
   retainagePercentage: string;
+  matchKeywords: string;
   _destroy?: boolean;
 }
 
@@ -115,7 +117,7 @@ export function ClaimTemplatesTab() {
     setEditDescription("");
     setEditDefaultRetainage("");
     setEditLines([
-      { name: "", percentage: "", description: "", retainagePercentage: "" },
+      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "" },
     ]);
     setShowEditDialog(true);
   };
@@ -132,6 +134,7 @@ export function ClaimTemplatesTab() {
         percentage: line.percentage.toString(),
         description: line.description || "",
         retainagePercentage: line.retainagePercentage?.toString() || "",
+        matchKeywords: line.matchKeywords || "",
       }))
     );
     setShowEditDialog(true);
@@ -140,7 +143,7 @@ export function ClaimTemplatesTab() {
   const handleAddLine = () => {
     setEditLines((prev) => [
       ...prev,
-      { name: "", percentage: "", description: "", retainagePercentage: "" },
+      { name: "", percentage: "", description: "", retainagePercentage: "", matchKeywords: "" },
     ]);
   };
 
@@ -205,6 +208,7 @@ export function ClaimTemplatesTab() {
             retainage_percentage: line.retainagePercentage
               ? parseFloat(line.retainagePercentage)
               : null,
+            match_keywords: line.matchKeywords || null,
             ...(line._destroy ? { _destroy: true } : {}),
           })),
         },
@@ -369,7 +373,8 @@ export function ClaimTemplatesTab() {
                           <TableHead className="w-12">#</TableHead>
                           <TableHead>Stage Name</TableHead>
                           <TableHead className="text-right w-24">%</TableHead>
-                          <TableHead className="w-48">Description</TableHead>
+                          <TableHead className="w-40">Description</TableHead>
+                          <TableHead className="w-40">Match Keywords</TableHead>
                           {template.lines.some((l) => l.retainagePercentage && l.retainagePercentage > 0) && (
                             <TableHead className="text-right w-24">Retainage %</TableHead>
                           )}
@@ -389,6 +394,9 @@ export function ClaimTemplatesTab() {
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                               {line.description || ""}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground font-mono">
+                              {line.matchKeywords || ""}
                             </TableCell>
                             {template.lines.some((l) => l.retainagePercentage && l.retainagePercentage > 0) && (
                               <TableCell className="text-right text-sm font-mono">
@@ -495,7 +503,14 @@ export function ClaimTemplatesTab() {
                         value={line.description}
                         onChange={(e) => handleUpdateLine(index, "description", e.target.value)}
                         placeholder="Description"
-                        className="w-40 h-8 text-sm"
+                        className="w-32 h-8 text-sm"
+                      />
+                      <Input
+                        value={line.matchKeywords}
+                        onChange={(e) => handleUpdateLine(index, "matchKeywords", e.target.value)}
+                        placeholder="Keywords"
+                        title="Comma-separated keywords for auto-matching Xero invoices (e.g., lock,lockup,enclosed)"
+                        className="w-36 h-8 text-sm text-muted-foreground"
                       />
                       <Button
                         variant="ghost"

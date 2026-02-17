@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_200009) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_18_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1262,6 +1262,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200009) do
     t.decimal "retainage_percentage", precision: 5, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "match_keywords"
     t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
     t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
     t.index ["tenant_id"], name: "index_claim_stage_template_lines_on_tenant_id"
@@ -5899,6 +5900,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_200009) do
     t.datetime "retainage_released_at"
     t.bigint "retainage_release_invoice_id"
     t.integer "claim_sequence_number"
+    t.string "match_keywords"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
     t.index ["job_id", "sequence_order"], name: "idx_job_claim_stages_ordering"

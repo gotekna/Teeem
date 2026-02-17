@@ -74,7 +74,8 @@ module Api
               sequence_order: line.sequence_order,
               description: line.description,
               is_custom: false,
-              retainage_percentage: line.retainage_percentage || @template.default_retainage_pct || 0
+              retainage_percentage: line.retainage_percentage || @template.default_retainage_pct || 0,
+              match_keywords: line.match_keywords
             )
             created_stages << stage
           end
@@ -125,7 +126,7 @@ module Api
           :name, :description, :is_active, :position, :default_retainage_pct,
           lines_attributes: [
             :id, :name, :percentage, :sequence_order, :description,
-            :retainage_percentage, :_destroy
+            :retainage_percentage, :match_keywords, :_destroy
           ]
         )
       end
@@ -154,7 +155,8 @@ module Api
           percentage: line.percentage.to_f,
           sequenceOrder: line.sequence_order,
           description: line.description,
-          retainagePercentage: line.retainage_percentage&.to_f
+          retainagePercentage: line.retainage_percentage&.to_f,
+          matchKeywords: line.match_keywords
         }
       end
 

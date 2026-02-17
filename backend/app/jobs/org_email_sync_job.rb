@@ -260,10 +260,23 @@ class OrgEmailSyncJob < ApplicationJob
           depth_year = mailbox_sync_depth[user_email.downcase]
           target_year = Date.current.year - sync_years
           backfilling = false
+          backfill_completed = (sync_config["backfill_completed"] || {})[user_email.downcase]
 
-          if mb_last_synced.nil? || (depth_year && depth_year >= target_year)
-            # Initial sync or still backfilling - use year-bounded sync
-            depth_year ||= Date.current.year
+          # ⚠️ ULTRA FIX (Feb 2026): Detect pre-feature mailboxes that never got backfilled
+          # ════════════════════════════════════════════════════════════════
+          # Root cause: Mailboxes synced BEFORE year-by-year was added (e.g., Caleb@bypilgrim.co)
+          # have mailbox_synced_at set but no mailbox_sync_depth entry. The condition
+          # `depth_year && depth_year >= target_year` is false (depth_year=nil), so they
+          # only do incremental sync (last 24h). Result: Caleb had 442 emails, ALL from 2026.
+          # 15 years of history was never fetched.
+          # Fix: If mailbox_synced_at is set but depth was never tracked AND backfill was never
+          # completed, restart backfill from last year (current year already synced incrementally).
+          # ════════════════════════════════════════════════════════════════
+          needs_backfill = mb_last_synced.present? && depth_year.nil? && !backfill_completed
+
+          if mb_last_synced.nil? || (depth_year && depth_year >= target_year) || needs_backfill
+            # Initial sync, active backfill, or pre-feature mailbox needing historical sync
+            depth_year ||= needs_backfill ? (Date.current.year - 1) : Date.current.year
             backfilling = true
           end
 
@@ -302,15 +315,18 @@ class OrgEmailSyncJob < ApplicationJob
             @last_folder_results = nil
           end
 
-          # ⚠️ ULTRA FIX (Feb 2026): Multi-year backfill tracking
-          # sync_user_emails now processes as many years as fit in the time budget.
+          # ⚠️ ULTRA FIX (Feb 2026): Multi-year backfill tracking + completion flag
+          # sync_user_emails processes as many years as fit in the time budget.
           # @next_depth_year tells us where it stopped (nil = all years complete).
+          # backfill_completed_map prevents re-triggering backfill for pre-feature mailboxes.
+          backfill_completed_map = sync_config["backfill_completed"] || {}
           if backfilling
             if @next_depth_year
               mailbox_sync_depth[user_email.downcase] = @next_depth_year
               Rails.logger.info "[OrgEmailSync] #{user_email}: backfilled from #{depth_year} to #{@next_depth_year + 1}, next cycle starts at #{@next_depth_year}"
             else
               mailbox_sync_depth.delete(user_email.downcase)
+              backfill_completed_map[user_email.downcase] = Time.current.iso8601
               Rails.logger.info "[OrgEmailSync] #{user_email}: backfill complete (reached #{target_year})"
             end
           end
@@ -321,7 +337,8 @@ class OrgEmailSyncJob < ApplicationJob
             "mailbox_error_counts" => mailbox_error_counts,
             "mailbox_errors" => mailbox_errors,
             "folder_stats" => folder_stats,
-            "mailbox_sync_depth" => mailbox_sync_depth
+            "mailbox_sync_depth" => mailbox_sync_depth,
+            "backfill_completed" => backfill_completed_map
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
