@@ -95,6 +95,7 @@ interface QueueStatusData {
     threads?: { total: number; used: number };
     queues?: string[];
     memory: { usedMb: number | null; maxMb: number; live: boolean } | null;
+    dbConnections?: number;
   }> | null;
 }
 
@@ -779,6 +780,21 @@ export function WorkerQueueStatus() {
                                       </span>
                                     </div>
                                   )}
+
+                                  {app.dbConnections != null && app.dbConnections > 0 && (
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      <span className="text-muted-foreground w-12 shrink-0">DB</span>
+                                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                        <div
+                                          className="h-full rounded-full transition-all bg-blue-500"
+                                          style={{ width: `${Math.min((app.dbConnections / (data?.dbConnections?.max || 500)) * 100, 100)}%` }}
+                                        />
+                                      </div>
+                                      <span className="tabular-nums w-8 text-right text-muted-foreground">
+                                        {app.dbConnections}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
@@ -805,14 +821,28 @@ export function WorkerQueueStatus() {
                         </>
                       )}
 
-                      {/* DB Connections - shared (same database) */}
+                      {/* DB Connections total (shared database) */}
                       {data.dbConnections && (
-                        <div className="pt-1">
-                          <ResourceBar
-                            label="DB Connections"
-                            used={data.dbConnections.active}
-                            max={data.dbConnections.max}
-                          />
+                        <div className="pt-1.5 mt-1 border-t border-border/50">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-muted-foreground">DB Total</span>
+                            <span className="tabular-nums text-muted-foreground">
+                              {data.dbConnections.active}/{data.dbConnections.max}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 h-1 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                (data.dbConnections.active / data.dbConnections.max) > 0.8
+                                  ? "bg-red-500"
+                                  : (data.dbConnections.active / data.dbConnections.max) > 0.6
+                                    ? "bg-orange-500"
+                                    : "bg-green-500"
+                              )}
+                              style={{ width: `${Math.min((data.dbConnections.active / data.dbConnections.max) * 100, 100)}%` }}
+                            />
+                          </div>
                         </div>
                       )}
                     </div>

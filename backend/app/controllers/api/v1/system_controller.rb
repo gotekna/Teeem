@@ -696,6 +696,9 @@ module Api
           cached_memories[current_app] ||= { usedMb: rss_kb / 1024 }
         end
 
+        # Per-app DB connections (from pg_stat_activity grouped by application_name)
+        db_by_app = compute_db_connections_by_app
+
         ALL_APPS.map do |app_def|
           app_name = app_def[:name]
           label = app_def[:label]
@@ -732,7 +735,8 @@ module Api
               usedMb: cached_mem&.dig(:usedMb),
               maxMb: max_mb,
               live: cached_mem.present?
-            }
+            },
+            dbConnections: db_by_app[app_name] || 0
           }
 
           # Only include thread data for worker apps
@@ -746,6 +750,22 @@ module Api
       rescue StandardError => e
         Rails.logger.debug "[SystemController] compute_worker_apps failed: #{e.message}"
         nil
+      end
+
+      # Returns { "teeem-production" => 12, "teeem-shared-worker" => 8, ... }
+      # Groups pg_stat_activity by application_name (set in database.yml)
+      def compute_db_connections_by_app
+        rows = ActiveRecord::Base.connection.execute(<<~SQL)
+          SELECT application_name, count(*) AS cnt
+          FROM pg_stat_activity
+          WHERE datname = current_database()
+            AND application_name != ''
+          GROUP BY application_name
+        SQL
+        rows.to_h { |r| [r["application_name"], r["cnt"].to_i] }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_db_connections_by_app failed: #{e.message}"
+        {}
       end
 
       # Returns { "teeem-production" => { size: "Basic", quantity: 1 }, ... } from Heroku API
