@@ -9950,6 +9950,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_210000) do
     t.jsonb "email_star_colors", default: {"red"=>{"hex"=>"#EF4444", "label"=>"Red"}, "blue"=>{"hex"=>"#3B82F6", "label"=>"Blue"}, "green"=>{"hex"=>"#22C55E", "label"=>"Green"}, "orange"=>{"hex"=>"#F97316", "label"=>"Orange"}, "purple"=>{"hex"=>"#A855F7", "label"=>"Purple"}, "yellow"=>{"hex"=>"#EAB308", "label"=>"Yellow"}}, comment: "Star color options for email states"
     t.jsonb "email_priority_levels", default: {"low"=>{"icon"=>"arrow-down", "label"=>"Low"}, "high"=>{"icon"=>"alert-circle", "label"=>"High"}, "normal"=>{"icon"=>"minus", "label"=>"Normal"}}, comment: "Email priority levels with display metadata"
     t.string "xero_tracking_category_name", default: "Job", comment: "Xero tracking category name used for job matching (e.g., 'Job', 'JOB ID')"
+    t.string "po_template_variant", default: "classic", comment: "PO visual design variant (classic, modern, bold, compact, professional, construction, custom)"
+    t.text "po_custom_template", comment: "Custom HTML template for PO (used when po_template_variant is 'custom')"
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

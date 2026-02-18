@@ -894,6 +894,9 @@ Rails.application.routes.draw do
           post :bulk_lock_budget
           post :bulk_unlock_budget
           post :toggle_budget_lock
+          post :match_xero_bills
+          get :template_variants
+          get :template_preview
         end
         member do
           post :approve
@@ -1749,6 +1752,8 @@ Rails.application.routes.draw do
           patch :brand, action: :update_brand
           post "brand/detect", action: :detect_brand
           post "brand/apply", action: :apply_brand
+          get :po_template
+          put :po_template, action: :update_po_template
         end
       end
 

@@ -847,7 +847,13 @@ export default function PurchaseOrderDetailPage() {
       const html = await api.getText(`/api/v1/purchase_orders/${recordId}/generate_pdf`, {
         params: { format: 'html' }
       });
-      setPreviewHtml(html);
+      // Inject style to constrain content to fit within iframe and prevent overflow
+      // NOTE: Do NOT use global img{max-width:100%;height:auto} - it overrides template logo sizing
+      const previewStyle = '<style>*{box-sizing:border-box}html,body{width:100%;max-width:100%;margin:0;padding:0;overflow-x:hidden}.page{width:100%;max-width:100%;box-sizing:border-box;overflow:hidden}</style>';
+      const styledHtml = html.includes('</head>')
+        ? html.replace('</head>', `${previewStyle}</head>`)
+        : `${previewStyle}${html}`;
+      setPreviewHtml(styledHtml);
       setPreviewModalOpen(true);
     } catch (err) {
       console.error("Failed to load preview:", err);
@@ -2062,18 +2068,18 @@ export default function PurchaseOrderDetailPage() {
 
       {/* Preview Modal */}
       <Dialog open={previewModalOpen} onOpenChange={setPreviewModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-[850px] h-[100vh] max-h-[100vh] overflow-hidden flex flex-col rounded-none sm:rounded-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
               Purchase Order Preview
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-auto border rounded-lg bg-white">
+          <div className="flex-1 min-h-0 overflow-hidden border rounded-lg bg-white">
             {previewHtml ? (
               <iframe
                 srcDoc={previewHtml}
-                className="w-full h-full min-h-[60vh]"
+                className="w-full h-full bg-white border-0"
                 title="PO Preview"
               />
             ) : (

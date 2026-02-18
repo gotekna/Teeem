@@ -133,6 +133,15 @@ corporate_xero_data_sync:
   queue: low
   schedule: at 6am every day
 
+# Auto-match Xero bills to native POs and update Xero Reference field
+# Finds Xero-imported POs, matches to manual POs by supplier+amount,
+# then writes PO number (e.g. PO-002452) to Xero bill's Reference field.
+# Runs daily at 7am Brisbane time (after overnight syncs, before work starts)
+xero_bill_po_match:
+  class: XeroBillPoMatchJob
+  queue: xero_sync
+  schedule: at 7am every day
+
 # GL Backup Sync - catches any webhook failures
 # SSoT: Webhooks are primary for GL sync, this is BACKUP only
 # Syncs tenants that are stale (>4 hours since last sync)

@@ -476,6 +476,28 @@ module Api
         render_error("Failed to unlock budgets: #{e.message}", status: :unprocessable_entity)
       end
 
+      # POST /api/v1/purchase_orders/match_xero_bills
+      # Match Xero-imported POs to native POs and update Xero bill Reference field
+      # Params: { job_id: optional - scope to a single job }
+      def match_xero_bills
+        job = params[:job_id].present? ? Job.find(params[:job_id]) : nil
+        service = XeroBillPoMatcherService.new(job: job)
+        result = service.match_and_update!
+
+        render json: {
+          success: true,
+          data: result,
+          message: "Matched #{result[:matched]} Xero bills to POs, updated #{result[:updated_xero]} in Xero"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Job not found" }, status: :not_found
+      rescue XeroApiClient::AuthenticationError => e
+        render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+      rescue StandardError => e
+        Rails.logger.error("[MatchXeroBills] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # POST /api/v1/purchase_orders/smart_lookup
       # Smart lookup for PO auto-population
       # Params: { construction_id, task_description, category, quantity, supplier_preference }
@@ -879,6 +901,43 @@ module Api
       rescue => e
         Rails.logger.error "[PO SendEmail] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
         render_error("Failed to send email: #{e.message}", status: :internal_server_error)
+      end
+
+      # GET /api/v1/purchase_orders/template_variants
+      # List all available PO template variants with names/descriptions
+      def template_variants
+        variants = [
+          { key: "classic", name: "Classic Corporate", description: "Logo left, details right. Black header bar on line items. Traditional layout.", active: TenantSetting.po_template_variant == "classic" },
+          { key: "modern", name: "Modern Minimal", description: "Generous whitespace. Thin hairline dividers. Light gray accents.", active: TenantSetting.po_template_variant == "modern" },
+          { key: "bold", name: "Bold & Branded", description: "Full-width colored header band. Large logo. Strong visual hierarchy.", active: TenantSetting.po_template_variant == "bold" },
+          { key: "compact", name: "Compact Efficient", description: "Small fonts, tight spacing. Fits max line items per page.", active: TenantSetting.po_template_variant == "compact" },
+          { key: "professional", name: "Professional Clean", description: "Two-column header. Subtle color accents. Rounded info boxes.", active: TenantSetting.po_template_variant == "professional" },
+          { key: "construction", name: "Construction Industry", description: "Prominent delivery address & supervisor. Yellow safety accent.", active: TenantSetting.po_template_variant == "construction" },
+          { key: "custom", name: "Custom", description: "Your own HTML template. Full control over layout and styling.", active: TenantSetting.po_template_variant == "custom" }
+        ]
+        render json: { success: true, data: variants, current: TenantSetting.po_template_variant }
+      end
+
+      # GET /api/v1/purchase_orders/template_preview?variant=modern
+      # HTML preview for a specific variant using sample data
+      def template_preview
+        variant = params[:variant] || "classic"
+        valid_variants = %w[classic modern bold compact professional construction]
+        variant = "classic" unless valid_variants.include?(variant)
+
+        # Use first PO as sample data (or create minimal context)
+        sample_po = PurchaseOrder.includes(:supplier, :job, line_items: :pricebook_item).first
+        if sample_po
+          generator = TeknaDocumentGenerator.new(:purchase_order)
+          result = generator.generate(
+            purchase_order: sample_po,
+            html_only: true,
+            extra_data: { po_template_variant: variant }
+          )
+          render html: result[:html].html_safe
+        else
+          render html: "<p>No purchase orders available for preview. Create a PO first.</p>".html_safe
+        end
       end
 
       private
