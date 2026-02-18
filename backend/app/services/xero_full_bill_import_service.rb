@@ -48,16 +48,6 @@ class XeroFullBillImportService
 
     Rails.logger.info("Xero bill import completed: #{@stats.inspect}")
 
-    # After importing, try to match Xero bills to native POs and update References
-    begin
-      matcher = XeroBillPoMatcherService.new
-      match_result = matcher.match_and_update!
-      @stats[:po_matching] = match_result
-    rescue StandardError => e
-      Rails.logger.error("Xero bill PO matching failed (non-fatal): #{e.message}")
-      @stats[:po_matching] = { error: e.message }
-    end
-
     {
       success: true,
       stats: @stats

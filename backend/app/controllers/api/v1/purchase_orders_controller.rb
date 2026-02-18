@@ -477,17 +477,19 @@ module Api
       end
 
       # POST /api/v1/purchase_orders/match_xero_bills
-      # Match Xero-imported POs to native POs and update Xero bill Reference field
-      # Params: { job_id: optional - scope to a single job }
+      # Fetch Xero bills for a job, match to native POs, update Xero Reference field
+      # Params: { job_id: required }
       def match_xero_bills
-        job = params[:job_id].present? ? Job.find(params[:job_id]) : nil
+        return render json: { success: false, error: "job_id is required" }, status: :bad_request if params[:job_id].blank?
+
+        job = Job.find(params[:job_id])
         service = XeroBillPoMatcherService.new(job: job)
         result = service.match_and_update!
 
         render json: {
           success: true,
           data: result,
-          message: "Matched #{result[:matched]} Xero bills to POs, updated #{result[:updated_xero]} in Xero"
+          message: "Found #{result[:bills_found]} Xero bills, matched #{result[:matched]}, updated #{result[:updated_xero]} in Xero"
         }
       rescue ActiveRecord::RecordNotFound
         render json: { success: false, error: "Job not found" }, status: :not_found

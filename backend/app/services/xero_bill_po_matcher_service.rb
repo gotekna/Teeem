@@ -1,129 +1,226 @@
 # frozen_string_literal: true
 
-# Matches Xero-imported POs to native (manually-created) POs by supplier + amount,
-# then writes back the PO number to the Xero bill's Reference field.
+# Fetches bills from Xero for a job, matches them to existing POs by supplier + amount,
+# then writes the PO number back to the Xero bill's Reference field.
 #
-# This creates a two-way link:
-#   TEEEM → Xero: PurchaseOrder.xero_invoice_id
-#   Xero → TEEEM: Bill.Reference = "PO-002452"
+# This creates a two-way link visible in Xero:
+#   Xero bill Reference = "PO-002452"
+#
+# Also links the PO to the Xero bill locally:
+#   PurchaseOrder.xero_invoice_id = Xero InvoiceID
 #
 # Usage:
-#   # Match all unmatched Xero bills across all jobs
-#   XeroBillPoMatcherService.new.match_and_update!
-#
-#   # Match only for a specific job
+#   # Match Xero bills for a specific job
 #   XeroBillPoMatcherService.new(job: job).match_and_update!
 #
 class XeroBillPoMatcherService
   include XeroConstants
 
-  # Amount tolerance: Xero bill total must be within 5% of native PO total
+  # Amount tolerance: Xero bill total must be within 5% of PO total
   AMOUNT_TOLERANCE = 0.05
 
   attr_reader :stats
 
-  def initialize(job: nil)
+  def initialize(job:)
     @job = job
     @client = XeroApiClient.new
-    @stats = { matched: 0, updated_xero: 0, already_matched: 0, skipped: 0, errors: [] }
-    # Track which native POs have already been matched (one-to-one constraint)
-    @matched_native_po_ids = Set.new
+    @stats = { bills_found: 0, matched: 0, updated_xero: 0, already_matched: 0, skipped: 0, errors: [] }
+    # Track which POs have been matched (one-to-one constraint)
+    @matched_po_ids = Set.new
   end
 
   def match_and_update!
-    Rails.logger.info("[XeroBillPoMatcher] Starting match#{@job ? " for job ##{@job.id}" : " across all jobs"}")
+    Rails.logger.info("[XeroBillPoMatcher] Starting match for job ##{@job.id} (#{@job.job_code})")
 
-    # Pre-load native POs that are already matched to avoid re-matching
-    preload_existing_matches
+    # Pre-exclude POs already linked to a Xero bill
+    @matched_po_ids = PurchaseOrder
+      .where(job_id: @job.id)
+      .where.not(xero_invoice_id: [nil, ""])
+      .pluck(:id)
+      .to_set
 
-    xero_pos = xero_imported_pos
-    Rails.logger.info("[XeroBillPoMatcher] Found #{xero_pos.count} Xero-imported POs to check")
+    # Step 1: Fetch bills from Xero for this job
+    xero_bills = fetch_xero_bills_for_job
+    @stats[:bills_found] = xero_bills.length
+    Rails.logger.info("[XeroBillPoMatcher] Found #{xero_bills.length} Xero bills for #{@job.job_code}")
 
-    xero_pos.find_each do |xero_po|
-      match_single(xero_po)
+    # Step 2: Load native POs for this job
+    native_pos = PurchaseOrder
+      .where(job_id: @job.id)
+      .where(xero_invoice_id: [nil, ""])
+      .includes(:supplier)
+      .to_a
+
+    Rails.logger.info("[XeroBillPoMatcher] #{native_pos.length} native POs to match against")
+
+    # Step 3: Match each Xero bill to a PO
+    xero_bills.each do |bill|
+      match_bill_to_po(bill, native_pos)
     end
 
-    Rails.logger.info("[XeroBillPoMatcher] Complete: #{@stats.inspect}")
+    Rails.logger.info("[XeroBillPoMatcher] Complete: #{@stats.except(:errors).inspect}, errors=#{@stats[:errors].length}")
     @stats
   end
 
   private
 
-  # Find all Xero-imported POs (have xero_invoice_id set)
-  def xero_imported_pos
-    scope = PurchaseOrder.where.not(xero_invoice_id: [nil, ""])
-    scope = scope.where(job_id: @job.id) if @job
-    scope.includes(:supplier)
+  # Fetch all ACCPAY bills from Xero that are tracked to this job
+  def fetch_xero_bills_for_job
+    # Get tracking option IDs for this job
+    tracking_option_ids = XeroJobTrackingLink
+      .where(job_id: @job.id)
+      .pluck(:tracking_option_id)
+
+    # Also check legacy column
+    if @job.xero_tracking_option_id.present?
+      tracking_option_ids << @job.xero_tracking_option_id
+    end
+    tracking_option_ids.uniq!
+
+    if tracking_option_ids.empty?
+      Rails.logger.warn("[XeroBillPoMatcher] Job #{@job.job_code} has no Xero tracking options")
+      return []
+    end
+
+    Rails.logger.info("[XeroBillPoMatcher] Tracking option IDs: #{tracking_option_ids}")
+
+    # Fetch all ACCPAY (bills) from Xero - paginated
+    all_bills = fetch_all_xero_bills
+
+    # Filter to bills that have line items tracked to this job
+    matching_bills = all_bills.select do |bill|
+      bill_tracking_ids = extract_tracking_option_ids(bill)
+      (bill_tracking_ids & tracking_option_ids).any?
+    end
+
+    # Skip bills that already have a PO reference set
+    matching_bills.reject do |bill|
+      ref = bill["Reference"].to_s.strip
+      if ref.match?(/^PO-\d{6}$/)
+        @stats[:already_matched] += 1
+        true
+      else
+        false
+      end
+    end
   end
 
-  # Pre-load existing matches so we don't double-match within a single run.
-  # Note: Re-running the service on already-matched bills is safe (idempotent) -
-  # it will re-write the same PO number to Xero's Reference field.
-  def preload_existing_matches
-    # No persistent tracking yet - @matched_native_po_ids handles within-run dedup
+  def fetch_all_xero_bills
+    all_bills = []
+    page = 1
+
+    loop do
+      result = with_rate_limit_retry do
+        @client.get("Invoices", { where: 'Type=="ACCPAY"', page: page })
+      end
+      break unless result[:success]
+
+      invoices = result[:data]["Invoices"] || []
+      break if invoices.empty?
+
+      all_bills.concat(invoices)
+      page += 1
+      break if invoices.length < 100
+
+      sleep(XERO_PAGE_SLEEP_SEC)
+    end
+
+    Rails.logger.info("[XeroBillPoMatcher] Fetched #{all_bills.length} total Xero bills, fetching details...")
+
+    # Fetch full details for each (need line item tracking info)
+    all_bills.map.with_index do |bill, index|
+      if (index + 1) % 50 == 0
+        Rails.logger.info("[XeroBillPoMatcher] Fetching detail #{index + 1}/#{all_bills.length}...")
+      end
+      detail = fetch_invoice_detail(bill["InvoiceID"])
+      sleep(XERO_DETAIL_FETCH_SLEEP_SEC)
+      detail || bill
+    end.compact
   end
 
-  def match_single(xero_po)
-    # Find matching native PO (no xero_invoice_id = manually created)
-    candidates = find_native_candidates(xero_po)
+  def fetch_invoice_detail(invoice_id)
+    result = with_rate_limit_retry { @client.get("Invoices/#{invoice_id}") }
+    return nil unless result[:success]
+
+    (result[:data]["Invoices"] || []).first
+  end
+
+  def extract_tracking_option_ids(bill)
+    ids = []
+    (bill["LineItems"] || []).each do |line|
+      (line["Tracking"] || []).each do |tracking|
+        ids << tracking["TrackingOptionID"] if tracking["TrackingOptionID"]
+      end
+    end
+    ids.uniq
+  end
+
+  def match_bill_to_po(bill, native_pos)
+    invoice_id = bill["InvoiceID"]
+    invoice_number = bill["InvoiceNumber"]
+    bill_total = (bill["Total"] || 0).to_f
+    bill_supplier = bill.dig("Contact", "Name").to_s
+    xero_contact_id = bill.dig("Contact", "ContactID")
+
+    if bill_total.zero?
+      @stats[:skipped] += 1
+      return
+    end
+
+    # Find candidates: same supplier + similar amount
+    lower = bill_total * (1 - AMOUNT_TOLERANCE)
+    upper = bill_total * (1 + AMOUNT_TOLERANCE)
+
+    candidates = native_pos.select do |po|
+      next false if @matched_po_ids.include?(po.id)
+      next false if po.total.nil? || po.total.zero?
+      next false unless po.total.to_f.between?(lower, upper)
+
+      # Match supplier by contact link or name
+      supplier_matches?(po, xero_contact_id, bill_supplier)
+    end
 
     if candidates.empty?
       @stats[:skipped] += 1
+      Rails.logger.debug("[XeroBillPoMatcher] No match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
       return
     end
 
     # Pick best match: closest amount
-    best = candidates.min_by { |po| (po.total.to_f - xero_po.total.to_f).abs }
+    best = candidates.min_by { |po| (po.total.to_f - bill_total).abs }
 
-    # Skip if this native PO was already matched to another Xero bill
-    if @matched_native_po_ids.include?(best.id)
-      @stats[:skipped] += 1
-      return
-    end
-
-    # Update Xero bill's Reference field
-    success = update_xero_reference(xero_po.xero_invoice_id, best.purchase_order_number)
+    # Update Xero bill Reference field
+    success = update_xero_reference(invoice_id, best.purchase_order_number)
 
     if success
-      @matched_native_po_ids.add(best.id)
+      # Link the PO to this Xero bill locally
+      best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
+      @matched_po_ids.add(best.id)
       @stats[:matched] += 1
-      Rails.logger.info("[XeroBillPoMatcher] Matched Xero bill #{xero_po.xero_invoice_number} → #{best.purchase_order_number} (job ##{xero_po.job_id})")
+      Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}]")
     end
   rescue StandardError => e
-    error_msg = "Error matching Xero PO ##{xero_po.id}: #{e.message}"
+    error_msg = "Error matching bill #{invoice_number}: #{e.message}"
     Rails.logger.error("[XeroBillPoMatcher] #{error_msg}")
     @stats[:errors] << error_msg
   end
 
-  def find_native_candidates(xero_po)
-    return [] if xero_po.total.nil? || xero_po.total.zero?
+  def supplier_matches?(po, xero_contact_id, bill_supplier_name)
+    return false unless po.supplier_id.present?
 
-    lower = xero_po.total * (1 - AMOUNT_TOLERANCE)
-    upper = xero_po.total * (1 + AMOUNT_TOLERANCE)
-
-    # Base scope: same job, no xero_invoice_id (native PO), amount within tolerance
-    base = PurchaseOrder
-      .where(job_id: xero_po.job_id)
-      .where(xero_invoice_id: [nil, ""])
-      .where("total BETWEEN ? AND ?", lower, upper)
-    # Exclude native POs already matched to other Xero bills this run
-    base = base.where.not(id: @matched_native_po_ids.to_a) if @matched_native_po_ids.any?
-
-    # Try matching by supplier_id first (strongest match)
-    if xero_po.supplier_id.present?
-      by_supplier_id = base.where(supplier_id: xero_po.supplier_id)
-      return by_supplier_id.to_a if by_supplier_id.any?
+    # Try matching via ContactExternalLink (Xero contact → TEEEM contact)
+    if xero_contact_id.present?
+      link = ContactExternalLink.xero.find_by(external_contact_id: xero_contact_id)
+      return true if link&.contact_id == po.supplier_id
     end
 
-    # Fall back to fuzzy name match via xero_supplier → Contact.display_name
-    if xero_po.xero_supplier.present?
-      by_name = base
-        .joins("INNER JOIN contacts ON contacts.id = purchase_orders.supplier_id")
-        .where("contacts.display_name ILIKE ?", "%#{sanitize_like(xero_po.xero_supplier)}%")
-      return by_name.to_a if by_name.any?
+    # Fall back to name match
+    if bill_supplier_name.present? && po.supplier&.display_name.present?
+      po.supplier.display_name.downcase.include?(bill_supplier_name.downcase) ||
+        bill_supplier_name.downcase.include?(po.supplier.display_name.downcase)
+    else
+      false
     end
-
-    []
   end
 
   def update_xero_reference(xero_invoice_id, po_number)
@@ -149,8 +246,20 @@ class XeroBillPoMatcherService
     false
   end
 
-  # Sanitize LIKE pattern special characters
-  def sanitize_like(value)
-    value.gsub(/[%_\\]/) { |m| "\\#{m}" }
+  def with_rate_limit_retry(max_retries: 3)
+    retries = 0
+    begin
+      yield
+    rescue XeroApiClient::RateLimitError => e
+      retries += 1
+      if retries <= max_retries
+        wait_time = e.message.match(/after (\d+) seconds/)&.captures&.first&.to_i || 60
+        Rails.logger.warn("[XeroBillPoMatcher] Rate limit hit, waiting #{wait_time}s (retry #{retries}/#{max_retries})")
+        sleep(wait_time + 1)
+        retry
+      else
+        raise
+      end
+    end
   end
 end

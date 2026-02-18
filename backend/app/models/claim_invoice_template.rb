@@ -15,7 +15,7 @@ class ClaimInvoiceTemplate < ApplicationRecord
   include ConfigSyncable
 
   # Style keys for the different template designs
-  STYLE_KEYS = %w[classic modern bold minimal].freeze
+  STYLE_KEYS = %w[classic modern bold minimal compact construction].freeze
   HEADER_STYLES = %w[standard banner minimal].freeze
   LOGO_POSITIONS = %w[left center right].freeze
 
