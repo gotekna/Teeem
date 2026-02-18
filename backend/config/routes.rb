@@ -4632,6 +4632,17 @@ Rails.application.routes.draw do
         post "openclaw/notes", to: "openclaw#notes"
         post "openclaw/job_updates", to: "openclaw#job_updates"
         post "openclaw/contacts", to: "openclaw#contacts"
+        # Jobs
+        get "openclaw/jobs", to: "openclaw#jobs_list"
+        get "openclaw/jobs/:id", to: "openclaw#jobs_show"
+        # Tasks
+        get "openclaw/tasks", to: "openclaw#tasks_list"
+        get "openclaw/tasks/:id", to: "openclaw#tasks_show"
+        post "openclaw/tasks", to: "openclaw#tasks_create"
+        patch "openclaw/tasks/:id", to: "openclaw#tasks_update"
+        # Documents
+        get "openclaw/documents", to: "openclaw#documents_list"
+        get "openclaw/documents/:id", to: "openclaw#documents_show"
       end
     end
   end

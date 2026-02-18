@@ -227,6 +227,7 @@ export interface TeeemTableViewProps {
   // Data Health widget
   showDataHealth?: boolean;
   onDataHealthIssueClick?: (item: unknown, check: unknown) => void;
+  healthPageHref?: string; // Override "View all health checks" link (e.g., "/pricebook/health")
 
   // Display options
   initialShowTotals?: boolean; // Initial value for showing totals row (default: true)

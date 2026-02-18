@@ -2,6 +2,25 @@ class User < ApplicationRecord
   acts_as_tenant :tenant  # Multi-tenancy: Auto-scope all User queries to current tenant
   has_secure_password validations: false  # Disable default validations to make password optional for OAuth
 
+  # SSoT: All OpenClaw API permissions (Feb 2026)
+  DEFAULT_OPENCLAW_PERMISSIONS = {
+    # Communication
+    "chat_messages" => false, "notes" => false, "send_emails" => false,
+    # Jobs
+    "jobs_read" => false, "jobs_create" => false, "jobs_update" => false, "job_updates" => false,
+    # Contacts
+    "contacts_read" => false, "contacts_create" => false, "contacts_update" => false,
+    # Documents
+    "documents_search" => false, "documents_read" => false, "documents_upload" => false,
+    # Financial
+    "estimates_read" => false, "estimates_create" => false,
+    "purchase_orders_read" => false, "purchase_orders_create" => false, "invoices_read" => false,
+    # Schedule & Tasks
+    "tasks_read" => false, "tasks_create" => false, "tasks_update" => false, "schedule_read" => false,
+    # Other
+    "pricebook_read" => false, "reports_read" => false, "webhooks" => false,
+  }.freeze
+
   belongs_to :user_group, optional: true
   # SSoT: Every User MUST have a Contact (User is auth ONLY, Contact is identity)
   # Contact stores all personal info: name, emails, phones, addresses
@@ -400,7 +419,7 @@ class User < ApplicationRecord
   # Check if user has a specific OpenClaw permission
   def openclaw_permitted?(action)
     return false unless openclaw_api_key_digest.present?
-    perms = openclaw_permissions || {}
+    perms = DEFAULT_OPENCLAW_PERMISSIONS.merge(openclaw_permissions || {})
     perms[action.to_s] == true
   end
 

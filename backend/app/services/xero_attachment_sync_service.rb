@@ -260,11 +260,12 @@ class XeroAttachmentSyncService
   def sync_attachments
     entity_type = external_invoice.quote? ? "Quotes" : "Invoices"
 
-    # FRC (Feb 2026): Bills without supplier attachments still called Xero to list
-    # attachments, wasting 1 API call per bill. Check HasAttachments from raw_data
-    # to skip the API call entirely when there are no attachments.
-    if external_invoice.bill? && !external_invoice.raw_data&.dig("HasAttachments")
-      Rails.logger.debug("[XeroAttachmentSync] Skipping attachment check for bill #{external_invoice.invoice_number} (HasAttachments=false)")
+    # FRC (Feb 2026): Skip the list-attachments API call when HasAttachments=false.
+    # Originally only applied to bills, but invoices/quotes/credit notes also have
+    # the HasAttachments flag in raw_data. Skipping saves 1 API call per record
+    # (~50% reduction for non-bill types without user-uploaded attachments).
+    unless external_invoice.raw_data&.dig("HasAttachments")
+      Rails.logger.debug("[XeroAttachmentSync] Skipping attachment check for #{external_invoice.invoice_type} #{external_invoice.invoice_number} (HasAttachments=false)")
       return
     end
 

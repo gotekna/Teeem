@@ -85,7 +85,8 @@ interface DataHealthWidgetProps {
   compact?: boolean;
   forceShow?: boolean; // Always show even if no issues (for explicit open via button)
   onIssueClick?: (item: HealthCheckItem, check: HealthCheck) => void;
-  onDataChanged?: () => void;  
+  onDataChanged?: () => void;
+  healthPageHref?: string; // Override "View all health checks" link (default: /system-health)
 }
 
 /**
@@ -99,6 +100,7 @@ export function DataHealthWidget({
   compact = false,
   forceShow = false,
   onIssueClick,
+  healthPageHref,
 }: DataHealthWidgetProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -496,7 +498,7 @@ export function DataHealthWidget({
             {/* Link to full health page */}
             <div className="px-4 py-2 text-center border-t">
               <Link
-                href="/system-health"
+                href={healthPageHref || "/system-health"}
                 className="text-sm text-primary hover:underline"
               >
                 View all health checks →

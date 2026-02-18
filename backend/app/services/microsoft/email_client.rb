@@ -6,13 +6,18 @@ module Microsoft
   class EmailClient < BaseClient
     # List emails for a specific user
     # user_identifier: email address or user ID
-    def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, before: nil, skip: nil)
+    def get_user_emails(user_identifier, folder: "inbox", top: 50, filter: nil, search: nil, since: nil, before: nil, skip: nil, include_body: true)
       endpoint = "/users/#{CGI.escape(user_identifier)}/mailFolders/#{folder}/messages"
+
+      select_fields = "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime," \
+        "createdDateTime,lastModifiedDateTime,hasAttachments,bodyPreview," \
+        "internetMessageId,conversationId,isRead,importance,isDraft"
+      select_fields += ",body" if include_body
 
       params = {
         "$top" => top,
         "$orderby" => "receivedDateTime DESC",
-        "$select" => "id,subject,from,toRecipients,ccRecipients,receivedDateTime,sentDateTime,createdDateTime,lastModifiedDateTime,hasAttachments,bodyPreview,body,internetMessageId,conversationId,isRead,importance,isDraft"
+        "$select" => select_fields
       }
 
       params["$skip"] = skip if skip

@@ -58,11 +58,39 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const { toast } = useToast();
 
   // OpenClaw integration state (Feb 2026)
-  const [openclawPermissions, setOpenclawPermissions] = useState({
-    chat: false,
+  const [openclawPermissions, setOpenclawPermissions] = useState<Record<string, boolean>>({
+    // Communication
+    chat_messages: false,
     notes: false,
+    send_emails: false,
+    // Jobs
+    jobs_read: false,
+    jobs_create: false,
+    jobs_update: false,
     job_updates: false,
-    contacts: false,
+    // Contacts
+    contacts_read: false,
+    contacts_create: false,
+    contacts_update: false,
+    // Documents
+    documents_search: false,
+    documents_read: false,
+    documents_upload: false,
+    // Financial
+    estimates_read: false,
+    estimates_create: false,
+    purchase_orders_read: false,
+    purchase_orders_create: false,
+    invoices_read: false,
+    // Schedule & Tasks
+    tasks_read: false,
+    tasks_create: false,
+    tasks_update: false,
+    schedule_read: false,
+    // Other
+    pricebook_read: false,
+    reports_read: false,
+    webhooks: false,
   });
   const [openclawKeyActive, setOpenclawKeyActive] = useState(false);
   const [openclawKeyLast4, setOpenclawKeyLast4] = useState<string | null>(null);
@@ -112,8 +140,9 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
           // Initialize OpenClaw state from user data
           setOpenclawKeyActive(!!userResponse.openclaw_key_active);
           setOpenclawKeyLast4(userResponse.openclaw_api_key_last4 || null);
-          const perms = userResponse.openclaw_permissions || { chat: false, notes: false, job_updates: false, contacts: false };
-          setOpenclawPermissions(perms);
+          // Merge server permissions with defaults (handles new permissions added later)
+          const serverPerms = userResponse.openclaw_permissions || {};
+          setOpenclawPermissions((prev) => ({ ...prev, ...serverPerms }));
           setGeneratedKey(null);
         }
 
@@ -528,25 +557,68 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
               OpenClaw Integration
             </Label>
 
-            {/* Permission checkboxes */}
-            <div className="grid grid-cols-2 gap-2">
+            {/* Permission checkboxes - grouped by category */}
+            <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
               {([
-                { key: "chat" as const, label: "Chat Messages" },
-                { key: "notes" as const, label: "Notes" },
-                { key: "job_updates" as const, label: "Job Updates" },
-                { key: "contacts" as const, label: "Contacts" },
-              ]).map(({ key, label }) => (
-                <div key={key} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`openclaw-${key}`}
-                    checked={openclawPermissions[key]}
-                    onCheckedChange={(checked) =>
-                      setOpenclawPermissions((prev) => ({ ...prev, [key]: !!checked }))
-                    }
-                  />
-                  <label htmlFor={`openclaw-${key}`} className="text-sm cursor-pointer">
-                    {label}
-                  </label>
+                { category: "Communication", items: [
+                  { key: "chat_messages", label: "Chat Messages" },
+                  { key: "notes", label: "Notes" },
+                  { key: "send_emails", label: "Send Emails" },
+                ]},
+                { category: "Jobs", items: [
+                  { key: "jobs_read", label: "View Jobs" },
+                  { key: "jobs_create", label: "Create Jobs" },
+                  { key: "jobs_update", label: "Update Jobs" },
+                  { key: "job_updates", label: "Job Notifications" },
+                ]},
+                { category: "Contacts", items: [
+                  { key: "contacts_read", label: "View Contacts" },
+                  { key: "contacts_create", label: "Create Contacts" },
+                  { key: "contacts_update", label: "Update Contacts" },
+                ]},
+                { category: "Documents", items: [
+                  { key: "documents_search", label: "Search Documents" },
+                  { key: "documents_read", label: "View / Download" },
+                  { key: "documents_upload", label: "Upload Documents" },
+                ]},
+                { category: "Financial", items: [
+                  { key: "estimates_read", label: "View Estimates" },
+                  { key: "estimates_create", label: "Create Estimates" },
+                  { key: "purchase_orders_read", label: "View POs" },
+                  { key: "purchase_orders_create", label: "Create POs" },
+                  { key: "invoices_read", label: "View Invoices" },
+                ]},
+                { category: "Schedule & Tasks", items: [
+                  { key: "tasks_read", label: "View Tasks" },
+                  { key: "tasks_create", label: "Create Tasks" },
+                  { key: "tasks_update", label: "Update Tasks" },
+                  { key: "schedule_read", label: "View Schedule" },
+                ]},
+                { category: "Other", items: [
+                  { key: "pricebook_read", label: "View Pricebook" },
+                  { key: "reports_read", label: "View Reports" },
+                  { key: "webhooks", label: "Webhooks" },
+                ]},
+              ]).map(({ category, items }) => (
+                <div key={category}>
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{category}</p>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                    {items.map(({ key, label }) => (
+                      <div key={key} className="flex items-center gap-1.5">
+                        <Checkbox
+                          id={`openclaw-${key}`}
+                          className="h-3.5 w-3.5"
+                          checked={!!openclawPermissions[key]}
+                          onCheckedChange={(checked) =>
+                            setOpenclawPermissions((prev) => ({ ...prev, [key]: !!checked }))
+                          }
+                        />
+                        <label htmlFor={`openclaw-${key}`} className="text-xs cursor-pointer">
+                          {label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

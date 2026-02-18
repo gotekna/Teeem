@@ -142,7 +142,7 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
 
     try {
       const contentUrl = `${getApiBaseUrl()}/api/v1/company_documents/${sidePanelDocument.id}/content`;
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
       setSidePanelPreviewUrl(`${contentUrl}?token=${encodeURIComponent(token || "")}`);
     } catch {
       setSidePanelPreviewError("Preview not available");

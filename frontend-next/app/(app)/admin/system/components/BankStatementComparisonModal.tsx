@@ -66,7 +66,7 @@ export function BankStatementComparisonModal({
     setReferenceUrl(null);
 
     try {
-      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false);
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
       const headers = { Authorization: `Bearer ${token}` };
 
       // Load generated PDF

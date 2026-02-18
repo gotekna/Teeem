@@ -333,6 +333,56 @@ export function LocationMap({
   // Geocode from form fields to find coordinates
   const [geocoding, setGeocoding] = useState(false);
 
+  // Helper: normalize state for comparison (e.g., "Queensland" → "QLD", "New South Wales" → "NSW")
+  const normalizeState = (s: string): string => {
+    const map: Record<string, string> = {
+      queensland: "QLD", qld: "QLD",
+      "new south wales": "NSW", nsw: "NSW",
+      victoria: "VIC", vic: "VIC",
+      "south australia": "SA", sa: "SA",
+      "western australia": "WA", wa: "WA",
+      tasmania: "TAS", tas: "TAS",
+      "northern territory": "NT", nt: "NT",
+      "australian capital territory": "ACT", act: "ACT",
+    };
+    return map[s.toLowerCase().trim()] || s.toUpperCase().trim();
+  };
+
+  // Helper: check if a geocode suggestion matches the expected state
+  const suggestionMatchesState = (suggestion: AddressSuggestion, expectedState: string): boolean => {
+    if (!expectedState) return true; // No state to check against
+    const expected = normalizeState(expectedState);
+    // Check address.state field
+    if (suggestion.address?.state) {
+      if (normalizeState(suggestion.address.state) === expected) return true;
+    }
+    // Fallback: check placeName for state abbreviation
+    if (suggestion.placeName?.toUpperCase().includes(expected)) return true;
+    return false;
+  };
+
+  // Helper: geocode to suburb and update map position
+  const geocodeToSuburb = async (suburbName: string, stateName: string): Promise<boolean> => {
+    const suburbQuery = [suburbName, stateName].filter(Boolean).join(", ");
+    if (!suburbQuery || suburbQuery.length < 3) return false;
+
+    const suburbData = await api.get<{ suggestions: AddressSuggestion[] }>(
+      `/api/v1/geocode/search?q=${encodeURIComponent(suburbQuery)}`
+    );
+    const suburbSuggestions = suburbData?.suggestions || [];
+    // Find a suggestion in the correct state
+    const match = suburbSuggestions.find(s => suggestionMatchesState(s, stateName)) || suburbSuggestions[0];
+
+    if (match) {
+      const [lon, lat] = match.center;
+      const newPosition: [number, number] = [lat, lon];
+      setTempPosition(newPosition);
+      setMapPosition(newPosition);
+      return true;
+    }
+    return false;
+  };
+
   const geocodeFromFormFields = async () => {
     // Build full search query from form fields
     const fullParts: string[] = [];
@@ -345,12 +395,6 @@ export function LocationMap({
     if (formState) fullParts.push(formState);
 
     const fullQuery = fullParts.join(", ");
-
-    // Build suburb-only fallback query
-    const suburbParts: string[] = [];
-    if (formSuburb) suburbParts.push(formSuburb);
-    if (formState) suburbParts.push(formState);
-    const suburbQuery = suburbParts.join(", ");
 
     if (!fullQuery || fullQuery.length < 3) {
       setError("Please enter at least a suburb to find on map");
@@ -367,33 +411,30 @@ export function LocationMap({
       );
       const suggestions = data?.suggestions || [];
 
-      if (suggestions.length > 0) {
-        const [lon, lat] = suggestions[0].center;
+      // Find a result that matches the expected state (if state is set)
+      const matchingSuggestion = formState
+        ? suggestions.find(s => suggestionMatchesState(s, formState))
+        : suggestions[0];
+
+      if (matchingSuggestion) {
+        const [lon, lat] = matchingSuggestion.center;
         const newPosition: [number, number] = [lat, lon];
         setTempPosition(newPosition);
         setMapPosition(newPosition);
-      } else if (suburbQuery && suburbQuery !== fullQuery) {
-        // Fall back to suburb-only search
-        const suburbData = await api.get<{ suggestions: AddressSuggestion[] }>(
-          `/api/v1/geocode/search?q=${encodeURIComponent(suburbQuery)}`
-        );
-        const suburbSuggestions = suburbData?.suggestions || [];
-
-        if (suburbSuggestions.length > 0) {
-          const [lon, lat] = suburbSuggestions[0].center;
-          const newPosition: [number, number] = [lat, lon];
-          setTempPosition(newPosition);
-          setMapPosition(newPosition);
-          setError("Exact address not found. Showing suburb location - adjust pin as needed.");
+      } else if (formSuburb) {
+        // Full address didn't match the right state — fall back to suburb
+        const found = await geocodeToSuburb(formSuburb, formState);
+        if (found) {
+          setError("Street not found in map data. Showing suburb location — drag pin to the correct spot.");
         } else {
-          setError("Could not find location. Please place pin manually on the map.");
+          setError("Could not find location. Please drag the pin to the correct spot.");
         }
       } else {
-        setError("Could not find location. Please place pin manually on the map.");
+        setError("Could not find location. Please drag the pin to the correct spot.");
       }
     } catch (err) {
       console.error("Geocoding failed:", err);
-      setError("Failed to find location. Please place pin manually on the map.");
+      setError("Failed to find location. Please drag the pin to the correct spot.");
     } finally {
       setGeocoding(false);
     }
@@ -573,24 +614,19 @@ export function LocationMap({
         );
         const suggestions = data?.suggestions || [];
 
-        if (suggestions.length > 0) {
-          const [lon, lat] = suggestions[0].center;
+        // Only use results that match the correct state
+        const matchingSuggestion = suggestions.find(s => suggestionMatchesState(s, suburb.state));
+
+        if (matchingSuggestion) {
+          const [lon, lat] = matchingSuggestion.center;
           const newPosition: [number, number] = [lat, lon];
           setTempPosition(newPosition);
           setMapPosition(newPosition);
         } else {
-          // Fall back to suburb-only search
-          const suburbQuery = `${suburb.name}, ${suburb.state}`;
-          const suburbData = await api.get<{ suggestions: AddressSuggestion[] }>(
-            `/api/v1/geocode/search?q=${encodeURIComponent(suburbQuery)}`
-          );
-          const suburbSuggestions = suburbData?.suggestions || [];
-
-          if (suburbSuggestions.length > 0) {
-            const [lon, lat] = suburbSuggestions[0].center;
-            const newPosition: [number, number] = [lat, lon];
-            setTempPosition(newPosition);
-            setMapPosition(newPosition);
+          // Street not found in correct state — fall back to suburb center
+          const found = await geocodeToSuburb(suburb.name, suburb.state);
+          if (found) {
+            setError("Street not found in map data. Showing suburb — drag pin to the correct spot.");
           }
         }
       } catch (err) {

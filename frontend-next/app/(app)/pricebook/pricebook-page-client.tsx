@@ -116,6 +116,8 @@ export default function PricebookPageClient({
         autoFetchRecords
         // Start with all groups collapsed (user sees categories first)
         initialGroupsCollapsed
+        // Link "View all health checks" to pricebook-specific health page
+        healthPageHref="/pricebook/health"
       />
     </TablePage>
   );

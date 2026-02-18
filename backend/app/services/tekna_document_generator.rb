@@ -174,7 +174,7 @@ class TeknaDocumentGenerator
   end
 
   # Generate document and return hash with html and pdf_content
-  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {})
+  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {}, html_only: false)
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
 
     # Handle storage-sourced documents (fetch existing file, don't generate)
@@ -189,7 +189,7 @@ class TeknaDocumentGenerator
 
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
     html = render_template(context)
-    pdf_content = convert_to_pdf(html)
+    pdf_content = html_only ? nil : convert_to_pdf(html)
 
     {
       html: html,
@@ -307,11 +307,19 @@ class TeknaDocumentGenerator
       job&.street_type
     ].compact.reject(&:blank?).join(" ")
 
+    supervisor_info = job&.site_supervisor_info || {}
+
+    # Compute GST fields from contract_price (SSoT)
+    price = job&.contract_price
+    price_ex_gst = price ? (price / BigDecimal("1.1")).round(2) : nil
+    gst = price && price_ex_gst ? (price - price_ex_gst).round(2) : nil
+    dep_pct = price && price > 0 && job&.deposit ? ((job.deposit / price) * 100).round(1) : nil
+
     {
       id: job.id,
       job_number: job&.job_number || job.id.to_s,
       name: job.name,
-      title: job&.title || job.name,
+      title: job.name,
 
       # Address
       address: street_address,
@@ -326,29 +334,28 @@ class TeknaDocumentGenerator
       plan_number: job&.plan_number,
       council: job&.council,
 
-      # Contract details
-      # SSoT: contract_price is THE ONE
-      contract_price: format_currency(job&.contract_price),
-      contract_price_raw: job&.contract_price,
-      contract_price_ex_gst: format_currency(job&.contract_price_ex_gst),
-      gst_amount: format_currency(job&.gst_amount),
+      # Contract details (GST computed from contract_price SSoT)
+      contract_price: format_currency(price),
+      contract_price_raw: price,
+      contract_price_ex_gst: format_currency(price_ex_gst),
+      gst_amount: format_currency(gst),
       deposit: format_currency(job&.deposit),
-      deposit_percentage: job&.deposit_percentage,
+      deposit_percentage: dep_pct,
       build_period: job&.build_period,
-      build_period_weeks: job&.build_period_weeks,
+      build_period_weeks: nil,
 
-      # Dates
+      # Dates (site_start_date → start_date column)
       contract_date: format_date(job&.contract_date),
       contract_date_long: job&.contract_date&.strftime("%d %B %Y"),
-      site_start_date: format_date(job&.site_start_date),
+      site_start_date: format_date(job&.start_date),
       practical_completion_date: format_date(job&.practical_completion_date),
 
-      # Builder info
-      site_supervisor_name: job&.site_supervisor_name,
-      site_supervisor_phone: job&.site_supervisor_phone,
+      # Builder info (SSoT: derives from job_contacts, not removed columns)
+      site_supervisor_name: supervisor_info[:name],
+      site_supervisor_phone: supervisor_info[:phone],
 
       # Status
-      status: job&.job_status&.name || job&.status&.humanize
+      status: job&.job_status&.name
     }
   end
 
@@ -439,14 +446,10 @@ class TeknaDocumentGenerator
       {}
     end
 
-    # Get site supervisor info from job
+    # Get site supervisor info from job (SSoT: derives from job_contacts)
     job = po.job
     site_supervisor = if job
-      {
-        name: job&.site_supervisor_name,
-        email: job&.site_supervisor_email,
-        phone: job&.site_supervisor_phone
-      }
+      job.site_supervisor_info
     else
       {}
     end
@@ -464,9 +467,10 @@ class TeknaDocumentGenerator
         gst_code: item.gst_code || "GST",
         notes: item.notes,
         # SSoT: colour comes from pricebook item or line item override
+        # Note: PO line items have colour + colour_code; colour_brand only on pricebook_items
         colour: item&.colour || item.pricebook_item&.colour,
         colour_code: item&.colour_code || item.pricebook_item&.colour_code,
-        colour_brand: item&.colour_brand || item.pricebook_item&.colour_brand,
+        colour_brand: item.pricebook_item&.colour_brand,
         pricebook_code: item.pricebook_item&.item_code
       }
     end
@@ -489,8 +493,8 @@ class TeknaDocumentGenerator
       expected_delivery_date: format_date(po.expected_delivery_date),
       created_at: format_date(po.created_at),
 
-      # Delivery
-      delivery_address: po.delivery_address || job&.full_address,
+      # Delivery (build job address inline - Job has no full_address method)
+      delivery_address: po.delivery_address || [job&.street_number, job&.street_name, job&.street_type, job&.suburb, job&.state, job&.postcode].compact.reject(&:blank?).join(", "),
       special_instructions: po.special_instructions,
 
       # Financial
@@ -810,8 +814,8 @@ class TeknaDocumentGenerator
     storage_path = template_config[:storage_path]
     raise GenerationError, "Storage path not configured for #{template_key}" unless storage_path
 
-    # Get job storage folder path
-    job_folder_path = job.storage_folder_path
+    # Get job storage folder path via WarehouseProvider SSoT
+    job_folder_path = WarehouseProvider.instance.job_path(job.job_number)
     raise GenerationError, "Job folder not found in storage for #{job.name}" unless job_folder_path
 
     # Build full path

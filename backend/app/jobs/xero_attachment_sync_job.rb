@@ -31,22 +31,21 @@ class XeroAttachmentSyncJob < ApplicationJob
   # Xero rate limits (per tenant)
   MINUTE_LIMIT = 60
   DAILY_LIMIT = 5000
-  # Leave headroom for other operations
-  SAFE_MINUTE_LIMIT = 50
-  SAFE_DAILY_LIMIT = 4500
+  # Leave headroom for other operations (contacts sync, health monitor, etc.)
+  SAFE_MINUTE_LIMIT = 55
+  SAFE_DAILY_LIMIT = 4800
 
   # FRC (Feb 2026): Xero allows 5 concurrent API calls per org.
-  # Reduced from 4→2 to avoid bandwidth contention causing timeouts.
-  # With 4 concurrent downloads, bandwidth splits 4 ways and large PDFs
-  # exceeded the 60s (now 120s) timeout. 2 concurrent is more reliable.
+  # Was 2 due to bandwidth contention with 60s timeout, raised to 4 now that
+  # timeout is 120s. 4 of 5 slots leaves 1 for webhooks/other API calls.
   # Source: https://developer.xero.com/faq/limits
-  CONCURRENT_DOWNLOADS = 3
+  CONCURRENT_DOWNLOADS = 4
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes
 
-  # Max runtime before yielding to scheduler (leaves 2 min before next scheduler run)
-  MAX_RUNTIME_SECONDS = 8 * 60
+  # Max runtime before yielding to scheduler (leaves 1 min before next scheduler run)
+  MAX_RUNTIME_SECONDS = 9 * 60
 
   # Sync attachments for a single invoice or batch
   # - No args: Scheduler mode - queue parallel jobs for all tenants
@@ -276,10 +275,10 @@ class XeroAttachmentSyncJob < ApplicationJob
     daily_remaining = usage ? (SAFE_DAILY_LIMIT - (usage.dig(:daily, :used) || 0)) : SAFE_DAILY_LIMIT
 
     # FRC (Feb 2026): Average API calls per invoice:
-    # - Invoice/Quote/CreditNote: 2 (PDF download + list attachments)
-    # - Bill with HasAttachments=true: 2 (bill record + list attachments)
-    # - Bill with HasAttachments=false: ~0 (local DB only, attachment check skipped)
-    # Weighted average ≈ 2. The per-request throttler (XeroRateLimitTracker)
+    # - Any type with HasAttachments=false: 1 (PDF download only, skip list attachments)
+    # - Any type with HasAttachments=true: 2 (PDF download + list attachments)
+    # - Bill with HasAttachments=false: ~0 (local DB only, no PDF, no attachments)
+    # Weighted average ≈ 1.5. The per-request throttler (XeroRateLimitTracker)
     # handles actual pacing, so this is just for batch size estimation.
     api_calls_per_pdf = 2
     max_by_minute = (minute_remaining / api_calls_per_pdf).clamp(0, SAFE_MINUTE_LIMIT)
@@ -317,7 +316,7 @@ class XeroAttachmentSyncJob < ApplicationJob
     results = { processed: 0, success: 0, failed: 0, errors: [] }
 
     # FRC (Feb 2026): Process PDFs concurrently using threads.
-    # Xero allows 5 concurrent API calls per org — we use CONCURRENT_DOWNLOADS (3).
+    # Xero allows 5 concurrent API calls per org — we use CONCURRENT_DOWNLOADS (4).
     # Ruby threads are ideal for IO-bound work (HTTP calls to Xero API).
     # Each thread gets its own DB connection via connection_pool.with_connection.
     # Source: https://developer.xero.com/faq/limits
@@ -370,7 +369,6 @@ class XeroAttachmentSyncJob < ApplicationJob
       end
 
       # Brief pause between batches to avoid burst-hammering Xero
-      # (much shorter than old 1s-per-invoice — this is 0.3s per batch of 4)
       sleep(0.3)
     end
 
