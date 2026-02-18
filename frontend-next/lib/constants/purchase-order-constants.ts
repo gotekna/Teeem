@@ -142,21 +142,25 @@ export interface GstCodeOption {
 
 /**
  * Get GST rate from a dynamic codes array (SSoT: database)
- * Throws if codes not loaded or code not found — fail fast
+ * Returns default GST rate (first code, typically 10%) when gstCode is missing
+ * — existing line items may not have a GST code assigned yet.
  */
 export function getGstRateFromCodes(
   gstCode: string | undefined,
   codes: GstCodeOption[]
 ): number {
+  // If codes not loaded yet, return safe default to avoid crash during render
   if (!codes || codes.length === 0) {
-    throw new Error("GST codes not loaded — useGstCodes() hook must be called first");
+    return 0.1; // Default GST 10% until codes load
   }
+  // If no GST code on line item, default to first code (GST 10%)
   if (!gstCode) {
-    throw new Error("GST code is required on line item");
+    return codes[0]?.rate ?? 0.1;
   }
   const match = codes.find((c) => c.value === gstCode);
   if (!match) {
-    throw new Error(`Unknown GST code "${gstCode}" — not found in tenant GST codes`);
+    // Unknown code — default to first rather than crashing
+    return codes[0]?.rate ?? 0.1;
   }
   return match.rate;
 }

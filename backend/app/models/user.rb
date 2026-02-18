@@ -364,6 +364,51 @@ class User < ApplicationRecord
     end
   end
 
+  # =============================================================================
+  # OpenClaw API Key Methods
+  # SSoT: Per-user API key for OpenClaw AI assistant integration
+  # =============================================================================
+
+  # Find user by OpenClaw API key (SHA256 digest lookup)
+  def self.find_by_openclaw_key(api_key)
+    return nil if api_key.blank?
+    digest = Digest::SHA256.hexdigest(api_key)
+    ActsAsTenant.without_tenant { find_by(openclaw_api_key_digest: digest) }
+  end
+
+  # Generate a new OpenClaw API key. Returns the plaintext key (shown once to user).
+  # Stores only the SHA256 digest + last 4 chars for display.
+  def generate_openclaw_api_key!
+    plaintext_key = "oc_#{SecureRandom.hex(32)}"
+    update!(
+      openclaw_api_key_digest: Digest::SHA256.hexdigest(plaintext_key),
+      openclaw_api_key_last4: plaintext_key[-4..],
+      openclaw_api_key_created_at: Time.current
+    )
+    plaintext_key
+  end
+
+  # Revoke the OpenClaw API key
+  def revoke_openclaw_api_key!
+    update!(
+      openclaw_api_key_digest: nil,
+      openclaw_api_key_last4: nil,
+      openclaw_api_key_created_at: nil
+    )
+  end
+
+  # Check if user has a specific OpenClaw permission
+  def openclaw_permitted?(action)
+    return false unless openclaw_api_key_digest.present?
+    perms = openclaw_permissions || {}
+    perms[action.to_s] == true
+  end
+
+  # Check if user has an active OpenClaw API key
+  def openclaw_key_active?
+    openclaw_api_key_digest.present?
+  end
+
   # OAuth helper methods
   def self.from_omniauth(auth)
     existing_user = find_by(provider: auth.provider, uid: auth.uid)
