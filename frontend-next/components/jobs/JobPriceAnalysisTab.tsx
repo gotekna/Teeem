@@ -356,7 +356,7 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
                         <div>
                           <div>{formatCurrency(item.price_only_price)}</div>
                           {item.price_only_supplier && (
-                            <div className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                            <div className="text-xs text-muted-foreground truncate max-w-[160px]" title={item.price_only_supplier}>
                               {item.price_only_supplier}
                             </div>
                           )}
