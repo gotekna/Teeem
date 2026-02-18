@@ -36,17 +36,20 @@ module HealthChecks
       )
     end
 
-    # Items with supplier but missing price history
+    # Items with supplier but missing price history (or only $0 prices)
     def check_items_without_price_history
+      # Exclude items that have at least one price history with a real (non-zero, non-null) price
+      items_with_real_price = PriceHistory.where("new_price IS NOT NULL AND new_price != 0")
+                                          .select(:pricebook_item_id)
+
       items = PricebookItem.active
                           .where.not(default_supplier_id: nil)
-                          .left_joins(:price_histories)
-                          .where(price_histories: { id: nil })
-                          .select("pricebooks.id, pricebooks.item_code, pricebooks.item_name")
+                          .where.not(id: items_with_real_price)
+                          .select(:id, :item_code, :item_name)
 
       build_result(
         name: "Items Without Price History",
-        description: "Items with a default supplier but no price history records. Price history is needed for tracking costs over time.",
+        description: "Items with a default supplier but no price history records with a real price (blank or $0 prices don't count).",
         severity: :info,
         items: items,
         icon: "clock",
