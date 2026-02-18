@@ -78,7 +78,8 @@ export default function GuestChatPage() {
       } else {
         setError(data.error || "Invalid or expired link");
       }
-    } catch {
+    } catch (err) {
+      console.error("[GuestChat] Failed to load session:", err);
       setError("Failed to connect. Please try again.");
     } finally {
       setLoading(false);
@@ -100,7 +101,8 @@ export default function GuestChatPage() {
         setSession((prev) => prev ? { ...prev, status: "active", guest_name: guestName.trim() } : prev);
         fetchMessages();
       }
-    } catch {
+    } catch (err) {
+      console.error("[GuestChat] Failed to join session:", err);
       setError("Failed to join. Please try again.");
     } finally {
       setJoining(false);
@@ -114,8 +116,8 @@ export default function GuestChatPage() {
       if (data.success) {
         setMessages(data.data);
       }
-    } catch {
-      // Silently fail polling
+    } catch (err) {
+      console.error("[GuestChat] Message polling failed:", err);
     }
   }, [token]);
 
@@ -148,7 +150,8 @@ export default function GuestChatPage() {
         // Replace optimistic message with real one
         setMessages((prev) => prev.map((m) => (m.id === tempMsg.id ? data.data : m)));
       }
-    } catch {
+    } catch (err) {
+      console.error("[GuestChat] Failed to send message:", err);
       // Remove optimistic message on failure
       setMessages((prev) => prev.filter((m) => m.id !== tempMsg.id));
       setNewMessage(content);

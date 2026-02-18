@@ -56,7 +56,8 @@ export default function PlanSelectionPage() {
       if (response.success) {
         setTiers(response.tiers);
       }
-    } catch {
+    } catch (err) {
+      console.error("[GetStartedPlan] Failed to load tiers:", err);
       // Use default tiers if API fails
       setTiers([
         {

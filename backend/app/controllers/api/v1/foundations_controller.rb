@@ -958,7 +958,7 @@ module Api
           # Get record count
           begin
             json[:record_count] = foundation.dynamic_model.count
-          rescue
+          rescue StandardError
             json[:record_count] = 0
           end
         end

@@ -187,7 +187,8 @@ class BackupConfiguration < ApplicationRecord
 
     # If last run was before the last scheduled time, it's due
     last_run_at < last_scheduled
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[BackupConfiguration] Failed to check if backup is due: #{e.message}"
     false
   end
 end

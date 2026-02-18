@@ -99,7 +99,8 @@ function GetStartedPageContent() {
       } else {
         setError(response.error || "Invalid or expired invitation");
       }
-    } catch {
+    } catch (err) {
+      console.error("[GetStarted] Failed to load invitation:", err);
       setError("Failed to load invitation details");
     } finally {
       setIsLoadingInvite(false);
@@ -125,8 +126,8 @@ function GetStartedPageContent() {
       );
       setSlugAvailable(response.available);
       setSuggestedSlug(response.suggested_slug);
-    } catch {
-      // Ignore availability check errors
+    } catch (err) {
+      console.error("[GetStarted] Availability check failed:", err);
     } finally {
       setIsCheckingAvailability(false);
     }

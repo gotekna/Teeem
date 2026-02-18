@@ -55,6 +55,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { BackButton } from "@/components/ui/back-button";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   DollarSign,
   Building2,
@@ -163,6 +164,8 @@ const QLD_COUNCILS = [
   'Scenic Rim Regional Council'
 ];
 
+const QLD_COUNCIL_ITEMS = QLD_COUNCILS.map(c => ({ id: c, label: c }));
+
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -172,7 +175,7 @@ export default function PriceBookItemDetailPage() {
   const [item, setItem] = useState<PriceBookItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAllPrices, setShowAllPrices] = useState(false);
+  const [showAllPrices, setShowAllPrices] = useState(true);
   const [savingBooleans, setSavingBooleans] = useState(false);
   const [enlargedImage, setEnlargedImage] = useState<{ url: string; type: string } | null>(null);
   const [imageError, setImageError] = useState(false);
@@ -937,7 +940,7 @@ export default function PriceBookItemDetailPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[140px]">Date</TableHead>
+                      <TableHead className="w-[140px]">Effective Date</TableHead>
                       <TableHead className="w-[120px]">Price</TableHead>
                       <TableHead className="w-[100px]">LGA</TableHead>
                       <TableHead>Supplier</TableHead>
@@ -1003,20 +1006,15 @@ export default function PriceBookItemDetailPage() {
                           {/* LGA Cell */}
                           <TableCell className="py-2 text-sm text-muted-foreground">
                             {isEditing ? (
-                              <Select
-                                value={pendingEdit?.lga || history.lga || "__none__"}
-                                onValueChange={(v) => handleFieldChange(history.id, 'lga', v === "__none__" ? "" : v)}
-                              >
-                                <SelectTrigger className="h-9 w-full text-sm">
-                                  <SelectValue placeholder="Select LGA..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__none__">Select LGA...</SelectItem>
-                                  {QLD_COUNCILS.map(council => (
-                                    <SelectItem key={council} value={council}>{council}</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
+                              <ComboboxDropdown
+                                items={QLD_COUNCIL_ITEMS}
+                                selectedItem={QLD_COUNCIL_ITEMS.find(c => c.id === (pendingEdit?.lga || history.lga))}
+                                onSelect={(item) => handleFieldChange(history.id, 'lga', item.id)}
+                                placeholder="Select LGA..."
+                                clearable
+                                onClear={() => handleFieldChange(history.id, 'lga', '')}
+                                className="h-9"
+                              />
                             ) : (
                               <span
                                 className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
@@ -1152,20 +1150,15 @@ export default function PriceBookItemDetailPage() {
                         />
                       </TableCell>
                       <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
-                        <Select
-                          value={newPriceEntry.lga || "__none__"}
-                          onValueChange={(v) => updateNewPriceEntry('lga', v === "__none__" ? "" : v)}
-                        >
-                          <SelectTrigger className="h-9 w-full text-sm border-0 rounded-none bg-slate-100">
-                            <SelectValue placeholder="Select LGA..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">Select LGA...</SelectItem>
-                            {QLD_COUNCILS.map(council => (
-                              <SelectItem key={council} value={council}>{council}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <ComboboxDropdown
+                          items={QLD_COUNCIL_ITEMS}
+                          selectedItem={QLD_COUNCIL_ITEMS.find(c => c.id === newPriceEntry.lga) || undefined}
+                          onSelect={(item) => updateNewPriceEntry('lga', item.id)}
+                          placeholder="Select LGA..."
+                          clearable
+                          onClear={() => updateNewPriceEntry('lga', '')}
+                          className="h-9 border-0 rounded-none bg-slate-100 dark:bg-slate-800"
+                        />
                       </TableCell>
                       <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Popover

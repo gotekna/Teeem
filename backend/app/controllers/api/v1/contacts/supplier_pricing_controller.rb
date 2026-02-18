@@ -64,6 +64,28 @@ module Api
           }, status: :internal_server_error
         end
 
+        # GET /api/v1/contacts/supplier_pricing/:contact_id/prices
+        # Returns latest price per pricebook item for this supplier
+        # Params: pricebook_item_ids[] (optional - filter to specific items)
+        def prices
+          item_ids = params[:pricebook_item_ids]
+
+          query = PriceHistory.where(supplier_id: @contact.id)
+            .select("DISTINCT ON (pricebook_item_id) pricebook_item_id, new_price")
+            .order("pricebook_item_id, date_effective DESC NULLS LAST, created_at DESC")
+
+          if item_ids.present? && item_ids.is_a?(Array) && item_ids.any?
+            query = query.where(pricebook_item_id: item_ids.map(&:to_i))
+          end
+
+          prices_map = {}
+          query.each { |ph| prices_map[ph.pricebook_item_id] = ph.new_price.to_f }
+
+          render json: { success: true, prices: prices_map }
+        rescue => e
+          render json: { success: false, error: "Failed to fetch prices: #{e.message}" }, status: :internal_server_error
+        end
+
         # POST /api/v1/contacts/supplier_pricing/:contact_id/copy_history
         # Copy price history from another supplier
         def copy_history

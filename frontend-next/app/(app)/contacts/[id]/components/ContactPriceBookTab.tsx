@@ -53,8 +53,14 @@ interface ContactPriceBookTabProps {
 type RoundingMode = "none" | "smart" | "0.10" | "0.50" | "1" | "5" | "10";
 
 function formatCurrency(value: number | null | undefined): string {
-  if (value == null) return "-";
+  if (value == null) return "\u2014";
   return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Local date string in YYYY-MM-DD format (avoids UTC timezone offset) */
+function getLocalDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // Must match backend apply_price_rounding exactly
@@ -97,8 +103,10 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [targetSupplier, setTargetSupplier] = useState<Supplier | null>(null);
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
-  const [effectiveDate, setEffectiveDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
+  const [effectiveDate, setEffectiveDate] = useState<string>(getLocalDateString);
   const [copying, setCopying] = useState(false);
+  const [targetPrices, setTargetPrices] = useState<Record<number, number>>({});
+  const [loadingTargetPrices, setLoadingTargetPrices] = useState(false);
 
   const { toast } = useToast();
 
@@ -129,11 +137,11 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   };
 
   const columns: TableColumn[] = useMemo(() => [
-    { key: "item_code", label: "Code", width: 120, sortable: true },
-    { key: "item_name", label: "Item Name", width: 300, sortable: true },
-    { key: "category", label: "Category", width: 150, sortable: true },
-    { key: "brand", label: "Brand", width: 120, sortable: true },
-    { key: "unit_of_measure", label: "UOM", width: 80, sortable: true },
+    { key: "item_code", label: "Code", width: 120, sortable: true, column_type: "single_line_text" },
+    { key: "item_name", label: "Item Name", width: 300, sortable: true, column_type: "single_line_text" },
+    { key: "category", label: "Category", width: 150, sortable: true, column_type: "single_line_text" },
+    { key: "brand", label: "Brand", width: 120, sortable: true, column_type: "single_line_text" },
+    { key: "unit_of_measure", label: "UOM", width: 80, sortable: true, column_type: "single_line_text" },
     { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
     { key: "supplier_price", label: "Supplier Price", width: 120, sortable: true, column_type: "currency" },
     { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
@@ -154,6 +162,42 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       needs_pricing_review: item.needs_pricing_review,
     }));
   }, [items]);
+
+  // Fetch target supplier's current prices when target is selected
+  useEffect(() => {
+    if (!targetSupplier || copySelectedIds.length === 0) {
+      setTargetPrices({});
+      return;
+    }
+
+    let cancelled = false;
+    const fetchTargetPrices = async () => {
+      setLoadingTargetPrices(true);
+      try {
+        const itemIds = copySelectedIds.map(Number);
+        const params = itemIds.map((id) => `pricebook_item_ids[]=${id}`).join("&");
+        const response = await api.get<{ success: boolean; prices: Record<string, number> }>(
+          `/api/v1/contacts/supplier_pricing/${targetSupplier.id}/prices?${params}`
+        );
+        if (!cancelled && response?.success) {
+          // Convert string keys to numbers
+          const pricesMap: Record<number, number> = {};
+          for (const [key, val] of Object.entries(response.prices)) {
+            pricesMap[Number(key)] = val;
+          }
+          setTargetPrices(pricesMap);
+        }
+      } catch (err) {
+        console.error("Failed to fetch target supplier prices:", err);
+        if (!cancelled) setTargetPrices({});
+      } finally {
+        if (!cancelled) setLoadingTargetPrices(false);
+      }
+    };
+
+    fetchTargetPrices();
+    return () => { cancelled = true; };
+  }, [targetSupplier, copySelectedIds]);
 
   // Selected items for the preview table
   const selectedItems = useMemo(() => {
@@ -187,9 +231,10 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setCopySelectedIds(selectedIds);
     setCopyClearSelection(() => clearSelection);
     setTargetSupplier(null);
+    setTargetPrices({});
     setPriceAdjustment("");
     setRoundingMode("none");
-    setEffectiveDate(new Date().toISOString().split("T")[0]);
+    setEffectiveDate(getLocalDateString());
     setCopyModalOpen(true);
   }, []);
 
@@ -331,7 +376,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
 
       {/* Copy Prices Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Copy Prices to Another Supplier</DialogTitle>
             <DialogDescription>
@@ -445,44 +490,55 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
               </label>
               <div className="border rounded-md overflow-auto max-h-[300px]">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50 sticky top-0">
+                  <thead className="bg-background sticky top-0 z-10 border-b">
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">Code</th>
                       <th className="text-left px-3 py-2 font-medium">Item Name</th>
-                      <th className="text-right px-3 py-2 font-medium">Current Price</th>
-                      {hasAdjustment && (
-                        <th className="text-right px-3 py-2 font-medium">
-                          <span className="flex items-center justify-end gap-1">
-                            <TrendingUp className="h-3 w-3" />
-                            New Price
-                          </span>
+                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Source Price</th>
+                      {targetSupplier && (
+                        <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
+                          Target Price
                         </th>
                       )}
+                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
+                        <span className="flex items-center justify-end gap-1">
+                          {hasAdjustment && <TrendingUp className="h-3 w-3" />}
+                          New Price
+                        </span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
                     {selectedItems.map((item) => {
-                      const currentPrice = item.supplier_price ?? item.current_price;
-                      const newPrice = calcNewPrice(currentPrice);
-                      const diff = currentPrice != null && newPrice != null ? newPrice - currentPrice : null;
+                      const sourcePrice = item.supplier_price ?? item.current_price;
+                      const targetCurrentPrice = targetPrices[item.id] ?? null;
+                      const newPrice = calcNewPrice(sourcePrice);
+                      const diffFromTarget = targetCurrentPrice != null && newPrice != null ? newPrice - targetCurrentPrice : null;
 
                       return (
                         <tr key={item.id} className="hover:bg-muted/30">
                           <td className="px-3 py-1.5 font-mono text-xs">{item.item_code}</td>
-                          <td className="px-3 py-1.5 truncate max-w-[250px]">{item.item_name}</td>
+                          <td className="px-3 py-1.5 truncate max-w-[200px]">{item.item_name}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums">
-                            {formatCurrency(currentPrice)}
+                            {formatCurrency(sourcePrice)}
                           </td>
-                          {hasAdjustment && (
-                            <td className="px-3 py-1.5 text-right tabular-nums">
-                              <span className="font-medium">{formatCurrency(newPrice)}</span>
-                              {diff != null && diff !== 0 && (
-                                <span className={`ml-1 text-xs ${diff > 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
-                                  ({diff > 0 ? "+" : ""}{formatCurrency(diff)})
-                                </span>
+                          {targetSupplier && (
+                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                              {loadingTargetPrices ? (
+                                <span className="text-xs">...</span>
+                              ) : (
+                                formatCurrency(targetCurrentPrice)
                               )}
                             </td>
                           )}
+                          <td className="px-3 py-1.5 text-right tabular-nums">
+                            <span className="font-medium">{formatCurrency(newPrice)}</span>
+                            {targetSupplier && diffFromTarget != null && diffFromTarget !== 0 && (
+                              <span className={`ml-1 text-xs ${diffFromTarget > 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                                ({diffFromTarget > 0 ? "+" : ""}{formatCurrency(diffFromTarget)})
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}

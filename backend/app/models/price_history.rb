@@ -20,18 +20,25 @@ class PriceHistory < ApplicationRecord
   validates :pricebook_item_id, presence: true
   validates :new_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :old_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
-  validates :lga, inclusion: {
-    in: [
-      "Toowoomba Regional Council",
-      "Lockyer Valley Regional Council",
-      "City of Gold Coast",
-      "Brisbane City Council",
-      "Sunshine Coast Regional Council",
-      "Redland City Council",
-      "Scenic Rim Regional Council"
-    ],
-    allow_nil: true
-  }
+  VALID_LGAS = [
+    "Brisbane City Council",
+    "City of Gold Coast",
+    "Sunshine Coast Regional Council",
+    "Lockyer Valley Regional Council",
+    "Toowoomba Regional Council",
+    "Redland City Council",
+    "Scenic Rim Regional Council"
+  ].freeze
+
+  validate :validate_lga_values
+
+  def validate_lga_values
+    return if lga.blank?
+    invalid = Array(lga) - VALID_LGAS
+    if invalid.any?
+      errors.add(:lga, "contains invalid values: #{invalid.join(', ')}")
+    end
+  end
 
   # Prevent duplicate entries (custom validation for better error messages)
   validate :prevent_duplicate_price_history, on: :create

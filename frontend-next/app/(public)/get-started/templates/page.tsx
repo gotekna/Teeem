@@ -61,7 +61,8 @@ export default function TemplateSelectionPage() {
           .map((p: TemplatePack) => p.id);
         setSelectedPacks(curatedIds);
       }
-    } catch {
+    } catch (err) {
+      console.error("[GetStartedTemplates] Failed to load template packs:", err);
       // Show empty state if API fails
       setPacks([]);
     } finally {

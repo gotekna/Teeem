@@ -31,7 +31,8 @@ export default function ForgotPasswordPage() {
       } else {
         setError(data?.error || "Something went wrong");
       }
-    } catch {
+    } catch (err) {
+      console.error("[ForgotPassword] Request failed:", err);
       setError("Unable to connect. Please try again.");
     } finally {
       setIsLoading(false);

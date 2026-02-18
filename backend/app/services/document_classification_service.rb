@@ -279,7 +279,8 @@ class DocumentClassificationService
   def ai_classification_enabled?
     ENV['DOCSORT_AI_ENABLED'] == 'true' ||
       (defined?(TenantSetting) && TenantSetting.docsort_ai_enabled?)
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[DocumentClassification] Failed to check AI classification setting: #{e.message}"
     false
   end
 

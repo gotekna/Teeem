@@ -21,8 +21,8 @@ function getFileType(filename: string, url?: string | null): "pdf" | "image" | "
       if (/\.(jpg|jpeg|png|gif|webp|svg|bmp)$/.test(urlPath)) return "image";
       if (urlPath.endsWith(".eml")) return "eml";
       if (/\.(xlsx|xls|csv)$/.test(urlPath)) return "excel";
-    } catch {
-      // Invalid URL, ignore
+    } catch (err) {
+      console.error("[View] Invalid URL for type detection:", err);
     }
   }
 
@@ -80,7 +80,8 @@ function parseEmlContent(content: string): {
         // Remove whitespace and decode base64
         const cleaned = content.replace(/\s/g, '');
         return atob(cleaned);
-      } catch {
+      } catch (err) {
+        console.error("[View] Base64 decode failed:", err);
         return content; // Return as-is if decode fails
       }
     } else if (transferEncoding.includes("quoted-printable")) {

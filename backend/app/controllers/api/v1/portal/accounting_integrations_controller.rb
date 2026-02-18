@@ -259,7 +259,8 @@ module Api
             state_data["contact_id"] == current_contact.id &&
               state_data["system_type"] == system_type &&
               state_data["timestamp"] > 1.hour.ago.to_i
-          rescue
+          rescue StandardError => e
+            Rails.logger.warn "[AccountingIntegrations] OAuth state validation failed: #{e.message}"
             false
           end
         end

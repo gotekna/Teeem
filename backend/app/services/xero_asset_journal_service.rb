@@ -290,7 +290,12 @@ class XeroAssetJournalService
 
   def load_account_codes
     # Load account codes from company settings or use defaults
-    settings = @company.corporate_setting rescue nil
+    settings = begin
+      @company.corporate_setting
+    rescue StandardError => e
+      Rails.logger.warn "[XeroAssetJournal] Failed to load corporate_setting for company #{@company&.id}: #{e.message}"
+      nil
+    end
 
     if settings&.xero_asset_accounts.present?
       settings.xero_asset_accounts.symbolize_keys
@@ -348,7 +353,7 @@ class XeroAssetJournalService
       else
         "Unknown error: #{response.code}"
       end
-    rescue
+    rescue StandardError
       "HTTP #{response.code}: #{response.body}"
     end
   end

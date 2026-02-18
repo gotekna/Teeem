@@ -194,7 +194,8 @@ module Api
 
         first_lines = File.open(file_path) { |f| f.read(500) }
         first_lines.include?("Databuild") || first_lines.include?("databuild")
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[FoundationImports] Failed to detect Databuild format: #{e.message}"
         false
       end
 

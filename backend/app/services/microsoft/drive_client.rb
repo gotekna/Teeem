@@ -367,7 +367,12 @@ module Microsoft
 
           # The final chunk response contains the file metadata
           if chunk_end + 1 >= total_size
-            final_result = JSON.parse(response.body.to_s) rescue nil
+            final_result = begin
+              JSON.parse(response.body.to_s)
+            rescue StandardError => e
+              Rails.logger.warn "[Microsoft::DriveClient] Failed to parse final chunk response: #{e.message}"
+              nil
+            end
           end
         end
 

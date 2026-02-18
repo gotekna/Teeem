@@ -1042,6 +1042,7 @@ Rails.application.routes.draw do
         # DELETE /api/v1/contacts/supplier_pricing/:contact_id/column      -> delete_column
         scope "supplier_pricing/:contact_id", controller: "supplier_pricing" do
           get :categories
+          get :prices
           post :copy_history
           delete :categories, action: :remove_categories, as: :remove_categories
           post :bulk_update

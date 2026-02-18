@@ -17,7 +17,7 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
-import { ArrowLeft, Ruler } from "lucide-react";
+import { ArrowLeft, Ruler, MoreVertical, Settings } from "lucide-react";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -567,6 +573,19 @@ export default function DocsortPage() {
             <ArrowPathIcon className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push("/settings/company/documents/types")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Document Types
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
