@@ -314,6 +314,13 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # Performance: Batch load all related data for email + thread to avoid N+1
   # Supports thread_summary=true for lightweight thread expansion (~70% smaller payload)
   def show
+    # ⚠️ Metadata-first sync: On-demand body fetch
+    # During backfill, emails are synced without body content for speed (metadata-only).
+    # When a user opens an email with no body, fetch it from Graph API and persist.
+    if @email.body_text.blank? && @email.body_html.blank? && @email.microsoft_credential_id.present? && @email.outlook_id.present?
+      fetch_email_body_on_demand(@email)
+    end
+
     # Performance: Thread summary mode returns lightweight data (no bodies)
     # Used for thread expansion in email list - bodies fetched on-demand
     if params[:thread_summary].present? && params[:include_thread].present? && @email.conversation_id.present?
@@ -1494,6 +1501,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
   # We reconstruct EML from stored fields - NO Outlook/IMAP fetching.
   # If reconstruction fails, we SHOW the error (no silent fallbacks).
   def download_eml
+    # Metadata-first: Fetch body on-demand if not yet populated
+    if @email.body_text.blank? && @email.body_html.blank? && @email.microsoft_credential_id.present?
+      fetch_email_body_on_demand(@email)
+    end
+
     # SSoT: Reconstruct from warehouse data (stored fields)
     mime_content = reconstruct_eml_from_warehouse
 
@@ -1571,6 +1583,42 @@ class Api::V1::SyncedEmailsController < ApplicationController
   end
 
   private
+
+  # ⚠️ Metadata-first sync: Fetch email body on-demand from Graph API
+  # During backfill, emails are synced without body content for speed.
+  # When a user opens the email, we fetch body from Graph API and persist it.
+  # This is fast (~200ms for a single email) and only happens once per email.
+  def fetch_email_body_on_demand(email)
+    credential = MicrosoftCredential.where(organization_id: tenant_organization_ids)
+                                    .find_by(id: email.microsoft_credential_id)
+    return unless credential&.valid_credential?
+
+    mailbox = email.mailbox_owner_email
+    return unless mailbox.present? && email.outlook_id.present?
+
+    client = MicrosoftAppGraphClient.new(credential)
+    graph_email = client.get_user_email(mailbox, email.outlook_id, include_body: true)
+    return unless graph_email && graph_email["body"].present?
+
+    body_data = graph_email["body"]
+    body_content = body_data["content"]
+    body_type = body_data["contentType"]&.downcase
+
+    if body_type == "html"
+      email.update_columns(
+        body_html: body_content,
+        body_text: body_content&.gsub(/<[^>]*>/, "")&.then { |t| CGI.unescapeHTML(t).strip }
+      )
+    else
+      email.update_columns(body_text: body_content)
+    end
+
+    email.reload
+    Rails.logger.info "[SyncedEmail] On-demand body fetch for email #{email.id} (#{mailbox})"
+  rescue StandardError => e
+    Rails.logger.warn "[SyncedEmail] On-demand body fetch failed for email #{email.id}: #{e.message}"
+    # Don't fail the show action - render with whatever body data we have (empty)
+  end
 
   # Fetch MIME content from Outlook via Microsoft Graph
   def fetch_outlook_eml

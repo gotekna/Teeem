@@ -223,20 +223,41 @@ class OrgEmailSyncJob < ApplicationJob
       errors = []
       sync_started_at = Time.current
 
-      # ⚠️ ULTRA FIX (Feb 2026): Dynamic time budgets based on org size
-      # Small org (5 mailboxes): 3 min each = 15 min total, fits easily
-      # Large org (56 mailboxes): 15s each = 14 min total, ALL get progress each cycle
-      # This ensures every mailbox advances every cycle instead of starving the tail.
+      # ⚠️ ULTRA FIX (Feb 2026): Metadata-first strategy for fast initial scan
+      # ════════════════════════════════════════════════════════════════
+      # Root cause: Equal time division (840s / 56 = 15s each) meant each mailbox got
+      # ~2 pages per cycle. With year-by-year backfill it took DAYS to populate all mailboxes.
+      # Fix: During backfill, give each mailbox the FULL remaining credential budget and
+      # exclude body from API responses (metadata-only). One mailbox completes fully before
+      # moving to next. Without body, pages are ~3-4s (vs ~6-7s), so a 10k-email mailbox
+      # fits in one cycle. After all backfills complete, revert to round-robin for incremental.
+      # ════════════════════════════════════════════════════════════════
       active_mailbox_count = user_emails.count - errored_count
       credential_timeout = BASE_CREDENTIAL_TIMEOUT
-      if active_mailbox_count > 0
-        # Budget per mailbox = credential timeout / mailbox count, clamped to [MIN, BASE]
-        @dynamic_mailbox_timeout = [(credential_timeout.to_f / active_mailbox_count).to_i, MIN_MAILBOX_TIMEOUT.to_i].max
-        @dynamic_mailbox_timeout = [@dynamic_mailbox_timeout, BASE_MAILBOX_TIMEOUT.to_i].min
+
+      # Check if ANY mailbox is still backfilling (needs metadata-first mode)
+      any_backfilling = user_emails.any? { |email|
+        mb_synced = mailbox_synced_at[email.downcase]
+        depth = mailbox_sync_depth[email.downcase]
+        bc = (sync_config["backfill_completed"] || {})[email.downcase]
+        mb_synced.nil? || (depth && depth >= (Date.current.year - sync_years)) || (mb_synced.present? && depth.nil? && !bc)
+      }
+
+      if any_backfilling
+        # Metadata-first mode: full budget per mailbox, process sequentially until complete
+        @dynamic_mailbox_timeout = credential_timeout.to_i
+        @metadata_first_mode = true
       else
-        @dynamic_mailbox_timeout = BASE_MAILBOX_TIMEOUT.to_i
+        # Normal round-robin for incremental sync (all backfills complete)
+        @metadata_first_mode = false
+        if active_mailbox_count > 0
+          @dynamic_mailbox_timeout = [(credential_timeout.to_f / active_mailbox_count).to_i, MIN_MAILBOX_TIMEOUT.to_i].max
+          @dynamic_mailbox_timeout = [@dynamic_mailbox_timeout, BASE_MAILBOX_TIMEOUT.to_i].min
+        else
+          @dynamic_mailbox_timeout = BASE_MAILBOX_TIMEOUT.to_i
+        end
       end
-      Rails.logger.info "[OrgEmailSync] Dynamic budgets: credential=#{credential_timeout.to_i}s, mailbox=#{@dynamic_mailbox_timeout}s (#{active_mailbox_count} active mailboxes)"
+      Rails.logger.info "[OrgEmailSync] Dynamic budgets: credential=#{credential_timeout.to_i}s, mailbox=#{@dynamic_mailbox_timeout}s (#{active_mailbox_count} active, metadata_first=#{@metadata_first_mode})"
 
       # Broadcast sync_started to all tenant users via WebSocket
       broadcast_sync_status_to_tenant(tenant, :started, sync_type: sync_type)
@@ -260,6 +281,21 @@ class OrgEmailSyncJob < ApplicationJob
           Rails.logger.warn "[OrgEmailSync] Skipping #{user_email} - #{error_count} consecutive permanent errors"
           skipped_count += 1
           next
+        end
+
+        # ⚠️ Metadata-first mode: Skip mailboxes that already completed backfill.
+        # In this mode we focus budget on mailboxes that still need their metadata scan.
+        # Backfill-complete mailboxes will get incremental sync once all backfills finish.
+        if @metadata_first_mode
+          bc = (sync_config["backfill_completed"] || {})[user_email.downcase]
+          mb_synced = mailbox_synced_at[user_email.downcase]
+          depth = (sync_config.dig("mailbox_sync_depth") || {})[user_email.downcase]
+          needs_work = mb_synced.nil? || (depth && depth >= (Date.current.year - sync_years)) || (mb_synced.present? && depth.nil? && !bc)
+          unless needs_work
+            Rails.logger.info "[OrgEmailSync] Metadata-first: skipping #{user_email} (backfill complete)"
+            skipped_count += 1
+            next
+          end
         end
 
         begin
@@ -720,6 +756,10 @@ class OrgEmailSyncJob < ApplicationJob
     page = 0
     skip = 0
     max_pages = 200 # Increased from 50 to handle large mailboxes (200 * 100 = 20,000 emails per folder)
+    # ⚠️ Metadata-first: exclude body from API response during backfill
+    # bodyPreview (500 chars) is still included for list views.
+    # Full body fetched on-demand when user opens an email (see synced_emails_controller#show).
+    include_body = !@metadata_first_mode
 
     loop do
       page_start = Time.current
@@ -729,7 +769,8 @@ class OrgEmailSyncJob < ApplicationJob
         top: 100,
         since: since,
         before: @sync_before,
-        skip: skip
+        skip: skip,
+        include_body: include_body
       )
       api_elapsed = (Time.current - page_start).round(1)
 
