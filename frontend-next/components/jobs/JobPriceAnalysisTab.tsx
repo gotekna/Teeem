@@ -329,7 +329,7 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
                 <TableHead className="w-[100px]">Code</TableHead>
                 <TableHead className="text-right w-[60px]">Qty</TableHead>
                 <TableHead className="text-right w-[90px]">Our $</TableHead>
-                <TableHead className="text-right w-[90px]">Ref $</TableHead>
+                <TableHead className="text-right w-[140px]">Ref $</TableHead>
                 <TableHead className="text-right w-[100px]">Line Diff</TableHead>
                 <TableHead className="w-[100px]">Status</TableHead>
               </TableRow>
@@ -352,8 +352,19 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
                     <TableCell className="text-right">{item.quantity}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
                     <TableCell className="text-right">
-                      {item.price_only_price !== null ? formatCurrency(item.price_only_price) : (
-                        <span className="text-muted-foreground">—</span>
+                      {item.price_only_price !== null ? (
+                        <div>
+                          <div>{formatCurrency(item.price_only_price)}</div>
+                          {item.price_only_supplier && (
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                              {item.price_only_supplier}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">
+                          {item.status === "no_pricebook_link" ? "—" : "None"}
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className={`text-right ${getDiffColor(item.difference)}`}>
