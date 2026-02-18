@@ -6,6 +6,7 @@ module HealthChecks
   #
   # Checks:
   #   - Items without default supplier (warning)
+  #   - Items with supplier but no price (warning)
   #   - Items with supplier but no price history (info)
   #   - Price mismatches between current_price and latest history (warning)
   #
@@ -32,6 +33,23 @@ module HealthChecks
         severity: :warning,
         items: items,
         icon: "building-storefront",
+        action_path: "/pricebook/:id"
+      )
+    end
+
+    # Items with supplier assigned but no current price set
+    def check_items_with_supplier_no_price
+      items = PricebookItem.active
+                          .where.not(default_supplier_id: nil)
+                          .where(current_price: [nil, 0])
+                          .select(:id, :item_code, :item_name, :category)
+
+      build_result(
+        name: "Items With Supplier But No Price",
+        description: "Pricebook items that have a default supplier assigned but no current price set. These items need a price before they can be used in quotes.",
+        severity: :warning,
+        items: items,
+        icon: "tag",
         action_path: "/pricebook/:id"
       )
     end
