@@ -640,49 +640,128 @@ module Api
         nil
       end
 
-      # Groups SolidQueue worker processes by app (shared-worker vs email-worker)
-      # based on the queues each process serves.
+      # Heroku dyno size → memory limit (MB)
+      DYNO_MEMORY_LIMITS = {
+        "Eco" => 512, "Basic" => 512, "Standard-1X" => 512,
+        "Standard-2X" => 1024, "Performance-M" => 2560, "Performance-L" => 14_336
+      }.freeze
+
+      # All 5 Heroku apps with status, memory, threads (for workers), and DB connections.
+      # Combines Heroku Platform API (dyno info), SolidQueue (thread data), and
+      # cache-based memory reporter into a single per-app view.
+      ALL_APPS = [
+        { name: "teeem-shared-worker", label: "Shared Worker", type: "worker" },
+        { name: "teeem-email-worker",  label: "Email Worker",  type: "worker" },
+        { name: "teeem-production",    label: "Production",    type: "web" },
+        { name: "teeem-staging",       label: "Staging",       type: "web" },
+        { name: "teeem-beta",          label: "Beta",          type: "web" },
+      ].freeze
+
       def compute_worker_apps
         alive_cutoff = 5.minutes.ago
-        workers = SolidQueue::Process
+
+        # SolidQueue worker processes (for thread data on worker apps)
+        sq_workers = SolidQueue::Process
           .where("last_heartbeat_at > ?", alive_cutoff)
           .where(kind: "Worker")
 
-        shared_workers = []
-        email_workers = []
-
-        workers.each do |w|
-          queues = w.metadata&.dig("queues") || []
-          if queues == ["email_sync"]
-            email_workers << w
+        shared_procs = []
+        email_procs = []
+        sq_workers.each do |w|
+          raw_queues = w.metadata&.dig("queues").to_s
+          queue_list = raw_queues.split(",").map(&:strip).reject(&:blank?)
+          if queue_list == ["email_sync"]
+            email_procs << w
           else
-            shared_workers << w
+            shared_procs << w
           end
         end
-
-        build_worker_app = ->(label, procs) {
-          total_threads = procs.sum { |w| w.metadata&.dig("thread_pool_size").to_i }
-          process_ids = procs.map(&:id)
-          used = process_ids.any? ? SolidQueue::ClaimedExecution.where(process_id: process_ids).count : 0
-          latest_hb = procs.map(&:last_heartbeat_at).compact.max
-
-          {
-            label: label,
-            running: procs.any?,
-            processes: procs.size,
-            threads: { total: total_threads, used: used },
-            queues: procs.flat_map { |w| w.metadata&.dig("queues") || [] }.uniq.sort,
-            latestHeartbeat: latest_hb&.iso8601
-          }
+        procs_by_app = {
+          "teeem-shared-worker" => shared_procs,
+          "teeem-email-worker" => email_procs
         }
 
-        [
-          build_worker_app.call("Shared Worker", shared_workers),
-          build_worker_app.call("Email Worker", email_workers)
-        ]
+        # Heroku dyno info (size, running status)
+        dyno_info = compute_dyno_info_by_app
+
+        # Per-app memory from cache (written by worker_memory_reporter initializer)
+        cached_memories = ALL_APPS.to_h { |a|
+          [a[:name], Rails.cache.read("worker_memory:#{a[:name]}")]
+        }
+
+        # Current process memory (for the app serving this request)
+        current_app = ENV["HEROKU_APP_NAME"]
+        if current_app.present?
+          rss_kb = `ps -o rss= -p #{Process.pid}`.strip.to_i rescue 0
+          cached_memories[current_app] ||= { usedMb: rss_kb / 1024 }
+        end
+
+        ALL_APPS.map do |app_def|
+          app_name = app_def[:name]
+          label = app_def[:label]
+          app_type = app_def[:type]
+          dyno = dyno_info[app_name]
+          procs = procs_by_app[app_name] || []
+          cached_mem = cached_memories[app_name]
+
+          # Memory limit from dyno size
+          max_mb = dyno ? (DYNO_MEMORY_LIMITS[dyno[:size]] || 512) : ENV.fetch("DYNO_MEMORY_MB", 1024).to_i
+
+          # Thread info (only for worker apps with SolidQueue processes)
+          threads = if app_type == "worker"
+            total = procs.sum { |w| w.metadata&.dig("thread_pool_size").to_i }
+            process_ids = procs.map(&:id)
+            used = process_ids.any? ? SolidQueue::ClaimedExecution.where(process_id: process_ids).count : 0
+            { total: total, used: used }
+          end
+
+          # Running status: workers check SolidQueue heartbeats, web apps check Heroku dyno
+          running = if app_type == "worker"
+            procs.any?
+          else
+            dyno ? dyno[:quantity].to_i > 0 : nil
+          end
+
+          result = {
+            name: app_name,
+            label: label,
+            type: app_type,
+            running: running,
+            dynoSize: dyno&.dig(:size),
+            memory: {
+              usedMb: cached_mem&.dig(:usedMb),
+              maxMb: max_mb,
+              live: cached_mem.present?
+            }
+          }
+
+          # Only include thread data for worker apps
+          if threads
+            result[:threads] = threads
+            result[:queues] = procs.flat_map { |w| w.metadata&.dig("queues").to_s.split(",").map(&:strip) }.uniq.sort
+          end
+
+          result
+        end
       rescue StandardError => e
         Rails.logger.debug "[SystemController] compute_worker_apps failed: #{e.message}"
         nil
+      end
+
+      # Returns { "teeem-production" => { size: "Basic", quantity: 1 }, ... } from Heroku API
+      def compute_dyno_info_by_app
+        return {} unless HerokuPlatformService.api_key?
+        infra = HerokuPlatformService.infrastructure
+        return {} unless infra[:dynos].present?
+
+        app_names = ALL_APPS.map { |a| a[:name] }
+        # For each app, find the primary dyno (web for web apps, worker for worker apps)
+        infra[:dynos]
+          .select { |d| d[:app].in?(app_names) && d[:dyno].in?(%w[web worker]) && d[:quantity].to_i > 0 }
+          .to_h { |d| [d[:app], { size: d[:size], quantity: d[:quantity] }] }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_dyno_info_by_app failed: #{e.message}"
+        {}
       end
 
       def compute_worker_dynos

@@ -87,12 +87,14 @@ interface QueueStatusData {
   }> | null;
   threadCapacity: { total: number; used: number } | null;
   workerApps: Array<{
+    name: string;
     label: string;
-    running: boolean;
-    processes: number;
-    threads: { total: number; used: number };
-    queues: string[];
-    latestHeartbeat: string | null;
+    type: "worker" | "web";
+    running: boolean | null;
+    dynoSize: string | null;
+    threads?: { total: number; used: number };
+    queues?: string[];
+    memory: { usedMb: number | null; maxMb: number; live: boolean } | null;
   }> | null;
 }
 
@@ -689,132 +691,128 @@ export function WorkerQueueStatus() {
                     </div>
                   </div>
 
-                  {/* Resources & Capacity */}
-                  {(data.dbConnections || data.memory || data.uptime || data.threadCapacity) && (
-                    <div className="px-3 py-2 border-b border-border space-y-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                          Resources
-                        </p>
-                        {data.uptime && (
-                          <span className="text-[10px] text-muted-foreground">
-                            up {data.uptime.uptimeHuman}
-                          </span>
-                        )}
-                      </div>
+                  {/* Resources - All 5 apps shown separately */}
+                  {(data.workerApps || data.dbConnections || data.memory || data.threadCapacity) && (
+                    <div className="px-3 py-2 border-b border-border space-y-2.5">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                        Apps
+                      </p>
 
-                      {/* Per-worker-app thread capacity */}
                       {data.workerApps && data.workerApps.length > 0 ? (
                         data.workerApps.map((app) => {
-                          const pct = app.threads.total > 0 ? app.threads.used / app.threads.total : 0;
-                          const threadColor =
-                            pct > 0.8
-                              ? "text-red-500 dark:text-red-400"
-                              : pct > 0.6
-                                ? "text-orange-500 dark:text-orange-400"
-                                : "text-foreground";
-                          const barColor =
-                            !app.running
-                              ? "bg-red-500"
-                              : pct > 0.8
-                                ? "bg-red-500"
-                                : pct > 0.6
-                                  ? "bg-orange-500"
-                                  : "bg-green-500";
+                          const hasThreads = app.threads && app.threads.total > 0;
+                          const hasMem = app.memory && app.memory.live && app.memory.usedMb != null;
+                          const memPct = hasMem ? (app.memory!.usedMb! / app.memory!.maxMb) : 0;
+                          const memColor =
+                            memPct > 0.8 ? "bg-red-500" : memPct > 0.6 ? "bg-orange-500" : "bg-green-500";
 
                           return (
-                            <div key={app.label}>
+                            <div
+                              key={app.name}
+                              className="py-1.5 border-b border-border/50 last:border-0"
+                            >
+                              {/* App header row */}
                               <div className="flex justify-between items-center text-xs">
-                                <span className="flex items-center gap-1.5">
+                                <span className="flex items-center gap-1.5 font-medium">
                                   <span
                                     className={cn(
                                       "h-1.5 w-1.5 rounded-full shrink-0",
-                                      app.running ? "bg-green-500" : "bg-red-500"
+                                      app.running === true
+                                        ? "bg-green-500"
+                                        : app.running === false
+                                          ? "bg-red-500"
+                                          : "bg-muted-foreground"
                                     )}
                                   />
-                                  <span className="text-muted-foreground">{app.label}</span>
+                                  {app.label}
                                 </span>
-                                <span className="tabular-nums">
-                                  {app.running ? (
-                                    <>
-                                      <span className={cn("font-medium", threadColor)}>
-                                        {app.threads.used}
-                                      </span>
-                                      <span className="text-muted-foreground">
-                                        /{app.threads.total}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span className="text-red-500 dark:text-red-400 text-[10px]">
-                                      offline
-                                    </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {app.dynoSize || ""}
+                                  {app.running === false && (
+                                    <span className="text-red-500 dark:text-red-400 ml-1">off</span>
                                   )}
                                 </span>
                               </div>
-                              <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
-                                <div
-                                  className={cn("h-full rounded-full transition-all", barColor)}
-                                  style={{
-                                    width: app.running
-                                      ? `${Math.min(pct * 100, 100)}%`
-                                      : "100%",
-                                  }}
-                                />
-                              </div>
+
+                              {/* Threads + Memory bars (compact) */}
+                              {(hasThreads || hasMem) && (
+                                <div className="mt-1.5 space-y-1">
+                                  {hasThreads && (
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      <span className="text-muted-foreground w-12 shrink-0">Threads</span>
+                                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                        <div
+                                          className={cn(
+                                            "h-full rounded-full transition-all",
+                                            !app.running
+                                              ? "bg-red-500"
+                                              : (app.threads!.used / app.threads!.total) > 0.8
+                                                ? "bg-red-500"
+                                                : (app.threads!.used / app.threads!.total) > 0.6
+                                                  ? "bg-orange-500"
+                                                  : "bg-green-500"
+                                          )}
+                                          style={{
+                                            width: app.running
+                                              ? `${Math.min((app.threads!.used / app.threads!.total) * 100, 100)}%`
+                                              : "100%",
+                                          }}
+                                        />
+                                      </div>
+                                      <span className="tabular-nums w-8 text-right text-muted-foreground">
+                                        {app.threads!.used}/{app.threads!.total}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {hasMem && (
+                                    <div className="flex items-center gap-2 text-[10px]">
+                                      <span className="text-muted-foreground w-12 shrink-0">Memory</span>
+                                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                        <div
+                                          className={cn("h-full rounded-full transition-all", memColor)}
+                                          style={{ width: `${Math.min(memPct * 100, 100)}%` }}
+                                        />
+                                      </div>
+                                      <span className="tabular-nums w-8 text-right text-muted-foreground">
+                                        {app.memory!.usedMb}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })
-                      ) : data.threadCapacity && data.threadCapacity.total > 0 ? (
-                        <ResourceBar
-                          label="Worker Threads"
-                          used={data.threadCapacity.used}
-                          max={data.threadCapacity.total}
-                        />
-                      ) : null}
-
-                      {data.memory && (
-                        <ResourceBar
-                          label="Memory"
-                          used={data.memory.usedMb}
-                          max={data.memory.maxMb}
-                          unit="MB"
-                        />
+                      ) : (
+                        <>
+                          {/* Fallback: combined view when workerApps not available */}
+                          {data.threadCapacity && data.threadCapacity.total > 0 && (
+                            <ResourceBar
+                              label="Worker Threads"
+                              used={data.threadCapacity.used}
+                              max={data.threadCapacity.total}
+                            />
+                          )}
+                          {data.memory && (
+                            <ResourceBar
+                              label="Memory"
+                              used={data.memory.usedMb}
+                              max={data.memory.maxMb}
+                              unit="MB"
+                            />
+                          )}
+                        </>
                       )}
+
+                      {/* DB Connections - shared (same database) */}
                       {data.dbConnections && (
-                        <ResourceBar
-                          label="DB Connections"
-                          used={data.dbConnections.active}
-                          max={data.dbConnections.max}
-                        />
-                      )}
-
-                      {/* Dyno list - only on deployed environments with Heroku API */}
-                      {data.dynos && data.dynos.length > 0 && (
-                        <div className="pt-1 space-y-0.5">
-                          {data.dynos.map((d) => (
-                            <div
-                              key={`${d.app}-${d.dyno}`}
-                              className="flex justify-between text-[10px] items-center"
-                            >
-                              <span className="flex items-center gap-1 min-w-0">
-                                <span
-                                  className={cn(
-                                    "h-1.5 w-1.5 rounded-full shrink-0",
-                                    d.running ? "bg-green-500" : "bg-muted-foreground"
-                                  )}
-                                />
-                                <span className="text-muted-foreground truncate">
-                                  {d.environment} {d.dyno}
-                                </span>
-                              </span>
-                              <span className={cn(
-                                "shrink-0 ml-2 tabular-nums",
-                                d.running ? "text-muted-foreground" : "text-orange-500 dark:text-orange-400"
-                              )}>
-                                {d.running ? d.size : "off"}
-                              </span>
-                            </div>
-                          ))}
+                        <div className="pt-1">
+                          <ResourceBar
+                            label="DB Connections"
+                            used={data.dbConnections.active}
+                            max={data.dbConnections.max}
+                          />
                         </div>
                       )}
                     </div>

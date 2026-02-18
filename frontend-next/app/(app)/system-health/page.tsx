@@ -17,6 +17,7 @@ import {
   Trophy,
   Activity,
   Bug,
+  ClipboardCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ import {
 } from "@/components/health";
 import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
 import { SentryTab } from "@/components/health/SentryTab";
+import { QaPrdTab } from "@/components/health/QaPrdTab";
 
 // API response from new unified /api/v1/health/unified endpoint
 interface UnifiedHealthApiResponse {
@@ -472,6 +474,10 @@ export default function SystemHealthPage() {
             <Bug className="h-4 w-4" />
             Sentry
           </TabsTrigger>
+          <TabsTrigger value="qa-prd" className="gap-2">
+            <ClipboardCheck className="h-4 w-4" />
+            QA PRD
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="health" className="space-y-6">
@@ -574,6 +580,10 @@ export default function SystemHealthPage() {
 
         <TabsContent value="sentry">
           <SentryTab />
+        </TabsContent>
+
+        <TabsContent value="qa-prd">
+          <QaPrdTab />
         </TabsContent>
       </Tabs>
     </div>
