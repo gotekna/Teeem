@@ -126,6 +126,12 @@
       "tips": ["Drag bars to reschedule tasks", "Link tasks to create dependencies", "Use zoom controls for different time views", "Colors indicate task status"],
       "tasks": ["View project timeline", "Reschedule tasks", "Set dependencies", "Track progress"]
     },
+    "/jobs/[id]/price-analysis": {
+      "title": "Price Analysis",
+      "description": "Compare PO line item prices against reference prices from price-only contacts to identify savings opportunities.",
+      "tips": ["Red rows mean the reference price is cheaper (potential overpayment)", "Green rows mean you beat the reference price", "Yellow rows flag items with no reference pricing set up", "Click a PO header to expand/collapse its line items"],
+      "tasks": ["Review price differences across POs", "Identify items where you're overpaying vs reference", "Find pricebook items missing reference pricing", "Compare supplier quotes against benchmarks"]
+    },
     "/jobs/[id]/plans": {
       "title": "Job Plans",
       "description": "Construction plans and drawings for this job.",

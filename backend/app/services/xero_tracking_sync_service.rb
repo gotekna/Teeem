@@ -82,7 +82,7 @@ class XeroTrackingSyncService
   # Rename all existing tracking options in Xero to match new format
   # Updates both Xero and the local job record
   # dry_run: true = preview only (no Xero API calls), false = actually rename
-  def rename_all_tracking_options(dry_run: true)
+  def rename_all_tracking_options(dry_run: true, force: false)
     jobs = Job.where.not(xero_tracking_option_id: nil)
     results = { updated: 0, skipped: 0, failed: 0, errors: [] }
 
@@ -114,7 +114,7 @@ class XeroTrackingSyncService
       new_name = build_tracking_option_name(job)
       old_name = job.xero_tracking_option_name
 
-      if old_name == new_name
+      if !force && old_name == new_name
         results[:skipped] += 1
         next
       end
@@ -127,10 +127,10 @@ class XeroTrackingSyncService
 
       if result[:success]
         job.update!(xero_tracking_option_name: new_name)
-        puts "  ✅ #{old_name} → #{new_name}"
+        puts "  ✅ #{new_name}"
         results[:updated] += 1
       else
-        puts "  ❌ #{old_name}: #{result[:error]}"
+        puts "  ❌ #{new_name}: #{result[:error]}"
         results[:failed] += 1
         results[:errors] << { job_id: job.id, job_code: job.job_code, error: result[:error] }
       end

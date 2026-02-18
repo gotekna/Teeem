@@ -25,7 +25,7 @@ namespace :xero do
       puts ""
       puts "Renaming Xero tracking options..."
       service = XeroTrackingSyncService.new
-      results = service.rename_all_tracking_options(dry_run: false)
+      results = service.rename_all_tracking_options(dry_run: false, force: true)
 
       puts "\n=== RESULTS ==="
       puts "Updated: #{results[:updated]}"

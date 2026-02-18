@@ -610,6 +610,8 @@ Rails.application.routes.draw do
           post :send_contract_for_signing
           # BOQ (Bill of Quantities) comparison
           get :boq
+          # Price Analysis (PO prices vs price_only reference prices)
+          get :price_analysis
           # Schedule template link detection
           get :linked_schedule_template
           # Storage folder creation
