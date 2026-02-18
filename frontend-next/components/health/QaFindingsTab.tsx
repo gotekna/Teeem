@@ -12,10 +12,7 @@ import {
   AlertTriangle,
   Info,
   Ban,
-  ExternalLink,
-  Trash2,
 } from "lucide-react";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type Severity = "critical" | "major" | "minor" | "info";
@@ -24,32 +21,21 @@ type FindingStatus = "open" | "fixed" | "wont_fix" | "in_progress";
 interface QaFinding {
   id: string;
   severity: Severity;
-  agent: string;
+  user_story_id: string;
+  criteria_id: string;
+  description: string;
   page: string;
   element: string;
-  description: string;
   status: FindingStatus;
   found_at: string;
-  fixed_at?: string;
-  screenshot?: string;
 }
 
-interface QaFindingsData {
+interface QaPrdJson {
+  meta: {
+    run_id: string | null;
+    iteration: number;
+  };
   findings: QaFinding[];
-  run_id: string;
-  last_run: string;
-  total_findings: number;
-  critical_count: number;
-  major_count: number;
-  minor_count: number;
-  info_count: number;
-  fixed_count: number;
-}
-
-interface QaFindingsApiResponse {
-  success: boolean;
-  data: QaFindingsData;
-  error?: string;
 }
 
 function getSeverityIcon(severity: Severity) {
@@ -91,21 +77,6 @@ function getStatusBadge(status: FindingStatus) {
   }
 }
 
-function getAgentBadge(agent: string) {
-  const colors: Record<string, string> = {
-    "QA": "border-blue-300 text-blue-600 dark:border-blue-700 dark:text-blue-400",
-    "UX": "border-purple-300 text-purple-600 dark:border-purple-700 dark:text-purple-400",
-    "Design": "border-pink-300 text-pink-600 dark:border-pink-700 dark:text-pink-400",
-    "Performance": "border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400",
-    "Data": "border-green-300 text-green-600 dark:border-green-700 dark:text-green-400",
-  };
-  return (
-    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0 shrink-0", colors[agent] || "")}>
-      {agent}
-    </Badge>
-  );
-}
-
 function formatTimeAgo(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -121,46 +92,59 @@ function formatTimeAgo(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
-// Static findings data — updated by QA Ralph loop runs
-// When the Ralph loop finds issues, they get added here
-const STATIC_FINDINGS: QaFindingsData = {
-  run_id: "qa-run-2026-02-18-001",
-  last_run: new Date().toISOString(),
-  total_findings: 0,
-  critical_count: 0,
-  major_count: 0,
-  minor_count: 0,
-  info_count: 0,
-  fixed_count: 0,
-  findings: [],
-};
-
 export function QaFindingsTab() {
-  const [data, setData] = React.useState<QaFindingsData | null>(null);
+  const [findings, setFindings] = React.useState<QaFinding[]>([]);
+  const [meta, setMeta] = React.useState<QaPrdJson["meta"] | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [filter, setFilter] = React.useState<"all" | Severity | "fixed">("all");
+  const [refreshing, setRefreshing] = React.useState(false);
 
-  React.useEffect(() => {
-    // Try API first, fall back to static data
-    const fetchFindings = async () => {
+  const fetchData = React.useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      // Try static JSON file (same SSoT as QaPrdTab)
+      let data: QaPrdJson | null = null;
+
       try {
-        const response = await api.get<QaFindingsApiResponse>("/api/v1/health/qa-findings");
-        if (response?.success) {
-          setData(response.data);
-        } else {
-          // Use static data as fallback
-          setData(STATIC_FINDINGS);
+        const response = await fetch("/qa-prd.json");
+        if (response.ok) {
+          data = await response.json();
         }
       } catch {
-        // API not available yet — use static data
-        setData(STATIC_FINDINGS);
-      } finally {
-        setLoading(false);
+        // Static file not available
       }
-    };
-    fetchFindings();
+
+      if (!data) {
+        try {
+          const response = await fetch("/api/health/qa-prd");
+          if (response.ok) {
+            data = await response.json();
+          }
+        } catch {
+          // API not available
+        }
+      }
+
+      if (data) {
+        setFindings(data.findings || []);
+        setMeta(data.meta);
+        setError(null);
+      } else {
+        setFindings([]);
+        setMeta(null);
+      }
+    } catch {
+      setError("Failed to fetch findings data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return <LoadingOverlay height="h-96" />;
@@ -175,10 +159,14 @@ export function QaFindingsTab() {
     );
   }
 
-  if (!data) return null;
+  const criticalCount = findings.filter((f) => f.severity === "critical" && f.status !== "fixed").length;
+  const majorCount = findings.filter((f) => f.severity === "major" && f.status !== "fixed").length;
+  const minorCount = findings.filter((f) => f.severity === "minor" && f.status !== "fixed").length;
+  const infoCount = findings.filter((f) => f.severity === "info" && f.status !== "fixed").length;
+  const fixedCount = findings.filter((f) => f.status === "fixed").length;
+  const openFindings = findings.filter((f) => f.status === "open" || f.status === "in_progress");
 
-  const openFindings = data.findings.filter((f) => f.status === "open" || f.status === "in_progress");
-  const filteredFindings = data.findings.filter((f) => {
+  const filteredFindings = findings.filter((f) => {
     if (filter === "all") return f.status !== "fixed";
     if (filter === "fixed") return f.status === "fixed";
     return f.severity === filter && f.status !== "fixed";
@@ -205,8 +193,8 @@ export function QaFindingsTab() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
-              <div className={cn("p-2 rounded-lg", data.critical_count > 0 ? "bg-red-100 dark:bg-red-900/20" : "bg-green-100 dark:bg-green-900/20")}>
-                {data.critical_count > 0 ? (
+              <div className={cn("p-2 rounded-lg", criticalCount > 0 ? "bg-red-100 dark:bg-red-900/20" : "bg-green-100 dark:bg-green-900/20")}>
+                {criticalCount > 0 ? (
                   <Ban className="h-5 w-5 text-red-600 dark:text-red-400" />
                 ) : (
                   <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -214,7 +202,7 @@ export function QaFindingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Critical</p>
-                <p className="text-2xl font-bold font-mono">{data.critical_count}</p>
+                <p className="text-2xl font-bold font-mono">{criticalCount}</p>
               </div>
             </div>
           </CardContent>
@@ -228,7 +216,7 @@ export function QaFindingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Major</p>
-                <p className="text-2xl font-bold font-mono">{data.major_count}</p>
+                <p className="text-2xl font-bold font-mono">{majorCount}</p>
               </div>
             </div>
           </CardContent>
@@ -242,7 +230,7 @@ export function QaFindingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Minor</p>
-                <p className="text-2xl font-bold font-mono">{data.minor_count}</p>
+                <p className="text-2xl font-bold font-mono">{minorCount}</p>
               </div>
             </div>
           </CardContent>
@@ -256,7 +244,7 @@ export function QaFindingsTab() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Fixed</p>
-                <p className="text-2xl font-bold font-mono">{data.fixed_count}</p>
+                <p className="text-2xl font-bold font-mono">{fixedCount}</p>
               </div>
             </div>
           </CardContent>
@@ -270,21 +258,28 @@ export function QaFindingsTab() {
             All Open ({openFindings.length})
           </Button>
           <Button variant={filter === "critical" ? "default" : "outline"} size="sm" onClick={() => setFilter("critical")} className={filter === "critical" ? "" : "text-red-600 dark:text-red-400"}>
-            Critical ({data.critical_count})
+            Critical ({criticalCount})
           </Button>
           <Button variant={filter === "major" ? "default" : "outline"} size="sm" onClick={() => setFilter("major")}>
-            Major ({data.major_count})
+            Major ({majorCount})
           </Button>
           <Button variant={filter === "minor" ? "default" : "outline"} size="sm" onClick={() => setFilter("minor")}>
-            Minor ({data.minor_count})
+            Minor ({minorCount})
           </Button>
           <Button variant={filter === "fixed" ? "default" : "outline"} size="sm" onClick={() => setFilter("fixed")}>
-            Fixed ({data.fixed_count})
+            Fixed ({fixedCount})
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Run: {data.run_id} • Last: {formatTimeAgo(data.last_run)}
-        </p>
+        <div className="flex items-center gap-2">
+          {meta?.run_id && (
+            <p className="text-xs text-muted-foreground">
+              Run: {meta.run_id} | Iteration: {meta.iteration}
+            </p>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => fetchData(true)} disabled={refreshing}>
+            <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {/* Findings Table */}
@@ -309,7 +304,7 @@ export function QaFindingsTab() {
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
                   <th className="px-4 py-3 font-medium">Severity</th>
-                  <th className="px-4 py-3 font-medium">Agent</th>
+                  <th className="px-4 py-3 font-medium">Story</th>
                   <th className="px-4 py-3 font-medium">Finding</th>
                   <th className="px-4 py-3 font-medium">Page</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -332,7 +327,9 @@ export function QaFindingsTab() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      {getAgentBadge(finding.agent)}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+                        {finding.user_story_id}
+                      </Badge>
                     </td>
                     <td className="px-4 py-3">
                       <div className="max-w-md">

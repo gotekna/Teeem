@@ -3,7 +3,9 @@
 import * as React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   CheckCircle2,
   Circle,
@@ -16,26 +18,69 @@ import {
   Save,
   ChevronDown,
   ChevronRight,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type ItemStatus = "pending" | "passed" | "failed" | "in_progress";
 
-interface QaItem {
+interface QaCriteria {
   id: string;
   text: string;
   status: ItemStatus;
+  verified_at: string | null;
+  iteration_verified: number | null;
+  evidence: string | null;
 }
 
-interface QaUserStory {
+interface QaUserStoryJson {
   id: string;
-  code: string;
   title: string;
   agent: string;
-  icon: React.ReactNode;
+  icon: string;
   description: string;
-  items: QaItem[];
+  acceptance_criteria: QaCriteria[];
 }
+
+interface QaPrdJson {
+  version: number;
+  meta: {
+    run_id: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    iteration: number;
+    ship_ready: boolean;
+  };
+  anti_cheat: {
+    require_fresh_evidence: boolean;
+    max_evidence_age_minutes: number;
+    min_screenshots_per_iteration: number;
+    rules: string[];
+  };
+  user_stories: QaUserStoryJson[];
+  findings: Array<{
+    id: string;
+    severity: string;
+    user_story_id: string;
+    criteria_id: string;
+    description: string;
+    page: string;
+    element: string;
+    status: string;
+    found_at: string;
+  }>;
+}
+
+const ICON_MAP: Record<string, React.ReactNode> = {
+  "layout-list": <LayoutList className="h-4 w-4" />,
+  "clipboard-check": <ClipboardCheck className="h-4 w-4" />,
+  "flask-conical": <FlaskConical className="h-4 w-4" />,
+  "palette": <Palette className="h-4 w-4" />,
+  "gauge": <Gauge className="h-4 w-4" />,
+  "database": <Database className="h-4 w-4" />,
+  "save": <Save className="h-4 w-4" />,
+};
 
 function getStatusIcon(status: ItemStatus) {
   switch (status) {
@@ -63,143 +108,79 @@ function getStatusBadge(status: ItemStatus) {
   }
 }
 
-// All user stories and acceptance criteria from the QA PRD
-const QA_USER_STORIES: QaUserStory[] = [
-  {
-    id: "us-001",
-    code: "US-001",
-    title: "Element Inventory Build",
-    agent: "Phase 0",
-    icon: <LayoutList className="h-4 w-4" />,
-    description: "Catalogue every UI element in TEEEM so that no element gets skipped during testing.",
-    items: [
-      { id: "us001-1", text: "Every page, tab, and sub-tab is discovered and logged", status: "pending" },
-      { id: "us001-2", text: "Every button, modal, dropdown, tooltip, badge, form, table, toggle, date picker, link, toast, and alert is catalogued", status: "pending" },
-      { id: "us001-3", text: "Elements behind modals, inside nested tabs, and within dynamically loaded content are included", status: "pending" },
-      { id: "us001-4", text: "Each element records: type, page location, parent container, access path, and unique ID", status: "pending" },
-      { id: "us001-5", text: "Inventory stored as the master checklist for all agents", status: "pending" },
-      { id: "us001-6", text: "Inventory count matches a manual spot-check of at least 3 pages", status: "pending" },
-    ],
-  },
-  {
-    id: "us-002",
-    code: "US-002",
-    title: "QA Agent — Functional Testing",
-    agent: "Agent 1",
-    icon: <ClipboardCheck className="h-4 w-4" />,
-    description: "Every interactive element verified as functional so that end users never encounter broken features.",
-    items: [
-      { id: "us002-1", text: "Every page loads to the correct destination", status: "pending" },
-      { id: "us002-2", text: "Every button responds to click", status: "pending" },
-      { id: "us002-3", text: "Every modal opens and closes correctly", status: "pending" },
-      { id: "us002-4", text: "Every dropdown populates and selects correctly", status: "pending" },
-      { id: "us002-5", text: "Every form submits with valid data and shows correct success state", status: "pending" },
-      { id: "us002-6", text: "Every form triggers correct validation errors for invalid input", status: "pending" },
-      { id: "us002-7", text: "Every table supports create, edit, and delete of a test record (prefixed qa-test-)", status: "pending" },
-      { id: "us002-8", text: "No orphaned data remains after test record deletion", status: "pending" },
-      { id: "us002-9", text: "Every navigation path works with no dead links", status: "pending" },
-      { id: "us002-10", text: "Elements behind modals and nested tabs are tested, not just top-level elements", status: "pending" },
-    ],
-  },
-  {
-    id: "us-003",
-    code: "US-003",
-    title: "UX Agent — User Experience Validation",
-    agent: "Agent 2",
-    icon: <FlaskConical className="h-4 w-4" />,
-    description: "User experience reviewed so that technically functional but confusing or awkward UI is caught before shipping.",
-    items: [
-      { id: "us003-1", text: "Layout hierarchy is logical on every page — related elements grouped, clear information flow", status: "pending" },
-      { id: "us003-2", text: "Spacing and alignment is consistent — no awkward whitespace or cramped sections", status: "pending" },
-      { id: "us003-3", text: "Multi-step workflows flow naturally with clear next-step indicators", status: "pending" },
-      { id: "us003-4", text: "Error states are helpful and descriptive, not generic", status: "pending" },
-      { id: "us003-5", text: "Labels and placeholder text are descriptive enough for a first-time user", status: "pending" },
-      { id: "us003-6", text: "Truncated values have tooltips or expansion", status: "pending" },
-      { id: "us003-7", text: "Modals are appropriately sized with scrollable content when needed", status: "pending" },
-      { id: "us003-8", text: "Confirmation dialogs are appropriate and not excessive", status: "pending" },
-      { id: "us003-9", text: "Each finding includes a specific description and the page/element it relates to", status: "pending" },
-    ],
-  },
-  {
-    id: "us-004",
-    code: "US-004",
-    title: "Design System Agent — Brand Compliance",
-    agent: "Agent 3",
-    icon: <Palette className="h-4 w-4" />,
-    description: "Every component checked against the brand guidelines so that the app has complete visual uniformity.",
-    items: [
-      { id: "us004-1", text: "Brand guidelines loaded from /settings/developer/brand-guidelines as single source of truth", status: "pending" },
-      { id: "us004-2", text: "Every select/combobox uses the canonical component", status: "pending" },
-      { id: "us004-3", text: "Every date picker uses the canonical component", status: "pending" },
-      { id: "us004-4", text: "Every button follows the defined style variants", status: "pending" },
-      { id: "us004-5", text: "Every modal uses the defined pattern", status: "pending" },
-      { id: "us004-6", text: "Every table uses the defined structure", status: "pending" },
-      { id: "us004-7", text: "Colours, typography, icons, and spacing match the brand guidelines", status: "pending" },
-      { id: "us004-8", text: "Each inconsistency logged with: element, current component, expected component per guidelines", status: "pending" },
-      { id: "us004-9", text: "If guidelines don't cover a specific case, flagged as 'needs-guideline-decision' rather than guessed", status: "pending" },
-    ],
-  },
-  {
-    id: "us-005",
-    code: "US-005",
-    title: "Performance Agent — Load Times & Responsiveness",
-    agent: "Agent 4",
-    icon: <Gauge className="h-4 w-4" />,
-    description: "Actual performance benchmarks for every page and interaction so that slow areas are identified before users hit them.",
-    items: [
-      { id: "us005-1", text: "Every page measured: time to first paint, time to interactive, total load time", status: "pending" },
-      { id: "us005-2", text: "Any page exceeding 3 seconds flagged", status: "pending" },
-      { id: "us005-3", text: "Every button click, form submission, modal open, and table load measured for response time", status: "pending" },
-      { id: "us005-4", text: "Any interaction exceeding 1 second flagged", status: "pending" },
-      { id: "us005-5", text: "Scroll performance measured on data-heavy pages — frame rate jank flagged", status: "pending" },
-      { id: "us005-6", text: "Lazy-loaded content measured for load delay", status: "pending" },
-      { id: "us005-7", text: "Measurements taken with realistic data, not empty states", status: "pending" },
-      { id: "us005-8", text: "Results stored with page reference and actual timing values", status: "pending" },
-    ],
-  },
-  {
-    id: "us-006",
-    code: "US-006",
-    title: "Data Integrity Agent — Records & Calculations",
-    agent: "Agent 5",
-    icon: <Database className="h-4 w-4" />,
-    description: "Every calculated value and data relationship verified so that users never see incorrect numbers.",
-    items: [
-      { id: "us006-1", text: "Every calculated field verified as dynamically computed, not hardcoded", status: "pending" },
-      { id: "us006-2", text: "Input values altered and outputs confirmed to update accordingly", status: "pending" },
-      { id: "us006-3", text: "All totals, subtotals, percentages, and derived values validated", status: "pending" },
-      { id: "us006-4", text: "Related records reference each other correctly", status: "pending" },
-      { id: "us006-5", text: "Deleting a parent record handles child records appropriately", status: "pending" },
-      { id: "us006-6", text: "Filters produce correct results", status: "pending" },
-      { id: "us006-7", text: "Sorting works correctly on all table columns", status: "pending" },
-      { id: "us006-8", text: "Search returns accurate matches", status: "pending" },
-      { id: "us006-9", text: "Empty states display correctly", status: "pending" },
-      { id: "us006-10", text: "Zero values display correctly (not blank or null)", status: "pending" },
-      { id: "us006-11", text: "Maximum length inputs handled without breaking display", status: "pending" },
-      { id: "us006-12", text: "Special characters in data don't break display", status: "pending" },
-    ],
-  },
-  {
-    id: "us-007",
-    code: "US-007",
-    title: "State Persistence & Resume",
-    agent: "Infrastructure",
-    icon: <Save className="h-4 w-4" />,
-    description: "The Ralph loop persists state so that timeouts never lose progress and the system picks up where it left off.",
-    items: [
-      { id: "us007-1", text: "State stored: run ID, timestamp, current agent, element inventory, per-agent progress, per-agent findings, ship-ready status", status: "pending" },
-      { id: "us007-2", text: "Each iteration reads state on startup and writes updated state on completion", status: "pending" },
-      { id: "us007-3", text: "After a timeout, the next invocation resumes from exactly where it stopped", status: "pending" },
-      { id: "us007-4", text: "No duplicate testing of already-checked elements after resume", status: "pending" },
-      { id: "us007-5", text: "Final state includes complete report of all findings across all agents", status: "pending" },
-    ],
-  },
-];
+function formatTimeAgo(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 30) return `${diffDays}d ago`;
+  return date.toLocaleDateString();
+}
 
 export function QaPrdTab() {
-  const [expandedStories, setExpandedStories] = React.useState<Set<string>>(
-    new Set(QA_USER_STORIES.map((s) => s.id))
-  );
+  const [data, setData] = React.useState<QaPrdJson | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [expandedStories, setExpandedStories] = React.useState<Set<string>>(new Set());
+
+  const fetchData = React.useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      // Try API first, fall back to static JSON
+      try {
+        const response = await fetch("/api/health/qa-prd");
+        if (response.ok) {
+          const json = await response.json();
+          setData(json);
+          setError(null);
+          return;
+        }
+      } catch {
+        // API not available, try static file
+      }
+
+      // Fall back to static JSON file
+      const response = await fetch("/qa-prd.json");
+      if (response.ok) {
+        const json = await response.json();
+        setData(json);
+        setError(null);
+      } else {
+        // Final fallback: load from TEEEM_DOCS via API
+        const docsResponse = await fetch("/api/health/qa-prd-file");
+        if (docsResponse.ok) {
+          const json = await docsResponse.json();
+          setData(json);
+          setError(null);
+        } else {
+          setError("Could not load QA PRD data");
+        }
+      }
+    } catch (err) {
+      setError("Failed to fetch QA PRD data");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Expand all stories on first load
+  React.useEffect(() => {
+    if (data && expandedStories.size === 0) {
+      setExpandedStories(new Set(data.user_stories.map((s) => s.id)));
+    }
+  }, [data, expandedStories.size]);
 
   const toggleStory = (id: string) => {
     setExpandedStories((prev) => {
@@ -210,25 +191,49 @@ export function QaPrdTab() {
     });
   };
 
-  // Calculate summary stats
-  const totalItems = QA_USER_STORIES.reduce((sum, s) => sum + s.items.length, 0);
-  const passedItems = QA_USER_STORIES.reduce(
-    (sum, s) => sum + s.items.filter((i) => i.status === "passed").length,
-    0
-  );
-  const failedItems = QA_USER_STORIES.reduce(
-    (sum, s) => sum + s.items.filter((i) => i.status === "failed").length,
-    0
-  );
-  const inProgressItems = QA_USER_STORIES.reduce(
-    (sum, s) => sum + s.items.filter((i) => i.status === "in_progress").length,
-    0
-  );
+  if (loading) {
+    return <LoadingOverlay height="h-96" />;
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 gap-4">
+        <AlertCircle className="h-12 w-12 text-muted-foreground" />
+        <p className="text-muted-foreground">{error || "No data available"}</p>
+        <Button onClick={() => fetchData()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Calculate summary stats from JSON data
+  const allCriteria = data.user_stories.flatMap((s) => s.acceptance_criteria);
+  const totalItems = allCriteria.length;
+  const passedItems = allCriteria.filter((c) => c.status === "passed").length;
+  const failedItems = allCriteria.filter((c) => c.status === "failed").length;
+  const inProgressItems = allCriteria.filter((c) => c.status === "in_progress").length;
   const pendingItems = totalItems - passedItems - failedItems - inProgressItems;
   const completionPercent = totalItems > 0 ? Math.round((passedItems / totalItems) * 100) : 0;
 
   return (
     <div className="space-y-6">
+      {/* Meta Info */}
+      {data.meta.run_id && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            Run: {data.meta.run_id} | Iteration: {data.meta.iteration}
+            {data.meta.started_at && ` | Started: ${formatTimeAgo(data.meta.started_at)}`}
+          </span>
+          <div className="flex items-center gap-2">
+            {data.meta.ship_ready && (
+              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Ship Ready</Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => fetchData(true)} disabled={refreshing}>
+              <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
@@ -272,17 +277,18 @@ export function QaPrdTab() {
           </div>
           <Progress value={completionPercent} className="h-3" />
           <p className="text-xs text-muted-foreground mt-2">
-            {passedItems} of {totalItems} acceptance criteria passed across {QA_USER_STORIES.length} user stories
+            {passedItems} of {totalItems} acceptance criteria passed across {data.user_stories.length} user stories
           </p>
         </CardContent>
       </Card>
 
       {/* User Stories */}
       <div className="space-y-3">
-        {QA_USER_STORIES.map((story) => {
-          const storyPassed = story.items.filter((i) => i.status === "passed").length;
-          const storyFailed = story.items.filter((i) => i.status === "failed").length;
-          const storyTotal = story.items.length;
+        {data.user_stories.map((story) => {
+          const criteria = story.acceptance_criteria;
+          const storyPassed = criteria.filter((c) => c.status === "passed").length;
+          const storyFailed = criteria.filter((c) => c.status === "failed").length;
+          const storyTotal = criteria.length;
           const storyPercent = storyTotal > 0 ? Math.round((storyPassed / storyTotal) * 100) : 0;
           const isExpanded = expandedStories.has(story.id);
 
@@ -298,11 +304,11 @@ export function QaPrdTab() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
                 <div className="p-1.5 rounded-md bg-muted shrink-0">
-                  {story.icon}
+                  {ICON_MAP[story.icon] || <ClipboardCheck className="h-4 w-4" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] shrink-0">{story.code}</Badge>
+                    <Badge variant="outline" className="text-[10px] shrink-0">{story.id}</Badge>
                     <p className="font-medium text-sm truncate">{story.title}</p>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{story.agent} — {story.description}</p>
@@ -334,7 +340,7 @@ export function QaPrdTab() {
                 <div className="border-t">
                   <table className="w-full">
                     <tbody>
-                      {story.items.map((item) => (
+                      {criteria.map((item) => (
                         <tr
                           key={item.id}
                           className={cn(
@@ -353,9 +359,21 @@ export function QaPrdTab() {
                             )}>
                               {item.text}
                             </p>
+                            {item.evidence && (
+                              <p className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-lg" title={item.evidence}>
+                                {item.evidence}
+                              </p>
+                            )}
                           </td>
-                          <td className="px-4 py-2.5 text-right">
-                            {getStatusBadge(item.status)}
+                          <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                            <div className="flex items-center gap-2 justify-end">
+                              {item.verified_at && (
+                                <span className="text-[10px] text-muted-foreground" title={new Date(item.verified_at).toLocaleString()}>
+                                  {formatTimeAgo(item.verified_at)}
+                                </span>
+                              )}
+                              {getStatusBadge(item.status)}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -367,6 +385,18 @@ export function QaPrdTab() {
           );
         })}
       </div>
+
+      {/* Findings Summary */}
+      {data.findings.length > 0 && (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm font-medium mb-2">Findings ({data.findings.length})</p>
+            <p className="text-xs text-muted-foreground">
+              See the QA Findings tab for full details.
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

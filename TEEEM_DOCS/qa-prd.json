@@ -1,0 +1,560 @@
+{
+  "version": 2,
+  "meta": {
+    "run_id": null,
+    "started_at": null,
+    "completed_at": null,
+    "iteration": 0,
+    "ship_ready": false
+  },
+  "anti_cheat": {
+    "require_fresh_evidence": true,
+    "max_evidence_age_minutes": 120,
+    "min_screenshots_per_iteration": 3,
+    "rules": [
+      "NEVER trust qa-prd.json status from a previous iteration without live browser verification",
+      "Each criteria marked 'passed' MUST have verified_at from THIS iteration",
+      "If verified_at is older than max_evidence_age_minutes, re-verify before outputting promise",
+      "Each iteration MUST produce at least min_screenshots_per_iteration fresh screenshots",
+      "Conversation summaries are NOT evidence - only live browser tests count"
+    ]
+  },
+  "user_stories": [
+    {
+      "id": "US-001",
+      "title": "Element Inventory Build",
+      "agent": "Phase 0",
+      "icon": "layout-list",
+      "description": "Catalogue every UI element in TEEEM so that no element gets skipped during testing.",
+      "acceptance_criteria": [
+        {
+          "id": "us001-1",
+          "text": "Every page, tab, and sub-tab is discovered and logged",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us001-2",
+          "text": "Every button, modal, dropdown, tooltip, badge, form, table, toggle, date picker, link, toast, and alert is catalogued",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us001-3",
+          "text": "Elements behind modals, inside nested tabs, and within dynamically loaded content are included",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us001-4",
+          "text": "Each element records: type, page location, parent container, access path, and unique ID",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us001-5",
+          "text": "Inventory stored as the master checklist for all agents",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us001-6",
+          "text": "Inventory count matches a manual spot-check of at least 3 pages",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-002",
+      "title": "QA Agent — Functional Testing",
+      "agent": "Agent 1",
+      "icon": "clipboard-check",
+      "description": "Every interactive element verified as functional so that end users never encounter broken features.",
+      "acceptance_criteria": [
+        {
+          "id": "us002-1",
+          "text": "Every page loads to the correct destination",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-2",
+          "text": "Every button responds to click",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-3",
+          "text": "Every modal opens and closes correctly",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-4",
+          "text": "Every dropdown populates and selects correctly",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-5",
+          "text": "Every form submits with valid data and shows correct success state",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-6",
+          "text": "Every form triggers correct validation errors for invalid input",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-7",
+          "text": "Every table supports create, edit, and delete of a test record (prefixed qa-test-)",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-8",
+          "text": "No orphaned data remains after test record deletion",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-9",
+          "text": "Every navigation path works with no dead links",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us002-10",
+          "text": "Elements behind modals and nested tabs are tested, not just top-level elements",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "UX Agent — User Experience Validation",
+      "agent": "Agent 2",
+      "icon": "flask-conical",
+      "description": "User experience reviewed so that technically functional but confusing or awkward UI is caught before shipping.",
+      "acceptance_criteria": [
+        {
+          "id": "us003-1",
+          "text": "Layout hierarchy is logical on every page — related elements grouped, clear information flow",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-2",
+          "text": "Spacing and alignment is consistent — no awkward whitespace or cramped sections",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-3",
+          "text": "Multi-step workflows flow naturally with clear next-step indicators",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-4",
+          "text": "Error states are helpful and descriptive, not generic",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-5",
+          "text": "Labels and placeholder text are descriptive enough for a first-time user",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-6",
+          "text": "Truncated values have tooltips or expansion",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-7",
+          "text": "Modals are appropriately sized with scrollable content when needed",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-8",
+          "text": "Confirmation dialogs are appropriate and not excessive",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us003-9",
+          "text": "Each finding includes a specific description and the page/element it relates to",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Design System Agent — Brand Compliance",
+      "agent": "Agent 3",
+      "icon": "palette",
+      "description": "Every component checked against the brand guidelines so that the app has complete visual uniformity.",
+      "acceptance_criteria": [
+        {
+          "id": "us004-1",
+          "text": "Brand guidelines loaded from /settings/developer/brand-guidelines as single source of truth",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-2",
+          "text": "Every select/combobox uses the canonical component",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-3",
+          "text": "Every date picker uses the canonical component",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-4",
+          "text": "Every button follows the defined style variants",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-5",
+          "text": "Every modal uses the defined pattern",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-6",
+          "text": "Every table uses the defined structure",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-7",
+          "text": "Colours, typography, icons, and spacing match the brand guidelines",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-8",
+          "text": "Each inconsistency logged with: element, current component, expected component per guidelines",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us004-9",
+          "text": "If guidelines don't cover a specific case, flagged as 'needs-guideline-decision' rather than guessed",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Performance Agent — Load Times & Responsiveness",
+      "agent": "Agent 4",
+      "icon": "gauge",
+      "description": "Actual performance benchmarks for every page and interaction so that slow areas are identified before users hit them.",
+      "acceptance_criteria": [
+        {
+          "id": "us005-1",
+          "text": "Every page measured: time to first paint, time to interactive, total load time",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-2",
+          "text": "Any page exceeding 3 seconds flagged",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-3",
+          "text": "Every button click, form submission, modal open, and table load measured for response time",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-4",
+          "text": "Any interaction exceeding 1 second flagged",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-5",
+          "text": "Scroll performance measured on data-heavy pages — frame rate jank flagged",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-6",
+          "text": "Lazy-loaded content measured for load delay",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-7",
+          "text": "Measurements taken with realistic data, not empty states",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us005-8",
+          "text": "Results stored with page reference and actual timing values",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Data Integrity Agent — Records & Calculations",
+      "agent": "Agent 5",
+      "icon": "database",
+      "description": "Every calculated value and data relationship verified so that users never see incorrect numbers.",
+      "acceptance_criteria": [
+        {
+          "id": "us006-1",
+          "text": "Every calculated field verified as dynamically computed, not hardcoded",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-2",
+          "text": "Input values altered and outputs confirmed to update accordingly",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-3",
+          "text": "All totals, subtotals, percentages, and derived values validated",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-4",
+          "text": "Related records reference each other correctly",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-5",
+          "text": "Deleting a parent record handles child records appropriately",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-6",
+          "text": "Filters produce correct results",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-7",
+          "text": "Sorting works correctly on all table columns",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-8",
+          "text": "Search returns accurate matches",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-9",
+          "text": "Empty states display correctly",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-10",
+          "text": "Zero values display correctly (not blank or null)",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-11",
+          "text": "Maximum length inputs handled without breaking display",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us006-12",
+          "text": "Special characters in data don't break display",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "State Persistence & Resume",
+      "agent": "Infrastructure",
+      "icon": "save",
+      "description": "The Ralph loop persists state so that timeouts never lose progress and the system picks up where it left off.",
+      "acceptance_criteria": [
+        {
+          "id": "us007-1",
+          "text": "State stored: run ID, timestamp, current agent, element inventory, per-agent progress, per-agent findings, ship-ready status",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us007-2",
+          "text": "Each iteration reads state on startup and writes updated state on completion",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us007-3",
+          "text": "After a timeout, the next invocation resumes from exactly where it stopped",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us007-4",
+          "text": "No duplicate testing of already-checked elements after resume",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        },
+        {
+          "id": "us007-5",
+          "text": "Final state includes complete report of all findings across all agents",
+          "status": "pending",
+          "verified_at": null,
+          "iteration_verified": null,
+          "evidence": null
+        }
+      ]
+    }
+  ],
+  "findings": []
+}
