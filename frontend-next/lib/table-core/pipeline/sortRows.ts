@@ -12,6 +12,7 @@
  */
 
 import type { SortColumn } from "../types";
+import { isNumericColumn } from "@/lib/constants/column-types";
 
 type TableRow = Record<string, unknown>;
 type TableColumn = { key: string; column_type?: string };
@@ -73,6 +74,15 @@ export function sortRows<TRow extends TableRow>(
           const aNum = parseInt(String(aVal).replace(/\D/g, ""), 10);
           const bNum = parseInt(String(bVal).replace(/\D/g, ""), 10);
           comparison = aNum - bNum;
+        } else if (columnMeta && isNumericColumn(columnMeta.column_type)) {
+          // Currency/number values arrive as strings ("1079.50") — parse numerically
+          const aNum = parseFloat(String(aVal).replace(/[^0-9.-]/g, ""));
+          const bNum = parseFloat(String(bVal).replace(/[^0-9.-]/g, ""));
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            comparison = aNum - bNum;
+          } else {
+            comparison = aDisplay.localeCompare(bDisplay);
+          }
         } else if (typeof aVal === "number" && typeof bVal === "number") {
           comparison = aVal - bVal;
         } else {

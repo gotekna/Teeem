@@ -1515,8 +1515,10 @@ export default function TeeemTableView({
     searchRef.current = search;
   }, [search]);
 
-  // Initialize search from URL, prop, session storage, or persisted atom on mount
-  // Priority: URL param > initialSearch prop > session storage > atom value (from SPA navigation)
+  // Initialize search from URL, prop, or session storage on mount
+  // Priority: URL param > initialSearch prop > session storage
+  // NOTE: We intentionally do NOT fall back to the atom value — the atom is global
+  // and may contain a search term from a completely different page (e.g., Jobs → PO)
   const hasInitializedSearchRef = useRef(false);
   useEffect(() => {
     if (hasInitializedSearchRef.current) return;
@@ -1526,8 +1528,8 @@ export default function TeeemTableView({
     const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
     // Session storage fallback (for breadcrumb navigation)
     const sessionSearchParam = cachedState?.search;
-    // Priority: URL > prop > session storage > current atom value (from SPA navigation memory)
-    const searchToApply = urlSearchParam || initialSearch || sessionSearchParam || search;
+    // Priority: URL > prop > session storage (atom excluded — it's global and may be stale)
+    const searchToApply = urlSearchParam || initialSearch || sessionSearchParam;
 
     if (searchToApply) {
       // Set atom if different from current value
@@ -1545,6 +1547,11 @@ export default function TeeemTableView({
       if (effectiveOnServerSearch) {
         effectiveOnServerSearch(searchToApply, propSearchMode);
       }
+    } else if (search) {
+      // No intentional search to restore, but the global atom has a stale value
+      // from a different page (e.g., searched on Jobs, then navigated to POs).
+      // Clear it so the new table starts fresh.
+      searchHook.actions.clearQuery();
     }
   }, [cacheInitialized]); // Re-run when session storage becomes available
 
@@ -2439,6 +2446,9 @@ export default function TeeemTableView({
   // Search handler
   const handleSearchFromInput = useCallback(
     (value: string, mode?: SearchMode) => {
+      // Capture previous search BEFORE setSearch clears the atom — searchRef.current
+      // is updated via useEffect which may fire between setQuery() and this callback
+      const previousSearch = searchRef.current || search;
       setSearch(value);
       if (mode) {
         searchHook.actions.setMode(mode);
@@ -2448,8 +2458,8 @@ export default function TeeemTableView({
       // The previous "ULTRA FIX" assumed hasMore=false means all records loaded, but after
       // a search that returned few results, hasMore=false just means search results are complete
       // We need to distinguish between "all records loaded" vs "search results loaded"
-      const isClearing = !value && searchRef.current; // Clearing if value is empty but we had a search
-      const hadPreviousSearch = !!searchRef.current; // Had a search active before this change
+      const isClearing = !value && previousSearch; // Clearing if value is empty but we had a search
+      const hadPreviousSearch = !!previousSearch; // Had a search active before this change
 
       // If all records loaded AND not clearing a search AND no previous search, search client-side only
       // But if clearing search OR changing search term, always use server-side search
@@ -2484,7 +2494,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns]
+    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns, search]
   );
 
   const handleSearchAllChange = useCallback(

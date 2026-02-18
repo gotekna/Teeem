@@ -17,6 +17,7 @@ class ExternalInvoiceSyncService
       linked_to_contacts: 0,
       contacts_auto_created: 0,
       pos_auto_created: 0,
+      pos_payment_synced: 0,
       errors: [],
       pages_fetched: 0,
       total_invoices: 0,
@@ -372,9 +373,14 @@ class ExternalInvoiceSyncService
       link_to_contact(invoice)
     end
 
-    # Auto-create purchase order if this is a bill with job but no existing PO
-    if invoice.invoice_type == "bill" && invoice.job_id.present? && invoice.contact_id.present?
-      auto_create_purchase_order(invoice)
+    # For bills: match to existing PO and sync xero_amount_paid
+    if invoice.invoice_type == "bill"
+      sync_amount_paid_to_po(invoice)
+
+      # Auto-create purchase order if bill has job+contact but no existing PO matched
+      if invoice.job_id.present? && invoice.contact_id.present?
+        auto_create_purchase_order(invoice)
+      end
     end
 
   rescue StandardError => e
@@ -662,6 +668,85 @@ class ExternalInvoiceSyncService
       link.save!
       Rails.logger.info("Created/updated ContactExternalLink for existing contact #{contact.id}")
     end
+  end
+
+  # Match a Xero bill to an existing PO by PO number and update xero_amount_paid
+  # Checks: xero_invoice_id (direct link), Reference field, InvoiceNumber field
+  # Also links the PO to the job via tracking category if not already linked
+  def sync_amount_paid_to_po(invoice)
+    amount_paid = invoice.amount_paid.to_d
+    xero_status = invoice.status
+
+    # Strategy 1: Already linked via xero_invoice_id
+    po = PurchaseOrder.find_by(xero_invoice_id: invoice.external_id)
+
+    # Strategy 2: Match by PO number in Reference field
+    if po.nil? && invoice.reference.present?
+      po = find_po_by_po_number(invoice.reference)
+    end
+
+    # Strategy 3: Match by PO number in InvoiceNumber field
+    if po.nil? && invoice.invoice_number.present?
+      po = find_po_by_po_number(invoice.invoice_number)
+    end
+
+    return unless po
+
+    # Link the xero_invoice_id if not already set (so future syncs use Strategy 1)
+    if po.xero_invoice_id.blank?
+      po.xero_invoice_id = invoice.external_id
+    end
+
+    # Update xero_amount_paid (triggers calculate_variances callback)
+    po.xero_amount_paid = amount_paid
+    po.xero_complete = (xero_status == "paid")
+    po.xero_paid_date = invoice.fully_paid_date if xero_status == "paid"
+
+    # Link to job if PO doesn't have one but the invoice does
+    if po.job_id.blank? && invoice.job_id.present?
+      po.job_id = invoice.job_id
+    end
+
+    if po.changed?
+      po.save!
+      @stats[:pos_payment_synced] += 1
+      Rails.logger.info("Synced xero_amount_paid=#{amount_paid} to PO #{po.purchase_order_number} from bill #{invoice.invoice_number}")
+    end
+  rescue StandardError => e
+    Rails.logger.error("Failed to sync amount_paid to PO for bill #{invoice.invoice_number}: #{e.message}")
+  end
+
+  # Find PO by extracting PO number from text (e.g. "PO-002120", "PO 2120", "2120")
+  # Reuses the same patterns as InvoiceMatchingService
+  PO_NUMBER_PATTERNS = [
+    /PO[-\s]?(\d+)/i,                    # PO-123, PO 123, PO123
+    /P\.O\.?[-\s]?(\d+)/i,               # P.O. 123, P.O.-123
+    /Purchase\s+Order[-\s]?(\d+)/i,      # Purchase Order 123
+    /P\/O[-\s]?(\d+)/i                   # P/O-123
+  ].freeze
+
+  def find_po_by_po_number(text)
+    return nil if text.blank?
+
+    # Try exact match first (e.g. reference IS "PO-002120")
+    po = PurchaseOrder.find_by(purchase_order_number: text.strip)
+    return po if po
+
+    # Extract PO number using patterns
+    PO_NUMBER_PATTERNS.each do |pattern|
+      match = text.match(pattern)
+      next unless match
+
+      number = match[1].to_i
+      next if number.zero?
+
+      # Format as standard PO number (PO-XXXXXX) and look up
+      formatted = "PO-#{number.to_s.rjust(6, '0')}"
+      po = PurchaseOrder.find_by(purchase_order_number: formatted)
+      return po if po
+    end
+
+    nil
   end
 
   def auto_create_purchase_order(invoice)
