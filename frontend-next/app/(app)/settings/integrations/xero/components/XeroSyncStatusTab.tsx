@@ -500,7 +500,14 @@ interface DocPipelineHealth {
 }
 
 // Main component
-export function XeroSyncStatusTab() {
+// SSoT: sharedSyncStats and sharedPdfSyncHealth are fetched once by page.tsx
+// This eliminates duplicate /api/v1/xero/sync_stats and /api/v1/xero/pdf_sync_status calls
+interface XeroSyncStatusTabProps {
+  sharedSyncStats?: any;
+  sharedPdfSyncHealth?: DocPipelineHealth | null;
+}
+
+export function XeroSyncStatusTab({ sharedSyncStats, sharedPdfSyncHealth }: XeroSyncStatusTabProps) {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [tenants, setTenants] = React.useState<TenantStats[]>([]);
@@ -510,56 +517,37 @@ export function XeroSyncStatusTab() {
 
   const fetchData = React.useCallback(async () => {
     try {
-      const [statsResponse, pipelineResponse, pdfSyncResponse] = await Promise.all([
-        api.get<SyncStatsResponse>("/api/v1/xero/sync_stats"),
-        api.get<{ success: boolean; data: ContactSyncPipelineData }>("/api/v1/xero/contact_sync_sessions"),
-        api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
-      ]);
-
-      if (statsResponse.success && statsResponse.data?.tenants) {
-        setTenants(statsResponse.data.tenants);
-        setError(null);
-      } else {
-        setError("Failed to load sync status");
-      }
+      // Only fetch contact_sync_sessions - sync_stats and pdf_sync_status come from page.tsx props
+      const pipelineResponse = await api.get<{ success: boolean; data: ContactSyncPipelineData }>(
+        "/api/v1/xero/contact_sync_sessions"
+      );
 
       if (pipelineResponse.success && pipelineResponse.data) {
         setPipelineData(pipelineResponse.data);
       }
-
-      // Extract document pipeline health from PDF sync response
-      if (pdfSyncResponse.success && pdfSyncResponse.data) {
-        const d = pdfSyncResponse.data;
-        const dq = d.stage1_data_sync?.data_quality;
-        const linked = d.stage1_data_sync?.linked_to_contacts || 0;
-        const stage1Completed = dq?.needs_backfill
-          ? Math.max(linked - (dq.bills_missing_line_items || 0), 0)
-          : linked;
-        const stage1Total = d.stage1_data_sync?.total_in_database || 0;
-        setDocPipeline({
-          stage1_percentage: stage1Total > 0 ? Math.round((stage1Completed / stage1Total) * 100) : 0,
-          stage2_percentage: d.stage2_pdf_download?.progress_percentage || d.progress_percentage || 0,
-          stage3_percentage: d.stage3_sharepoint?.progress_percentage || 0,
-          overall_status: d.health?.status || "not_started",
-          stage1_data: { linked, total: stage1Total },
-          stage2_data: {
-            downloaded: d.stage2_pdf_download?.downloaded || d.pdfs_synced || 0,
-            total: d.stage2_pdf_download?.total_to_sync || d.total_invoices || 0,
-          },
-          stage3_data: {
-            uploaded: d.stage3_sharepoint?.uploaded || d.sharepoint_uploads || 0,
-            total: d.stage3_sharepoint?.total_to_upload || d.pdfs_synced || 0,
-          },
-        });
-      }
     } catch (err) {
-      console.error("Failed to fetch sync stats:", err);
+      console.error("Failed to fetch contact sync sessions:", err);
       setError(err instanceof Error ? err.message : "Failed to load sync status");
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
+
+  // Populate tenants and docPipeline from shared props
+  React.useEffect(() => {
+    if (sharedSyncStats?.tenants) {
+      setTenants(sharedSyncStats.tenants);
+      setError(null);
+      setLoading(false);
+    }
+  }, [sharedSyncStats]);
+
+  React.useEffect(() => {
+    if (sharedPdfSyncHealth) {
+      setDocPipeline(sharedPdfSyncHealth);
+    }
+  }, [sharedPdfSyncHealth]);
 
   React.useEffect(() => {
     fetchData();

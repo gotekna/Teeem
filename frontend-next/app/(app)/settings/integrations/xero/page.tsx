@@ -110,6 +110,9 @@ export default function XeroIntegrationPage() {
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
+  // SSoT: Shared sync stats fetched once by page.tsx, passed as props to children
+  // Eliminates 3x duplicate fetches of /api/v1/xero/sync_stats and /api/v1/xero/pdf_sync_status
+  const [syncStatsData, setSyncStatsData] = React.useState<any>(null);
   // NOTE: useState is CORRECT here - this is a settings page popup,
   // NOT a table modal. activeTableModalAtom is only for table-related modals.
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
@@ -150,14 +153,18 @@ export default function XeroIntegrationPage() {
         // Fetch tenants, PDF sync status, and company connections if connected OR has existing credentials
         const hasCredentials = statusResponse.data?.connected || (statusResponse.data?.total && statusResponse.data.total > 0);
         if (hasCredentials) {
-          const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
+          const [tenantsResponse, pdfSyncResponse, connectionsResponse, syncStatsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
             api.get<{ success: boolean; companies: CompanyXeroConnection[]; is_master_tenant?: boolean }>("/api/v1/company_xero_connections"),
+            api.get<{ success: boolean; data: any }>("/api/v1/xero/sync_stats"),
           ]);
           setTenants(tenantsResponse.tenants || []);
           setCompanyConnections(connectionsResponse.companies || []);
           setIsMasterTenant(connectionsResponse.is_master_tenant || false);
+          if (syncStatsResponse.success && syncStatsResponse.data) {
+            setSyncStatsData(syncStatsResponse.data);
+          }
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -476,6 +483,7 @@ export default function XeroIntegrationPage() {
               tenants={tenants}
               pdfSyncHealth={pdfSyncHealth}
               duplicateCount={duplicateCount}
+              syncStatsData={syncStatsData}
               onNavigateTab={(tab) => setUrlState({ tab: tab === "overview" ? null : tab })}
             />
           ) : (
@@ -762,7 +770,10 @@ export default function XeroIntegrationPage() {
         {/* Status Tab - Sync status per Xero organization */}
         <TabsContent value="status" className="space-y-4">
           {status?.connected ? (
-            <XeroSyncStatusTab />
+            <XeroSyncStatusTab
+              sharedSyncStats={syncStatsData}
+              sharedPdfSyncHealth={pdfSyncHealth}
+            />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
@@ -776,7 +787,7 @@ export default function XeroIntegrationPage() {
         {/* Stats Tab - Comprehensive sync statistics */}
         <TabsContent value="stats" className="space-y-4">
           {status?.connected ? (
-            <XeroSyncStats />
+            <XeroSyncStats isActiveTab={currentTab === "stats"} />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-48 gap-4">

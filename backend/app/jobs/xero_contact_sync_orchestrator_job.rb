@@ -58,6 +58,13 @@ class XeroContactSyncOrchestratorJob < ApplicationJob
 
     Rails.logger.info("[XeroContactSyncOrchestrator] Starting sync for #{credentials.count} tenants")
 
+    # Update XeroSyncStatus so the health monitor knows contacts sync is running.
+    # Without this, the health monitor sees stale "contacts" sync and triggers
+    # self-heal, which re-dispatches the orchestrator, creating a feedback loop.
+    credentials.each do |cred|
+      XeroSyncStatus.start_sync!("contacts", tenant_id: cred.tenant_id)
+    end
+
     credentials.find_each do |credential|
       process_tenant(credential, options)
     end

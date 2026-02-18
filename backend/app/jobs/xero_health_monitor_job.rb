@@ -21,10 +21,10 @@ class XeroHealthMonitorJob < ApplicationJob
   # SSoT: Must match XeroSyncStatus::SYNC_TYPES ("pdfs" not "attachments")
   # FRC (Feb 2026): These MUST match the actual recurring.yml schedules!
   EXPECTED_INTERVALS = {
-    "invoices" => 10.minutes,        # recurring.yml: every 5 minutes
+    "invoices" => 30.minutes,        # recurring.yml: every 15 minutes (2x margin)
     "contacts" => 30.minutes,        # recurring.yml: every 15 minutes (backup)
     "bank_transactions" => 8.hours,  # recurring.yml: every 6 hours
-    "pdfs" => 3.hours                # recurring.yml: every 2 hours
+    "pdfs" => 30.minutes              # recurring.yml: every 10 minutes (generous margin)
   }.freeze
 
   # Maximum failed jobs before alerting

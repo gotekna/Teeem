@@ -451,6 +451,10 @@ class Api::V1::MicrosoftAppController < ApplicationController
 
   # GET /api/v1/microsoft_app/organizations_with_mailboxes
   # List all MS365 orgs with their available mailboxes (for admin config UI)
+  # DEPRECATED (Feb 2026): This endpoint overlaps significantly with sync_dashboard
+  # (synced_emails_controller) which returns the same org+mailbox+tenant_users data.
+  # Only used by admin/system EmailAccountsTab. Do NOT call from the M365 settings page.
+  # TODO: Migrate EmailAccountsTab to use sync_dashboard and remove this endpoint.
   def organizations_with_mailboxes
     unless current_user_admin?
       return render_error("Only admins can view organization mailboxes", status: :forbidden)

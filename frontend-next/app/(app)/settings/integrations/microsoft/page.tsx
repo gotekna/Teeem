@@ -338,6 +338,18 @@ export default function MicrosoftIntegrationPage() {
       const data = await api.get<HealthDashboard>("/api/v1/microsoft_app/health_dashboard");
       setHealthData(data);
       loadedTabsRef.current.add("health");
+
+      // FRC (Feb 2026): health_dashboard returns org data as a superset of /status.
+      // Update orgStatus to keep org list fresh without a separate /status call.
+      if (data?.organizations?.length) {
+        setOrgStatus(prev => prev ? {
+          ...prev,
+          organizations: prev.organizations?.map(org => {
+            const healthOrg = data.organizations?.find((h: { id: number }) => h.id === org.id);
+            return healthOrg ? { ...org, status: healthOrg.status, token_valid: healthOrg.token_valid } : org;
+          }) ?? prev.organizations
+        } : prev);
+      }
     } catch (err) {
       console.error("Failed to fetch health dashboard:", err);
     } finally {
@@ -349,7 +361,7 @@ export default function MicrosoftIntegrationPage() {
     if (loadedTabsRef.current.has("email-sync")) return;
     setSyncLoading(true);
     try {
-      const response = await api.get<{ success: boolean; data: SyncDashboard }>("/api/v1/synced_emails/sync_dashboard");
+      const response = await api.get<{ success: boolean; data: SyncDashboard }>("/api/v1/synced_emails/sync_dashboard?include_tenant_users=true");
       setSyncDashboard(response?.data || null);
       loadedTabsRef.current.add("email-sync");
     } catch (err) {
@@ -375,6 +387,7 @@ export default function MicrosoftIntegrationPage() {
   }, []);
 
   // Handle consent callback params
+  const hasConsentParam = searchParams.get("app_consent_success") !== null || searchParams.get("app_consent_error") !== null;
   React.useEffect(() => {
     const consentSuccess = searchParams.get("app_consent_success");
     const consentError = searchParams.get("app_consent_error");
@@ -382,14 +395,15 @@ export default function MicrosoftIntegrationPage() {
     if (consentError) setError(decodeURIComponent(consentError));
   }, [searchParams, fetchStatus]);
 
-  // Initial load
+  // Initial load - skip if consent params present (consent effect handles it)
   React.useEffect(() => {
+    if (hasConsentParam) return;
     if (isAdmin) {
       fetchStatus();
     } else {
       setLoading(false);
     }
-  }, [isAdmin, fetchStatus]);
+  }, [isAdmin, fetchStatus, hasConsentParam]);
 
   // Lazy load tab data when tab changes
   React.useEffect(() => {
@@ -596,7 +610,6 @@ export default function MicrosoftIntegrationPage() {
               loadedTabsRef.current.delete("health");
               fetchHealthDashboard();
             }}
-            onRefreshStatus={fetchStatus}
           />
         </TabsContent>
       </Tabs>
@@ -1829,13 +1842,11 @@ function HealthTab({
   loading,
   orgs,
   onRefresh,
-  onRefreshStatus,
 }: {
   healthData: HealthDashboard | null;
   loading: boolean;
   orgs: OrgCredential[];
   onRefresh: () => void;
-  onRefreshStatus: () => void;
 }) {
   const [retryingOrgId, setRetryingOrgId] = React.useState<number | null>(null);
   const [testingOrgId, setTestingOrgId] = React.useState<number | null>(null);
@@ -1873,7 +1884,8 @@ function HealthTab({
       if (!response?.success) {
         setTestErrors(prev => ({ ...prev, [orgId]: response?.error || "Test failed" }));
       }
-      onRefreshStatus();
+      // Refresh health dashboard (which also syncs org status) instead of separate status call
+      onRefresh();
     } catch (err: unknown) {
       const e = err as { data?: { error?: string }; message?: string };
       setTestErrors(prev => ({ ...prev, [orgId]: e.data?.error || e.message || "Test failed" }));

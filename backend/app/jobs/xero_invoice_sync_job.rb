@@ -20,10 +20,15 @@ class XeroInvoiceSyncJob < ApplicationJob
   # - incremental: true (default) - only sync since last sync
   # - incremental: false - full sync
   # - tenant_id: specific tenant to sync (if omitted, syncs all tenants)
+  # - xero_invoice_id: single invoice to sync (from webhook - avoids full tenant sync)
+  # - action: "sync_from_xero" (webhook hint, currently informational)
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
 
-    if options[:tenant_id].present?
+    # Webhook path: sync a single invoice instead of the entire tenant
+    if options[:xero_invoice_id].present? && options[:tenant_id].present?
+      sync_single_invoice(options)
+    elsif options[:tenant_id].present?
       sync_tenant_with_rate_limiting(options)
     else
       sync_all_tenants_with_rate_limiting(options)
@@ -31,6 +36,39 @@ class XeroInvoiceSyncJob < ApplicationJob
   end
 
   private
+
+  # Webhook path: fetch and process a single invoice (1 API call vs full sync)
+  def sync_single_invoice(options)
+    tenant_id = options[:tenant_id]
+    invoice_id = options[:xero_invoice_id]
+
+    # Pre-flight lockout check
+    lockout = XeroRateLimitTracker.current_lockout(tenant_id: tenant_id)
+    if lockout
+      lockout_remaining = XeroRateLimitTracker.lockout_remaining_seconds(tenant_id: tenant_id)
+      self.class.set(wait: (lockout_remaining + 60).seconds).perform_later(options)
+      return { success: false, blocked_by_lockout: true }
+    end
+
+    service = ExternalInvoiceSyncService.new(source: "xero", tenant_id: tenant_id)
+    invoice_data = service.send(:fetch_invoice_detail, invoice_id, tenant_id)
+
+    if invoice_data
+      service.send(:process_invoice, invoice_data, tenant_id)
+      Rails.logger.info("XeroInvoiceSyncJob: Single invoice #{invoice_id} synced for tenant #{tenant_id}")
+      { success: true, invoice_id: invoice_id }
+    else
+      Rails.logger.warn("XeroInvoiceSyncJob: Could not fetch invoice #{invoice_id} for tenant #{tenant_id}")
+      { success: false, error: "Invoice not found" }
+    end
+  rescue XeroApiClient::RateLimitError => e
+    handle_rate_limit_error(tenant_id, e, options)
+    { success: false, rate_limited: true }
+  rescue XeroApiClient::AuthenticationError => e
+    credential = XeroCredential.find_by(tenant_id: tenant_id)
+    credential&.mark_disconnected!
+    { success: false, error: "Auth failed" }
+  end
 
   # SSoT: Rate-limited sync for all tenants
   def sync_all_tenants_with_rate_limiting(options)
@@ -136,14 +174,13 @@ class XeroInvoiceSyncJob < ApplicationJob
     Rails.logger.info("XeroInvoiceSyncJob completed for tenant #{tenant_id}: #{result[:stats].inspect}")
 
     # Update SSoT with success
-    # FRC (Feb 2026): next_sync_at MUST match recurring.yml schedule (every 5 min)
-    # Previous 30-min value caused self-heal to not detect stale syncs in time
+    # FRC (Feb 2026): next_sync_at MUST match recurring.yml schedule (every 15 min)
     records_synced = result[:stats][:created].to_i + result[:stats][:updated].to_i
     XeroSyncStatus.complete_sync!(
       "invoices",
       tenant_id: tenant_id,
       records_synced: records_synced,
-      next_sync_at: 5.minutes.from_now
+      next_sync_at: 15.minutes.from_now
     )
 
     # Also keep cache for backwards compatibility

@@ -67,6 +67,7 @@ interface XeroOverviewProps {
   tenants: XeroTenant[];
   pdfSyncHealth: PdfSyncHealth | null;
   duplicateCount: number;
+  syncStatsData: SyncStatusData | null;
   onNavigateTab: (tab: string) => void;
 }
 
@@ -144,27 +145,12 @@ export function XeroOverview({
   tenants,
   pdfSyncHealth,
   duplicateCount,
+  syncStatsData,
   onNavigateTab,
 }: XeroOverviewProps) {
-  // Fetch sync status data for the overview cards
-  const [syncData, setSyncData] = React.useState<SyncStatusData | null>(null);
-
-  React.useEffect(() => {
-    const fetchSyncStatus = async () => {
-      try {
-        const { api } = await import("@/lib/api");
-        const response = await api.get<{ success: boolean; data: SyncStatusData }>(
-          "/api/v1/xero/sync_stats"
-        );
-        if (response.success && response.data) {
-          setSyncData(response.data);
-        }
-      } catch (err) {
-        console.error("Failed to fetch sync stats for overview:", err);
-      }
-    };
-    fetchSyncStatus();
-  }, []);
+  // SSoT: sync stats are fetched once by page.tsx and passed as prop
+  // This eliminates a duplicate /api/v1/xero/sync_stats call
+  const syncData = syncStatsData;
 
   // Aggregate sync health from sync status data
   const syncSummary = React.useMemo(() => {

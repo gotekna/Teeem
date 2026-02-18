@@ -15,6 +15,8 @@
 # Queue: default (SolidQueue uses default queue)
 #
 class XeroContactBatchFetchJob < ApplicationJob
+  include XeroJobBase
+
   queue_as :xero_bulk
 
   # Xero returns max 100 contacts per page
@@ -188,10 +190,5 @@ class XeroContactBatchFetchJob < ApplicationJob
     )
   end
 
-  # SSoT: Same logic as XeroJobBase concern (this job doesn't include it).
-  def extract_retry_after(error_message)
-    match = error_message.to_s.match(/retry after (\d+)/i)
-    match ||= error_message.to_s.match(/(\d+)\s*seconds?/i)
-    match ? match[1].to_i : 120
-  end
+  # extract_retry_after is now provided by XeroJobBase concern (SSoT)
 end

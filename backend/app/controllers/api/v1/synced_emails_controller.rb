@@ -639,6 +639,10 @@ class Api::V1::SyncedEmailsController < ApplicationController
     # are indirectly related to tenant (via Organization/User) so need manual filtering.
     # SyncedEmail and StorageBlob have acts_as_tenant and are auto-scoped.
 
+    # FRC (Feb 2026): tenant_users requires a Graph API call per credential (cached 1h).
+    # Only fetch when explicitly requested to avoid slowing down routine dashboard loads.
+    include_tenant_users = params[:include_tenant_users].present?
+
     # MS365 Organizations - scoped to current tenant's organizations
     ms_credentials = MicrosoftCredential.refreshable_app
                                          .where(organization_id: tenant_organization_ids)
@@ -662,7 +666,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .where(microsoft_credential_id: cred.id)
         .select(:synced_email_id).distinct.count
 
-      {
+      org_data = {
         id: cred.id,
         type: "microsoft",
         name: cred.name || cred.organization&.name || "Unknown",
@@ -670,7 +674,6 @@ class Api::V1::SyncedEmailsController < ApplicationController
         last_sync_at: cred.last_sync_at,
         total_emails: distinct_email_count,
         mailboxes: mailboxes,
-        tenant_users: cred.list_tenant_users,
         sync_config: {
           sync_all: cred.sync_config&.dig("sync_all") || false,
           sync_years: cred.sync_config&.dig("sync_years") || 3,
@@ -680,6 +683,8 @@ class Api::V1::SyncedEmailsController < ApplicationController
           folder_stats: cred.sync_config&.dig("folder_stats") || {}
         }
       }
+      org_data[:tenant_users] = cred.list_tenant_users if include_tenant_users
+      org_data
     end
 
     # IMAP Accounts - scoped to current tenant's users
