@@ -495,6 +495,46 @@ class Api::V1::UsersController < ApplicationController
     }
   end
 
+  # POST /api/v1/users/:id/generate_openclaw_key
+  # Generate a new OpenClaw API key for the user (admin or self)
+  def generate_openclaw_key
+    @user = User.find(params[:id])
+
+    unless current_user&.admin? || current_user&.id == @user.id
+      return render_error("Not authorized", status: :forbidden)
+    end
+
+    plaintext_key = @user.generate_openclaw_api_key!
+
+    render json: {
+      success: true,
+      api_key: plaintext_key,
+      last4: @user.openclaw_api_key_last4,
+      message: "API key generated. Copy it now - it won't be shown again."
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "User not found" }, status: :not_found
+  end
+
+  # DELETE /api/v1/users/:id/revoke_openclaw_key
+  # Revoke the user's OpenClaw API key (admin or self)
+  def revoke_openclaw_key
+    @user = User.find(params[:id])
+
+    unless current_user&.admin? || current_user&.id == @user.id
+      return render_error("Not authorized", status: :forbidden)
+    end
+
+    @user.revoke_openclaw_api_key!
+
+    render json: {
+      success: true,
+      message: "API key revoked"
+    }
+  rescue ActiveRecord::RecordNotFound
+    render json: { error: "User not found" }, status: :not_found
+  end
+
   # POST /api/v1/users/bulk_delete
   def bulk_delete
     ids = params[:ids]
@@ -551,7 +591,7 @@ class Api::V1::UsersController < ApplicationController
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, :contact_id, role_ids: [])
+    params.require(:user).permit(:role, :contact_id, role_ids: [], openclaw_permissions: {})
   end
 
   # Params for creating a new user (admin only)
@@ -701,7 +741,12 @@ class Api::V1::UsersController < ApplicationController
       forced_signature_style: TenantSetting.instance.forced_signature_style,
       # Custom company signature (if exists)
       custom_email_signature_html: TenantSetting.instance.custom_email_signature_html,
-      custom_email_signature_name: TenantSetting.instance.custom_email_signature_name
+      custom_email_signature_name: TenantSetting.instance.custom_email_signature_name,
+      # OpenClaw integration (Feb 2026)
+      openclaw_key_active: user.openclaw_key_active?,
+      openclaw_api_key_last4: user.openclaw_api_key_last4,
+      openclaw_api_key_created_at: user.openclaw_api_key_created_at,
+      openclaw_permissions: user.openclaw_permissions || { "chat" => false, "notes" => false, "job_updates" => false, "contacts" => false }
     )
   end
 

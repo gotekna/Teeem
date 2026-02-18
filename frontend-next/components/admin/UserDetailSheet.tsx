@@ -25,7 +25,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { User as UserIcon, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound } from "lucide-react";
+import { User as UserIcon, Mail, Shield, Calendar, Clock, Sun, Moon, Briefcase, ExternalLink, Star, Loader2, PenLine, Lock, Send, KeyRound, Bot, Copy, Check, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SIGNATURE_STYLES, type SignatureStyleId, DEFAULT_SIGNATURE_STYLE, CUSTOM_SIGNATURE_ID } from "@/lib/email-signature";
 import {
   Select,
@@ -55,6 +56,20 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
   const [showInviteConfirm, setShowInviteConfirm] = useState(false);
   const [sendingReset, setSendingReset] = useState(false);
   const { toast } = useToast();
+
+  // OpenClaw integration state (Feb 2026)
+  const [openclawPermissions, setOpenclawPermissions] = useState({
+    chat: false,
+    notes: false,
+    job_updates: false,
+    contacts: false,
+  });
+  const [openclawKeyActive, setOpenclawKeyActive] = useState(false);
+  const [openclawKeyLast4, setOpenclawKeyLast4] = useState<string | null>(null);
+  const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+  const [generatingKey, setGeneratingKey] = useState(false);
+  const [revokingKey, setRevokingKey] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   // Signature force mode state (Jan 2026)
   const [signatureForced, setSignatureForced] = useState(false);
@@ -94,6 +109,12 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
         // SSoT: UsersController#show returns full user with role_ids
         if (userResponse) {
           setFullUser(userResponse);
+          // Initialize OpenClaw state from user data
+          setOpenclawKeyActive(!!userResponse.openclaw_key_active);
+          setOpenclawKeyLast4(userResponse.openclaw_api_key_last4 || null);
+          const perms = userResponse.openclaw_permissions || { chat: false, notes: false, job_updates: false, contacts: false };
+          setOpenclawPermissions(perms);
+          setGeneratedKey(null);
         }
 
         // Company signature settings (Jan 2026)
@@ -160,6 +181,8 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
             primary_role_id: editData.primary_role_id,
             // Email signature style (Jan 2026)
             email_signature_style: editData.email_signature_style,
+            // OpenClaw permissions (Feb 2026)
+            openclaw_permissions: openclawPermissions,
           },
         }
       );
@@ -496,6 +519,130 @@ export function UserDetailSheet({ user, isOpen, onClose, onSave }: UserDetailShe
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          {/* OpenClaw AI Integration (Feb 2026) */}
+          <div className="space-y-3 pt-3 border-t">
+            <Label className="flex items-center gap-1.5 text-sm font-medium">
+              <Bot className="h-3.5 w-3.5 text-muted-foreground" />
+              OpenClaw Integration
+            </Label>
+
+            {/* Permission checkboxes */}
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { key: "chat" as const, label: "Chat Messages" },
+                { key: "notes" as const, label: "Notes" },
+                { key: "job_updates" as const, label: "Job Updates" },
+                { key: "contacts" as const, label: "Contacts" },
+              ]).map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`openclaw-${key}`}
+                    checked={openclawPermissions[key]}
+                    onCheckedChange={(checked) =>
+                      setOpenclawPermissions((prev) => ({ ...prev, [key]: !!checked }))
+                    }
+                  />
+                  <label htmlFor={`openclaw-${key}`} className="text-sm cursor-pointer">
+                    {label}
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {/* API Key management */}
+            <div className="space-y-2">
+              {openclawKeyActive && !generatedKey && (
+                <div className="flex items-center justify-between p-2 rounded-md border bg-muted/30 dark:bg-muted/10">
+                  <span className="text-sm text-muted-foreground font-mono">
+                    ****{openclawKeyLast4}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-destructive hover:text-destructive gap-1"
+                    onClick={async () => {
+                      if (!user) return;
+                      setRevokingKey(true);
+                      try {
+                        await api.delete(`/api/v1/users/${user.id}/revoke_openclaw_key`);
+                        setOpenclawKeyActive(false);
+                        setOpenclawKeyLast4(null);
+                        toast({ title: "API key revoked" });
+                      } catch {
+                        toast({ title: "Error", description: "Failed to revoke key", variant: "destructive" });
+                      } finally {
+                        setRevokingKey(false);
+                      }
+                    }}
+                    disabled={revokingKey}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    {revokingKey ? "Revoking..." : "Revoke"}
+                  </Button>
+                </div>
+              )}
+
+              {generatedKey && (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                    Copy this key now - it won&apos;t be shown again
+                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <code className="flex-1 p-2 rounded-md border bg-muted/30 dark:bg-muted/10 text-xs font-mono break-all select-all">
+                      {generatedKey}
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 w-8 p-0 shrink-0"
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedKey);
+                        setKeyCopied(true);
+                        setTimeout(() => setKeyCopied(false), 2000);
+                      }}
+                    >
+                      {keyCopied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {!generatedKey && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-8 gap-1.5"
+                  onClick={async () => {
+                    if (!user) return;
+                    setGeneratingKey(true);
+                    try {
+                      const response = await api.post<{ success: boolean; api_key: string; last4: string }>(
+                        `/api/v1/users/${user.id}/generate_openclaw_key`
+                      );
+                      if (response?.success) {
+                        setGeneratedKey(response.api_key);
+                        setOpenclawKeyActive(true);
+                        setOpenclawKeyLast4(response.last4);
+                      }
+                    } catch {
+                      toast({ title: "Error", description: "Failed to generate key", variant: "destructive" });
+                    } finally {
+                      setGeneratingKey(false);
+                    }
+                  }}
+                  disabled={generatingKey}
+                >
+                  {generatingKey ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-3.5 w-3.5" />
+                  )}
+                  {openclawKeyActive ? "Regenerate API Key" : "Generate API Key"}
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Read-only info - compact single line */}

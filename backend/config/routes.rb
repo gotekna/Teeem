@@ -1318,6 +1318,8 @@ Rails.application.routes.draw do
           post :send_invite
           get :personal_details
           patch :personal_details, action: :update_personal_details
+          post :generate_openclaw_key
+          delete :revoke_openclaw_key
         end
       end
 
@@ -4623,6 +4625,13 @@ Rails.application.routes.draw do
         post "unreal_takeoff/measurements", to: "unreal_takeoff#create_measurements"
         post "unreal_takeoff/sync_to_po", to: "unreal_takeoff#sync_to_po"
         delete "unreal_takeoff/sessions/:session_id", to: "unreal_takeoff#delete_session"
+
+        # OpenClaw AI assistant integration (per-user API keys)
+        get "openclaw/me", to: "openclaw#me"
+        post "openclaw/chat", to: "openclaw#chat"
+        post "openclaw/notes", to: "openclaw#notes"
+        post "openclaw/job_updates", to: "openclaw#job_updates"
+        post "openclaw/contacts", to: "openclaw#contacts"
       end
     end
   end

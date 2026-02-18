@@ -1,7 +1,7 @@
 {
   "run_id": "qa-run-2026-02-18-001",
   "started_at": "2026-02-18T01:50:07Z",
-  "iteration": 1,
+  "iteration": 2,
   "max_iterations": 30,
   "current_domain": 2,
   "domains": {
@@ -9,7 +9,7 @@
       "name": "Structural Navigation",
       "status": "passed",
       "completed_at": "2026-02-18T02:10:00Z",
-      "summary": "All 35 pages loaded successfully under 3s threshold. No 404s, no 500s, no missing main content.",
+      "summary": "All 41 pages loaded successfully under 3s threshold. No 404s, no 500s, no missing main content.",
       "results": [
         { "page": "/dashboard/overview", "title": "Overview | Teeem", "loadTime": 1200, "status": "pass" },
         { "page": "/tasks", "title": "Tasks | Teeem", "loadTime": 1739, "status": "pass" },
@@ -54,7 +54,21 @@
         { "page": "/missing", "title": "Missing | Teeem", "loadTime": 886, "status": "pass" }
       ]
     },
-    "2": { "name": "Interactive Elements", "status": "pending", "results": [] },
+    "2": {
+      "name": "Interactive Elements",
+      "status": "in_progress",
+      "results": [
+        { "page": "/dashboard", "element": "Create New... dropdown", "status": "pass", "note": "Opens menu with 5 items: Notes, New Spreadsheet, New Document, New Presentation, New PDF" },
+        { "page": "/dashboard", "element": "Notifications button", "status": "pass", "note": "Opens dialog showing 'No notifications' with 'Read all' button" },
+        { "page": "/dashboard", "element": "User Profile (RH) menu", "status": "pass", "note": "Opens menu with 4 items: Your profile, Settings, Dark Mode, Sign out" },
+        { "page": "/dashboard", "element": "Email: 7 accounts button", "status": "pass", "note": "Opens dialog showing 7/7 connected (4 M365 + 3 IMAP)" },
+        { "page": "/dashboard", "element": "AI Support Chat button", "status": "pass", "note": "Opens AI chat dialog with text input and help topics" },
+        { "page": "/dashboard", "element": "Get help button", "status": "pass", "note": "Opens page-specific help dialog with tips and tasks" },
+        { "page": "/dashboard", "element": "Competitor Comparison tab", "status": "pass", "note": "Switches to Feature Tracking table with 72 records, URL navigates to /dashboard/competitor" },
+        { "page": "/dashboard", "element": "Dashboard stat cards (Active Jobs, Pending POs, Revenue, Total Contacts)", "status": "pass", "note": "All 4 cards visible with data and clickable links" },
+        { "page": "/dashboard", "element": "Quick Actions (New Job, Create PO, Add Contact, Schedule Meeting)", "status": "pass", "note": "All 4 links present with correct URLs" }
+      ]
+    },
     "3": { "name": "Form & Data Entry", "status": "pending", "results": [] },
     "4": { "name": "CRUD Operations", "status": "pending", "results": [] },
     "5": { "name": "Calculation Validation", "status": "pending", "results": [] },

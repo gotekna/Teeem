@@ -46,5 +46,15 @@ export interface User {
   can_sign_certificates?: boolean;
   // AI writing assistant preference
   enable_ai_writing_assistant?: boolean;
+  // OpenClaw integration (Feb 2026)
+  openclaw_key_active?: boolean;
+  openclaw_api_key_last4?: string | null;
+  openclaw_api_key_created_at?: string | null;
+  openclaw_permissions?: {
+    chat: boolean;
+    notes: boolean;
+    job_updates: boolean;
+    contacts: boolean;
+  };
   [key: string]: unknown; // Allow additional properties from API
 }
