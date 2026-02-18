@@ -97,6 +97,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [targetSupplier, setTargetSupplier] = useState<Supplier | null>(null);
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
+  const [effectiveDate, setEffectiveDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [copying, setCopying] = useState(false);
 
   const { toast } = useToast();
@@ -188,6 +189,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setTargetSupplier(null);
     setPriceAdjustment("");
     setRoundingMode("none");
+    setEffectiveDate(new Date().toISOString().split("T")[0]);
     setCopyModalOpen(true);
   }, []);
 
@@ -207,6 +209,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         set_as_default: false,
         price_adjustment_percent: adjustmentPercent,
         rounding_mode: roundingMode,
+        effective_date: effectiveDate,
       });
 
       if (response?.success) {
@@ -411,6 +414,20 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                   : roundingMode === "smart"
                     ? "Auto-rounds based on price: <$10 \u2192 10c, <$100 \u2192 50c, <$1k \u2192 $1, $1k+ \u2192 $10"
                     : `All prices rounded up to nearest ${ROUNDING_OPTIONS.find(o => o.value === roundingMode)?.label}`}
+              </p>
+            </div>
+
+            {/* Effective Date */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Effective Date</label>
+              <Input
+                type="date"
+                value={effectiveDate}
+                onChange={(e) => setEffectiveDate(e.target.value)}
+                className="max-w-[200px]"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Date the new prices take effect
               </p>
             </div>
 

@@ -37,6 +37,7 @@ interface LineItem {
   price_only_price: number | null;
   price_only_subtotal: number | null;
   price_only_supplier: string | null;
+  price_only_supplier_id: number | null;
   difference: number | null;
   difference_pct: number | null;
   status: "cheaper" | "expensive" | "equal" | "missing_price_only" | "no_pricebook_link";
@@ -45,6 +46,7 @@ interface LineItem {
 interface POGroup {
   id: number;
   po_number: string;
+  supplier_id: number | null;
   supplier_name: string;
   status: string;
   current_total: number;
@@ -289,7 +291,17 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
             <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           )}
           <span className="font-medium text-sm">{po.po_number}</span>
-          <span className="text-sm text-muted-foreground truncate">{po.supplier_name}</span>
+          {po.supplier_id ? (
+            <Link
+              href={`/contacts/${po.supplier_id}`}
+              className="text-sm text-primary hover:underline truncate"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {po.supplier_name}
+            </Link>
+          ) : (
+            <span className="text-sm text-muted-foreground truncate">{po.supplier_name}</span>
+          )}
           <Badge variant="outline" className="text-xs shrink-0">{po.status}</Badge>
           {po.missing_count > 0 && (
             <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-xs shrink-0">
@@ -363,8 +375,14 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
                         <div>
                           <div>{formatCurrency(item.price_only_price)}</div>
                           {item.price_only_supplier && (
-                            <div className="text-xs text-muted-foreground truncate max-w-[160px]" title={item.price_only_supplier}>
-                              {item.price_only_supplier}
+                            <div className="text-xs truncate max-w-[160px]" title={item.price_only_supplier}>
+                              {item.price_only_supplier_id ? (
+                                <Link href={`/contacts/${item.price_only_supplier_id}`} className="text-primary hover:underline">
+                                  {item.price_only_supplier}
+                                </Link>
+                              ) : (
+                                <span className="text-muted-foreground">{item.price_only_supplier}</span>
+                              )}
                             </div>
                           )}
                         </div>

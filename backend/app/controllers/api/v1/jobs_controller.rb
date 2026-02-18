@@ -1022,6 +1022,7 @@ module Api
               supplier = Contact.find_by(id: ph.supplier_id)
               reference_prices[ph.pricebook_item_id] = {
                 price: ph.new_price,
+                supplier_id: ph.supplier_id,
                 supplier_name: supplier&.display_name || supplier&.company_name_or_trust || "Unknown",
               }
             end
@@ -1130,6 +1131,7 @@ module Api
                 price_only_price: ref_price.round(2),
                 price_only_subtotal: ref_subtotal,
                 price_only_supplier: ref[:supplier_name],
+                price_only_supplier_id: ref[:supplier_id],
                 difference: diff,
                 difference_pct: diff_pct,
                 status: status
@@ -1143,6 +1145,7 @@ module Api
           {
             id: po.id,
             po_number: po.purchase_order_number,
+            supplier_id: po.supplier_id,
             supplier_name: po.supplier&.display_name || po.supplier&.company_name || "Unknown Supplier",
             status: po.status,
             current_total: po_current.round(2),
