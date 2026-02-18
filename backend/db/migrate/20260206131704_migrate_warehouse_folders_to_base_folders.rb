@@ -86,7 +86,7 @@ class MigrateWarehouseFoldersToBaseFolders < ActiveRecord::Migration[7.2]
         wf.enabled,
         wf.icon_name,
         wf.component_name,
-        wf.is_system_tab,
+        wf.is_system AS is_system_tab,
         wf.warehouse_enabled,
         wf.uses_custom_path,
         wf.warehouse_type_override,
@@ -97,9 +97,9 @@ class MigrateWarehouseFoldersToBaseFolders < ActiveRecord::Migration[7.2]
         wf.xero_scope,
         wf.visibility_rule,
         wf.tenant_id,
-        wf.download_name,
-        wf.folder_path,
-        wf.ui_name,
+        wf.download_name_template,
+        wf.folder_path_suffix,
+        wf.ui_name_template,
         wf.base_folder_id
       FROM warehouse_folders wf
       ORDER BY wf.warehouse_type, wf.parent_id NULLS FIRST, wf.order_position
@@ -120,7 +120,7 @@ class MigrateWarehouseFoldersToBaseFolders < ActiveRecord::Migration[7.2]
       folder_segment = wf['display_name']
 
       # Extract suffix: if folder_path has dynamic tokens beyond the display_name
-      folder_path = wf['folder_path'].to_s
+      folder_path = wf['folder_path_suffix'].to_s
       folder_path_suffix = extract_suffix(folder_path, folder_segment)
 
       # Check if base_folder already exists (by name and warehouse_type)
@@ -197,8 +197,8 @@ class MigrateWarehouseFoldersToBaseFolders < ActiveRecord::Migration[7.2]
         xero_scope = #{wf['xero_scope'] ? quote(wf['xero_scope']) : 'NULL'},
         entity_filters = #{quote(wf['entity_filters'] || '{}')},
         warehouse_type_override = #{wf['warehouse_type_override'] ? quote(wf['warehouse_type_override']) : 'NULL'},
-        ui_name_template = #{wf['ui_name'] ? quote(wf['ui_name']) : 'NULL'},
-        download_name_template = #{wf['download_name'] ? quote(wf['download_name']) : 'NULL'},
+        ui_name_template = #{wf['ui_name_template'] ? quote(wf['ui_name_template']) : 'NULL'},
+        download_name_template = #{wf['download_name_template'] ? quote(wf['download_name_template']) : 'NULL'},
         uses_custom_path = #{wf['uses_custom_path'] || false},
         is_system_tab = #{wf['is_system_tab'] || false},
         order_position = #{wf['order_position'] || 0},
@@ -242,8 +242,8 @@ class MigrateWarehouseFoldersToBaseFolders < ActiveRecord::Migration[7.2]
         #{wf['xero_scope'] ? quote(wf['xero_scope']) : 'NULL'},
         #{quote(wf['entity_filters'] || '{}')},
         #{wf['warehouse_type_override'] ? quote(wf['warehouse_type_override']) : 'NULL'},
-        #{wf['ui_name'] ? quote(wf['ui_name']) : 'NULL'},
-        #{wf['download_name'] ? quote(wf['download_name']) : 'NULL'},
+        #{wf['ui_name_template'] ? quote(wf['ui_name_template']) : 'NULL'},
+        #{wf['download_name_template'] ? quote(wf['download_name_template']) : 'NULL'},
         #{wf['uses_custom_path'] || false},
         #{wf['is_system_tab'] || false},
         #{wf['is_system_tab'] || false},

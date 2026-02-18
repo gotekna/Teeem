@@ -32,7 +32,15 @@ class PlanStagingCleanupJob < ApplicationJob
     end
 
     # Also clean up the staging folder in storage if it's empty or has old files
-    cleanup_storage_staging_folder
+    # FRC (Feb 2026): DocumentProviderAware requires tenant context.
+    # This job runs from SolidQueue without tenant context, so iterate tenants.
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        cleanup_storage_staging_folder
+      end
+    rescue TenantErrors::TenantNotFoundError, DocumentProviders::NotConnectedError => e
+      Rails.logger.debug "[PlanStagingCleanupJob] Skipping tenant #{tenant.id}: #{e.message}"
+    end
 
     Rails.logger.info "[PlanStagingCleanupJob] Completed"
   end

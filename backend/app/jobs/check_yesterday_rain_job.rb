@@ -22,7 +22,7 @@ class CheckYesterdayRainJob < ApplicationJob
     rain_logs_created = 0
     errors = []
 
-    Job.where(status: "Active").find_each do |job|
+    Job.active.find_each do |job|
       active_jobs_checked += 1
 
       # Get location from job

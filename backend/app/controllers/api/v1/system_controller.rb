@@ -255,7 +255,8 @@ module Api
             xeroRateLimits: xero_rate_limits,
             throughputHistory: throughput_history,
             dynos: compute_worker_dynos,
-            threadCapacity: compute_thread_capacity
+            threadCapacity: compute_thread_capacity,
+            workerApps: compute_worker_apps
           }
         }
       rescue StandardError => e
@@ -639,13 +640,58 @@ module Api
         nil
       end
 
+      # Groups SolidQueue worker processes by app (shared-worker vs email-worker)
+      # based on the queues each process serves.
+      def compute_worker_apps
+        alive_cutoff = 5.minutes.ago
+        workers = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .where(kind: "Worker")
+
+        shared_workers = []
+        email_workers = []
+
+        workers.each do |w|
+          queues = w.metadata&.dig("queues") || []
+          if queues == ["email_sync"]
+            email_workers << w
+          else
+            shared_workers << w
+          end
+        end
+
+        build_worker_app = ->(label, procs) {
+          total_threads = procs.sum { |w| w.metadata&.dig("thread_pool_size").to_i }
+          process_ids = procs.map(&:id)
+          used = process_ids.any? ? SolidQueue::ClaimedExecution.where(process_id: process_ids).count : 0
+          latest_hb = procs.map(&:last_heartbeat_at).compact.max
+
+          {
+            label: label,
+            running: procs.any?,
+            processes: procs.size,
+            threads: { total: total_threads, used: used },
+            queues: procs.flat_map { |w| w.metadata&.dig("queues") || [] }.uniq.sort,
+            latestHeartbeat: latest_hb&.iso8601
+          }
+        }
+
+        [
+          build_worker_app.call("Shared Worker", shared_workers),
+          build_worker_app.call("Email Worker", email_workers)
+        ]
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_worker_apps failed: #{e.message}"
+        nil
+      end
+
       def compute_worker_dynos
         return nil unless HerokuPlatformService.api_key?
 
         infra = HerokuPlatformService.infrastructure
         return nil unless infra[:dynos].present?
 
-        relevant_apps = %w[teeem-shared-worker teeem-production teeem-staging teeem-beta]
+        relevant_apps = %w[teeem-shared-worker teeem-email-worker teeem-production teeem-staging teeem-beta]
         infra[:dynos]
           .select { |d| d[:app].in?(relevant_apps) }
           .map do |d|

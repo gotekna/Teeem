@@ -65,7 +65,7 @@ class XeroInvoiceRepairJob < ApplicationJob
       "XeroInvoiceRepairJob complete: " \
       "repaired=#{result[:repaired]}, " \
       "remaining=#{remaining}, " \
-      "errors=#{result[:errors].size}"
+      "errors=#{result[:errors]&.size || 0}"
     )
 
     result

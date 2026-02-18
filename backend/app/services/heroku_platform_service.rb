@@ -19,6 +19,7 @@ class HerokuPlatformService
     teeem-beta
     teeem-staging
     teeem-shared-worker
+    teeem-email-worker
     teeem-sam-dev
     teeem-rob-dev
     teeem-jake-dev
@@ -33,6 +34,7 @@ class HerokuPlatformService
     "teeem-beta"          => { environment: "Beta",       description: "Beta/UAT Rails API" },
     "teeem-staging"       => { environment: "Staging",    description: "Staging Rails API" },
     "teeem-shared-worker" => { environment: "Shared",     description: "Shared job processing (all envs)" },
+    "teeem-email-worker"  => { environment: "Email",      description: "Dedicated email sync worker" },
     "teeem-sam-dev"       => { environment: "Sam Dev",    description: "Sam's dev environment" },
     "teeem-rob-dev"       => { environment: "Rob Dev",    description: "Rob's dev environment" },
     "teeem-jake-dev"      => { environment: "Jake Dev",   description: "Jake's dev environment" }

@@ -86,6 +86,14 @@ interface QueueStatusData {
     cost: number;
   }> | null;
   threadCapacity: { total: number; used: number } | null;
+  workerApps: Array<{
+    label: string;
+    running: boolean;
+    processes: number;
+    threads: { total: number; used: number };
+    queues: string[];
+    latestHeartbeat: string | null;
+  }> | null;
 }
 
 function getStatusIconColor(status: QueueStatusLevel) {
@@ -695,14 +703,74 @@ export function WorkerQueueStatus() {
                         )}
                       </div>
 
-                      {/* Worker thread capacity - works locally + production */}
-                      {data.threadCapacity && data.threadCapacity.total > 0 && (
+                      {/* Per-worker-app thread capacity */}
+                      {data.workerApps && data.workerApps.length > 0 ? (
+                        data.workerApps.map((app) => {
+                          const pct = app.threads.total > 0 ? app.threads.used / app.threads.total : 0;
+                          const threadColor =
+                            pct > 0.8
+                              ? "text-red-500 dark:text-red-400"
+                              : pct > 0.6
+                                ? "text-orange-500 dark:text-orange-400"
+                                : "text-foreground";
+                          const barColor =
+                            !app.running
+                              ? "bg-red-500"
+                              : pct > 0.8
+                                ? "bg-red-500"
+                                : pct > 0.6
+                                  ? "bg-orange-500"
+                                  : "bg-green-500";
+
+                          return (
+                            <div key={app.label}>
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="flex items-center gap-1.5">
+                                  <span
+                                    className={cn(
+                                      "h-1.5 w-1.5 rounded-full shrink-0",
+                                      app.running ? "bg-green-500" : "bg-red-500"
+                                    )}
+                                  />
+                                  <span className="text-muted-foreground">{app.label}</span>
+                                </span>
+                                <span className="tabular-nums">
+                                  {app.running ? (
+                                    <>
+                                      <span className={cn("font-medium", threadColor)}>
+                                        {app.threads.used}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        /{app.threads.total}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-red-500 dark:text-red-400 text-[10px]">
+                                      offline
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
+                              <div className="mt-1 h-1 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className={cn("h-full rounded-full transition-all", barColor)}
+                                  style={{
+                                    width: app.running
+                                      ? `${Math.min(pct * 100, 100)}%`
+                                      : "100%",
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : data.threadCapacity && data.threadCapacity.total > 0 ? (
                         <ResourceBar
                           label="Worker Threads"
                           used={data.threadCapacity.used}
                           max={data.threadCapacity.total}
                         />
-                      )}
+                      ) : null}
 
                       {data.memory && (
                         <ResourceBar

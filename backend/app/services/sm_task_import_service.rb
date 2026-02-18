@@ -410,7 +410,7 @@ class SmTaskImportService
     return @supplier_cache[supplier_name] if @supplier_cache.key?(supplier_name)
 
     # Find supplier by name (Contact with type 'Supplier')
-    supplier = Contact.where("LOWER(name) = ?", supplier_name.downcase.strip)
+    supplier = Contact.where("LOWER(display_name) = ?", supplier_name.downcase.strip)
                       .where(contact_type: %w[supplier Supplier])
                       .first
 

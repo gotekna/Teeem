@@ -91,7 +91,7 @@ class GeneratePdfJob < ApplicationJob
 
   def generate_invoice(params)
     template = InvoiceTemplate.find(params[:template_id])
-    invoice = Invoice.find(params[:invoice_id])
+    invoice = GL::Invoice.find(params[:invoice_id])
     job = params[:job_id].present? ? Job.find(params[:job_id]) : nil
     contact = params[:contact_id].present? ? Contact.find(params[:contact_id]) : nil
     claim_stage = params[:claim_stage_id].present? ? JobClaimStage.find(params[:claim_stage_id]) : nil

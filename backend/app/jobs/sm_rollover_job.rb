@@ -260,8 +260,8 @@ class SmRolloverJob < ApplicationJob
   def cascade_to_successors(task, days_shifted, visited = Set.new, depth = 0)
     return 0 if days_shifted == 0
     return 0 if visited.include?(task.id)
-    if depth > 100
-      Rails.logger.warn "[SmRolloverJob] cascade_to_successors hit max depth (100) at task #{task.id}, stopping"
+    if depth > 50
+      Rails.logger.warn "[SmRolloverJob] cascade_to_successors hit max depth (50) at task #{task.id}, stopping"
       return 0
     end
 

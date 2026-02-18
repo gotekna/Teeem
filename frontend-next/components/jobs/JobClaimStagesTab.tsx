@@ -1253,12 +1253,12 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                   {availableInvoices.map((inv) => (
                     <SelectItem key={inv.id} value={inv.id.toString()}>
                       <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
+                        <FileText className="h-4 w-4 opacity-50" />
                         <span className="font-medium">{inv.invoice_number}</span>
-                        <span className="text-muted-foreground">
+                        <span className="opacity-70">
                           {formatCurrency(inv.total)}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs opacity-70">
                           {formatDate(inv.date)}
                         </span>
                       </div>

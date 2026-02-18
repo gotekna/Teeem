@@ -8,37 +8,37 @@ class ClaimStageMatcherService
 
   # Auto-match all unmatched stages to available invoices
   # Returns hash with results: { matched: [], unmatched: [], errors: [] }
+  #
+  # Two-pass approach:
+  #   Pass 1: Text-based matches (sequence pattern, keywords, stage name)
+  #   Pass 2: Amount matching - exact amount match, earliest invoice to earliest stage
   def auto_match_all
     result = { matched: [], unmatched: [], errors: [] }
 
-    unmatched_stages = @job.job_claim_stages.unmatched.ordered
-    available_invoices = unmatched_invoices
+    unmatched_stages = @job.job_claim_stages.unmatched.ordered.to_a
+    available_invoices = unmatched_invoices.to_a
 
+    # Pass 1: Text-based matches (sequence pattern, keywords, stage name)
+    still_unmatched = []
     unmatched_stages.each do |stage|
       matched_invoice = find_matching_invoice(stage, available_invoices)
 
       if matched_invoice
-        begin
-          stage.match_to_invoice!(matched_invoice, auto: true)
-          available_invoices.delete(matched_invoice)
-          result[:matched] << {
-            stage_id: stage.id,
-            stage_name: stage.name,
-            invoice_id: matched_invoice.id,
-            invoice_number: matched_invoice.invoice_number
-          }
-        rescue StandardError => e
-          result[:errors] << {
-            stage_id: stage.id,
-            stage_name: stage.name,
-            error: e.message
-          }
-        end
+        do_match!(stage, matched_invoice, available_invoices, result)
       else
-        result[:unmatched] << {
-          stage_id: stage.id,
-          stage_name: stage.name
-        }
+        still_unmatched << stage
+      end
+    end
+
+    # Pass 2: Amount matching for remaining stages
+    # Exact amount match; when multiple invoices share the same amount,
+    # match earliest invoice date to earliest stage (by sequence_order)
+    if still_unmatched.any? && available_invoices.any?
+      amount_match_stages(still_unmatched, available_invoices, result)
+    else
+      # No invoices left - mark remaining as unmatched
+      still_unmatched.each do |stage|
+        result[:unmatched] << { stage_id: stage.id, stage_name: stage.name }
       end
     end
 
@@ -173,6 +173,55 @@ class ClaimStageMatcherService
     Regexp.new(pattern, Regexp::IGNORECASE)
   rescue RegexpError
     Regexp.new(Regexp.escape(name), Regexp::IGNORECASE)
+  end
+
+  # Match a stage to an invoice, update tracking arrays
+  def do_match!(stage, invoice, available_invoices, result)
+    stage.match_to_invoice!(invoice, auto: true)
+    available_invoices.delete(invoice)
+    result[:matched] << {
+      stage_id: stage.id,
+      stage_name: stage.name,
+      invoice_id: invoice.id,
+      invoice_number: invoice.invoice_number
+    }
+  rescue StandardError => e
+    result[:errors] << {
+      stage_id: stage.id,
+      stage_name: stage.name,
+      error: e.message
+    }
+  end
+
+  # Match remaining stages by amount. When multiple invoices have the same
+  # amount as a stage, match earliest invoice (by date) to earliest stage (by sequence_order).
+  def amount_match_stages(stages, available_invoices, result)
+    # Group stages by their expected amount (rounded to cents)
+    stages_by_amount = stages.group_by { |s| s.expected_amount&.round(2) }
+    stages_by_amount.delete(nil) # skip stages with no expected amount
+
+    stages_by_amount.each do |amount, amount_stages|
+      # Find invoices with matching total (compare to cents)
+      matching_invoices = available_invoices
+        .select { |inv| inv.total&.round(2) == amount }
+        .sort_by { |inv| inv.invoice_date || inv.created_at&.to_date || Date.new(2000) }
+
+      # Match in order: earliest stage gets earliest invoice
+      amount_stages.each do |stage|
+        invoice = matching_invoices.shift
+        break unless invoice
+
+        do_match!(stage, invoice, available_invoices, result)
+      end
+    end
+
+    # Any stages still unmatched go into the unmatched list
+    matched_stage_ids = result[:matched].map { |m| m[:stage_id] } + result[:errors].map { |e| e[:stage_id] }
+    stages.each do |stage|
+      next if matched_stage_ids.include?(stage.id)
+
+      result[:unmatched] << { stage_id: stage.id, stage_name: stage.name }
+    end
   end
 
   # Check if invoice is already matched to a different stage

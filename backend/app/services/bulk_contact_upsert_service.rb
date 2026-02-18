@@ -142,10 +142,14 @@ class BulkContactUpsertService
         # FRC (Feb 2026): Xero sends display_name that may collide with another contact.
         # Skip display_name update and retry with remaining attrs.
         Rails.logger.warn("[BulkContactUpsertService] UniqueViolation on update for contact #{op[:contact_id]}: #{e.message.truncate(100)}")
-        attrs_without_name = attrs.except(:display_name)
-        if attrs_without_name.any?
-          updated += Contact.where(id: op[:contact_id]).update_all(attrs_without_name)
-          contact_ids << op[:contact_id]
+        begin
+          attrs_without_name = attrs.except(:display_name)
+          if attrs_without_name.any?
+            updated += Contact.where(id: op[:contact_id]).update_all(attrs_without_name)
+            contact_ids << op[:contact_id]
+          end
+        rescue ActiveRecord::RecordNotUnique => retry_error
+          Rails.logger.warn("[BulkContactUpsertService] UniqueViolation persists after removing display_name for contact #{op[:contact_id]}: #{retry_error.message.truncate(100)}")
         end
       end
     end

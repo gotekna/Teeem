@@ -135,6 +135,10 @@ class XeroCredential < ApplicationRecord
   end
 
   def mark_disconnected!
+    reload
+    update!(status: "disconnected")
+  rescue ActiveRecord::StaleObjectError
+    reload
     update!(status: "disconnected")
   end
 
