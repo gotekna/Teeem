@@ -179,11 +179,16 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def calculate_totals
-    self.sub_total = line_items.reject(&:marked_for_destruction?).sum { |item|
+    active_items = line_items.reject(&:marked_for_destruction?)
+    self.sub_total = active_items.sum { |item|
       (item.quantity || 0) * (item.unit_price || 0)
     }
-    # Calculate tax as 10% of subtotal (line item tax_amount may not be calculated yet during nested saves)
-    self.tax = (sub_total * 0.10).round(2)
+    # Sum per-line-item tax (respects GST/GST Free/Input Taxed per line)
+    self.tax = active_items.sum { |item|
+      line_subtotal = (item.quantity || 0) * (item.unit_price || 0)
+      rate = PurchaseOrderLineItem::GST_CODES[item.gst_code] || 0.10
+      (line_subtotal * rate).round(2)
+    }
     self.total = sub_total + tax
 
     # Calculate amount still to be invoiced

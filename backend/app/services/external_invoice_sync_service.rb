@@ -801,6 +801,19 @@ class ExternalInvoiceSyncService
     end
   end
 
+  # Xero TaxType codes → PurchaseOrderLineItem gst_code
+  XERO_TAX_TO_GST_CODE = {
+    "INPUT" => "GST",           # GST on Expenses (10%)
+    "INPUT2" => "GST Free",     # GST Free Expenses
+    "INPUTTAXED" => "Input Taxed", # Input Taxed Expenses
+    "BASEXCLUDED" => "GST Free",   # BAS Excluded
+    "EXEMPTINPUT" => "GST Free",   # GST Exempt
+    "NONE" => "GST Free",          # No Tax
+    "OUTPUT" => "GST",             # GST on Income (for completeness)
+    "OUTPUT2" => "GST Free",       # GST Free Income
+    "EXEMPTOUTPUT" => "GST Free",  # GST Exempt Income
+  }.freeze
+
   def auto_create_purchase_order(invoice)
     # Check if PO already exists for this invoice
     existing_po = PurchaseOrder.find_by(xero_invoice_id: invoice.external_id)
@@ -810,40 +823,52 @@ class ExternalInvoiceSyncService
     end
 
     begin
-      # Create purchase order (without line items, so skip calculate_totals callback)
       po = PurchaseOrder.new(
         job_id: invoice.job_id,
         supplier_id: invoice.contact_id,
-        status: "invoiced", # Bill already exists, so mark as invoiced
+        status: "invoiced",
         xero_invoice_id: invoice.external_id,
         invoiced_amount: invoice.total,
         invoice_date: invoice.invoice_date,
         invoice_reference: invoice.invoice_number,
         description: "Auto-generated from Xero bill #{invoice.invoice_number}",
-        ordered_date: invoice.invoice_date, # Use invoice date as order date
+        ordered_date: invoice.invoice_date,
         payment_status: invoice.status == "paid" ? "complete" : "pending"
       )
 
-      # Generate PO number before saving (since we skip validation which would trigger the callback)
       po.send(:generate_po_number)
-
-      # Set totals manually and skip callbacks to preserve values
       po.save!(validate: false)
-      po.update_columns(
-        total: invoice.total || 0,
-        sub_total: invoice.subtotal || 0,
-        tax: invoice.total_tax || 0
-      )
 
-      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (Job: #{invoice.job&.name}, Supplier: #{invoice.contact&.display_name})")
+      # Create line items from Xero bill data (SSoT: per-line-item tax types)
+      xero_line_items = invoice.line_items || []
+      if xero_line_items.present?
+        xero_line_items.each_with_index do |item, idx|
+          gst_code = XERO_TAX_TO_GST_CODE[item["TaxType"]] || "GST"
+          po.line_items.create!(
+            line_number: idx + 1,
+            description: item["Description"].presence || "Line #{idx + 1}",
+            quantity: item["Quantity"] || 1,
+            unit_price: item["UnitAmount"] || 0,
+            gst_code: gst_code
+          )
+        end
+        # Line item callbacks will recalculate PO totals with correct per-line tax
+      else
+        # No line items available - fall back to invoice-level totals
+        po.update_columns(
+          total: invoice.total || 0,
+          sub_total: invoice.subtotal || 0,
+          tax: invoice.total_tax || 0
+        )
+      end
 
-      # Add to stats if we have a place for it
+      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (#{xero_line_items.length} line items, Job: #{invoice.job&.name}, Supplier: #{invoice.contact&.display_name})")
+
       @stats[:pos_auto_created] ||= 0
       @stats[:pos_auto_created] += 1
 
     rescue StandardError => e
       Rails.logger.error("Failed to auto-create PO for invoice #{invoice.invoice_number}: #{e.message}")
-      # Don't raise - continue processing other invoices
     end
   end
 

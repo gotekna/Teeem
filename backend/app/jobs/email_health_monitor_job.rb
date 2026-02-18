@@ -156,13 +156,18 @@ class EmailHealthMonitorJob < ApplicationJob
       healed += 1
     end
 
-    # Check Office 365 accounts
+    # FRC (Feb 2026): Do NOT enqueue OrgEmailSyncJob for MS365 credentials.
+    # Root cause of R15 crashes: AllOrgsEmailSyncJob (every 5 min) runs OrgEmailSyncJob
+    # INLINE via .new.perform(), which bypasses SolidQueue dedup. When health monitor
+    # ALSO enqueues OrgEmailSyncJob.perform_later(), both run simultaneously for the
+    # same org → 2x memory → R15 crash → stale last_sync_at → health monitor enqueues
+    # again → vicious cycle. AllOrgsEmailSyncJob IS the self-healing loop (runs every
+    # 5 min, processes all credentials). Health monitor just logs, doesn't double-trigger.
     MicrosoftCredential.refreshable_app.find_each do |credential|
       next unless stalled?(credential, "ms365")
 
-      Rails.logger.warn "[EmailHealthMonitor] Triggering recovery sync for Office 365 org: #{credential.name}"
-      OrgEmailSyncJob.perform_later("incremental", credential_id: credential.id)
-      healed += 1
+      Rails.logger.warn "[EmailHealthMonitor] Stalled Office 365 org: #{credential.name} " \
+                        "(last sync: #{credential.last_sync_at}) - AllOrgsEmailSyncJob will handle recovery"
     end
 
     healed
