@@ -2428,7 +2428,12 @@ module Api
         download_url = if blob&.storage_path.present?
           # SSoT (Jan 2026): Use tenant for storage provider
           provider = DocumentProviders.for_tenant(current_tenant)
-          provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
+          begin
+            provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename)
+          rescue StandardError => e
+            Rails.logger.warn "[Documents] Failed to generate download URL for doc #{wd.id}: #{e.message}"
+            nil
+          end
         end
 
         # Get parent context from WarehouseDocument (SSoT: uses linkable + metadata)

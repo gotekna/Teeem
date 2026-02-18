@@ -343,7 +343,8 @@ export default function PurchaseOrderDetailPage() {
         if (response?.success && response.data) {
           setProfitCentres(response.data);
         }
-      } catch {
+      } catch (err) {
+        console.error("[PurchaseOrderPage] Failed to load profit centres:", err);
         // Non-critical - profit centre picker just won't show options
       }
     };

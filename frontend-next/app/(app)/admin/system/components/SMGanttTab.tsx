@@ -102,8 +102,8 @@ export function SMGanttTab() {
       if (saved) {
         setConfig(saved);
       }
-    } catch {
-      console.debug("Using default gantt config");
+    } catch (err) {
+      console.error("[SMGanttTab] Failed to load gantt config:", err);
     } finally {
       setLoading(false);
     }

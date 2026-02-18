@@ -233,8 +233,8 @@ export default function SpecificationBuilderPage() {
               setExpandedSections(new Set([defaultTemplate.sections[0].key]));
             }
           }
-        } catch {
-          console.error("Failed to load default template");
+        } catch (err) {
+          console.error("[Specifications] failed to load default template:", err);
         }
       }
     };

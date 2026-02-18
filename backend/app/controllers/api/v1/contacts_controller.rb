@@ -1566,7 +1566,12 @@ module Api
         # Format response with download URLs
         docs_json = documents.map do |doc|
           # Generate presigned download URL
-          download_url = doc.download_url rescue nil
+          download_url = begin
+            doc.download_url
+          rescue StandardError => e
+            Rails.logger.warn "[Contacts] Failed to get download URL for doc #{doc.id}: #{e.message}"
+            nil
+          end
 
           # Get invoice dates for Xero documents
           invoice_dates = if doc.source_type == "xero" && doc.documentable_type == "ExternalInvoice"

@@ -553,7 +553,8 @@ export function DataWarehouseTab() {
       if (response?.success) {
         setMicrosoftOrgStats(response);
       }
-    } catch {
+    } catch (err) {
+      console.error("[DataWarehouse] Microsoft org stats error (expected when not connected):", err);
       // Expected to fail when Microsoft/SharePoint not connected - fail silently
     }
   };

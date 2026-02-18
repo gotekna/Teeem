@@ -66,7 +66,11 @@ class EmailBlacklistItem < ApplicationRecord
 
     if matched_item
       # Record match asynchronously (don't block sync)
-      matched_item.record_match! rescue nil
+      begin
+        matched_item.record_match!
+      rescue StandardError => e
+        Rails.logger.warn "[EmailBlacklist] Failed to record match for pattern #{matched_item.pattern}: #{e.message}"
+      end
       Rails.logger.debug "[EmailBlacklist] Matched pattern: #{matched_item.pattern} (#{matched_item.pattern_type})"
       true
     else

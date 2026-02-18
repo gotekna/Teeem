@@ -382,7 +382,8 @@ export default function AssetDetailPage() {
           `/api/v1/assets/${assetId}/service_history`
         );
         setServiceHistory(serviceResponse.service_history || []);
-      } catch {
+      } catch (err) {
+        console.error("[AssetPage] Failed to load service history:", err);
         // Service history endpoint may not exist
         setServiceHistory([]);
       }

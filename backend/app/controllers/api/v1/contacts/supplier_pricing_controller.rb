@@ -96,6 +96,8 @@ module Api
           rounding_mode = params[:rounding_mode].presence || "none" # none, smart, 0.50, 1, 5, 10
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
           effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
+          # Per-item price overrides: { "pricebook_item_id" => price } — overrides adjustment+rounding
+          price_overrides = params[:price_overrides].present? ? params[:price_overrides].to_unsafe_h.transform_keys(&:to_i).transform_values(&:to_f) : {}
 
           # Which price to copy: 'active' (default), 'latest', or 'oldest'
           copy_mode = params[:copy_mode].presence || "active"
@@ -162,15 +164,17 @@ module Api
                 updated_count += 1
               end
 
-              # Apply price adjustment if specified (e.g., 3.0 = +3% increase)
-              adjusted_price = if price_adjustment_percent != 0.0
-                (selected_price_history.new_price * (1 + price_adjustment_percent / 100.0)).round(2)
+              # Use per-item override if provided, otherwise apply adjustment + rounding
+              adjusted_price = if price_overrides.key?(item.id)
+                price_overrides[item.id].round(2)
               else
-                selected_price_history.new_price
+                price = if price_adjustment_percent != 0.0
+                  (selected_price_history.new_price * (1 + price_adjustment_percent / 100.0)).round(2)
+                else
+                  selected_price_history.new_price
+                end
+                apply_price_rounding(price, rounding_mode)
               end
-
-              # Apply rounding (always rounds UP so supplier never loses out)
-              adjusted_price = apply_price_rounding(adjusted_price, rounding_mode)
 
               # Check if target already has a price history with the same price and effective date
               existing_history = PriceHistory.where(
@@ -183,8 +187,12 @@ module Api
               # Only create if this exact price/date combination doesn't exist
               unless existing_history
                 notes = []
-                notes << "#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%" if price_adjustment_percent != 0.0
-                notes << "rounded #{rounding_mode}" if rounding_mode != "none"
+                if price_overrides.key?(item.id)
+                  notes << "manual price"
+                else
+                  notes << "#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%" if price_adjustment_percent != 0.0
+                  notes << "rounded #{rounding_mode}" if rounding_mode != "none"
+                end
                 adjustment_note = notes.any? ? " (#{notes.join(', ')})" : ""
                 PriceHistory.create!(
                   pricebook_item_id: item.id,

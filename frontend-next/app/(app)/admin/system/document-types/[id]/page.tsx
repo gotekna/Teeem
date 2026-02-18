@@ -395,7 +395,8 @@ export default function DocumentTypeDetailPage() {
                 });
               }
             }
-          } catch {
+          } catch (err) {
+            console.error("[DocumentTypePage] Failed to load scope tabs:", err);
             // Continue if one scope fails
           }
         }

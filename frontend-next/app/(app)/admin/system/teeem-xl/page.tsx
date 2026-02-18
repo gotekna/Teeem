@@ -757,7 +757,8 @@ export default function TeeemXLPage() {
       newSheets[activeSheetIndex] = activeSheet;
       setSheets(newSheets);
       setHasChanges(true);
-    } catch {
+    } catch (err) {
+      console.error("[TeeemXL] clipboard paste failed, falling back to internal clipboard:", err);
       // Clipboard API failed, fall back to internal clipboard
       pasteClipboard();
     }

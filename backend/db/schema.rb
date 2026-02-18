@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_19_000001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_19_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7501,7 +7501,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_000001) do
     t.string "quote_reference"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "lga"
+    t.text "lga", default: [], array: true
     t.date "date_effective"
     t.string "user_name"
     t.bigint "tenant_id"

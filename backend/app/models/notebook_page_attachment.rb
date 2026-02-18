@@ -88,7 +88,12 @@ class NotebookPageAttachment < ApplicationRecord
     tenant = resolve_tenant_for_config
     return FALLBACK_FOLDER_PATH unless tenant
 
-    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    config = begin
+      WarehouseProvider.for_tenant(tenant)
+    rescue StandardError => e
+      Rails.logger.warn "[NotebookPageAttachment] Failed to load WarehouseProvider for tenant: #{e.message}"
+      nil
+    end
     return FALLBACK_FOLDER_PATH unless config
 
     config.resolve_warehouse_path(self, scope: :notes)
@@ -102,7 +107,12 @@ class NotebookPageAttachment < ApplicationRecord
     tenant = resolve_tenant_for_config
     return FALLBACK_FOLDER_PATH unless tenant
 
-    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    config = begin
+      WarehouseProvider.for_tenant(tenant)
+    rescue StandardError => e
+      Rails.logger.warn "[NotebookPageAttachment] Failed to load WarehouseProvider for tenant: #{e.message}"
+      nil
+    end
     template = config&.path_for(:notebook)
     return FALLBACK_FOLDER_PATH unless template
 

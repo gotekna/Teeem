@@ -56,7 +56,8 @@ export function ContactIdentityCard({
             username: response.data.username,
           });
         }
-      } catch {
+      } catch (err) {
+        console.error("[ContactIdentityCard] Failed to load user identity:", err);
         // No linked user - that's fine
         setUserIdentity(null);
       }

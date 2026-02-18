@@ -94,7 +94,7 @@ interface PriceHistory {
   date_effective: string | null;
   created_at: string;
   change_reason?: string;
-  lga?: string;
+  lga?: string[];
   supplier?: PriceHistorySupplier;
 }
 
@@ -196,12 +196,12 @@ export default function PriceBookItemDetailPage() {
   const [newPriceEntry, setNewPriceEntry] = useState<{
     price: string;
     date_effective: string;
-    lga: string;
+    lga: string[];
     supplier_id: number | null;
   }>({
     price: "",
     date_effective: new Date().toISOString().split('T')[0],
-    lga: "",
+    lga: QLD_COUNCILS.slice(), // Default: all LGAs selected
     supplier_id: null,
   });
 
@@ -461,7 +461,7 @@ export default function PriceBookItemDetailPage() {
   };
 
   // Update new price entry field
-  const updateNewPriceEntry = (field: keyof typeof newPriceEntry, value: string) => {
+  const updateNewPriceEntry = (field: keyof typeof newPriceEntry, value: any) => {
     setNewPriceEntry((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -478,7 +478,7 @@ export default function PriceBookItemDetailPage() {
       const response = await api.post<{ success: boolean; item: PriceBookItem }>(`/api/v1/pricebook/${code}/add_price`, {
         price: parseFloat(newPriceEntry.price),
         supplier_id: newPriceEntry.supplier_id || item?.default_supplier_id || undefined,
-        lga: newPriceEntry.lga || undefined,
+        lga: newPriceEntry.lga.length > 0 ? newPriceEntry.lga : undefined,
         date_effective: newPriceEntry.date_effective || undefined,
       });
 
@@ -493,7 +493,7 @@ export default function PriceBookItemDetailPage() {
       setNewPriceEntry({
         price: "",
         date_effective: new Date().toISOString().split('T')[0],
-        lga: "",
+        lga: QLD_COUNCILS.slice(), // Default: all LGAs selected
         supplier_id: null,
       });
 
@@ -608,8 +608,8 @@ export default function PriceBookItemDetailPage() {
         if (changes.date_effective !== undefined && changes.date_effective !== originalHistory?.date_effective) {
           patchData.date_effective = changes.date_effective;
         }
-        if (changes.lga !== undefined && changes.lga !== originalHistory?.lga) {
-          patchData.lga = changes.lga || null; // Send null if empty string
+        if (changes.lga !== undefined && JSON.stringify(changes.lga) !== JSON.stringify(originalHistory?.lga)) {
+          patchData.lga = Array.isArray(changes.lga) && changes.lga.length > 0 ? changes.lga : [];
         }
         if (changes.supplier?.id !== undefined && changes.supplier?.id !== originalHistory?.supplier?.id) {
           patchData.supplier_id = changes.supplier.id;
@@ -1006,21 +1006,53 @@ export default function PriceBookItemDetailPage() {
                           {/* LGA Cell */}
                           <TableCell className="py-2 text-sm text-muted-foreground">
                             {isEditing ? (
-                              <ComboboxDropdown
-                                items={QLD_COUNCIL_ITEMS}
-                                selectedItem={QLD_COUNCIL_ITEMS.find(c => c.id === (pendingEdit?.lga || history.lga))}
-                                onSelect={(item) => handleFieldChange(history.id, 'lga', item.id)}
-                                placeholder="Select LGA..."
-                                clearable
-                                onClear={() => handleFieldChange(history.id, 'lga', '')}
-                                className="h-9"
-                              />
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button variant="outline" className="h-9 w-full justify-between text-sm font-normal">
+                                    {(() => {
+                                      const selected = pendingEdit?.lga ?? history.lga ?? [];
+                                      const arr = Array.isArray(selected) ? selected : (selected ? [selected] : []);
+                                      if (arr.length === 0) return <span className="text-muted-foreground">Select LGA...</span>;
+                                      if (arr.length === QLD_COUNCILS.length) return "All LGAs";
+                                      return `${arr.length} LGA${arr.length > 1 ? 's' : ''}`;
+                                    })()}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[280px] p-2 z-[9999]" align="start">
+                                  <div className="flex justify-between mb-2">
+                                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => handleFieldChange(history.id, 'lga', QLD_COUNCILS.slice())}>All</Button>
+                                    <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => handleFieldChange(history.id, 'lga', [])}>None</Button>
+                                  </div>
+                                  {QLD_COUNCILS.map(council => {
+                                    const selected = pendingEdit?.lga ?? history.lga ?? [];
+                                    const arr = Array.isArray(selected) ? selected : (selected ? [selected] : []);
+                                    const isChecked = arr.includes(council);
+                                    return (
+                                      <div key={council} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted cursor-pointer"
+                                        onClick={() => {
+                                          const newLga = isChecked ? arr.filter(l => l !== council) : [...arr, council];
+                                          handleFieldChange(history.id, 'lga', newLga);
+                                        }}
+                                      >
+                                        <Checkbox checked={isChecked} />
+                                        <span className="text-sm">{council}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </PopoverContent>
+                              </Popover>
                             ) : (
                               <span
                                 className="cursor-pointer hover:bg-muted px-2 py-1 rounded block"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
-                                {history.lga || '-'}
+                                {(() => {
+                                  const arr = Array.isArray(history.lga) ? history.lga : (history.lga ? [history.lga] : []);
+                                  if (arr.length === 0) return '-';
+                                  if (arr.length === QLD_COUNCILS.length) return 'All LGAs';
+                                  return `${arr.length} LGA${arr.length > 1 ? 's' : ''}`;
+                                })()}
                               </span>
                             )}
                           </TableCell>
@@ -1150,15 +1182,42 @@ export default function PriceBookItemDetailPage() {
                         />
                       </TableCell>
                       <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
-                        <ComboboxDropdown
-                          items={QLD_COUNCIL_ITEMS}
-                          selectedItem={QLD_COUNCIL_ITEMS.find(c => c.id === newPriceEntry.lga) || undefined}
-                          onSelect={(item) => updateNewPriceEntry('lga', item.id)}
-                          placeholder="Select LGA..."
-                          clearable
-                          onClear={() => updateNewPriceEntry('lga', '')}
-                          className="h-9 border-0 rounded-none bg-slate-100 dark:bg-slate-800"
-                        />
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="h-9 w-full justify-between text-sm font-normal border-0 rounded-none bg-slate-100 dark:bg-slate-800">
+                              {newPriceEntry.lga.length === 0 ? (
+                                <span className="text-muted-foreground">Select LGA...</span>
+                              ) : newPriceEntry.lga.length === QLD_COUNCILS.length ? (
+                                "All LGAs"
+                              ) : (
+                                `${newPriceEntry.lga.length} LGA${newPriceEntry.lga.length > 1 ? 's' : ''}`
+                              )}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[280px] p-2 z-[9999]" align="start">
+                            <div className="flex justify-between mb-2">
+                              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => updateNewPriceEntry('lga', QLD_COUNCILS.slice())}>All</Button>
+                              <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => updateNewPriceEntry('lga', [])}>None</Button>
+                            </div>
+                            {QLD_COUNCILS.map(council => {
+                              const isChecked = newPriceEntry.lga.includes(council);
+                              return (
+                                <div key={council} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-muted cursor-pointer"
+                                  onClick={() => {
+                                    const newLga = isChecked
+                                      ? newPriceEntry.lga.filter(l => l !== council)
+                                      : [...newPriceEntry.lga, council];
+                                    updateNewPriceEntry('lga', newLga);
+                                  }}
+                                >
+                                  <Checkbox checked={isChecked} />
+                                  <span className="text-sm">{council}</span>
+                                </div>
+                              );
+                            })}
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                       <TableCell className="py-1 border-b bg-slate-100 dark:bg-slate-800">
                         <Popover

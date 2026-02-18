@@ -51,7 +51,8 @@ export function GstCodesTab() {
       if (res.success) {
         setCodes(res.gst_codes);
       }
-    } catch {
+    } catch (err) {
+      console.error("[GstCodesTab] Failed to load GST codes:", err);
       toast({ title: "Error", description: "Failed to load GST codes", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -107,7 +108,8 @@ export function GstCodesTab() {
       }
       setEditing(null);
       fetchCodes();
-    } catch {
+    } catch (err) {
+      console.error("[GstCodesTab] Failed to save GST code:", err);
       toast({ title: "Error", description: "Failed to save GST code", variant: "destructive" });
     } finally {
       setSaving(false);
@@ -119,7 +121,8 @@ export function GstCodesTab() {
       await api.delete(`/api/v1/gst_codes/${code.id}`);
       toast({ title: "Deactivated", description: `GST code '${code.code}' deactivated` });
       fetchCodes();
-    } catch {
+    } catch (err) {
+      console.error("[GstCodesTab] Failed to deactivate GST code:", err);
       toast({ title: "Error", description: "Failed to deactivate GST code", variant: "destructive" });
     }
   };

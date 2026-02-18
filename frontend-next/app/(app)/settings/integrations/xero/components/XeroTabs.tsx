@@ -217,7 +217,8 @@ export function XeroFieldMapping() {
           field_mappings: newMappings
         }
       });
-    } catch {
+    } catch (err) {
+      console.error("[XeroTabs] Failed to save field mapping:", err);
       toast({ title: "Error", description: "Failed to save field mapping", variant: "destructive" });
     }
   };
@@ -238,7 +239,8 @@ export function XeroFieldMapping() {
       });
 
       toast({ title: "Success", description: "Validation rules updated" });
-    } catch {
+    } catch (err) {
+      console.error("[XeroTabs] Failed to update validation rules:", err);
       toast({ title: "Error", description: "Failed to update rules", variant: "destructive" });
     }
   };

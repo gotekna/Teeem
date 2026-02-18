@@ -492,7 +492,8 @@ function UserRolesSubTab() {
           u.role === role.name
         );
         setRoleUsers(filtered.map(u => ({ id: u.id, name: u.name, email: u.email })));
-      } catch {
+      } catch (err) {
+        console.error("[RolesPage] Failed to load role users (fallback):", err);
         setRoleUsers([]);
       }
     } finally {

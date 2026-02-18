@@ -88,8 +88,8 @@ export default function WHSSWMSPage() {
       try {
         const response = await api.get<{ swms: SWMS[] }>("/api/v1/whs/swms");
         setSwmsList(response.swms || []);
-      } catch {
-        // No mock data — show empty state
+      } catch (err) {
+        console.error("[SWMS] failed to fetch SWMS list:", err);
         setSwmsList([]);
       } finally {
         setLoading(false);

@@ -637,8 +637,8 @@ export default function CorporateDashboardPage() {
           params: { due_soon: "true", days: 30 },
         });
         compliance = complianceResponse.compliance_items || [];
-      } catch {
-        // Compliance endpoint may not exist
+      } catch (err) {
+        console.error("[Corporate] failed to fetch compliance items:", err);
       }
 
       // Load assets
@@ -646,8 +646,8 @@ export default function CorporateDashboardPage() {
       try {
         const assetsResponse = await api.get<{ assets: unknown[] }>("/api/v1/assets");
         assets = assetsResponse.assets || [];
-      } catch {
-        // Assets endpoint may not exist
+      } catch (err) {
+        console.error("[Corporate] failed to fetch assets:", err);
       }
 
       // Health report removed from initial load - too slow (4.5s with 1600+ queries)

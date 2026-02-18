@@ -1080,7 +1080,8 @@ export default function EmailPage() {
         email_address: selectedEmail.from_email || selectedEmail.from_address,
       });
       toast({ title: "VIP status toggled" });
-    } catch {
+    } catch (err) {
+      console.error("[Email] failed to toggle VIP status:", err);
       toast({ title: "Failed to toggle VIP", variant: "destructive" });
     }
   }, [selectedEmail, toast]);

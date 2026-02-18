@@ -17,8 +17,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
+
+interface SupplierComboItem extends ComboboxItem {
+  supplierId: number;
+}
 
 interface PricebookItem {
   id: number;
@@ -100,15 +104,39 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [copySelectedIds, setCopySelectedIds] = useState<(number | string)[]>([]);
   const [copyClearSelection, setCopyClearSelection] = useState<(() => void) | null>(null);
-  const [targetSupplier, setTargetSupplier] = useState<Supplier | null>(null);
+  const [targetSupplier, setTargetSupplier] = useState<{ id: number; name: string } | null>(null);
+  const [suppliers, setSuppliers] = useState<SupplierComboItem[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
   const [effectiveDate, setEffectiveDate] = useState<string>(getLocalDateString);
   const [copying, setCopying] = useState(false);
   const [targetPrices, setTargetPrices] = useState<Record<number, number>>({});
   const [loadingTargetPrices, setLoadingTargetPrices] = useState(false);
+  const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
 
   const { toast } = useToast();
+
+  // Inline edit handler - saves single field updates to the pricebook API
+  const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
+    try {
+      await api.patch(`/api/v1/pricebook/${rowId}`, {
+        pricebook_item: { [field]: value },
+      });
+      // Update local state to reflect the change without full reload
+      setItems(prev => prev.map(item =>
+        item.id === Number(rowId) ? { ...item, [field]: value } : item
+      ));
+    } catch (err) {
+      console.error("Failed to update pricebook item:", err);
+      toast({
+        title: "Update failed",
+        description: err instanceof Error ? err.message : "Failed to save change",
+        variant: "destructive",
+      });
+      throw err; // Re-throw so TeeemTableView can revert the cell
+    }
+  }, [toast]);
 
   useEffect(() => {
     loadPricebookItems();
@@ -135,6 +163,26 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       setLoading(false);
     }
   };
+
+  const loadSuppliers = useCallback(async () => {
+    if (suppliers.length > 0) return;
+    setLoadingSuppliers(true);
+    try {
+      const response = await api.get<{ contacts: { id: number; display_name?: string; name?: string }[] }>(
+        "/api/v1/contacts?entity_type=company,trust,sole_trader"
+      );
+      const list = (response?.contacts || []).map((c) => ({
+        id: String(c.id),
+        label: c.display_name || c.name || `Contact ${c.id}`,
+        supplierId: c.id,
+      }));
+      setSuppliers(list);
+    } catch (err) {
+      console.error("Failed to load suppliers:", err);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  }, [suppliers.length]);
 
   const columns: TableColumn[] = useMemo(() => [
     { key: "item_code", label: "Code", width: 120, sortable: true, column_type: "single_line_text" },
@@ -235,14 +283,22 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setPriceAdjustment("");
     setRoundingMode("none");
     setEffectiveDate(getLocalDateString());
+    setPriceOverrides({});
     setCopyModalOpen(true);
-  }, []);
+    loadSuppliers();
+  }, [loadSuppliers]);
 
   const handleCopyPrices = useCallback(async () => {
     if (!targetSupplier || copySelectedIds.length === 0) return;
 
     setCopying(true);
     try {
+      // Build price_overrides: map of pricebook_item_id -> override price
+      const overrides: Record<string, number> = {};
+      for (const [id, price] of Object.entries(priceOverrides)) {
+        overrides[id] = price;
+      }
+
       const response = await api.post<{
         success: boolean;
         message: string;
@@ -255,15 +311,17 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         price_adjustment_percent: adjustmentPercent,
         rounding_mode: roundingMode,
         effective_date: effectiveDate,
+        ...(Object.keys(overrides).length > 0 && { price_overrides: overrides }),
       });
 
       if (response?.success) {
         toast({
-          title: "Prices Copied",
+          title: "Prices Updated",
           description: response.message,
         });
         setCopyModalOpen(false);
         copyClearSelection?.();
+        loadPricebookItems();
       } else {
         toast({
           title: "Copy Failed",
@@ -281,7 +339,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     } finally {
       setCopying(false);
     }
-  }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, roundingMode, toast, copyClearSelection]);
+  }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, roundingMode, effectiveDate, priceOverrides, toast, copyClearSelection]);
 
   const handleSetDefault = useCallback(async (selectedIds: (number | string)[], clearSelection: () => void) => {
     if (selectedIds.length === 0) return;
@@ -349,8 +407,8 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           entries={rows}
           columns={columns}
           tableName="Price Book Items"
-          viewOnly={true}
           enableExport={true}
+          onRowUpdate={handleRowUpdate}
           customBulkActions={(selectedIds, clearSelection) => (
             <>
               <Button
@@ -376,13 +434,13 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
 
       {/* Copy Prices Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Copy Prices to Another Supplier</DialogTitle>
+            <DialogTitle>Copy Prices to Supplier</DialogTitle>
             <DialogDescription>
               Copy {copySelectedIds.length} selected price{copySelectedIds.length !== 1 ? "s" : ""} from{" "}
-              <span className="font-medium text-foreground">{contactName}</span> to another supplier.
-              This only copies price history — it does not change the default supplier.
+              <span className="font-medium text-foreground">{contactName}</span> to a supplier as new price history.
+              You can edit individual prices before saving.
             </DialogDescription>
           </DialogHeader>
 
@@ -390,11 +448,16 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
             {/* Target Supplier */}
             <div>
               <label className="text-sm font-medium mb-2 block">Target Supplier</label>
-              <SupplierPicker
-                value={targetSupplier}
-                onSelect={setTargetSupplier}
+              <ComboboxDropdown<SupplierComboItem>
+                items={suppliers}
+                selectedItem={targetSupplier ? suppliers.find(s => s.supplierId === targetSupplier.id) : undefined}
+                onSelect={(item) => setTargetSupplier({ id: item.supplierId, name: item.label })}
                 placeholder="Search for target supplier..."
-                clearable
+                searchPlaceholder="Search suppliers..."
+                emptyResults="No suppliers found."
+                isLoading={loadingSuppliers}
+                clearable={!!targetSupplier}
+                onClear={() => setTargetSupplier(null)}
               />
             </div>
 
@@ -494,16 +557,18 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">Code</th>
                       <th className="text-left px-3 py-2 font-medium">Item Name</th>
-                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">Source Price</th>
+                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
+                        {contactName}
+                      </th>
                       {targetSupplier && (
                         <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
-                          Target Price
+                          {targetSupplier.name || "Target"} Current
                         </th>
                       )}
                       <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
                         <span className="flex items-center justify-end gap-1">
                           {hasAdjustment && <TrendingUp className="h-3 w-3" />}
-                          New Price
+                          {targetSupplier ? `${targetSupplier.name || "Target"} New` : "New Price"}
                         </span>
                       </th>
                     </tr>
@@ -512,14 +577,15 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                     {selectedItems.map((item) => {
                       const sourcePrice = item.supplier_price ?? item.current_price;
                       const targetCurrentPrice = targetPrices[item.id] ?? null;
-                      const newPrice = calcNewPrice(sourcePrice);
-                      const diffFromTarget = targetCurrentPrice != null && newPrice != null ? newPrice - targetCurrentPrice : null;
+                      const calculatedPrice = calcNewPrice(sourcePrice);
+                      const effectiveNewPrice = priceOverrides[item.id] ?? calculatedPrice;
+                      const diffFromTarget = targetCurrentPrice != null && effectiveNewPrice != null ? effectiveNewPrice - targetCurrentPrice : null;
 
                       return (
                         <tr key={item.id} className="hover:bg-muted/30">
                           <td className="px-3 py-1.5 font-mono text-xs">{item.item_code}</td>
-                          <td className="px-3 py-1.5 truncate max-w-[200px]">{item.item_name}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">
+                          <td className="px-3 py-1.5 truncate max-w-[250px]">{item.item_name}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
                             {formatCurrency(sourcePrice)}
                           </td>
                           {targetSupplier && (
@@ -532,7 +598,24 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                             </td>
                           )}
                           <td className="px-3 py-1.5 text-right tabular-nums">
-                            <span className="font-medium">{formatCurrency(newPrice)}</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="w-24 text-right font-medium bg-transparent border border-border rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={priceOverrides[item.id] !== undefined ? priceOverrides[item.id] : (calculatedPrice ?? "")}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (!isNaN(val)) {
+                                  setPriceOverrides(prev => ({ ...prev, [item.id]: val }));
+                                } else if (e.target.value === "") {
+                                  setPriceOverrides(prev => {
+                                    const next = { ...prev };
+                                    delete next[item.id];
+                                    return next;
+                                  });
+                                }
+                              }}
+                            />
                             {targetSupplier && diffFromTarget != null && diffFromTarget !== 0 && (
                               <span className={`ml-1 text-xs ${diffFromTarget > 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                                 ({diffFromTarget > 0 ? "+" : ""}{formatCurrency(diffFromTarget)})
@@ -558,28 +641,21 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
             </Button>
             <Button
               onClick={handleCopyPrices}
-              disabled={!targetSupplier || copying || targetSupplier.id === contactId}
+              disabled={!targetSupplier || copying}
             >
               {copying ? (
                 <>
                   <Spinner size={16} className="mr-1" />
-                  Copying...
+                  Saving...
                 </>
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-1" />
-                  Copy {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
-                  {hasAdjustment ? " (adjusted)" : ""}
+                  Save {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
                 </>
               )}
             </Button>
           </DialogFooter>
-
-          {targetSupplier?.id === contactId && (
-            <p className="text-sm text-destructive">
-              Cannot copy prices to the same supplier.
-            </p>
-          )}
         </DialogContent>
       </Dialog>
     </div>

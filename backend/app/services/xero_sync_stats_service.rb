@@ -378,7 +378,12 @@ class XeroSyncStatsService
       return {} if tenant_ids.empty?
 
       tenant_ids.each_with_object({}) do |tenant_id, hash|
-        hash[tenant_id] = XeroRateLimitTracker.usage_for(tenant_id) rescue nil
+        hash[tenant_id] = begin
+          XeroRateLimitTracker.usage_for(tenant_id)
+        rescue StandardError => e
+          Rails.logger.warn "[XeroSyncStats] Failed to get rate limit usage for tenant #{tenant_id}: #{e.message}"
+          nil
+        end
       end
     end
 

@@ -834,7 +834,11 @@ class XeroContactSyncService
     # Track changes for activity logging
     changed_fields = updates.keys
     changes_made = changed_fields.each_with_object({}) do |field, hash|
-      old_value = teeem_contact.send(field) rescue nil
+      old_value = begin
+        teeem_contact.send(field)
+      rescue StandardError
+        nil
+      end
       new_value = updates[field]
       hash[field] = { from: old_value, to: new_value } if old_value != new_value
     end

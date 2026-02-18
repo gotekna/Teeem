@@ -184,8 +184,8 @@ export function InspiringQuotesTab() {
         } else {
           await api.post("/api/v1/inspiring_quotes", { inspiring_quote: quoteData });
         }
-      } catch {
-        // Saved locally as fallback
+      } catch (err) {
+        console.error("[InspiringQuotes] API save failed, using local fallback:", err);
       }
 
       setShowDialog(false);
@@ -203,8 +203,8 @@ export function InspiringQuotesTab() {
 
     try {
       await api.delete(`/api/v1/inspiring_quotes/${id}`);
-    } catch {
-      // Deleted locally
+    } catch (err) {
+      console.error("[InspiringQuotes] API delete failed, deleted locally:", err);
     }
 
     toast({ title: "Success", description: "Quote deleted successfully" });
@@ -224,8 +224,8 @@ export function InspiringQuotesTab() {
           inspiring_quote: { is_active: !quote.is_active },
         });
       }
-    } catch {
-      // Updated locally
+    } catch (err) {
+      console.error("[InspiringQuotes] API toggle failed, updated locally:", err);
     }
   };
 

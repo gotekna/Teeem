@@ -279,7 +279,12 @@ class SmTaskAttachment < ApplicationRecord
 
     # FRC: Use for_tenant with explicit tenant from task, not instance
     # (model callbacks don't have ActsAsTenant.current_tenant set)
-    config = WarehouseProvider.for_tenant(task.tenant) rescue nil
+    config = begin
+      WarehouseProvider.for_tenant(task.tenant)
+    rescue StandardError => e
+      Rails.logger.warn "[SmTaskAttachment] Failed to load WarehouseProvider for tenant #{task.tenant_id}: #{e.message}"
+      nil
+    end
     unless config
       Rails.logger.warn("[SmTaskAttachment] ##{id}: No WarehouseProvider found for tenant #{task.tenant_id}")
       return FALLBACK_FOLDER_PATH

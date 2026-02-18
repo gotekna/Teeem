@@ -431,7 +431,8 @@ function RolesManagementTab() {
           Array.isArray(u.role_ids) && u.role_ids.some(r => r.id === role.id)
         );
         setRoleUsers(filtered.map(u => ({ id: u.id, name: u.name, email: u.email })));
-      } catch {
+      } catch (err) {
+        console.error("[SecurityTab] Fallback user load for role also failed:", err);
         setRoleUsers([]);
       }
     } finally {

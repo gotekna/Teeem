@@ -751,7 +751,8 @@ function S3StorageConnection() {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
       loadCredentials();
-    } catch {
+    } catch (err) {
+      console.error("[ConnectionsTab] delete S3 credential error:", err);
       toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     }
   };
@@ -1219,7 +1220,8 @@ function DocumentStorageProvider() {
       await api.delete(`/api/v1/s3_credentials/${cred.id}`);
       toast({ title: "Deleted", description: "Storage removed" });
       loadS3Credentials();
-    } catch {
+    } catch (err) {
+      console.error("[ConnectionsTab] delete storage credential error:", err);
       toast({ title: "Error", description: "Failed to delete", variant: "destructive" });
     }
   };
@@ -1721,7 +1723,8 @@ function EmailMigrationCard() {
       await api.post("/api/v1/background_jobs/start_email_upload", { batch_size: 5000 });
       toast({ title: "Started", description: "Email migration job queued" });
       setTimeout(loadActiveEmailJob, COUNTDOWN_TICK_MS);
-    } catch {
+    } catch (err) {
+      console.error("[ConnectionsTab] start email migration error:", err);
       toast({ title: "Error", description: "Failed to start email migration", variant: "destructive" });
     }
   };
@@ -1741,7 +1744,8 @@ function EmailMigrationCard() {
         toast({ title: "Stopped", description: "Email migration stopped" });
         setActiveEmailJob(null);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ConnectionsTab] stop email migration error:", err);
       toast({ title: "Error", description: "Failed to stop migration", variant: "destructive" });
     } finally {
       setStopping(false);
@@ -1926,7 +1930,8 @@ function AttachmentDeduplicationCard() {
       } else {
         toast({ title: "Info", description: response?.error || "No attachments to process" });
       }
-    } catch {
+    } catch (err) {
+      console.error("[ConnectionsTab] start attachment deduplication error:", err);
       toast({ title: "Error", description: "Failed to start deduplication", variant: "destructive" });
     } finally {
       setStarting(false);
@@ -2308,7 +2313,8 @@ function IntegrationsSubTab() {
           } else {
             setCloudflareStatus({ connected: false });
           }
-        } catch {
+        } catch (err) {
+          console.error("[ConnectionsTab] fetch Cloudflare status error:", err);
           setCloudflareStatus({ connected: false });
         }
       } catch (error) {

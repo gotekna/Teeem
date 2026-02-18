@@ -279,7 +279,8 @@ export default function DocsortPage() {
           `/api/v1/document_inboxes/${selectedItem.id}/classification`
         );
         if (response?.success) setClassificationData(response);
-      } catch {
+      } catch (err) {
+        console.error("[DocSort] Failed to fetch classification data:", err);
         setClassificationData(null);
       } finally {
         setClassificationLoading(false);
@@ -441,7 +442,8 @@ export default function DocsortPage() {
       try {
         await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
         success++;
-      } catch {
+      } catch (err) {
+        console.error("[DocSort] Re-classify failed for item", item.id, ":", err);
         failed++;
       }
     }
@@ -715,7 +717,8 @@ export default function DocsortPage() {
                         } else {
                           toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
                         }
-                      } catch {
+                      } catch (err) {
+                        console.error("[DocSort] Download failed:", err);
                         toast({ title: "Download failed", variant: "destructive" });
                       }
                     }}
@@ -784,7 +787,8 @@ export default function DocsortPage() {
                           `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
                         );
                         if (response?.url) window.open(response.url, "_blank");
-                      } catch {
+                      } catch (err) {
+                        console.error("[DocSort] Download to view failed:", err);
                         toast({ title: "Download failed", variant: "destructive" });
                       }
                     }}

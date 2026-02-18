@@ -428,7 +428,7 @@ export default function MicrosoftIntegrationPage() {
           setConsentUrl(null);
           window.location.reload();
         }
-      } catch { /* ignore polling errors */ }
+      } catch (err) { console.error("[Microsoft] polling error:", err); /* ignore polling errors */ }
     }, 5000);
     return () => clearInterval(interval);
   }, [waitingForConsent, consentOrgName]);

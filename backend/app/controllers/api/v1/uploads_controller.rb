@@ -268,7 +268,11 @@ module Api
         existing_blob = StorageBlob.find_by(content_hash: computed_hash)
         if existing_blob
           # Delete temp file, reuse existing blob
-          provider.delete_file(temp_key) rescue nil
+          begin
+            provider.delete_file(temp_key)
+          rescue StandardError => e
+            Rails.logger.warn "[Uploads] Failed to delete temp file #{temp_key} after dedup: #{e.message}"
+          end
           existing_blob.increment_reference!
           return existing_blob
         end
@@ -282,7 +286,11 @@ module Api
           copy_source: "#{provider.instance_variable_get(:@bucket)}/#{temp_key}",
           key: permanent_key
         )
-        provider.delete_file(temp_key) rescue nil
+        begin
+          provider.delete_file(temp_key)
+        rescue StandardError => e
+          Rails.logger.warn "[Uploads] Failed to delete temp file #{temp_key} after move: #{e.message}"
+        end
 
         # Create blob record
         blob = StorageBlob.create!(

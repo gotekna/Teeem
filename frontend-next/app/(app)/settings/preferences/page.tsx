@@ -97,8 +97,8 @@ export default function PreferencesPage() {
           variant: "destructive",
         });
       }
-    } catch {
-      // Revert on error
+    } catch (err) {
+      console.error("[Preferences] failed to save AI writing assistant setting:", err);
       setEnableAiWritingAssistant(!checked);
       toast({
         title: "Error",

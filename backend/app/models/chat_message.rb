@@ -108,7 +108,12 @@ class ChatMessage < ApplicationRecord
     tenant = resolve_tenant_for_config
     return FALLBACK_FOLDER_PATH unless tenant
 
-    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    config = begin
+      WarehouseProvider.for_tenant(tenant)
+    rescue StandardError => e
+      Rails.logger.warn "[ChatMessage] Failed to load WarehouseProvider for tenant: #{e.message}"
+      nil
+    end
     template = config&.path_for(:chat)
     return FALLBACK_FOLDER_PATH unless template
 

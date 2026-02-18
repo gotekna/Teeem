@@ -141,7 +141,8 @@ export default function ESignatureDetailPage() {
       const blob = await api.getBlob(`/api/v1/e_signature_requests/${id}/document`);
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
-    } catch {
+    } catch (err) {
+      console.error("[ESignatureDetail] view document error:", err);
       // Silently fail - button only shows when document exists
     }
   };

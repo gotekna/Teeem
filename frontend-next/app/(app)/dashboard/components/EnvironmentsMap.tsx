@@ -142,7 +142,8 @@ export default function EnvironmentsMap() {
             };
           }
           return { ...env, status: "offline" as const, responseTime: elapsed };
-        } catch {
+        } catch (err) {
+          console.error("[EnvironmentsMap] Health check failed for environment:", env.name, err);
           return { ...env, status: "offline" as const, responseTime: Date.now() - start };
         }
       })

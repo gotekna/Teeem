@@ -304,7 +304,12 @@ module Api
 
         # Format response with download URLs
         docs_json = docs.map do |doc|
-          download_url = doc.download_url rescue nil
+          download_url = begin
+            doc.download_url
+          rescue StandardError => e
+            Rails.logger.warn "[Corporates] Failed to get download URL for doc #{doc.id}: #{e.message}"
+            nil
+          end
 
           {
             id: doc.id,

@@ -554,8 +554,8 @@ class ImapEmailService
       imap.login(credential.username, credential.password)
       yield imap
     ensure
-      imap.logout rescue nil
-      imap.disconnect rescue nil
+      begin; imap.logout; rescue StandardError; end
+      begin; imap.disconnect; rescue StandardError; end
     end
   end
 
@@ -864,7 +864,11 @@ class ImapEmailService
     unless folder
       # Create "Drafts" as fallback
       folder = "Drafts"
-      imap.create(folder) rescue nil
+      begin
+        imap.create(folder)
+      rescue StandardError => e
+        Rails.logger.warn "[ImapEmailService] Failed to create Drafts folder: #{e.message}"
+      end
     end
 
     folder
@@ -888,7 +892,7 @@ class ImapEmailService
 
     # Fallback: return nil (draft saved but UID unknown)
     nil
-  rescue => e
+  rescue StandardError => e
     Rails.logger.debug "[ImapEmailService] Could not extract APPEND UID: #{e.message}"
     nil
   end
@@ -903,7 +907,11 @@ class ImapEmailService
       unless sent_folder
         # Try to create "Sent" as fallback
         sent_folder = "Sent"
-        imap.create(sent_folder) rescue nil
+        begin
+        imap.create(sent_folder)
+      rescue StandardError => e
+        Rails.logger.warn "[ImapEmailService] Failed to create Sent folder: #{e.message}"
+      end
       end
 
       imap.append(sent_folder, mail.to_s, [:Seen], Time.current)

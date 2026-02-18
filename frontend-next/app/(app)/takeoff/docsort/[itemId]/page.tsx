@@ -612,7 +612,8 @@ export default function DocsortTakeoffPage() {
           return { ...prev, page_scales: newScales };
         });
         toast({ title: "Calibration Cleared", description: "You can now recalibrate from scratch." });
-      } catch {
+      } catch (err) {
+        console.error("[Takeoff] failed to clear calibration:", err);
         toast({ title: "Failed to clear calibration", variant: "destructive" });
       }
     },
@@ -918,7 +919,8 @@ export default function DocsortTakeoffPage() {
             prev.map((m) => (m.id === id ? { ...response.data } : m))
           );
         }
-      } catch {
+      } catch (err) {
+        console.error("[Takeoff] failed to rename measurement:", err);
         toast({ title: "Error", description: "Failed to rename measurement", variant: "destructive" });
       }
     },

@@ -92,7 +92,13 @@ class PoScheduleSyncService
     task = purchase_order.sm_task
     return [] unless task
     # SSoT: predecessors is now a method (not association) using predecessor_ids jsonb
-    [task.tap { |t| t.association(:supplier).load rescue nil }]
+    [task.tap { |t|
+      begin
+        t.association(:supplier).load
+      rescue StandardError => e
+        Rails.logger.warn "[PoScheduleSync] Failed to eager-load supplier for task #{t.id}: #{e.message}"
+      end
+    }]
   end
 
   # Current PO state for comparison

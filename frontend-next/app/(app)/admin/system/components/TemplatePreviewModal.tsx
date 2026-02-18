@@ -46,8 +46,8 @@ export function TemplatePreviewModal({
         const PAGE_TOLERANCE = 30;
         setPageCount(Math.max(1, Math.ceil((height - PAGE_TOLERANCE) / A4_HEIGHT_PX)));
       }
-    } catch {
-      // Cross-origin or sandbox restriction
+    } catch (err) {
+      console.error("[TemplatePreviewModal] Cross-origin or sandbox restriction on page count:", err);
       setPageCount(1);
     }
   }, []);
@@ -65,8 +65,8 @@ export function TemplatePreviewModal({
           const page = Math.floor(scrollTop / A4_HEIGHT_PX);
           setActivePage(Math.min(page, pageCount - 1));
         }
-      } catch {
-        // Ignore cross-origin errors
+      } catch (err) {
+        console.error("[TemplatePreviewModal] Cross-origin error on scroll position read:", err);
       }
     };
 
@@ -78,8 +78,8 @@ export function TemplatePreviewModal({
           doc.addEventListener("scroll", handleScroll);
           return () => doc.removeEventListener("scroll", handleScroll);
         }
-      } catch {
-        // Ignore
+      } catch (err) {
+        console.error("[TemplatePreviewModal] Cross-origin error attaching scroll listener:", err);
       }
     };
 
@@ -99,8 +99,8 @@ export function TemplatePreviewModal({
         doc.documentElement.scrollTop = pageIndex * A4_HEIGHT_PX;
         setActivePage(pageIndex);
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.error("[TemplatePreviewModal] Cross-origin error on scroll to page:", err);
     }
   }, []);
 

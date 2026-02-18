@@ -198,6 +198,7 @@ export function ContactCorporateDetailsSubTab({
         }
       }
     } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to load corporate details:", err);
       // May fail if corporate not enabled - that's OK
       setCorporateNotEnabled(true);
     } finally {
@@ -215,7 +216,8 @@ export function ContactCorporateDetailsSubTab({
       if (response.success) {
         setDirectors(response.data);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to load directors:", err);
       // Corporate not enabled
     } finally {
       setLoadingDirectors(false);
@@ -232,7 +234,8 @@ export function ContactCorporateDetailsSubTab({
       if (response.success) {
         setShareholders(response.data);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to load shareholders:", err);
       // Corporate not enabled
     } finally {
       setLoadingShareholders(false);
@@ -249,7 +252,8 @@ export function ContactCorporateDetailsSubTab({
       if (response.success) {
         setCompliance(response.data);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to load compliance:", err);
       // Corporate not enabled
     } finally {
       setLoadingCompliance(false);
@@ -266,7 +270,8 @@ export function ContactCorporateDetailsSubTab({
       if (response.success) {
         setHierarchy(response.data);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to load hierarchy:", err);
       // Corporate not enabled
     } finally {
       setLoadingHierarchy(false);
@@ -299,7 +304,8 @@ export function ContactCorporateDetailsSubTab({
           variant: "destructive",
         });
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactCorporateDetailsSubTab] Failed to enable corporate management:", err);
       toast({
         title: "Error",
         description: "Failed to enable corporate management.",

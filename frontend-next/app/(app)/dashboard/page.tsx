@@ -115,7 +115,8 @@ export default function DashboardPage() {
       try {
         const res = await api.get<{ success: boolean; data: DashboardStats }>("/api/v1/app_dashboard/stats");
         if (res?.data) setStats(res.data);
-      } catch {
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch stats:", err);
         setStatsError(true);
       } finally {
         setStatsLoading(false);
@@ -126,7 +127,8 @@ export default function DashboardPage() {
       try {
         const res = await api.get<{ success: boolean; data: ActivityItem[] }>("/api/v1/app_dashboard/activity");
         if (res?.data) setActivity(res.data);
-      } catch {
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch activity feed:", err);
         // Activity feed is non-critical — show empty
       } finally {
         setActivityLoading(false);
@@ -137,7 +139,8 @@ export default function DashboardPage() {
       try {
         const res = await api.get<{ success: boolean; data: UpcomingItem[] }>("/api/v1/app_dashboard/upcoming");
         if (res?.data) setUpcoming(res.data);
-      } catch {
+      } catch (err) {
+        console.error("[Dashboard] Failed to fetch upcoming items:", err);
         // Upcoming is non-critical — show empty
       } finally {
         setUpcomingLoading(false);

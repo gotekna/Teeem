@@ -200,7 +200,8 @@ export function ContactUserTab({
           toast({ title: "Error", description: "Failed to upload photo", variant: "destructive" });
           setPhotoPreview(null);
         }
-      } catch {
+      } catch (err) {
+        console.error("[ContactUserTab] Failed to upload photo:", err);
         toast({ title: "Error", description: "Failed to upload photo", variant: "destructive" });
         setPhotoPreview(null);
       } finally {

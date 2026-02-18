@@ -300,7 +300,12 @@ module Api
       # Organization.document_provider* columns are DEPRECATED and will be removed.
       def document_provider
         # SSoT: WarehouseProvider is THE ONE source for storage config
-        warehouse_provider = WarehouseProvider.instance rescue nil
+        warehouse_provider = begin
+          WarehouseProvider.instance
+        rescue StandardError => e
+          Rails.logger.warn "[Organization] Failed to load WarehouseProvider.instance in document_provider: #{e.message}"
+          nil
+        end
         # FRC (Feb 2026): Return actual configured provider, no hardcoded defaults
         current_provider = warehouse_provider&.provider_type
         current_bucket = warehouse_provider&.bucket
@@ -338,7 +343,12 @@ module Api
             last_error = active_credential.metadata&.dig("last_error")
           end
         elsif current_provider == "sharepoint"
-          sp_cred = MicrosoftCredential.sharepoint_credential rescue nil
+          sp_cred = begin
+            MicrosoftCredential.sharepoint_credential
+          rescue StandardError => e
+            Rails.logger.warn "[Organization] Failed to load SharePoint credential: #{e.message}"
+            nil
+          end
           credential_status = sp_cred&.connected? ? "connected" : "disconnected"
         end
 
@@ -679,12 +689,27 @@ module Api
 
         # Storage stats (provider-agnostic: SharePoint, S3, Wasabi, local)
         # SSoT: Auto-detect from active credentials, not just WarehouseProvider
-        storage_config = WarehouseProvider.instance rescue nil
+        storage_config = begin
+          WarehouseProvider.instance
+        rescue StandardError => e
+          Rails.logger.warn "[Organization] Failed to load WarehouseProvider.instance in storage_stats: #{e.message}"
+          nil
+        end
 
         # Auto-detect actual provider from credentials (SSoT: credentials are source of truth)
         # FRC (Feb 2026): Must be tenant-scoped
-        s3_credential = S3CompatibleCredential.for_tenant(current_tenant).active.first rescue nil
-        ms_credential = MicrosoftCredential.for_tenant(current_tenant).connected.first rescue nil
+        s3_credential = begin
+          S3CompatibleCredential.for_tenant(current_tenant).active.first
+        rescue StandardError => e
+          Rails.logger.warn "[Organization] Failed to load S3 credential: #{e.message}"
+          nil
+        end
+        ms_credential = begin
+          MicrosoftCredential.for_tenant(current_tenant).connected.first
+        rescue StandardError => e
+          Rails.logger.warn "[Organization] Failed to load MS credential: #{e.message}"
+          nil
+        end
 
         # Determine actual provider based on what's connected (prioritize S3 if active)
         # FRC (Feb 2026): No hardcoded defaults - return actual configured provider or nil

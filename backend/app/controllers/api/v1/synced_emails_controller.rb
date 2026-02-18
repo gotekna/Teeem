@@ -1947,7 +1947,11 @@ class Api::V1::SyncedEmailsController < ApplicationController
     end
   rescue StandardError => e
     Rails.logger.error "[SyncedEmail] On-demand sync failed for attachment #{outlook_attachment_id}: #{e.message}"
-    existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+    begin
+      existing_doc&.update!(metadata: (existing_doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200)))
+    rescue StandardError => e2
+      Rails.logger.warn "[SyncedEmails] Failed to update blob_status for doc #{existing_doc&.id}: #{e2.message}"
+    end
     nil
   end
 
