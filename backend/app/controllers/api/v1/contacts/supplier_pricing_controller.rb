@@ -69,6 +69,7 @@ module Api
         def copy_history
           source_id = params[:source_id]
           categories_param = params[:categories] # Optional array of categories to filter by
+          pricebook_item_ids_param = params[:pricebook_item_ids] # Optional array of specific item IDs to copy
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
           effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
 
@@ -121,6 +122,11 @@ module Api
             # Note: PricebookItem uses table_name = 'pricebooks'
             if categories_param.present? && categories_param.is_a?(Array) && categories_param.any?
               source_price_histories = source_price_histories.where(pricebooks: { category: categories_param })
+            end
+
+            # Filter by specific pricebook item IDs if provided
+            if pricebook_item_ids_param.present? && pricebook_item_ids_param.is_a?(Array) && pricebook_item_ids_param.any?
+              source_price_histories = source_price_histories.where(pricebook_item_id: pricebook_item_ids_param.map(&:to_i))
             end
 
             source_price_histories.each do |selected_price_history|

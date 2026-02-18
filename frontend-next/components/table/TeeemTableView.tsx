@@ -6000,6 +6000,13 @@ export default function TeeemTableView({
             onDelete={effectiveBulkDelete}
           />
 
+          {/* Custom bulk actions - rendered when rows are selected */}
+          {customBulkActions && selectedRows.size > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              {customBulkActions(Array.from(selectedRows), () => selection.actions.clear())}
+            </div>
+          )}
+
           {/* Actions - right side with buttons */}
           <div className="toolbar-right flex items-center gap-2 shrink-0">
             {/* Custom actions */}
