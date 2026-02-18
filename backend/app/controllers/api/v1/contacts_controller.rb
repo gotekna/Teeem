@@ -203,34 +203,39 @@ module Api
               search_term = "%#{params[:search]}%"
 
               # Find people (employees) matching the search term
-              # Note: Must include is_team_contact because display_name method depends on it
-              matching_employees = Contact.where(entity_type: "person")
-                                          .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
-                                                 search_term, search_term, search_term)
-                                          .select(:id, :display_name, :primary_company_id, :is_team_contact, :entity_type, :first_name, :last_name)
+              # FRC (Feb 2026): Use .pluck() to read raw column values - NEVER instantiate
+              # Contact objects here. display_name is a stored DB column, so we read it
+              # directly. Instantiating objects triggers computed_display_name which accesses
+              # entity_type, middle_name, etc. - causing MissingAttributeError with .select().
+              employee_rows = Contact.where(entity_type: "person")
+                                     .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
+                                            search_term, search_term, search_term)
+                                     .pluck(:id, :primary_company_id, :display_name)
 
               # Build mapping: employer_id -> [employee names]
               @matched_employees_by_company = {}
-              matching_employees.each do |emp|
-                next unless emp.primary_company_id
-                @matched_employees_by_company[emp.primary_company_id] ||= []
-                @matched_employees_by_company[emp.primary_company_id] << emp.display_name
+              employee_rows.each do |_id, company_id, name|
+                next unless company_id
+                @matched_employees_by_company[company_id] ||= []
+                @matched_employees_by_company[company_id] << name
               end
 
               # Also check ContactRelationship employee_of
-              if matching_employees.any?
+              if employee_rows.any?
+                employee_ids = employee_rows.map(&:first)
                 employee_relationships = ContactRelationship
                   .active
                   .where(relationship_type: "employee_of")
-                  .where(source_contact_id: matching_employees.map(&:id))
+                  .where(source_contact_id: employee_ids)
                   .pluck(:source_contact_id, :related_contact_id)
 
-                employee_names_by_id = matching_employees.index_by(&:id)
+                # Build id -> display_name lookup from plucked rows
+                employee_name_by_id = employee_rows.each_with_object({}) { |(id, _, name), h| h[id] = name }
                 employee_relationships.each do |emp_id, company_id|
-                  emp = employee_names_by_id[emp_id]
-                  next unless emp
+                  name = employee_name_by_id[emp_id]
+                  next unless name
                   @matched_employees_by_company[company_id] ||= []
-                  @matched_employees_by_company[company_id] << emp.display_name unless @matched_employees_by_company[company_id].include?(emp.display_name)
+                  @matched_employees_by_company[company_id] << name unless @matched_employees_by_company[company_id].include?(name)
                 end
               end
 
