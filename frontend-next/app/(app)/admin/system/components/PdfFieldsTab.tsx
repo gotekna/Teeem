@@ -352,7 +352,7 @@ export function PdfFieldsTab() {
       });
 
       const backendUrl = getApiBaseUrl();
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
 
       // Build URL - blank template or filled preview
       let url: string;

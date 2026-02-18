@@ -1435,7 +1435,7 @@ export default function AllDocumentsPage() {
                   previewDocument.fileName?.toLowerCase().endsWith(".docx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".docx") ? (
                   // Word document preview - use backend content proxy to bypass S3 CORS
-                  <WordDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
+                  <WordDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, ""))}`} className="h-full" />
                 ) : previewDocument.mimeType?.includes("spreadsheetml") ||
                   previewDocument.mimeType?.includes("ms-excel") ||
                   previewDocument.fileName?.toLowerCase().endsWith(".xlsx") ||
@@ -1443,7 +1443,7 @@ export default function AllDocumentsPage() {
                   previewDocument.uiName?.toLowerCase().endsWith(".xlsx") ||
                   previewDocument.uiName?.toLowerCase().endsWith(".xls") ? (
                   // Excel document preview - use backend content proxy to bypass S3 CORS
-                  <ExcelDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "", false))}`} className="h-full" />
+                  <ExcelDocumentPreview url={`${getApiBaseUrl()}/api/v1/documents/${previewDocument.id}/download?preview=true&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, ""))}`} className="h-full" />
                 ) : (
                   // Other file types - show preview placeholder
                   <div className="h-full flex flex-col items-center justify-center p-8 text-center">

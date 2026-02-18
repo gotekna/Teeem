@@ -349,7 +349,7 @@ export default function SmDashboardPage() {
   // Export handler
   const handleExport = async (type: string) => {
     try {
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
 
       const params = new URLSearchParams({
         job_id: constructionId,

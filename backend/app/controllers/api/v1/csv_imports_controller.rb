@@ -35,12 +35,17 @@ module Api
           # SSoT: Use contract_price as THE ONE
           construction = Job.create!(
             title: parse_result[:job_name],
-            site_supervisor_name: params[:site_supervisor_name],
-            site_supervisor_email: params[:site_supervisor_email],
-            site_supervisor_phone: params[:site_supervisor_phone],
             contract_price: params[:contract_value].presence || parse_result[:summary][:total_amount],
             status: params[:status].presence || "Active"
           )
+
+          # SSoT: Assign supervisor via job_contacts (site_supervisor_name/phone columns removed Jan 2026)
+          if params[:site_supervisor_name].present?
+            supervisor_user = User.find_by("name ILIKE ?", params[:site_supervisor_name])
+            if supervisor_user
+              construction.job_contacts.create!(user: supervisor_user, role: "supervisor")
+            end
+          end
 
           # Create Purchase Orders
           created_pos = []

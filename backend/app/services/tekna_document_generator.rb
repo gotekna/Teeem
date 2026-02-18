@@ -307,6 +307,8 @@ class TeknaDocumentGenerator
       job&.street_type
     ].compact.reject(&:blank?).join(" ")
 
+    supervisor_info = job&.site_supervisor_info || {}
+
     {
       id: job.id,
       job_number: job&.job_number || job.id.to_s,
@@ -343,9 +345,9 @@ class TeknaDocumentGenerator
       site_start_date: format_date(job&.site_start_date),
       practical_completion_date: format_date(job&.practical_completion_date),
 
-      # Builder info
-      site_supervisor_name: job&.site_supervisor_name,
-      site_supervisor_phone: job&.site_supervisor_phone,
+      # Builder info (SSoT: derives from job_contacts, not removed columns)
+      site_supervisor_name: supervisor_info[:name],
+      site_supervisor_phone: supervisor_info[:phone],
 
       # Status
       status: job&.job_status&.name || job&.status&.humanize
@@ -439,14 +441,10 @@ class TeknaDocumentGenerator
       {}
     end
 
-    # Get site supervisor info from job
+    # Get site supervisor info from job (SSoT: derives from job_contacts)
     job = po.job
     site_supervisor = if job
-      {
-        name: job&.site_supervisor_name,
-        email: job&.site_supervisor_email,
-        phone: job&.site_supervisor_phone
-      }
+      job.site_supervisor_info
     else
       {}
     end

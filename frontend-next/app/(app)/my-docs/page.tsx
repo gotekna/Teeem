@@ -401,7 +401,7 @@ export default function MyDocsPage() {
     setPreviewLoading(true);
     try {
       const contentUrl = `${getApiBaseUrl()}/api/v1/user_documents/${doc.id}/content`;
-      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+      const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
       setPreviewUrl(`${contentUrl}?token=${encodeURIComponent(token || "")}`);
     } catch (error) {
       console.error("Failed to get preview URL:", error);

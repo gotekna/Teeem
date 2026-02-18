@@ -153,8 +153,8 @@ export function PDFViewerImpl({
 
         // Only add auth for our backend URLs, not for presigned S3 URLs
         if (!isPresignedS3) {
-          // SSoT: Use storage-utils for token retrieval (no prefix, token stored without teeem_ prefix)
-          const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null, false);
+          // SSoT: Use storage-utils for token retrieval (with prefix, matching api.ts)
+          const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
           if (token) {
             headers["Authorization"] = `Bearer ${token}`;
           }

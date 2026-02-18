@@ -94,6 +94,13 @@ class Api::V1::UsersController < ApplicationController
       end
     end
 
+    # Handle OpenClaw permissions explicitly (JSONB - strong params unreliable with nested boolean hashes)
+    openclaw_perms_to_save = nil
+    if current_user&.admin? && params[:user].key?(:openclaw_permissions)
+      raw = params[:user][:openclaw_permissions]
+      openclaw_perms_to_save = raw.respond_to?(:to_unsafe_h) ? raw.to_unsafe_h : raw.to_h
+    end
+
     # Extract photo file before update (photo is not a DB column on User)
     photo_file = update_params.delete(:photo) if update_params[:photo].is_a?(ActionDispatch::Http::UploadedFile)
 
@@ -121,6 +128,12 @@ class Api::V1::UsersController < ApplicationController
             metadata: pep_type ? { "document_type_id" => pep_type.id } : {}
           )
         end
+      end
+
+      # Save OpenClaw permissions (JSONB) separately to bypass strong params issues
+      if openclaw_perms_to_save
+        @user.update_column(:openclaw_permissions, openclaw_perms_to_save)
+        @user.reload
       end
 
       render json: {
@@ -591,7 +604,8 @@ class Api::V1::UsersController < ApplicationController
   # Brakeman warning can be ignored: authorization check in update() prevents
   # non-admin users from accessing these params (returns 403 Forbidden)
   def admin_user_params
-    params.require(:user).permit(:role, :contact_id, role_ids: [], openclaw_permissions: {})
+    # openclaw_permissions handled explicitly in update action (JSONB + strong params = unreliable)
+    params.require(:user).permit(:role, :contact_id, role_ids: [])
   end
 
   # Params for creating a new user (admin only)
@@ -746,7 +760,7 @@ class Api::V1::UsersController < ApplicationController
       openclaw_key_active: user.openclaw_key_active?,
       openclaw_api_key_last4: user.openclaw_api_key_last4,
       openclaw_api_key_created_at: user.openclaw_api_key_created_at,
-      openclaw_permissions: user.openclaw_permissions || { "chat" => false, "notes" => false, "job_updates" => false, "contacts" => false }
+      openclaw_permissions: User::DEFAULT_OPENCLAW_PERMISSIONS.merge(user.openclaw_permissions || {})
     )
   end
 

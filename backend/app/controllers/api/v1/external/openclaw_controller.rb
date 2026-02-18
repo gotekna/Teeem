@@ -9,7 +9,7 @@ class Api::V1::External::OpenclawController < ApplicationController
   # GET /api/v1/external/openclaw/me
   # Returns user info + permissions (for OpenClaw to discover capabilities)
   def me
-    perms = @openclaw_user.openclaw_permissions || {}
+    perms = User::DEFAULT_OPENCLAW_PERMISSIONS.merge(@openclaw_user.openclaw_permissions || {})
     render json: {
       success: true,
       data: {
@@ -25,7 +25,7 @@ class Api::V1::External::OpenclawController < ApplicationController
   # POST /api/v1/external/openclaw/chat
   # Send a chat message as the authenticated user
   def chat
-    unless @openclaw_user.openclaw_permitted?(:chat)
+    unless @openclaw_user.openclaw_permitted?(:chat_messages)
       return render json: { success: false, error: "Chat permission not enabled" }, status: :forbidden
     end
 
@@ -149,7 +149,7 @@ class Api::V1::External::OpenclawController < ApplicationController
   # POST /api/v1/external/openclaw/contacts
   # Create or update a contact
   def contacts
-    unless @openclaw_user.openclaw_permitted?(:contacts)
+    unless @openclaw_user.openclaw_permitted?(:contacts_create) || @openclaw_user.openclaw_permitted?(:contacts_update)
       return render json: { success: false, error: "Contacts permission not enabled" }, status: :forbidden
     end
 

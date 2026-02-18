@@ -1545,9 +1545,7 @@ module Api
           :location,
           :latitude,
           :longitude,
-          :site_supervisor_name,
-          :site_supervisor_email,
-          :site_supervisor_phone,
+          # Note: site_supervisor_name/email/phone columns removed (Jan 2026) - use job_contacts SSoT
           :design_id,
           :design_name,
           :job_design_id,

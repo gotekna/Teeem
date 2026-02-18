@@ -185,7 +185,7 @@ export default function InvoiceDetailPage() {
     setPdfError(null);
 
     try {
-      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '', false);
+      const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, '');
       const response = await fetch(
         `${getApiBaseUrl()}/api/v1/external_invoices/${invoice.id}/pdf`,
         {
