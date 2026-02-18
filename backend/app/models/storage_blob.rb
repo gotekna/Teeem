@@ -112,12 +112,22 @@ class StorageBlob < ApplicationRecord
     blob
   rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
     # Race condition: another thread created the blob first
-    # Retry the find (it should now exist)
-    # Note: Rails validation messages use "Content hash" (space) not "content_hash" (underscore)
+    # ⚠️ FRC (Feb 2026): MUST use unscoped for retry find.
+    # content_hash has a GLOBAL unique index (no tenant_id), but acts_as_tenant
+    # scopes find_by to current tenant. Old blobs with nil tenant_id or blobs
+    # from concurrent threads block creation via DB constraint but are invisible
+    # to tenant-scoped find_by. This caused infinite retry failures in production.
     if e.message.downcase.include?("content hash") || e.message.downcase.include?("storage path")
-      Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find"
-      retry_blob = find_by(content_hash: hash)
-      return retry_blob if retry_blob
+      Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find (unscoped)"
+      retry_blob = unscoped.find_by(content_hash: hash)
+      if retry_blob
+        # If blob exists in different tenant, update to current tenant for proper scoping
+        if retry_blob.tenant_id.nil? && ActsAsTenant.current_tenant
+          retry_blob.update_column(:tenant_id, ActsAsTenant.current_tenant.id)
+          Rails.logger.info "[StorageBlob] Adopted orphan blob #{retry_blob.id} into tenant #{ActsAsTenant.current_tenant.id}"
+        end
+        return retry_blob
+      end
     end
     raise # Re-raise if not a race condition we can handle
   end

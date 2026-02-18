@@ -605,6 +605,39 @@ module Api
                                .first
         base[:pdf_generation_id] = pdf_gen&.id
 
+        # Company details (from TenantSetting - SSoT for company info)
+        settings = TenantSetting.instance
+        base[:company] = {
+          name: settings&.company_name,
+          abn: settings&.abn,
+          address: settings&.address,
+          phone: settings&.phone,
+          email: settings&.email,
+          logo_url: settings&.logo_url
+        }
+
+        # Client/contact details (from job's client or primary contact)
+        contact = @job.client || @job.primary_contact
+        if contact
+          base[:client] = {
+            name: contact.company_name_or_trust.presence || contact.display_name,
+            abn: contact.abn,
+            address: contact.address,
+            suburb: contact.suburb,
+            state: contact.state,
+            postcode: contact.postcode,
+            email: contact.email,
+            phone: contact.office_phone || contact.mobile_phone
+          }
+        end
+
+        # Job context
+        base[:job_context] = {
+          job_number: @job.job_number,
+          name: @job.name,
+          contract_price: @job.contract_price&.to_f
+        }
+
         base
       end
 

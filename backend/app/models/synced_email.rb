@@ -1216,21 +1216,41 @@ class SyncedEmail < ApplicationRecord
   # Tries ALL pending blobs (don't stop at first failure).
   # Raises after attempting all if any failed - ensures visibility while
   # maximizing data recovery per run.
+  # FRC (Feb 2026): MAX_BLOB_RETRIES prevents infinite retry loops.
+  # Old emails (15-year backfill) may have attachments purged from Exchange but
+  # metadata still exists. These return 404 on every download attempt and were
+  # retried every 15 minutes forever, wasting API calls and memory.
+  MAX_BLOB_RETRIES = 3
+
   def download_pending_blobs!(client, attempt, used_mailbox)
     blobless_docs = attachment_documents.reload.where(storage_blob_id: nil)
     return if blobless_docs.empty?
 
-    Rails.logger.info "[SyncedEmail] Downloading #{blobless_docs.count} pending blobs for email #{id}"
+    # Skip permanently failed attachments (exhausted retries)
+    retryable_docs = blobless_docs.reject { |doc| doc.metadata&.dig("blob_status") == "permanently_failed" }
+    return if retryable_docs.empty?
+
+    Rails.logger.info "[SyncedEmail] Downloading #{retryable_docs.count} pending blobs for email #{id}"
 
     failed_docs = []
 
-    blobless_docs.each do |doc|
+    retryable_docs.each do |doc|
       graph_attachment_id = doc.metadata&.dig("outlook_attachment_id")
       next unless graph_attachment_id.present?
 
       result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
       unless result
-        doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+        retry_count = (doc.metadata&.dig("blob_retry_count") || 0).to_i + 1
+        new_status = retry_count >= MAX_BLOB_RETRIES ? "permanently_failed" : "failed"
+        doc.update!(metadata: (doc.metadata || {}).merge(
+          "blob_status" => new_status,
+          "blob_error" => "Download returned nil",
+          "blob_retry_count" => retry_count,
+          "last_retry_at" => Time.current.iso8601
+        ))
+        if new_status == "permanently_failed"
+          Rails.logger.warn "[SyncedEmail] Attachment #{doc.ui_name} permanently failed after #{retry_count} attempts (email #{id})"
+        end
         failed_docs << { doc_id: doc.id, error: "Download returned nil" }
         next
       end
@@ -1254,12 +1274,19 @@ class SyncedEmail < ApplicationRecord
     rescue StandardError => e
       Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.class}: #{e.message}"
       Rails.logger.error e.backtrace.first(3).join("\n")
-      doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+      retry_count = (doc.metadata&.dig("blob_retry_count") || 0).to_i + 1
+      new_status = retry_count >= MAX_BLOB_RETRIES ? "permanently_failed" : "failed"
+      doc.update!(metadata: (doc.metadata || {}).merge(
+        "blob_status" => new_status,
+        "blob_error" => e.message.truncate(200),
+        "blob_retry_count" => retry_count,
+        "last_retry_at" => Time.current.iso8601
+      )) rescue nil
       failed_docs << { doc_id: doc.id, error: "#{e.class}: #{e.message.truncate(100)}" }
     end
 
     if failed_docs.any?
-      raise "Failed to download #{failed_docs.count}/#{blobless_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
+      raise "Failed to download #{failed_docs.count}/#{retryable_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
     end
   end
 

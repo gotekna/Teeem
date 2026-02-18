@@ -35,23 +35,23 @@
 production:
   workers:
     # Priority worker: user-facing + critical operations + email sync
-    # FRC (Feb 2026): email_sync placed AFTER default so health monitors + recurring
-    # tasks always get priority. With 5 threads: worst case 2 for critical/default,
-    # 3 for email sync. Previously all 5 would be consumed by OrgEmailSyncJob,
-    # starving health monitors for 2+ hours.
-    - queues: [critical, default, solid_queue_recurring, email_sync]
-      threads: 5
+    # FRC (Feb 2026): email_sync moved to dedicated teeem-email-worker app.
+    # Previously 5+6=11 threads sharing 1GB caused R15 memory crashes (2100M+).
+    # Now this worker handles critical, default, and recurring only.
+    # Email sync gets its own 1GB dyno via SOLID_QUEUE_CONFIG=config/queue_email.yml.
+    - queues: [critical, default, solid_queue_recurring]
+      threads: 3
       processes: 1
       polling_interval: 0.1
 
     # Background worker: analytics, bulk ops, maintenance
-    # FRC (Feb 2026): Increased from 2→6 threads. Each xero_bulk job spawns
-    # 4 concurrent download threads (IO-bound HTTP to Xero API), so more
-    # SolidQueue threads = more orgs syncing PDFs simultaneously.
-    # Standard-2X dyno (1GB) handles this easily for IO-bound work.
-    # DB pool (RAILS_MAX_THREADS) must be >= total_threads + max_child_threads.
+    # FRC (Feb 2026): Reduced from 6→3 threads. 11 total threads caused R15 memory
+    # crashes (2100M+ on 1GB dyno). Root cause: each thread holds a full Rails
+    # context (~100-200MB), plus Xero contact batch jobs pass 100KB+ JSON payloads
+    # as job arguments. 6 threads = 6 concurrent heavy jobs = guaranteed OOM.
+    # 3 threads is sufficient for IO-bound Xero API work.
     - queues: [xero_sync, xero_bulk, low, low_priority]
-      threads: 6
+      threads: 3
       processes: 1
       polling_interval: 1
 
