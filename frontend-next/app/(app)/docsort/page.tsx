@@ -607,8 +607,34 @@ export default function DocsortPage() {
                   documentTypes={panelDocTypes}
                   companies={panelCompanies}
                   mode="validate"
+                  onSave={async (data) => {
+                    await api.patch(`/api/v1/document_inboxes/${selectedItem.id}/override`, {
+                      document_type: data.documentType,
+                      folder: data.folder,
+                      company_id: data.companyId,
+                      financial_years: data.financialYears,
+                      auto_route: false,
+                    });
+                    toast({ title: "Classification updated" });
+                    loadData();
+                    try {
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification:", err); }
+                  }}
                   onRoute={async (companyId) => {
                     await handleRoute(selectedItem, undefined, companyId);
+                  }}
+                  onRerunAI={async () => {
+                    try {
+                      await api.post(`/api/v1/document_inboxes/${selectedItem.id}/classify`, { methods: ['ai_match'] });
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch (err) { console.error("[DocSort] Failed to re-run AI:", err); }
                   }}
                   onReclassify={async () => {
                     await handleClassify(selectedItem);
