@@ -43,9 +43,11 @@ import {
   MapPin,
   GitBranch,
   Home,
+  Receipt,
 } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { WorkflowConfigTab } from "./WorkflowConfigTab";
+import { ClaimTemplatesTab } from "./ClaimTemplatesTab";
 
 // DnD Primitives - SSoT for drag and drop UI
 import { DragHandle, ItemBadge } from "@/components/ui/dnd";
@@ -121,6 +123,8 @@ const SEQ_COUNCILS = [
 
 const JOB_SETUP_SUB_TABS = [
   { id: "lists", label: "Lists", icon: ListChecks },
+  { id: "design", label: "Design", icon: Home },
+  { id: "claims", label: "Claims", icon: Receipt },
   { id: "workflow", label: "Workflow", icon: GitBranch },
 ];
 
@@ -572,7 +576,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
         <div className="mt-6">
           {/* Lists Tab */}
           <TabsContent value="lists" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <SetupTable
                 items={jobTypes}
                 title="Job Types"
@@ -610,17 +614,6 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
                 onEdit={(item) => handleOpenEditDialog(item, "stage")}
                 onDelete={(item) => handleDelete(item.id, "stage")}
                 onReorder={(items) => handleReorder(items, "stage")}
-                loading={loading}
-              />
-              <SetupTable
-                items={jobDesigns}
-                title="Design Names"
-                icon={Home}
-                getLabel={(item) => item.name}
-                getIsActive={(item) => item.is_active}
-                onAdd={handleOpenAddDesignDialog}
-                onEdit={handleOpenEditDesignDialog}
-                onDelete={handleDeleteDesign}
                 loading={loading}
               />
             </div>
@@ -753,15 +746,32 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
             </Card>
           </TabsContent>
 
+          {/* Design Tab */}
+          <TabsContent value="design" className="space-y-6">
+            <SetupTable
+              items={jobDesigns}
+              title="Design Names"
+              icon={Home}
+              getLabel={(item) => item.name}
+              getIsActive={(item) => item.is_active}
+              onAdd={handleOpenAddDesignDialog}
+              onEdit={handleOpenEditDesignDialog}
+              onDelete={handleDeleteDesign}
+              loading={loading}
+            />
+          </TabsContent>
+
+          {/* Claims Tab */}
+          <TabsContent value="claims">
+            <ClaimTemplatesTab />
+          </TabsContent>
+
           {/* Workflow Tab */}
           <TabsContent value="workflow">
             <WorkflowConfigTab />
           </TabsContent>
         </div>
       </Tabs>
-
-      {/* SSoT: Claim stages are now managed via Schedule Master CLAIM tasks */}
-      {/* Navigate to Admin > Schedule Master to configure claim stages */}
 
       {/* Edit Suburb Dialog */}
       <Dialog open={showSuburbDialog} onOpenChange={setShowSuburbDialog}>

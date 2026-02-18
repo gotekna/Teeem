@@ -42,7 +42,9 @@ export function TemplatePreviewModal({
       if (doc?.body) {
         const height = doc.body.scrollHeight;
         setContentHeight(height);
-        setPageCount(Math.max(1, Math.ceil(height / A4_HEIGHT_PX)));
+        // Tolerance of 30px to handle sub-pixel rounding from CSS min-height: 297mm
+        const PAGE_TOLERANCE = 30;
+        setPageCount(Math.max(1, Math.ceil((height - PAGE_TOLERANCE) / A4_HEIGHT_PX)));
       }
     } catch {
       // Cross-origin or sandbox restriction
@@ -110,18 +112,21 @@ export function TemplatePreviewModal({
     }
   }, [open]);
 
-  // Build thumbnail HTML with injected page break guides
-  const thumbnailHtml = React.useMemo(() => {
+  // Inject CSS to adapt A4-sized template HTML for iframe preview
+  // Templates use width:210mm and min-height:297mm for PDF generation,
+  // which causes overflow and multi-page reflow in the iframe
+  const styledPreviewHtml = React.useMemo(() => {
     if (!previewHtml) return "";
-    // Inject CSS to show page boundaries as dotted lines
-    const pageGuideCSS = `
+    const iframeCSS = `
       <style>
-        html, body { margin: 0; padding: 0; }
+        *{box-sizing:border-box}
+        html,body{width:100%!important;max-width:100%!important;min-height:auto!important;margin:0;padding:0;overflow-x:hidden}
+        .page{width:100%!important;max-width:100%!important;min-height:auto!important;box-sizing:border-box;overflow:hidden;page-break-after:auto!important}
       </style>
     `;
     return previewHtml.includes("</head>")
-      ? previewHtml.replace("</head>", `${pageGuideCSS}</head>`)
-      : `${pageGuideCSS}${previewHtml}`;
+      ? previewHtml.replace("</head>", `${iframeCSS}</head>`)
+      : `${iframeCSS}${previewHtml}`;
   }, [previewHtml]);
 
   return (
@@ -136,7 +141,7 @@ export function TemplatePreviewModal({
 
         <div className="flex-1 min-h-0 flex gap-0 px-4 pb-4">
           {/* Left: Page Thumbnails */}
-          {!loading && previewHtml && pageCount > 0 && (
+          {!loading && previewHtml && pageCount > 1 && (
             <div className="w-[120px] shrink-0 overflow-y-auto pr-2 space-y-2">
               {Array.from({ length: pageCount }, (_, i) => (
                 <button
@@ -172,7 +177,7 @@ export function TemplatePreviewModal({
                       }}
                     >
                       <iframe
-                        srcDoc={thumbnailHtml}
+                        srcDoc={styledPreviewHtml}
                         className="border-0"
                         style={{
                           width: "793px",
@@ -203,7 +208,7 @@ export function TemplatePreviewModal({
             ) : previewHtml ? (
               <iframe
                 ref={mainIframeRef}
-                srcDoc={previewHtml}
+                srcDoc={styledPreviewHtml}
                 className="w-full h-full bg-white border-0"
                 title="Template Preview"
                 onLoad={handleIframeLoad}

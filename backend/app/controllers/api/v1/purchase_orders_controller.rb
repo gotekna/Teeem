@@ -921,31 +921,13 @@ module Api
       end
 
       # GET /api/v1/purchase_orders/template_preview?variant=modern
-      # HTML preview for a specific variant using real or sample data
+      # HTML preview using rich sample data to showcase the template design
       def template_preview
         variant = params[:variant] || "classic"
         valid_variants = %w[classic modern bold compact professional construction]
         variant = "classic" unless valid_variants.include?(variant)
 
-        # Try real PO first (prefer one with line items)
-        sample_po = PurchaseOrder.includes(:supplier, :job, line_items: :pricebook_item)
-                                 .joins(:line_items)
-                                 .order(created_at: :desc)
-                                 .first
-        sample_po ||= PurchaseOrder.includes(:supplier, :job, line_items: :pricebook_item).order(created_at: :desc).first
-
-        if sample_po
-          generator = TeknaDocumentGenerator.new(:purchase_order)
-          result = generator.generate(
-            purchase_order: sample_po,
-            html_only: true,
-            extra_data: { po_template_variant: variant }
-          )
-          render html: result[:html].html_safe
-        else
-          # Render with sample data when no POs exist
-          render html: build_sample_po_preview(variant).html_safe
-        end
+        render html: build_sample_po_preview(variant).html_safe
       end
 
       private
@@ -1007,22 +989,7 @@ module Api
             contract_value: "$650,000.00",
             contract_value_raw: 650_000
           },
-          company: {
-            name: settings.company_name || "ABC Construction Pty Ltd",
-            company_name: settings.company_name || "ABC Construction Pty Ltd",
-            abn: settings.abn || "12 345 678 901",
-            abn_formatted: settings.abn.present? ? settings.abn.to_s.gsub(/\D/, "").gsub(/(\d{2})(\d{3})(\d{3})(\d{3})/, '\1 \2 \3 \4') : "12 345 678 901",
-            qbcc: settings.qbcc_license || "15344273",
-            qbcc_license: settings.qbcc_license || "15344273",
-            email: settings.email || "info@example.com.au",
-            phone: settings.phone || "(07) 3555 0000",
-            phone_formatted: settings.phone || "(07) 3555 0000",
-            address: settings.address || "123 Builder Street, Brisbane QLD 4000",
-            full_address: settings.address&.gsub("\n", ", ") || "123 Builder Street, Brisbane QLD 4000",
-            logo_url: settings.logo_url,
-            header_line: "#{settings.company_name || 'ABC Construction'} | ABN #{settings.abn || '12 345 678 901'} | QBCC #{settings.qbcc_license || '15344273'}",
-            footer_line: "#{settings.phone || '(07) 3555 0000'} | #{settings.email || 'info@example.com.au'}"
-          },
+          company: build_sample_company_context(settings),
           colour_selections: {
             grouped: {},
             formatted_string: "",
@@ -1042,6 +1009,47 @@ module Api
           layout: "layouts/tekna",
           locals: sample_context
         )
+      end
+
+      def build_sample_company_context(settings)
+        address = settings.address || "123 Builder Street\nBrisbane QLD 4000"
+        lines = address.split(/[\n,]/).map(&:strip).reject(&:blank?)
+        address_line_1 = lines[0] || ""
+        suburb = ""
+        state = ""
+        postcode = ""
+        if lines.length > 1
+          last_line = lines.last
+          if (match = last_line.match(/^(.+?)\s+([A-Z]{2,3})\s+(\d{4})$/))
+            suburb = match[1].strip
+            state = match[2]
+            postcode = match[3]
+          end
+        end
+
+        abn = settings.abn || "12 345 678 901"
+        abn_formatted = abn.to_s.gsub(/\D/, "").then { |d| d.length == 11 ? "#{d[0..1]} #{d[2..4]} #{d[5..7]} #{d[8..10]}" : abn }
+
+        {
+          name: settings.company_name || "ABC Construction Pty Ltd",
+          company_name: settings.company_name || "ABC Construction Pty Ltd",
+          abn: abn,
+          abn_formatted: abn_formatted,
+          qbcc: settings.qbcc_license || "15344273",
+          qbcc_license: settings.qbcc_license || "15344273",
+          email: settings.email || "info@example.com.au",
+          phone: settings.phone || "(07) 3555 0000",
+          phone_formatted: settings.phone || "(07) 3555 0000",
+          address: address,
+          address_line_1: address_line_1,
+          suburb: suburb,
+          state: state,
+          postcode: postcode,
+          full_address: address.gsub("\n", ", "),
+          logo_url: settings.logo_url,
+          header_line: "#{settings.company_name || 'ABC Construction'} | ABN #{abn_formatted} | QBCC #{settings.qbcc_license || '15344273'}",
+          footer_line: "#{settings.phone || '(07) 3555 0000'} | #{settings.email || 'info@example.com.au'}"
+        }
       end
 
       def build_po_filename(job_name, po_number, task_name)
