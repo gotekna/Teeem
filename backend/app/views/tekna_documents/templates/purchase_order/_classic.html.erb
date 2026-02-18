@@ -8,6 +8,22 @@
     color: #000;
   }
 
+  .po-container p {
+    margin: 2px 0;
+  }
+
+  .po-container ul, .po-container ol {
+    margin: 3px 0;
+  }
+
+  .po-container li {
+    margin-bottom: 1px;
+  }
+
+  .po-container h4 {
+    margin: 0;
+  }
+
   .po-top-bar {
     background: #0d7377;
     height: 6px;
@@ -393,12 +409,17 @@
       Invoices to: <strong><%= company[:company_name] %></strong><br>
       Email: <%= company[:email] %> &nbsp; Phone: <%= company[:phone_formatted] %> &nbsp; Address: <%= company[:full_address] %>
     </p>
-    <p>Payment schedule:</p>
-    <ul style="margin: 3px 0; padding-left: 20px; font-size: 7pt;">
-      <li><strong>7-day accounts:</strong> Invoices received before COB Wednesday will be paid the following Thursday.</li>
-      <li><strong>14-day accounts:</strong> Invoices received before COB Wednesday will be paid on the Thursday two weeks later.</li>
-      <li><strong>30-day accounts:</strong> Invoices received before COB on the last day of the month will be paid on the last day of the following month.</li>
-    </ul>
+    <% payment_days = purchase_order[:supplier][:payment_terms_days] %>
+    <% if payment_days.present? && payment_days.to_i <= 14 %>
+      <p>Payment schedule:</p>
+      <ul style="margin: 3px 0; padding-left: 20px; font-size: 8pt;">
+        <% if payment_days.to_i <= 7 %>
+          <li><strong>7-day accounts:</strong> Invoices received before COB Wednesday will be paid the following Thursday.</li>
+        <% else %>
+          <li><strong>14-day accounts:</strong> Invoices received before COB Wednesday will be paid on the Thursday two weeks later.</li>
+        <% end %>
+      </ul>
+    <% end %>
     <p class="remittance-red">
       The correct purchase order number and job address MUST be included on your tax invoice.<br>
       Tax invoices without these details will be returned to the supplier for correction.<br>

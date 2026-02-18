@@ -445,7 +445,8 @@ class TeknaDocumentGenerator
         name: supplier.display_name,
         email: supplier&.email,
         phone: supplier&.office_phone || supplier&.mobile_phone,
-        address: supplier&.address
+        address: supplier&.address,
+        payment_terms_days: supplier&.bill_due_day
       }
     else
       {}

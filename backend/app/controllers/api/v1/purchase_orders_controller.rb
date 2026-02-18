@@ -959,7 +959,8 @@ module Api
               name: "Brisbane Building Supplies Pty Ltd",
               email: "orders@brisbanebuilding.com.au",
               phone: "07 3555 1234",
-              address: "Unit 4, 120 Industrial Drive, Rocklea QLD 4106"
+              address: "Unit 4, 120 Industrial Drive, Rocklea QLD 4106",
+              payment_terms_days: 7
             },
             site_supervisor: {
               name: "Mike Johnson",
@@ -1004,34 +1005,11 @@ module Api
         }
 
         renderer = TeknaTemplateRenderer.new
-        # Render template content (without layout's branded header/footer
-        # since PO templates have their own integrated headers)
-        template_html = renderer.render(
+        renderer.render(
           template_path: "templates/purchase_order",
-          layout: nil,
+          layout: "layouts/preview",
           locals: sample_context
         )
-
-        # Extract <style> blocks from template and move to <head> for reliable CSS application
-        style_blocks = []
-        body_html = template_html.gsub(/<style[^>]*>(.*?)<\/style>/m) do |match|
-          style_blocks << $1
-          ""
-        end
-
-        <<~HTML
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <style>#{TeknaDesignTokens.document_css}</style>
-            <style>#{style_blocks.join("\n")}</style>
-          </head>
-          <body style="margin:0;padding:20px;font-family:Arial,sans-serif;">
-            #{body_html}
-          </body>
-          </html>
-        HTML
       end
 
       def build_sample_company_context(settings)
