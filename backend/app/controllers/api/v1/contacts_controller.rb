@@ -207,7 +207,7 @@ module Api
               matching_employees = Contact.where(entity_type: "person")
                                           .where("display_name ILIKE ? OR first_name ILIKE ? OR last_name ILIKE ?",
                                                  search_term, search_term, search_term)
-                                          .select(:id, :display_name, :primary_company_id, :is_team_contact)
+                                          .select(:id, :display_name, :primary_company_id, :is_team_contact, :entity_type, :first_name, :last_name)
 
               # Build mapping: employer_id -> [employee names]
               @matched_employees_by_company = {}

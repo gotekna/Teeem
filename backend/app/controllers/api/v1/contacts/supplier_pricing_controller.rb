@@ -171,7 +171,8 @@ module Api
                   supplier_id: @contact.id,
                   lga: selected_price_history.lga,
                   date_effective: effective_date,
-                  change_reason: "Copied from #{source_contact.display_name}#{adjustment_note}"
+                  change_reason: "Copied from #{source_contact.display_name}#{adjustment_note}",
+                  tenant_id: current_tenant&.id
                 )
                 copied_count += 1
               end
