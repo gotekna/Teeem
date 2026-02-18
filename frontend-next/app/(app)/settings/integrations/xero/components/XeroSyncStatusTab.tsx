@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
+import { Progress } from "@/components/ui/progress";
 import {
   RefreshCw,
   CheckCircle2,
@@ -20,6 +21,9 @@ import {
   Activity,
   ShieldCheck,
   Zap,
+  Database,
+  Download,
+  Upload,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -484,19 +488,32 @@ function TenantSyncCard({ tenant }: { tenant: TenantStats }) {
   );
 }
 
+// Document pipeline health (3-stage: Data → PDF → Upload)
+interface DocPipelineHealth {
+  stage1_percentage: number;
+  stage2_percentage: number;
+  stage3_percentage: number;
+  overall_status: "healthy" | "in_progress" | "warning" | "not_started" | "partial";
+  stage1_data: { linked: number; total: number };
+  stage2_data: { downloaded: number; total: number };
+  stage3_data: { uploaded: number; total: number };
+}
+
 // Main component
 export function XeroSyncStatusTab() {
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
   const [tenants, setTenants] = React.useState<TenantStats[]>([]);
   const [pipelineData, setPipelineData] = React.useState<ContactSyncPipelineData | null>(null);
+  const [docPipeline, setDocPipeline] = React.useState<DocPipelineHealth | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
   const fetchData = React.useCallback(async () => {
     try {
-      const [statsResponse, pipelineResponse] = await Promise.all([
+      const [statsResponse, pipelineResponse, pdfSyncResponse] = await Promise.all([
         api.get<SyncStatsResponse>("/api/v1/xero/sync_stats"),
         api.get<{ success: boolean; data: ContactSyncPipelineData }>("/api/v1/xero/contact_sync_sessions"),
+        api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
       ]);
 
       if (statsResponse.success && statsResponse.data?.tenants) {
@@ -508,6 +525,32 @@ export function XeroSyncStatusTab() {
 
       if (pipelineResponse.success && pipelineResponse.data) {
         setPipelineData(pipelineResponse.data);
+      }
+
+      // Extract document pipeline health from PDF sync response
+      if (pdfSyncResponse.success && pdfSyncResponse.data) {
+        const d = pdfSyncResponse.data;
+        const dq = d.stage1_data_sync?.data_quality;
+        const linked = d.stage1_data_sync?.linked_to_contacts || 0;
+        const stage1Completed = dq?.needs_backfill
+          ? Math.max(linked - (dq.bills_missing_line_items || 0), 0)
+          : linked;
+        const stage1Total = d.stage1_data_sync?.total_in_database || 0;
+        setDocPipeline({
+          stage1_percentage: stage1Total > 0 ? Math.round((stage1Completed / stage1Total) * 100) : 0,
+          stage2_percentage: d.stage2_pdf_download?.progress_percentage || d.progress_percentage || 0,
+          stage3_percentage: d.stage3_sharepoint?.progress_percentage || 0,
+          overall_status: d.health?.status || "not_started",
+          stage1_data: { linked, total: stage1Total },
+          stage2_data: {
+            downloaded: d.stage2_pdf_download?.downloaded || d.pdfs_synced || 0,
+            total: d.stage2_pdf_download?.total_to_sync || d.total_invoices || 0,
+          },
+          stage3_data: {
+            uploaded: d.stage3_sharepoint?.uploaded || d.sharepoint_uploads || 0,
+            total: d.stage3_sharepoint?.total_to_upload || d.pdfs_synced || 0,
+          },
+        });
       }
     } catch (err) {
       console.error("Failed to fetch sync stats:", err);
@@ -571,6 +614,145 @@ export function XeroSyncStatusTab() {
 
   return (
     <div className="space-y-6">
+      {/* Document Sync Pipeline (3-stage: Data → PDF → Upload) */}
+      {docPipeline && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Document Sync Pipeline</CardTitle>
+                <CardDescription>
+                  Three-stage pipeline: Xero data → PDF download → Cloud upload
+                </CardDescription>
+              </div>
+              <Badge className={
+                docPipeline.overall_status === "healthy"
+                  ? "bg-status-success text-status-success-foreground"
+                  : docPipeline.overall_status === "in_progress"
+                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
+                  : docPipeline.overall_status === "warning"
+                  ? "bg-status-warning text-status-warning-foreground"
+                  : "bg-muted text-foreground"
+              }>
+                {docPipeline.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}
+                {docPipeline.overall_status === "in_progress" && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}
+                {docPipeline.overall_status === "warning" && <AlertTriangle className="h-3 w-3 mr-1" />}
+                {docPipeline.overall_status?.replace("_", " ") || "Unknown"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {/* Stage 1: Xero Data */}
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg border",
+              docPipeline.stage1_percentage >= 95
+                ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30"
+                : docPipeline.stage1_percentage >= 50
+                ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30"
+                : "border-border bg-muted/50"
+            )}>
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded",
+                  docPipeline.stage1_percentage >= 95
+                    ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                    : "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
+                )}>
+                  <Database className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Stage 1: Xero Data</div>
+                  <div className="text-xs text-muted-foreground">
+                    {docPipeline.stage1_data.linked.toLocaleString()} / {docPipeline.stage1_data.total.toLocaleString()} linked
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Progress value={docPipeline.stage1_percentage} className="w-24 h-2" />
+                <span className={cn(
+                  "font-semibold text-sm w-12 text-right",
+                  docPipeline.stage1_percentage >= 95 && "text-green-600 dark:text-green-400"
+                )}>
+                  {docPipeline.stage1_percentage}%
+                </span>
+              </div>
+            </div>
+
+            {/* Stage 2: PDF Download */}
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg border",
+              docPipeline.stage2_percentage >= 95
+                ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30"
+                : docPipeline.stage2_percentage >= 50
+                ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30"
+                : "border-border bg-muted/50"
+            )}>
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded",
+                  docPipeline.stage2_percentage >= 95
+                    ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                    : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
+                )}>
+                  <Download className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Stage 2: PDF Download</div>
+                  <div className="text-xs text-muted-foreground">
+                    {docPipeline.stage2_data.downloaded.toLocaleString()} / {docPipeline.stage2_data.total.toLocaleString()} downloaded
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Progress value={docPipeline.stage2_percentage} className="w-24 h-2" />
+                <span className={cn(
+                  "font-semibold text-sm w-12 text-right",
+                  docPipeline.stage2_percentage >= 95 && "text-green-600 dark:text-green-400"
+                )}>
+                  {docPipeline.stage2_percentage}%
+                </span>
+              </div>
+            </div>
+
+            {/* Stage 3: Cloud Upload */}
+            <div className={cn(
+              "flex items-center justify-between p-3 rounded-lg border",
+              docPipeline.stage3_percentage >= 95
+                ? "border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30"
+                : docPipeline.stage3_percentage >= 50
+                ? "border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30"
+                : "border-border bg-muted/50"
+            )}>
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-2 rounded",
+                  docPipeline.stage3_percentage >= 95
+                    ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                    : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
+                )}>
+                  <Upload className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Stage 3: Cloud Upload</div>
+                  <div className="text-xs text-muted-foreground">
+                    {docPipeline.stage3_data.uploaded.toLocaleString()} / {docPipeline.stage3_data.total.toLocaleString()} uploaded
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Progress value={docPipeline.stage3_percentage} className="w-24 h-2" />
+                <span className={cn(
+                  "font-semibold text-sm w-12 text-right",
+                  docPipeline.stage3_percentage >= 95 && "text-green-600 dark:text-green-400"
+                )}>
+                  {docPipeline.stage3_percentage}%
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Contact Sync Pipeline Status */}
       <ContactSyncPipelineCard data={pipelineData} />
 

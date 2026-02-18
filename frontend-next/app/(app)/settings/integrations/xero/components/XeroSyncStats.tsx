@@ -945,67 +945,6 @@ export function XeroSyncStats() {
         );
       })()}
 
-      {/* Pending Reviews Alert */}
-      {global.pending_reviews.count > 0 && (
-        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
-                <CardTitle className="text-base text-amber-800">
-                  {global.pending_reviews.count} Fuzzy Matches Need Review
-                </CardTitle>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-amber-400 text-amber-800 hover:bg-amber-100"
-                onClick={() => setReviewSheetOpen(true)}
-              >
-                Review All
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {global.pending_reviews.items.slice(0, 5).map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-2 bg-white dark:bg-amber-900/20 rounded border border-amber-200 dark:border-amber-800"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{item.contact_name || "Unknown"}</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">{item.external_contact_name}</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {item.tenant_name} &bull; {Math.round((item.match_confidence || 0) * 100)}% confidence
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedReviewItem(item);
-                      setReviewModalOpen(true);
-                    }}
-                  >
-                    Review
-                  </Button>
-                </div>
-              ))}
-              {global.pending_reviews.count > 5 && (
-                <p className="text-sm text-muted-foreground text-center pt-2">
-                  +{global.pending_reviews.count - 5} more pending reviews
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Per-Tenant Stats - 2 Column Grid with Search and Virtual Scrolling */}
       <div>
         <div className="flex items-center justify-between mb-4">

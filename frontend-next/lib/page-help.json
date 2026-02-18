@@ -1034,9 +1034,9 @@
     },
     "/settings/integrations/xero": {
       "title": "Xero Integration",
-      "description": "Connect to Xero for accounting sync (contacts, invoices, bills).",
-      "tips": ["Xero syncs via webhooks automatically", "Review pending contacts before syncing", "Check sync status in the dashboard"],
-      "tasks": ["Connect Xero organization", "Review pending contacts", "Configure sync settings", "View sync history"]
+      "description": "Connect to Xero for accounting sync. Overview tab shows at-a-glance health, Sync Status has the document pipeline, Stats has detailed per-org metrics.",
+      "tips": ["Overview tab shows if everything is healthy at a glance", "Click any health card to drill down to Sync Status", "Action items show what needs attention", "Document pipeline shows Data → PDF → Upload progress", "Contacts tab links Xero contacts to TEEEM contacts"],
+      "tasks": ["Check Overview for integration health", "Review action items", "Monitor document sync pipeline", "Manage Xero contact linking", "Review duplicate contacts"]
     },
     "/settings/integrations/microsoft": {
       "title": "Microsoft 365 Integration",
