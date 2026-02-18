@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Package, Copy, TrendingUp } from "lucide-react";
+import { Package, Copy, TrendingUp, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -204,7 +204,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       }>(`/api/v1/contacts/supplier_pricing/${targetSupplier.id}/copy_history`, {
         source_id: contactId,
         pricebook_item_ids: copySelectedIds.map(Number),
-        set_as_default: true,
+        set_as_default: false,
         price_adjustment_percent: adjustmentPercent,
         rounding_mode: roundingMode,
       });
@@ -234,6 +234,36 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       setCopying(false);
     }
   }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, roundingMode, toast, copyClearSelection]);
+
+  const handleSetDefault = useCallback(async (selectedIds: (number | string)[], clearSelection: () => void) => {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const response = await api.post<{
+        success: boolean;
+        message: string;
+        updated_count: number;
+      }>(`/api/v1/contacts/supplier_pricing/${contactId}/set_default`, {
+        pricebook_item_ids: selectedIds.map(Number),
+      });
+
+      if (response?.success) {
+        toast({
+          title: "Default Supplier Updated",
+          description: response.message,
+        });
+        clearSelection();
+        loadPricebookItems();
+      }
+    } catch (err) {
+      console.error("Failed to set default supplier:", err);
+      toast({
+        title: "Update Failed",
+        description: err instanceof Error ? err.message : "Failed to set default supplier.",
+        variant: "destructive",
+      });
+    }
+  }, [contactId, toast]);
 
   if (loading) {
     return (
@@ -274,14 +304,24 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           viewOnly={true}
           enableExport={true}
           customBulkActions={(selectedIds, clearSelection) => (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleOpenCopyModal(selectedIds, clearSelection)}
-            >
-              <Copy className="h-4 w-4 mr-1" />
-              Copy Prices ({selectedIds.length})
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleSetDefault(selectedIds, clearSelection)}
+              >
+                <Star className="h-4 w-4 mr-1" />
+                Set as Default ({selectedIds.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleOpenCopyModal(selectedIds, clearSelection)}
+              >
+                <Copy className="h-4 w-4 mr-1" />
+                Copy Prices ({selectedIds.length})
+              </Button>
+            </>
           )}
         />
       </div>
@@ -294,7 +334,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
             <DialogDescription>
               Copy {copySelectedIds.length} selected price{copySelectedIds.length !== 1 ? "s" : ""} from{" "}
               <span className="font-medium text-foreground">{contactName}</span> to another supplier.
-              The target supplier will be set as the default supplier for these items.
+              This only copies price history — it does not change the default supplier.
             </DialogDescription>
           </DialogHeader>
 

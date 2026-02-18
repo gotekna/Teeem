@@ -360,6 +360,41 @@ module Api
           }, status: :internal_server_error
         end
 
+        # POST /api/v1/contacts/supplier_pricing/:contact_id/set_default
+        # Set this contact as the default supplier for specific pricebook items
+        def set_default
+          pricebook_item_ids = params[:pricebook_item_ids]
+
+          if pricebook_item_ids.blank? || !pricebook_item_ids.is_a?(Array) || pricebook_item_ids.empty?
+            return render json: {
+              success: false,
+              error: "pricebook_item_ids (array) is required"
+            }, status: :bad_request
+          end
+
+          updated_count = 0
+
+          ActiveRecord::Base.transaction do
+            items = PricebookItem.where(id: pricebook_item_ids.map(&:to_i))
+            items.each do |item|
+              next if item.default_supplier_id == @contact.id
+              item.update!(default_supplier_id: @contact.id)
+              updated_count += 1
+            end
+          end
+
+          render json: {
+            success: true,
+            message: "Set #{@contact.display_name} as default supplier for #{updated_count} item#{updated_count == 1 ? '' : 's'}",
+            updated_count: updated_count
+          }
+        rescue => e
+          render json: {
+            success: false,
+            error: "Failed to set default supplier: #{e.message}"
+          }, status: :internal_server_error
+        end
+
         # DELETE /api/v1/contacts/supplier_pricing/:contact_id/column
         # Delete all price histories for a specific effective date
         def delete_column

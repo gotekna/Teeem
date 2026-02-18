@@ -1045,6 +1045,7 @@ Rails.application.routes.draw do
           post :copy_history
           delete :categories, action: :remove_categories, as: :remove_categories
           post :bulk_update
+          post :set_default
           delete :column, action: :delete_column
         end
 
