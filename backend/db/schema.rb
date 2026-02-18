@@ -5634,6 +5634,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_150000) do
     t.index ["user_id"], name: "index_grok_plans_on_user_id"
   end
 
+  create_table "gst_codes", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "code", null: false
+    t.string "name", null: false
+    t.decimal "rate", precision: 5, scale: 4, default: "0.0", null: false
+    t.string "xero_tax_types"
+    t.boolean "active", default: true
+    t.integer "position", default: 0
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "code"], name: "index_gst_codes_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id"], name: "index_gst_codes_on_tenant_id"
+  end
+
   create_table "health_kudos_events", force: :cascade do |t|
     t.string "actor_type", default: "user", null: false
     t.bigint "user_id"
@@ -5901,12 +5915,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_150000) do
     t.bigint "retainage_release_invoice_id"
     t.integer "claim_sequence_number"
     t.string "match_keywords"
+    t.bigint "profit_centre_id"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
     t.index ["job_id", "sequence_order"], name: "idx_job_claim_stages_ordering"
     t.index ["job_id"], name: "index_job_claim_stages_on_job_id"
     t.index ["match_status"], name: "index_job_claim_stages_on_match_status"
     t.index ["payment_status"], name: "index_job_claim_stages_on_payment_status"
+    t.index ["profit_centre_id"], name: "index_job_claim_stages_on_profit_centre_id"
     t.index ["retainage_release_invoice_id"], name: "index_job_claim_stages_on_retainage_release_invoice_id"
     t.index ["retainage_released_at"], name: "idx_unreleased_retainage", where: "((retainage_amount > (0)::numeric) AND (retainage_released_at IS NULL))"
   end
@@ -11581,6 +11597,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_150000) do
   add_foreign_key "gl_wip_reports", "corporates", column: "company_id"
   add_foreign_key "gl_wip_reports", "users", column: "created_by_id"
   add_foreign_key "grok_plans", "users"
+  add_foreign_key "gst_codes", "tenants"
   add_foreign_key "health_kudos_events", "users", on_delete: :nullify
   add_foreign_key "imap_credentials", "users"
   add_foreign_key "import_audit_logs", "tenants"
@@ -11595,6 +11612,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_18_150000) do
   add_foreign_key "job_claim_stages", "external_invoices"
   add_foreign_key "job_claim_stages", "gl_invoices", column: "retainage_release_invoice_id"
   add_foreign_key "job_claim_stages", "jobs"
+  add_foreign_key "job_claim_stages", "profit_centres"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
   add_foreign_key "job_claims", "profit_centres", on_delete: :nullify

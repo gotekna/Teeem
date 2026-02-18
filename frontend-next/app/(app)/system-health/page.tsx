@@ -18,6 +18,7 @@ import {
   Activity,
   Bug,
   ClipboardCheck,
+  SearchCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,7 @@ import {
 import { PerformanceTab } from "@/app/(app)/admin/system/components/PerformanceTab";
 import { SentryTab } from "@/components/health/SentryTab";
 import { QaPrdTab } from "@/components/health/QaPrdTab";
+import { QaFindingsTab } from "@/components/health/QaFindingsTab";
 
 // API response from new unified /api/v1/health/unified endpoint
 interface UnifiedHealthApiResponse {
@@ -478,6 +480,10 @@ export default function SystemHealthPage() {
             <ClipboardCheck className="h-4 w-4" />
             QA PRD
           </TabsTrigger>
+          <TabsTrigger value="qa-findings" className="gap-2">
+            <SearchCheck className="h-4 w-4" />
+            QA Findings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="health" className="space-y-6">
@@ -584,6 +590,10 @@ export default function SystemHealthPage() {
 
         <TabsContent value="qa-prd">
           <QaPrdTab />
+        </TabsContent>
+
+        <TabsContent value="qa-findings">
+          <QaFindingsTab />
         </TabsContent>
       </Tabs>
     </div>

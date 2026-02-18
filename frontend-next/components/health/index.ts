@@ -5,3 +5,4 @@ export { InfrastructurePanel, type InfrastructureMetric } from "./Infrastructure
 export { HealthLeaderboard, type LeaderboardEntry } from "./HealthLeaderboard";
 export { SentryTab } from "./SentryTab";
 export { QaPrdTab } from "./QaPrdTab";
+export { QaFindingsTab } from "./QaFindingsTab";
