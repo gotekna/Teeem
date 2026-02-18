@@ -4,9 +4,9 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { TemplatePreviewModal } from "./TemplatePreviewModal";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -263,46 +263,27 @@ export function ClaimTemplateSelector() {
       </Card>
 
       {/* Preview Modal */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl h-[85vh]">
-          <DialogHeader>
-            <DialogTitle>
-              Preview: {previewTemplate?.name || ""}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 min-h-0 overflow-hidden">
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Spinner size={32} className="text-muted-foreground" />
-              </div>
-            ) : (
-              <iframe
-                srcDoc={previewHtml}
-                className="w-full h-full border rounded bg-white"
-                title={`Claim Template Preview: ${previewTemplate?.name}`}
-                sandbox="allow-same-origin"
-              />
-            )}
-          </div>
-          <div className="flex justify-between pt-2">
-            <Button variant="outline" onClick={() => setPreviewOpen(false)}>
-              Close
+      <TemplatePreviewModal
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        title={`Preview: ${previewTemplate?.name || ""}`}
+        previewHtml={previewHtml}
+        loading={previewLoading}
+        actionButton={
+          previewTemplate && !previewTemplate.is_default ? (
+            <Button
+              onClick={() => {
+                setDefault(previewTemplate);
+                setPreviewOpen(false);
+              }}
+              disabled={settingDefault}
+            >
+              {settingDefault ? <Spinner size={14} className="mr-2" /> : null}
+              Set as Default
             </Button>
-            {previewTemplate && !previewTemplate.is_default && (
-              <Button
-                onClick={() => {
-                  setDefault(previewTemplate);
-                  setPreviewOpen(false);
-                }}
-                disabled={settingDefault}
-              >
-                {settingDefault ? <Spinner size={14} className="mr-2" /> : null}
-                Set as Default
-              </Button>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+          ) : undefined
+        }
+      />
     </>
   );
 }

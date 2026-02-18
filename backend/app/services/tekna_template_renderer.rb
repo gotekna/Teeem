@@ -85,9 +85,10 @@ class TeknaTemplateRenderer
   end
 
   def normalize_partial_path(partial_name)
-    # If already includes partials/, just add underscore prefix to filename
+    # If already includes a directory path, add underscore prefix to filename
     if partial_name.include?("/")
-      dir, file = partial_name.rsplit("/", 2)
+      dir = File.dirname(partial_name)
+      file = File.basename(partial_name)
       file = "_#{file}" unless file.start_with?("_")
       "#{dir}/#{file}.html.erb"
     else

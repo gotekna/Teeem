@@ -79,6 +79,59 @@ class XeroTrackingSyncService
     { success: false, error: e.message }
   end
 
+  # Rename all existing tracking options in Xero to match new format
+  # Updates both Xero and the local job record
+  def rename_all_tracking_options(dry_run: true)
+    tracking_category = find_job_tracking_category
+    unless tracking_category
+      Rails.logger.error("Job tracking category not found in Xero")
+      return { success: false, error: "Job tracking category not found in Xero" }
+    end
+
+    tracking_category_id = tracking_category["TrackingCategoryID"]
+    jobs = Job.where.not(xero_tracking_option_id: nil)
+    results = { updated: 0, skipped: 0, failed: 0, errors: [] }
+
+    jobs.find_each do |job|
+      new_name = build_tracking_option_name(job)
+      old_name = job.xero_tracking_option_name
+
+      if old_name == new_name
+        results[:skipped] += 1
+        next
+      end
+
+      if dry_run
+        Rails.logger.info("[DRY RUN] Would rename: #{old_name} → #{new_name}")
+        results[:updated] += 1
+        next
+      end
+
+      # Xero API: POST to rename a tracking option
+      result = @client.post(
+        "TrackingCategories/#{tracking_category_id}/Options/#{job.xero_tracking_option_id}",
+        { Name: new_name }
+      )
+
+      if result[:success]
+        job.update!(xero_tracking_option_name: new_name)
+        Rails.logger.info("Renamed tracking option: #{old_name} → #{new_name}")
+        results[:updated] += 1
+      else
+        Rails.logger.error("Failed to rename #{old_name}: #{result[:error]}")
+        results[:failed] += 1
+        results[:errors] << { job_id: job.id, job_code: job.job_code, error: result[:error] }
+      end
+
+      sleep 0.5 # Rate limit: Xero allows ~60 calls/minute
+    end
+
+    results
+  rescue StandardError => e
+    Rails.logger.error("Error renaming tracking options: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   private
 
   # Find the "Job" tracking category from Xero
@@ -97,9 +150,30 @@ class XeroTrackingSyncService
   end
 
   # Build a tracking option name from the job
-  # SSoT: Uses the job_code from database column
+  # Format: "J201 - Lot 5 (17) Redruth Rd Alexandra Hills"
+  # or:     "J201 - 17 Redruth Rd Alexandra Hills" (no lot)
+  # Truncated to 100 chars (Xero tracking option name limit)
   def build_tracking_option_name(job)
-    job.job_code
+    parts = [job.job_code]
+
+    address = []
+    has_lot = job.lot_number.present?
+    has_street_num = job.street_number.present? && job.street_number.to_s.strip != "0"
+
+    if has_lot
+      street_display = has_street_num ? job.street_number : "-"
+      address << "Lot #{job.lot_number} (#{street_display})"
+    elsif has_street_num
+      address << job.street_number.to_s
+    end
+
+    address << job.street_name if job.street_name.present?
+    address << job.street_type if job.street_type.present?
+    address << job.suburb if job.suburb.present?
+
+    parts << address.join(" ") if address.any?
+
+    parts.join(" - ").truncate(100)
   end
 
   # Find or create the "Job" tracking category in Xero

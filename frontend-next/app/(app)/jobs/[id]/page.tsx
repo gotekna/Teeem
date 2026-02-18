@@ -1877,7 +1877,7 @@ export default function JobDetailPage() {
               job={job}
               onSave={async (addressData) => {
                 try {
-                  const response = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
+                  const response = await api.patch<{ success: boolean; data: Job }>(`/api/v1/jobs/${job.id}`, {
                     job: {
                       lot_number: addressData.lot_number,
                       plan_number: addressData.plan_number,
@@ -1891,8 +1891,9 @@ export default function JobDetailPage() {
                     },
                   });
 
-                  // Update job state with new data
-                  setJob((prevJob) => prevJob ? { ...prevJob, ...response } : prevJob);
+                  // Update job state with new data (extract from { success, data } wrapper)
+                  const jobData = response.data || response;
+                  setJob((prevJob) => prevJob ? { ...prevJob, ...jobData } : prevJob);
                 } catch (error) {
                   console.error("Failed to update address:", error);
                   throw error;
