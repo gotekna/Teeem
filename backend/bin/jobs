@@ -3,4 +3,11 @@
 require_relative "../config/environment"
 require "solid_queue/cli"
 
-SolidQueue::Cli.start(ARGV)
+# Support SOLID_QUEUE_CONFIG env var for dedicated worker apps
+# (e.g., teeem-email-worker uses config/queue_email.yml)
+args = ARGV.dup
+if ENV["SOLID_QUEUE_CONFIG"] && !args.any? { |a| a.include?("config_file") }
+  args.push("--config_file", ENV["SOLID_QUEUE_CONFIG"])
+end
+
+SolidQueue::Cli.start(args)

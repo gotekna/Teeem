@@ -29,7 +29,10 @@ production:
     - polling_interval: 1
       batch_size: 500
 
-  # NO scheduler - recurring tasks run on teeem-shared-worker only
+  # Explicitly empty scheduler - prevents SolidQueue from loading recurring.yml
+  # All recurring tasks run on teeem-shared-worker only.
+  scheduler:
+    recurring_tasks: {}
 
 development:
   workers:
