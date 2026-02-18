@@ -801,18 +801,7 @@ class ExternalInvoiceSyncService
     end
   end
 
-  # Xero TaxType codes → PurchaseOrderLineItem gst_code
-  XERO_TAX_TO_GST_CODE = {
-    "INPUT" => "GST",           # GST on Expenses (10%)
-    "INPUT2" => "GST Free",     # GST Free Expenses
-    "INPUTTAXED" => "Input Taxed", # Input Taxed Expenses
-    "BASEXCLUDED" => "GST Free",   # BAS Excluded
-    "EXEMPTINPUT" => "GST Free",   # GST Exempt
-    "NONE" => "GST Free",          # No Tax
-    "OUTPUT" => "GST",             # GST on Income (for completeness)
-    "OUTPUT2" => "GST Free",       # GST Free Income
-    "EXEMPTOUTPUT" => "GST Free",  # GST Exempt Income
-  }.freeze
+  # SSoT: GstCode model maps Xero TaxTypes to our GST codes via xero_tax_types column
 
   def auto_create_purchase_order(invoice)
     # Check if PO already exists for this invoice
@@ -843,7 +832,7 @@ class ExternalInvoiceSyncService
       xero_line_items = invoice.line_items || []
       if xero_line_items.present?
         xero_line_items.each_with_index do |item, idx|
-          gst_code = XERO_TAX_TO_GST_CODE[item["TaxType"]] || "GST"
+          gst_code = GstCode.for_xero_tax_type(item["TaxType"])
           po.line_items.create!(
             line_number: idx + 1,
             description: item["Description"].presence || "Line #{idx + 1}",

@@ -921,6 +921,13 @@ Rails.application.routes.draw do
         end
       end
 
+      # GST Codes (tenant-scoped tax rates for POs and pricebook)
+      resources :gst_codes, only: [:index, :create, :update, :destroy] do
+        collection do
+          post :sync_from_xero
+        end
+      end
+
       # Price Book Categories (lookup table for pricebook items)
       resources :pricebook_categories do
         collection do

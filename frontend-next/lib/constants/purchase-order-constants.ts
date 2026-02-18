@@ -36,10 +36,18 @@ export interface POPricebookItem {
   };
 }
 
+export interface POProfitCentre {
+  id: number;
+  code: string;
+  name: string;
+}
+
 export interface POLineItem {
   id?: number;
   pricebook_item_id?: number;
   pricebook_item?: POPricebookItem;
+  profit_centre_id?: number | null;
+  profit_centre?: POProfitCentre | null;
   description: string;
   quantity: number;
   unit_price: number;
@@ -122,16 +130,33 @@ export const STATUS_BADGE_VARIANTS: Record<string, string> = {
 };
 
 // ============================================================================
-// GST Codes
+// GST Codes — SSoT: GstCode model (database, tenant-scoped)
+// No static fallbacks. Use useGstCodes() hook to fetch from API.
 // ============================================================================
 
-export const GST_CODES = [
-  { value: "GST", label: "GST", rate: 0.10 },
-  { value: "GST Free", label: "GST Free", rate: 0.00 },
-  { value: "Input Taxed", label: "Input Taxed", rate: 0.00 },
-] as const;
+export interface GstCodeOption {
+  value: string;
+  label: string;
+  rate: number;
+}
 
-export function getGstRate(gstCode: string | undefined): number {
-  const code = GST_CODES.find((c) => c.value === gstCode);
-  return code?.rate ?? 0.10;
+/**
+ * Get GST rate from a dynamic codes array (SSoT: database)
+ * Throws if codes not loaded or code not found — fail fast
+ */
+export function getGstRateFromCodes(
+  gstCode: string | undefined,
+  codes: GstCodeOption[]
+): number {
+  if (!codes || codes.length === 0) {
+    throw new Error("GST codes not loaded — useGstCodes() hook must be called first");
+  }
+  if (!gstCode) {
+    throw new Error("GST code is required on line item");
+  }
+  const match = codes.find((c) => c.value === gstCode);
+  if (!match) {
+    throw new Error(`Unknown GST code "${gstCode}" — not found in tenant GST codes`);
+  }
+  return match.rate;
 }

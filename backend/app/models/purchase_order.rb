@@ -184,9 +184,10 @@ class PurchaseOrder < ApplicationRecord
       (item.quantity || 0) * (item.unit_price || 0)
     }
     # Sum per-line-item tax (respects GST/GST Free/Input Taxed per line)
+    # SSoT: GstCode model for tax rates (with hardcoded fallback)
     self.tax = active_items.sum { |item|
       line_subtotal = (item.quantity || 0) * (item.unit_price || 0)
-      rate = PurchaseOrderLineItem::GST_CODES[item.gst_code] || 0.10
+      rate = GstCode.rate_for(item.gst_code)
       (line_subtotal * rate).round(2)
     }
     self.total = sub_total + tax

@@ -144,7 +144,10 @@ class BillToPurchaseOrderService
       unit_price = (item["UnitAmount"] || 0).to_f
       tax_amount = (item["TaxAmount"] || 0).to_f
 
-      gst_code = if tax_amount.zero? && unit_price.positive?
+      # SSoT: Use GstCode model for Xero TaxType mapping, fall back to heuristic
+      gst_code = if item["TaxType"].present?
+                   GstCode.for_xero_tax_type(item["TaxType"])
+                 elsif tax_amount.zero? && unit_price.positive?
                    "GST Free"
                  else
                    "GST"

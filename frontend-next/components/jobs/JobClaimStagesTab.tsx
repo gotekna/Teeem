@@ -58,6 +58,8 @@ import {
   Unlock,
   ShieldCheck,
   Send,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -67,8 +69,27 @@ import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
+
+interface ProfitCentre {
+  id: number;
+  code: string;
+  name: string;
+}
 
 interface ClaimTemplateOption {
   id: number;
@@ -112,6 +133,10 @@ interface ClaimStage {
   retainage_released_at: string | null;
   retainage_status: "none" | "held" | "released";
   net_payable: number | null;
+
+  // Profit Centre
+  profit_centre_id?: number | null;
+  profit_centre?: ProfitCentre | null;
 
   // Invoice details
   invoice: {
@@ -194,6 +219,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
   const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplateOption[]>([]);
   const [applyingTemplate, setApplyingTemplate] = React.useState(false);
+  const [profitCentres, setProfitCentres] = React.useState<ProfitCentre[]>([]);
 
   // Detail modal state
   const [detailStage, setDetailStage] = React.useState<ClaimStage | null>(null);
@@ -232,6 +258,23 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Fetch profit centres for this job
+  React.useEffect(() => {
+    const fetchProfitCentres = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: ProfitCentre[] }>(
+          `/api/v1/profit_centres?job_id=${jobId}`
+        );
+        if (response?.success && response.data) {
+          setProfitCentres(response.data);
+        }
+      } catch {
+        // Non-critical
+      }
+    };
+    fetchProfitCentres();
+  }, [jobId]);
 
   // Load claim templates for empty state template picker
   const loadClaimTemplates = React.useCallback(async () => {
@@ -565,6 +608,34 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     }
   };
 
+  const handleProfitCentreChange = async (stageId: number, profitCentreId: number | null) => {
+    try {
+      await api.patch(`/api/v1/jobs/${jobId}/claim_stages/${stageId}`, {
+        job_claim_stage: { profit_centre_id: profitCentreId },
+      });
+      // Update local state
+      setStages((prev) =>
+        prev.map((s) =>
+          s.id === stageId
+            ? {
+                ...s,
+                profit_centre_id: profitCentreId,
+                profit_centre: profitCentreId
+                  ? profitCentres.find((pc) => pc.id === profitCentreId) || null
+                  : null,
+              }
+            : s
+        )
+      );
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update profit centre",
+        variant: "destructive",
+      });
+    }
+  };
+
   const openStageDetail = async (stage: ClaimStage) => {
     // Show modal immediately with basic data
     setDetailStage(stage);
@@ -786,6 +857,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                 <TableRow className="text-left text-sm">
                   <TableHead className="px-4 py-3 font-medium">Stage</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-right">Expected</TableHead>
+                  <TableHead className="px-4 py-3 font-medium">Profit Centre</TableHead>
                   <TableHead className="px-4 py-3 font-medium">Xero Invoice</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-center">Sent</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-center">Due</TableHead>
@@ -831,6 +903,19 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           ? formatCurrency(stage.expected_amount)
                           : "-"}
                       </span>
+                    </TableCell>
+
+                    {/* Profit Centre */}
+                    <TableCell className="px-4 py-3">
+                      {profitCentres.length > 0 ? (
+                        <ProfitCentreSelector
+                          value={stage.profit_centre_id || null}
+                          profitCentres={profitCentres}
+                          onChange={(pcId) => handleProfitCentreChange(stage.id, pcId)}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
 
                     {/* Invoice */}
@@ -1613,4 +1698,71 @@ function PaymentStatusBadge({
         </Badge>
       );
   }
+}
+
+function ProfitCentreSelector({
+  value,
+  profitCentres,
+  onChange,
+}: {
+  value: number | null;
+  profitCentres: ProfitCentre[];
+  onChange: (id: number | null) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selected = value ? profitCentres.find((pc) => pc.id === value) : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs justify-between w-full max-w-[160px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="truncate">
+            {selected ? `${selected.code} - ${selected.name}` : "-"}
+          </span>
+          <ChevronsUpDown className="h-3 w-3 ml-1 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-0" align="start" onClick={(e) => e.stopPropagation()}>
+        <Command>
+          <CommandInput placeholder="Search..." className="h-8" />
+          <CommandList>
+            <CommandEmpty>No profit centres found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                onSelect={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+              >
+                <span className="text-muted-foreground">None</span>
+              </CommandItem>
+              {profitCentres.map((pc) => (
+                <CommandItem
+                  key={pc.id}
+                  onSelect={() => {
+                    onChange(pc.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-3 w-3",
+                      value === pc.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="font-mono text-xs mr-1">{pc.code}</span>
+                  <span className="truncate">{pc.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }

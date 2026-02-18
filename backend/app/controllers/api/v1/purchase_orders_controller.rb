@@ -97,7 +97,8 @@ module Api
                 pricebook_item: {
                   methods: [ :active_price ],
                   include: { default_supplier: { methods: [ :display_name ] } }
-                }
+                },
+                profit_centre: { only: [ :id, :code, :name ] }
               },
               methods: [ :price_drift, :price_outdated?, :price_status, :price_status_label ]
             },

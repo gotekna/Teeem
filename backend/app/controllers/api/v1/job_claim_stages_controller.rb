@@ -9,7 +9,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
-        stages = @job.job_claim_stages.includes(:external_invoice, :sm_task).ordered
+        stages = @job.job_claim_stages.includes(:external_invoice, :sm_task, :profit_centre).ordered
 
         # Summary calculations (handle nil values)
         # SSoT: contract_price is THE ONE
@@ -511,7 +511,7 @@ module Api
       def stage_params
         params.require(:job_claim_stage).permit(
           :name, :percentage, :expected_amount, :sequence_order, :description,
-          :retainage_percentage
+          :retainage_percentage, :profit_centre_id
         )
       end
 
@@ -570,6 +570,14 @@ module Api
             due_date: invoice.due_date,
             fully_paid_date: invoice.fully_paid_date,
             pending_push: invoice.pending_push
+          } : nil,
+
+          # Profit Centre
+          profit_centre_id: stage.profit_centre_id,
+          profit_centre: stage.profit_centre ? {
+            id: stage.profit_centre.id,
+            code: stage.profit_centre.code,
+            name: stage.profit_centre.name
           } : nil,
 
           created_at: stage.created_at,

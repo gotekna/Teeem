@@ -12,7 +12,7 @@ class PoTemplateLineItem < ApplicationRecord
   validates :quantity, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
   validates :unit_price, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
   validates :line_number, presence: true, numericality: { only_integer: true, greater_than: 0 }
-  validates :gst_code, inclusion: { in: PurchaseOrderLineItem::GST_CODES.keys }, allow_nil: true
+  validate :gst_code_exists_in_database
 
   # Callbacks
   before_validation :set_line_number, if: :new_record?
@@ -34,6 +34,13 @@ class PoTemplateLineItem < ApplicationRecord
   def cache_pricebook_item_code
     if pricebook_item_id_changed? && pricebook_item.present?
       self.pricebook_item_code = pricebook_item.item_code
+    end
+  end
+
+  def gst_code_exists_in_database
+    return if gst_code.blank?
+    unless GstCode.active.exists?(code: gst_code)
+      errors.add(:gst_code, "\"#{gst_code}\" is not a valid active GST code")
     end
   end
 end
