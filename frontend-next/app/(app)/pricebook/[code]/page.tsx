@@ -251,7 +251,8 @@ export default function PriceBookItemDetailPage() {
   const loadSuppliers = async () => {
     try {
       setLoadingSuppliers(true);
-      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers');
+      // include_employees=false skips the expensive employee name prefetch (not needed in this picker).
+      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers&include_employees=false');
 
       if (response?.success && Array.isArray(response.contacts)) {
         setSuppliers(response.contacts);
