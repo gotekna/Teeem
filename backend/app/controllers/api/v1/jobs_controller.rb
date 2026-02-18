@@ -1080,38 +1080,21 @@ module Api
               ref = reference_prices[item.pricebook_item_id]
               ref_price = ref[:price].to_f
 
-              # Lump-sum detection: Xero stores lump sums as qty=dollar_amount, unit_price=1.00.
-              # For these items, ref_price represents the total cost (not per-unit),
-              # so we must NOT multiply by the dollar-quantity.
-              is_lump_sum = item.unit_price.to_f.round(2) == 1.0 && (item.quantity || 0).to_f > 1
+              # Always compare unit prices: ref_subtotal = qty * ref_price
+              # Both PO line items and reference prices are stored as per-unit values.
               qty = (item.quantity || 0).to_f
-              ref_subtotal = if is_lump_sum
-                ref_price.round(2)
-              else
-                (qty * ref_price).to_f.round(2)
-              end
+              ref_subtotal = (qty * ref_price).to_f.round(2)
 
               po_ref += ref_subtotal
               diff = (ref_subtotal - subtotal).round(2)
               diff_pct = subtotal.abs > 0.01 ? ((diff / subtotal) * 100).round(1) : 0.0
 
-              # For lump-sum items, compare totals; for quantity items, compare unit prices
-              status = if is_lump_sum
-                if (subtotal - ref_price).abs < 0.01
-                  "equal"
-                elsif ref_price < subtotal
-                  "cheaper"  # reference total is lower = we potentially overpaid
-                else
-                  "expensive"  # reference total is higher = we got a good deal
-                end
+              status = if (item.unit_price.to_f - ref_price).abs < 0.01
+                "equal"
+              elsif ref_price < item.unit_price.to_f
+                "cheaper"  # reference is cheaper = we potentially overpaid
               else
-                if (item.unit_price.to_f - ref_price).abs < 0.01
-                  "equal"
-                elsif ref_price < item.unit_price.to_f
-                  "cheaper"  # reference is cheaper = we potentially overpaid
-                else
-                  "expensive"  # reference is more expensive = we got a good deal
-                end
+                "expensive"  # reference is more expensive = we got a good deal
               end
 
               {
