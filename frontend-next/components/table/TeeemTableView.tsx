@@ -571,6 +571,7 @@ export default function TeeemTableView({
   legacyDataSource, // Documents why entries is used instead of autoFetchRecords (suppresses deprecation warning)
   showDataHealth = false,
   onDataHealthIssueClick,
+  healthPageHref,
   initialShowTotals = true,
   hideFooter = false,
   hideAddRecord = false,
@@ -5818,6 +5819,7 @@ export default function TeeemTableView({
             forceShow={healthPanelOpen}
             onIssueClick={onDataHealthIssueClick || handleHealthIssueClick}
             onDataChanged={onRefresh}
+            healthPageHref={healthPageHref}
           />
         </div>
       )}

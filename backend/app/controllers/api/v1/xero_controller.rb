@@ -1903,12 +1903,39 @@ module Api
           # Calculate overall ETA based on actual throughput
           overall_eta = calculate_overall_eta(pdfs_pending, pdfs_last_24h)
 
+          # ============================================
+          # CONTACTS SYNC STATUS (Feb 2026)
+          # ============================================
+          xero_contacts_scope = ContactExternalLink.where(source: "xero")
+          xero_contacts_scope = xero_contacts_scope.where(xero_org_id: xero_org_id) if xero_org_id.present?
+          total_xero_contacts = xero_contacts_scope.count
+          linked_xero_contacts = xero_contacts_scope.where.not(contact_id: nil).count
+          unlinked_xero_contacts = total_xero_contacts - linked_xero_contacts
+
+          contact_sync_status_query = XeroSyncStatus.where(sync_type: "contacts")
+          if xero_org_id.present?
+            contact_sync_status_query = contact_sync_status_query.where(tenant_id: [xero_org_id, nil])
+          end
+          contact_sync_status = contact_sync_status_query.order(last_synced_at: :desc).first
+          last_contact_sync = contact_sync_status&.last_synced_at
+          contact_sync_pct = total_xero_contacts > 0 ? ((linked_xero_contacts.to_f / total_xero_contacts) * 100).round(1) : 100.0
+
           render json: {
             success: true,
             data: {
               # Per-tenant status for Ultra Transparency (Feb 2026)
               per_tenant_status: per_tenant_status,
               overall_eta: overall_eta,
+
+              # Contacts sync status (Feb 2026)
+              contacts_sync: {
+                total: total_xero_contacts,
+                linked: linked_xero_contacts,
+                unlinked: unlinked_xero_contacts,
+                percentage: contact_sync_pct,
+                last_synced_at: last_contact_sync,
+                schedule: "Webhook-driven"
+              },
 
               # Stage 1: Invoice DATA sync (Xero -> Database)
               stage1_data_sync: {

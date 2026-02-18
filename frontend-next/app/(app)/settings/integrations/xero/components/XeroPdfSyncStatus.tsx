@@ -19,6 +19,7 @@ import {
   ExternalLink,
   Gauge,
   Activity,
+  Users,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
@@ -145,10 +146,20 @@ interface Stage3Sharepoint {
   violations?: SsotViolation[];  // SSoT: Data quality issues detected
 }
 
+interface ContactsSync {
+  total: number;
+  linked: number;
+  unlinked: number;
+  percentage: number;
+  last_synced_at?: string | null;
+  schedule: string;
+}
+
 interface PdfSyncStatus {
   stage1_data_sync: Stage1DataSync;
   stage2_pdf_download: Stage2PdfDownload;
   stage3_sharepoint: Stage3Sharepoint;
+  contacts_sync?: ContactsSync;
   total_invoices: number;
   pdfs_synced: number;
   pending: number;
@@ -468,7 +479,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* 2-Stage Progress (Jan 2026: Merged Stage 2+3 into "PDF Sync") */}
+        {/* Stage 1 + Contacts (top row) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Stage 1: Xero Data Sync (Bills, Invoices, Quotes) */}
           {/* Feb 2026: Factor in data quality - bills with empty line_items are NOT truly synced */}
@@ -521,50 +532,127 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
             );
           })()}
 
-          {/* Stage 2: PDF Sync (Jan 2026: Merged download+storage into one stage) */}
-          <StageProgress
-            stage={2}
-            title="PDF Sync"
-            icon={Cloud}
-            completed={data.stage2_pdf_download?.downloaded || data.pdfs_synced}
-            total={data.stage2_pdf_download?.total_to_sync || data.total_invoices}
-            percentage={data.stage2_pdf_download?.progress_percentage || data.progress_percentage}
-            lastSync={data.stage2_pdf_download?.last_synced_at || data.stage2_pdf_download?.last_sync_at || data.last_synced_at || data.last_sync_at || null}
-            nextSync={data.stage2_pdf_download?.next_sync_at}
-            schedule={data.stage2_pdf_download?.schedule}
-            color="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
-            blocker={data.stage2_pdf_download?.blocker}
-          />
+          {/* Contacts Sync */}
+          {data.contacts_sync && (
+            <StageProgress
+              stage={2}
+              title="Contacts"
+              icon={Users}
+              completed={data.contacts_sync.linked}
+              total={data.contacts_sync.total}
+              percentage={data.contacts_sync.percentage}
+              lastSync={data.contacts_sync.last_synced_at || null}
+              schedule={data.contacts_sync.schedule}
+              color="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-300"
+              blocker={data.contacts_sync.unlinked > 0 ? {
+                reason: `${data.contacts_sync.unlinked} Xero contact${data.contacts_sync.unlinked !== 1 ? 's' : ''} not linked`,
+                detail: "Unlinked contacts won't have invoices synced",
+                unlinked_count: data.contacts_sync.unlinked
+              } : null}
+            />
+          )}
+        </div>
 
-          {/* Stage 3: DEPRECATED (Jan 2026) - Merged into Stage 2 */}
-          {/* Only show if backend hasn't marked it as deprecated (backwards compat) */}
-          {!(data.stage3_sharepoint as any)?.deprecated && (
-            <div className="space-y-2">
-              {data.stage3_sharepoint?.sharepoint_url && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full"
-                  onClick={() => window.open(data.stage3_sharepoint?.sharepoint_url!, '_blank')}
-                >
-                  <ExternalLink className="h-3.5 w-3.5 mr-2" />
-                  Open in Storage
-                </Button>
-              )}
-              <StageProgress
-                stage={3}
-                title="Cloud Storage"
-                icon={Upload}
-                completed={data.stage3_sharepoint?.uploaded || data.sharepoint_uploads}
-                total={data.stage3_sharepoint?.total_to_upload || data.pdfs_synced}
-                percentage={data.stage3_sharepoint?.progress_percentage || 0}
-                lastSync={data.stage3_sharepoint?.last_synced_at || null}
-                schedule="Uploads with PDF sync"
-                color="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-                blocker={data.stage3_sharepoint?.blocker}
-              />
+        {/* Stage 3: PDF Sync with per-type breakdown */}
+        <div className="p-3 border rounded-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300">
+                <Cloud className="h-3.5 w-3.5" />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Stage 3</div>
+                <div className="text-sm font-medium">PDF Sync</div>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-semibold">{data.stage2_pdf_download?.progress_percentage || data.progress_percentage}%</div>
+              <div className="text-xs text-muted-foreground">
+                {(data.stage2_pdf_download?.downloaded || data.pdfs_synced).toLocaleString()} / {(data.stage2_pdf_download?.total_to_sync || data.total_invoices).toLocaleString()}
+              </div>
+            </div>
+          </div>
+          <Progress value={data.stage2_pdf_download?.progress_percentage || data.progress_percentage} className="h-1.5" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Last: {formatDateTimeWithFallback(data.stage2_pdf_download?.last_synced_at || data.stage2_pdf_download?.last_sync_at || data.last_synced_at || data.last_sync_at || null, "Never")}</span>
+            {data.stage2_pdf_download?.next_sync_at && (
+              <span className={`font-medium ${
+                formatNextSync(data.stage2_pdf_download.next_sync_at)?.startsWith("overdue")
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-blue-600 dark:text-blue-400"
+              }`}>
+                Next: {formatNextSync(data.stage2_pdf_download.next_sync_at)}
+              </span>
+            )}
+          </div>
+          {data.stage2_pdf_download?.schedule && (
+            <div className="text-xs text-muted-foreground/70 italic">
+              {data.stage2_pdf_download.schedule}
             </div>
           )}
+          {data.stage2_pdf_download?.blocker && (
+            <div className="p-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs">
+              <div className="flex items-start gap-1.5">
+                <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <div className="font-medium text-amber-800 dark:text-amber-200">{String(data.stage2_pdf_download.blocker.reason ?? "")}</div>
+                  {data.stage2_pdf_download.blocker.estimated_days && data.stage2_pdf_download.blocker.estimated_days > 1 && (
+                    <div className="text-amber-700 dark:text-amber-300 mt-0.5">
+                      ~{data.stage2_pdf_download.blocker.estimated_days} days to complete
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Per-type breakdown (inline) */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+            <div className="p-2 bg-muted/40 rounded-lg">
+              <div className="text-xs text-muted-foreground">Invoices</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-semibold">{data.breakdown?.sales_invoices?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.sales_invoices?.total ?? 0}</span>
+              </div>
+              <Progress
+                value={(data.breakdown?.sales_invoices?.total ?? 0) > 0 ? ((data.breakdown?.sales_invoices?.synced ?? 0) / (data.breakdown?.sales_invoices?.total ?? 1)) * 100 : 0}
+                className="h-1 mt-1"
+              />
+            </div>
+            <div className="p-2 bg-muted/40 rounded-lg">
+              <div className="text-xs text-muted-foreground" title="Bills don't have auto-generated PDFs in Xero. Count shows bill records marked as processed.">Bills (Records)</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-semibold">{data.breakdown?.bills?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.bills?.total ?? 0}</span>
+              </div>
+              <Progress
+                value={(data.breakdown?.bills?.total ?? 0) > 0 ? ((data.breakdown?.bills?.synced ?? 0) / (data.breakdown?.bills?.total ?? 1)) * 100 : 0}
+                className="h-1 mt-1"
+              />
+            </div>
+            <div className="p-2 bg-muted/40 rounded-lg">
+              <div className="text-xs text-muted-foreground">Credit Notes</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-semibold">{data.breakdown?.credit_notes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.credit_notes?.total ?? 0}</span>
+              </div>
+              <Progress
+                value={(data.breakdown?.credit_notes?.total ?? 0) > 0 ? ((data.breakdown?.credit_notes?.synced ?? 0) / (data.breakdown?.credit_notes?.total ?? 1)) * 100 : 0}
+                className="h-1 mt-1"
+              />
+            </div>
+            <div className="p-2 bg-muted/40 rounded-lg">
+              <div className="text-xs text-muted-foreground">Quotes</div>
+              <div className="flex items-baseline gap-1">
+                <span className="text-sm font-semibold">{data.breakdown?.quotes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.quotes?.total ?? 0}</span>
+              </div>
+              <Progress
+                value={(data.breakdown?.quotes?.total ?? 0) > 0 ? ((data.breakdown?.quotes?.synced ?? 0) / (data.breakdown?.quotes?.total ?? 1)) * 100 : 0}
+                className="h-1 mt-1"
+              />
+            </div>
+          </div>
         </div>
 
         {/* Overall ETA Banner (Feb 2026: Ultra Transparency) */}
@@ -629,56 +717,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
           </div>
         </div>
 
-        {/* Breakdown by Type */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground">Sync Progress by Type</div>
-          <div className="grid grid-cols-4 gap-2">
-            <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground" title="Bills don't have auto-generated PDFs in Xero. Count shows bill records marked as processed.">Bills (Records)</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown?.bills?.synced ?? 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown?.bills?.total ?? 0}</span>
-              </div>
-              <Progress
-                value={(data.breakdown?.bills?.total ?? 0) > 0 ? ((data.breakdown?.bills?.synced ?? 0) / (data.breakdown?.bills?.total ?? 1)) * 100 : 0}
-                className="h-1 mt-1"
-              />
-            </div>
-            <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground">Invoices</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown?.sales_invoices?.synced ?? 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown?.sales_invoices?.total ?? 0}</span>
-              </div>
-              <Progress
-                value={(data.breakdown?.sales_invoices?.total ?? 0) > 0 ? ((data.breakdown?.sales_invoices?.synced ?? 0) / (data.breakdown?.sales_invoices?.total ?? 1)) * 100 : 0}
-                className="h-1 mt-1"
-              />
-            </div>
-            <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground">Credit Notes</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown?.credit_notes?.synced ?? 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown?.credit_notes?.total ?? 0}</span>
-              </div>
-              <Progress
-                value={(data.breakdown?.credit_notes?.total ?? 0) > 0 ? ((data.breakdown?.credit_notes?.synced ?? 0) / (data.breakdown?.credit_notes?.total ?? 1)) * 100 : 0}
-                className="h-1 mt-1"
-              />
-            </div>
-            <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground">Quotes</div>
-              <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown?.quotes?.synced ?? 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown?.quotes?.total ?? 0}</span>
-              </div>
-              <Progress
-                value={(data.breakdown?.quotes?.total ?? 0) > 0 ? ((data.breakdown?.quotes?.synced ?? 0) / (data.breakdown?.quotes?.total ?? 1)) * 100 : 0}
-                className="h-1 mt-1"
-              />
-            </div>
-          </div>
-        </div>
+        {/* Breakdown by Type section removed - now inline in Stage 3 PDF Sync card */}
 
         {/* Live API Activity - Prominent Section */}
         <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg">
@@ -757,7 +796,7 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
               </div>
               <div className="mt-2 text-xs text-muted-foreground">
                 <Gauge className="h-3 w-3 inline mr-1" />
-                Auto-scaling: Uses up to 50 API calls/min, 4500/day while staying under Xero limits
+                Auto-scaling: Uses up to 55 API calls/min, 4800/day while staying under Xero limits
               </div>
             </div>
           )}
