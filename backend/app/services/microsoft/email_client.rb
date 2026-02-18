@@ -112,6 +112,22 @@ module Microsoft
       nil
     end
 
+    # Get the oldest email date in a user's mailbox (single API call)
+    # Used by smart backfill to avoid syncing years with no emails.
+    # Returns Time or nil (if mailbox is empty).
+    def get_oldest_email_date(user_identifier)
+      endpoint = "/users/#{CGI.escape(user_identifier)}/messages"
+      params = {
+        "$select" => "receivedDateTime",
+        "$orderby" => "receivedDateTime ASC",
+        "$top" => 1
+      }
+      response = get(endpoint, params)
+      emails = response["value"] || []
+      return nil if emails.empty?
+      Time.parse(emails.first["receivedDateTime"])
+    end
+
     # Get email in MIME format (.eml)
     # Returns the raw MIME content of the email message
     # Uses with_retry for proper 429 throttling handling

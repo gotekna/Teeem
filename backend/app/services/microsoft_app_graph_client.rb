@@ -136,6 +136,10 @@ class MicrosoftAppGraphClient
     @email.get_email_mime_content(user_identifier, message_id)
   end
 
+  def get_oldest_email_date(user_identifier)
+    @email.get_oldest_email_date(user_identifier)
+  end
+
   def get_user_mail_folders(user_identifier, max_depth: 3)
     @email.get_user_mail_folders(user_identifier, max_depth: max_depth)
   end
