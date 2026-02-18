@@ -1,4 +1,4 @@
-<% # Classic Corporate — Logo left, details right. Black header bar on line items. Traditional layout. %>
+<% # Classic Corporate — Matches Tekna's existing PO format. Title left, logo right, integrated info table. %>
 
 <style>
   .po-container {
@@ -8,59 +8,87 @@
     color: #000;
   }
 
+  .po-top-bar {
+    background: #0d7377;
+    height: 6px;
+    margin-bottom: 10px;
+  }
+
   .po-header {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-    border-bottom: 2px solid #000;
-    padding-bottom: 10px;
+    align-items: flex-start;
+    margin-bottom: 10px;
   }
 
-  .po-title {
-    font-size: 18pt;
+  .po-header-left .po-title {
+    font-size: 22pt;
     font-weight: bold;
-    letter-spacing: 1px;
+    font-style: italic;
+    font-family: 'Times New Roman', Times, serif;
+  }
+
+  .po-header-left .po-task-name {
+    font-size: 9pt;
+    font-style: italic;
+    color: #333;
+    margin-top: 2px;
   }
 
   .po-header-right {
     text-align: right;
+  }
+
+  .po-header-right img {
+    max-width: 180px;
+    max-height: 60px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .po-ref-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
     font-size: 9pt;
   }
 
-  .po-header-right table {
-    margin-left: auto;
+  .po-ref-table td {
+    border: 1px solid #000;
+    padding: 3px 8px;
   }
 
-  .po-header-right td {
-    padding: 2px 5px;
-  }
-
-  .po-header-right td:first-child {
+  .po-ref-table td:nth-child(odd) {
     font-weight: bold;
-    text-align: right;
+    background: #f5f5f5;
   }
 
   .po-info-row {
     display: flex;
-    gap: 20px;
-    margin-bottom: 15px;
+    gap: 0;
+    margin-bottom: 10px;
     font-size: 8pt;
   }
 
   .po-info-box {
     flex: 1;
-    border: 1px solid #ccc;
-    padding: 8px;
+    border: 1px solid #000;
+    padding: 6px;
+  }
+
+  .po-info-box + .po-info-box {
+    border-left: none;
   }
 
   .po-info-box h4 {
     font-size: 8pt;
     font-weight: bold;
-    margin: 0 0 5px 0;
-    background: #f0f0f0;
+    text-align: center;
+    margin: -6px -6px 6px -6px;
     padding: 3px;
-    margin: -8px -8px 8px -8px;
+    background: #f0f0f0;
+    border-bottom: 1px solid #000;
   }
 
   .po-info-box p {
@@ -70,33 +98,40 @@
   .po-info-label {
     font-weight: bold;
     display: inline-block;
-    width: 60px;
+    min-width: 50px;
+  }
+
+  .delivery-note {
+    font-style: italic;
+    color: #333;
+    font-size: 7pt;
   }
 
   .line-items-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
     font-size: 8pt;
   }
 
   .line-items-table th {
     background: #333;
     color: #fff;
-    padding: 6px 8px;
+    padding: 5px 6px;
     text-align: left;
     font-weight: bold;
+    font-size: 8pt;
   }
 
-  .line-items-table th:nth-child(1) { width: 8%; text-align: center; }
-  .line-items-table th:nth-child(2) { width: 42%; }
+  .line-items-table th:nth-child(1) { width: 7%; text-align: center; }
+  .line-items-table th:nth-child(2) { width: 40%; }
   .line-items-table th:nth-child(3) { width: 12%; }
   .line-items-table th:nth-child(4) { width: 12%; text-align: right; }
   .line-items-table th:nth-child(5) { width: 8%; text-align: center; }
   .line-items-table th:nth-child(6) { width: 18%; text-align: right; }
 
   .line-items-table td {
-    padding: 5px 8px;
+    padding: 4px 6px;
     border-bottom: 1px solid #ddd;
     vertical-align: top;
   }
@@ -106,25 +141,23 @@
   .line-items-table td:nth-child(5) { text-align: center; }
   .line-items-table td:nth-child(6) { text-align: right; }
 
-  .line-items-table tr:nth-child(even) {
-    background: #f9f9f9;
-  }
-
   .totals-row {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
   }
 
   .notes-box {
     flex: 1;
     margin-right: 20px;
+    font-size: 8pt;
   }
 
   .notes-box h4 {
     font-weight: bold;
-    margin: 0 0 5px 0;
+    margin: 0 0 3px 0;
     font-size: 9pt;
+    text-decoration: underline;
   }
 
   .totals-box {
@@ -134,39 +167,35 @@
 
   .totals-box table {
     width: 100%;
+    border-collapse: collapse;
   }
 
   .totals-box td {
-    padding: 3px 0;
+    padding: 2px 0;
+    border: 1px solid #000;
   }
 
   .totals-box td:first-child {
     text-align: right;
-    padding-right: 10px;
+    padding-right: 8px;
+    font-style: italic;
   }
 
   .totals-box td:last-child {
     text-align: right;
+    padding-right: 5px;
     font-weight: bold;
   }
 
-  .totals-box .total-row {
-    border-top: 2px solid #000;
-    font-size: 10pt;
-  }
-
   .colour-section {
-    background: #fffde7;
-    border: 1px solid #ffc107;
-    padding: 10px;
-    margin-bottom: 15px;
     font-size: 9pt;
+    margin-bottom: 8px;
   }
 
   .colour-section h4 {
     font-weight: bold;
-    margin: 0 0 8px 0;
-    color: #333;
+    margin: 0;
+    display: inline;
   }
 
   .colour-list {
@@ -176,31 +205,39 @@
   }
 
   .colour-list li {
-    padding: 2px 0;
+    padding: 1px 0;
   }
 
   .remittance-section {
     font-size: 8pt;
-    margin-bottom: 15px;
-    border-top: 1px solid #000;
-    padding-top: 10px;
+    margin-bottom: 8px;
+    border-top: 1px dashed #999;
+    padding-top: 8px;
   }
 
   .remittance-section h4 {
     font-weight: bold;
-    margin: 0 0 5px 0;
+    text-decoration: underline;
+    margin: 0 0 3px 0;
+  }
+
+  .remittance-red {
+    color: #c00;
+    font-style: italic;
+    text-align: center;
+    font-size: 7pt;
+    margin-top: 5px;
   }
 
   .conditions-section {
     font-size: 7pt;
-    background: #f5f5f5;
-    padding: 10px;
-    border: 1px solid #ddd;
+    margin-top: 8px;
   }
 
   .conditions-section h4 {
     font-weight: bold;
-    margin: 0 0 5px 0;
+    text-decoration: underline;
+    margin: 0 0 3px 0;
     font-size: 8pt;
   }
 
@@ -210,38 +247,47 @@
   }
 
   .conditions-section li {
-    margin-bottom: 3px;
-  }
-
-  .delivery-note {
-    font-style: italic;
-    color: #666;
-    font-size: 7pt;
+    margin-bottom: 2px;
   }
 </style>
 
 <div class="po-container">
-  <div class="po-header">
-    <span class="po-title">PURCHASE ORDER</span>
+  <div class="po-top-bar"></div>
+
+  <div class="po-header" style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+    <div class="po-header-left">
+      <div class="po-title">Purchase Order</div>
+      <% if purchase_order[:ted_task].present? %>
+        <div class="po-task-name"><%= purchase_order[:ted_task] %></div>
+      <% end %>
+    </div>
     <div class="po-header-right">
-      <table>
-        <tr>
-          <td>PO NUMBER:</td>
-          <td><%= purchase_order[:purchase_order_number] %></td>
-        </tr>
-        <% if purchase_order[:required_date].present? %>
-        <tr>
-          <td>DELIVERY DATE:</td>
-          <td><%= purchase_order[:required_date] %></td>
-        </tr>
-        <% end %>
-      </table>
+      <% if company[:logo_url].present? %>
+        <img src="<%= company[:logo_url] %>" alt="<%= company[:company_name] %>" style="max-width:180px;max-height:60px;width:auto;height:auto;object-fit:contain">
+      <% else %>
+        <strong style="font-size: 14pt;"><%= company[:company_name] %></strong>
+      <% end %>
     </div>
   </div>
 
-  <div class="po-info-row">
-    <div class="po-info-box">
-      <h4>DELIVERY ADDRESS</h4>
+  <table class="po-ref-table">
+    <tr>
+      <td>PURCHASE ORDER:</td>
+      <td><%= purchase_order[:purchase_order_number] %></td>
+      <td>QBCC:</td>
+      <td><%= company[:qbcc_license] %></td>
+    </tr>
+    <tr>
+      <td>PROPOSED DELIVERY:</td>
+      <td><%= purchase_order[:required_date] %></td>
+      <td>ABN:</td>
+      <td><%= company[:abn_formatted] %></td>
+    </tr>
+  </table>
+
+  <div class="po-info-row" style="display:flex;gap:0;margin-bottom:10px;font-size:8pt">
+    <div class="po-info-box" style="flex:1;border:1px solid #000;padding:6px">
+      <h4 style="font-size:8pt;font-weight:bold;text-align:center;margin:-6px -6px 6px -6px;padding:3px;background:#f0f0f0;border-bottom:1px solid #000">DELIVERY ADDRESS</h4>
       <p><%= purchase_order[:delivery_address] || job[:full_address] %></p>
       <% if job[:suburb].present? %>
         <p><%= job[:suburb] %> <%= job[:state] %> <%= job[:postcode] %></p>
@@ -251,8 +297,8 @@
       <% end %>
     </div>
 
-    <div class="po-info-box">
-      <h4>SUPPLIER</h4>
+    <div class="po-info-box" style="flex:1;border:1px solid #000;border-left:none;padding:6px">
+      <h4 style="font-size:8pt;font-weight:bold;text-align:center;margin:-6px -6px 6px -6px;padding:3px;background:#f0f0f0;border-bottom:1px solid #000">SUPPLIER</h4>
       <p><strong><%= purchase_order[:supplier][:name] %></strong></p>
       <% if purchase_order[:supplier][:phone].present? %>
         <p><%= purchase_order[:supplier][:phone] %></p>
@@ -262,8 +308,8 @@
       <% end %>
     </div>
 
-    <div class="po-info-box">
-      <h4>CONTACT</h4>
+    <div class="po-info-box" style="flex:1;border:1px solid #000;border-left:none;padding:6px">
+      <h4 style="font-size:8pt;font-weight:bold;text-align:center;margin:-6px -6px 6px -6px;padding:3px;background:#f0f0f0;border-bottom:1px solid #000">CONTACT</h4>
       <p class="delivery-note">Please ring Supervisor 3 days prior to delivery to confirm delivery date</p>
       <% if purchase_order[:site_supervisor][:name].present? %>
         <p><span class="po-info-label">Sup:</span> <%= purchase_order[:site_supervisor][:name] %></p>
@@ -302,8 +348,8 @@
     </tbody>
   </table>
 
-  <div class="totals-row">
-    <div class="notes-box">
+  <div class="totals-row" style="display:flex;justify-content:space-between;margin-bottom:10px">
+    <div class="notes-box" style="flex:1;margin-right:20px;font-size:8pt">
       <h4>NOTES:</h4>
       <% if purchase_order[:special_instructions].present? %>
         <p><%= purchase_order[:special_instructions] %></p>
@@ -320,8 +366,8 @@
           <td>GST:</td>
           <td><%= purchase_order[:gst] %></td>
         </tr>
-        <tr class="total-row">
-          <td>Total:</td>
+        <tr>
+          <td><strong>Total:</strong></td>
           <td><%= purchase_order[:total] %></td>
         </tr>
       </table>
@@ -337,25 +383,23 @@
         <% end %>
       </ul>
     <% else %>
-      <p>As per colour selection</p>
+      <em>As per colour selection</em>
     <% end %>
   </div>
 
   <div class="remittance-section">
     <h4>REMITTANCE:</h4>
     <p>
-      <strong>Invoices to:</strong> <%= company[:company_name] %><br>
-      <strong>Email:</strong> <%= company[:email] %> &nbsp;
-      <strong>Phone:</strong> <%= company[:phone_formatted] %> &nbsp;
-      <strong>Address:</strong> <%= company[:full_address] %>
+      Invoices to: <strong><%= company[:company_name] %></strong><br>
+      Email: <%= company[:email] %> &nbsp; Phone: <%= company[:phone_formatted] %> &nbsp; Address: <%= company[:full_address] %>
     </p>
-    <p><strong>Payment schedule:</strong></p>
-    <ul style="margin: 5px 0; padding-left: 20px; font-size: 7pt;">
+    <p>Payment schedule:</p>
+    <ul style="margin: 3px 0; padding-left: 20px; font-size: 7pt;">
       <li><strong>7-day accounts:</strong> Invoices received before COB Wednesday will be paid the following Thursday.</li>
       <li><strong>14-day accounts:</strong> Invoices received before COB Wednesday will be paid on the Thursday two weeks later.</li>
       <li><strong>30-day accounts:</strong> Invoices received before COB on the last day of the month will be paid on the last day of the following month.</li>
     </ul>
-    <p style="font-size: 7pt;">
+    <p class="remittance-red">
       The correct purchase order number and job address MUST be included on your tax invoice.<br>
       Tax invoices without these details will be returned to the supplier for correction.<br>
       Tax invoices exceeding the order total may delay the payment.
