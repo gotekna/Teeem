@@ -487,6 +487,42 @@ class OrgEmailSyncJob < ApplicationJob
       folder_results = Concurrent::Hash.new
       thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
 
+      # ⚠️ ULTRA FIX (Feb 2026): Incremental sync FIRST, then backfill
+      # ════════════════════════════════════════════════════════════════
+      # Root cause: Backfill and incremental were mutually exclusive. While backfilling
+      # (which can take DAYS for large mailboxes with 15 years of history), users couldn't
+      # see today's new emails. rachel, andrew, robert @tekna.com.au were stuck in backfill
+      # for weeks - clients couldn't see incoming emails.
+      # ❌ WRONG: Process ALL historical years before ever fetching new emails
+      # ✅ CORRECT: Quick incremental pass first (new emails since last sync, usually <30s),
+      #   then continue year-by-year backfill with remaining budget.
+      # ════════════════════════════════════════════════════════════════
+      if mailbox_last_synced_at
+        incremental_since = [mailbox_last_synced_at - SYNC_OVERLAP_BUFFER, SYNC_MINIMUM_LOOKBACK.ago].min
+        @sync_before = nil
+        saved_metadata_mode = @metadata_first_mode
+        saved_initial_sync = @is_initial_sync
+        @metadata_first_mode = false  # Include body for new emails (users will read these)
+        @is_initial_sync = false      # Per-email upsert with full enrichment
+
+        # Budget: max 90s or 25% of time budget, whichever is smaller
+        incremental_budget = [90, time_budget ? time_budget / 4 : 90].min
+
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: INCREMENTAL-FIRST pass (since=#{incremental_since.iso8601}, budget=#{incremental_budget}s)"
+        incremental_start = Time.current
+        incremental_synced = sync_folders_parallel(client, user_email, folders, incremental_since,
+          thread_count: thread_count, time_budget: incremental_budget,
+          existing_folder_stats: {}, folder_results: folder_results)
+        incremental_elapsed = (Time.current - incremental_start).round(1)
+
+        total_synced += incremental_synced
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: INCREMENTAL-FIRST complete: #{incremental_synced} new emails in #{incremental_elapsed}s"
+
+        # Restore modes for backfill pass
+        @metadata_first_mode = saved_metadata_mode
+        @is_initial_sync = saved_initial_sync
+      end
+
       while current_year >= final_target
         # Check remaining time budget before starting next year
         elapsed = (Time.current - mailbox_start_time).to_i
