@@ -6,8 +6,18 @@ class SetTlElectricalAsDefaultSupplierForElectricalItems < ActiveRecord::Migrati
     #
     # Raw SQL to bypass acts_as_tenant scoping and model callbacks
     # (PriceHistory has after_commit :sync_current_price_to_item which could change prices)
+    #
+    # FRC (Feb 2026): Guard against missing contact — this ID only exists in production-like
+    # databases. Skip silently on local/fresh databases where the contact doesn't exist.
 
     tl_electrical_id = 2289
+
+    # Guard: Only run if contact exists (prevents FK violation on local/fresh databases)
+    contact_exists = execute("SELECT COUNT(*) FROM contacts WHERE id = #{tl_electrical_id}").first
+    unless contact_exists && contact_exists["count"].to_i > 0
+      say "Skipping — Contact #{tl_electrical_id} (TL Electrical) not found in this database"
+      return
+    end
 
     # 1. Set default_supplier_id on electrical pricebook items that don't have one
     execute <<-SQL
