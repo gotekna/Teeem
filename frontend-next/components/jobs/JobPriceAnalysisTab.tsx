@@ -21,6 +21,7 @@ import {
   ChevronRight,
   AlertTriangle,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -346,8 +347,14 @@ function POCard({ po, expanded, onToggle }: { po: POGroup; expanded: boolean; on
                     <TableCell className={`max-w-[300px] truncate ${isUnlinked ? "italic text-muted-foreground" : ""}`}>
                       {item.description}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
-                      {item.pricebook_item_code || "—"}
+                    <TableCell className="text-xs font-mono">
+                      {item.pricebook_item_code ? (
+                        <Link href={`/pricebook/${item.pricebook_item_code}`} className="text-primary hover:underline">
+                          {item.pricebook_item_code}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
                     <TableCell className="text-right">{formatCurrency(item.unit_price)}</TableCell>
