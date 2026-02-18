@@ -71,6 +71,7 @@ module Api
           categories_param = params[:categories] # Optional array of categories to filter by
           pricebook_item_ids_param = params[:pricebook_item_ids] # Optional array of specific item IDs to copy
           price_adjustment_percent = params[:price_adjustment_percent].present? ? params[:price_adjustment_percent].to_f : 0.0
+          rounding_mode = params[:rounding_mode].presence || "none" # none, smart, 0.50, 1, 5, 10
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
           effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
 
@@ -146,6 +147,9 @@ module Api
                 selected_price_history.new_price
               end
 
+              # Apply rounding (always rounds UP so supplier never loses out)
+              adjusted_price = apply_price_rounding(adjusted_price, rounding_mode)
+
               # Check if target already has a price history with the same price and effective date
               existing_history = PriceHistory.where(
                 pricebook_item_id: item.id,
@@ -156,7 +160,10 @@ module Api
 
               # Only create if this exact price/date combination doesn't exist
               unless existing_history
-                adjustment_note = price_adjustment_percent != 0.0 ? " (#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%)" : ""
+                notes = []
+                notes << "#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%" if price_adjustment_percent != 0.0
+                notes << "rounded #{rounding_mode}" if rounding_mode != "none"
+                adjustment_note = notes.any? ? " (#{notes.join(', ')})" : ""
                 PriceHistory.create!(
                   pricebook_item_id: item.id,
                   old_price: selected_price_history.new_price,
@@ -397,6 +404,35 @@ module Api
             success: false,
             error: "Contact not found"
           }, status: :not_found
+        end
+
+        # Round price UP to the nearest increment based on mode
+        # "smart" picks increment based on price magnitude so rounding
+        # is proportional (e.g. $1 item rounds to 50c, $4k item rounds to $10)
+        def apply_price_rounding(price, mode)
+          return price if mode == "none" || price.nil?
+
+          increment = case mode
+          when "smart"
+            if price < 10
+              0.1
+            elsif price < 100
+              0.5
+            elsif price < 1000
+              1.0
+            else
+              10.0
+            end
+          when "0.10"  then 0.1
+          when "0.50"  then 0.5
+          when "1"     then 1.0
+          when "5"     then 5.0
+          when "10"    then 10.0
+          else
+            return price
+          end
+
+          (price / increment).ceil * increment
         end
 
         def require_supplier

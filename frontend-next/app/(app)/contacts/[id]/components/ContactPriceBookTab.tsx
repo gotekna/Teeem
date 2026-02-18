@@ -50,10 +50,39 @@ interface ContactPriceBookTabProps {
   contactName: string;
 }
 
+type RoundingMode = "none" | "smart" | "0.10" | "0.50" | "1" | "5" | "10";
+
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "-";
   return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+// Must match backend apply_price_rounding exactly
+function applyRounding(price: number, mode: RoundingMode): number {
+  if (mode === "none") return price;
+
+  let increment: number;
+  if (mode === "smart") {
+    if (price < 10) increment = 0.1;
+    else if (price < 100) increment = 0.5;
+    else if (price < 1000) increment = 1;
+    else increment = 10;
+  } else {
+    increment = parseFloat(mode);
+  }
+
+  return Math.ceil(price / increment) * increment;
+}
+
+const ROUNDING_OPTIONS: { value: RoundingMode; label: string; description: string }[] = [
+  { value: "none", label: "None", description: "No rounding" },
+  { value: "smart", label: "Smart", description: "Auto: 10c / 50c / $1 / $10 based on price" },
+  { value: "0.10", label: "$0.10", description: "Round up to nearest 10 cents" },
+  { value: "0.50", label: "$0.50", description: "Round up to nearest 50 cents" },
+  { value: "1", label: "$1", description: "Round up to nearest dollar" },
+  { value: "5", label: "$5", description: "Round up to nearest $5" },
+  { value: "10", label: "$10", description: "Round up to nearest $10" },
+];
 
 export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBookTabProps) {
   const [items, setItems] = useState<PricebookItem[]>([]);
@@ -67,6 +96,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [copyClearSelection, setCopyClearSelection] = useState<(() => void) | null>(null);
   const [targetSupplier, setTargetSupplier] = useState<Supplier | null>(null);
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
+  const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
   const [copying, setCopying] = useState(false);
 
   const { toast } = useToast();
@@ -136,11 +166,28 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     return isNaN(val) ? 0 : val;
   }, [priceAdjustment]);
 
+  // Whether the new price column should show
+  const hasAdjustment = adjustmentPercent !== 0 || roundingMode !== "none";
+
+  // Calculate new price for a given current price (matches backend logic)
+  const calcNewPrice = useCallback((currentPrice: number | null): number | null => {
+    if (currentPrice == null) return null;
+    let price = currentPrice;
+    if (adjustmentPercent !== 0) {
+      price = Math.round(price * (1 + adjustmentPercent / 100) * 100) / 100;
+    }
+    if (roundingMode !== "none") {
+      price = applyRounding(price, roundingMode);
+    }
+    return price;
+  }, [adjustmentPercent, roundingMode]);
+
   const handleOpenCopyModal = useCallback((selectedIds: (number | string)[], clearSelection: () => void) => {
     setCopySelectedIds(selectedIds);
     setCopyClearSelection(() => clearSelection);
     setTargetSupplier(null);
     setPriceAdjustment("");
+    setRoundingMode("none");
     setCopyModalOpen(true);
   }, []);
 
@@ -159,6 +206,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         pricebook_item_ids: copySelectedIds.map(Number),
         set_as_default: true,
         price_adjustment_percent: adjustmentPercent,
+        rounding_mode: roundingMode,
       });
 
       if (response?.success) {
@@ -185,7 +233,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     } finally {
       setCopying(false);
     }
-  }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, toast, copyClearSelection]);
+  }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, roundingMode, toast, copyClearSelection]);
 
   if (loading) {
     return (
@@ -250,7 +298,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 flex-1 min-h-0">
+          <div className="space-y-4 flex-1 min-h-0 overflow-y-auto">
             {/* Target Supplier */}
             <div>
               <label className="text-sm font-medium mb-2 block">Target Supplier</label>
@@ -300,13 +348,41 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
               </p>
             </div>
 
+            {/* Rounding */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Round Up</label>
+              <div className="flex flex-wrap gap-1">
+                {ROUNDING_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRoundingMode(opt.value)}
+                    className={roundingMode === opt.value ? "border-primary bg-primary/5" : ""}
+                    title={opt.description}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {roundingMode === "none"
+                  ? "No rounding applied"
+                  : roundingMode === "smart"
+                    ? "Auto-rounds based on price: <$10 \u2192 10c, <$100 \u2192 50c, <$1k \u2192 $1, $1k+ \u2192 $10"
+                    : `All prices rounded up to nearest ${ROUNDING_OPTIONS.find(o => o.value === roundingMode)?.label}`}
+              </p>
+            </div>
+
             {/* Price Preview Table */}
             <div>
               <label className="text-sm font-medium mb-2 block">
                 Price Preview
-                {adjustmentPercent !== 0 && (
+                {hasAdjustment && (
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    ({adjustmentPercent > 0 ? "+" : ""}{adjustmentPercent}% adjustment)
+                    {adjustmentPercent !== 0 ? `${adjustmentPercent > 0 ? "+" : ""}${adjustmentPercent}%` : ""}
+                    {adjustmentPercent !== 0 && roundingMode !== "none" ? " + " : ""}
+                    {roundingMode !== "none" ? `round up ${roundingMode === "smart" ? "(smart)" : `to ${ROUNDING_OPTIONS.find(o => o.value === roundingMode)?.label}`}` : ""}
                   </span>
                 )}
               </label>
@@ -317,7 +393,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                       <th className="text-left px-3 py-2 font-medium">Code</th>
                       <th className="text-left px-3 py-2 font-medium">Item Name</th>
                       <th className="text-right px-3 py-2 font-medium">Current Price</th>
-                      {adjustmentPercent !== 0 && (
+                      {hasAdjustment && (
                         <th className="text-right px-3 py-2 font-medium">
                           <span className="flex items-center justify-end gap-1">
                             <TrendingUp className="h-3 w-3" />
@@ -330,9 +406,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                   <tbody className="divide-y divide-border">
                     {selectedItems.map((item) => {
                       const currentPrice = item.supplier_price ?? item.current_price;
-                      const newPrice = currentPrice != null
-                        ? Math.round(currentPrice * (1 + adjustmentPercent / 100) * 100) / 100
-                        : null;
+                      const newPrice = calcNewPrice(currentPrice);
                       const diff = currentPrice != null && newPrice != null ? newPrice - currentPrice : null;
 
                       return (
@@ -342,7 +416,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                           <td className="px-3 py-1.5 text-right tabular-nums">
                             {formatCurrency(currentPrice)}
                           </td>
-                          {adjustmentPercent !== 0 && (
+                          {hasAdjustment && (
                             <td className="px-3 py-1.5 text-right tabular-nums">
                               <span className="font-medium">{formatCurrency(newPrice)}</span>
                               {diff != null && diff !== 0 && (
@@ -382,7 +456,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                 <>
                   <Copy className="h-4 w-4 mr-1" />
                   Copy {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
-                  {adjustmentPercent !== 0 ? ` (${adjustmentPercent > 0 ? "+" : ""}${adjustmentPercent}%)` : ""}
+                  {hasAdjustment ? " (adjusted)" : ""}
                 </>
               )}
             </Button>
