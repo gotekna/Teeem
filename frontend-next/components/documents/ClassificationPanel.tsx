@@ -31,6 +31,9 @@ import {
   Brain,
   FileText,
   ChevronDown,
+  Briefcase,
+  Users,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
@@ -255,6 +258,7 @@ export default function ClassificationPanel({
   const [signedStatus, setSignedStatus] = React.useState<"signed" | "unsigned" | null>(null);
   const [actionNotes, setActionNotes] = React.useState("");
 
+  const [docTypeScopeFilter, setDocTypeScopeFilter] = React.useState<string | null>(null);
   const [validating, setValidating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [applyingSuggestion, setApplyingSuggestion] = React.useState(false);
@@ -426,30 +430,48 @@ export default function ClassificationPanel({
             <Label className="text-xs text-muted-foreground">Doc Type</Label>
             {isEditing ? (
               <>
-                <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
-                  <SelectTrigger className="mt-0.5 h-7 text-xs">
-                    <SelectValue placeholder="Select type...">
-                      {editedDocumentType ? (
-                        <span className="flex items-center gap-1">
-                          <Badge variant="outline" className="font-mono text-[10px] px-1">
-                            {localGetDocTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
-                          </Badge>
-                          <span className="truncate">{localGetDocTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}</span>
-                        </span>
-                      ) : "Select..."}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {localGetDocTypesForFolder(editedFolder).map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <span className="flex items-center gap-1">
-                          <Badge variant="outline" className="font-mono text-[10px] px-1">{type.abbrev}</Badge>
-                          {type.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Scope quick-filter buttons */}
+                <div className="flex items-center gap-0.5 mt-0.5 mb-1">
+                  {([
+                    { scope: "job", label: "Job", icon: Briefcase },
+                    { scope: "contacts", label: "Contact", icon: Users },
+                    { scope: "company", label: "Corp", icon: Building2 },
+                  ] as const).map(({ scope, label, icon: Icon }) => (
+                    <Button
+                      key={scope}
+                      type="button"
+                      size="sm"
+                      variant={docTypeScopeFilter === scope ? "default" : "outline"}
+                      onClick={() => setDocTypeScopeFilter(prev => prev === scope ? null : scope)}
+                      className={cn("h-5 px-1.5 text-[9px] gap-0.5", docTypeScopeFilter === scope && "bg-blue-600 hover:bg-blue-700")}
+                    >
+                      <Icon className="h-2.5 w-2.5" />{label}
+                    </Button>
+                  ))}
+                  {docTypeScopeFilter && (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setDocTypeScopeFilter(null)} className="h-5 px-1 text-[9px] text-muted-foreground">All</Button>
+                  )}
+                </div>
+                {/* Searchable doc type dropdown */}
+                <ComboboxDropdown
+                  items={documentTypes
+                    .filter(dt => !docTypeScopeFilter || dt.scope === docTypeScopeFilter)
+                    .map(dt => ({
+                      id: dt.name.toLowerCase(),
+                      label: `${dt.abbreviation ? `[${dt.abbreviation}] ` : ""}${dt.name}`,
+                    }))}
+                  selectedItem={editedDocumentType ? {
+                    id: editedDocumentType,
+                    label: (() => {
+                      const dt = documentTypes.find(d => d.name.toLowerCase() === editedDocumentType);
+                      return dt ? `${dt.abbreviation ? `[${dt.abbreviation}] ` : ""}${dt.name}` : editedDocumentType;
+                    })()
+                  } : undefined}
+                  onSelect={item => setEditedDocumentType(item.id)}
+                  placeholder="Search doc types..."
+                  searchInTrigger
+                  className="h-7 text-xs"
+                />
                 <div className="flex items-center gap-2 mt-1">
                   {needsSignedToggle && (
                     <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
