@@ -42,7 +42,7 @@ export function ConfigSyncSection() {
           setLastSyncAt(res.last_config_sync_at || null);
           setLastSyncBy(res.last_config_sync_by || null);
         }
-      } catch { /* non-critical */ }
+      } catch (err) { console.error("[ConfigSync] Failed to load sync info:", err); }
     };
     fetchSyncInfo();
   }, []);

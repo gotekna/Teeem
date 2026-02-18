@@ -28,6 +28,9 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     // Report to Sentry
     Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
 
+    // Log to console so the sidebar counter picks it up
+    console.error("ErrorBoundary caught:", error);
+
     // Call custom error handler if provided
     this.props.onError?.(error, errorInfo);
   }

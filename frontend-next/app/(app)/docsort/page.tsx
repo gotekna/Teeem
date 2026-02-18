@@ -244,7 +244,7 @@ export default function DocsortPage() {
       try {
         const response = await api.get<{ success: boolean; data: ClassificationDocumentType[] }>("/api/v1/document_types");
         if (response?.success && response.data) setPanelDocTypes(response.data);
-      } catch { /* non-critical */ }
+      } catch (err) { console.error("[DocSort] Failed to load document types:", err); }
     };
     fetchPanelDocTypes();
   }, []);
@@ -255,7 +255,7 @@ export default function DocsortPage() {
       try {
         const response = await api.get<{ success: boolean; companies: ClassificationCompany[] }>("/api/v1/companies?include_unlinked=true");
         if (response?.companies) setPanelCompanies(response.companies);
-      } catch { /* non-critical */ }
+      } catch (err) { console.error("[DocSort] Failed to load companies:", err); }
     };
     fetchPanelCompanies();
   }, []);
@@ -617,7 +617,7 @@ export default function DocsortPage() {
                         `/api/v1/document_inboxes/${selectedItem.id}/classification`
                       );
                       if (response?.success) setClassificationData(response);
-                    } catch { /* ignore */ }
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification:", err); }
                   }}
                   onRerunOCR={async () => {
                     await handleClassify(selectedItem);
@@ -626,7 +626,7 @@ export default function DocsortPage() {
                         `/api/v1/document_inboxes/${selectedItem.id}/classification`
                       );
                       if (response?.success) setClassificationData(response);
-                    } catch { /* ignore */ }
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification after OCR:", err); }
                   }}
                 />
               </div>

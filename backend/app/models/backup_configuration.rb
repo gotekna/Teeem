@@ -159,7 +159,8 @@ class BackupConfiguration < ApplicationRecord
     return nil unless cron
 
     Fugit::Cron.parse(cron)&.next_time&.to_t
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[BackupConfiguration] Failed to parse cron '#{cron}' for schedule '#{schedule}': #{e.message}"
     nil
   end
 

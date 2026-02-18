@@ -80,7 +80,8 @@ class DocumentBackupJob < ApplicationJob
     # Check if backup already exists and is current
     existing = begin
       BackupStorageService.list(backup_key).first
-    rescue
+    rescue StandardError => e
+      Rails.logger.warn "[DocumentBackupJob] Failed to check existing backup for #{backup_key}: #{e.message}"
       nil
     end
 

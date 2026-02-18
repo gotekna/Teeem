@@ -91,7 +91,7 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     Rails.logger.info "[SharePointMigration] Using drive: #{storage_config.drive_name} (#{storage_config.drive_id})"
 
     provider
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[SharePointMigration] Failed to get SharePoint provider: #{e.message}"
     Rails.logger.error e.backtrace.first(5).join("\n")
     nil
@@ -102,8 +102,9 @@ class EmailSharePointMigrationService # rubocop:disable Naming/ClassAndModuleCam
     return nil unless cred
 
     DocumentProviders::S3Compatible.new(cred)
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[SharePointMigration] Failed to get Wasabi provider: #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
     nil
   end
 

@@ -282,9 +282,10 @@ export default function MicrosoftIntegrationPage() {
   const searchParams = useSearchParams();
 
   // SSoT: URL state for tab
-  const [urlState, setUrlState] = useUrlState({
-    tab: null as string | null,
-  });
+  // FRC (Feb 2026): Stable defaults object prevents useUrlState from recomputing
+  // state/setState on every render (inline objects create new references each time).
+  const urlDefaults = React.useMemo(() => ({ tab: null as string | null }), []);
+  const [urlState, setUrlState] = useUrlState(urlDefaults);
   const currentTab = urlState.tab || "organizations";
 
   // Core state - loaded on page mount
@@ -890,7 +891,7 @@ function EmailSyncTab({
 }) {
   // Per-org collapsible state - default all expanded
   const [expandedOrgs, setExpandedOrgs] = React.useState<Set<number>>(
-    new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
+    () => new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
   const [importing, setImporting] = React.useState(false);
   const [expandedMailboxes, setExpandedMailboxes] = React.useState<Set<string>>(new Set());
@@ -936,21 +937,30 @@ function EmailSyncTab({
     );
   }
 
-  const connectedOrgs = orgs.filter(o => o.status === "connected");
+  // FRC (Feb 2026): Memoize connectedOrgs to prevent unstable array references.
+  // orgs.filter() creates a new array every render, which broke useMemo dependencies
+  // downstream (overallPhases) causing React error #310 (too many re-renders).
+  const connectedOrgs = React.useMemo(
+    () => orgs.filter(o => o.status === "connected"),
+    [orgs]
+  );
 
   // Compute importable user count: licensed M365 users not already in TEEEM
-  const teeemEmails = new Set(
-    (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
-  );
-  const importableByOrg = new Map<number, number>();
-  for (const org of connectedOrgs) {
-    const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
-    const count = (orgStats?.tenant_users || []).filter(
-      u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
-    ).length;
-    if (count > 0) importableByOrg.set(org.id, count);
-  }
-  const totalImportable = Array.from(importableByOrg.values()).reduce((a, b) => a + b, 0);
+  const { importableByOrg, totalImportable } = React.useMemo(() => {
+    const teeemEmails = new Set(
+      (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
+    );
+    const importable = new Map<number, number>();
+    for (const org of connectedOrgs) {
+      const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
+      const count = (orgStats?.tenant_users || []).filter(
+        u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
+      ).length;
+      if (count > 0) importable.set(org.id, count);
+    }
+    const total = Array.from(importable.values()).reduce((a, b) => a + b, 0);
+    return { importableByOrg: importable, totalImportable: total };
+  }, [connectedOrgs, syncDashboard]);
 
   // Aggregate 3-phase progress across all orgs
   const overallPhases = React.useMemo(() => {

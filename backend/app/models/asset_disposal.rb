@@ -82,7 +82,8 @@ class AssetDisposal < ApplicationRecord
       },
       user: user_record
     )
-  rescue => e
-    Rails.logger.error "Failed to create disposal activity: #{e.message}"
+  rescue StandardError => e
+    Rails.logger.error "[AssetDisposal] Failed to create disposal activity for asset #{asset&.id}: #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
   end
 end

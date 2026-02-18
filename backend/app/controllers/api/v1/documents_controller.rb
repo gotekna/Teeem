@@ -257,7 +257,12 @@ module Api
 
         # Get template from WarehouseProvider
         config = WarehouseProvider.instance
-        template = config.path_for(scope) rescue nil
+        template = begin
+          config.path_for(scope)
+        rescue StandardError => e
+          Rails.logger.warn "[Documents] Failed to get path template for scope #{scope}: #{e.message}"
+          nil
+        end
 
         # Build live folder tree based on scope
         result = build_live_folder_tree(scope, path_segments, folder_type)
@@ -729,7 +734,12 @@ module Api
 
           files = docs_at_path.map do |doc|
             blob = doc.storage_blob
-            url = doc.download_url rescue nil
+            url = begin
+              doc.download_url
+            rescue StandardError => e
+              Rails.logger.warn "[Documents] Failed to generate download URL for doc #{doc.id}: #{e.message}"
+              nil
+            end
 
             {
               name: doc.ui_name || doc.original_filename || "Document #{doc.id}",
@@ -774,7 +784,12 @@ module Api
         tree = { root_folders: Hash.new(0), paths: {} }
 
         WarehouseDocument.includes(:documentable).find_each(batch_size: 1000) do |doc|
-          computed_path = doc.computed_folder_path rescue nil
+          computed_path = begin
+            doc.computed_folder_path
+          rescue StandardError => e
+            Rails.logger.warn "[Documents] Failed to compute folder path for doc #{doc.id}: #{e.message}"
+            nil
+          end
           next if computed_path.blank?
 
           tree[:paths][doc.id] = computed_path
@@ -1414,12 +1429,22 @@ module Api
         end
 
         # SSoT (Jan 2026): Use tenant for storage provider
-        provider = DocumentProviders.for_tenant(current_tenant) rescue nil
+        provider = begin
+          DocumentProviders.for_tenant(current_tenant)
+        rescue StandardError => e
+          Rails.logger.warn "[Documents] Failed to get document provider for tenant #{current_tenant&.id}: #{e.message}"
+          nil
+        end
 
         scope.map do |wd|
           blob = wd.storage_blob
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename) rescue nil
+            begin
+              provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename)
+            rescue StandardError => e
+              Rails.logger.warn "[Documents] Failed to generate presigned URL for doc #{wd.id}: #{e.message}"
+              nil
+            end
           end
 
           {
