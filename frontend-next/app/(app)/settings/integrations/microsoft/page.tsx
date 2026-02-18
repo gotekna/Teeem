@@ -35,11 +35,14 @@ import {
   ChevronRight,
   ChevronsDownUp,
   UserPlus,
+  Paperclip,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -936,6 +939,46 @@ function EmailSyncTab({
   }
   const totalImportable = Array.from(importableByOrg.values()).reduce((a, b) => a + b, 0);
 
+  // Aggregate 3-phase progress across all orgs
+  const overallPhases = React.useMemo(() => {
+    let metadataTotal = 0;
+    let emlTotal = 0, emlDone = 0, emlUnavailable = 0;
+    let attTotal = 0, attDone = 0;
+
+    for (const org of connectedOrgs) {
+      const orgStats = syncDashboard.organizations?.find(o => o.id === org.id);
+      for (const m of orgStats?.mailboxes || []) {
+        metadataTotal += m.email_count;
+        emlTotal += m.email_count;
+        emlDone += m.email_blob_count ?? 0;
+        emlUnavailable += m.content_unavailable_count ?? 0;
+        attTotal += m.attachment_count ?? 0;
+        attDone += m.blob_count ?? 0;
+      }
+    }
+
+    const emlEffectiveTotal = emlTotal - emlUnavailable;
+    const emlPending = Math.max(0, emlEffectiveTotal - emlDone);
+    const attPending = Math.max(0, attTotal - attDone);
+
+    return {
+      metadata: { total: metadataTotal, done: metadataTotal, pct: 100 },
+      eml: {
+        total: emlEffectiveTotal,
+        done: emlDone,
+        unavailable: emlUnavailable,
+        pending: emlPending,
+        pct: emlEffectiveTotal > 0 ? Math.round((emlDone / emlEffectiveTotal) * 100) : 100,
+      },
+      att: {
+        total: attTotal,
+        done: attDone,
+        pending: attPending,
+        pct: attTotal > 0 ? Math.round((attDone / attTotal) * 100) : 100,
+      },
+    };
+  }, [connectedOrgs, syncDashboard]);
+
   const handleImport = async (orgId: number) => {
     setImporting(true);
     try {
@@ -989,6 +1032,83 @@ function EmailSyncTab({
           </Button>
         </div>
       </div>
+
+      {/* 3-Phase Summary Cards */}
+      {(syncDashboard.total_emails ?? 0) > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {/* Phase 1: Metadata */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.metadata.pct === 100 && "border-purple-200 dark:border-purple-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Database className="h-3.5 w-3.5 text-purple-500" />
+              Phase 1: Metadata
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.metadata.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.metadata.done.toLocaleString()}/{overallPhases.metadata.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.metadata.pct}
+              className="h-1.5 bg-purple-100 dark:bg-purple-950 [&>div]:bg-purple-500"
+            />
+            <div className="text-xs text-green-600 dark:text-green-400">Complete</div>
+          </div>
+
+          {/* Phase 2: EML Bodies */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.eml.pct === 100 && "border-blue-200 dark:border-blue-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Mail className="h-3.5 w-3.5 text-blue-500" />
+              Phase 2: EML Bodies
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.eml.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.eml.done.toLocaleString()}/{overallPhases.eml.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.eml.pct}
+              className="h-1.5 bg-blue-100 dark:bg-blue-950 [&>div]:bg-blue-500"
+            />
+            <div className="text-xs">
+              {overallPhases.eml.pct === 100 ? (
+                <span className="text-green-600 dark:text-green-400">Complete</span>
+              ) : (
+                <span className="text-muted-foreground">{overallPhases.eml.pending.toLocaleString()} pending</span>
+              )}
+            </div>
+          </div>
+
+          {/* Phase 3: Attachments */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.att.pct === 100 && "border-amber-200 dark:border-amber-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Paperclip className="h-3.5 w-3.5 text-amber-500" />
+              Phase 3: Attachments
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.att.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.att.done.toLocaleString()}/{overallPhases.att.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.att.pct}
+              className="h-1.5 bg-amber-100 dark:bg-amber-950 [&>div]:bg-amber-500"
+            />
+            <div className="text-xs">
+              {overallPhases.att.pct === 100 ? (
+                <span className="text-green-600 dark:text-green-400">Complete</span>
+              ) : (
+                <span className="text-muted-foreground">{overallPhases.att.pending.toLocaleString()} pending</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Per-org sections */}
       {connectedOrgs.map((org) => {
@@ -1244,30 +1364,56 @@ function EmailSyncTab({
                                   const emailTotal = row.mailboxStat.email_count;
                                   const emlUploaded = row.mailboxStat.email_blob_count ?? 0;
                                   const unavailable = row.mailboxStat.content_unavailable_count ?? 0;
-                                  const emlPending = emailTotal - emlUploaded - unavailable;
+                                  const emlEffective = emailTotal - unavailable;
+                                  const emlPending = Math.max(0, emlEffective - emlUploaded);
                                   const emlDone = emlPending <= 0;
+                                  const emlPct = emlEffective > 0 ? Math.round((emlUploaded / emlEffective) * 100) : 100;
 
                                   const attTotal = row.mailboxStat.attachment_count ?? 0;
                                   const attDownloaded = row.mailboxStat.blob_count ?? 0;
-                                  const attPending = attTotal - attDownloaded;
+                                  const attPending = Math.max(0, attTotal - attDownloaded);
                                   const attDone = attTotal === 0 || attPending <= 0;
+                                  const attPct = attTotal > 0 ? Math.round((attDownloaded / attTotal) * 100) : 100;
 
-                                  const allDone = emlDone && attDone;
                                   if (emailTotal === 0) return <span className="text-muted-foreground">—</span>;
 
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <div className="flex flex-col items-end gap-0.5">
-                                          <span className="flex items-center gap-1">
-                                            <span className={emlDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                              {emlDone ? "✓" : "◌"} .eml {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}
+                                        <div className="flex flex-col items-end gap-1 min-w-[140px]">
+                                          <div className="flex items-center gap-1.5 w-full">
+                                            <span className="text-muted-foreground w-7 text-right">.eml</span>
+                                            <Progress
+                                              value={emlPct}
+                                              className={cn(
+                                                "h-1.5 w-16 bg-muted",
+                                                emlDone ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"
+                                              )}
+                                            />
+                                            <span className={cn(
+                                              "tabular-nums",
+                                              emlDone ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                                            )}>
+                                              {emlUploaded.toLocaleString()}/{emlEffective.toLocaleString()}
                                             </span>
-                                          </span>
+                                          </div>
                                           {attTotal > 0 && (
-                                            <span className={attDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                              {attDone ? "✓" : "◌"} attach {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 w-full">
+                                              <span className="text-muted-foreground w-7 text-right">att.</span>
+                                              <Progress
+                                                value={attPct}
+                                                className={cn(
+                                                  "h-1.5 w-16 bg-muted",
+                                                  attDone ? "[&>div]:bg-green-500" : "[&>div]:bg-amber-500"
+                                                )}
+                                              />
+                                              <span className={cn(
+                                                "tabular-nums",
+                                                attDone ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                                              )}>
+                                                {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
+                                              </span>
+                                            </div>
                                           )}
                                         </div>
                                       </TooltipTrigger>
@@ -1275,7 +1421,7 @@ function EmailSyncTab({
                                         <div className="space-y-1">
                                           <p className="font-medium">Three-stage sync:</p>
                                           <p>① Metadata: {emailTotal.toLocaleString()} records ✓</p>
-                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
+                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emlEffective.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
                                           {unavailable > 0 && <p className="text-muted-foreground ml-3">{unavailable.toLocaleString()} permanently unavailable</p>}
                                           <p>③ Attachments: {attTotal > 0 ? `${attDownloaded.toLocaleString()}/${attTotal.toLocaleString()}${attDone ? " ✓" : ` (${attPending.toLocaleString()} pending)`}` : "none"}</p>
                                         </div>
