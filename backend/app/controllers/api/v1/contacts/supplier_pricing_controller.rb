@@ -172,7 +172,7 @@ module Api
                   lga: selected_price_history.lga,
                   date_effective: effective_date,
                   change_reason: "Copied from #{source_contact.display_name}#{adjustment_note}",
-                  tenant_id: current_tenant&.id
+                  tenant_id: @contact.tenant_id
                 )
                 copied_count += 1
               end
