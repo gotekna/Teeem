@@ -545,18 +545,29 @@ module Api
         xero_invoices_fn = -> { invoices.where(invoice_type: "sales_invoice").count }
         xero_bills_fn = -> { invoices.where(invoice_type: "bill").count }
 
+        # Estimating tab counts
+        po_count_fn = -> { @job.purchase_orders.where.not(status: "cancelled").count }
+
         # component_name keys (when set) + tab_key keys (when component_name is nil)
         count_map = {
           "JobClaimStagesTab" => claims_fn, "claims" => claims_fn,
           "JobExpensesTab" => expenses_fn, "expenses" => expenses_fn,
           "XeroInvoicesCard" => xero_invoices_fn, "claims---xero" => xero_invoices_fn, "claims-xero" => xero_invoices_fn,
-          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn
+          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn,
+          "JobPurchaseOrdersTab" => po_count_fn, "purchase-orders" => po_count_fn
         }
 
         counts = {}
-        if finance_tab
-          finance_tab.children.where(enabled: true).each do |child|
-            # Try component_name first (explicit), then tab_key (convention)
+
+        # Resolve counts for all parent tabs with children (Finance, Estimating/Jobs, etc.)
+        parent_tabs = WarehouseFolder.where(
+          warehouse_type_id: job_type_ids,
+          parent_id: nil,
+          tenant_id: @job.tenant_id
+        ).includes(:children)
+
+        parent_tabs.each do |parent_tab|
+          parent_tab.children.where(enabled: true).each do |child|
             resolver = count_map[child.component_name] || count_map[child.tab_key]
             counts[child.tab_key] = resolver.call if resolver
           end

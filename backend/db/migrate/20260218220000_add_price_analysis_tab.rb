@@ -28,7 +28,8 @@ class AddPriceAnalysisTab < ActiveRecord::Migration[8.0]
           enabled: true,
           is_system: true,
           tab_type: "system",
-          tab_group: "data"
+          tab_group: "data",
+          warehouse_enabled: false  # Component tab, not a document folder
         )
         Rails.logger.info "Created Price Analysis tab for tenant #{tenant.id}"
       end
