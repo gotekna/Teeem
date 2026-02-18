@@ -283,7 +283,9 @@ class SendNameResolver
 
     # Document type context
     # Note: Use document_type_record (association) not document_type (string column)
-    doc_type_record = documentable&.document_type_record
+    # FRC (Feb 2026): Not all documentables have this association (e.g., ExternalInvoice has
+    # invoice_type string, not a DocumentType FK). Guard with respond_to? to prevent NoMethodError.
+    doc_type_record = documentable.respond_to?(:document_type_record) ? documentable&.document_type_record : nil
     if doc_type_record
       context[:doc_type_name] = doc_type_record.name
       context[:doc_type_code] = doc_type_record.abbreviation || doc_type_record.try(:code)

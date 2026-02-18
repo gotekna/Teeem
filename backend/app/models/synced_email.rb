@@ -1119,7 +1119,7 @@ class SyncedEmail < ApplicationRecord
     end
 
     # Step 3: Record metadata for all real attachments (fast, no downloads)
-    record_attachment_metadata!(real_attachments, used_mailbox)
+    record_attachment_metadata!(real_attachments, used_mailbox, outlook_id: used_attempt[:outlook_id])
 
     # Step 4: Download blobs for any attachments missing content
     Rails.logger.info "[SyncedEmail] Downloading pending blobs for email #{id} via Graph (#{used_mailbox})"
@@ -1166,7 +1166,7 @@ class SyncedEmail < ApplicationRecord
   # ════════════════════════════════════════════════════════════════════
 
   # Step 1: Record metadata (fast, no downloads)
-  def record_attachment_metadata!(real_attachments, used_mailbox)
+  def record_attachment_metadata!(real_attachments, used_mailbox, outlook_id: nil)
     real_attachments.each do |att_meta|
       filename = att_meta["name"] || "attachment"
       graph_attachment_id = att_meta["id"]
@@ -1198,6 +1198,7 @@ class SyncedEmail < ApplicationRecord
           "synced_email_id" => id.to_s,
           "outlook_attachment_id" => graph_attachment_id,
           "mailbox" => used_mailbox,
+          "outlook_id" => outlook_id,
           "blob_status" => "pending"
         }.compact
       )
@@ -1228,6 +1229,17 @@ class SyncedEmail < ApplicationRecord
 
     # Skip permanently failed attachments (exhausted retries)
     retryable_docs = blobless_docs.reject { |doc| doc.metadata&.dig("blob_status") == "permanently_failed" }
+    return if retryable_docs.empty?
+
+    # ⚠️ FRC (Feb 2026): Only download attachments recorded from THIS mailbox.
+    # Microsoft Graph attachment IDs are mailbox-specific. An attachment ID from
+    # accounts@ does NOT exist in abbie@'s store → 404 "object not found".
+    # Docs recorded from a different mailbox will be handled when that mailbox's
+    # credential is used in a future retry cycle.
+    retryable_docs = retryable_docs.select do |doc|
+      metadata_mailbox = doc.metadata&.dig("mailbox")
+      metadata_mailbox.nil? || metadata_mailbox.downcase == used_mailbox.downcase
+    end
     return if retryable_docs.empty?
 
     Rails.logger.info "[SyncedEmail] Downloading #{retryable_docs.count} pending blobs for email #{id}"

@@ -117,17 +117,26 @@ class StorageBlob < ApplicationRecord
     # scopes find_by to current tenant. Old blobs with nil tenant_id or blobs
     # from concurrent threads block creation via DB constraint but are invisible
     # to tenant-scoped find_by. This caused infinite retry failures in production.
+    #
+    # ⚠️ FRC (Feb 2026): Retry with backoff for transaction isolation.
+    # Under concurrent writes, the conflicting row may not be visible immediately
+    # due to PostgreSQL's MVCC. A brief sleep allows the inserting transaction to
+    # commit and become visible to our unscoped.find_by.
     if e.message.downcase.include?("content hash") || e.message.downcase.include?("storage path")
-      Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retrying find (unscoped)"
-      retry_blob = unscoped.find_by(content_hash: hash)
-      if retry_blob
-        # If blob exists in different tenant, update to current tenant for proper scoping
-        if retry_blob.tenant_id.nil? && ActsAsTenant.current_tenant
-          retry_blob.update_column(:tenant_id, ActsAsTenant.current_tenant.id)
-          Rails.logger.info "[StorageBlob] Adopted orphan blob #{retry_blob.id} into tenant #{ActsAsTenant.current_tenant.id}"
+      3.times do |attempt|
+        sleep(0.1 * (attempt + 1)) # 100ms, 200ms, 300ms
+        Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retry find attempt #{attempt + 1} (unscoped)"
+        retry_blob = unscoped.find_by(content_hash: hash)
+        if retry_blob
+          # If blob exists in different tenant, update to current tenant for proper scoping
+          if retry_blob.tenant_id.nil? && ActsAsTenant.current_tenant
+            retry_blob.update_column(:tenant_id, ActsAsTenant.current_tenant.id)
+            Rails.logger.info "[StorageBlob] Adopted orphan blob #{retry_blob.id} into tenant #{ActsAsTenant.current_tenant.id}"
+          end
+          return retry_blob
         end
-        return retry_blob
       end
+      Rails.logger.error "[StorageBlob] Race condition on hash #{hash[0..7]}... but blob not found after 3 retries"
     end
     raise # Re-raise if not a race condition we can handle
   end
