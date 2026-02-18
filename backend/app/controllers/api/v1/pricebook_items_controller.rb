@@ -854,8 +854,10 @@ module Api
         end
 
         if id_or_slug.to_s.match?(/\A\d+\z/)
-          # Numeric ID - direct lookup
-          @item = base_query.find(id_or_slug)
+          # Numeric: try model ID first, then item_code (some item_codes are pure numbers like "54490")
+          @item = base_query.find_by(id: id_or_slug)
+          @item ||= base_query.where("LOWER(item_code) = ?", id_or_slug.downcase).first
+          raise ActiveRecord::RecordNotFound, "Pricebook item not found: #{id_or_slug}" unless @item
         else
           # Slug - search by item_code
           # Remove the _God_Loves_You_ suffix if present
