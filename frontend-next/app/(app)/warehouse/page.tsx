@@ -467,7 +467,7 @@ export default function AllDocumentsPage() {
       // For now, we leave desktopClients empty and show "No clients" message
     } catch (error) {
       // Expected to fail if no desktop app connected (401)
-      // Just log and continue - the UI will show empty state
+      console.debug("[Warehouse] Desktop sync client not available:", error);
     } finally {
       setSyncLoading(false);
     }

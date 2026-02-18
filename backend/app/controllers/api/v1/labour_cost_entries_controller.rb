@@ -179,8 +179,8 @@ class Api::V1::LabourCostEntriesController < ApplicationController
     LabourCostEntry.where(id: entry_ids).find_each do |entry|
       entry.mark_billed!(invoice)
       updated_count += 1
-    rescue StandardError
-      # Skip entries that can't be updated
+    rescue StandardError => e
+      Rails.logger.warn "[LabourCostEntries] Failed to mark entry #{entry.id} as billed: #{e.message}"
     end
 
     render json: {

@@ -590,7 +590,8 @@ module Gl
       {
         net_gst: prior_gst[:net_gst]
       }
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[GL::BasPreparation] Failed to fetch prior_period_comparison: #{e.message}")
       nil
     end
 

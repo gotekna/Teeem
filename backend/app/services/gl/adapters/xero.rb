@@ -374,7 +374,8 @@ module Gl
       def fetch_account(account_id)
         response = api_get("Accounts/#{account_id}")
         extract_data(response, 'Accounts')&.first
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[GL::Xero] Failed to fetch account #{account_id}: #{e.message}")
         nil
       end
 

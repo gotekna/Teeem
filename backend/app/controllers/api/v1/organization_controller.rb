@@ -327,7 +327,8 @@ module Api
         # SSoT: Use MicrosoftCredential for SharePoint status
         sharepoint_configured = begin
           MicrosoftCredential.sharepoint_credential.present?
-        rescue StandardError
+        rescue StandardError => e
+          Rails.logger.warn("[Organization] Failed to check SharePoint credential: #{e.message}")
           false
         end
 

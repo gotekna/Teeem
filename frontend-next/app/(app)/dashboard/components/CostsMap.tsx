@@ -456,7 +456,7 @@ export default function CostsMap() {
         api.get<{ success: boolean; data: VercelBillingData }>(
           "/api/v1/heroku/vercel_billing",
           refresh ? { params: { refresh: "true" } } : {}
-        ).catch(() => null),
+        ).catch((err) => { console.error("[CostsMap] Failed to fetch Vercel costs:", err); return null; }),
       ]);
 
       if (infraResponse?.success && infraResponse.data) {

@@ -53,9 +53,10 @@ module Api
             error: "Contact not found: #{e.message}"
           }, status: :not_found
         rescue => e
+          Rails.logger.error("[ContactMerge] Failed: #{e.message}\n#{e.backtrace&.first(5)&.join("\n")}")
           render json: {
             success: false,
-            error: "Failed to merge contacts: #{e.message}"
+            error: "Merge failed: #{e.message}"
           }, status: :internal_server_error
         end
 
@@ -181,8 +182,19 @@ module Api
           # Transfer job and case associations
           transfer_associations(source, target_contact)
 
-          # Delete the source contact
-          source.destroy
+          # Transfer ALL remaining FK references that Rails dependent options don't cover.
+          # This dynamically finds every FK constraint pointing to contacts and moves
+          # references from source → target. Without this, postgres blocks the DELETE
+          # for any table with a FK constraint but no Rails dependent option.
+          transfer_all_remaining_fk_references(source, target_contact)
+
+          # Reload to clear cached associations (update_all bypasses ActiveRecord cache)
+          source.reload
+
+          # Delete the source contact (destroy! raises on failure for clear error)
+          unless source.destroy
+            raise "Failed to destroy Contact with id=#{source.id}: #{source.errors.full_messages.join(', ')}"
+          end
         end
 
         def merge_contact_emails(source, target_contact)
@@ -373,6 +385,62 @@ module Api
         def normalize_name(name)
           return nil if name.blank?
           name.to_s.downcase.gsub(/\s+/, " ").strip
+        end
+
+        # Dynamically find ALL FK constraints pointing to the contacts table
+        # and transfer references from source → target. This prevents postgres
+        # from blocking the DELETE when tables exist that Rails doesn't know about
+        # via dependent options.
+        def transfer_all_remaining_fk_references(source, target)
+          fk_query = <<-SQL
+            SELECT tc.table_name, kcu.column_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage kcu
+              ON tc.constraint_name = kcu.constraint_name
+              AND tc.table_schema = kcu.table_schema
+            JOIN information_schema.constraint_column_usage ccu
+              ON tc.constraint_name = ccu.constraint_name
+              AND tc.table_schema = ccu.table_schema
+            WHERE tc.constraint_type = 'FOREIGN KEY'
+              AND ccu.table_name = 'contacts'
+              AND ccu.column_name = 'id'
+          SQL
+
+          fk_refs = ActiveRecord::Base.connection.execute(fk_query)
+
+          # Tables where Rails dependent: :destroy will handle deletion -
+          # don't transfer these, let destroy clean them up naturally.
+          skip_transfer = Set.new(%w[
+            contact_activities contact_emails contact_phones contact_addresses
+            contact_persons contact_group_memberships contact_external_links
+            contact_company_group_memberships contact_relationships
+            sms_messages contact_quality_reviews
+          ])
+
+          fk_refs.each do |row|
+            table = row["table_name"]
+            column = row["column_name"]
+            next if skip_transfer.include?(table)
+
+            # Self-referential contacts FK (parent_company_contact_id, primary_company_id, etc.)
+            # Nullify instead of transferring to avoid circular references
+            if table == "contacts"
+              ActiveRecord::Base.connection.execute(
+                "UPDATE contacts SET #{column} = NULL WHERE #{column} = #{source.id}"
+              )
+            else
+              count = ActiveRecord::Base.connection.execute(
+                "SELECT COUNT(*) FROM #{table} WHERE #{column} = #{source.id}"
+              ).first["count"].to_i
+
+              if count > 0
+                ActiveRecord::Base.connection.execute(
+                  "UPDATE #{table} SET #{column} = #{target.id} WHERE #{column} = #{source.id}"
+                )
+                Rails.logger.info("[ContactMerge] Transferred #{count} #{table}.#{column} refs: #{source.id} → #{target.id}")
+              end
+            end
+          end
         end
 
         def contact_duplicate_json(contact)

@@ -353,7 +353,8 @@ class XeroAssetJournalService
       else
         "Unknown error: #{response.code}"
       end
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[XeroAssetJournal] Failed to parse Xero error response: #{e.message}"
       "HTTP #{response.code}: #{response.body}"
     end
   end

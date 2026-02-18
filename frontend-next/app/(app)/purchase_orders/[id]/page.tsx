@@ -1495,6 +1495,34 @@ export default function PurchaseOrderDetailPage() {
             {selectedSupplier?.email && (
               <p className="text-sm text-muted-foreground mt-2">{selectedSupplier.email}</p>
             )}
+            {/* Unlinked items: show clickable codes for items not priced by this supplier */}
+            {selectedSupplier?.supplied_pricebook_item_ids && (() => {
+              const suppliedIds = new Set(selectedSupplier.supplied_pricebook_item_ids);
+              const unlinked = lineItems.filter(
+                (li) => li.pricebook_item_id && !li._destroy && !suppliedIds.has(li.pricebook_item_id)
+              );
+              if (unlinked.length === 0) return null;
+              return (
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {unlinked.map((li) => {
+                    const code = li.pricebook_item?.item_code || `#${li.pricebook_item_id}`;
+                    return (
+                      <a
+                        key={li.pricebook_item_id}
+                        href={`/pricebook/${encodeURIComponent(code)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/60 transition-colors cursor-pointer"
+                        title={`View ${code} in Price Book`}
+                      >
+                        {code}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 

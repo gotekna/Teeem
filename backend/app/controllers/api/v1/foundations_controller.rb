@@ -958,7 +958,8 @@ module Api
           # Get record count
           begin
             json[:record_count] = foundation.dynamic_model.count
-          rescue StandardError
+          rescue StandardError => e
+            Rails.logger.warn "[Foundations] Failed to get record count for foundation '#{foundation.slug}': #{e.message}"
             json[:record_count] = 0
           end
         end

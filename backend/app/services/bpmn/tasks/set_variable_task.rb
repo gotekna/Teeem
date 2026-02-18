@@ -44,7 +44,8 @@ module Bpmn
 
       def evaluate_expression(expression)
         Bpmn::ConditionEvaluator.new(@variables).evaluate(expression)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[BPMN::SetVariableTask] Failed to evaluate expression '#{expression}': #{e.message}")
         nil
       end
     end

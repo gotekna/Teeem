@@ -88,7 +88,8 @@ module ImportValidators
 
       cleaned = value.to_s.gsub(/[$,]/, '')
       "$#{format('%.2f', cleaned.to_f)}"
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[PricebookImportValidator] Failed to format currency value '#{value}': #{e.message}")
       value
     end
 

@@ -554,8 +554,8 @@ class ImapEmailService
       imap.login(credential.username, credential.password)
       yield imap
     ensure
-      begin; imap.logout; rescue StandardError; end
-      begin; imap.disconnect; rescue StandardError; end
+      begin; imap.logout; rescue StandardError => e; Rails.logger.debug "[IMAP] Logout cleanup: #{e.message}"; end
+      begin; imap.disconnect; rescue StandardError => e; Rails.logger.debug "[IMAP] Disconnect cleanup: #{e.message}"; end
     end
   end
 

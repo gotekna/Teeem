@@ -53,7 +53,8 @@ class MvRefreshLog < ApplicationRecord
       "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(view_name)}"
     )
     result.first["count"].to_i
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn("[MvRefreshLog] Failed to get row count for #{view_name}: #{e.message}")
     nil
   end
 

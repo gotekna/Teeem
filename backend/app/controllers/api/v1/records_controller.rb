@@ -117,6 +117,41 @@ module Api
             end
           end
 
+          # Generic: Include lookup column display values in search (Feb 2026)
+          # For each single-lookup column, LEFT JOIN the target table and search its display column.
+          # This allows searching by contact name, supplier name, etc. on ANY foundation.
+          lookup_cols_for_search = @foundation.columns
+            .where(column_type: "lookup") # Only single lookups (not multiple_lookups - array FK)
+            .where.not(lookup_foundation_id: nil)
+            .where.not(lookup_display_column: [nil, ""])
+
+          if lookup_cols_for_search.any?
+            main_table = model.table_name
+            conn = ActiveRecord::Base.connection
+
+            lookup_cols_for_search.each do |lookup_col|
+              target_foundation = Foundation.find_by(id: lookup_col.lookup_foundation_id)
+              next unless target_foundation
+
+              target_table = target_foundation.database_table_name
+              display_col = lookup_col.lookup_display_column
+              # Unique alias prevents conflicts when multiple lookups target the same table
+              join_alias = "lookup__#{lookup_col.column_name}"
+
+              query = query.joins(
+                "LEFT JOIN #{conn.quote_table_name(target_table)} AS #{join_alias} " \
+                "ON #{join_alias}.id = #{main_table}.#{conn.quote_column_name(lookup_col.column_name)}"
+              )
+
+              searchable_columns << "#{join_alias}.#{display_col}"
+            end
+
+            # Qualify unqualified main table columns to avoid ambiguity from JOINs
+            searchable_columns = searchable_columns.map do |col|
+              col.include?(".") ? col : "#{main_table}.#{col}"
+            end
+          end
+
           # SSoT: Contacts foundation - qualify columns to avoid ambiguity
           # Eager loading :primary_company creates a self-JOIN (contacts → contacts),
           # making columns like display_name ambiguous. Qualify with table name.
@@ -129,10 +164,10 @@ module Api
           if @foundation.slug == "jobs"
             # Join jobs to job_contacts to contacts for client search
             query = query.joins("LEFT JOIN job_contacts ON job_contacts.job_id = jobs.id AND job_contacts.role = 'client'")
-                         .joins("LEFT JOIN contacts ON contacts.id = job_contacts.contact_id")
-            # Qualify all column references with table name to avoid ambiguity
+                         .joins("LEFT JOIN contacts AS job_client ON job_client.id = job_contacts.contact_id")
+            # Qualify unqualified column references with table name to avoid ambiguity
             # (jobs and contacts both have columns like 'postcode', 'state', etc.)
-            searchable_columns = searchable_columns.map { |col| "jobs.#{col}" } + ["contacts.display_name"]
+            searchable_columns = searchable_columns.map { |col| col.include?(".") ? col : "jobs.#{col}" } + ["job_client.display_name"]
           end
 
           if searchable_columns.any?

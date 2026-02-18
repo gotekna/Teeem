@@ -1942,8 +1942,8 @@ class BankTransactionReportService
         items = JSON.parse(items) if items.is_a?(String)
         desc = items.first&.dig("Description")
         return desc if desc.present?
-      rescue StandardError
-        # ignore
+      rescue StandardError => e
+        Rails.logger.warn "[BankTransactionReport] Failed to parse line items for description: #{e.message}"
       end
     end
 
@@ -1971,8 +1971,8 @@ class BankTransactionReportService
         items = txn.line_items
         items = JSON.parse(items) if items.is_a?(String)
         line1 = items.first&.dig("Description")
-      rescue StandardError
-        # ignore
+      rescue StandardError => e
+        Rails.logger.warn "[BankTransactionReport] Failed to parse line items for tooltip: #{e.message}"
       end
     end
     line1 ||= txn.reference.presence

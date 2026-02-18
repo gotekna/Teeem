@@ -996,7 +996,8 @@ module Api
 
       def check_database_status
         ActiveRecord::Base.connection.active? ? "healthy" : "critical"
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Database status check failed: #{e.message}"
         "critical"
       end
 
@@ -1009,13 +1010,15 @@ module Api
 
       def get_pending_jobs_count
         SolidQueue::ReadyExecution.count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get pending jobs count: #{e.message}"
         0
       end
 
       def get_failed_jobs_count
         SolidQueue::FailedExecution.count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get failed jobs count: #{e.message}"
         0
       end
 
@@ -1025,13 +1028,15 @@ module Api
         else
           `ps -o rss= -p #{Process.pid}`.to_i / 1024
         end
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get memory usage: #{e.message}"
         0
       end
 
       def get_active_workers
         SolidQueue::Process.where("last_heartbeat_at > ?", 5.minutes.ago).count
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get active workers count: #{e.message}"
         0
       end
 

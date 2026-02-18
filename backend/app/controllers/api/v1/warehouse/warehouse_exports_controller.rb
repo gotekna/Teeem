@@ -86,7 +86,8 @@ module Api
           ActiveRecord::Base.connection.execute(
             "SELECT COUNT(*) FROM #{ActiveRecord::Base.connection.quote_table_name(table_name)}"
           ).first["count"].to_i
-        rescue StandardError
+        rescue StandardError => e
+          Rails.logger.warn "[WarehouseExports] Failed to count rows in #{table_name}: #{e.message}"
           0
         end
 

@@ -153,7 +153,8 @@ class GlobalSearchService
     else
       0
     end
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn("[GlobalSearch] Failed to count results for #{model.name}: #{e.message}")
     0
   end
 

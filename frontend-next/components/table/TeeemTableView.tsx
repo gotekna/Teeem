@@ -1446,10 +1446,12 @@ export default function TeeemTableView({
         if (col.searchable !== undefined && col.searchable !== null) {
           acc[col.key] = col.searchable;
         } else {
-          // Default: text-based columns AND 'name' columns are searchable
+          // Default: text-based columns, 'name' columns, AND lookup columns are searchable
+          // Lookup columns search the display value (backend JOINs to target table)
           const isTextType = TEXT_SEARCHABLE_TYPES.has(col.column_type || '');
           const isNameColumn = col.key === 'name';
-          acc[col.key] = isTextType || isNameColumn;
+          const isLookup = col.column_type === 'lookup';
+          acc[col.key] = isTextType || isNameColumn || isLookup;
         }
         return acc;
       }, {} as Record<string, boolean>),

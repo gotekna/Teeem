@@ -52,7 +52,8 @@ class MvXeroSyncStat < ApplicationRecord
         "SELECT EXISTS (SELECT 1 FROM pg_matviews WHERE matviewname = 'mv_xero_sync_stats')"
       )
       result.first["exists"] == true
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[MvXeroSyncStat] Failed to check availability: #{e.message}")
       false
     end
 

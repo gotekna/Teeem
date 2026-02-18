@@ -123,7 +123,8 @@ module DocumentProviders
 
     def connected?
       @credential.present? && !@credential.refresh_token_dead?
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[SharePoint] Failed to check connection status: #{e.message}"
       false
     end
 
@@ -171,7 +172,8 @@ module DocumentProviders
       path = normalize_path(path)
       folder = get_folder_by_path(path)
       folder.present?
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[SharePoint] Failed to check folder existence for '#{path}': #{e.message}"
       false
     end
 
@@ -324,7 +326,8 @@ module DocumentProviders
         response = @client.get("#{@client.send(:drive_path)}/items/#{item['id']}/thumbnails")
         thumbnail_set = response["value"]&.first
         thumbnail_set&.dig(size_key, "url")
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[SharePoint] Failed to fetch thumbnail for item '#{item['id']}': #{e.message}"
         nil
       end
     end
@@ -484,7 +487,8 @@ module DocumentProviders
     def parse_time(time_str)
       return nil unless time_str
       Time.parse(time_str)
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn "[SharePoint] Failed to parse time '#{time_str}': #{e.message}"
       nil
     end
   end

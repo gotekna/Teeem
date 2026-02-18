@@ -173,7 +173,8 @@ class WHSActionItem < ApplicationRecord
     else
       nil
     end
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn("[WhsActionItem] Failed to find_related_job for action item #{id}: #{e.message}")
     nil
   end
 

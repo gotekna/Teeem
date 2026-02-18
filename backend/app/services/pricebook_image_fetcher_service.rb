@@ -274,7 +274,8 @@ class PricebookImageFetcherService
     # Add User-Agent and other headers to bypass 403 Forbidden errors
     referer = begin
       url.match(/^https?:\/\/[^\/]+/)[0]
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[PricebookImageFetcher] Failed to extract referer from URL: #{e.message}")
       url
     end
 

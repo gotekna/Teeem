@@ -87,8 +87,8 @@ class BrandExtractorService
         uri = URI.parse(css_url)
         response = Net::HTTP.get_response(uri)
         @css_content += "\n" + response.body if response.is_a?(Net::HTTPSuccess)
-      rescue StandardError
-        # Skip failed CSS fetches
+      rescue StandardError => e
+        Rails.logger.warn "[BrandExtractor] Failed to fetch CSS from '#{css_url}': #{e.message}"
       end
     end
   end

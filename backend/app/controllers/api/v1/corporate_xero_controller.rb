@@ -1634,7 +1634,8 @@ module Api
               last_month_closed: begin
                 organisation_info[:locked_date].present? &&
                   Date.parse(organisation_info[:locked_date]) >= last_month.end_of_month
-              rescue StandardError
+              rescue StandardError => e
+                Rails.logger.warn("[CorporateXero] Failed to parse locked_date for end_of_month check: #{e.message}")
                 false
               end
             }
@@ -1686,7 +1687,8 @@ module Api
           begin
             # Use cached count if available from setup_status
             accounts_count = @company.bank_accounts.count + 50 # Approximate until we cache this
-          rescue StandardError
+          rescue StandardError => e
+            Rails.logger.warn("[CorporateXero] Failed to get accounts count for tab_stats: #{e.message}")
             accounts_count = 0
           end
         end

@@ -214,7 +214,8 @@ class ProductImageScraper
         # Test if image is accessible (HEAD request)
         response = HTTParty.head(url, timeout: 5, follow_redirects: true)
         return url if response.success? && response.headers["content-type"]&.include?("image")
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[ProductImageScraper] Failed to verify image URL '#{url}': #{e.message}"
         next
       end
     end

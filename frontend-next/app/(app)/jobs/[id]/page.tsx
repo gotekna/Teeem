@@ -1280,7 +1280,7 @@ export default function JobDetailPage() {
       // Finance sub-tab badge counts (lightweight, non-blocking)
       api.get<{ success: boolean; counts: Record<string, number> }>(`/api/v1/jobs/${jobId}/finance_counts`)
         .then(res => { if (res?.success) setFinanceCounts(res.counts); })
-        .catch(() => {});
+        .catch((err) => console.error("[JobPage] Failed to fetch finance counts:", err));
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
 

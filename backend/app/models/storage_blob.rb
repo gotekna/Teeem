@@ -239,7 +239,8 @@ class StorageBlob < ApplicationRecord
     return nil unless defined?(Marcel)
 
     Marcel::MimeType.for(content, name: filename)
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[StorageBlob] Failed to detect content type for '#{filename}': #{e.message}"
     nil
   end
 

@@ -836,7 +836,8 @@ class XeroContactSyncService
     changes_made = changed_fields.each_with_object({}) do |field, hash|
       old_value = begin
         teeem_contact.send(field)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[XeroContactSync] Failed to read field '#{field}' from contact ##{teeem_contact.id}: #{e.message}")
         nil
       end
       new_value = updates[field]

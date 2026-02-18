@@ -147,7 +147,7 @@ export function TemplateSelector({ onTemplateSelect, disabled }: TemplateSelecto
     }
 
     // Record usage
-    api.post(`/api/v1/pdf_takeoff/templates/${template.id}/record_usage`).catch(() => {});
+    api.post(`/api/v1/pdf_takeoff/templates/${template.id}/record_usage`).catch((err) => console.warn("[TemplateSelector] Failed to record usage:", err));
 
     onTemplateSelect(fullTemplate, fullTemplate.steps || []);
     setOpen(false);

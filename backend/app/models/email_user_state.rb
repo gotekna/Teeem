@@ -54,13 +54,15 @@ class EmailUserState < ApplicationRecord
 
   def self.star_colors
     TenantSetting.email_star_colors
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[EmailUserState] Failed to load email_star_colors from TenantSetting: #{e.message}"
     DEFAULT_STAR_COLORS
   end
 
   def self.priorities
     TenantSetting.email_priority_levels
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[EmailUserState] Failed to load email_priority_levels from TenantSetting: #{e.message}"
     DEFAULT_PRIORITIES
   end
 

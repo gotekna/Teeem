@@ -138,6 +138,31 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }
   }, [toast]);
 
+  // Delete handler - deactivates a pricebook item
+  const handleDelete = useCallback(async (row: TableRow) => {
+    try {
+      await api.delete(`/api/v1/pricebook/${row.id}`);
+      toast({ title: "Item removed" });
+      setItems(prev => prev.filter(item => item.id !== Number(row.id)));
+      setTotal(prev => prev - 1);
+    } catch (err) {
+      console.error("Failed to delete pricebook item:", err);
+      toast({
+        title: "Delete failed",
+        description: err instanceof Error ? err.message : "Failed to remove item",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
+  // Bulk delete handler
+  const handleBulkDelete = useCallback(async (ids: (number | string)[]) => {
+    await Promise.allSettled(ids.map(id => api.delete(`/api/v1/pricebook/${id}`)));
+    toast({ title: "Items removed", description: `${ids.length} item(s) removed` });
+    setItems(prev => prev.filter(item => !ids.map(Number).includes(item.id)));
+    setTotal(prev => prev - ids.length);
+  }, [toast]);
+
   useEffect(() => {
     loadPricebookItems();
   }, [contactId]);
@@ -409,6 +434,9 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           tableName="Price Book Items"
           enableExport={true}
           onRowUpdate={handleRowUpdate}
+          onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
+          hideAddRecord
           customBulkActions={(selectedIds, clearSelection) => (
             <>
               <Button

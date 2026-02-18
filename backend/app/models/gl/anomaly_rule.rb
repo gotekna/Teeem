@@ -32,7 +32,8 @@ module Gl
       else
         false
       end
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[GL::AnomalyRule] Failed to check matches? for rule '#{name}': #{e.message}")
       false
     end
 

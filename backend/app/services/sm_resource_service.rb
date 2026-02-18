@@ -190,8 +190,9 @@ class SmResourceService
   def calculate_working_days(start_date, end_date)
     calculator = WorkingDaysCalculator.new
     calculator.working_days_between(start_date, end_date)
-  rescue StandardError
+  rescue StandardError => e
     # Fallback: simple weekday calculation
+    Rails.logger.warn "[SmResourceService] Failed to calculate working days: #{e.message}"
     (start_date..end_date).count { |d| (1..5).cover?(d.wday) }
   end
 

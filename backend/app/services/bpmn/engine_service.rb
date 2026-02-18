@@ -302,7 +302,8 @@ module Bpmn
 
         # Parse ISO 8601 duration (e.g., "P1D", "PT2H", "P1W")
         ActiveSupport::Duration.parse(duration_string)
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn "[BPMN::Engine] Failed to parse ISO8601 duration '#{duration_string}': #{e.message}"
         1.hour # Default fallback
       end
     end

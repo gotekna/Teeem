@@ -176,19 +176,22 @@ class Contact < ApplicationRecord
   # Class methods to read from TenantSetting with fallback
   def self.roles
     TenantSetting.contact_roles
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_roles from TenantSetting: #{e.message}"
     DEFAULT_ROLES
   end
 
   def self.entity_types
     TenantSetting.contact_entity_types
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_entity_types from TenantSetting: #{e.message}"
     DEFAULT_ENTITY_TYPES
   end
 
   def self.employment_statuses
     TenantSetting.contact_employment_statuses
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn "[Contact] Failed to load contact_employment_statuses from TenantSetting: #{e.message}"
     DEFAULT_EMPLOYMENT_STATUSES
   end
 

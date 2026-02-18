@@ -122,7 +122,8 @@ class ESignatureCertificate < ApplicationRecord
 
     # This URL would be configured based on your frontend domain
     "#{Rails.application.config.frontend_url}/verify-signature/#{verification_token}"
-  rescue StandardError
+  rescue StandardError => e
+    Rails.logger.warn("[ESignatureCertificate] Failed to generate verification_url: #{e.message}")
     nil
   end
 
