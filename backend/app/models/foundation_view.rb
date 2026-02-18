@@ -1,14 +1,17 @@
 class FoundationView < ApplicationRecord
+  acts_as_tenant :tenant
+
+  belongs_to :tenant
   belongs_to :user, optional: true  # optional for global views (is_global = true)
   belongs_to :foundation, optional: true  # optional because foundation_id might reference dynamic foundations
 
   validates :name, presence: true
-  validates :slug, presence: true, uniqueness: { scope: :foundation_id, message: "must be unique within the foundation" }
+  validates :slug, presence: true, uniqueness: { scope: [:tenant_id, :foundation_id], message: "must be unique within the foundation" }
   # user_id is required for personal views, but not for global views
   validates :user_id, presence: true, unless: :is_global?
 
-  # Ensure only one default view per user per foundation
-  validates :is_default, uniqueness: { scope: [ :user_id, :foundation_id ] }, if: :is_default?
+  # Ensure only one default view per user per foundation per tenant
+  validates :is_default, uniqueness: { scope: [ :tenant_id, :user_id, :foundation_id ] }, if: :is_default?
 
   # Protect the "Setup" view from being renamed
   validate :prevent_setup_view_rename, on: :update

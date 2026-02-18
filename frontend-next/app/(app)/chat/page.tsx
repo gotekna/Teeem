@@ -1986,7 +1986,12 @@ function MessageBubble({
                       <span className="text-xs text-muted-foreground">(uploading...)</span>
                     )}
                   </div>
-                ) : null}
+                ) : (
+                  <div className="flex items-center gap-2 px-3 py-2 text-muted-foreground">
+                    <ImageIcon className="h-4 w-4 shrink-0" />
+                    <span className="text-sm italic">Attachment unavailable</span>
+                  </div>
+                )}
                 {message.content && message.content !== "[Image]" && (
                   <p className="text-sm px-3 py-2 break-words whitespace-pre-wrap">{message.content}</p>
                 )}

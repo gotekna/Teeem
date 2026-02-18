@@ -91,15 +91,34 @@ class WarehouseFolderQueryService
   end
 
   # Single grouped query for document counts
+  # FRC (Feb 2026): Was using metadata->>'document_type_id' JSONB extraction which
+  # caused full table scan on 139K+ rows (GIN index only helps @> containment).
+  # Fix: Use indexed warehouse_folder_document_type_id FK column instead.
   def preload_document_counts(document_type_ids)
     return {} if document_type_ids.empty?
 
-    counts = WarehouseDocument
-      .where("metadata->>'document_type_id' IN (?)", document_type_ids.map(&:to_s))
-      .group("metadata->>'document_type_id'")
+    # Map WFDT IDs to their document_type_id (indexed lookup)
+    wfdt_to_dt = WarehouseFolderDocumentType
+      .where(document_type_id: document_type_ids)
+      .pluck(:id, :document_type_id)
+
+    return {} if wfdt_to_dt.empty?
+
+    wfdt_ids = wfdt_to_dt.map(&:first)
+
+    # Count by indexed FK column (uses index_warehouse_documents_on_warehouse_folder_document_type_id)
+    counts_by_wfdt = WarehouseDocument
+      .where(warehouse_folder_document_type_id: wfdt_ids)
+      .group(:warehouse_folder_document_type_id)
       .count
 
-    counts.transform_keys(&:to_i)
+    # Aggregate back to document_type_id
+    result = Hash.new(0)
+    wfdt_to_dt.each do |wfdt_id, dt_id|
+      result[dt_id] += counts_by_wfdt[wfdt_id] || 0
+    end
+
+    result
   end
 
   # Load storage config once
@@ -147,7 +166,7 @@ class WarehouseFolderQueryService
   def build_tab_json(tab)
     children_json = build_children_json(tab.id)
     doc_count = compute_document_count(tab)
-    full_path = tab.full_folder_path
+    full_path = compute_full_folder_path(tab)
 
     {
       id: tab.id,
@@ -196,7 +215,7 @@ class WarehouseFolderQueryService
       folder_path_template: full_path,
       full_path_template: full_path,
       warehouse_folders_count: children_json.size,
-      can_delete: tab.can_delete?,
+      can_delete: compute_can_delete(tab),
       children: children_json,
       document_types: @document_types_json_by_tab[tab.id] || []
     }
@@ -220,6 +239,42 @@ class WarehouseFolderQueryService
     return 0 if doc_type_ids.empty?
 
     doc_type_ids.sum { |id| @document_counts_by_type[id] || 0 }
+  end
+
+  # Compute full_folder_path using pre-loaded @tabs_by_id (no DB queries).
+  # Replaces tab.full_folder_path which calls ancestor_segment_chain → parent → parent → ...
+  # causing N+1 on non-eager-loaded grandparents (Sentry TEEEM-BACKEND-4G).
+  def compute_full_folder_path(tab)
+    parts = []
+
+    # 1. Warehouse type base template
+    wt_base = tab.warehouse_type&.folder_path_template.presence || tab.warehouse_type&.display_name
+    parts << wt_base if wt_base.present?
+
+    # 2. Walk up parent chain via pre-loaded hash (zero DB queries)
+    segments = []
+    current = tab
+    while current
+      segments.unshift(current.folder_segment) if current.folder_segment.present?
+      current = @tabs_by_id[current.parent_id]
+    end
+    parts.concat(segments)
+
+    # 3. Add user suffix if present
+    parts << tab.folder_path_suffix if tab.folder_path_suffix.present?
+
+    parts.compact.join('/')
+  end
+
+  # Compute can_delete? using pre-loaded data (no DB queries).
+  # Replaces tab.can_delete? which calls children.exists? and
+  # warehouse_folder_document_types.exists? (N+1 queries, Sentry TEEEM-BACKEND-4G).
+  def compute_can_delete(tab)
+    return false if tab.is_system
+    return false if (@children_by_parent_id[tab.id] || []).any?
+    return false if tab.warehouse_folder_document_types.any?  # already eager-loaded
+
+    true
   end
 
   # Compute effective icon (inherits from parent)

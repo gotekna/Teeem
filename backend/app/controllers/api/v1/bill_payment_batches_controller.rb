@@ -10,12 +10,19 @@ module Api
 
       # GET /api/v1/corporate_companies/:corporate_id/bill_payment_batches
       def index
-        batches = @corporate.bill_payment_batches
-                    .includes(:bank_account, :created_by, :approved_by)
-                    .order(created_at: :desc)
+        base_query = @corporate.bill_payment_batches
+                       .includes(:bank_account, :created_by, :approved_by)
+                       .order(created_at: :desc)
 
-        batches = batches.where(status: params[:status]) if params[:status].present?
-        batches = batches.page(params[:page]).per(params[:per_page] || 25)
+        base_query = base_query.where(status: params[:status]) if params[:status].present?
+
+        page = (params[:page] || 1).to_i
+        per_page = (params[:per_page] || 25).to_i
+        offset = (page - 1) * per_page
+        total_count = base_query.count
+        total_pages = (total_count.to_f / per_page).ceil
+
+        batches = base_query.limit(per_page).offset(offset)
 
         render json: {
           batches: batches.as_json(include: {
@@ -24,9 +31,9 @@ module Api
             approved_by: {}
           }),
           meta: {
-            total_count: batches.total_count,
-            total_pages: batches.total_pages,
-            current_page: batches.current_page
+            total_count: total_count,
+            total_pages: total_pages,
+            current_page: page
           }
         }
       end
@@ -246,8 +253,8 @@ module Api
         elsif params[:company_id].present?
           @corporate = Corporate.find(params[:company_id])
         else
-          # For top-level route without company filter, use the user's default company
-          @corporate = current_user&.corporate || Corporate.first
+          # For top-level route without company filter, use the first company
+          @corporate = Corporate.first
         end
       end
 

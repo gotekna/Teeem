@@ -30,6 +30,8 @@ const STATIC_ROUTE_PREFIXES = [
   "admin",
   "corporate", // Has dedicated pages in /corporate/*
   "onboarding", // Has dedicated onboarding hub pages
+  "pricebook",  // Has dedicated pages in /pricebook/* (health, colour-swatches, etc.)
+  "pricebook-health", // Common mistype - actual page is /pricebook/health
   // Note: Don't add foundation slugs here (jobs, contacts, etc.)
   // Those are intentionally handled by this [slug] route
 ];

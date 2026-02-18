@@ -123,10 +123,12 @@ export function XeroFieldMapping() {
     skip_sync_default_suppliers: false
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     loadData();
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useEffect(() => {
     if (selectedTenant) {
       loadTenantConfig(selectedTenant);

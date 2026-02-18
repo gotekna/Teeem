@@ -242,7 +242,7 @@ class Api::V1::EmailUserStatesController < ApplicationController
   def set_email
     @email = SyncedEmail.find(params[:email_id])
   rescue ActiveRecord::RecordNotFound
-    # Check if email exists but is tenant-scoped out (NULL tenant_id from pre-fix emails)
+    # Check if email exists but is tenant-scoped out
     email = SyncedEmail.unscoped.find_by(id: params[:email_id])
 
     if email.nil?
@@ -252,8 +252,18 @@ class Api::V1::EmailUserStatesController < ApplicationController
       Rails.logger.info "[EmailUserStates] Auto-fixing NULL tenant_id on email #{email.id}"
       email.update_column(:tenant_id, current_tenant.id)
       @email = email
+    elsif email.imap_credential_id.present? && user_has_imap_access?(email)
+      # FRC (Feb 2026): IMAP emails may be scoped to a different tenant.
+      # Same fix as SyncedEmailsController - allow access if user owns the credential.
+      @email = email
     else
       render_error("Email not accessible", status: :not_found)
+    end
+  end
+
+  def user_has_imap_access?(email)
+    ActsAsTenant.without_tenant do
+      ImapCredential.accessible_by(current_user).where(id: email.imap_credential_id).exists?
     end
   end
 

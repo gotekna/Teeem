@@ -59,15 +59,11 @@ export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BAS
     <div className="space-y-6">
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList className="flex-wrap h-auto gap-1">
-          {DOCUMENTS_SUB_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                <Icon className="h-4 w-4" />
+          {DOCUMENTS_SUB_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
                 {tab.label}
               </TabsTrigger>
-            );
-          })}
+          ))}
         </TabsList>
 
         <div className="mt-6">

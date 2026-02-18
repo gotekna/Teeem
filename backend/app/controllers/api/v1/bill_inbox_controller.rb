@@ -3,7 +3,7 @@
 module Api
   module V1
     class BillInboxController < ApplicationController
-      before_action :set_bill, only: [ :show, :update, :destroy, :download, :extract, :match, :approve, :reject ]
+      before_action :set_bill, only: [ :show, :update, :destroy, :download, :extract, :match, :approve, :reject, :sync_pdf ]
 
       # GET /api/v1/bill_inbox
       def index
@@ -182,6 +182,35 @@ module Api
         reason = params[:reason] || "No reason provided"
         @bill.reject!(current_user, reason)
         render json: @bill
+      end
+
+      # POST /api/v1/bill_inbox/:id/sync_pdf
+      # Manually trigger PDF download from Xero for a bill that has metadata but no PDF
+      def sync_pdf
+        unless @bill.external_invoice_id.present?
+          return render json: { success: false, status: "no_xero_link", message: "No linked Xero invoice" }, status: :unprocessable_entity
+        end
+
+        if @bill.has_invoice_file?
+          return render json: { success: true, status: "exists", message: "PDF already downloaded" }
+        end
+
+        usage = XeroRateLimitTracker.usage_for(@bill.tenant_id)
+        unless usage[:can_make_request]
+          return render json: {
+            success: false,
+            status: "rate_limited",
+            message: "Xero daily API limit reached",
+            rate_limit: {
+              daily_used: usage[:daily][:used],
+              daily_limit: usage[:daily][:limit],
+              resets_at: usage[:resets][:daily]&.iso8601
+            }
+          }, status: :too_many_requests
+        end
+
+        XeroAttachmentSyncJob.perform_later(@bill.external_invoice_id)
+        render json: { success: true, status: "queued", message: "PDF download queued" }, status: :accepted
       end
 
       # GET /api/v1/bill_inbox/stats

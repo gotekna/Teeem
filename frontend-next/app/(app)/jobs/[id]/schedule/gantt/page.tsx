@@ -1019,7 +1019,7 @@ function Header({
         <BackButton />
         <div>
           <h1 className="text-lg font-semibold">
-            Gantt {job ? `- ${job.name || job.title}` : ''}
+            Gantt {job ? `- ${job.name || job.title || job.job_code || `Job #${jobId}`}` : ''}
           </h1>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">SSoT Hook Architecture</p>

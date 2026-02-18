@@ -165,16 +165,17 @@ module Api
 
       # GET /api/v1/warehouse_folders/document_type_counts
       # Returns count of document types linked per warehouse type + total document types
+      # FRC (Feb 2026): Was N+1 (one query per warehouse type). Now single query.
       def document_type_counts
-        counts = WarehouseType.enabled.each_with_object({}) do |wt, hash|
-          hash[wt.code] = WarehouseFolderDocumentType
-            .joins(:warehouse_folder)
-            .where(warehouse_folders: { warehouse_type_id: wt.id })
-            .distinct
-            .count(:document_type_id)
-        end
+        # Single query: group by warehouse_type code, count distinct document_type_ids
+        raw_counts = WarehouseFolderDocumentType
+          .joins(warehouse_folder: :warehouse_type)
+          .where(warehouse_types: { enabled: true })
+          .group("warehouse_types.code")
+          .distinct
+          .count(:document_type_id)
 
-        counts['document_types'] = DocumentType.count
+        counts = raw_counts.merge('document_types' => DocumentType.count)
 
         render json: {
           success: true,

@@ -176,6 +176,7 @@ export function ExpenseGroupNode({
                 depth={depth + 1}
                 budget={group.budget}
                 total={group.spent}
+                credit={group.pos.reduce((sum, po) => sum + (Number(po.credit_amount) || 0), 0)}
                 invoiced={group.pos.reduce((sum, po) => sum + (Number(po.total_billed) || 0), 0)}
                 paid={group.paid}
                 costToComplete={group.pos.reduce((sum, po) => sum + getCostToComplete(po), 0)}

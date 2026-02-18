@@ -31,14 +31,21 @@ const SHAPE_MAP: Record<string, string> = {
 };
 
 // Map our chart types to PptxGenJS chart types
-const CHART_TYPE_MAP: Record<ChartType, PptxGenJS.CHART_NAME> = {
-  bar: PptxGenJS.charts.BAR,
-  line: PptxGenJS.charts.LINE,
-  pie: PptxGenJS.charts.PIE,
-  doughnut: PptxGenJS.charts.DOUGHNUT,
-  area: PptxGenJS.charts.AREA,
-  scatter: PptxGenJS.charts.SCATTER,
-};
+// Lazy-initialized because PptxGenJS.charts may not be available at module load time
+let _chartTypeMap: Record<ChartType, PptxGenJS.CHART_NAME> | null = null;
+function getChartTypeMap(): Record<ChartType, PptxGenJS.CHART_NAME> {
+  if (!_chartTypeMap) {
+    _chartTypeMap = {
+      bar: PptxGenJS.charts?.BAR ?? ("bar" as PptxGenJS.CHART_NAME),
+      line: PptxGenJS.charts?.LINE ?? ("line" as PptxGenJS.CHART_NAME),
+      pie: PptxGenJS.charts?.PIE ?? ("pie" as PptxGenJS.CHART_NAME),
+      doughnut: PptxGenJS.charts?.DOUGHNUT ?? ("doughnut" as PptxGenJS.CHART_NAME),
+      area: PptxGenJS.charts?.AREA ?? ("area" as PptxGenJS.CHART_NAME),
+      scatter: PptxGenJS.charts?.SCATTER ?? ("scatter" as PptxGenJS.CHART_NAME),
+    };
+  }
+  return _chartTypeMap;
+}
 
 /**
  * Export presentation data to PPTX file
@@ -355,7 +362,7 @@ function addTableElement(slide: PptxGenJS.Slide, element: TableElement): void {
  * Add a chart element
  */
 function addChartElement(slide: PptxGenJS.Slide, element: ChartElement): void {
-  const chartType = CHART_TYPE_MAP[element.chartType];
+  const chartType = getChartTypeMap()[element.chartType];
 
   // Convert our data format to PptxGenJS format
   const chartData: PptxGenJS.OptsChartData[] = element.data.map((series) => ({

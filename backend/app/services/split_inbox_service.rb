@@ -58,7 +58,8 @@ class SplitInboxService
   # Get paginated emails for a specific category
   def emails_for_category(category, page: 1, per_page: 50)
     scope = scope_for_category(category)
-    scope.recent_first.page(page).per(per_page)
+    offset = (page.to_i - 1) * per_page.to_i
+    scope.recent_first.limit(per_page).offset(offset)
   end
 
   # Determine which category an email belongs to

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_18_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -1252,6 +1252,37 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["tenant_id"], name: "index_claim_invoice_templates_on_tenant_id"
   end
 
+  create_table "claim_stage_template_lines", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "claim_stage_template_id", null: false
+    t.string "name", limit: 100, null: false
+    t.decimal "percentage", precision: 5, scale: 2, null: false
+    t.integer "sequence_order", default: 0, null: false
+    t.string "description"
+    t.decimal "retainage_percentage", precision: 5, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "match_keywords"
+    t.index ["claim_stage_template_id", "name"], name: "idx_cstl_template_name", unique: true
+    t.index ["claim_stage_template_id", "sequence_order"], name: "idx_cstl_template_sequence"
+    t.index ["tenant_id"], name: "index_claim_stage_template_lines_on_tenant_id"
+  end
+
+  create_table "claim_stage_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0
+    t.decimal "default_retainage_pct", precision: 5, scale: 2
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["tenant_id", "name"], name: "idx_claim_stage_templates_tenant_name", unique: true
+    t.index ["tenant_id"], name: "index_claim_stage_templates_on_tenant_id"
+  end
+
   create_table "cloudflare_credentials", force: :cascade do |t|
     t.string "api_token", null: false
     t.string "account_id", null: false
@@ -1471,47 +1502,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["contact_id", "company_group_id", "membership_type"], name: "idx_contact_group_membership_unique", unique: true
     t.index ["contact_id"], name: "index_contact_company_group_memberships_on_contact_id"
     t.index ["tenant_id"], name: "index_contact_company_group_memberships_on_tenant_id"
-  end
-
-  create_table "contact_documents", force: :cascade do |t|
-    t.bigint "contact_id", null: false
-    t.string "title", null: false
-    t.text "description"
-    t.string "document_type", null: false
-    t.date "document_date"
-    t.date "expiry_date"
-    t.string "file_name"
-    t.integer "file_size"
-    t.string "mime_type"
-    t.datetime "uploaded_at"
-    t.string "folder"
-    t.string "source", default: "manual"
-    t.bigint "document_type_id"
-    t.string "content_hash"
-    t.string "external_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.string "storage_provider"
-    t.string "storage_item_id"
-    t.string "storage_path"
-    t.string "migration_status"
-    t.datetime "migration_started_at"
-    t.datetime "migration_completed_at"
-    t.text "migration_error"
-    t.string "source_provider"
-    t.string "source_item_id"
-    t.bigint "storage_blob_id"
-    t.index ["contact_id"], name: "index_contact_documents_on_contact_id"
-    t.index ["content_hash"], name: "index_contact_documents_on_content_hash"
-    t.index ["document_date"], name: "index_contact_documents_on_document_date"
-    t.index ["document_type"], name: "index_contact_documents_on_document_type"
-    t.index ["document_type_id"], name: "index_contact_documents_on_document_type_id"
-    t.index ["expiry_date"], name: "index_contact_documents_on_expiry_date"
-    t.index ["external_id"], name: "index_contact_documents_on_external_id"
-    t.index ["migration_status"], name: "index_contact_documents_on_migration_status"
-    t.index ["storage_blob_id"], name: "index_contact_documents_on_storage_blob_id"
-    t.index ["storage_provider", "migration_status"], name: "idx_people_docs_provider_migration"
-    t.index ["storage_provider"], name: "index_contact_documents_on_storage_provider"
   end
 
   create_table "contact_emails", force: :cascade do |t|
@@ -3305,10 +3295,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.boolean "is_global", default: false, null: false
     t.string "view_display_type", default: "table", null: false, comment: "Display mode: 'table' for traditional grid, 'relational' for network graph"
     t.string "slug"
-    t.index ["foundation_id", "slug"], name: "index_foundation_views_on_foundation_and_slug", unique: true
+    t.integer "tenant_id", null: false
     t.index ["foundation_id", "user_id", "display_order"], name: "index_foundation_views_on_foundation_user_order"
     t.index ["foundation_id", "user_id"], name: "index_foundation_views_on_foundation_id_and_user_id"
     t.index ["foundation_id"], name: "index_foundation_views_on_foundation_id"
+    t.index ["tenant_id", "foundation_id", "slug"], name: "index_foundation_views_on_tenant_foundation_slug", unique: true
+    t.index ["tenant_id", "foundation_id", "user_id"], name: "idx_fv_tenant_foundation_user"
+    t.index ["tenant_id"], name: "index_foundation_views_on_tenant_id"
     t.index ["user_id"], name: "index_foundation_views_on_user_id"
   end
 
@@ -4874,6 +4867,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.decimal "this_claim_amount", precision: 15, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
+    t.index ["profit_centre_id"], name: "index_gl_progress_claim_lines_on_profit_centre_id"
     t.index ["progress_claim_id", "sort_order"], name: "idx_progress_claim_lines_sort"
     t.index ["progress_claim_id"], name: "index_gl_progress_claim_lines_on_progress_claim_id"
   end
@@ -5905,6 +5900,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.datetime "retainage_released_at"
     t.bigint "retainage_release_invoice_id"
     t.integer "claim_sequence_number"
+    t.string "match_keywords"
     t.index ["external_invoice_id"], name: "index_job_claim_stages_on_external_invoice_id"
     t.index ["job_id", "external_invoice_id"], name: "idx_job_claim_stages_invoice", unique: true
     t.index ["job_id", "sequence_order"], name: "idx_job_claim_stages_ordering"
@@ -5931,9 +5927,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.bigint "contact_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
     t.index ["contact_id"], name: "index_job_claims_on_contact_id"
     t.index ["invoice_number"], name: "index_job_claims_on_invoice_number"
     t.index ["job_id"], name: "index_job_claims_on_job_id"
+    t.index ["profit_centre_id"], name: "index_job_claims_on_profit_centre_id"
     t.index ["status"], name: "index_job_claims_on_status"
     t.index ["xero_contact_id"], name: "index_job_claims_on_xero_contact_id"
     t.index ["xero_invoice_id"], name: "index_job_claims_on_xero_invoice_id", unique: true
@@ -6345,6 +6343,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.string "project_type", default: "construction", null: false
     t.string "design_name"
     t.bigint "job_design_id"
+    t.bigint "default_profit_centre_id"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -6352,6 +6351,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["cost_centre_id"], name: "index_jobs_on_cost_centre_id"
     t.index ["council"], name: "index_jobs_on_council"
     t.index ["created_at"], name: "index_jobs_on_created_at"
+    t.index ["default_profit_centre_id"], name: "index_jobs_on_default_profit_centre_id"
     t.index ["estimator_id"], name: "index_jobs_on_estimator_id"
     t.index ["internal_sales_id"], name: "index_jobs_on_internal_sales_id"
     t.index ["job_code"], name: "index_jobs_on_job_code", unique: true
@@ -7098,7 +7098,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7578,6 +7579,29 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
   end
 
+  create_table "profit_centres", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id"
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.string "centre_type", limit: 30
+    t.text "description"
+    t.boolean "is_template", default: false
+    t.boolean "active", default: true
+    t.integer "sort_order", default: 0
+    t.decimal "budget_amount", precision: 15, scale: 2
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_profit_centres_on_active"
+    t.index ["centre_type"], name: "index_profit_centres_on_centre_type"
+    t.index ["is_template"], name: "index_profit_centres_on_is_template"
+    t.index ["job_id"], name: "index_profit_centres_on_job_id"
+    t.index ["tenant_id", "code"], name: "idx_profit_centres_global_unique_code", unique: true, where: "(job_id IS NULL)"
+    t.index ["tenant_id", "job_id", "code"], name: "idx_profit_centres_job_unique_code", unique: true, where: "(job_id IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_profit_centres_on_tenant_id"
+  end
+
   create_table "profit_loss_reports", force: :cascade do |t|
     t.bigint "company_id", null: false
     t.string "company_name", null: false
@@ -7648,7 +7672,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.string "colour"
     t.string "colour_code"
     t.string "spec_reference"
+    t.bigint "profit_centre_id"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
+    t.index ["profit_centre_id"], name: "index_purchase_order_line_items_on_profit_centre_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
   end
@@ -7723,6 +7749,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.bigint "budget_unlocked_by_id"
     t.string "budget_unlock_reason"
     t.bigint "tenant_id"
+    t.bigint "external_invoice_id"
+    t.decimal "credit_amount", precision: 15, scale: 2, default: "0.0"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
@@ -7730,6 +7758,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["created_by_id"], name: "index_purchase_orders_on_created_by_id"
     t.index ["creates_schedule_tasks"], name: "index_purchase_orders_on_creates_schedule_tasks"
     t.index ["estimate_id"], name: "index_purchase_orders_on_estimate_id"
+    t.index ["external_invoice_id"], name: "index_purchase_orders_on_external_invoice_id"
     t.index ["job_id", "status"], name: "index_purchase_orders_on_construction_and_status"
     t.index ["job_id", "supplier_id", "status"], name: "idx_po_job_supplier_status"
     t.index ["job_id"], name: "index_purchase_orders_on_job_id"
@@ -7977,6 +8006,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "tenant_id"
+    t.bigint "company_group_id"
+    t.index ["company_group_id", "as_of_date"], name: "idx_reconciliation_reports_on_group_and_date"
+    t.index ["company_group_id"], name: "index_reconciliation_reports_on_company_group_id"
     t.index ["status"], name: "index_reconciliation_reports_on_status"
     t.index ["tenant_id"], name: "index_reconciliation_reports_on_tenant_id"
   end
@@ -9445,6 +9477,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.bigint "tenant_id"
     t.boolean "content_unavailable", default: false, null: false
     t.string "content_unavailable_reason"
+    t.boolean "needs_enrichment", default: false
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
@@ -9457,11 +9490,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
     t.index ["imap_credential_id"], name: "idx_email_warehouse_imap_credential"
+    t.index ["internet_message_id", "tenant_id"], name: "idx_synced_emails_message_id_tenant", unique: true
     t.index ["internet_message_id"], name: "idx_email_warehouse_internet_message_id"
     t.index ["is_latest_in_thread"], name: "idx_email_warehouse_latest_in_thread", where: "(is_latest_in_thread = true)"
     t.index ["job_id", "received_at"], name: "idx_email_warehouse_job_received", order: { received_at: :desc }
     t.index ["labels"], name: "index_synced_emails_on_labels", using: :gin
     t.index ["microsoft_credential_id", "mailbox_owner_email"], name: "idx_email_warehouse_ms_credential_mailbox"
+    t.index ["needs_enrichment"], name: "idx_synced_emails_needs_enrichment", where: "(needs_enrichment = true)"
     t.index ["primary_contact_id"], name: "idx_email_warehouse_primary_contact"
     t.index ["received_at"], name: "idx_email_warehouse_received_at", order: :desc
     t.index ["searchable"], name: "idx_email_warehouse_searchable_gin", using: :gin
@@ -10029,6 +10064,18 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.index ["status"], name: "index_trinities_on_status"
   end
 
+  create_table "units_of_measure", force: :cascade do |t|
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 50, null: false
+    t.string "description", limit: 100
+    t.integer "sort_order", default: 0
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["code"], name: "index_units_of_measure_on_code", unique: true
+    t.index ["is_active"], name: "index_units_of_measure_on_is_active"
+  end
+
   create_table "unreal_variables", force: :cascade do |t|
     t.string "variable_name", null: false
     t.decimal "claude_value", precision: 10, scale: 2, default: "0.0"
@@ -10372,9 +10419,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
     t.jsonb "token_config", default: {}, null: false
     t.jsonb "records_config", default: {}, null: false
     t.string "sync_key"
+    t.string "source_types", default: [], null: false, array: true
     t.index ["code"], name: "idx_warehouse_types_code"
     t.index ["enabled"], name: "index_warehouse_types_on_enabled"
     t.index ["order_position"], name: "index_warehouse_types_on_order_position"
+    t.index ["source_types"], name: "idx_warehouse_types_source_types", using: :gin
     t.index ["tenant_id", "code"], name: "idx_warehouse_types_tenant_code", unique: true
     t.index ["tenant_id", "sync_key"], name: "idx_warehouse_types_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_warehouse_types_on_tenant_id"
@@ -11110,6 +11159,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "chat_messages", "tenants"
   add_foreign_key "chat_messages", "users"
   add_foreign_key "claim_invoice_templates", "tenants", on_delete: :cascade
+  add_foreign_key "claim_stage_template_lines", "claim_stage_templates"
   add_foreign_key "cloudflare_credentials", "tenants", on_delete: :cascade
   add_foreign_key "colour_selection_templates", "job_types"
   add_foreign_key "colour_selection_templates", "tenants", on_delete: :cascade
@@ -11126,7 +11176,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "contact_company_group_memberships", "contacts"
   add_foreign_key "contact_company_group_memberships", "corporates", column: "company_id"
   add_foreign_key "contact_company_group_memberships", "tenants"
-  add_foreign_key "contact_documents", "storage_blobs"
   add_foreign_key "contact_external_links", "contacts"
   add_foreign_key "contact_group_memberships", "contact_groups"
   add_foreign_key "contact_group_memberships", "contacts"
@@ -11448,6 +11497,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "gl_portal_tokens", "contacts"
   add_foreign_key "gl_portal_tokens", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claim_lines", "gl_progress_claims", column: "progress_claim_id"
+  add_foreign_key "gl_progress_claim_lines", "profit_centres", on_delete: :nullify
   add_foreign_key "gl_progress_claims", "contacts"
   add_foreign_key "gl_progress_claims", "corporates", column: "company_id"
   add_foreign_key "gl_progress_claims", "gl_invoices", column: "invoice_id"
@@ -11547,6 +11597,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "job_claim_stages", "jobs"
   add_foreign_key "job_claims", "contacts"
   add_foreign_key "job_claims", "jobs"
+  add_foreign_key "job_claims", "profit_centres", on_delete: :nullify
   add_foreign_key "job_colour_selections", "jobs"
   add_foreign_key "job_colour_selections", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "job_contacts", "contacts"
@@ -11591,6 +11642,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "jobs", "job_stages", on_delete: :nullify
   add_foreign_key "jobs", "job_statuses", on_delete: :nullify
   add_foreign_key "jobs", "job_types", on_delete: :nullify
+  add_foreign_key "jobs", "profit_centres", column: "default_profit_centre_id", on_delete: :nullify
   add_foreign_key "jobs", "tenants"
   add_foreign_key "jobs", "users", column: "archived_by_id", on_delete: :nullify
   add_foreign_key "jobs", "users", column: "client_coordinator_id", on_delete: :nullify
@@ -11710,16 +11762,20 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"
   add_foreign_key "pricebooks", "tenants"
+  add_foreign_key "profit_centres", "jobs", on_delete: :cascade
+  add_foreign_key "profit_centres", "tenants"
   add_foreign_key "profit_loss_reports", "corporates", column: "company_id"
   add_foreign_key "profit_loss_reports", "document_types"
   add_foreign_key "public_holidays", "tenants"
   add_foreign_key "purchase_order_documents", "document_tasks"
   add_foreign_key "purchase_order_documents", "purchase_orders"
   add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
+  add_foreign_key "purchase_order_line_items", "profit_centres", on_delete: :nullify
   add_foreign_key "purchase_order_line_items", "purchase_orders"
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"
+  add_foreign_key "purchase_orders", "external_invoices"
   add_foreign_key "purchase_orders", "jobs"
   add_foreign_key "purchase_orders", "quote_responses"
   add_foreign_key "purchase_orders", "tenants"
@@ -11750,6 +11806,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_17_130000) do
   add_foreign_key "recipes", "contacts", column: "default_supplier_id"
   add_foreign_key "recipes", "recipe_categories"
   add_foreign_key "recipes", "tenants", on_delete: :cascade
+  add_foreign_key "reconciliation_reports", "company_groups"
   add_foreign_key "reconciliation_reports", "tenants"
   add_foreign_key "referral_commissions", "contacts", column: "customer_contact_id"
   add_foreign_key "referral_commissions", "contacts", column: "referrer_contact_id"

@@ -32,6 +32,8 @@ import {
   Link,
   Plus,
   ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
   UserPlus,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -129,6 +131,24 @@ interface OrgSyncStats {
   total_emails: number;
   mailboxes: MailboxStat[];
   tenant_users?: TenantUser[];
+  sync_config?: {
+    sync_all: boolean;
+    sync_years: number;
+    mailbox_synced_at?: Record<string, string>;
+    mailbox_error_counts?: Record<string, number>;
+    mailbox_errors?: Record<string, {
+      message: string;
+      type: "permanent" | "transient";
+      count: number;
+      last_at: string;
+    }>;
+    folder_stats?: Record<string, Record<string, {
+      name: string;
+      synced_at: string;
+      email_count: number;
+      skipped: boolean;
+    }>>;
+  };
 }
 
 interface SyncDashboard {
@@ -857,6 +877,16 @@ function EmailSyncTab({
     new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
   const [importing, setImporting] = React.useState(false);
+  const [expandedMailboxes, setExpandedMailboxes] = React.useState<Set<string>>(new Set());
+
+  const toggleMailbox = (email: string) => {
+    setExpandedMailboxes(prev => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  };
 
   const toggleOrg = (orgId: number) => {
     setExpandedOrgs(prev => {
@@ -970,6 +1000,15 @@ function EmailSyncTab({
         const syncedEmailMap = new Map(
           (orgStats?.mailboxes || []).map(m => [m.email.toLowerCase(), m])
         );
+        // FRC (Feb 2026): Use per-mailbox sync tracking (SSoT) to determine "synced" status.
+        // A mailbox is "synced" if it has email records OR has been processed by the sync job.
+        // Without this, mailboxes with 0 emails (room mailboxes, service accounts) show as
+        // "not synced" forever, making the X/Y counter misleading.
+        const mailboxSyncedAt: Record<string, string> = orgStats?.sync_config?.mailbox_synced_at || {};
+
+        const mailboxErrors = orgStats?.sync_config?.mailbox_errors || {};
+        const mailboxErrorCounts = orgStats?.sync_config?.mailbox_error_counts || {};
+        const folderStats: Record<string, Record<string, { name: string; synced_at: string; email_count: number; skipped: boolean }>> = orgStats?.sync_config?.folder_stats || {};
 
         type CombinedRow = {
           email: string;
@@ -977,6 +1016,7 @@ function EmailSyncTab({
           synced: boolean;
           mailboxStat: MailboxStat | null;
           tenantUser: TenantUser | null;
+          errorInfo: { message: string; type: string; count: number; last_at: string } | null;
         };
 
         const combined: CombinedRow[] = [];
@@ -990,26 +1030,29 @@ function EmailSyncTab({
           combined.push({
             email: user.email,
             name: user.name,
-            synced: syncedEmailMap.has(emailLower),
+            synced: syncedEmailMap.has(emailLower) || !!mailboxSyncedAt[emailLower],
             mailboxStat: syncedEmailMap.get(emailLower) || null,
             tenantUser: user,
+            errorInfo: mailboxErrors[emailLower] || null,
           });
         }
 
         // Add synced mailboxes that aren't in tenant users (edge case: external/removed users)
         for (const m of orgStats?.mailboxes || []) {
-          if (!seenEmails.has(m.email.toLowerCase())) {
+          const emailLower = m.email.toLowerCase();
+          if (!seenEmails.has(emailLower)) {
             combined.push({
               email: m.email,
               name: m.email.split("@")[0],
               synced: true,
               mailboxStat: m,
               tenantUser: null,
+              errorInfo: mailboxErrors[emailLower] || null,
             });
           }
         }
 
-        // Sort: synced first (by email count desc), then unsynced (alphabetical)
+        // Sort: synced first, then errored (by error count desc), then unsynced (alphabetical)
         combined.sort((a, b) => {
           if (a.synced && !b.synced) return -1;
           if (!a.synced && b.synced) return 1;
@@ -1018,6 +1061,7 @@ function EmailSyncTab({
         });
 
         const syncedCount = combined.filter(r => r.synced).length;
+        const erroredCount = combined.filter(r => r.errorInfo?.type === "permanent").length;
         const totalCount = combined.length;
 
         return (
@@ -1033,6 +1077,11 @@ function EmailSyncTab({
                   <Badge variant="outline" className="text-xs">
                     {syncedCount}/{totalCount} synced
                   </Badge>
+                  {erroredCount > 0 && (
+                    <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20">
+                      {erroredCount} errored
+                    </Badge>
+                  )}
                   {orgStats && (
                     <span className="text-xs text-muted-foreground">
                       {(orgStats.total_emails ?? 0).toLocaleString()} emails
@@ -1065,27 +1114,88 @@ function EmailSyncTab({
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>User</TableHead>
+                            <TableHead>
+                              <div className="flex items-center gap-1.5">
+                                <span>User</span>
+                                {expandedMailboxes.size > 0 && (
+                                  <button
+                                    onClick={() => setExpandedMailboxes(new Set())}
+                                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                                    title="Collapse all folders"
+                                  >
+                                    <ChevronsDownUp className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Type</TableHead>
                             <TableHead>License</TableHead>
                             <TableHead className="text-right">Emails</TableHead>
-                            <TableHead className="text-right">Upload .eml Body</TableHead>
-                            <TableHead className="text-right">Download Attachments</TableHead>
+                            <TableHead className="text-right">Sync Progress</TableHead>
                             <TableHead className="text-right">Last Synced</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {combined.map((row) => (
-                            <TableRow key={row.email} className={row.synced ? "" : "opacity-60"}>
+                          {combined.map((row) => {
+                            const emailLower = row.email.toLowerCase();
+                            const mailboxFolders = folderStats[emailLower] || {};
+                            const folderList = Object.values(mailboxFolders).sort((a, b) => b.email_count - a.email_count);
+                            const hasFolders = folderList.length > 0;
+                            const isMailboxExpanded = expandedMailboxes.has(emailLower);
+                            const canExpand = row.synced || hasFolders;
+                            return (
+                            <React.Fragment key={row.email}>
+                            <TableRow className={row.synced ? "" : row.errorInfo?.type === "permanent" ? "opacity-80 bg-red-500/5" : "opacity-60"}>
                               <TableCell>
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium">{row.name}</span>
-                                  <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                                <div className="flex items-center gap-1.5">
+                                  {canExpand ? (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); toggleMailbox(emailLower); }}
+                                      className="p-0.5 rounded hover:bg-muted/50 transition-colors shrink-0"
+                                    >
+                                      {isMailboxExpanded
+                                        ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                      }
+                                    </button>
+                                  ) : (
+                                    <span className="w-[22px] shrink-0" />
+                                  )}
+                                  <div className="flex flex-col">
+                                    <span className="text-sm font-medium">{row.name}</span>
+                                    <span className="font-mono text-xs text-muted-foreground">{row.email}</span>
+                                  </div>
                                 </div>
                               </TableCell>
                               <TableCell>
-                                {row.tenantUser ? (
+                                {row.errorInfo?.type === "permanent" ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20 cursor-help">
+                                        <XCircle className="h-3 w-3 mr-1" />
+                                        Sync Error
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p className="font-medium">Permanently failing ({row.errorInfo.count}x)</p>
+                                      <p className="text-xs mt-1 opacity-80">{row.errorInfo.message}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : row.errorInfo?.type === "transient" ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 cursor-help">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Retrying
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p className="font-medium">Transient error (will retry)</p>
+                                      <p className="text-xs mt-1 opacity-80">{row.errorInfo.message}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : row.tenantUser ? (
                                   row.tenantUser.account_enabled !== false ? (
                                     <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
                                       Active
@@ -1120,55 +1230,55 @@ function EmailSyncTab({
                                 )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
-                                {row.synced ? (row.mailboxStat?.email_count ?? 0).toLocaleString() : (
+                                {row.synced ? (
+                                  <span className="text-green-600 dark:text-green-400">
+                                    <CheckCircle2 className="h-3 w-3 inline mr-1" />
+                                    {(row.mailboxStat?.email_count ?? 0).toLocaleString()}
+                                  </span>
+                                ) : (
                                   <span className="text-muted-foreground">—</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-right text-xs tabular-nums">
                                 {row.synced && row.mailboxStat ? (() => {
-                                  const total = row.mailboxStat.email_count;
-                                  const uploaded = row.mailboxStat.email_blob_count ?? 0;
+                                  const emailTotal = row.mailboxStat.email_count;
+                                  const emlUploaded = row.mailboxStat.email_blob_count ?? 0;
                                   const unavailable = row.mailboxStat.content_unavailable_count ?? 0;
-                                  const pending = total - uploaded - unavailable;
-                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
-                                  const isComplete = pending <= 0;
+                                  const emlPending = emailTotal - emlUploaded - unavailable;
+                                  const emlDone = emlPending <= 0;
+
+                                  const attTotal = row.mailboxStat.attachment_count ?? 0;
+                                  const attDownloaded = row.mailboxStat.blob_count ?? 0;
+                                  const attPending = attTotal - attDownloaded;
+                                  const attDone = attTotal === 0 || attPending <= 0;
+
+                                  const allDone = emlDone && attDone;
+                                  if (emailTotal === 0) return <span className="text-muted-foreground">—</span>;
+
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" />}
-                                          {uploaded.toLocaleString()}/{total.toLocaleString()}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-0.5">
+                                          <span className="flex items-center gap-1">
+                                            <span className={emlDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                              {emlDone ? "✓" : "◌"} .eml {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}
+                                            </span>
+                                          </span>
+                                          {attTotal > 0 && (
+                                            <span className={attDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
+                                              {attDone ? "✓" : "◌"} attach {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
+                                            </span>
+                                          )}
+                                        </div>
                                       </TooltipTrigger>
                                       <TooltipContent>
-                                        <p>{uploaded.toLocaleString()} .eml files uploaded to storage</p>
-                                        {unavailable > 0 && <p>{unavailable.toLocaleString()} permanently unavailable</p>}
-                                        {pending > 0 && <p>{pending.toLocaleString()} pending upload (runs every 5 min)</p>}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })() : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right text-xs tabular-nums">
-                                {row.synced && row.mailboxStat ? (() => {
-                                  const total = row.mailboxStat.attachment_count ?? 0;
-                                  const downloaded = row.mailboxStat.blob_count ?? 0;
-                                  const pending = total - downloaded;
-                                  if (total === 0) return <span className="text-muted-foreground">—</span>;
-                                  const isComplete = pending <= 0;
-                                  return (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className={isComplete ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                          {isComplete ? <CheckCircle2 className="h-3 w-3 inline mr-1" /> : <AlertTriangle className="h-3 w-3 inline mr-1" />}
-                                          {downloaded.toLocaleString()}/{total.toLocaleString()}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{downloaded.toLocaleString()} attachment files downloaded</p>
-                                        {pending > 0 && <p>{pending.toLocaleString()} pending download</p>}
+                                        <div className="space-y-1">
+                                          <p className="font-medium">Three-stage sync:</p>
+                                          <p>① Metadata: {emailTotal.toLocaleString()} records ✓</p>
+                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
+                                          {unavailable > 0 && <p className="text-muted-foreground ml-3">{unavailable.toLocaleString()} permanently unavailable</p>}
+                                          <p>③ Attachments: {attTotal > 0 ? `${attDownloaded.toLocaleString()}/${attTotal.toLocaleString()}${attDone ? " ✓" : ` (${attPending.toLocaleString()} pending)`}` : "none"}</p>
+                                        </div>
                                       </TooltipContent>
                                     </Tooltip>
                                   );
@@ -1177,25 +1287,70 @@ function EmailSyncTab({
                                 )}
                               </TableCell>
                               <TableCell className="text-right text-xs">
-                                {row.synced && row.mailboxStat?.last_synced_at ? (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <span className="text-muted-foreground cursor-default">
-                                        {formatRelativeTime(row.mailboxStat.last_synced_at)}
-                                      </span>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{formatAbsoluteTime(row.mailboxStat.last_synced_at)}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                ) : row.synced ? (
-                                  <span className="text-muted-foreground">Never</span>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
+                                {(() => {
+                                  const lastSynced = row.mailboxStat?.last_synced_at;
+                                  if (!row.synced || !lastSynced) {
+                                    return row.synced ? (
+                                      <span className="text-muted-foreground">Never</span>
+                                    ) : (
+                                      <span className="text-muted-foreground">—</span>
+                                    );
+                                  }
+                                  const isRecentlySyncing = (Date.now() - new Date(lastSynced).getTime()) < 5 * 60 * 1000;
+                                  return (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className={isRecentlySyncing ? "text-green-600 dark:text-green-400 font-medium cursor-default" : "text-muted-foreground cursor-default"}>
+                                          {isRecentlySyncing ? "Syncing..." : formatRelativeTime(lastSynced)}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{formatAbsoluteTime(lastSynced)}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })()}
                               </TableCell>
                             </TableRow>
-                          ))}
+                            {isMailboxExpanded && canExpand && (
+                              <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                <TableCell colSpan={7} className="py-2 px-2">
+                                  {hasFolders ? (
+                                  <div className="ml-8 grid grid-cols-[1fr_auto_auto] gap-x-6 gap-y-0.5 text-xs">
+                                    <span className="font-medium text-muted-foreground">Folder</span>
+                                    <span className="font-medium text-muted-foreground text-right">New Emails</span>
+                                    <span className="font-medium text-muted-foreground text-right">Last Checked</span>
+                                    {folderList.map((f) => {
+                                      const isSkipped = f.skipped;
+                                      const syncedAt = f.synced_at ? formatRelativeTime(f.synced_at) : "—";
+                                      return (
+                                        <React.Fragment key={f.name}>
+                                          <span className={isSkipped ? "text-muted-foreground/60" : ""}>
+                                            <FolderOpen className="h-3 w-3 inline mr-1.5 -mt-0.5" />
+                                            {f.name}
+                                            {isSkipped && <span className="ml-1.5 text-[10px] text-muted-foreground/50">(skipped)</span>}
+                                          </span>
+                                          <span className={`text-right tabular-nums ${f.email_count > 0 ? "text-green-600 dark:text-green-400" : "text-muted-foreground/60"}`}>
+                                            {f.email_count > 0 ? `+${f.email_count}` : "0"}
+                                          </span>
+                                          <span className={`text-right ${isSkipped ? "text-muted-foreground/50" : "text-muted-foreground"}`}>
+                                            {syncedAt}
+                                          </span>
+                                        </React.Fragment>
+                                      );
+                                    })}
+                                  </div>
+                                  ) : (
+                                  <div className="ml-8 text-xs text-muted-foreground">
+                                    Folder details will appear after next sync cycle
+                                  </div>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            </React.Fragment>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </TooltipProvider>

@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
   formatCurrency,
@@ -11,6 +10,7 @@ import {
   type PurchaseOrderRecord,
 } from "@/lib/expenses-utils";
 import { FileText, CheckCircle2, Circle, AlertTriangle, Lock, LockOpen } from "lucide-react";
+import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 
 interface ExpensePORowProps {
   po: PurchaseOrderRecord;
@@ -35,11 +35,12 @@ interface ExpensePORowProps {
  * 11. Over-billed indicator (triggers red row)
  */
 export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
-  const router = useRouter();
+  const { open: openPOInvoice } = usePOInvoiceModal();
 
   // Extract values
   const budget = Number(po.budget) || 0;
   const total = Number(po.total) || 0;
+  const credit = Number(po.credit_amount) || 0;
   const invoiced = Number(po.total_billed) || 0;
   const paid = Number(po.xero_amount_paid) || 0;
   const costToComplete = getCostToComplete(po);
@@ -54,10 +55,10 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
   // Calculate indent based on depth
   const indentPx = (depth + 1) * 24;
 
-  // Double-click to open PO detail page
+  // Double-click to open PO vs Invoice split view modal
   const handleDoubleClick = () => {
     const slug = po.po_number?.replace("PO-", "") || po.id;
-    router.push(`/purchase_orders/${slug}`);
+    openPOInvoice(slug, po.po_number || undefined);
   };
 
   return (
@@ -73,7 +74,7 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       )}
       style={{ paddingLeft: `${indentPx}px` }}
       onDoubleClick={handleDoubleClick}
-      title="Double-click to open PO"
+      title="Double-click to view PO vs Invoice"
     >
       {/* Tree connector line */}
       <div className="flex items-center gap-1 text-muted-foreground shrink-0">
@@ -116,6 +117,16 @@ export function ExpensePORow({ po, depth, className }: ExpensePORowProps) {
       {/* PO Value (total) */}
       <div className="w-[80px] shrink-0 text-right tabular-nums">
         <span className="font-medium">{formatCurrency(total)}</span>
+      </div>
+
+      {/* Credit Notes */}
+      <div className="w-[80px] shrink-0 text-right tabular-nums">
+        <span className={cn(
+          "text-xs",
+          credit > 0 ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground"
+        )}>
+          {credit > 0 ? `-${formatCurrency(credit)}` : '-'}
+        </span>
       </div>
 
       {/* Invoiced */}
@@ -201,6 +212,7 @@ export function ExpensePORowHeader({ depth }: { depth: number }) {
       <div className="flex-1 min-w-[100px]">Supplier</div>
       <div className="w-[80px] shrink-0 text-right">Budget</div>
       <div className="w-[80px] shrink-0 text-right">PO Value</div>
+      <div className="w-[80px] shrink-0 text-right">Credit</div>
       <div className="w-[80px] shrink-0 text-right">Invoiced</div>
       <div className="w-[80px] shrink-0 text-right">Paid</div>
       <div className="w-[80px] shrink-0 text-right">To Complete</div>
@@ -218,6 +230,7 @@ export function ExpensePORowTotals({
   depth,
   budget,
   total,
+  credit,
   invoiced,
   paid,
   costToComplete,
@@ -227,6 +240,7 @@ export function ExpensePORowTotals({
   depth: number;
   budget: number;
   total: number;
+  credit: number;
   invoiced: number;
   paid: number;
   costToComplete: number;
@@ -256,6 +270,9 @@ export function ExpensePORowTotals({
       </div>
       <div className="w-[80px] shrink-0 text-right tabular-nums font-medium">
         {formatCurrency(total)}
+      </div>
+      <div className="w-[80px] shrink-0 text-right tabular-nums text-purple-600 dark:text-purple-400">
+        {credit > 0 ? `-${formatCurrency(credit)}` : '-'}
       </div>
       <div className="w-[80px] shrink-0 text-right tabular-nums">
         {invoiced > 0 ? formatCurrency(invoiced) : '-'}

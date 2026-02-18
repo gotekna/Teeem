@@ -1216,15 +1216,11 @@ export function CorporateTab({ subTab, basePath = DEFAULT_CORPORATE_BASE_PATH }:
 
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
         <TabsList>
-          {CORPORATE_SUB_TABS.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-                <Icon className="h-4 w-4" />
+          {CORPORATE_SUB_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
                 {tab.label}
               </TabsTrigger>
-            );
-          })}
+          ))}
         </TabsList>
 
         <div className="mt-6">

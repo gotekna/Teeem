@@ -244,9 +244,13 @@ class EmailStorageUploadService
       return
     end
 
+    # Strip redundant attachment data from .eml before storing
+    # Attachments are already stored as separate StorageBlobs
+    stripped_content = EmailContentStripper.strip_attachments(mime_content)
+
     # Upload to StorageBlob (content-addressed)
     blob = StorageBlob.find_or_create_for_content!(
-      mime_content,
+      stripped_content,
       filename: "#{email.id}.eml",
       content_type: "message/rfc822"
     )
@@ -335,12 +339,16 @@ class EmailStorageUploadService
 
     Rails.logger.info "[EmailUpload] Email #{email_id} - Got #{mime_content.bytesize} bytes, uploading..."
 
+    # Strip redundant attachment data from .eml before storing
+    # Attachments are already stored as separate StorageBlobs
+    stripped_content = EmailContentStripper.strip_attachments(mime_content)
+
     # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
     # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
     # Virtual folders in WarehouseDocument.folder_path enable UI organization
     blob = ActsAsTenant.with_tenant(@tenant) do
       StorageBlob.find_or_create_for_content!(
-        mime_content,
+        stripped_content,
         filename: "#{email.id}.eml",
         content_type: "message/rfc822"
       )

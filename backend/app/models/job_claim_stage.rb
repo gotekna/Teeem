@@ -7,6 +7,7 @@ class JobClaimStage < ApplicationRecord
   # ClaimStageTemplate system removed - claim_stage_template_id column deprecated
   belongs_to :external_invoice, optional: true
   belongs_to :retainage_release_invoice, class_name: "Gl::Invoice", optional: true
+  belongs_to :profit_centre, optional: true
 
   # SmTask link - when created from Schedule Master CLAIM task
   has_one :sm_task, dependent: :nullify

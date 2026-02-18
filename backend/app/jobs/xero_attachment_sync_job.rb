@@ -155,6 +155,14 @@ class XeroAttachmentSyncJob < ApplicationJob
       started_at = Time.current
       total_results = { processed: 0, success: 0, failed: 0, errors: [], batches: 0 }
 
+      # FRC (Feb 2026): Stall detection — prevents tight spin when all remaining
+      # invoices are on cooldown or the already_synced subquery disagrees with the
+      # sync service (e.g. WarehouseDocument exists but missing is_primary metadata).
+      # Without this, the loop re-processes the same already-synced invoices at
+      # hundreds of batches/sec, burning CPU and flooding logs.
+      last_remaining = nil
+      consecutive_stall = 0
+
       loop do
         # Time limit: stop before next scheduler run (leaves 2 min headroom)
         elapsed = Time.current - started_at
@@ -163,10 +171,17 @@ class XeroAttachmentSyncJob < ApplicationJob
           break
         end
 
-        # Rate limit check before each batch
+        # FRC (Feb 2026): Sleep instead of break when hitting minute rate limit.
+        # The minute limit (60/min) resets on a rolling window, so 30s sleep is enough.
+        # The outer time limit (MAX_RUNTIME_SECONDS) still caps total runtime.
         if should_pause_for_rate_limit?(tenant_id)
-          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit approaching, pausing")
-          break
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit approaching, sleeping 30s for window to roll...")
+          sleep(30)
+          if should_pause_for_rate_limit?(tenant_id)
+            Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Still rate limited after sleep, pausing")
+            break
+          end
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit cleared, resuming")
         end
 
         batch_results = process_tenant_batch(tenant_id, options)
@@ -176,12 +191,42 @@ class XeroAttachmentSyncJob < ApplicationJob
         total_results[:errors].concat(batch_results[:errors] || [])
         total_results[:batches] += 1
 
-        # Nothing processed in this batch — no more work or rate limited
-        break if batch_results[:processed] == 0
-        break if batch_results[:skipped_rate_limit]
+        # Hard lockout from Xero 429 — can't retry
         break if batch_results[:aborted_lockout]
 
-        Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Batch #{total_results[:batches]} done (#{batch_results[:success]}/#{batch_results[:processed]}), continuing...")
+        # FRC (Feb 2026): Only sleep for RATE LIMIT, not for "no invoices found".
+        # Previously also slept on (processed == 0 && total > 0) which caught the
+        # "all on cooldown" case — sleeping 30s doesn't help when cooldown is 30 min.
+        if batch_results[:skipped_rate_limit]
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Minute rate exhausted after #{total_results[:processed]} invoices, sleeping 30s...")
+          sleep(30)
+          next
+        end
+
+        # No invoices returned at all — genuinely no more work (or all on cooldown)
+        break if batch_results[:processed] == 0
+
+        # ════════════════════════════════════════════════════════════════════════
+        # STALL DETECTION: Stop spinning when no real progress is being made
+        # ════════════════════════════════════════════════════════════════════════
+        # FRC (Feb 2026): When find_invoices_needing_pdfs and the sync service
+        # disagree on "already synced" (e.g. missing is_primary metadata on old
+        # WarehouseDocuments), the loop finds the same invoices every batch,
+        # "processes" them (counted as success), but remaining count never drops.
+        # Without stall detection this spins for 8 min doing nothing useful.
+        current_remaining = count_remaining_invoices_for_tenant(tenant_id)
+        if last_remaining && current_remaining >= last_remaining
+          consecutive_stall += 1
+          if consecutive_stall >= 3
+            Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Stalled — remaining stuck at #{current_remaining} for #{consecutive_stall} batches (all on cooldown or already synced), stopping")
+            break
+          end
+        else
+          consecutive_stall = 0
+        end
+        last_remaining = current_remaining
+
+        Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Batch #{total_results[:batches]} done (#{batch_results[:success]}/#{batch_results[:processed]}), #{current_remaining} remaining, continuing...")
       end
 
       # Update status
@@ -364,15 +409,21 @@ class XeroAttachmentSyncJob < ApplicationJob
     #
     # FRC (Feb 2026): Two definitions of "already synced":
     # 1. Invoices/quotes/credit notes: WarehouseDocument with storage_blob (has actual PDF)
-    # 2. Bills: WarehouseDocument exists at all (bills have no auto-PDF, just a record)
+    # 2. Bills: WarehouseDocument with is_bill_record metadata (no auto-PDF, just a record)
     #
     # ⚠️ DO NOT SIMPLIFY to just "WarehouseDocument exists" — that would skip invoices
     # where the WarehouseDocument was created but PDF download failed (storage_blob_id nil).
     # Those invoices SHOULD be retried. Bills should NOT (they never get a blob).
+    #
+    # FRC (Feb 2026): DO NOT require is_primary metadata — some WarehouseDocuments
+    # were created without it (older sync versions, attachment-only docs). The sync
+    # service (XeroAttachmentSyncService) checks `find_by(documentable:, source_type:)`
+    # WITHOUT is_primary. If the subquery here is stricter than the service, the same
+    # invoice gets "found" by the query, "skipped" by the service, and loops forever.
+    # SSoT: Match the service's definition of "already synced".
     already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
-      .where("metadata->>'is_primary' = ?", "true")
       .where("storage_blob_id IS NOT NULL OR metadata->>'is_bill_record' = 'true'")
       .select(:documentable_id)
 
@@ -425,12 +476,11 @@ class XeroAttachmentSyncJob < ApplicationJob
     return 0 unless xero_tenant_id.present?
 
     # ⚠️ DO NOT use .pluck() here - keeps all IDs in Ruby memory (Feb 2026)
-    # FRC (Feb 2026): Must match find_invoices_needing_pdfs subquery exactly
-    # Bills with WarehouseDocument (is_bill_record) are "synced" even without storage_blob
+    # FRC (Feb 2026): Must match find_invoices_needing_pdfs subquery EXACTLY
+    # SSoT: Both subqueries use the same definition — no is_primary check
     already_synced_subquery = WarehouseDocument
       .where(source_type: "xero")
       .where(documentable_type: "ExternalInvoice")
-      .where("metadata->>'is_primary' = ?", "true")
       .where("storage_blob_id IS NOT NULL OR metadata->>'is_bill_record' = 'true'")
       .select(:documentable_id)
 
@@ -561,7 +611,16 @@ class XeroAttachmentSyncJob < ApplicationJob
       end
     end
 
-    Rails.logger.info("[XeroAttachmentSync] Excluding #{active.length} cooled-down invoices for #{tenant_id[0..7]}") if active.any?
+    # FRC (Feb 2026): Throttle log — only log once per 60s per tenant to avoid
+    # flooding logs when fair batch splitting calls this twice per batch iteration.
+    if active.any?
+      throttle_key = "xero:cooldown_log:#{tenant_id}"
+      unless Rails.cache.read(throttle_key)
+        Rails.logger.info("[XeroAttachmentSync] Excluding #{active.length} cooled-down invoices for #{tenant_id[0..7]}")
+        Rails.cache.write(throttle_key, true, expires_in: 60.seconds)
+      end
+    end
+
     active
   end
 end

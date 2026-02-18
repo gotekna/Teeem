@@ -23,6 +23,13 @@ class XeroContactBatchFetchJob < ApplicationJob
   # Max retries before failing the session
   MAX_RETRIES = 3
 
+  # Max cumulative rate limit hits before failing the session.
+  # FRC (Feb 2026): Without this cap, retry_count: 0 in handle_rate_limit
+  # resets the counter on every rate-limit event, creating an infinite retry
+  # loop that never fails the session. Track cumulative hits via checkpoint_data
+  # instead of the per-job retry_count.
+  MAX_RATE_LIMIT_RETRIES = 5
+
   def perform(session_id:, page:, tenant_name: nil, retry_count: 0)
     session = XeroSyncSession.find_by(id: session_id)
 
@@ -83,6 +90,14 @@ class XeroContactBatchFetchJob < ApplicationJob
       # No more pages - mark fetching complete
       Rails.logger.info("[XeroContactBatchFetch] Fetch complete for #{tenant_name || tenant_id}: #{session.fetched_count} contacts")
       session.start_processing!
+
+      # FRC (Feb 2026): If zero contacts were fetched, no process jobs will
+      # ever run, so the session stays in "processing" forever. Complete it
+      # immediately to prevent a permanent stall.
+      if session.fetched_count == 0
+        Rails.logger.info("[XeroContactBatchFetch] Zero contacts fetched for #{tenant_name || tenant_id}, completing session immediately")
+        session.complete!
+      end
     end
 
   rescue XeroApiClient::RateLimitError => e
@@ -141,6 +156,20 @@ class XeroContactBatchFetchJob < ApplicationJob
 
   def handle_rate_limit(session, page, error, retry_count, tenant_name)
     Rails.logger.warn("[XeroContactBatchFetch] Rate limited on page #{page}: #{error.message}")
+
+    # Track cumulative rate limit hits via checkpoint_data
+    checkpoint = session.checkpoint_data || {}
+    cumulative_hits = (checkpoint['rate_limit_hits'] || 0) + 1
+    session.checkpoint!({ 'rate_limit_hits' => cumulative_hits })
+
+    # FRC (Feb 2026): Fail cleanly after MAX_RATE_LIMIT_RETRIES cumulative
+    # hits. Without this, retry_count: 0 below resets the per-job counter on
+    # every rate-limit event, creating an infinite retry loop.
+    if cumulative_hits >= MAX_RATE_LIMIT_RETRIES
+      Rails.logger.error("[XeroContactBatchFetch] Rate limit cap reached (#{cumulative_hits}/#{MAX_RATE_LIMIT_RETRIES}) for #{tenant_name || session.tenant_id}, failing session")
+      session.fail!("Rate limited #{cumulative_hits} times (max #{MAX_RATE_LIMIT_RETRIES}), aborting sync")
+      return
+    end
 
     # FRC (Feb 2026): Cap retry_after to 120s. Xero sometimes returns huge values
     # (e.g., 9738s for daily limit), but we should retry sooner — if still rate

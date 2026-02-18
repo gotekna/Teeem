@@ -1,108 +1,118 @@
 # frozen_string_literal: true
 
 namespace :claim_stages do
-  desc "Seed default claim stage templates for all job types"
-  task seed_defaults: :environment do
-    puts "Seeding default claim stage templates..."
+  desc "Seed claim stage templates (HIA Residential, Kitchen Renovation, Standard)"
+  task seed: :environment do
+    puts "Seeding claim stage templates..."
 
-    # Residential Build (6 stages - 100%)
-    residential_stages = [
-      { name: "Deposit", percentage: 5.0, sequence_order: 0, invoice_match_pattern: "deposit|dep" },
-      { name: "Slab", percentage: 15.0, sequence_order: 1, invoice_match_pattern: "slab|base" },
-      { name: "Frame", percentage: 20.0, sequence_order: 2, invoice_match_pattern: "frame" },
-      { name: "Enclosed", percentage: 25.0, sequence_order: 3, invoice_match_pattern: "enclos|lock" },
-      { name: "Fixing", percentage: 20.0, sequence_order: 4, invoice_match_pattern: "fix" },
-      { name: "Practical Completion", percentage: 15.0, sequence_order: 5, invoice_match_pattern: "pc|prac|completion" }
-    ]
-
-    # Kitchen (4 stages - 100%)
-    kitchen_stages = [
-      { name: "Deposit", percentage: 5.0, sequence_order: 0, invoice_match_pattern: "deposit|dep" },
-      { name: "Kitchen 2nd Draw", percentage: 45.0, sequence_order: 1, invoice_match_pattern: "2nd|second" },
-      { name: "Kitchen 3rd Draw", percentage: 45.0, sequence_order: 2, invoice_match_pattern: "3rd|third" },
-      { name: "Kitchen Final Draw", percentage: 5.0, sequence_order: 3, invoice_match_pattern: "final|complet" }
-    ]
-
-    # Standard stages for other job types (6 stages - 100%)
-    standard_stages = [
-      { name: "Deposit", percentage: 10.0, sequence_order: 0, invoice_match_pattern: "deposit|dep" },
-      { name: "Stage 1", percentage: 20.0, sequence_order: 1, invoice_match_pattern: "stage.*1|first" },
-      { name: "Stage 2", percentage: 20.0, sequence_order: 2, invoice_match_pattern: "stage.*2|second" },
-      { name: "Stage 3", percentage: 20.0, sequence_order: 3, invoice_match_pattern: "stage.*3|third" },
-      { name: "Stage 4", percentage: 20.0, sequence_order: 4, invoice_match_pattern: "stage.*4|fourth" },
-      { name: "Final", percentage: 10.0, sequence_order: 5, invoice_match_pattern: "final|complet" }
-    ]
-
-    # Map job type names to stage configurations
-    stage_configs = {
-      "Residential" => residential_stages,
-      "Residential Build" => residential_stages,
-      "New Build" => residential_stages,
-      "House" => residential_stages,
-      "Duplex" => residential_stages,
-      "Townhouse" => residential_stages,
-      "NDIS House" => residential_stages,
-      "NDIS Units" => residential_stages,
-      "Kitchen" => kitchen_stages,
-      "Kitchen Renovation" => kitchen_stages
-    }
-
-    created_count = 0
-    skipped_count = 0
-
-    JobType.find_each do |job_type|
-      # Check if already has templates
-      if job_type.claim_stage_templates.any?
-        puts "  Skipping #{job_type.name} (already has #{job_type.claim_stage_templates.count} templates)"
-        skipped_count += 1
-        next
-      end
-
-      # Get appropriate stages for this job type
-      stages = stage_configs[job_type.name] || standard_stages
-
-      puts "  Creating #{stages.length} templates for #{job_type.name}..."
-
-      stages.each do |stage_attrs|
-        job_type.claim_stage_templates.create!(stage_attrs.merge(is_active: true))
-      end
-
-      created_count += 1
+    tenant = Tenant.first
+    unless tenant
+      puts "  No tenant found. Aborting."
+      next
     end
 
-    puts ""
-    puts "Done! Created templates for #{created_count} job types, skipped #{skipped_count}."
-  end
+    ActsAsTenant.with_tenant(tenant) do
+      created = 0
 
-  desc "Reset all templates to defaults (deletes existing and recreates)"
-  task reset_all: :environment do
-    puts "Resetting all claim stage templates..."
-    ClaimStageTemplate.delete_all
-    puts "Deleted all existing templates. Running seed_defaults..."
-    Rake::Task["claim_stages:seed_defaults"].invoke
+      # HIA Residential (7 stages - 100%)
+      created += seed_template(
+        tenant: tenant,
+        name: "HIA Residential",
+        description: "Standard HIA 7-stage progress claim for residential builds",
+        position: 1,
+        lines: [
+          { name: "Deposit",                percentage: 5.0,  match_keywords: "deposit,dep" },
+          { name: "Site Works",             percentage: 5.0,  match_keywords: "site,siteworks" },
+          { name: "Slab",                   percentage: 15.0, match_keywords: "slab,base" },
+          { name: "Frame",                  percentage: 20.0, match_keywords: "frame" },
+          { name: "Lock Up",                percentage: 25.0, match_keywords: "lock,lockup,enclosed" },
+          { name: "Fixing",                 percentage: 20.0, match_keywords: "fix,fixing" },
+          { name: "Practical Completion",   percentage: 10.0, match_keywords: "completion,pc,practical,handover" }
+        ]
+      )
+
+      # Kitchen Renovation (4 stages - 100%)
+      created += seed_template(
+        tenant: tenant,
+        name: "Kitchen Renovation",
+        description: "4-stage progress claim for kitchen renovations",
+        position: 2,
+        lines: [
+          { name: "Deposit",          percentage: 5.0,  match_keywords: "deposit,dep" },
+          { name: "Kitchen 2nd Draw", percentage: 45.0, match_keywords: "2nd,second" },
+          { name: "Kitchen 3rd Draw", percentage: 45.0, match_keywords: "3rd,third" },
+          { name: "Kitchen Final",    percentage: 5.0,  match_keywords: "final,complet" }
+        ]
+      )
+
+      # Standard (6 stages - 100%)
+      created += seed_template(
+        tenant: tenant,
+        name: "Standard",
+        description: "Generic 6-stage progress claim template",
+        position: 3,
+        lines: [
+          { name: "Deposit",  percentage: 10.0, match_keywords: "deposit,dep" },
+          { name: "Stage 1",  percentage: 20.0, match_keywords: "stage.*1,first" },
+          { name: "Stage 2",  percentage: 20.0, match_keywords: "stage.*2,second" },
+          { name: "Stage 3",  percentage: 20.0, match_keywords: "stage.*3,third" },
+          { name: "Stage 4",  percentage: 20.0, match_keywords: "stage.*4,fourth" },
+          { name: "Final",    percentage: 10.0, match_keywords: "final,complet" }
+        ]
+      )
+
+      puts ""
+      puts "Done! Created #{created} template(s)."
+    end
   end
 
   desc "Show claim stage templates summary"
   task summary: :environment do
     puts "Claim Stage Templates Summary"
-    puts "=" * 50
+    puts "=" * 60
 
-    JobType.includes(:claim_stage_templates).find_each do |job_type|
-      templates = job_type.claim_stage_templates.ordered
-      total = templates.sum(&:percentage)
-
+    ClaimStageTemplate.active.ordered.includes(:lines).each do |template|
+      total = template.lines.sum(&:percentage)
       puts ""
-      puts "#{job_type.name} (#{templates.count} stages, #{total}% total)"
-      puts "-" * 40
+      puts "#{template.name} (#{template.lines.size} stages, #{total}% total)"
+      puts "-" * 50
 
-      if templates.any?
-        templates.each_with_index do |t, i|
-          pattern = t.invoice_match_pattern.present? ? " [#{t.invoice_match_pattern}]" : ""
-          puts "  #{i + 1}. #{t.name}: #{t.percentage}%#{pattern}"
-        end
-      else
-        puts "  (no templates configured)"
+      template.lines.ordered.each_with_index do |line, i|
+        keywords = line.match_keywords.present? ? " [#{line.match_keywords}]" : ""
+        puts "  #{i + 1}. #{line.name}: #{line.percentage}%#{keywords}"
       end
     end
+
+    if ClaimStageTemplate.active.count == 0
+      puts ""
+      puts "  (no templates found - run rake claim_stages:seed)"
+    end
   end
+end
+
+def seed_template(tenant:, name:, description:, position:, lines:)
+  if ClaimStageTemplate.exists?(name: name)
+    puts "  Skipping '#{name}' (already exists)"
+    return 0
+  end
+
+  template = ClaimStageTemplate.create!(
+    tenant: tenant,
+    name: name,
+    description: description,
+    position: position
+  )
+
+  lines.each_with_index do |line_attrs, idx|
+    template.lines.create!(
+      tenant: tenant,
+      name: line_attrs[:name],
+      percentage: line_attrs[:percentage],
+      sequence_order: idx + 1,
+      match_keywords: line_attrs[:match_keywords]
+    )
+  end
+
+  puts "  Created '#{name}' with #{lines.size} stages"
+  1
 end

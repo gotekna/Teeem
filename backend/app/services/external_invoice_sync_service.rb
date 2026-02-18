@@ -102,6 +102,16 @@ class ExternalInvoiceSyncService
     @xero_tenant_id = xero_tenant_id
     @current_teeem_tenant_id = teeem_tenant_id_for(xero_tenant_id)
 
+    # ⚠️ DO NOT SIMPLIFY - Tenant scoping for contact resolution (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: link_to_contact and find_matching_contact query Contact.where(...)
+    #      which relies on acts_as_tenant scoping. Without setting the tenant,
+    #      workers have no tenant context and queries return cross-tenant results.
+    # ❌ WRONG: Contact.where(display_name: ...) without tenant → finds Tekna contacts for Pilgrim invoices
+    # ✅ CORRECT: Wrap in ActsAsTenant.with_tenant so all Contact queries are scoped
+    # ════════════════════════════════════════════════════════════════════
+    tenant = @current_teeem_tenant_id ? Tenant.find_by(id: @current_teeem_tenant_id) : nil
+
     begin
       # Fetch all invoices with pagination
       # If @fetch_details is true, also fetch full details including line items
@@ -110,9 +120,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}#{@fetch_details ? ' (with full details)' : ''}")
 
-      # Process each invoice
-      all_invoices.each do |invoice_data|
-        process_invoice(invoice_data, xero_tenant_id)
+      # Process each invoice within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_invoices.each do |invoice_data|
+          process_invoice(invoice_data, xero_tenant_id)
+        end
       end
 
       # Fetch all credit notes
@@ -121,9 +133,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_credit_notes.length} credit notes from #{@source}")
 
-      # Process each credit note
-      all_credit_notes.each do |cn_data|
-        process_credit_note(cn_data, xero_tenant_id)
+      # Process each credit note within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_credit_notes.each do |cn_data|
+          process_credit_note(cn_data, xero_tenant_id)
+        end
       end
 
       # Fetch all quotes
@@ -132,9 +146,11 @@ class ExternalInvoiceSyncService
 
       Rails.logger.info("Fetched #{all_quotes.length} quotes from #{@source}")
 
-      # Process each quote
-      all_quotes.each do |quote_data|
-        process_quote(quote_data, xero_tenant_id)
+      # Process each quote within tenant scope
+      ActsAsTenant.with_tenant(tenant) do
+        all_quotes.each do |quote_data|
+          process_quote(quote_data, xero_tenant_id)
+        end
       end
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
@@ -144,7 +160,7 @@ class ExternalInvoiceSyncService
 
       {
         success: true,
-        tenant_id: tenant_id,
+        tenant_id: xero_tenant_id,
         stats: @stats,
         synced_at: @sync_timestamp
       }
@@ -155,6 +171,127 @@ class ExternalInvoiceSyncService
     rescue StandardError => e
       handle_sync_error("Sync failed", e, include_backtrace: true)
     end
+  end
+
+  # Self-healing repair: fetch individual invoices that have empty line_items
+  # Instead of re-syncing everything, surgically fixes only broken records.
+  # Rate-limit friendly: processes batch_size per run, spreads across many runs.
+  def repair_empty_line_items(batch_size: 50)
+    Rails.logger.info("[ExternalInvoiceSyncService] Starting repair_empty_line_items (batch_size: #{batch_size})")
+
+    # Find all tenants with broken bills
+    tenant_ids = if @xero_tenant_id.present?
+                   [@xero_tenant_id]
+                 else
+                   ActsAsTenant.without_tenant do
+                     ExternalInvoice.where(invoice_type: "bill")
+                                    .where("line_items = '[]'::jsonb")
+                                    .where.not(external_id: nil)
+                                    .distinct.pluck(:xero_org_id).compact
+                   end
+                 end
+
+    if tenant_ids.empty?
+      Rails.logger.info("[ExternalInvoiceSyncService] No bills with empty line_items found - nothing to repair")
+      return { success: true, repaired: 0, errors: [], tenants_processed: 0 }
+    end
+
+    total_repaired = 0
+    total_errors = []
+    remaining_budget = batch_size
+
+    tenant_ids.each do |xero_tenant_id|
+      break if remaining_budget <= 0
+
+      # Check rate limit before each tenant
+      lockout = XeroRateLimitTracker.current_lockout(tenant_id: xero_tenant_id)
+      if lockout
+        Rails.logger.warn("[RepairLineItems] Tenant #{xero_tenant_id} rate-limited, skipping")
+        next
+      end
+
+      # Get bills needing repair for this tenant
+      bills = ActsAsTenant.without_tenant do
+        ExternalInvoice.where(
+          invoice_type: "bill",
+          xero_org_id: xero_tenant_id
+        ).where("line_items = '[]'::jsonb")
+         .where.not(external_id: nil)
+         .order(:created_at)
+         .limit(remaining_budget)
+      end
+
+      next if bills.empty?
+
+      Rails.logger.info("[RepairLineItems] Repairing #{bills.size} bills for tenant #{xero_tenant_id}")
+
+      bills.each do |bill|
+        begin
+          # Fetch this single invoice from Xero by ID (returns full data with line items)
+          response = @api_client.get("Invoices/#{bill.external_id}", tenant_id: xero_tenant_id)
+
+          if response.is_a?(Hash) && response["Invoices"]&.first
+            invoice_data = response["Invoices"].first
+            line_items = invoice_data["LineItems"] || []
+
+            if line_items.present?
+              tracking_data = extract_tracking_categories(invoice_data)
+
+              ActsAsTenant.without_tenant do
+                bill.update!(
+                  line_items: line_items,
+                  tracking_data: tracking_data,
+                  raw_data: invoice_data,
+                  last_synced_at: Time.current
+                )
+              end
+
+              # Try to link to job if not already linked (tracking_data now available)
+              if bill.job_id.nil?
+                @current_teeem_tenant_id = bill.tenant_id
+                link_to_job(bill)
+              end
+
+              total_repaired += 1
+              Rails.logger.info("[RepairLineItems] Fixed #{bill.invoice_number} (#{line_items.size} line items)")
+            else
+              Rails.logger.warn("[RepairLineItems] #{bill.invoice_number} - Xero returned empty LineItems (invoice may be summary-only)")
+            end
+          else
+            Rails.logger.warn("[RepairLineItems] #{bill.invoice_number} - unexpected API response")
+          end
+
+          remaining_budget -= 1
+          sleep(XERO_API_SLEEP_MS / 1000.0)
+
+        rescue XeroApiClient::RateLimitError => e
+          retry_after = e.message[/Retry after (\d+)/, 1]&.to_i || 60
+          Rails.logger.warn("[RepairLineItems] Rate limited, stopping. Retry after #{retry_after}s")
+          XeroRateLimitTracker.record_lockout!(retry_after, tenant_id: xero_tenant_id)
+          total_errors << "Rate limited on tenant #{xero_tenant_id}"
+          break
+        rescue StandardError => e
+          Rails.logger.error("[RepairLineItems] Error repairing #{bill.invoice_number}: #{e.message}")
+          total_errors << "#{bill.invoice_number}: #{e.message}"
+          remaining_budget -= 1
+          sleep(XERO_API_SLEEP_MS / 1000.0)
+        end
+      end
+    end
+
+    result = {
+      success: total_errors.empty?,
+      repaired: total_repaired,
+      errors: total_errors,
+      tenants_processed: tenant_ids.size
+    }
+
+    Rails.logger.info("[RepairLineItems] Complete: #{total_repaired} repaired, #{total_errors.size} errors")
+    result
+  rescue XeroApiClient::AuthenticationError => e
+    handle_sync_error("Authentication error during repair", e)
+  rescue StandardError => e
+    handle_sync_error("Repair failed", e, include_backtrace: true)
   end
 
   # Incremental sync - only fetch invoices modified since last sync
@@ -749,6 +886,8 @@ class ExternalInvoiceSyncService
     nil
   end
 
+  # SSoT: GstCode model maps Xero TaxTypes to our GST codes via xero_tax_types column
+
   def auto_create_purchase_order(invoice)
     # Check if PO already exists for this invoice
     existing_po = PurchaseOrder.find_by(xero_invoice_id: invoice.external_id)
@@ -758,40 +897,52 @@ class ExternalInvoiceSyncService
     end
 
     begin
-      # Create purchase order (without line items, so skip calculate_totals callback)
       po = PurchaseOrder.new(
         job_id: invoice.job_id,
         supplier_id: invoice.contact_id,
-        status: "invoiced", # Bill already exists, so mark as invoiced
+        status: "invoiced",
         xero_invoice_id: invoice.external_id,
         invoiced_amount: invoice.total,
         invoice_date: invoice.invoice_date,
         invoice_reference: invoice.invoice_number,
         description: "Auto-generated from Xero bill #{invoice.invoice_number}",
-        ordered_date: invoice.invoice_date, # Use invoice date as order date
+        ordered_date: invoice.invoice_date,
         payment_status: invoice.status == "paid" ? "complete" : "pending"
       )
 
-      # Generate PO number before saving (since we skip validation which would trigger the callback)
       po.send(:generate_po_number)
-
-      # Set totals manually and skip callbacks to preserve values
       po.save!(validate: false)
-      po.update_columns(
-        total: invoice.total || 0,
-        sub_total: invoice.subtotal || 0,
-        tax: invoice.total_tax || 0
-      )
 
-      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (Job: #{invoice.job&.name}, Supplier: #{invoice.contact&.display_name})")
+      # Create line items from Xero bill data (SSoT: per-line-item tax types)
+      xero_line_items = invoice.line_items || []
+      if xero_line_items.present?
+        xero_line_items.each_with_index do |item, idx|
+          gst_code = GstCode.for_xero_tax_type(item["TaxType"])
+          po.line_items.create!(
+            line_number: idx + 1,
+            description: item["Description"].presence || "Line #{idx + 1}",
+            quantity: item["Quantity"] || 1,
+            unit_price: item["UnitAmount"] || 0,
+            gst_code: gst_code
+          )
+        end
+        # Line item callbacks will recalculate PO totals with correct per-line tax
+      else
+        # No line items available - fall back to invoice-level totals
+        po.update_columns(
+          total: invoice.total || 0,
+          sub_total: invoice.subtotal || 0,
+          tax: invoice.total_tax || 0
+        )
+      end
 
-      # Add to stats if we have a place for it
+      Rails.logger.info("Auto-created PO #{po.purchase_order_number} for bill #{invoice.invoice_number} (#{xero_line_items.length} line items, Job: #{invoice.job&.name}, Supplier: #{invoice.contact&.display_name})")
+
       @stats[:pos_auto_created] ||= 0
       @stats[:pos_auto_created] += 1
 
     rescue StandardError => e
       Rails.logger.error("Failed to auto-create PO for invoice #{invoice.invoice_number}: #{e.message}")
-      # Don't raise - continue processing other invoices
     end
   end
 
@@ -834,24 +985,54 @@ class ExternalInvoiceSyncService
     }
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Must use page parameter (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: Xero API returns EMPTY LineItems when called without page parameter.
+  #      Without LineItems, tracking categories are never extracted, so bills
+  #      can't be matched to jobs via tracking_data.
+  # ❌ WRONG: @api_client.get("Invoices", { modifiedAfter: ... }) — no line items!
+  # ✅ CORRECT: @api_client.get("Invoices", { modifiedAfter: ..., page: N }) — includes line items
+  # ════════════════════════════════════════════
   def sync_tenant_incremental(tenant_id, since)
     Rails.logger.info("Starting incremental sync for tenant #{tenant_id} since #{since}")
 
-    # Xero supports modifiedAfter parameter
-    result = @api_client.get("Invoices", {
-      modifiedAfter: since.iso8601,
-      tenant_id: tenant_id
-    })
+    # Paginate with page parameter - Xero returns empty LineItems without it
+    all_invoices = []
+    page = 1
 
-    unless result[:success]
-      raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
+    loop do
+      result = @api_client.get("Invoices", {
+        modifiedAfter: since.iso8601,
+        page: page,
+        tenant_id: tenant_id
+      })
+
+      unless result[:success]
+        raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
+      end
+
+      invoices_page = result[:data]["Invoices"] || []
+      break if invoices_page.empty?
+
+      all_invoices.concat(invoices_page)
+      Rails.logger.info("Incremental sync page #{page}: #{invoices_page.length} invoices (total: #{all_invoices.length})")
+
+      page += 1
+      break if page > MAX_PAGES
+
+      sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
-    invoices = result[:data]["Invoices"] || []
-    Rails.logger.info("Found #{invoices.length} modified invoices since #{since}")
+    Rails.logger.info("Found #{all_invoices.length} modified invoices since #{since}")
 
-    invoices.each do |invoice_data|
-      process_invoice(invoice_data, tenant_id)
+    # Scope contact queries to correct tenant (see sync_tenant comment for details)
+    teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(tenant_id)
+    tenant = teeem_tid ? Tenant.find_by(id: teeem_tid) : nil
+
+    ActsAsTenant.with_tenant(tenant) do
+      all_invoices.each do |invoice_data|
+        process_invoice(invoice_data, tenant_id)
+      end
     end
 
     # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
@@ -860,7 +1041,7 @@ class ExternalInvoiceSyncService
     {
       success: true,
       tenant_id: tenant_id,
-      invoices_synced: invoices.length,
+      invoices_synced: all_invoices.length,
       stats: @stats
     }
   end
@@ -963,10 +1144,64 @@ class ExternalInvoiceSyncService
     link_to_job(record) if record.job_id.nil?
     link_to_contact(record) if record.contact_id.nil?
 
+    # Apply credit note allocations to matching Purchase Orders
+    apply_credit_to_purchase_orders(record)
+
   rescue StandardError => e
     error_msg = "Error processing credit note #{cn_data['CreditNoteNumber']}: #{e.message}"
     Rails.logger.error(error_msg)
     @stats[:errors] << error_msg
+  end
+
+  # Apply credit note allocations to Purchase Orders
+  # Xero credit notes have Allocations that reference the original invoices.
+  # We find matching POs via xero_invoice_id and accumulate credit_amount.
+  #
+  # Idempotent: recalculates total credit from ALL credit notes for each affected PO,
+  # so re-running sync won't double-count.
+  def apply_credit_to_purchase_orders(credit_note_record)
+    allocations = credit_note_record.raw_data&.dig("Allocations")
+    return if allocations.blank?
+
+    # Collect unique invoice IDs from this credit note's allocations
+    affected_invoice_ids = allocations
+      .filter_map { |a| a.dig("Invoice", "InvoiceID") }
+      .uniq
+    return if affected_invoice_ids.empty?
+
+    # Find POs that match these Xero invoice IDs
+    affected_pos = PurchaseOrder.where(xero_invoice_id: affected_invoice_ids)
+    if affected_pos.empty?
+      Rails.logger.debug("[CreditNote] No POs found for Xero invoices #{affected_invoice_ids.join(', ')} (credit note #{credit_note_record.invoice_number})")
+      return
+    end
+
+    # Load all credit notes for this tenant that reference any of these invoices
+    # Uses PostgreSQL JSONB containment to narrow the query
+    credit_notes = ExternalInvoice.where(
+      invoice_type: "credit_note",
+      tenant_id: credit_note_record.tenant_id
+    ).where.not(raw_data: nil)
+
+    # Build a map: xero_invoice_id → total credit amount
+    credit_totals = Hash.new(0)
+    credit_notes.find_each do |cn|
+      cn_allocations = cn.raw_data&.dig("Allocations") || []
+      cn_allocations.each do |a|
+        inv_id = a.dig("Invoice", "InvoiceID")
+        next unless affected_invoice_ids.include?(inv_id)
+        credit_totals[inv_id] += (a["Amount"]&.to_d || 0)
+      end
+    end
+
+    # Update each affected PO
+    affected_pos.each do |po|
+      total_credit = credit_totals[po.xero_invoice_id] || 0
+      po.update_column(:credit_amount, total_credit)
+      Rails.logger.info("[CreditNote] Updated PO #{po.purchase_order_number} credit_amount=#{total_credit} from credit notes")
+    end
+  rescue StandardError => e
+    Rails.logger.error("[CreditNote] Failed to apply credit to POs for #{credit_note_record.invoice_number}: #{e.message}")
   end
 
   # Fetch all quotes from Xero

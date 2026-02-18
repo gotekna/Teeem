@@ -1,14 +1,10 @@
 class PurchaseOrderLineItem < ApplicationRecord
-  # GST codes and their tax rates
-  GST_CODES = {
-    "GST" => 0.10,        # Standard GST (10%)
-    "GST Free" => 0.00,   # GST Free
-    "Input Taxed" => 0.00 # Input Taxed (no GST claim)
-  }.freeze
+  # SSoT: GstCode model (database table, tenant-scoped)
 
   # Associations
   belongs_to :purchase_order
   belongs_to :pricebook_item, optional: true
+  belongs_to :profit_centre, optional: true
 
   # Validations
   validates :description, presence: true
@@ -17,7 +13,7 @@ class PurchaseOrderLineItem < ApplicationRecord
   validates :quantity, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
   validates :unit_price, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
   validates :line_number, presence: true, numericality: { only_integer: true, greater_than: 0 }
-  validates :gst_code, inclusion: { in: GST_CODES.keys }, allow_nil: true
+  validate :gst_code_exists_in_database
 
   # Callbacks
   before_validation :set_line_number, if: :new_record?
@@ -28,7 +24,7 @@ class PurchaseOrderLineItem < ApplicationRecord
 
   # Eager loading: nested sm_task needed for po_task_name display via lookup_display_column
   def self.safe_eager_load_associations
-    [{ purchase_order: :sm_task }, :pricebook_item]
+    [{ purchase_order: :sm_task }, :pricebook_item, :profit_centre]
   end
 
   # Scopes
@@ -37,15 +33,13 @@ class PurchaseOrderLineItem < ApplicationRecord
   # Instance methods
   def calculate_totals
     line_subtotal = (quantity || 0) * (unit_price || 0)
-    # Calculate tax based on GST code (default to 10% GST if not specified)
-    tax_rate = GST_CODES[gst_code] || 0.10
     self.tax_amount = (line_subtotal * tax_rate).round(2)
     self.total_amount = (line_subtotal + tax_amount).round(2)
   end
 
-  # Get the tax rate for this line item
+  # Get the tax rate for this line item (SSoT: GstCode model with fallback)
   def tax_rate
-    GST_CODES[gst_code] || 0.10
+    GstCode.rate_for(gst_code)
   end
 
   # Price drift detection
@@ -117,5 +111,13 @@ class PurchaseOrderLineItem < ApplicationRecord
     po.calculate_totals
     po.calculate_variances
     po.save!
+  end
+
+  # Validate gst_code exists in the GstCode table (SSoT)
+  def gst_code_exists_in_database
+    return if gst_code.blank?
+    unless GstCode.active.exists?(code: gst_code)
+      errors.add(:gst_code, "\"#{gst_code}\" is not a valid active GST code")
+    end
   end
 end

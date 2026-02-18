@@ -3,8 +3,9 @@
 /**
  * XeroBillsCard - Displays Bills from Xero
  *
- * Extracted from corporate page inline rendering for unified tab system.
- * Uses TeeemTableView with Foundation ID 523 (external_invoices).
+ * Supports two contexts:
+ * - Corporate: Uses companyId to look up Xero tenant, fetches all bills for that tenant
+ * - Job: Uses jobId to fetch bills linked to that job via by_job endpoint
  */
 
 import * as React from "react";
@@ -18,8 +19,9 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 
 interface XeroBillsCardProps {
-  companyId: string;
+  companyId?: string;
   entityId?: string; // Alias for companyId (TabComponentProps)
+  jobId?: string | number; // Job context: fetch bills for this job
   tenantId?: string;
   onRefresh?: () => Promise<void>;
   onRowClick?: (row: TableRow) => void;
@@ -29,6 +31,7 @@ interface XeroBillsCardProps {
 export function XeroBillsCard({
   companyId,
   entityId,
+  jobId,
   tenantId: propTenantId,
   onRefresh,
   onRowClick,
@@ -39,13 +42,16 @@ export function XeroBillsCard({
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [tenantId, setTenantId] = React.useState<string | null>(propTenantId || null);
+  const [totals, setTotals] = React.useState<{ total: number; totalExGst: number; paid: number; due: number } | null>(null);
 
-  // Fetch tenant ID if not provided
+  // Fetch tenant ID if not provided (corporate context only)
   const fetchTenantId = React.useCallback(async () => {
     if (propTenantId) {
       setTenantId(propTenantId);
       return propTenantId;
     }
+
+    if (!effectiveCompanyId) return null;
 
     try {
       const response = await api.get<{
@@ -64,12 +70,40 @@ export function XeroBillsCard({
     }
   }, [effectiveCompanyId, propTenantId]);
 
-  // Fetch bills
+  // Fetch bills - uses job endpoint when jobId is available
   const fetchBills = React.useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Job context: use the by_job endpoint which returns bills linked to this job
+      if (jobId) {
+        const response = await api.get<{
+          success: boolean;
+          data: {
+            bills: TableRow[];
+            bills_total?: number;
+            bills_total_ex_gst?: number;
+            bills_paid?: number;
+            bills_due?: number;
+          };
+        }>(`/api/v1/external_invoices/by_job/${jobId}`);
+
+        if (response?.success) {
+          setBills(response.data?.bills || []);
+          setTotals({
+            total: response.data?.bills_total || 0,
+            totalExGst: response.data?.bills_total_ex_gst || 0,
+            paid: response.data?.bills_paid || 0,
+            due: response.data?.bills_due || 0,
+          });
+        } else {
+          setError("Failed to load bills for this job");
+        }
+        return;
+      }
+
+      // Corporate context: use tenant-based endpoint
       const tid = tenantId || (await fetchTenantId());
       if (!tid) {
         setError("No Xero connection found for this company");
@@ -94,7 +128,7 @@ export function XeroBillsCard({
     } finally {
       setLoading(false);
     }
-  }, [tenantId, fetchTenantId]);
+  }, [jobId, tenantId, fetchTenantId]);
 
   React.useEffect(() => {
     fetchBills();
@@ -139,6 +173,15 @@ export function XeroBillsCard({
 
   return (
     <div className="flex flex-col h-full -mx-4">
+      {totals && (
+        <div className="flex flex-wrap gap-4 px-4 py-3 border-b bg-muted/30">
+          <SummaryItem label="Total (ex GST)" value={totals.totalExGst} />
+          <SummaryItem label="Total (inc GST)" value={totals.total} />
+          <SummaryItem label="Paid" value={totals.paid} className="text-green-600 dark:text-green-400" />
+          <SummaryItem label="Outstanding" value={totals.due} className="text-orange-600 dark:text-orange-400" />
+          <span className="text-xs text-muted-foreground self-center">{bills.length} bills</span>
+        </div>
+      )}
       <TeeemTableView
         entries={bills}
         foundationId={FOUNDATION_SLUGS.EXTERNAL_INVOICES}
@@ -148,6 +191,18 @@ export function XeroBillsCard({
         onRowDoubleClick={onRowDoubleClick}
         enableExport={true}
       />
+    </div>
+  );
+}
+
+function SummaryItem({ label, value, className }: { label: string; value: number; className?: string }) {
+  const formatted = Math.abs(value).toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="flex flex-col">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className={`text-sm font-semibold font-mono tabular-nums ${className || ""}`}>
+        ${formatted}
+      </span>
     </div>
   );
 }

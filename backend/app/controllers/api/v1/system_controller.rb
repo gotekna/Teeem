@@ -158,8 +158,13 @@ module Api
         worker_count = processes.dig("Worker", :count) || 0
 
         # 2. Execution counts (all indexed COUNTs on small tables)
+        # Only count jobs claimed by alive workers - dead workers leave zombie claims
+        alive_process_ids = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .pluck(:id)
         pending = SolidQueue::ReadyExecution.count
-        running = SolidQueue::ClaimedExecution.count
+        running = alive_process_ids.any? ?
+          SolidQueue::ClaimedExecution.where(process_id: alive_process_ids).count : 0
         failed = SolidQueue::FailedExecution.count
         scheduled = SolidQueue::ScheduledExecution.count
         blocked = SolidQueue::BlockedExecution.count
@@ -248,7 +253,9 @@ module Api
             memory: memory,
             uptime: uptime,
             xeroRateLimits: xero_rate_limits,
-            throughputHistory: throughput_history
+            throughputHistory: throughput_history,
+            dynos: compute_worker_dynos,
+            threadCapacity: compute_thread_capacity
           }
         }
       rescue StandardError => e
@@ -394,7 +401,7 @@ module Api
       end
 
       def compute_queue_status(worker_count:, pending:, running:, failed:, trend:)
-        # Error: no workers at all
+        # Error: no workers with recent heartbeats
         if worker_count == 0
           return { level: "error", message: "No workers running" }
         end
@@ -420,7 +427,11 @@ module Api
         end
 
         # Healthy
-        msg = running > 0 ? "#{worker_count} workers, #{running} running" : "#{worker_count} workers, idle"
+        if running > 0
+          msg = worker_count > 0 ? "#{worker_count} workers, #{running} running" : "#{running} jobs running"
+        else
+          msg = worker_count > 0 ? "#{worker_count} workers, idle" : "Idle"
+        end
         { level: "healthy", message: msg }
       end
 
@@ -602,6 +613,55 @@ module Api
       rescue StandardError => e
         Rails.logger.debug "[SystemController] compute_throughput_history failed: #{e.message}"
         []
+      end
+
+      def compute_thread_capacity
+        alive_cutoff = 5.minutes.ago
+
+        # SSoT: Read thread_pool_size from live SolidQueue worker processes
+        workers = SolidQueue::Process
+          .where("last_heartbeat_at > ?", alive_cutoff)
+          .where(kind: "Worker")
+
+        total = workers.sum { |w| w.metadata&.dig("thread_pool_size").to_i }
+
+        # Only count jobs claimed by alive workers (not zombie claims from dead workers)
+        alive_worker_ids = workers.pluck(:id)
+        used = if alive_worker_ids.any?
+          SolidQueue::ClaimedExecution.where(process_id: alive_worker_ids).count
+        else
+          0
+        end
+
+        { total: total, used: used }
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_thread_capacity failed: #{e.message}"
+        nil
+      end
+
+      def compute_worker_dynos
+        return nil unless HerokuPlatformService.api_key?
+
+        infra = HerokuPlatformService.infrastructure
+        return nil unless infra[:dynos].present?
+
+        relevant_apps = %w[teeem-shared-worker teeem-production teeem-staging teeem-beta]
+        infra[:dynos]
+          .select { |d| d[:app].in?(relevant_apps) }
+          .map do |d|
+            {
+              app: d[:app],
+              environment: d[:environment],
+              dyno: d[:dyno],
+              size: d[:size],
+              quantity: d[:quantity],
+              running: d[:quantity] > 0,
+              cost: d[:cost]
+            }
+          end
+      rescue StandardError => e
+        Rails.logger.debug "[SystemController] compute_worker_dynos failed: #{e.message}"
+        nil
       end
 
       def get_pending_jobs_count

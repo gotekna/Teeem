@@ -63,6 +63,7 @@ import {
 import { SortableList, SortableItem, DragHandle, reorderByPosition } from "@/components/ui/dnd";
 import { useUserTabPreferences } from "@/lib/hooks/useUserTabPreferences";
 import { api } from "@/lib/api";
+import { clearCachedRecords } from "@/lib/records-cache";
 import { formatCurrency, getInitials } from "@/utils/formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
 import { safePercent } from "@/lib/utils";
@@ -70,6 +71,7 @@ import dynamic from "next/dynamic";
 import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { JobSpreadsheetsSection } from "@/components/jobs/JobSpreadsheetsSection";
+import { getTabComponent } from "@/lib/tab-component-registry";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { DocumentItem } from "@/components/warehouse/types";
 import type { Job, JobType, JobStatus, JobStage } from "@/lib/types";
@@ -165,6 +167,18 @@ const SpecificationBuilder = dynamic(() => import("@/components/specifications/S
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const XeroBillsCard = dynamic(() => import("@/components/xero/XeroBillsCard"), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const XeroInvoicesCard = dynamic(() => import("@/components/xero/XeroInvoicesCard"), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
+const XeroJobProfitLossCard = dynamic(() => import("@/components/xero/XeroJobProfitLossCard"), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const WarehouseTreeBase = dynamic(() => import("@/components/warehouse/WarehouseTree").then(m => m.WarehouseTree), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -243,6 +257,14 @@ function TabLoadingSkeleton() {
 const jobRequestCache = new Map<string, { promise: Promise<Job>; timestamp: number }>();
 const REQUEST_CACHE_TTL_MS = 30000; // 30 seconds max for in-flight requests
 
+// Module-level cache for resolved job data.
+// Prevents page-level skeleton flash when Next.js remounts the component
+// during sub-tab navigation (catch-all [..tab] route changes).
+// FRC (Feb 2026): Claims-XERO tab click caused full page skeleton because
+// component remounted with loading=true and no cached data.
+const jobDataCache = new Map<string, { data: Job; timestamp: number }>();
+const JOB_DATA_CACHE_TTL_MS = 60000; // 60 seconds for resolved data
+
 // SSoT: Job Tab Component Registry
 // Maps tab_key → component. When tabs are renamed in admin, they auto-work.
 // Special tabs (overview, whs, plans) have inline JSX and are excluded.
@@ -269,6 +291,48 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "revit": RevitTab,
   "revit-dwg": RevitTab,
   "warehouse": JobWarehouseTab,
+  // Xero Finance tabs - bills/invoices linked to this job
+  "bills": XeroBillsCard,
+  "bills-xero": XeroBillsCard,
+  "invoices": XeroInvoicesCard,
+  "claims-xero": XeroInvoicesCard,
+  "claims---xero": XeroInvoicesCard, // FRC: DB has triple dashes from "Claims - XERO" slugification
+  // Xero P&L report filtered by job tracking category
+  "p&l-xero": XeroJobProfitLossCard,
+  "pl-xero": XeroJobProfitLossCard,
+  "profit-loss-xero": XeroJobProfitLossCard,
+};
+
+// SSoT: Component Name Registry (FRC Feb 2026)
+// Maps WarehouseFolder.component_name → same next/dynamic imports above.
+// Defensive fallback when tab_key doesn't match (e.g., slugification produces
+// unexpected keys like "claims---xero" from "Claims - XERO").
+// Uses next/dynamic (not React.lazy) to avoid Suspense rendering freeze.
+const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
+  "JobContractTab": JobContractTab,
+  "SpecificationBuilder": SpecificationBuilder,
+  "ColourSelectionBuilder": ColourSelectionBuilder,
+  "JobClaimStagesTab": JobClaimStagesTab,
+  "JobExpensesTab": JobExpensesTab,
+  "JobProfitTab": JobProfitTab,
+  "JobBudgetTab": JobBudgetTab,
+  "JobPeopleTab": JobPeopleTab,
+  "JobPurchaseOrdersTab": JobPurchaseOrdersTab,
+  "JobPurchaseOrderLinesTab": JobPurchaseOrderLinesTab,
+  "JobEstimatorTab": JobEstimatorTab,
+  "JobQuoteTrackerTab": JobQuoteTrackerTab,
+  "JobBOQTab": JobBOQTab,
+  "JobActivityTab": JobActivityTab,
+  "JobScheduleTab": JobScheduleTab,
+  "JobSitePresenceTab": JobSitePresenceTab,
+  "RainLogTab": RainLogTab,
+  "JobDocumentsTab": JobDocumentsTab,
+  "JobCommunicationsTab": JobCommunicationsTab,
+  "RevitTab": RevitTab,
+  "JobWarehouseTab": JobWarehouseTab,
+  "XeroBillsCard": XeroBillsCard,
+  "XeroInvoicesCard": XeroInvoicesCard,
+  "XeroJobProfitLossCard": XeroJobProfitLossCard,
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
@@ -712,8 +776,20 @@ export default function JobDetailPage() {
   const pathname = usePathname();
   const jobId = params.id as string;
 
-  const [job, setJob] = React.useState<Job | null>(null);
-  const [loading, setLoading] = React.useState(true);
+  // Use module-level cache to prevent skeleton flash on sub-tab navigation.
+  // When Next.js remounts this component (catch-all route change), we instantly
+  // show the cached job data instead of a loading skeleton.
+  const cachedJobData = React.useMemo(() => {
+    const cached = jobDataCache.get(`job-${jobId}`);
+    if (cached && Date.now() - cached.timestamp < JOB_DATA_CACHE_TTL_MS) {
+      return cached.data;
+    }
+    return null;
+  }, [jobId]);
+
+  const [job, setJob] = React.useState<Job | null>(cachedJobData);
+  const [loading, setLoading] = React.useState(!cachedJobData);
+  const [financeCounts, setFinanceCounts] = React.useState<Record<string, number>>({});
 
   // Dynamic job tabs configuration - SSoT: unified WarehouseFolders API directly (Phase 5)
   const { tabs: jobTabs, loading: tabsLoading } = useWarehouseFolders({ scope: "job" });
@@ -881,12 +957,16 @@ export default function JobDetailPage() {
   const effectiveActiveTab = React.useMemo(() => {
     // If we have an explicit child tab, use composite key to prevent collision
     // e.g., parent "Site" (tab_key=site) vs child "Site" under Photo (also tab_key=site)
-    if (activeChildTab) return `${activeParentTab}__${activeChildTab}`;
+    if (activeChildTab) {
+      return `${activeParentTab}__${activeChildTab}`;
+    }
 
     // If parent tab has children, use first child with composite key
     if (visibleJobTabs.length > 0) {
       const firstChild = findFirstChildTab(activeParentTab);
-      if (firstChild) return `${activeParentTab}__${firstChild}`;
+      if (firstChild) {
+        return `${activeParentTab}__${firstChild}`;
+      }
     }
 
     // Otherwise use the parent tab itself
@@ -900,7 +980,9 @@ export default function JobDetailPage() {
     const tabs: (WarehouseFolder & { compositeKey?: string })[] = [];
     for (const tab of visibleJobTabs) {
       // Add parent tab if it has a registered component and isn't special
-      if (!SPECIAL_TABS.includes(tab.tab_key) && JOB_TAB_COMPONENTS[tab.tab_key]) {
+      // Fallback: check component_name in registry when tab_key doesn't match (tab renamed in admin)
+      const hasComponent = JOB_TAB_COMPONENTS[tab.tab_key] || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
+      if (!SPECIAL_TABS.includes(tab.tab_key) && hasComponent) {
         tabs.push(tab);
       }
       // Add all children with composite keys (parent__child)
@@ -988,10 +1070,12 @@ export default function JobDetailPage() {
       // API returns { success: true, data: {...} } envelope
       const jobData = (response as unknown as { data?: Job })?.data || response;
       setJob(jobData as Job);
+      // Cache resolved data for sub-tab navigation (prevents skeleton flash on remount)
+      jobDataCache.set(cacheKey, { data: jobData as Job, timestamp: Date.now() });
     } catch (error) {
       // Clean up cache on error too
       jobRequestCache.delete(`job-${jobId}`);
-      console.error("Failed to fetch job:", error);
+      console.error(`[JobPage] loadJob ERROR jobId=${jobId}:`, error);
     } finally {
       setLoading(false);
     }
@@ -1187,8 +1271,23 @@ export default function JobDetailPage() {
       loadXeroTrackingOptions();
       loadJobDesigns();
       loadChoiceColumns();
+      // Finance sub-tab badge counts (lightweight, non-blocking)
+      api.get<{ success: boolean; counts: Record<string, number> }>(`/api/v1/jobs/${jobId}/finance_counts`)
+        .then(res => { if (res?.success) setFinanceCounts(res.counts); })
+        .catch(() => {});
     }
   }, [jobId, loadJob, loadXeroTrackingOptions, loadJobDesigns, loadChoiceColumns]);
+
+  // Safety timeout: if loading is stuck for 10 seconds, force it to false
+  // This prevents permanent skeleton state from hanging API calls or cache issues
+  React.useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => {
+      console.error(`[JobPage] SAFETY TIMEOUT - loading stuck for 10s, forcing loading=false for jobId=${jobId}`);
+      setLoading(false);
+    }, 10000);
+    return () => clearTimeout(timer);
+  }, [loading, jobId]);
 
   // SSoT: Auto-start editing when /edit is in path (e.g., from jobs list page)
   // Also supports legacy ?edit=true query param for backward compatibility
@@ -1266,6 +1365,8 @@ export default function JobDetailPage() {
       setJob({ ...job, ...(updatedJob as Job) });
       setIsEditing(false);
       setEditForm({});
+      // SSoT: Clear Foundation cache so Jobs table shows fresh data
+      clearCachedRecords("jobs");
       // Reload to get fresh data with associations
       loadJob();
     } catch (error) {
@@ -1275,9 +1376,10 @@ export default function JobDetailPage() {
     }
   };
 
-  // SSoT: Show skeleton layout during loading to prevent flash/CLS
-  // The skeleton matches the actual page structure so there's no jarring layout shift
-  if (loading || tabsLoading) {
+  // SSoT: Show skeleton layout during job data loading to prevent flash/CLS
+  // Only gate on job loading - tabs loading is handled inline (below) to prevent
+  // tabsLoading hangs from blocking the entire page permanently
+  if (loading) {
     return (
       <div className="h-full flex flex-col overflow-auto">
         {/* Skeleton header */}
@@ -1486,16 +1588,27 @@ export default function JobDetailPage() {
           </div>
         </div>
 
-        {/* Tabs trigger */}
+        {/* Tabs trigger - show skeleton while tabs are loading */}
         <div className="px-3 pb-2">
-          <Tabs value={effectiveActiveTab} onValueChange={handleTabChange}>
-            <HierarchicalTabsList
-              tabs={visibleJobTabs}
-              activeTab={effectiveActiveTab}
-              activeParentTab={activeParentTab}
-              onTabChange={handleTabChange}
-            />
-          </Tabs>
+          {tabsLoading && visibleJobTabs.length === 0 ? (
+            <div className="flex gap-2 py-2">
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-8 w-20" />
+              <Skeleton className="h-8 w-28" />
+              <Skeleton className="h-8 w-20" />
+            </div>
+          ) : (
+            <Tabs value={effectiveActiveTab} onValueChange={handleTabChange}>
+              <HierarchicalTabsList
+                tabs={visibleJobTabs}
+                activeTab={effectiveActiveTab}
+                activeParentTab={activeParentTab}
+                onTabChange={handleTabChange}
+                badgeCounts={financeCounts}
+              />
+            </Tabs>
+          )}
         </div>
       </div>
 
@@ -1811,21 +1924,28 @@ export default function JobDetailPage() {
             );
           }
 
-          // SSoT: Registered components take priority over folder_path rendering
-          // This prevents tabs like "purchase-orders" (which have folder_path set
-          // from warehouse config) from being hijacked by the folder_path check below
-          const Component = JOB_TAB_COMPONENTS[tab.tab_key];
+          // SSoT: Component resolution order (FRC Feb 2026):
+          // 1. tab_key → JOB_TAB_COMPONENTS (direct dynamic() import, most common)
+          // 2. component_name → COMPONENT_BY_NAME (direct dynamic() import, SSoT fallback)
+          // 3. component_name → TAB_COMPONENTS (React.lazy, last resort for unknown components)
+          // Priority 2 prevents React.lazy freeze when tab_key has unexpected format
+          // (e.g., "claims---xero" from "Claims - XERO" slugification)
+          const Component = JOB_TAB_COMPONENTS[tab.tab_key]
+            || (tab.component_name ? COMPONENT_BY_NAME[tab.component_name] : undefined)
+            || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
           if (Component) {
             const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
             return (
               <TabsContent key={tabValue} value={tabValue} className={className}>
-                <Component
-                  jobId={job.id}
-                  job={job}
-                  jobTitle={job.name}
-                  onUpdate={loadJob}
-                  contractValue={job.contract_value}
-                />
+                <React.Suspense fallback={<TabLoadingSkeleton />}>
+                  <Component
+                    jobId={job.id}
+                    job={job}
+                    jobTitle={job.name}
+                    onUpdate={loadJob}
+                    contractValue={job.contract_value}
+                  />
+                </React.Suspense>
               </TabsContent>
             );
           }
@@ -1835,8 +1955,9 @@ export default function JobDetailPage() {
           // e.g., "photo__site" ensures Photo > Site photos shown, not Site > Site docs
           // Render JobDocumentsTab for:
           // 1. Photo categories (tab_type='photo') - shows photo gallery
-          // 2. Document categories with storage (folder_path set) - shows document viewer
-          if (tab.tab_type === 'photo' || tab.is_photo_category || tab.folder_path) {
+          // 2. Document categories (tab_type='document') - shows document viewer
+          // 3. Any tab with folder_path set - backward compat for legacy config
+          if (tab.tab_type === 'photo' || tab.tab_type === 'document' || tab.is_photo_category || tab.folder_path) {
             // SSoT: Find parent tab to pass its children as categories
             // This eliminates duplicate API call - parent already has the data from useWarehouseFolders
             const parentTab = visibleJobTabs.find(p =>

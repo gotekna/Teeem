@@ -11,6 +11,11 @@ import {
   RefreshCw,
   AlertTriangle,
   X,
+  ChevronRight,
+  Check,
+  Mail,
+  FileText,
+  CircleAlert,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import {
@@ -71,6 +76,16 @@ interface QueueStatusData {
     syncedCount: number;
   }>;
   throughputHistory: Array<{ minutesAgo: number; count: number }>;
+  dynos: Array<{
+    app: string;
+    environment: string;
+    dyno: string;
+    size: string;
+    quantity: number;
+    running: boolean;
+    cost: number;
+  }> | null;
+  threadCapacity: { total: number; used: number } | null;
 }
 
 function getStatusIconColor(status: QueueStatusLevel) {
@@ -174,6 +189,76 @@ function friendlyJobName(className: string): { name: string; hint: string } {
   };
 }
 
+function formatEta(remaining: number, ratePerMin: number): string {
+  if (ratePerMin <= 0 || remaining <= 0) return "";
+  const minutes = remaining / ratePerMin;
+  if (minutes < 1) return "<1 min";
+  if (minutes < 60) return `~${Math.round(minutes)} min`;
+  if (minutes < 1440) return `~${Math.round(minutes / 60)} hrs`;
+  return `~${Math.round(minutes / 1440)} days`;
+}
+
+/** Map backlog keys to user-friendly labels and icons */
+const BACKLOG_ICONS: Record<string, typeof Mail> = {
+  email_uploads: Mail,
+  xero_invoices: FileText,
+};
+
+/** Module-level history so it persists across popover open/close */
+interface HistoryPoint { timestamp: number; remaining: number }
+const backlogHistory = new Map<string, HistoryPoint[]>();
+const MAX_HISTORY_AGE_MS = 90 * 60_000; // keep 90 min of data
+
+function recordBacklogSnapshot(backlog: Array<{ key: string; remaining: number }>) {
+  const now = Date.now();
+  for (const item of backlog) {
+    const points = backlogHistory.get(item.key) || [];
+    points.push({ timestamp: now, remaining: item.remaining });
+    // Prune old entries
+    const cutoff = now - MAX_HISTORY_AGE_MS;
+    const pruned = points.filter((p) => p.timestamp >= cutoff);
+    backlogHistory.set(item.key, pruned);
+  }
+}
+
+function getHourlyProgress(key: string): { processed: number; stalled: boolean; hasData: boolean } {
+  const points = backlogHistory.get(key);
+  if (!points || points.length < 2) return { processed: 0, stalled: false, hasData: false };
+
+  const now = Date.now();
+  const oneHourAgo = now - 60 * 60_000;
+
+  // Find the oldest point within the last hour (or the oldest we have)
+  const oldest = points.find((p) => p.timestamp >= oneHourAgo) || points[0];
+  const latest = points[points.length - 1];
+
+  if (oldest === latest) return { processed: 0, stalled: false, hasData: false };
+
+  const processed = oldest.remaining - latest.remaining;
+
+  // Check if stalled: no change in last 5 minutes
+  // Require oldest data point to be 3+ min old to avoid false positives on first load
+  const fiveMinAgo = now - 5 * 60_000;
+  const threeMinAgo = now - 3 * 60_000;
+  const recentPoints = points.filter((p) => p.timestamp >= fiveMinAgo);
+  const hasEnoughHistory = recentPoints.length >= 2 &&
+    recentPoints[0].timestamp <= threeMinAgo;
+  const stalled = hasEnoughHistory &&
+    recentPoints.every((p) => p.remaining === latest.remaining) &&
+    latest.remaining > 0;
+
+  return { processed, stalled, hasData: true };
+}
+
+function formatProcessed(processed: number): string {
+  if (processed === 0) return "";
+  const abs = Math.abs(processed);
+  const formatted = abs >= 1000 ? `${(abs / 1000).toFixed(1)}k` : abs.toLocaleString();
+  // Negative = backlog growing (more added than processed)
+  if (processed < 0) return `+${formatted}`;
+  return formatted;
+}
+
 function ResourceBar({
   label,
   used,
@@ -274,6 +359,9 @@ export function WorkerQueueStatus() {
         setData(response.data);
         setStatus(response.data.status);
         setLastFetched(new Date());
+        if (response.data.backlog) {
+          recordBacklogSnapshot(response.data.backlog);
+        }
       }
     } catch (error) {
       console.debug("Failed to fetch queue status:", error);
@@ -295,6 +383,8 @@ export function WorkerQueueStatus() {
     if (isOpen) fetchQueueStatus();
   }, [isOpen, fetchQueueStatus]);
 
+  const [systemDetailsOpen, setSystemDetailsOpen] = useState(false);
+
   const processEntries = data?.processes
     ? Object.entries(data.processes).sort(([a], [b]) =>
         a.localeCompare(b)
@@ -303,6 +393,8 @@ export function WorkerQueueStatus() {
 
   const hasQueueDepth =
     data?.queueDepth && data.queueDepth.some((q) => q.count > 0);
+
+  const hasBacklog = data?.backlog && data.backlog.some((b) => b.remaining > 0);
 
   // Worker dead banner - portal to body so it renders above everything
   const showBanner = status === "error" && !bannerDismissed;
@@ -352,7 +444,7 @@ export function WorkerQueueStatus() {
             "relative p-1.5 rounded-md transition-colors",
             getStatusIconColor(status)
           )}
-          title={data?.statusMessage || "Worker Queue: Loading..."}
+          title={data?.statusMessage || "Background Tasks: Loading..."}
         >
           <Activity className="h-4 w-4" />
           <div
@@ -367,7 +459,7 @@ export function WorkerQueueStatus() {
         {/* Header */}
         <div className="p-3 border-b border-border flex items-center justify-between">
           <div>
-            <h4 className="font-medium text-sm">Worker Queue</h4>
+            <h4 className="font-medium text-sm">Background Tasks</h4>
             <p className="text-xs text-muted-foreground">
               {data?.statusMessage || "Loading..."}
             </p>
@@ -391,82 +483,73 @@ export function WorkerQueueStatus() {
         </div>
 
         {data && (
-          <>
-            {/* Execution summary */}
+          <div className="max-h-[70vh] overflow-y-auto">
+            {/* ── Sync Progress ── */}
             <div className="p-3 border-b border-border">
-              <div className="flex gap-3 text-xs">
-                <span>
-                  <span className="font-medium">{data.running}</span>{" "}
-                  <span className="text-muted-foreground">running</span>
-                </span>
-                <span>
-                  <span className="font-medium">{data.pending}</span>{" "}
-                  <span className="text-muted-foreground">pending</span>
-                </span>
-                {data.failed > 0 && (
-                  <span>
-                    <span className="font-medium text-orange-500 dark:text-orange-400">
-                      {data.failed}
-                    </span>{" "}
-                    <span className="text-orange-500 dark:text-orange-400">retrying</span>
-                  </span>
-                )}
-              </div>
-              <div className="mt-1.5 text-xs">
-                <TrendIndicator
-                  trend={data.trend}
-                  rate={data.completedPerMin}
-                />
-              </div>
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
+                Sync Progress
+              </p>
+              {hasBacklog ? (
+                <div className="space-y-2.5">
+                  {data.backlog.filter((b) => b.remaining > 0).map((item) => {
+                    const Icon = BACKLOG_ICONS[item.key] || FileText;
+                    const eta = formatEta(item.remaining, data.completedPerMin);
+                    const hourly = getHourlyProgress(item.key);
+                    const processedText = formatProcessed(hourly.processed);
+                    const systemStuck = data.trend === "stuck";
+                    return (
+                      <div key={item.key}>
+                        <div className="flex justify-between text-xs items-center">
+                          <span className="flex items-center gap-1.5 text-foreground">
+                            <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+                            {item.label}
+                          </span>
+                          <span className="shrink-0 ml-2 text-muted-foreground tabular-nums">
+                            {(item.remaining ?? 0).toLocaleString()} left
+                          </span>
+                        </div>
+                        <div className="mt-1 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={cn(
+                                "h-full rounded-full transition-all",
+                                systemStuck
+                                  ? "bg-orange-500 dark:bg-orange-400"
+                                  : "bg-blue-500 dark:bg-blue-400 animate-pulse"
+                              )}
+                              style={{ width: systemStuck ? "100%" : "15%" }}
+                            />
+                          </div>
+                          <span className="text-[10px] shrink-0 tabular-nums">
+                            {systemStuck ? (
+                              <span className="text-orange-500 dark:text-orange-400 flex items-center gap-0.5">
+                                <CircleAlert className="h-3 w-3" /> stuck
+                              </span>
+                            ) : hourly.hasData && processedText ? (
+                              <span className={hourly.processed < 0
+                                ? "text-orange-500 dark:text-orange-400"
+                                : "text-green-600 dark:text-green-400"
+                              }>
+                                {processedText}/hr
+                              </span>
+                            ) : eta ? (
+                              <span className="text-muted-foreground">{eta}</span>
+                            ) : null}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                  <Check className="h-3.5 w-3.5" />
+                  All caught up
+                </div>
+              )}
             </div>
 
-            {/* Resources: DB, Memory, Uptime */}
-            {(data.dbConnections || data.memory || data.uptime) && (
-              <div className="p-3 border-b border-border space-y-2">
-                <div className="flex justify-between items-center">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Resources
-                  </p>
-                  {data.uptime && (
-                    <span className="text-[10px] text-muted-foreground">
-                      up {data.uptime.uptimeHuman}
-                    </span>
-                  )}
-                </div>
-                {data.dbConnections && (
-                  <ResourceBar
-                    label="DB Connections"
-                    used={data.dbConnections.active}
-                    max={data.dbConnections.max}
-                  />
-                )}
-                {data.memory && (
-                  <ResourceBar
-                    label="Memory"
-                    used={data.memory.usedMb}
-                    max={data.memory.maxMb}
-                    unit="MB"
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Throughput sparkline */}
-            {data.throughputHistory && data.throughputHistory.length > 0 && (
-              <div className="p-3 border-b border-border">
-                <div className="flex justify-between items-center mb-1.5">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Throughput
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    last 60 min
-                  </p>
-                </div>
-                <Sparkline data={data.throughputHistory.map((b) => b.count)} />
-              </div>
-            )}
-
-            {/* Xero Rate Limits */}
+            {/* ── Xero Orgs ── */}
             {data.xeroRateLimits && data.xeroRateLimits.length > 0 && (
               <div className="p-3 border-b border-border">
                 <div className="flex justify-between items-center mb-1.5">
@@ -526,101 +609,14 @@ export function WorkerQueueStatus() {
               </div>
             )}
 
-            {/* Backlog - application-level remaining work */}
-            {data.backlog && data.backlog.length > 0 && (
-              <div className="p-3 border-b border-border">
-                <div className="flex justify-between items-center mb-1.5">
-                  <p className="text-[10px] font-medium text-blue-500 dark:text-blue-400 uppercase tracking-wider">
-                    Backlog
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    remaining
-                  </p>
-                </div>
-                {data.backlog.map((item) => (
-                  <div
-                    key={item.key}
-                    className="flex justify-between text-xs py-0.5"
-                  >
-                    <span className="text-foreground">{item.label}</span>
-                    <span className="text-blue-500 dark:text-blue-400 shrink-0 ml-2 tabular-nums">
-                      {(item.remaining ?? 0).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Processes */}
-            {processEntries.length > 0 && (
-              <div className="p-3 border-b border-border">
-                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Processes
-                </p>
-                {processEntries.map(([kind, info]) => (
-                  <div
-                    key={kind}
-                    className="flex justify-between text-xs py-0.5"
-                  >
-                    <span>{kind}</span>
-                    <span className="text-muted-foreground">
-                      {info.count}{" "}
-                      <span className="text-[10px]">
-                        {timeAgo(info.latestHeartbeat)}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Queue depth */}
-            {hasQueueDepth && (
-              <div className="p-3 border-b border-border">
-                <div className="flex justify-between items-center mb-1.5">
-                  <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                    Queues
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">
-                    pending
-                  </p>
-                </div>
-                {data.queueDepth.map((q) => (
-                  <div
-                    key={q.queue}
-                    className="flex justify-between text-xs py-0.5"
-                  >
-                    <span className="text-muted-foreground truncate">
-                      {q.queue}
-                    </span>
-                    <span className="shrink-0 ml-2">{q.count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Paused queues */}
-            {data.pausedQueues.length > 0 && (
-              <div className="p-3 border-b border-border">
-                <p className="text-[10px] font-medium text-orange-500 uppercase tracking-wider mb-1.5">
-                  Paused Queues
-                </p>
-                {data.pausedQueues.map((q) => (
-                  <div key={q} className="text-xs text-orange-500 py-0.5">
-                    {q}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Top failed - friendly names with guidance */}
+            {/* ── Recent Issues ── */}
             {data.failed > 0 && data.topFailed.length > 0 && (
               <div className="p-3 border-b border-border">
                 <p className="text-[10px] font-medium text-orange-500 dark:text-orange-400 uppercase tracking-wider mb-1.5">
                   Recent Issues ({data.failed})
                 </p>
                 <p className="text-[10px] text-muted-foreground mb-2">
-                  These are automatically retried and cleared after 24h.
+                  Auto-retried and cleared after 24h
                 </p>
                 {data.topFailed.map((f) => {
                   const friendly = friendlyJobName(f.className);
@@ -641,7 +637,201 @@ export function WorkerQueueStatus() {
                 })}
               </div>
             )}
-          </>
+
+            {/* ── System Details (collapsed by default) ── */}
+            <div className="border-b border-border">
+              <button
+                onClick={() => setSystemDetailsOpen(!systemDetailsOpen)}
+                className="w-full p-3 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <ChevronRight className={cn(
+                  "h-3.5 w-3.5 transition-transform",
+                  systemDetailsOpen && "rotate-90"
+                )} />
+                <span className="font-medium">System Details</span>
+              </button>
+
+              {systemDetailsOpen && (
+                <div className="border-t border-border">
+                  {/* Execution summary */}
+                  <div className="px-3 py-2 border-b border-border">
+                    <div className="flex gap-3 text-xs">
+                      <span>
+                        <span className="font-medium">{data.running}</span>{" "}
+                        <span className="text-muted-foreground">running</span>
+                      </span>
+                      <span>
+                        <span className="font-medium">{data.pending}</span>{" "}
+                        <span className="text-muted-foreground">pending</span>
+                      </span>
+                      {data.failed > 0 && (
+                        <span>
+                          <span className="font-medium text-orange-500 dark:text-orange-400">
+                            {data.failed}
+                          </span>{" "}
+                          <span className="text-orange-500 dark:text-orange-400">retrying</span>
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-1.5 text-xs">
+                      <TrendIndicator
+                        trend={data.trend}
+                        rate={data.completedPerMin}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Resources & Capacity */}
+                  {(data.dbConnections || data.memory || data.uptime || data.threadCapacity) && (
+                    <div className="px-3 py-2 border-b border-border space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                          Resources
+                        </p>
+                        {data.uptime && (
+                          <span className="text-[10px] text-muted-foreground">
+                            up {data.uptime.uptimeHuman}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Worker thread capacity - works locally + production */}
+                      {data.threadCapacity && data.threadCapacity.total > 0 && (
+                        <ResourceBar
+                          label="Worker Threads"
+                          used={data.threadCapacity.used}
+                          max={data.threadCapacity.total}
+                        />
+                      )}
+
+                      {data.memory && (
+                        <ResourceBar
+                          label="Memory"
+                          used={data.memory.usedMb}
+                          max={data.memory.maxMb}
+                          unit="MB"
+                        />
+                      )}
+                      {data.dbConnections && (
+                        <ResourceBar
+                          label="DB Connections"
+                          used={data.dbConnections.active}
+                          max={data.dbConnections.max}
+                        />
+                      )}
+
+                      {/* Dyno list - only on deployed environments with Heroku API */}
+                      {data.dynos && data.dynos.length > 0 && (
+                        <div className="pt-1 space-y-0.5">
+                          {data.dynos.map((d) => (
+                            <div
+                              key={`${d.app}-${d.dyno}`}
+                              className="flex justify-between text-[10px] items-center"
+                            >
+                              <span className="flex items-center gap-1 min-w-0">
+                                <span
+                                  className={cn(
+                                    "h-1.5 w-1.5 rounded-full shrink-0",
+                                    d.running ? "bg-green-500" : "bg-muted-foreground"
+                                  )}
+                                />
+                                <span className="text-muted-foreground truncate">
+                                  {d.environment} {d.dyno}
+                                </span>
+                              </span>
+                              <span className={cn(
+                                "shrink-0 ml-2 tabular-nums",
+                                d.running ? "text-muted-foreground" : "text-orange-500 dark:text-orange-400"
+                              )}>
+                                {d.running ? d.size : "off"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Throughput sparkline */}
+                  {data.throughputHistory && data.throughputHistory.length > 0 && (
+                    <div className="px-3 py-2 border-b border-border">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                          Throughput
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          last 60 min
+                        </p>
+                      </div>
+                      <Sparkline data={data.throughputHistory.map((b) => b.count)} />
+                    </div>
+                  )}
+
+                  {/* Processes */}
+                  {processEntries.length > 0 && (
+                    <div className="px-3 py-2 border-b border-border">
+                      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-1.5">
+                        Processes
+                      </p>
+                      {processEntries.map(([kind, info]) => (
+                        <div
+                          key={kind}
+                          className="flex justify-between text-xs py-0.5"
+                        >
+                          <span>{kind}</span>
+                          <span className="text-muted-foreground">
+                            {info.count}{" "}
+                            <span className="text-[10px]">
+                              {timeAgo(info.latestHeartbeat)}
+                            </span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Queue depth */}
+                  {hasQueueDepth && (
+                    <div className="px-3 py-2 border-b border-border">
+                      <div className="flex justify-between items-center mb-1.5">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                          Queues
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          pending
+                        </p>
+                      </div>
+                      {data.queueDepth.map((q) => (
+                        <div
+                          key={q.queue}
+                          className="flex justify-between text-xs py-0.5"
+                        >
+                          <span className="text-muted-foreground truncate">
+                            {q.queue}
+                          </span>
+                          <span className="shrink-0 ml-2">{q.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Paused queues */}
+                  {data.pausedQueues.length > 0 && (
+                    <div className="px-3 py-2 border-b border-border">
+                      <p className="text-[10px] font-medium text-orange-500 uppercase tracking-wider mb-1.5">
+                        Paused Queues
+                      </p>
+                      {data.pausedQueues.map((q) => (
+                        <div key={q} className="text-xs text-orange-500 py-0.5">
+                          {q}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* Footer */}

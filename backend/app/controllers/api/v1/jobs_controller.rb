@@ -4,7 +4,7 @@ module Api
       include DocumentProviderAware
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :activities, :budget_tracking, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -520,6 +520,165 @@ module Api
         render_error(e.message, status: :internal_server_error)
       end
 
+      # GET /api/v1/jobs/:id/xero_profit_loss
+      # Returns Xero Profit & Loss report filtered by this job's tracking category
+      # Params:
+      #   from_date: start date (default: start of financial year)
+      # GET /api/v1/jobs/:id/finance_counts
+      # Lightweight endpoint for badge counts on finance sub-tabs
+      def finance_counts
+        invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
+
+        # Look up actual finance tab_keys from WarehouseFolder for this tenant
+        job_type_ids = WarehouseType.where(code: "job").pluck(:id)
+        finance_tab = WarehouseFolder.find_by(
+          warehouse_type_id: job_type_ids,
+          tab_key: "finance",
+          parent_id: nil,
+          tenant_id: @job.tenant_id
+        )
+
+        # Map component_name OR tab_key to the correct count query
+        # Uses JOB_TAB_COMPONENTS mapping (same as frontend) to identify tab purpose
+        claims_fn = -> { @job.job_claim_stages.count }
+        expenses_fn = -> { @job.purchase_orders.where.not(status: [ "draft", "cancelled" ]).count }
+        xero_invoices_fn = -> { invoices.where(invoice_type: "sales_invoice").count }
+        xero_bills_fn = -> { invoices.where(invoice_type: "bill").count }
+
+        # component_name keys (when set) + tab_key keys (when component_name is nil)
+        count_map = {
+          "JobClaimStagesTab" => claims_fn, "claims" => claims_fn,
+          "JobExpensesTab" => expenses_fn, "expenses" => expenses_fn,
+          "XeroInvoicesCard" => xero_invoices_fn, "claims---xero" => xero_invoices_fn, "claims-xero" => xero_invoices_fn,
+          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn
+        }
+
+        counts = {}
+        if finance_tab
+          finance_tab.children.where(enabled: true).each do |child|
+            # Try component_name first (explicit), then tab_key (convention)
+            resolver = count_map[child.component_name] || count_map[child.tab_key]
+            counts[child.tab_key] = resolver.call if resolver
+          end
+        end
+
+        render json: { success: true, counts: counts }
+      end
+
+      #   to_date: end date (default: today)
+      #   periods: number of comparison periods (default: 3)
+      #   timeframe: MONTH, QUARTER, YEAR (default: YEAR)
+      def xero_profit_loss
+        # SSoT: Build P&L from local DB data (job_claims for income, purchase_orders for expenses)
+        # No Xero API call needed - all data already synced locally
+        periods = (params[:periods] || 3).to_i
+        from_date = params[:from_date].present? ? Date.parse(params[:from_date]) : nil
+        to_date = params[:to_date].present? ? Date.parse(params[:to_date]) : nil
+
+        # Build period ranges from frontend params, with comparison periods going back
+        if from_date && to_date
+          duration_days = (to_date - from_date).to_i
+          fy_periods = (0..periods).map do |i|
+            pf, pt = step_period_back(from_date, to_date, duration_days, i)
+            { label: format_period_label(pf, pt), from: pf, to: pt }
+          end
+        else
+          # Fallback: Australian financial year periods (1 Jul - 30 Jun)
+          today = Date.current
+          current_fy_start_year = today.month >= 7 ? today.year : today.year - 1
+          fy_periods = (0..periods).map do |i|
+            start_year = current_fy_start_year - i
+            {
+              label: "FY#{start_year}/#{(start_year + 1).to_s[-2..]}",
+              from: Date.new(start_year, 7, 1),
+              to: Date.new(start_year + 1, 6, 30)
+            }
+          end
+        end
+
+        # SSoT: external_invoices table has all Xero-synced invoices and bills
+        invoices = @job.external_invoices.where.not(status: [ "draft", "voided" ])
+        sales = invoices.where(invoice_type: "sales_invoice")
+        bills = invoices.where(invoice_type: "bill")
+        credit_notes = invoices.where(invoice_type: "credit_note")
+
+        # Use subtotal (ex GST) by default, total (inc GST) when requested
+        amount_col = params[:inc_gst] == "true" ? :total : :subtotal
+
+        # Build P&L data for each period
+        income_by_period = fy_periods.map do |period|
+          sales.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
+        end
+
+        expenses_by_period = fy_periods.map do |period|
+          bills.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
+        end
+
+        credits_by_period = fy_periods.map do |period|
+          credit_notes.where(invoice_date: period[:from]..period[:to]).sum(amount_col) || 0
+        end
+
+        # Totals across all periods
+        total_income = income_by_period.sum
+        total_expenses = expenses_by_period.sum
+        total_credits = credits_by_period.sum
+
+        # Build rows in Xero-compatible format for frontend rendering
+        header_cells = [ { value: "" } ] + fy_periods.map { |p| { value: p[:label] } } + [ { value: "Total" } ]
+
+        rows = [
+          { row_type: "Header", cells: header_cells },
+          { row_type: "Section", title: "Income" },
+          {
+            row_type: "Row",
+            cells: [ { value: "Sales Invoices" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_income) } ]
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Total Income" } ] + income_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_income) } ]
+          },
+          { row_type: "Section", title: "Less Cost of Sales" },
+          {
+            row_type: "Row",
+            cells: [ { value: "Bills" } ] + expenses_by_period.map { |v| { value: format_pl_amount(v) } } + [ { value: format_pl_amount(total_expenses) } ]
+          },
+          {
+            row_type: "Row",
+            cells: [ { value: "Credit Notes" } ] + credits_by_period.map { |v| { value: format_pl_amount(v.negative? ? v : -v) } } + [ { value: format_pl_amount(total_credits.negative? ? total_credits : -total_credits) } ]
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Total Cost of Sales" } ] + fy_periods.each_with_index.map { |_, i|
+              { value: format_pl_amount(expenses_by_period[i] - credits_by_period[i]) }
+            } + [ { value: format_pl_amount(total_expenses - total_credits) } ]
+          },
+          {
+            row_type: "SummaryRow",
+            cells: [ { value: "Net Profit" } ] + fy_periods.each_with_index.map { |_, i|
+              net = income_by_period[i] - expenses_by_period[i] + credits_by_period[i]
+              { value: format_pl_amount(net) }
+            } + [ { value: format_pl_amount(total_income - total_expenses + total_credits) } ]
+          }
+        ]
+
+        render json: {
+          success: true,
+          report: {
+            titles: [
+              "Profit & Loss - #{@job.name}",
+              "#{@job.job_code}",
+              params[:inc_gst] == "true" ? "Including GST" : "Excluding GST"
+            ],
+            from_date: fy_periods.last[:from].to_s,
+            to_date: fy_periods.first[:to].to_s,
+            periods: periods,
+            timeframe: "YEAR",
+            tracking_option_name: @job.xero_tracking_option_name,
+            rows: rows
+          }
+        }
+      end
+
       # GET /api/v1/jobs/:id/activities
       # Get activity timeline for a job
       def activities
@@ -599,70 +758,210 @@ module Api
       def boq
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier, :line_items, sm_task: :sm_schedule_master)
+                              .includes(:supplier, line_items: :pricebook_item,
+                                        sm_task: :sm_schedule_master)
 
-        # Group PO line items by category (using PO description as category)
-        # Build a hierarchical structure: Category -> PO -> Line Items
-        categories = {}
+        cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
+
+        # Pre-load Databuild BOQ line items (SmScheduleMaster records linked to cost centres)
+        cc_ids = cost_budgets.filter_map { |b| b.cost_centre&.id }
+        sm_by_cc = if cc_ids.any?
+          SmScheduleMaster.where(cost_centre: cc_ids).group_by(&:cost_centre)
+        else
+          {}
+        end
+
+        # Build cost centre lookup for PO matching
+        cc_lookup = {}
+        cost_budgets.each do |budget|
+          next unless budget.cost_centre
+          cc_lookup[budget.cost_centre.id] = budget
+          cc_lookup[budget.cost_centre.code&.to_s] = budget
+        end
+
+        # Match POs to cost centres via their SM task's cost_centre
+        po_by_cc = Hash.new { |h, k| h[k] = [] }
+        unmatched_pos = []
 
         purchase_orders.each do |po|
-          category_name = po.description.presence || po.sm_task&.name.presence || "Uncategorized"
-          # Clean up category name - remove "Req " prefix if present
-          category_name = category_name.sub(/^Req\s+/i, "")
+          sm = po.sm_task&.sm_schedule_master
+          cc_key = sm&.cost_centre&.to_s
+          budget = cc_key.present? ? cc_lookup[cc_key] : nil
 
-          categories[category_name] ||= {
-            name: category_name,
-            purchase_orders: [],
-            boq_total: 0,
-            po_total: 0
-          }
+          if budget
+            po_by_cc[budget.id] << po
+          else
+            unmatched_pos << po
+          end
+        end
 
-          po_data = {
-            id: po.id,
-            po_number: po.purchase_order_number,
-            supplier_name: po.supplier&.display_name || "Unknown",
-            status: po.status,
-            budget: (po.budget || 0).to_f,
-            total: (po.total || 0).to_f,
-            _seq: po.sm_task&.sm_schedule_master&.sequence_order,
-            line_items: po.line_items.map do |item|
-              {
-                id: item.id,
-                description: item.description,
-                quantity: item.quantity.to_f,
-                unit_price: item.unit_price.to_f,
-                total: item.total_amount.to_f
+        # Build BOQGroup[] - one group per PO (cost_centre + load number)
+        # Databuild items are grouped by Ld (load number) within each cost centre.
+        # Each load becomes a separate PO group: "102 - Engineering 1", "102 - Engineering 2", etc.
+        boq_groups = if cost_budgets.any?
+          groups = []
+
+          cost_budgets.sort_by { |b| b.cost_centre&.code&.to_i || 0 }.each do |budget|
+            cc = budget.cost_centre
+            matched_pos = po_by_cc[budget.id] || []
+            cc_name = cc ? "#{cc.code} - #{cc.name}" : "Budget ##{budget.id}"
+
+            databuild_items = sm_by_cc[cc&.id] || []
+            if databuild_items.any?
+              # Group Databuild items by load number (Ld) → one BOQ group per load = one PO
+              by_load = databuild_items.group_by do |sm|
+                d = sm.po_line_items.is_a?(Hash) ? sm.po_line_items : {}
+                d["load_number"] || 0
+              end
+
+              by_load.sort_by { |load_num, _| load_num.to_i }.each do |load_num, load_items|
+                items = load_items.map do |sm|
+                  line_data = sm.po_line_items.is_a?(Hash) ? sm.po_line_items : {}
+                  {
+                    id: "sm-#{sm.id}",
+                    description: sm.name,
+                    quantity: (line_data["quantity"] || 1).to_f,
+                    unitPrice: (line_data["unit_price"] || 0).to_f,
+                    gstCode: "BUD",
+                    subtotal: (line_data["total_price"] || 0).to_f,
+                    pricebookItemCode: line_data["code"]
+                  }
+                end
+
+                po_name = load_num.to_i > 0 ? "#{cc_name} #{load_num}" : cc_name
+
+                groups << {
+                  id: "cc-#{budget.id}-ld-#{load_num}",
+                  name: po_name,
+                  supplierId: nil,
+                  supplierName: nil,
+                  taskName: nil,
+                  tradeName: nil,
+                  stageName: nil,
+                  stagePosition: nil,
+                  costCentreName: cc_name,
+                  items: items
+                }
+              end
+            else
+              # Fallback: single budget allocation line when no Databuild line items
+              groups << {
+                id: "cc-#{budget.id}",
+                name: cc_name,
+                supplierId: nil,
+                supplierName: nil,
+                taskName: nil,
+                tradeName: nil,
+                stageName: nil,
+                stagePosition: nil,
+                costCentreName: cc_name,
+                items: [{
+                  id: "budget-#{budget.id}",
+                  description: "Budget allocation",
+                  quantity: 1,
+                  unitPrice: (budget.total_budget || 0).to_f,
+                  gstCode: "BUD",
+                  subtotal: (budget.total_budget || 0).to_f,
+                  pricebookItemCode: nil
+                }]
               }
             end
-          }
 
-          categories[category_name][:purchase_orders] << po_data
-          categories[category_name][:boq_total] += po_data[:budget]
-          categories[category_name][:po_total] += po_data[:total]
+            # Add matched PO line items as their own group
+            matched_pos.each do |po|
+              items = po.line_items.sort_by(&:line_number).map do |item|
+                {
+                  id: item.id,
+                  description: item.description,
+                  quantity: item.quantity.to_f,
+                  unitPrice: item.unit_price.to_f,
+                  gstCode: item.gst_code || "GST",
+                  subtotal: item.total_amount.to_f,
+                  pricebookItemCode: item.pricebook_item&.item_code
+                }
+              end
+
+              groups << {
+                id: "po-#{po.id}",
+                name: po.purchase_order_number || "PO-#{po.id}",
+                supplierId: po.supplier_id,
+                supplierName: po.supplier&.display_name,
+                taskName: po.description,
+                tradeName: nil,
+                stageName: nil,
+                stagePosition: nil,
+                costCentreName: cc_name,
+                items: items
+              }
+            end
+          end
+
+          groups
+        else
+          # Fallback: PO-only mode (no cost budgets)
+          purchase_orders.map do |po|
+            sm = po.sm_task&.sm_schedule_master
+            {
+              id: po.id,
+              name: po.purchase_order_number || "PO-#{po.id}",
+              supplierId: po.supplier_id,
+              supplierName: po.supplier&.display_name,
+              taskName: po.sm_task&.name || po.description,
+              tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
+              stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+              stagePosition: sm&.sequence_order,
+              costCentreName: nil,
+              items: po.line_items.sort_by(&:line_number).map do |item|
+                {
+                  id: item.id,
+                  description: item.description,
+                  quantity: item.quantity.to_f,
+                  unitPrice: item.unit_price.to_f,
+                  gstCode: item.gst_code || "GST",
+                  subtotal: item.total_amount.to_f,
+                  pricebookItemCode: item.pricebook_item&.item_code
+                }
+              end
+            }
+          end
         end
 
-        # Sort POs within each category by SM sequence_order, then sort categories
-        # by the lowest sequence_order of their POs (matching Schedule Master order)
-        categories.each_value do |cat|
-          cat[:purchase_orders].sort_by! { |po| po[:_seq] || Float::INFINITY }
-          cat[:_min_seq] = cat[:purchase_orders].map { |po| po[:_seq] || Float::INFINITY }.min
-        end
-        boq_categories = categories.values.sort_by { |c| c[:_min_seq] || Float::INFINITY }
-        # Clean up internal sort keys
-        boq_categories.each do |cat|
-          cat.delete(:_min_seq)
-          cat[:purchase_orders].each { |po| po.delete(:_seq) }
+        # Add unmatched POs as a separate group (when cost budgets exist)
+        if cost_budgets.any? && unmatched_pos.any?
+          unmatched_items = []
+          unmatched_pos.each do |po|
+            po.line_items.sort_by(&:line_number).each do |item|
+              unmatched_items << {
+                id: item.id,
+                description: "#{po.purchase_order_number}: #{item.description}",
+                quantity: item.quantity.to_f,
+                unitPrice: item.unit_price.to_f,
+                gstCode: item.gst_code || "GST",
+                subtotal: item.total_amount.to_f,
+                pricebookItemCode: item.pricebook_item&.item_code
+              }
+            end
+          end
+
+          if unmatched_items.any?
+            boq_groups << {
+              id: "unallocated",
+              name: "Unallocated POs",
+              supplierId: nil,
+              supplierName: nil,
+              taskName: nil,
+              tradeName: nil,
+              stageName: nil,
+              stagePosition: nil,
+              costCentreName: nil,
+              items: unmatched_items
+            }
+          end
         end
 
-        # Calculate variance for each category
-        boq_categories.each do |cat|
-          cat[:variance] = cat[:po_total] - cat[:boq_total]
-          cat[:variance_percent] = cat[:boq_total] > 0 ? (cat[:variance] / cat[:boq_total] * 100).round(1) : 0
-        end
-
-        # Calculate totals
-        total_boq = boq_categories.sum { |c| c[:boq_total] }
-        total_po = boq_categories.sum { |c| c[:po_total] }
+        # Calculate summary from cost budgets + POs
+        total_boq = cost_budgets.sum { |b| (b.total_budget || 0).to_f }
+        total_po = purchase_orders.sum { |po| (po.total || 0).to_f }
         total_variance = total_po - total_boq
 
         render json: {
@@ -672,7 +971,7 @@ module Api
             name: @job.name,
             contract_value: @job.contract_value.to_f
           },
-          categories: boq_categories,
+          groups: boq_groups,
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),
@@ -680,7 +979,7 @@ module Api
             variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
             contract_value: @job.contract_value.to_f,
             po_count: purchase_orders.count,
-            category_count: boq_categories.count
+            category_count: cost_budgets.count
           }
         }
       end
@@ -1061,6 +1360,42 @@ module Api
 
       private
 
+      # Format amount for P&L display (comma-separated, 2 decimals)
+      def format_pl_amount(value)
+        return "-" if value.nil? || value.zero?
+        ActionController::Base.helpers.number_with_delimiter(value.round(2), delimiter: ",")
+      end
+
+      # Step a date range back by i periods, using smart month/quarter/year alignment
+      def step_period_back(from_date, to_date, duration_days, i)
+        return [from_date, to_date] if i == 0
+
+        if duration_days > 300 # ~year/FY
+          [from_date << (12 * i), to_date << (12 * i)]
+        elsif duration_days > 80 # ~quarter
+          [from_date << (3 * i), to_date << (3 * i)]
+        elsif duration_days > 25 # ~month
+          pf = from_date << i
+          pt = (pf >> 1) - 1 # last day of that month
+          [pf, pt]
+        else # custom range
+          offset = (duration_days + 1) * i
+          [from_date - offset, to_date - offset]
+        end
+      end
+
+      def format_period_label(from_date, to_date)
+        days = (to_date - from_date).to_i
+        if days > 300 # ~year / FY
+          fy_start = from_date.month >= 7 ? from_date.year : from_date.year - 1
+          "FY#{fy_start}/#{(fy_start + 1).to_s[-2..]}"
+        elsif days > 80 # ~quarter
+          "Q#{((from_date.month - 1) / 3) + 1} #{from_date.year}"
+        else # month or custom
+          from_date.strftime("%b %Y")
+        end
+      end
+
       # Single-link mode: link one tracking option (backward compatible)
       def link_xero_tracking_single
         tracking_option_id = params[:tracking_option_id]
@@ -1252,7 +1587,9 @@ module Api
           :plan_date,
           :spec_date,
           :practical_completion_date,
-          :warranty_end_date
+          :warranty_end_date,
+          # Profit centre
+          :default_profit_centre_id
         )
       end
 

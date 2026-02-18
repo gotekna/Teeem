@@ -8,7 +8,7 @@ export interface JobType {
   color?: string;
   icon?: string;
   position?: number;
-  active?: boolean;
+  is_active?: boolean;
   sm_schedule_master_template_id?: number | null;
   schedule_template_summary?: {
     template_id: number;
@@ -24,7 +24,7 @@ export interface JobStatus {
   name: string;
   color?: string;
   position?: number;
-  active?: boolean;
+  is_active?: boolean;
 }
 
 export interface JobStage {
@@ -32,7 +32,7 @@ export interface JobStage {
   name: string;
   color?: string;
   position?: number;
-  active?: boolean;
+  is_active?: boolean;
 }
 
 export interface Job {

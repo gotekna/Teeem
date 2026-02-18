@@ -298,6 +298,24 @@ class ExternalInvoice < ApplicationRecord
     sales_invoice? ? contact : nil
   end
 
+  # Filesystem-safe name for WarehouseDocument resolution
+  # Used by SendNameResolver fallback chain when creating warehouse documents
+  def file_name
+    number = invoice_number.presence || external_id&.first(8) || id.to_s
+    case invoice_type
+    when "bill"
+      "Bill #{number}"
+    when "sales_invoice"
+      "Invoice #{number}"
+    when "credit_note"
+      "Credit Note #{number}"
+    when "quote"
+      "Quote #{number}"
+    else
+      "#{invoice_type&.titleize || 'Invoice'} #{number}"
+    end
+  end
+
   # Formatted display name
   def display_name
     case invoice_type

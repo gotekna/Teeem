@@ -77,15 +77,14 @@ class ChatMessage < ApplicationRecord
   end
 
   # Returns the URL for the attached file (for image/file display)
-  # SSoT: Uses storage_blob for file access
+  # SSoT: Uses presigned S3 URL for direct browser access (no backend hop)
   def file_url
-    return nil unless storage_blob.present?
-    # Generate URL via DocumentStorageService
-    Rails.application.routes.url_helpers.api_v1_document_storage_download_url(
-      scope: "chat_messages",
-      record_id: id,
-      host: Rails.application.routes.default_url_options[:host] || "localhost"
-    )
+    return nil unless storage_blob&.storage_path.present?
+    tenant = resolve_tenant_for_config
+    return nil unless tenant
+
+    provider = DocumentProviders::S3Compatible.for_tenant(tenant)
+    provider.download_url(storage_blob.storage_path, expires_in: 3600, disposition: :inline)
   rescue StandardError => e
     Rails.logger.error("[ChatMessage] Failed to generate file_url for #{id}: #{e.message}")
     nil

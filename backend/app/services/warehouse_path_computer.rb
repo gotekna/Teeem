@@ -90,15 +90,23 @@ class WarehousePathComputer
   def compute(doc)
     @resolved_wfdt = nil  # Reset per-document
 
-    # For warehouse source_type: delegate to documentable's warehouse_folder_path
+    # For warehouse source_type: delegate to documentable's own path computation
     # SSoT: BillInbox/ChatMessage/TeeemSpreadsheet/TeeemPdf/TeeemDocument know their own path
     # Each model computes the correct subfolder (e.g., "Warehousing/TeeemXL/User/2026")
-    if doc.source_type == "warehouse" && doc.documentable.respond_to?(:warehouse_folder_path)
+    #
+    # ⚠️ DO NOT SIMPLIFY - Infinite recursion fix (Feb 2026)
+    # ════════════════════════════════════════════
+    # Why: warehouse_folder_path delegates BACK to warehouse_document.computed_folder_path
+    #      which calls WarehousePathComputer.compute, creating an infinite loop.
+    # ❌ WRONG: doc.documentable.warehouse_folder_path (loops back through computed_folder_path)
+    # ✅ CORRECT: doc.documentable.compute_folder_path_for_self (computes directly, no loop)
+    # ════════════════════════════════════════════
+    if doc.source_type == "warehouse" && doc.documentable.respond_to?(:compute_folder_path_for_self)
       # Ensure tenant context for WarehouseProvider (needed by TeeemXL models)
       path = if doc.tenant_id.present? && ActsAsTenant.current_tenant.nil?
-               ActsAsTenant.with_tenant(doc.tenant) { doc.documentable.warehouse_folder_path }
+               ActsAsTenant.with_tenant(doc.tenant) { doc.documentable.compute_folder_path_for_self }
              else
-               doc.documentable.warehouse_folder_path
+               doc.documentable.compute_folder_path_for_self
              end
       if path.present?
         return {

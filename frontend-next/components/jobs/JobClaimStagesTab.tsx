@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,6 +58,8 @@ import {
   Unlock,
   ShieldCheck,
   Send,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -55,6 +67,38 @@ import { useToast } from "@/components/ui/use-toast";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { PdfFrame } from "@/components/ui/pdf-chrome";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
+
+interface ProfitCentre {
+  id: number;
+  code: string;
+  name: string;
+}
+
+interface ClaimTemplateOption {
+  id: number;
+  name: string;
+  lineCount: number;
+  totalPercentage: number;
+  percentagesValid: boolean;
+  description: string | null;
+}
 
 interface ClaimStage {
   id: number;
@@ -90,6 +134,10 @@ interface ClaimStage {
   retainage_status: "none" | "held" | "released";
   net_payable: number | null;
 
+  // Profit Centre
+  profit_centre_id?: number | null;
+  profit_centre?: ProfitCentre | null;
+
   // Invoice details
   invoice: {
     id: number;
@@ -104,7 +152,49 @@ interface ClaimStage {
     due_date: string | null;
     fully_paid_date: string | null;
     pending_push?: boolean;
+    // Detail fields (only from show endpoint)
+    line_items?: Array<{
+      Description?: string;
+      Quantity?: number;
+      UnitAmount?: number;
+      LineAmount?: number;
+      AccountCode?: string;
+      TaxType?: string;
+      TaxAmount?: number;
+      Tracking?: Array<{ Name: string; Option: string }>;
+    }>;
+    tracking_data?: Array<{ Name: string; Option: string }>;
+    subtotal?: number;
+    total_tax?: number;
   } | null;
+
+  // PDF (only from show endpoint)
+  pdf_generation_id?: number | null;
+
+  // Detail context (only from show endpoint)
+  company?: {
+    name?: string;
+    abn?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logo_url?: string;
+  };
+  client?: {
+    name?: string;
+    abn?: string;
+    address?: string;
+    suburb?: string;
+    state?: string;
+    postcode?: string;
+    email?: string;
+    phone?: string;
+  };
+  job_context?: {
+    job_number?: string;
+    name?: string;
+    contract_price?: number;
+  };
 }
 
 interface AvailableInvoice {
@@ -149,8 +239,18 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [generatingPdfId, setGeneratingPdfId] = React.useState<number | null>(null);
   const [releasingRetainageId, setReleasingRetainageId] = React.useState<number | null>(null);
   const [showMatchDialog, setShowMatchDialog] = React.useState(false);
+  const [unmatchConfirmStage, setUnmatchConfirmStage] = React.useState<ClaimStage | null>(null);
   const [selectedStage, setSelectedStage] = React.useState<ClaimStage | null>(null);
   const [selectedInvoiceId, setSelectedInvoiceId] = React.useState<string>("");
+  const [claimTemplates, setClaimTemplates] = React.useState<ClaimTemplateOption[]>([]);
+  const [applyingTemplate, setApplyingTemplate] = React.useState(false);
+  const [profitCentres, setProfitCentres] = React.useState<ProfitCentre[]>([]);
+
+  // Detail modal state
+  const [detailStage, setDetailStage] = React.useState<ClaimStage | null>(null);
+  const [detailLoading, setDetailLoading] = React.useState(false);
+  const [detailPdfUrl, setDetailPdfUrl] = React.useState<string | null>(null);
+  const [detailPdfLoading, setDetailPdfLoading] = React.useState(false);
 
   const loadData = React.useCallback(async () => {
     try {
@@ -183,6 +283,67 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   React.useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Fetch profit centres for this job
+  React.useEffect(() => {
+    const fetchProfitCentres = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: ProfitCentre[] }>(
+          `/api/v1/profit_centres?job_id=${jobId}`
+        );
+        if (response?.success && response.data) {
+          setProfitCentres(response.data);
+        }
+      } catch {
+        // Non-critical
+      }
+    };
+    fetchProfitCentres();
+  }, [jobId]);
+
+  // Load claim templates for empty state template picker
+  const loadClaimTemplates = React.useCallback(async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: ClaimTemplateOption[] }>(
+        "/api/v1/claim_stage_templates"
+      );
+      setClaimTemplates(response?.data || []);
+    } catch {
+      // Non-critical - template picker just won't show options
+    }
+  }, []);
+
+  React.useEffect(() => {
+    if (stages.length === 0 && !loading) {
+      loadClaimTemplates();
+    }
+  }, [stages.length, loading, loadClaimTemplates]);
+
+  const handleApplyTemplate = async (templateId: number) => {
+    setApplyingTemplate(true);
+    try {
+      const response = await api.post<{ success: boolean; data: { stages_created: number; template_name: string } }>(
+        `/api/v1/claim_stage_templates/${templateId}/apply`,
+        { job_id: jobId }
+      );
+      if (response?.success) {
+        toast({
+          title: "Template Applied",
+          description: `Created ${response.data.stages_created} claim stages from "${response.data.template_name}"`,
+        });
+        loadData();
+      }
+    } catch (error) {
+      console.error("Failed to apply template:", error);
+      toast({
+        title: "Error",
+        description: "Failed to apply claim template",
+        variant: "destructive",
+      });
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
 
   const handleAutoMatch = async () => {
     setAutoMatching(true);
@@ -390,11 +551,19 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
       if (response.success && response.data?.pdfGenerationId) {
         toast({
           title: "PDF Generating",
-          description: response.data.message || "Opening in new tab...",
+          description: response.data.message || "Downloading...",
         });
-        const { getApiBaseUrl } = await import("@/lib/api");
-        const baseUrl = getApiBaseUrl();
-        window.open(`${baseUrl}/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`, "_blank");
+        try {
+          const blob = await api.getBlob(`/api/v1/pdf_generations/${response.data.pdfGenerationId}/download`);
+          const url = URL.createObjectURL(blob);
+          window.open(url, "_blank");
+        } catch {
+          toast({
+            title: "Error",
+            description: "Failed to download PDF",
+            variant: "destructive",
+          });
+        }
       } else {
         toast({
           title: "Error",
@@ -464,6 +633,82 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     }
   };
 
+  const handleProfitCentreChange = async (stageId: number, profitCentreId: number | null) => {
+    try {
+      await api.patch(`/api/v1/jobs/${jobId}/claim_stages/${stageId}`, {
+        job_claim_stage: { profit_centre_id: profitCentreId },
+      });
+      // Update local state
+      setStages((prev) =>
+        prev.map((s) =>
+          s.id === stageId
+            ? {
+                ...s,
+                profit_centre_id: profitCentreId,
+                profit_centre: profitCentreId
+                  ? profitCentres.find((pc) => pc.id === profitCentreId) || null
+                  : null,
+              }
+            : s
+        )
+      );
+    } catch {
+      toast({
+        title: "Error",
+        description: "Failed to update profit centre",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openStageDetail = async (stage: ClaimStage) => {
+    // Show modal immediately with basic data
+    setDetailStage(stage);
+    setDetailLoading(true);
+    setDetailPdfUrl(null);
+    setDetailPdfLoading(false);
+
+    try {
+      // Fetch enriched detail from show endpoint
+      const response = await api.get<{ success: boolean; data: ClaimStage }>(
+        `/api/v1/jobs/${jobId}/claim_stages/${stage.id}`
+      );
+      if (response?.success && response.data) {
+        setDetailStage(response.data);
+
+        // If there's a PDF, fetch it
+        if (response.data.pdf_generation_id) {
+          setDetailPdfLoading(true);
+          try {
+            const blob = await api.getBlob(
+              `/api/v1/pdf_generations/${response.data.pdf_generation_id}/download`
+            );
+            const url = URL.createObjectURL(blob);
+            setDetailPdfUrl(url);
+          } catch {
+            // PDF fetch failed - show empty state
+          } finally {
+            setDetailPdfLoading(false);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load stage detail:", error);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeStageDetail = () => {
+    if (detailPdfUrl) {
+      URL.revokeObjectURL(detailPdfUrl);
+    }
+    setDetailStage(null);
+    setDetailPdfUrl(null);
+    setDetailLoading(false);
+    setDetailPdfLoading(false);
+  };
+
   // Check if any stages have retainage
   const hasRetainage = stages.some(s => s.retainage_percentage && s.retainage_percentage > 0);
 
@@ -480,10 +725,31 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No Claim Stages</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            No claim stages have been configured for this job type.
-            <br />
-            Configure templates in Admin &rarr; System &rarr; Job Setup.
+            Apply a claim template to set up progress claim stages for this job.
           </p>
+          {claimTemplates.length > 0 ? (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-72">
+                <ComboboxDropdown
+                  placeholder="Select a claim template..."
+                  items={claimTemplates.map((t) => ({
+                    id: t.id.toString(),
+                    label: `${t.name} (${t.lineCount} stages, ${t.totalPercentage}%)`,
+                  }))}
+                  onSelect={(item) => handleApplyTemplate(parseInt(item.id, 10))}
+                  disabled={applyingTemplate}
+                  isLoading={applyingTemplate}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Manage templates in Settings &rarr; Operations &rarr; Claim Templates
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No templates available. Create them in Settings &rarr; Operations &rarr; Claim Templates.
+            </p>
+          )}
         </CardContent>
       </Card>
     );
@@ -616,6 +882,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                 <TableRow className="text-left text-sm">
                   <TableHead className="px-4 py-3 font-medium">Stage</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-right">Expected</TableHead>
+                  <TableHead className="px-4 py-3 font-medium">Profit Centre</TableHead>
                   <TableHead className="px-4 py-3 font-medium">Xero Invoice</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-center">Sent</TableHead>
                   <TableHead className="px-4 py-3 font-medium text-center">Due</TableHead>
@@ -628,7 +895,15 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
               </TableHeader>
               <TableBody className="divide-y">
                 {stages.map((stage) => (
-                  <TableRow key={stage.id} className="hover:bg-muted/30">
+                  <TableRow
+                    key={stage.id}
+                    className={cn(
+                      "hover:bg-muted/30",
+                      stage.invoice && "cursor-pointer"
+                    )}
+                    onDoubleClick={() => stage.invoice && openStageDetail(stage)}
+                    title={stage.invoice ? "Double-click to view claim details" : undefined}
+                  >
                     {/* Stage Name */}
                     <TableCell className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -653,6 +928,19 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                           ? formatCurrency(stage.expected_amount)
                           : "-"}
                       </span>
+                    </TableCell>
+
+                    {/* Profit Centre */}
+                    <TableCell className="px-4 py-3">
+                      {profitCentres.length > 0 ? (
+                        <ProfitCentreSelector
+                          value={stage.profit_centre_id || null}
+                          profitCentres={profitCentres}
+                          onChange={(pcId) => handleProfitCentreChange(stage.id, pcId)}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                      )}
                     </TableCell>
 
                     {/* Invoice */}
@@ -733,7 +1021,7 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                                   variant="ghost"
                                   size="icon"
                                   className="h-7 w-7"
-                                  onClick={() => handleUnmatch(stage.id)}
+                                  onClick={() => setUnmatchConfirmStage(stage)}
                                   disabled={matchingStageId === stage.id}
                                   title="Unmatch invoice"
                                 >
@@ -1035,6 +1323,390 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unmatch Confirmation Dialog */}
+      <AlertDialog open={!!unmatchConfirmStage} onOpenChange={(open) => !open && setUnmatchConfirmStage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unmatch Invoice?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>
+                  This will unlink the invoice from the <strong>{unmatchConfirmStage?.name}</strong> stage.
+                  The invoice will remain in Xero but will no longer be associated with this claim stage.
+                </p>
+                {unmatchConfirmStage?.invoice && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Invoice:</span>
+                      <span className="font-medium">{unmatchConfirmStage.invoice.invoice_number}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Amount:</span>
+                      <span className="font-mono">{formatCurrency(unmatchConfirmStage.invoice.total)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Status:</span>
+                      <span>{unmatchConfirmStage.invoice.status}</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-sm">You can re-match it later using the Match button.</p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (unmatchConfirmStage) {
+                  handleUnmatch(unmatchConfirmStage.id);
+                  setUnmatchConfirmStage(null);
+                }
+              }}
+            >
+              Unmatch Invoice
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Claim Stage Detail Modal */}
+      <Dialog open={!!detailStage} onOpenChange={(open) => { if (!open) closeStageDetail(); }}>
+        <DialogContent className="max-w-[95vw] max-h-[90vh] h-[90vh] p-0 gap-0 flex flex-col">
+          <DialogHeader className="px-4 py-3 border-b shrink-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Receipt className="h-4 w-4" />
+              {detailStage?.name}
+              {detailStage?.invoice && (
+                <>
+                  <span className="text-muted-foreground">-</span>
+                  <span>{detailStage.invoice.invoice_number}</span>
+                </>
+              )}
+              {detailLoading && <Spinner size={16} />}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-1 min-h-0 overflow-hidden">
+            {/* LEFT: Invoice Document View */}
+            <div className="w-1/2 border-r overflow-auto">
+              {detailStage && (
+                <div className="p-6 space-y-6">
+                  {/* Invoice Header: Logo + Title + Meta */}
+                  <div className="flex justify-between items-start">
+                    <div>
+                      {detailStage.company?.logo_url && (
+                        <img
+                          src={detailStage.company.logo_url}
+                          alt={detailStage.company.name || "Company"}
+                          className="h-14 object-contain mb-3"
+                        />
+                      )}
+                      <h2 className="text-xl font-semibold tracking-tight">Tax Invoice</h2>
+                      {detailStage.invoice?.external_id && (
+                        <a
+                          href={`https://go.xero.com/AccountsReceivable/View.aspx?invoiceID=${detailStage.invoice.external_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 text-xs mt-1"
+                        >
+                          Open in Xero
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                    <div className="text-right text-sm space-y-0.5">
+                      {detailStage.invoice && (
+                        <>
+                          <div>
+                            <span className="text-muted-foreground">Invoice No: </span>
+                            <span className="font-medium">{detailStage.invoice.invoice_number}</span>
+                          </div>
+                          {detailStage.invoice.reference && (
+                            <div>
+                              <span className="text-muted-foreground">Reference: </span>
+                              <span>{detailStage.invoice.reference}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-muted-foreground">Date: </span>
+                            <span>{formatDate(detailStage.invoice.date)}</span>
+                          </div>
+                          {detailStage.invoice.due_date && (
+                            <div>
+                              <span className="text-muted-foreground">Due Date: </span>
+                              <span className={cn(
+                                detailStage.payment_status !== "paid" && new Date(detailStage.invoice.due_date) < new Date()
+                                  ? "text-red-500 dark:text-red-400 font-medium"
+                                  : ""
+                              )}>
+                                {formatDate(detailStage.invoice.due_date)}
+                              </span>
+                            </div>
+                          )}
+                          <div className="mt-1">
+                            <Badge variant="outline" className="text-xs capitalize">
+                              {detailStage.invoice.status}
+                            </Badge>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* From / To */}
+                  <div className="grid grid-cols-2 gap-6 text-sm">
+                    {/* From (Company) */}
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">From</p>
+                      <div className="space-y-0.5">
+                        {detailStage.company?.name && (
+                          <p className="font-medium">{detailStage.company.name}</p>
+                        )}
+                        {detailStage.company?.address && (
+                          <p className="text-muted-foreground whitespace-pre-line text-xs">{detailStage.company.address}</p>
+                        )}
+                        {detailStage.company?.abn && (
+                          <p className="text-xs text-muted-foreground">ABN: {detailStage.company.abn}</p>
+                        )}
+                        {detailStage.company?.phone && (
+                          <p className="text-xs text-muted-foreground">{detailStage.company.phone}</p>
+                        )}
+                        {detailStage.company?.email && (
+                          <p className="text-xs text-muted-foreground">{detailStage.company.email}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* To (Client) */}
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">To</p>
+                      {detailStage.client ? (
+                        <div className="space-y-0.5">
+                          {detailStage.client.name && (
+                            <p className="font-medium">{detailStage.client.name}</p>
+                          )}
+                          {detailStage.client.address && (
+                            <p className="text-muted-foreground text-xs">{detailStage.client.address}</p>
+                          )}
+                          {(detailStage.client.suburb || detailStage.client.state || detailStage.client.postcode) && (
+                            <p className="text-muted-foreground text-xs">
+                              {[detailStage.client.suburb, detailStage.client.state, detailStage.client.postcode].filter(Boolean).join(" ")}
+                            </p>
+                          )}
+                          {detailStage.client.abn && (
+                            <p className="text-xs text-muted-foreground">ABN: {detailStage.client.abn}</p>
+                          )}
+                          {detailStage.client.phone && (
+                            <p className="text-xs text-muted-foreground">{detailStage.client.phone}</p>
+                          )}
+                          {detailStage.client.email && (
+                            <p className="text-xs text-muted-foreground">{detailStage.client.email}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">No client assigned</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Job & Claim Stage Info */}
+                  <div className="bg-muted/50 dark:bg-muted/20 rounded-lg p-3 text-sm space-y-1">
+                    {detailStage.job_context?.job_number && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Job</span>
+                        <span className="font-medium">
+                          {detailStage.job_context.job_number}
+                          {detailStage.job_context.name ? ` - ${detailStage.job_context.name}` : ""}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Claim Stage</span>
+                      <span className="font-medium">
+                        {detailStage.name}
+                        {detailStage.percentage ? ` (${detailStage.percentage}%)` : ""}
+                      </span>
+                    </div>
+                    {detailStage.expected_amount != null && detailStage.expected_amount > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Expected Amount</span>
+                        <span className="font-mono">{formatCurrency(detailStage.expected_amount)}</span>
+                      </div>
+                    )}
+                    {/* Tracking Categories (inline) */}
+                    {detailStage.invoice?.tracking_data && detailStage.invoice.tracking_data.length > 0 && (
+                      <>
+                        {detailStage.invoice.tracking_data.map((t, i) => (
+                          <div key={i} className="flex justify-between">
+                            <span className="text-muted-foreground">{t.Name}</span>
+                            <span className="font-medium">{t.Option}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Line Items Table */}
+                  {detailStage.invoice?.line_items && detailStage.invoice.line_items.length > 0 && (
+                    <div className="overflow-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="text-xs bg-muted/30 dark:bg-muted/10">
+                            <TableHead className="px-3 py-2">Description</TableHead>
+                            <TableHead className="px-3 py-2 text-right w-[70px]">Qty</TableHead>
+                            <TableHead className="px-3 py-2 text-right w-[90px]">Unit Price</TableHead>
+                            <TableHead className="px-3 py-2 text-right w-[80px]">Tax</TableHead>
+                            <TableHead className="px-3 py-2 text-right w-[90px]">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {detailStage.invoice.line_items.map((item, i) => (
+                            <TableRow key={i} className="text-xs">
+                              <TableCell className="px-3 py-2">
+                                <div className="max-w-[250px]">
+                                  <span className="block truncate">{item.Description || "-"}</span>
+                                  {item.AccountCode && (
+                                    <span className="text-[10px] text-muted-foreground">Acct: {item.AccountCode}</span>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-right font-mono">
+                                {item.Quantity ?? "-"}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-right font-mono">
+                                {item.UnitAmount != null ? formatCurrency(item.UnitAmount) : "-"}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-right font-mono text-muted-foreground">
+                                {item.TaxAmount != null ? formatCurrency(item.TaxAmount) : "-"}
+                              </TableCell>
+                              <TableCell className="px-3 py-2 text-right font-mono font-medium">
+                                {item.LineAmount != null ? formatCurrency(item.LineAmount) : "-"}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+
+                  {/* Totals */}
+                  {detailStage.invoice && (
+                    <div className="flex justify-end">
+                      <div className="w-[260px] space-y-1 text-sm">
+                        <div className="flex justify-between py-1 border-b border-border">
+                          <span className="text-muted-foreground">Subtotal</span>
+                          <span className="font-mono">
+                            {formatCurrency(detailStage.invoice.subtotal ?? detailStage.invoice.total)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-border">
+                          <span className="text-muted-foreground">GST</span>
+                          <span className="font-mono text-muted-foreground">
+                            {formatCurrency(detailStage.invoice.total_tax ?? 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-2 font-semibold text-base">
+                          <span>Total</span>
+                          <span className="font-mono">{formatCurrency(detailStage.invoice.total)}</span>
+                        </div>
+                        {detailStage.invoice.amount_paid > 0 && (
+                          <div className="flex justify-between py-1 border-t border-border">
+                            <span className="text-muted-foreground">Amount Paid</span>
+                            <span className="font-mono text-green-600 dark:text-green-400">
+                              {formatCurrency(detailStage.invoice.amount_paid)}
+                            </span>
+                          </div>
+                        )}
+                        {detailStage.invoice.amount_due > 0 && (
+                          <div className="flex justify-between py-1">
+                            <span className="font-medium text-amber-600 dark:text-amber-400">Amount Due</span>
+                            <span className="font-mono font-medium text-amber-600 dark:text-amber-400">
+                              {formatCurrency(detailStage.invoice.amount_due)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Status & Variance */}
+                  <div className="border-t pt-4 space-y-2 text-sm">
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground">Payment Status</span>
+                      <PaymentStatusBadge
+                        status={detailStage.payment_status}
+                        dueDate={detailStage.invoice?.due_date}
+                      />
+                    </div>
+                    {detailStage.has_variance && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Variance</span>
+                        <span className={cn(
+                          "font-mono font-medium",
+                          (detailStage.variance_amount || 0) > 0
+                            ? "text-amber-600 dark:text-amber-400"
+                            : "text-red-600 dark:text-red-400"
+                        )}>
+                          {(detailStage.variance_amount || 0) > 0 ? "+" : ""}
+                          {formatCurrency(detailStage.variance_amount || 0)}
+                          {detailStage.variance_percent != null && ` (${detailStage.variance_percent}%)`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* RIGHT: PDF */}
+            <div className="w-1/2 overflow-hidden flex flex-col p-2">
+              {detailPdfLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-2">
+                    <Spinner size={32} />
+                    <p className="text-sm text-muted-foreground">Loading PDF...</p>
+                  </div>
+                </div>
+              ) : detailPdfUrl ? (
+                <PdfFrame className="flex-1">
+                  <PDFViewer url={detailPdfUrl} showToolbar />
+                </PdfFrame>
+              ) : (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center space-y-3">
+                    <FileText className="h-12 w-12 mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground">No PDF generated yet</p>
+                    {detailStage?.invoice && !detailStage.invoice.pending_push && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (detailStage) {
+                            handleGeneratePdf(detailStage);
+                          }
+                        }}
+                        disabled={generatingPdfId === detailStage?.id}
+                      >
+                        {generatingPdfId === detailStage?.id ? (
+                          <Spinner size={16} className="mr-1" />
+                        ) : (
+                          <FileDown className="h-4 w-4 mr-1" />
+                        )}
+                        Generate PDF
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1084,4 +1756,71 @@ function PaymentStatusBadge({
         </Badge>
       );
   }
+}
+
+function ProfitCentreSelector({
+  value,
+  profitCentres,
+  onChange,
+}: {
+  value: number | null;
+  profitCentres: ProfitCentre[];
+  onChange: (id: number | null) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const selected = value ? profitCentres.find((pc) => pc.id === value) : null;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs justify-between w-full max-w-[160px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="truncate">
+            {selected ? `${selected.code} - ${selected.name}` : "-"}
+          </span>
+          <ChevronsUpDown className="h-3 w-3 ml-1 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[220px] p-0" align="start" onClick={(e) => e.stopPropagation()}>
+        <Command>
+          <CommandInput placeholder="Search..." className="h-8" />
+          <CommandList>
+            <CommandEmpty>No profit centres found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                onSelect={() => {
+                  onChange(null);
+                  setOpen(false);
+                }}
+              >
+                <span className="text-muted-foreground">None</span>
+              </CommandItem>
+              {profitCentres.map((pc) => (
+                <CommandItem
+                  key={pc.id}
+                  onSelect={() => {
+                    onChange(pc.id);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-3 w-3",
+                      value === pc.id ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="font-mono text-xs mr-1">{pc.code}</span>
+                  <span className="truncate">{pc.name}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
 }

@@ -63,8 +63,11 @@ module Api
 
       # DELETE /api/v1/job_stages/:id
       def destroy
-        @job_stage.destroy
-        render json: { success: true }
+        if @job_stage.destroy
+          render json: { success: true }
+        else
+          render json: { success: false, error: @job_stage.errors.full_messages.join(", ") }, status: :unprocessable_entity
+        end
       end
 
       # POST /api/v1/job_stages/reorder

@@ -594,6 +594,8 @@ Rails.application.routes.draw do
           post :import_xero_bills
           post :link_xero_tracking
           get :xero_tracking_options
+          get :xero_profit_loss
+          get :finance_counts
           # AI job analysis
           post :analyze, to: "job_estimator#analyze"
           # Merge jobs
@@ -875,6 +877,14 @@ Rails.application.routes.draw do
         end
       end
 
+      # Claim Stage Templates - define reusable claim stage configurations
+      resources :claim_stage_templates do
+        member do
+          post :apply
+          post :duplicate
+        end
+      end
+
       # Purchase Orders management
       resources :purchase_orders do
         collection do
@@ -908,6 +918,13 @@ Rails.application.routes.draw do
       resources :payments, only: [ :show, :update, :destroy ] do
         member do
           post :sync_to_xero
+        end
+      end
+
+      # GST Codes (tenant-scoped tax rates for POs and pricebook)
+      resources :gst_codes, only: [:index, :create, :update, :destroy] do
+        collection do
+          post :sync_from_xero
         end
       end
 
@@ -2188,6 +2205,13 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :profit_centres, only: [ :index, :show, :create, :update, :destroy ] do
+        collection do
+          post :create_variation
+          get :report
+        end
+      end
+
       resources :labour_cost_entries, only: [ :index, :show, :create, :update ] do
         collection do
           get :for_job
@@ -2437,6 +2461,7 @@ Rails.application.routes.draw do
           post :match
           post :approve
           post :reject
+          post :sync_pdf
         end
       end
 
@@ -2584,6 +2609,7 @@ Rails.application.routes.draw do
           get :pdf_sync_status
           get :sync_health
           get :sync_stats
+          get :contact_sync_sessions
           post :trigger_sync_all
           get :common_contacts
           get :unlinked_contacts

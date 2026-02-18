@@ -1,8 +1,6 @@
 module Api
   module V1
     class FoundationViewsController < ApplicationController
-      skip_before_action :authorize_request, only: [ :index ]  # Allow unauthenticated access to read views (global views visible to all)
-      before_action :set_current_user_if_token_present, only: [ :index ]  # Try to get current user from token if provided
       before_action :set_foundation_view, only: [ :show, :update, :destroy ]
 
       # GET /api/v1/foundation_views
@@ -14,38 +12,30 @@ module Api
         raw_filter_id = params[:foundation_id] || params[:table_id]
 
         # Resolve foundation_id from slug or numeric ID (SSoT: resolve_foundation_id helper)
-        # This fixes views not loading when using slug like "sm_trades" instead of numeric ID 542
         resolved_filter_id = raw_filter_id.present? ? resolve_foundation_id(raw_filter_id) : nil
 
         # Support inheriting global views from related foundations
         # Example: SM Tasks (sm_tasks) can inherit global views from Schedule Master (schedule_master)
         include_from_ids = params[:include_views_from].to_s.split(",").map { |id| resolve_foundation_id(id) }.compact
 
-        # Get global views (shared by all users)
+        # Get global views (acts_as_tenant auto-scopes to current tenant)
         global_views = FoundationView.global_views
         if resolved_filter_id.present?
-          # Include views from both the primary foundation AND related foundations
           all_foundation_ids = [ resolved_filter_id ] + include_from_ids
           global_views = global_views.where(foundation_id: all_foundation_ids)
         end
 
-        # Get user-specific views if authenticated
-        user_views = if current_user
-          views = current_user.foundation_views.personal_views
-          views = views.where(foundation_id: resolved_filter_id) if resolved_filter_id.present?
+        # Get user-specific views (also auto-scoped to current tenant)
+        user_views = current_user.foundation_views.personal_views
+        user_views = user_views.where(foundation_id: resolved_filter_id) if resolved_filter_id.present?
 
-          # Auto-create "Setup" view if no views exist for this user/foundation combination
-          if resolved_filter_id.present? && views.empty? && global_views.empty?
-            foundation = Foundation.find_by(id: resolved_filter_id)
-            if foundation
-              create_default_setup_view(foundation, current_user)
-              # Reload views to include the newly created Setup view
-              views = current_user.foundation_views.personal_views.where(foundation_id: resolved_filter_id)
-            end
+        # Auto-create "Setup" view if no views exist for this user/foundation combination
+        if resolved_filter_id.present? && user_views.empty? && global_views.empty?
+          foundation = Foundation.find_by(id: resolved_filter_id)
+          if foundation
+            create_default_setup_view(foundation, current_user)
+            user_views = current_user.foundation_views.personal_views.where(foundation_id: resolved_filter_id)
           end
-          views
-        else
-          FoundationView.none
         end
 
         # Combine global views (first) and user views (second)
@@ -227,16 +217,12 @@ module Api
       private
 
       def set_foundation_view
-        unless current_user
-          return render_error("Authentication required", status: :unauthorized)
-        end
-
         # Support both numeric ID and slug for view lookup
+        # acts_as_tenant auto-scopes all FoundationView queries to current tenant
         identifier = params[:id]
 
         # Try to find in user's personal views first, then in global views
         if identifier.to_s.match?(/\A\d+\z/)
-          # Numeric ID lookup
           @foundation_view = current_user.foundation_views.find_by(id: identifier) ||
                             FoundationView.global_views.find_by(id: identifier)
         else
@@ -266,17 +252,20 @@ module Api
           group_by_columns: []
         ).tap do |permitted|
           # Manually permit complex nested structures that Rails strong params can't handle
-          if params[:foundation_view][:filters].present?
-            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          # FRC (Feb 2026): Use .key? not .present? — empty arrays/hashes ARE valid values.
+          # [].present? returns false, so clearing group_by/filters/sort was silently ignored.
+          view_params = params[:foundation_view]
+          if view_params.key?(:filters)
+            permitted[:filters] = view_params[:filters].present? ? view_params[:filters].to_unsafe_h : {}
           end
-          if params[:foundation_view][:columns].present?
-            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          if view_params.key?(:columns)
+            permitted[:columns] = view_params[:columns].present? ? view_params[:columns].to_unsafe_h : {}
           end
-          if params[:foundation_view][:sort_order].present?
-            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          if view_params.key?(:sort_order)
+            permitted[:sort_order] = view_params[:sort_order].present? ? view_params[:sort_order].map(&:to_unsafe_h) : []
           end
-          if params[:foundation_view][:group_by_columns].present?
-            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          if view_params.key?(:group_by_columns)
+            permitted[:group_by_columns] = view_params[:group_by_columns].present? ? view_params[:group_by_columns].to_a : []
           end
         end
       end
@@ -297,17 +286,19 @@ module Api
           sort_order: [ :column, :dir ],
           group_by_columns: []
         ).tap do |permitted|
-          if params[:foundation_view][:filters].present?
-            permitted[:filters] = params[:foundation_view][:filters].to_unsafe_h
+          # FRC (Feb 2026): Use .key? not .present? — same fix as create params above
+          view_params = params[:foundation_view]
+          if view_params.key?(:filters)
+            permitted[:filters] = view_params[:filters].present? ? view_params[:filters].to_unsafe_h : {}
           end
-          if params[:foundation_view][:columns].present?
-            permitted[:columns] = params[:foundation_view][:columns].to_unsafe_h
+          if view_params.key?(:columns)
+            permitted[:columns] = view_params[:columns].present? ? view_params[:columns].to_unsafe_h : {}
           end
-          if params[:foundation_view][:sort_order].present?
-            permitted[:sort_order] = params[:foundation_view][:sort_order].map(&:to_unsafe_h)
+          if view_params.key?(:sort_order)
+            permitted[:sort_order] = view_params[:sort_order].present? ? view_params[:sort_order].map(&:to_unsafe_h) : []
           end
-          if params[:foundation_view][:group_by_columns].present?
-            permitted[:group_by_columns] = params[:foundation_view][:group_by_columns].to_a
+          if view_params.key?(:group_by_columns)
+            permitted[:group_by_columns] = view_params[:group_by_columns].present? ? view_params[:group_by_columns].to_a : []
           end
         end
       end

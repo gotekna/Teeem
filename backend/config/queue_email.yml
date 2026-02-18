@@ -1,0 +1,50 @@
+# ============================================
+# EMAIL WORKER QUEUE CONFIGURATION
+# ============================================
+# Dedicated email sync worker (teeem-email-worker Heroku app).
+# Runs on its own Standard-2X dyno (1GB) to prevent memory competition
+# with Xero, health monitors, and other jobs.
+#
+# FRC (Feb 2026): Email sync + Xero jobs sharing 1GB caused R15 crashes
+# every 5-10 minutes. Split email sync into its own process so each
+# gets a full 1GB budget.
+#
+# Activated via: SOLID_QUEUE_CONFIG=config/queue_email.yml
+# (set on teeem-email-worker Heroku app)
+#
+# IMPORTANT: No scheduler or recurring tasks here - those stay on
+# teeem-shared-worker. This app ONLY processes jobs from the email_sync queue.
+
+production:
+  workers:
+    # Email sync worker: processes AllOrgsEmailSyncJob + OrgEmailSyncJob
+    # 3 threads = max 3 orgs syncing simultaneously
+    # Each org sync uses ~200-400MB peak, so 3 threads fits in 1GB
+    - queues: [email_sync]
+      threads: 3
+      processes: 1
+      polling_interval: 0.1
+
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+
+  # NO scheduler - recurring tasks run on teeem-shared-worker only
+
+development:
+  workers:
+    - queues: [email_sync]
+      threads: 2
+      processes: 1
+      polling_interval: 0.1
+
+  dispatchers:
+    - polling_interval: 1
+      batch_size: 500
+
+test:
+  workers:
+    - queues: [email_sync]
+      threads: 1
+      processes: 1
+      polling_interval: 0.1

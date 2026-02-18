@@ -80,6 +80,15 @@ interface Blocker {
   resets_at_display?: string;
 }
 
+interface DataQuality {
+  needs_backfill: boolean;
+  bills_total: number;
+  bills_missing_line_items: number;
+  bills_missing_tracking: number;
+  bills_without_jobs: number;
+  backfill_message: string | null;
+}
+
 interface Stage1DataSync {
   total_in_database: number;
   linked_to_contacts: number;
@@ -95,6 +104,7 @@ interface Stage1DataSync {
     quotes: number;
   };
   blocker: Blocker | null;
+  data_quality?: DataQuality;
 }
 
 interface Stage2PdfDownload {
@@ -461,27 +471,55 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
         {/* 2-Stage Progress (Jan 2026: Merged Stage 2+3 into "PDF Sync") */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Stage 1: Xero Data Sync (Bills, Invoices, Quotes) */}
-          <StageProgress
-            stage={1}
-            title="Xero Data"
-            icon={Database}
-            completed={data.stage1_data_sync?.linked_to_contacts || 0}
-            total={data.stage1_data_sync?.total_in_database || 0}
-            percentage={
-              data.stage1_data_sync?.total_in_database
-                ? Math.round(
-                    (data.stage1_data_sync.linked_to_contacts /
-                      data.stage1_data_sync.total_in_database) *
-                      100
-                  )
-                : 0
-            }
-            lastSync={data.stage1_data_sync?.last_synced_at || data.stage1_data_sync?.last_sync_at || null}
-            nextSync={data.stage1_data_sync?.next_sync_at}
-            schedule={data.stage1_data_sync?.schedule}
-            color="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-            blocker={data.stage1_data_sync?.blocker}
-          />
+          {/* Feb 2026: Factor in data quality - bills with empty line_items are NOT truly synced */}
+          {(() => {
+            const dq = data.stage1_data_sync?.data_quality;
+            const linked = data.stage1_data_sync?.linked_to_contacts || 0;
+            const total = data.stage1_data_sync?.total_in_database || 0;
+            // If backfill needed, subtract bills with empty line items from "completed"
+            const completed = dq?.needs_backfill
+              ? Math.max(linked - (dq.bills_missing_line_items || 0), 0)
+              : linked;
+            const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+            return (
+              <div className="space-y-0">
+                <StageProgress
+                  stage={1}
+                  title="Xero Data"
+                  icon={Database}
+                  completed={completed}
+                  total={total}
+                  percentage={pct}
+                  lastSync={data.stage1_data_sync?.last_synced_at || data.stage1_data_sync?.last_sync_at || null}
+                  nextSync={data.stage1_data_sync?.next_sync_at}
+                  schedule={data.stage1_data_sync?.schedule}
+                  color="bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
+                  blocker={data.stage1_data_sync?.blocker}
+                />
+                {dq?.needs_backfill && (
+                  <div className="mt-2 p-2.5 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg text-xs">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400 mt-0.5 shrink-0" />
+                      <div className="flex-1">
+                        <div className="font-medium text-orange-800 dark:text-orange-200">
+                          Data Backfill Needed
+                        </div>
+                        <div className="text-orange-700 dark:text-orange-300 mt-0.5">
+                          {dq.bills_missing_line_items.toLocaleString()} of {dq.bills_total.toLocaleString()} bills have empty line items
+                          {dq.bills_without_jobs > 0 && (
+                            <span> &middot; {dq.bills_without_jobs.toLocaleString()} bills not matched to jobs</span>
+                          )}
+                        </div>
+                        <div className="text-orange-600 dark:text-orange-400 mt-1">
+                          Run a full sync to re-fetch complete invoice data
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Stage 2: PDF Sync (Jan 2026: Merged download+storage into one stage) */}
           <StageProgress
@@ -593,49 +631,49 @@ export function XeroPdfSyncStatus({ tenantId }: { tenantId?: string }) {
 
         {/* Breakdown by Type */}
         <div className="space-y-2">
-          <div className="text-sm font-medium text-muted-foreground">PDF Progress by Type</div>
+          <div className="text-sm font-medium text-muted-foreground">Sync Progress by Type</div>
           <div className="grid grid-cols-4 gap-2">
             <div className="p-2 border rounded-lg">
-              <div className="text-xs text-muted-foreground">Bills</div>
+              <div className="text-xs text-muted-foreground" title="Bills don't have auto-generated PDFs in Xero. Count shows bill records marked as processed.">Bills (Records)</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.bills.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.bills.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.bills?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.bills?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.bills.total > 0 ? (data.breakdown.bills.synced / data.breakdown.bills.total) * 100 : 0}
+                value={(data.breakdown?.bills?.total ?? 0) > 0 ? ((data.breakdown?.bills?.synced ?? 0) / (data.breakdown?.bills?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Invoices</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.sales_invoices.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.sales_invoices.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.sales_invoices?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.sales_invoices?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.sales_invoices.total > 0 ? (data.breakdown.sales_invoices.synced / data.breakdown.sales_invoices.total) * 100 : 0}
+                value={(data.breakdown?.sales_invoices?.total ?? 0) > 0 ? ((data.breakdown?.sales_invoices?.synced ?? 0) / (data.breakdown?.sales_invoices?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Credit Notes</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.credit_notes?.synced || 0}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.credit_notes?.total || 0}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.credit_notes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.credit_notes?.total ?? 0}</span>
               </div>
               <Progress
-                value={(data.breakdown.credit_notes?.total || 0) > 0 ? ((data.breakdown.credit_notes?.synced || 0) / (data.breakdown.credit_notes?.total || 1)) * 100 : 0}
+                value={(data.breakdown?.credit_notes?.total ?? 0) > 0 ? ((data.breakdown?.credit_notes?.synced ?? 0) / (data.breakdown?.credit_notes?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>
             <div className="p-2 border rounded-lg">
               <div className="text-xs text-muted-foreground">Quotes</div>
               <div className="flex items-baseline gap-1">
-                <span className="text-sm font-semibold">{data.breakdown.quotes.synced}</span>
-                <span className="text-xs text-muted-foreground">/ {data.breakdown.quotes.total}</span>
+                <span className="text-sm font-semibold">{data.breakdown?.quotes?.synced ?? 0}</span>
+                <span className="text-xs text-muted-foreground">/ {data.breakdown?.quotes?.total ?? 0}</span>
               </div>
               <Progress
-                value={data.breakdown.quotes.total > 0 ? (data.breakdown.quotes.synced / data.breakdown.quotes.total) * 100 : 0}
+                value={(data.breakdown?.quotes?.total ?? 0) > 0 ? ((data.breakdown?.quotes?.synced ?? 0) / (data.breakdown?.quotes?.total ?? 1)) * 100 : 0}
                 className="h-1 mt-1"
               />
             </div>

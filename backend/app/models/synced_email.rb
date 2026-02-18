@@ -61,6 +61,10 @@ class SyncedEmail < ApplicationRecord
   # Each mailbox appearance has its own outlook_id, folder_name, and is_read status.
   # SSoT: Email content here (once). Mailbox appearances in SyncedEmailMailbox.
   has_many :mailbox_appearances, class_name: 'SyncedEmailMailbox', dependent: :destroy
+  # Conventional alias: Rails resolves table name "synced_email_mailboxes" as association
+  # :synced_email_mailboxes. Without this, .joins/.where referencing the table by convention fails
+  # with ConfigurationError. Sentry TEEEM-BACKEND-6.
+  has_many :synced_email_mailboxes, dependent: :destroy
 
   # Direction constants (for SSoT tracking)
   DIRECTIONS = %w[sent received cc bcc].freeze
@@ -397,8 +401,19 @@ class SyncedEmail < ApplicationRecord
   # Previously used metadata->>'synced_email_id' (JSON query, no FK, no integrity).
   # linkable is a proper polymorphic FK with index — faster and Rails-standard.
   # metadata['synced_email_id'] is kept as audit data, not for querying.
+  #
+  # ⚠️ DO NOT REMOVE .unscoped (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: WarehouseDocument has acts_as_tenant which filters by current_tenant.
+  #      IMAP emails may have a different tenant_id than the viewing user
+  #      (e.g., email tenant=1, user tenant=2). The linkable FK already ensures
+  #      we only get THIS email's attachments - tenant scoping is redundant here
+  #      and actively breaks attachment display.
+  # ❌ WRONG: WarehouseDocument.where(...) - silently returns [] due to tenant mismatch
+  # ✅ CORRECT: WarehouseDocument.unscoped.where(...) - linkable FK is sufficient security
+  # ════════════════════════════════════════════
   def attachment_documents
-    WarehouseDocument.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
+    WarehouseDocument.unscoped.where(source_type: 'email_attachment', linkable_type: 'SyncedEmail', linkable_id: id)
   end
 
   # Get document attachments (exclude small signature images, keep large photos)
@@ -569,7 +584,11 @@ class SyncedEmail < ApplicationRecord
     matches.concat(find_jobs_via_contact_emails)
 
     # Deduplicate and sort by confidence
+    # FRC (Feb 2026): Guard against nil jobs (e.g., deleted jobs still referenced by
+    # JobAddressSearch records). Without this, .uniq crashes with "undefined method 'id' for nil"
+    # which causes transient errors in OrgEmailSync → "Retrying" status for all mailboxes.
     matches
+      .select { |m| m[:job].present? }
       .uniq { |m| m[:job].id }
       .sort_by { |m| -m[:confidence] }
   end
@@ -700,6 +719,7 @@ class SyncedEmail < ApplicationRecord
     # Find jobs via address search terms in body
     JobAddressSearch.where(term_type: %w[full_address street_name]).find_each do |search|
       next unless searchable_text.include?(search.search_term)
+      next if search.job.blank?
 
       confidence = case search.term_type
       when 'full_address' then 0.85
@@ -717,6 +737,7 @@ class SyncedEmail < ApplicationRecord
 
     # Deduplicate by job ID, keeping highest confidence
     matches
+      .select { |m| m[:job].present? }
       .group_by { |m| m[:job].id }
       .map { |_job_id, job_matches| job_matches.max_by { |m| m[:confidence] } }
       .sort_by { |m| -m[:confidence] }
@@ -1098,7 +1119,7 @@ class SyncedEmail < ApplicationRecord
     end
 
     # Step 3: Record metadata for all real attachments (fast, no downloads)
-    record_attachment_metadata!(real_attachments, used_mailbox)
+    record_attachment_metadata!(real_attachments, used_mailbox, outlook_id: used_attempt[:outlook_id])
 
     # Step 4: Download blobs for any attachments missing content
     Rails.logger.info "[SyncedEmail] Downloading pending blobs for email #{id} via Graph (#{used_mailbox})"
@@ -1145,7 +1166,7 @@ class SyncedEmail < ApplicationRecord
   # ════════════════════════════════════════════════════════════════════
 
   # Step 1: Record metadata (fast, no downloads)
-  def record_attachment_metadata!(real_attachments, used_mailbox)
+  def record_attachment_metadata!(real_attachments, used_mailbox, outlook_id: nil)
     real_attachments.each do |att_meta|
       filename = att_meta["name"] || "attachment"
       graph_attachment_id = att_meta["id"]
@@ -1177,6 +1198,7 @@ class SyncedEmail < ApplicationRecord
           "synced_email_id" => id.to_s,
           "outlook_attachment_id" => graph_attachment_id,
           "mailbox" => used_mailbox,
+          "outlook_id" => outlook_id,
           "blob_status" => "pending"
         }.compact
       )
@@ -1195,21 +1217,52 @@ class SyncedEmail < ApplicationRecord
   # Tries ALL pending blobs (don't stop at first failure).
   # Raises after attempting all if any failed - ensures visibility while
   # maximizing data recovery per run.
+  # FRC (Feb 2026): MAX_BLOB_RETRIES prevents infinite retry loops.
+  # Old emails (15-year backfill) may have attachments purged from Exchange but
+  # metadata still exists. These return 404 on every download attempt and were
+  # retried every 15 minutes forever, wasting API calls and memory.
+  MAX_BLOB_RETRIES = 3
+
   def download_pending_blobs!(client, attempt, used_mailbox)
     blobless_docs = attachment_documents.reload.where(storage_blob_id: nil)
     return if blobless_docs.empty?
 
-    Rails.logger.info "[SyncedEmail] Downloading #{blobless_docs.count} pending blobs for email #{id}"
+    # Skip permanently failed attachments (exhausted retries)
+    retryable_docs = blobless_docs.reject { |doc| doc.metadata&.dig("blob_status") == "permanently_failed" }
+    return if retryable_docs.empty?
+
+    # ⚠️ FRC (Feb 2026): Only download attachments recorded from THIS mailbox.
+    # Microsoft Graph attachment IDs are mailbox-specific. An attachment ID from
+    # accounts@ does NOT exist in abbie@'s store → 404 "object not found".
+    # Docs recorded from a different mailbox will be handled when that mailbox's
+    # credential is used in a future retry cycle.
+    retryable_docs = retryable_docs.select do |doc|
+      metadata_mailbox = doc.metadata&.dig("mailbox")
+      metadata_mailbox.nil? || metadata_mailbox.downcase == used_mailbox.downcase
+    end
+    return if retryable_docs.empty?
+
+    Rails.logger.info "[SyncedEmail] Downloading #{retryable_docs.count} pending blobs for email #{id}"
 
     failed_docs = []
 
-    blobless_docs.each do |doc|
+    retryable_docs.each do |doc|
       graph_attachment_id = doc.metadata&.dig("outlook_attachment_id")
       next unless graph_attachment_id.present?
 
       result = client.download_email_attachment(attempt[:mailbox], attempt[:outlook_id], graph_attachment_id)
       unless result
-        doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => "Download returned nil"))
+        retry_count = (doc.metadata&.dig("blob_retry_count") || 0).to_i + 1
+        new_status = retry_count >= MAX_BLOB_RETRIES ? "permanently_failed" : "failed"
+        doc.update!(metadata: (doc.metadata || {}).merge(
+          "blob_status" => new_status,
+          "blob_error" => "Download returned nil",
+          "blob_retry_count" => retry_count,
+          "last_retry_at" => Time.current.iso8601
+        ))
+        if new_status == "permanently_failed"
+          Rails.logger.warn "[SyncedEmail] Attachment #{doc.ui_name} permanently failed after #{retry_count} attempts (email #{id})"
+        end
         failed_docs << { doc_id: doc.id, error: "Download returned nil" }
         next
       end
@@ -1233,12 +1286,19 @@ class SyncedEmail < ApplicationRecord
     rescue StandardError => e
       Rails.logger.error "[SyncedEmail] Failed to download blob for doc #{doc.id} (#{doc.ui_name}): #{e.class}: #{e.message}"
       Rails.logger.error e.backtrace.first(3).join("\n")
-      doc.update!(metadata: (doc.metadata || {}).merge("blob_status" => "failed", "blob_error" => e.message.truncate(200))) rescue nil
+      retry_count = (doc.metadata&.dig("blob_retry_count") || 0).to_i + 1
+      new_status = retry_count >= MAX_BLOB_RETRIES ? "permanently_failed" : "failed"
+      doc.update!(metadata: (doc.metadata || {}).merge(
+        "blob_status" => new_status,
+        "blob_error" => e.message.truncate(200),
+        "blob_retry_count" => retry_count,
+        "last_retry_at" => Time.current.iso8601
+      )) rescue nil
       failed_docs << { doc_id: doc.id, error: "#{e.class}: #{e.message.truncate(100)}" }
     end
 
     if failed_docs.any?
-      raise "Failed to download #{failed_docs.count}/#{blobless_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
+      raise "Failed to download #{failed_docs.count}/#{retryable_docs.count} blobs for email #{id}: #{failed_docs.map { |f| f[:error] }.first}"
     end
   end
 
@@ -1309,6 +1369,13 @@ class SyncedEmail < ApplicationRecord
         content, filename: filename, content_type: content_type
       )
 
+      metadata = {
+        "synced_email_id" => id.to_s,
+        "mailbox" => mailbox,
+        "source" => "imap"
+      }
+      metadata["content_id"] = att[:content_id] if att[:content_id].present?
+
       WarehouseDocumentCreator.create!(
         filename: filename,
         source_type: "email_attachment",
@@ -1316,11 +1383,7 @@ class SyncedEmail < ApplicationRecord
         storage_blob: blob,
         file_size: byte_size.positive? ? byte_size : blob.file_size,
         content_type: content_type || blob.content_type,
-        metadata: {
-          "synced_email_id" => id.to_s,
-          "mailbox" => mailbox,
-          "source" => "imap"
-        }.compact
+        metadata: metadata.compact
       )
 
       blob.increment!(:reference_count)

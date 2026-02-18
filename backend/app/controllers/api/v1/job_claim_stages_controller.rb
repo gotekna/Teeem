@@ -9,7 +9,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages
       def index
-        stages = @job.job_claim_stages.includes(:external_invoice, :sm_task).ordered
+        stages = @job.job_claim_stages.includes(:external_invoice, :sm_task, :profit_centre).ordered
 
         # Summary calculations (handle nil values)
         # SSoT: contract_price is THE ONE
@@ -62,7 +62,7 @@ module Api
 
       # GET /api/v1/jobs/:job_id/claim_stages/:id
       def show
-        render json: { success: true, data: stage_json(@stage) }
+        render json: { success: true, data: stage_detail_json(@stage) }
       end
 
       # POST /api/v1/jobs/:job_id/claim_stages
@@ -511,7 +511,7 @@ module Api
       def stage_params
         params.require(:job_claim_stage).permit(
           :name, :percentage, :expected_amount, :sequence_order, :description,
-          :retainage_percentage
+          :retainage_percentage, :profit_centre_id
         )
       end
 
@@ -572,9 +572,73 @@ module Api
             pending_push: invoice.pending_push
           } : nil,
 
+          # Profit Centre
+          profit_centre_id: stage.profit_centre_id,
+          profit_centre: stage.profit_centre ? {
+            id: stage.profit_centre.id,
+            code: stage.profit_centre.code,
+            name: stage.profit_centre.name
+          } : nil,
+
           created_at: stage.created_at,
           updated_at: stage.updated_at
         }
+      end
+
+      def stage_detail_json(stage)
+        base = stage_json(stage)
+        invoice = stage.external_invoice
+
+        if invoice
+          base[:invoice] = base[:invoice].merge(
+            line_items: invoice.line_items || [],
+            tracking_data: invoice.tracking_data || [],
+            subtotal: invoice.subtotal&.to_f,
+            total_tax: invoice.total_tax&.to_f
+          )
+        end
+
+        # Find most recent completed PDF generation for this claim stage
+        pdf_gen = PdfGeneration.where("generator_params->>'claim_stage_id' = ?", stage.id.to_s)
+                               .where(status: "completed")
+                               .order(created_at: :desc)
+                               .first
+        base[:pdf_generation_id] = pdf_gen&.id
+
+        # Company details (from TenantSetting - SSoT for company info)
+        settings = TenantSetting.instance
+        base[:company] = {
+          name: settings&.company_name,
+          abn: settings&.abn,
+          address: settings&.address,
+          phone: settings&.phone,
+          email: settings&.email,
+          logo_url: settings&.logo_url
+        }
+
+        # Client/contact details (from job's client or primary contact)
+        contact = @job.client || @job.primary_contact
+        if contact
+          base[:client] = {
+            name: contact.company_name_or_trust.presence || contact.display_name,
+            abn: contact.abn,
+            address: contact.address,
+            suburb: contact.suburb,
+            state: contact.state,
+            postcode: contact.postcode,
+            email: contact.email,
+            phone: contact.office_phone || contact.mobile_phone
+          }
+        end
+
+        # Job context
+        base[:job_context] = {
+          job_number: @job.job_number,
+          name: @job.name,
+          contract_price: @job.contract_price&.to_f
+        }
+
+        base
       end
 
       def available_invoices_json

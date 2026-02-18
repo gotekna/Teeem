@@ -72,3 +72,7 @@ tmp/
 
 # User-specific files
 David
+
+# Working files
+*.csv
+.claude/pr-progress.json

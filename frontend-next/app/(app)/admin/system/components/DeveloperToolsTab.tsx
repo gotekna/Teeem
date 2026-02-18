@@ -326,28 +326,22 @@ export function DeveloperToolsTab({ subtab }: DeveloperToolsTabProps) {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start">
-          <TabsTrigger value="tables" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
+          <TabsTrigger value="tables">
             Database Tables
           </TabsTrigger>
-          <TabsTrigger value="columns" className="flex items-center gap-2">
-            <Columns className="h-4 w-4" />
+          <TabsTrigger value="columns">
             Columns
           </TabsTrigger>
-          <TabsTrigger value="schema" className="flex items-center gap-2">
-            <FileCode className="h-4 w-4" />
+          <TabsTrigger value="schema">
             Database Schema
           </TabsTrigger>
-          <TabsTrigger value="blacklist" className="flex items-center gap-2">
-            <Ban className="h-4 w-4" />
+          <TabsTrigger value="blacklist">
             Email Blacklist
           </TabsTrigger>
-          <TabsTrigger value="branches" className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4" />
+          <TabsTrigger value="branches">
             Git Branches
           </TabsTrigger>
-          <TabsTrigger value="agents" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
+          <TabsTrigger value="agents">
             Agent Status
           </TabsTrigger>
         </TabsList>

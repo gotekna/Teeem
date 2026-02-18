@@ -105,10 +105,18 @@ function LoginForm() {
     window.location.href = `${getApiBaseUrl()}/auth/microsoft_office365`;
   };
 
-  if (loading) {
+  // Show spinner during AuthContext loading, token passthrough, or post-login redirect
+  // This prevents the login form from flashing when the user is already being authenticated
+  const hasTokenInUrl = searchParams.get('token');
+  if (loading || hasTokenInUrl || isAuthenticated || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spinner />
+      <div className="min-h-screen flex items-center justify-center bg-muted/50">
+        <div className="flex flex-col items-center gap-3">
+          <Spinner />
+          {(isLoading || hasTokenInUrl) && (
+            <p className="text-sm text-muted-foreground">Signing in...</p>
+          )}
+        </div>
       </div>
     );
   }

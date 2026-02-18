@@ -6,7 +6,7 @@ module Api
       # GET /api/v1/consolidation
       # Returns list of company groups with consolidation summary
       def index
-        groups = CompanyGroup.active.includes(:companies)
+        groups = CompanyGroup.active.includes(:corporate_companies)
 
         render json: {
           success: true,
@@ -108,7 +108,7 @@ module Api
 
         all_mismatches = []
 
-        CompanyGroup.active.includes(:companies).each do |group|
+        CompanyGroup.active.includes(:corporate_companies).each do |group|
           next if group.corporate_companies.count < 2
 
           service = ConsolidationReconciliationService.new(group, as_of_date: as_of_date)

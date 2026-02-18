@@ -192,20 +192,16 @@ export function SMGanttTab() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="display" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
+          <TabsTrigger value="display">
             Display
           </TabsTrigger>
-          <TabsTrigger value="colors" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
+          <TabsTrigger value="colors">
             Colors
           </TabsTrigger>
-          <TabsTrigger value="behavior" className="flex items-center gap-2">
-            <Settings className="h-4 w-4" />
+          <TabsTrigger value="behavior">
             Behavior
           </TabsTrigger>
-          <TabsTrigger value="dimensions" className="flex items-center gap-2">
-            <Layers className="h-4 w-4" />
+          <TabsTrigger value="dimensions">
             Dimensions
           </TabsTrigger>
         </TabsList>

@@ -107,6 +107,15 @@ class ClaimStageMatcherService
       return match if match
     end
 
+    # Priority 1.5: Try match_keywords if present on stage
+    if stage.match_keywords.present?
+      keywords_regex = build_keywords_regex(stage.match_keywords)
+      if keywords_regex
+        match = invoices.find { |inv| description_matches?(inv, keywords_regex) }
+        return match if match
+      end
+    end
+
     # Priority 2: Fall back to stage name matching
     stage_name_regex = build_name_regex(stage.name)
     invoices.find do |inv|
@@ -140,6 +149,17 @@ class ClaimStageMatcherService
     end
 
     fields_to_check.compact.any? { |field| field.to_s.match?(regex) }
+  end
+
+  # Build regex from comma-separated keywords (e.g., "lock,lockup,enclosed")
+  def build_keywords_regex(keywords_string)
+    keywords = keywords_string.split(",").map(&:strip).reject(&:blank?)
+    return nil if keywords.empty?
+
+    pattern = keywords.map { |k| Regexp.escape(k) }.join("|")
+    Regexp.new(pattern, Regexp::IGNORECASE)
+  rescue RegexpError
+    nil
   end
 
   # Build a regex from stage name for matching

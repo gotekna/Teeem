@@ -259,16 +259,13 @@ export function TemplateEditor({ templateKey, onClose }: TemplateEditorProps) {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="content" className="flex items-center gap-2">
-            <FileText className="h-4 w-4" />
+          <TabsTrigger value="content">
             Template Content
           </TabsTrigger>
-          <TabsTrigger value="layout" className="flex items-center gap-2">
-            <Layout className="h-4 w-4" />
+          <TabsTrigger value="layout">
             Layout (Header/Footer)
           </TabsTrigger>
-          <TabsTrigger value="preview" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
+          <TabsTrigger value="preview">
             Preview
           </TabsTrigger>
         </TabsList>

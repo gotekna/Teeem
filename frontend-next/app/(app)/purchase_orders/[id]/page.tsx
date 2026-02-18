@@ -79,13 +79,14 @@ import {
   type POSupplier as Supplier,
   type POPricebookItem as PricebookItem,
   type POLineItem as LineItem,
+  type POProfitCentre as ProfitCentre,
   type POJob as Job,
   type POSmTask as SmTask,
-  GST_CODES,
-  getGstRate,
+  getGstRateFromCodes,
   STATUS_OPTIONS,
   STATUS_BADGE_VARIANTS,
 } from "@/lib/constants/purchase-order-constants";
+import { useGstCodes } from "@/lib/hooks/useGstCodes";
 
 // Schedule Sync Preview Types
 interface SyncTaskPredecessor {
@@ -221,6 +222,9 @@ export default function PurchaseOrderDetailPage() {
   const router = useRouter();
   const recordId = params.id as string;
 
+  // SSoT: Dynamic GST codes from database (falls back to static constants)
+  const { gstCodes } = useGstCodes();
+
   const [purchaseOrder, setPurchaseOrder] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -252,6 +256,9 @@ export default function PurchaseOrderDetailPage() {
   const [notes, setNotes] = useState("");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
+  // Profit centres for the job
+  const [profitCentres, setProfitCentres] = useState<ProfitCentre[]>([]);
 
   // Budget lockdown state
   const [budgetLocked, setBudgetLocked] = useState(false);
@@ -324,6 +331,24 @@ export default function PurchaseOrderDetailPage() {
       loadSmTasksForJob(purchaseOrder.job_id);
     }
   }, [purchaseOrder?.job_id, taskItems.length]);
+
+  // Load profit centres for the job (for line item assignment)
+  useEffect(() => {
+    if (!purchaseOrder?.job_id) return;
+    const loadProfitCentres = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: ProfitCentre[] }>(
+          `/api/v1/profit_centres?job_id=${purchaseOrder.job_id}`
+        );
+        if (response?.success && response.data) {
+          setProfitCentres(response.data);
+        }
+      } catch {
+        // Non-critical - profit centre picker just won't show options
+      }
+    };
+    loadProfitCentres();
+  }, [purchaseOrder?.job_id]);
 
   // SSoT: Auto-populate required date from linked task
   // This runs after taskItems are loaded, since loadPurchaseOrder runs before tasks load
@@ -553,6 +578,7 @@ export default function PurchaseOrderDetailPage() {
             .map((item, index) => ({
               id: item.id,
               pricebook_item_id: item.pricebook_item_id || null,
+              profit_centre_id: item.profit_centre_id || null,
               description: item.description,
               quantity: item.quantity,
               unit_price: item.unit_price,
@@ -1001,7 +1027,7 @@ export default function PurchaseOrderDetailPage() {
     );
     const gst = activeItems.reduce(
       (sum, item) =>
-        sum + (item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code),
+        sum + (item.quantity || 0) * (item.unit_price || 0) * getGstRateFromCodes(item.gst_code, gstCodes),
       0
     );
     return { subtotal, gst, total: subtotal + gst };
@@ -1540,6 +1566,7 @@ export default function PurchaseOrderDetailPage() {
                   <TableHead className="w-[100px] text-right py-2 border-r">SUBTOTAL</TableHead>
                   <TableHead className="w-[80px] text-right py-2 border-r">GST</TableHead>
                   <TableHead className="w-[100px] text-right py-2 border-r">TOTAL</TableHead>
+                  <TableHead className="w-[130px] py-2 border-r">PROFIT CENTRE</TableHead>
                   <TableHead className="w-[50px] py-2"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -1675,7 +1702,7 @@ export default function PurchaseOrderDetailPage() {
                             style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
                             disabled={!!item.pricebook_item_id}
                           >
-                            {GST_CODES.find((c) => c.value === (item.gst_code || "GST"))?.label || "GST"}
+                            {gstCodes.find((c) => c.value === (item.gst_code || "GST"))?.label || "GST"}
                             {!item.pricebook_item_id && (
                               <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
                             )}
@@ -1686,7 +1713,7 @@ export default function PurchaseOrderDetailPage() {
                             <Command>
                               <CommandList>
                                 <CommandGroup>
-                                  {GST_CODES.map((gstOption) => (
+                                  {gstCodes.map((gstOption) => (
                                     <CommandItem
                                       key={gstOption.value}
                                       value={gstOption.value}
@@ -1714,10 +1741,66 @@ export default function PurchaseOrderDetailPage() {
                       {formatCurrency((item.quantity || 0) * (item.unit_price || 0))}
                     </TableCell>
                     <TableCell className={cn("text-right py-1 text-base border-b border-r", shouldGreyOut ? "text-muted-foreground" : "text-muted-foreground")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRate(item.gst_code))}
+                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * getGstRateFromCodes(item.gst_code, gstCodes))}
                     </TableCell>
                     <TableCell className={cn("text-right py-1 text-base border-b border-r", shouldGreyOut ? "text-muted-foreground" : "font-medium")} style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRate(item.gst_code)))}
+                      {formatCurrency((item.quantity || 0) * (item.unit_price || 0) * (1 + getGstRateFromCodes(item.gst_code, gstCodes)))}
+                    </TableCell>
+                    <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
+                      {profitCentres.length > 0 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                "w-full justify-between text-xs border-0 rounded-none h-10 focus-visible:ring-0 focus-visible:ring-offset-0",
+                                shouldGreyOut && "text-muted-foreground"
+                              )}
+                              style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                            >
+                              {item.profit_centre ? item.profit_centre.code : <span className="text-muted-foreground">-</span>}
+                              <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[200px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Search..." className="h-9" />
+                              <CommandList>
+                                <CommandEmpty>No profit centres</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="__none__"
+                                    onSelect={() => {
+                                      updateLineItem(originalIndex, "profit_centre_id", null);
+                                      updateLineItem(originalIndex, "profit_centre", null);
+                                    }}
+                                  >
+                                    <Check className={cn("mr-2 h-4 w-4", !item.profit_centre_id ? "opacity-100" : "opacity-0")} />
+                                    <span className="text-muted-foreground">None</span>
+                                  </CommandItem>
+                                  {profitCentres.map((pc) => (
+                                    <CommandItem
+                                      key={pc.id}
+                                      value={`${pc.code} ${pc.name}`}
+                                      onSelect={() => {
+                                        updateLineItem(originalIndex, "profit_centre_id", pc.id);
+                                        updateLineItem(originalIndex, "profit_centre", pc);
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 h-4 w-4", item.profit_centre_id === pc.id ? "opacity-100" : "opacity-0")} />
+                                      <span className="font-medium">{pc.code}</span>
+                                      <span className="ml-1 text-muted-foreground truncate">{pc.name}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <span className="text-muted-foreground text-xs px-3">-</span>
+                      )}
                     </TableCell>
                     <TableCell className="py-1 border-b" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <Button

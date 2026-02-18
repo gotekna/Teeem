@@ -116,7 +116,6 @@ module Performance
             view_time_ms: data[:view_time_ms],
             status_code: data[:status_code],
             user_id: data[:user_id],
-            organization_id: data[:organization_id],
             controller_action: data[:controller_action],
             metadata: data[:metadata] || {},
             created_at: data[:sampled_at] || Time.current,

@@ -16,7 +16,9 @@
 class BackfillImapEmailBlobsJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Moved from :default to :low to reduce queue pressure
+  # Blob backfill is not user-facing; can run on Worker 2's idle threads
+  queue_as :low
 
   # Max runtime before yielding back to the scheduler
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes

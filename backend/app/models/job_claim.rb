@@ -6,6 +6,7 @@ class JobClaim < ApplicationRecord
   # Associations
   belongs_to :job
   belongs_to :contact, optional: true
+  belongs_to :profit_centre, optional: true
 
   # Enums
   enum :status, {

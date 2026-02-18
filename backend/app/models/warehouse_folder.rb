@@ -607,7 +607,13 @@ class WarehouseFolder < ApplicationRecord
   end
 
   def sync_tab_key_from_display_name
-    return if tab_key.present?
+    # Always sanitize existing tab_key to prevent consecutive dashes
+    # which cause Next.js client-side routing to freeze (FRC Feb 2026)
+    if tab_key.present?
+      sanitized = tab_key.gsub(/-+/, '-').gsub(/^-|-$/, '')
+      self.tab_key = sanitized if sanitized != tab_key
+      return
+    end
     return if display_name.blank?
 
     self.tab_key = display_name

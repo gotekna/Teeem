@@ -29,8 +29,9 @@ import {
   type PurchaseOrder,
   STATUS_BADGE_VARIANTS,
   STATUS_OPTIONS,
-  getGstRate,
+  getGstRateFromCodes,
 } from "@/lib/constants/purchase-order-constants";
+import { useGstCodes } from "@/lib/hooks/useGstCodes";
 
 interface POSummaryViewProps {
   poId: string | number;
@@ -43,6 +44,7 @@ function formatDate(dateStr: string | null | undefined): string {
 
 export function POSummaryView({ poId }: POSummaryViewProps) {
   const router = useRouter();
+  const { gstCodes } = useGstCodes();
   const [po, setPo] = useState<PurchaseOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export function POSummaryView({ poId }: POSummaryViewProps) {
   const activeLineItems = po.line_items?.filter(li => !li._destroy) || [];
   const subtotal = activeLineItems.reduce((sum, li) => sum + (li.quantity * li.unit_price), 0);
   const gst = activeLineItems.reduce((sum, li) => {
-    const rate = getGstRate(li.gst_code);
+    const rate = getGstRateFromCodes(li.gst_code, gstCodes);
     return sum + (li.quantity * li.unit_price * rate);
   }, 0);
   const total = subtotal + gst;
@@ -212,7 +214,7 @@ export function POSummaryView({ poId }: POSummaryViewProps) {
               ) : (
                 activeLineItems.map((li, idx) => {
                   const lineTotal = li.quantity * li.unit_price;
-                  const lineGst = lineTotal * getGstRate(li.gst_code);
+                  const lineGst = lineTotal * getGstRateFromCodes(li.gst_code, gstCodes);
                   return (
                     <TableRow key={li.id || idx}>
                       <TableCell className="text-xs font-mono">

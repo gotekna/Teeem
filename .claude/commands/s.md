@@ -50,9 +50,9 @@ echo "🔍 Pre-commit validation..."
 # Check TypeScript compiles (catches type errors BEFORE they hit Vercel)
 if git status --short | grep -E "frontend-next/.*\.(ts|tsx)$" > /dev/null; then
   echo "Checking TypeScript..."
-  cd frontend-next && npx tsc --noEmit 2>&1 | head -30
+  # ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+  (cd frontend-next && npx tsc --noEmit 2>&1 | head -30)
   TSC_EXIT=$?
-  cd ..
   if [ $TSC_EXIT -ne 0 ]; then
     echo "❌ TypeScript errors - fix before committing"
     exit 1
@@ -137,12 +137,11 @@ git diff --name-only HEAD~10 HEAD 2>/dev/null | grep -q "^backend/" && echo "BAC
 # Check migrations can run locally
 if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/db/migrate/" > /dev/null; then
   echo "Checking migrations..."
-  cd backend && bin/rails db:migrate:status > /dev/null 2>&1 || {
+  # ⚠️ Subshell prevents cwd change (protects VS Code extension host)
+  (cd backend && bin/rails db:migrate:status > /dev/null 2>&1) || {
     echo "❌ Migration check failed - fix locally first"
-    cd ..
     exit 1
   }
-  cd ..
   echo "✅ Migrations OK"
 fi
 
@@ -171,20 +170,20 @@ if git diff --name-only HEAD~10 HEAD 2>/dev/null | grep "^backend/" > /dev/null;
   done
 fi
 
-cd "$DEPLOY_DIR"
-git init
-git add .
-git commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - it breaks VS Code's working directory tracking
+# Use 'git -C' to run git commands in temp dir without changing cwd
+git -C "$DEPLOY_DIR" init
+git -C "$DEPLOY_DIR" add .
+git -C "$DEPLOY_DIR" commit -m "Deploy $(date +%Y%m%d-%H%M%S)"
 
 # Deploy to web app
-git remote add heroku https://git.heroku.com/teeem-staging.git
-git push heroku HEAD:main --force
+git -C "$DEPLOY_DIR" remote add heroku https://git.heroku.com/teeem-staging.git
+git -C "$DEPLOY_DIR" push heroku HEAD:main --force
 
 # Deploy to worker app (same code, separate slug with heavy gems)
-git remote add worker https://git.heroku.com/teeem-shared-worker.git
-git push worker HEAD:main --force
+git -C "$DEPLOY_DIR" remote add worker https://git.heroku.com/teeem-shared-worker.git
+git -C "$DEPLOY_DIR" push worker HEAD:main --force
 
-cd /Users/robertharder/GitHub/teeem
 rm -rf "$DEPLOY_DIR"
 ```
 

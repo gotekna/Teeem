@@ -1489,6 +1489,29 @@ module Api
             nil
           end
 
+          # Data quality check: Bills with empty line_items need backfill
+          # Empty line_items means incremental sync fetched without pagination,
+          # resulting in truncated data (no line items, no tracking categories)
+          bills_scope = base_scope_no_drafts.bills
+          if xero_org_id.present?
+            bills_scope = bills_scope.where(xero_org_id: xero_org_id)
+          end
+          total_bills = bills_scope.count
+          bills_missing_line_items = bills_scope.where("line_items = '[]'::jsonb").count
+          bills_missing_tracking = bills_scope.where("tracking_data = '[]'::jsonb").count
+          bills_without_jobs = bills_scope.where(job_id: nil).count
+          needs_backfill = bills_missing_line_items > 0
+
+          data_quality = {
+            needs_backfill: needs_backfill,
+            bills_total: total_bills,
+            bills_missing_line_items: bills_missing_line_items,
+            bills_missing_tracking: bills_missing_tracking,
+            bills_without_jobs: bills_without_jobs,
+            backfill_message: needs_backfill ?
+              "#{bills_missing_line_items} of #{total_bills} bills have empty line items - run full sync to backfill" : nil
+          }
+
           # ============================================
           # STAGE 2: PDF Sync (Xero -> StorageBlob)
           # ============================================
@@ -1498,19 +1521,27 @@ module Api
           pdf_eligible_invoices = invoices_with_contacts.where.not(status: "draft")
           total_pdf_eligible = pdf_eligible_invoices.count
 
-          # SSoT: Count PDFs synced via WarehouseDocument (universal document storage)
+          # SSoT: Count synced docs via WarehouseDocument (universal document storage)
           # WarehouseDocument + StorageBlob is THE ONE source of truth (Jan 2026)
+          # Feb 2026: Bills don't get auto-generated PDFs from Xero - is_bill_record = "processed"
           # Must use EXACT same filters as total_pdf_eligible
-          # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           pdf_query = WarehouseDocument.where(source_type: "xero")
-                                       .where("metadata->>'is_primary' = ?", "true")
-                                       .where.not(storage_blob_id: nil)
-                                       .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
                                        .where(documentable_type: "ExternalInvoice")
                                        .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
                                        .where.not(external_invoices: { contact_id: nil })
                                        .where.not(external_invoices: { status: "draft" })
                                        .where.not(external_invoices: { status: %w[voided deleted] })
+                                       .where(<<~SQL.squish)
+                                         (warehouse_documents.metadata->>'is_bill_record' = 'true')
+                                         OR
+                                         (warehouse_documents.metadata->>'is_primary' = 'true'
+                                          AND warehouse_documents.storage_blob_id IS NOT NULL
+                                          AND EXISTS (
+                                            SELECT 1 FROM storage_blobs
+                                            WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+                                            AND storage_blobs.content_hash IS NOT NULL
+                                          ))
+                                       SQL
 
           if xero_org_id.present?
             pdf_query = pdf_query.where(external_invoices: { xero_org_id: xero_org_id })
@@ -1584,15 +1615,24 @@ module Api
           # metadata->>'invoice_type' stores the invoice type from ExternalInvoice
           # CRITICAL: Check content_hash to verify blob has actual file content (not placeholder)
           bills_total = pdf_eligible_invoices.bills.count
+          # SSoT: Bills synced = has actual PDF blob OR has is_bill_record marker
+          # Bills don't get auto-generated PDFs from Xero - only supplier attachments
           bills_query = WarehouseDocument.joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
-                                         .joins(:storage_blob)
                                          .where(source_type: "xero", documentable_type: "ExternalInvoice")
-                                         .where("warehouse_documents.metadata->>'is_primary' = ?", "true")
-                                         .where.not(storage_blob_id: nil)
-                                         .where.not(storage_blobs: { content_hash: nil })
                                          .where(external_invoices: { invoice_type: "bill" })
                                          .where.not(external_invoices: { status: "draft" })
                                          .where.not(external_invoices: { status: %w[voided deleted] })
+                                         .where(<<~SQL.squish)
+                                           (warehouse_documents.metadata->>'is_bill_record' = 'true')
+                                           OR
+                                           (warehouse_documents.metadata->>'is_primary' = 'true'
+                                            AND warehouse_documents.storage_blob_id IS NOT NULL
+                                            AND EXISTS (
+                                              SELECT 1 FROM storage_blobs
+                                              WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+                                              AND storage_blobs.content_hash IS NOT NULL
+                                            ))
+                                         SQL
           bills_query = bills_query.where(external_invoices: { xero_org_id: xero_org_id }) if xero_org_id.present?
           bills_with_pdfs = bills_query.distinct.count("warehouse_documents.documentable_id")
 
@@ -1880,7 +1920,8 @@ module Api
                 next_sync_at: next_invoice_sync,
                 schedule: "Every 5 minutes",
                 breakdown: invoice_breakdown,
-                blocker: stage1_blocker
+                blocker: stage1_blocker,
+                data_quality: data_quality
               },
 
               # Stage 2: PDF Download (Xero -> Active Storage)
@@ -1896,7 +1937,7 @@ module Api
                 schedule: pdfs_pending > 100 ? "Smart sync: max speed (every 5 min)" : pdfs_pending > 0 ? "Smart sync: slowing down (every 10 min)" : "Smart sync: near-live (every 30 min)",
                 synced_last_24h: pdfs_last_24h,
                 breakdown: {
-                  bills: { total: bills_total, synced: bills_with_pdfs },
+                  bills: { total: bills_total, synced: bills_with_pdfs, no_auto_pdf: true },
                   sales_invoices: { total: sales_total, synced: sales_with_pdfs },
                   credit_notes: { total: credit_notes_total, synced: credit_notes_with_pdfs },
                   quotes: { total: quotes_total, synced: quotes_with_pdfs }
@@ -2067,6 +2108,93 @@ module Api
           Rails.logger.error("Xero sync_stats error: #{e.message}")
           Rails.logger.error(e.backtrace.first(5).join("\n"))
           render_error("Failed to get sync stats: #{e.message}", status: :internal_server_error)
+        end
+      end
+
+      # GET /api/v1/xero/contact_sync_sessions
+      # Returns contact sync pipeline status: active sessions, recent completions,
+      # auto-cancelled sessions, and rate limit usage per tenant.
+      # FRC (Feb 2026): Added to give UI visibility into the self-healing pipeline
+      # so users can confirm contact sync is healthy after the deadlock fix.
+      def contact_sync_sessions
+        begin
+          # Get recent sessions (last 24h)
+          recent_sessions = XeroSyncSession.contacts
+                              .where("created_at > ?", 24.hours.ago)
+                              .order(created_at: :desc)
+
+          active = recent_sessions.active
+          completed = recent_sessions.completed
+          failed = recent_sessions.failed
+
+          # Auto-cancelled = failed with our specific error messages
+          auto_cancelled = failed.where("error_message LIKE ?", "Auto-cancelled%")
+
+          # Rate limit usage per tenant
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.where(status: %w[connected degraded])
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant).where(status: %w[connected degraded])
+                        end
+
+          rate_limits = credentials.map do |cred|
+            usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
+            {
+              tenant_id: cred.tenant_id,
+              tenant_name: cred.tenant_name,
+              daily_used: usage[:daily][:used],
+              daily_limit: usage[:daily][:limit],
+              daily_percentage: usage[:daily][:percentage],
+              minute_used: usage[:minute][:used],
+              minute_limit: usage[:minute][:limit],
+              can_make_request: usage[:can_make_request],
+              locked_out: usage[:locked_out]
+            }
+          end
+
+          # Overall pipeline status
+          any_locked = rate_limits.any? { |r| r[:locked_out] }
+          daily_max_pct = rate_limits.map { |r| r[:daily_percentage] }.max || 0
+
+          pipeline_status = if active.any?
+                              "syncing"
+                            elsif any_locked
+                              "rate_limited"
+                            elsif daily_max_pct >= 90
+                              "near_daily_limit"
+                            else
+                              "healthy"
+                            end
+
+          render json: {
+            success: true,
+            data: {
+              pipeline_status: pipeline_status,
+              active_sessions: active.count,
+              completed_24h: completed.count,
+              failed_24h: failed.count,
+              auto_cancelled_24h: auto_cancelled.count,
+              daily_max_percentage: daily_max_pct.round(1),
+              rate_limits: rate_limits,
+              recent_sessions: recent_sessions.limit(10).map { |s|
+                {
+                  id: s.id,
+                  tenant_id: s.tenant_id,
+                  status: s.status,
+                  sync_mode: s.sync_mode,
+                  fetched_count: s.fetched_count,
+                  processed_count: s.processed_count,
+                  error_message: s.error_message,
+                  created_at: s.created_at,
+                  completed_at: s.completed_at,
+                  duration_human: s.duration_human
+                }
+              }
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero contact_sync_sessions error: #{e.message}")
+          render_error("Failed to get contact sync sessions: #{e.message}", status: :internal_server_error)
         end
       end
 
@@ -3436,17 +3564,26 @@ module Api
           .where.not(status: "draft")
           .count
 
-        # Count invoices WITH synced PDFs
+        # Count invoices WITH synced PDFs OR bill record markers
+        # SSoT: Bills don't get auto-generated PDFs, so is_bill_record = "processed"
         synced = WarehouseDocument
           .where(source_type: "xero")
-          .where("metadata->>'is_primary' = ?", "true")
-          .where.not(storage_blob_id: nil)
-          .joins(:storage_blob).where.not(storage_blobs: { content_hash: nil })
           .where(documentable_type: "ExternalInvoice")
           .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
           .where(external_invoices: { xero_org_id: xero_tenant_id })
           .where.not(external_invoices: { status: "draft" })
           .where.not(external_invoices: { status: %w[voided deleted] })
+          .where(<<~SQL.squish)
+            (warehouse_documents.metadata->>'is_bill_record' = 'true')
+            OR
+            (warehouse_documents.metadata->>'is_primary' = 'true'
+             AND warehouse_documents.storage_blob_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1 FROM storage_blobs
+               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+               AND storage_blobs.content_hash IS NOT NULL
+             ))
+          SQL
           .distinct.count(:documentable_id)
 
         pending = [total - synced, 0].max

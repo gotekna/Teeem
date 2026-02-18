@@ -206,15 +206,12 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
         {/* Scope tabs */}
         <div className="px-4 pt-3 pb-2 shrink-0">
           <TabsList className="flex-wrap h-auto gap-1">
-              {scopes.map((s) => {
-                const Icon = s.icon;
-                return (
+              {scopes.map((s) => (
                   <TabsTrigger
                     key={s.id}
                     value={s.id}
-                    className="text-xs sm:text-sm whitespace-nowrap gap-1.5"
+                    className="text-xs sm:text-sm whitespace-nowrap"
                   >
-                    <Icon className="h-4 w-4" />
                     {s.label}
                     {scopeCounts[s.id] > 0 && (
                       <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
@@ -222,8 +219,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
                       </span>
                     )}
                   </TabsTrigger>
-                );
-              })}
+              ))}
           </TabsList>
         </div>
 

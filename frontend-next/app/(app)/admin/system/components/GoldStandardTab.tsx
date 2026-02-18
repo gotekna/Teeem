@@ -2316,40 +2316,31 @@ export function GoldStandardTab({ subtab, basePath = DEFAULT_GOLD_STANDARD_BASE_
   return (
     <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
       <TabsList className="flex-wrap h-auto gap-1 justify-start">
-        <TabsTrigger value="table" className="flex items-center gap-2">
-          <Database className="h-4 w-4" />
+        <TabsTrigger value="table">
           Gold Standard Table
         </TabsTrigger>
-        <TabsTrigger value="document-types" className="flex items-center gap-2">
-          <FileText className="h-4 w-4" />
+        <TabsTrigger value="document-types">
           Gold Document Types
         </TabsTrigger>
-        <TabsTrigger value="invoice" className="flex items-center gap-2">
-          <Receipt className="h-4 w-4" />
+        <TabsTrigger value="invoice">
           Gold Bills/Invoice Viewer
         </TabsTrigger>
-        <TabsTrigger value="column-info" className="flex items-center gap-2">
-          <FileText className="h-4 w-4" />
+        <TabsTrigger value="column-info">
           Column Info
         </TabsTrigger>
-        <TabsTrigger value="sync-check" className="flex items-center gap-2">
-          <GitCompare className="h-4 w-4" />
+        <TabsTrigger value="sync-check">
           Sync Check
         </TabsTrigger>
-        <TabsTrigger value="ui-components" className="flex items-center gap-2">
-          <Settings className="h-4 w-4" />
+        <TabsTrigger value="ui-components">
           UI Components
         </TabsTrigger>
-        <TabsTrigger value="column-types-ssot" className="flex items-center gap-2 bg-blue-100 dark:bg-blue-900/30">
-          <Settings className="h-4 w-4" />
+        <TabsTrigger value="column-types-ssot">
           Column Types (SSoT)
         </TabsTrigger>
-        <TabsTrigger value="view-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
-          <TableProperties className="h-4 w-4" />
+        <TabsTrigger value="view-table-demo">
           ViewTable Demo
         </TabsTrigger>
-        <TabsTrigger value="setup-table-demo" className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30">
-          <LayoutList className="h-4 w-4" />
+        <TabsTrigger value="setup-table-demo">
           SetupTable Demo
         </TabsTrigger>
       </TabsList>

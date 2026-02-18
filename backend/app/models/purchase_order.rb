@@ -21,6 +21,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :supplier, class_name: "Contact", optional: true
   belongs_to :estimate, optional: true
   belongs_to :quote_response, optional: true
+  belongs_to :external_invoice, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
 
   # Budget Lockdown associations
@@ -178,11 +179,17 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def calculate_totals
-    self.sub_total = line_items.reject(&:marked_for_destruction?).sum { |item|
+    active_items = line_items.reject(&:marked_for_destruction?)
+    self.sub_total = active_items.sum { |item|
       (item.quantity || 0) * (item.unit_price || 0)
     }
-    # Calculate tax as 10% of subtotal (line item tax_amount may not be calculated yet during nested saves)
-    self.tax = (sub_total * 0.10).round(2)
+    # Sum per-line-item tax (respects GST/GST Free/Input Taxed per line)
+    # SSoT: GstCode model for tax rates (with hardcoded fallback)
+    self.tax = active_items.sum { |item|
+      line_subtotal = (item.quantity || 0) * (item.unit_price || 0)
+      rate = GstCode.rate_for(item.gst_code)
+      (line_subtotal * rate).round(2)
+    }
     self.total = sub_total + tax
 
     # Calculate amount still to be invoiced
@@ -279,6 +286,11 @@ class PurchaseOrder < ApplicationRecord
       budget_unlocked_by: user,
       budget_unlock_reason: reason
     )
+  end
+
+  # Net total after credit notes are applied
+  def net_total
+    total - (credit_amount || 0)
   end
 
   # Calculate payment percentage relative to PO total
@@ -502,7 +514,9 @@ class PurchaseOrder < ApplicationRecord
       # Budget lockdown info
       'budget_locked' => budget_locked?,
       'budget_locked_by_name' => budget_locked_by&.name,
-      'budget_locked_at' => budget_locked_at&.iso8601
+      'budget_locked_at' => budget_locked_at&.iso8601,
+      # Credit note adjusted total
+      'net_total' => net_total
     )
     # Include labour summary if this is a labour PO
     result['labour_summary'] = labour_summary if labour_po?

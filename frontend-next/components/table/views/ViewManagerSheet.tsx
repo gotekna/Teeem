@@ -338,7 +338,7 @@ export function ViewManagerSheet({
     setEditName(view.name);
     setEditIsGlobal(view.is_global || false);
     setEditViewType(view.view_display_type || "table");
-    setEditFilters(view.filters || []);
+    setEditFilters((view.filters || []).map(f => f.id ? f : { ...f, id: String(Date.now()) + Math.random().toString(36).slice(2) }));
     setEditFilterGroups(view.filterGroups || [{ id: "default", logic: "AND" }]);
     setEditInterGroupLogic(view.interGroupLogic || "OR");
     setEditSortColumns(view.sortColumns || []);
@@ -881,9 +881,8 @@ export function ViewManagerSheet({
       }
     }
 
-    // SSoT: Use column's lookup_foundation_id (numeric) for API calls
-    // knownMapping uses slug for matching, but API still needs numeric ID from column
-    const effectiveLookupFoundationId = column.lookup_foundation_id;
+    // SSoT: Use slug for cacheKey (matches fetchLookupOptions which uses slug || id)
+    const effectiveLookupFoundationId = column.lookup_foundation_slug || column.lookup_foundation_id;
     const effectiveDisplayColumn = column.lookup_display_column || knownMapping?.displayColumn || 'name';
 
     if (isLookup) {
@@ -895,7 +894,6 @@ export function ViewManagerSheet({
         if (!lookupOptionsCache[cacheKey] && !isLoading) {
           fetchLookupOptions({
             ...column,
-            lookup_foundation_id: effectiveLookupFoundationId,
             lookup_display_column: effectiveDisplayColumn,
           });
         }

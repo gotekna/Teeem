@@ -519,14 +519,6 @@ Use `[id]` pattern for dynamic routes:
 - **Components accept `basePath` prop** for reusability across different URL contexts
 - **Catch-all routes** `[...tab]/page.tsx` re-export parent page for sub-tab URLs
 
-### SSoT Consolidations (Jan 2026)
-- ❌ `/settings/documents` → Moved to `/settings/company/documents`
-- ❌ `/settings/integrations` → Redirects to `/settings/connections/integrations`
-- ❌ `/settings/company/connections` → Moved to top-level `/settings/connections`
-- ❌ Entity Config in Developer → Moved to `/settings/company/warehouse-config` (renamed Feb 2026)
-- ❌ Workflow Config separate tab → Moved to `/settings/company/job-setup/workflow`
-- ❌ Doc Templates duplicate → Consolidated into Documents > Templates
-
 ## 🔴 Table Page Pattern
 
 ```tsx
@@ -696,13 +688,31 @@ If yes, batch the changes and wait until tomorrow unless it's a critical hotfix.
 ```bash
 cd /Users/robertharder/GitHub/teeem
 DEPLOY_DIR=$(mktemp -d)
-# Use rsync to include hidden files like .slugignore
 rsync -a --exclude='.git' --exclude-from=backend/.slugignore backend/ "$DEPLOY_DIR/"
-cd "$DEPLOY_DIR" && git init && git add . && git commit -m "Fix deploy"
-git remote add heroku https://git.heroku.com/teeem-production.git
-git push heroku HEAD:main --force
-cd /Users/robertharder/GitHub/teeem && rm -rf "$DEPLOY_DIR"
+# ⚠️ NEVER use 'cd "$DEPLOY_DIR"' - use 'git -C' to avoid breaking VS Code cwd
+git -C "$DEPLOY_DIR" init && git -C "$DEPLOY_DIR" add . && git -C "$DEPLOY_DIR" commit -m "Fix deploy"
+git -C "$DEPLOY_DIR" remote add heroku https://git.heroku.com/teeem-production.git
+git -C "$DEPLOY_DIR" push heroku HEAD:main --force
+rm -rf "$DEPLOY_DIR"
 ```
+
+### 🔴 CRITICAL: Never Change CWD in Bash Commands
+
+**VS Code tracks terminal CWD. Changing it crashes the extension host.**
+
+| Pattern | Status | Fix |
+|---------|--------|-----|
+| `cd "$DEPLOY_DIR"` | ❌ BANNED | `git -C "$DEPLOY_DIR"` |
+| `cd frontend-next && npx tsc` | ❌ BANNED | `(cd frontend-next && npx tsc)` subshell |
+| `cd backend && bin/rails` | ❌ BANNED | `(cd backend && bin/rails)` subshell |
+| `cd /Users/.../teeem` | ✅ OK | Project root is always safe |
+
+**Rules:**
+1. **Temp dirs:** Use `git -C "$DEPLOY_DIR"` - NEVER `cd "$DEPLOY_DIR"`
+2. **Subdirectories:** Use subshells `(cd subdir && command)` - NEVER bare `cd subdir`
+3. **Only safe `cd`:** `cd /Users/robertharder/GitHub/teeem` (project root)
+
+**Why:** If bash times out or gets killed mid-execution, the CWD stays changed. With 4+ Claude sessions, this overwhelms the extension host and crashes VS Code.
 
 ## 🔴 Production Frontend (Vercel)
 
@@ -814,15 +824,6 @@ WarehouseProvider.instance.resolve_path(:job, JobCode: "J-001", Category: "Plans
 | `:tasks` | `"Tasks"` | `Task-{{TaskId}}/{{Category}}` |
 | `:accounts` | `"Accounts"` | `{{Source}}/{{ContactName}}/{{Category}}` |
 | `:emails` | `"Emails"` | `{{Year}}/{{Month}}` |
-
-### Deprecated (DO NOT USE)
-
-```ruby
-# ❌ REMOVED - Direct credential config access:
-credential.sharepoint_site_id    # Use WarehouseProvider.instance
-credential.sharepoint_drive_id   # Use WarehouseProvider.instance
-# All storage config is now in WarehouseProvider, not credentials
-```
 
 ### Admin UI
 

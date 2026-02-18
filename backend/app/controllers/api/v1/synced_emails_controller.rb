@@ -646,18 +646,31 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .map { |email| mailbox_stats_for_dashboard(cred.id, email, :microsoft, credential_last_synced_at: cred.last_sync_at) }
         .sort_by { |m| -m[:email_count] }
 
+      # FRC (Feb 2026): Use distinct email count for org total to avoid double-counting.
+      # Root cause: emails appearing in multiple mailboxes (e.g., accounts@ and abbie@ both
+      # receive the same email) get counted once per mailbox. Summing mailbox counts = 14,066
+      # while unique emails = 13,971. The header uses SyncedEmail.count (unique), so the
+      # per-org total must also be unique for the numbers to add up.
+      distinct_email_count = SyncedEmailMailbox
+        .where(microsoft_credential_id: cred.id)
+        .select(:synced_email_id).distinct.count
+
       {
         id: cred.id,
         type: "microsoft",
         name: cred.name || cred.organization&.name || "Unknown",
         status: cred.status,
         last_sync_at: cred.last_sync_at,
-        total_emails: mailboxes.sum { |m| m[:email_count] },
+        total_emails: distinct_email_count,
         mailboxes: mailboxes,
         tenant_users: cred.list_tenant_users,
         sync_config: {
           sync_all: cred.sync_config&.dig("sync_all") || false,
-          sync_years: cred.sync_config&.dig("sync_years") || 3
+          sync_years: cred.sync_config&.dig("sync_years") || 3,
+          mailbox_synced_at: cred.sync_config&.dig("mailbox_synced_at") || {},
+          mailbox_error_counts: cred.sync_config&.dig("mailbox_error_counts") || {},
+          mailbox_errors: cred.sync_config&.dig("mailbox_errors") || {},
+          folder_stats: cred.sync_config&.dig("folder_stats") || {}
         }
       }
     end
@@ -674,13 +687,17 @@ class Api::V1::SyncedEmailsController < ApplicationController
         .map { |email| mailbox_stats_for_dashboard(cred.id, email, :imap, credential_last_synced_at: cred.last_synced_at) }
         .sort_by { |m| -m[:email_count] }
 
+      distinct_imap_count = SyncedEmailMailbox
+        .where(imap_credential_id: cred.id)
+        .select(:synced_email_id).distinct.count
+
       {
         id: cred.id,
         type: "imap",
         name: cred.name.presence || cred.email_address,
         status: cred.is_active ? "connected" : "disconnected",
         last_sync_at: cred.last_synced_at,
-        total_emails: mailboxes.sum { |m| m[:email_count] },
+        total_emails: distinct_imap_count,
         mailboxes: mailboxes,
         sync_config: {
           sync_all: cred.sync_all || false
@@ -704,13 +721,18 @@ class Api::V1::SyncedEmailsController < ApplicationController
       .sort_by { |m| -m[:email_count] }
 
     if orphaned_mailboxes.any?
+      orphaned_distinct_count = SyncedEmailMailbox
+        .where(synced_email_id: tenant_email_ids_subquery)
+        .where(microsoft_credential_id: nil, imap_credential_id: nil)
+        .select(:synced_email_id).distinct.count
+
       all_organizations << {
         id: 0,
         type: "orphaned",
         name: "Orphaned (No Credential)",
         status: "warning",
         last_sync_at: nil,
-        total_emails: orphaned_mailboxes.sum { |m| m[:email_count] },
+        total_emails: orphaned_distinct_count,
         mailboxes: orphaned_mailboxes,
         sync_config: { sync_all: false }
       }
@@ -736,10 +758,16 @@ class Api::V1::SyncedEmailsController < ApplicationController
                             .compact
                             .map(&:downcase)
 
+    # FRC (Feb 2026): Use sum of per-org distinct counts for header total.
+    # Root cause: SyncedEmail.count includes orphaned emails not linked to any credential,
+    # so header showed 16,360 while the only org (Pilgrim) showed 16,350. The 10-email gap
+    # confused users. Now both use the same counting method.
+    header_total = all_organizations.sum { |org| org[:total_emails] }
+
     render json: {
       success: true,
       data: {
-        total_emails: SyncedEmail.count,
+        total_emails: header_total,
         total_mailboxes: tenant_mailbox_count,
         organizations: all_organizations,
         storage: blob_stats,
@@ -1885,7 +1913,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
   def set_email
     @email = SyncedEmail.includes(:job).find(params[:id])
   rescue ActiveRecord::RecordNotFound
-    # Check if email exists but is tenant-scoped out (NULL tenant_id from pre-fix emails)
+    # Check if email exists but is tenant-scoped out
     email = SyncedEmail.unscoped.includes(:job).find_by(id: params[:id])
 
     if email.nil?
@@ -1895,8 +1923,20 @@ class Api::V1::SyncedEmailsController < ApplicationController
       Rails.logger.info "[SyncedEmails] Auto-fixing NULL tenant_id on email #{email.id}"
       email.update_column(:tenant_id, current_tenant.id)
       @email = email
+    elsif email.imap_credential_id.present? && user_has_imap_access?(email)
+      # FRC (Feb 2026): IMAP credentials are user-level, not tenant-level.
+      # The index action uses SyncedEmail.unscoped for IMAP users, so emails
+      # synced under a different tenant appear in the list. set_email must
+      # allow access to these same emails, otherwise show/actions return 404.
+      @email = email
     else
       render_error("Email not accessible", status: :not_found)
+    end
+  end
+
+  def user_has_imap_access?(email)
+    ActsAsTenant.without_tenant do
+      ImapCredential.accessible_by(current_user).where(id: email.imap_credential_id).exists?
     end
   end
 
@@ -1919,6 +1959,12 @@ class Api::V1::SyncedEmailsController < ApplicationController
     email_ids = appearances.pluck(:synced_email_id)
     emails_for_stats = SyncedEmail.where(id: email_ids)
     last_received = emails_for_stats.maximum(:received_at)
+    # FRC (Feb 2026): Use per-mailbox last_synced_at from actual email data.
+    # Root cause: Using credential-level last_sync_at showed "2h ago" even while actively syncing,
+    # because it only updates when the ENTIRE OrgEmailSyncJob completes. For large orgs (Pilgrim,
+    # 56 mailboxes), the job takes multiple cycles, so the timestamp never updated.
+    # Fix: Use MAX(last_synced_at) from emails in this mailbox - shows "just now" during active sync.
+    mailbox_last_synced = emails_for_stats.maximum(:last_synced_at)
 
     # Attachment stats for this mailbox (SSoT Jan 2026: WarehouseDocument)
     attachments = WarehouseDocument.where(source_type: "email_attachment")
@@ -1944,7 +1990,7 @@ class Api::V1::SyncedEmailsController < ApplicationController
       email_blob_count: email_blob_count,
       content_unavailable_count: content_unavailable_count,
       last_email_received_at: last_received,
-      last_synced_at: credential_last_synced_at  # Use credential's sync time, not email's updated_at
+      last_synced_at: mailbox_last_synced || credential_last_synced_at
     }
   end
 
