@@ -510,6 +510,11 @@ class ExternalInvoiceSyncService
       link_to_contact(invoice)
     end
 
+    # For sales invoices: auto-match to claim stages
+    if invoice.invoice_type.in?(["ACCREC", "sales_invoice"]) && invoice.job_id.present?
+      auto_match_claim_stages(invoice)
+    end
+
     # For bills: match to existing PO and sync xero_amount_paid
     if invoice.invoice_type == "bill"
       sync_amount_paid_to_po(invoice)
@@ -887,6 +892,21 @@ class ExternalInvoiceSyncService
   end
 
   # SSoT: GstCode model maps Xero TaxTypes to our GST codes via xero_tax_types column
+
+  # Auto-match a sales invoice to unmatched claim stages on the job
+  def auto_match_claim_stages(invoice)
+    job = invoice.job
+    return unless job.job_claim_stages.unmatched.exists?
+
+    matcher = ClaimStageMatcherService.new(job)
+    result = matcher.auto_match_all
+    if result[:matched].any?
+      Rails.logger.info("ClaimStageAutoMatch: Job #{job.id} - matched #{result[:matched].map { |m| "#{m[:stage_name]}→#{m[:invoice_number]}" }.join(', ')}")
+    end
+  rescue StandardError => e
+    # Don't fail the sync if claim matching fails
+    Rails.logger.warn("ClaimStageAutoMatch: Job #{job&.id} failed - #{e.message}")
+  end
 
   def auto_create_purchase_order(invoice)
     # Check if PO already exists for this invoice
