@@ -1092,15 +1092,8 @@ module Api
               end
 
               po_ref += ref_subtotal
-
-              # When qty=0, subtotals are both $0 - compare unit prices instead
-              if qty.abs < 0.001 && !is_lump_sum
-                diff = (ref_price - item.unit_price.to_f).round(2)
-                diff_pct = item.unit_price.to_f.abs > 0.01 ? ((diff / item.unit_price.to_f) * 100).round(1) : 0.0
-              else
-                diff = (ref_subtotal - subtotal).round(2)
-                diff_pct = subtotal.abs > 0.01 ? ((diff / subtotal) * 100).round(1) : 0.0
-              end
+              diff = (ref_subtotal - subtotal).round(2)
+              diff_pct = subtotal.abs > 0.01 ? ((diff / subtotal) * 100).round(1) : 0.0
 
               # For lump-sum items, compare totals; for quantity items, compare unit prices
               status = if is_lump_sum
