@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Package, Copy } from "lucide-react";
+import { Package, Copy, TrendingUp } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +50,11 @@ interface ContactPriceBookTabProps {
   contactName: string;
 }
 
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null) return "-";
+  return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBookTabProps) {
   const [items, setItems] = useState<PricebookItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +66,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [copySelectedIds, setCopySelectedIds] = useState<(number | string)[]>([]);
   const [copyClearSelection, setCopyClearSelection] = useState<(() => void) | null>(null);
   const [targetSupplier, setTargetSupplier] = useState<Supplier | null>(null);
+  const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [copying, setCopying] = useState(false);
 
   const { toast } = useToast();
@@ -72,7 +79,6 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setLoading(true);
     setError(null);
     try {
-      // Fetch pricebook items where this contact is the supplier
       const response = await api.get<PricebookResponse>(
         `/api/v1/pricebook?supplier_id=${contactId}&limit=0`
       );
@@ -91,7 +97,6 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }
   };
 
-  // Define columns for TeeemTableView
   const columns: TableColumn[] = useMemo(() => [
     { key: "item_code", label: "Code", width: 120, sortable: true },
     { key: "item_name", label: "Item Name", width: 300, sortable: true },
@@ -104,7 +109,6 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     { key: "needs_pricing_review", label: "Review", width: 80, sortable: true, column_type: "boolean" },
   ], []);
 
-  // Transform items to rows
   const rows: TableRow[] = useMemo(() => {
     return items.map((item) => ({
       id: item.id,
@@ -120,10 +124,23 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }));
   }, [items]);
 
+  // Selected items for the preview table
+  const selectedItems = useMemo(() => {
+    const idSet = new Set(copySelectedIds.map(Number));
+    return items.filter((item) => idSet.has(item.id));
+  }, [items, copySelectedIds]);
+
+  // Parse percentage
+  const adjustmentPercent = useMemo(() => {
+    const val = parseFloat(priceAdjustment);
+    return isNaN(val) ? 0 : val;
+  }, [priceAdjustment]);
+
   const handleOpenCopyModal = useCallback((selectedIds: (number | string)[], clearSelection: () => void) => {
     setCopySelectedIds(selectedIds);
     setCopyClearSelection(() => clearSelection);
     setTargetSupplier(null);
+    setPriceAdjustment("");
     setCopyModalOpen(true);
   }, []);
 
@@ -141,6 +158,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         source_id: contactId,
         pricebook_item_ids: copySelectedIds.map(Number),
         set_as_default: true,
+        price_adjustment_percent: adjustmentPercent,
       });
 
       if (response?.success) {
@@ -167,7 +185,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     } finally {
       setCopying(false);
     }
-  }, [targetSupplier, copySelectedIds, contactId, toast, copyClearSelection]);
+  }, [targetSupplier, copySelectedIds, contactId, adjustmentPercent, toast, copyClearSelection]);
 
   if (loading) {
     return (
@@ -222,7 +240,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
 
       {/* Copy Prices Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Copy Prices to Another Supplier</DialogTitle>
             <DialogDescription>
@@ -232,14 +250,115 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4">
-            <label className="text-sm font-medium mb-2 block">Target Supplier</label>
-            <SupplierPicker
-              value={targetSupplier}
-              onSelect={setTargetSupplier}
-              placeholder="Search for target supplier..."
-              clearable
-            />
+          <div className="space-y-4 flex-1 min-h-0">
+            {/* Target Supplier */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Target Supplier</label>
+              <SupplierPicker
+                value={targetSupplier}
+                onSelect={setTargetSupplier}
+                placeholder="Search for target supplier..."
+                clearable
+              />
+            </div>
+
+            {/* Price Adjustment */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">Price Adjustment %</label>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-[200px]">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    placeholder="0"
+                    value={priceAdjustment}
+                    onChange={(e) => setPriceAdjustment(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+                <div className="flex gap-1">
+                  {[3, 5, 10].map((pct) => (
+                    <Button
+                      key={pct}
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPriceAdjustment(String(pct))}
+                      className={adjustmentPercent === pct ? "border-primary bg-primary/5" : ""}
+                    >
+                      +{pct}%
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {adjustmentPercent > 0
+                  ? `Prices will be increased by ${adjustmentPercent}%`
+                  : adjustmentPercent < 0
+                    ? `Prices will be decreased by ${Math.abs(adjustmentPercent)}%`
+                    : "Prices will be copied at the same rate"}
+              </p>
+            </div>
+
+            {/* Price Preview Table */}
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Price Preview
+                {adjustmentPercent !== 0 && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    ({adjustmentPercent > 0 ? "+" : ""}{adjustmentPercent}% adjustment)
+                  </span>
+                )}
+              </label>
+              <div className="border rounded-md overflow-auto max-h-[300px]">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50 sticky top-0">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium">Code</th>
+                      <th className="text-left px-3 py-2 font-medium">Item Name</th>
+                      <th className="text-right px-3 py-2 font-medium">Current Price</th>
+                      {adjustmentPercent !== 0 && (
+                        <th className="text-right px-3 py-2 font-medium">
+                          <span className="flex items-center justify-end gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            New Price
+                          </span>
+                        </th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {selectedItems.map((item) => {
+                      const currentPrice = item.supplier_price ?? item.current_price;
+                      const newPrice = currentPrice != null
+                        ? Math.round(currentPrice * (1 + adjustmentPercent / 100) * 100) / 100
+                        : null;
+                      const diff = currentPrice != null && newPrice != null ? newPrice - currentPrice : null;
+
+                      return (
+                        <tr key={item.id} className="hover:bg-muted/30">
+                          <td className="px-3 py-1.5 font-mono text-xs">{item.item_code}</td>
+                          <td className="px-3 py-1.5 truncate max-w-[250px]">{item.item_name}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">
+                            {formatCurrency(currentPrice)}
+                          </td>
+                          {adjustmentPercent !== 0 && (
+                            <td className="px-3 py-1.5 text-right tabular-nums">
+                              <span className="font-medium">{formatCurrency(newPrice)}</span>
+                              {diff != null && diff !== 0 && (
+                                <span className={`ml-1 text-xs ${diff > 0 ? "text-red-500 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
+                                  ({diff > 0 ? "+" : ""}{formatCurrency(diff)})
+                                </span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
 
           <DialogFooter>
@@ -262,7 +381,8 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
               ) : (
                 <>
                   <Copy className="h-4 w-4 mr-1" />
-                  Copy Prices
+                  Copy {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
+                  {adjustmentPercent !== 0 ? ` (${adjustmentPercent > 0 ? "+" : ""}${adjustmentPercent}%)` : ""}
                 </>
               )}
             </Button>

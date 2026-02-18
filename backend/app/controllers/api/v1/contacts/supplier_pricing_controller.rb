@@ -70,6 +70,7 @@ module Api
           source_id = params[:source_id]
           categories_param = params[:categories] # Optional array of categories to filter by
           pricebook_item_ids_param = params[:pricebook_item_ids] # Optional array of specific item IDs to copy
+          price_adjustment_percent = params[:price_adjustment_percent].present? ? params[:price_adjustment_percent].to_f : 0.0
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
           effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
 
@@ -138,24 +139,32 @@ module Api
                 updated_count += 1
               end
 
+              # Apply price adjustment if specified (e.g., 3.0 = +3% increase)
+              adjusted_price = if price_adjustment_percent != 0.0
+                (selected_price_history.new_price * (1 + price_adjustment_percent / 100.0)).round(2)
+              else
+                selected_price_history.new_price
+              end
+
               # Check if target already has a price history with the same price and effective date
               existing_history = PriceHistory.where(
                 pricebook_item_id: item.id,
                 supplier_id: @contact.id,
-                new_price: selected_price_history.new_price,
+                new_price: adjusted_price,
                 date_effective: effective_date
               ).exists?
 
               # Only create if this exact price/date combination doesn't exist
               unless existing_history
+                adjustment_note = price_adjustment_percent != 0.0 ? " (#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%)" : ""
                 PriceHistory.create!(
                   pricebook_item_id: item.id,
-                  old_price: selected_price_history.old_price,
-                  new_price: selected_price_history.new_price,
+                  old_price: selected_price_history.new_price,
+                  new_price: adjusted_price,
                   supplier_id: @contact.id,
                   lga: selected_price_history.lga,
                   date_effective: effective_date,
-                  change_reason: "Copied from #{source_contact.display_name}"
+                  change_reason: "Copied from #{source_contact.display_name}#{adjustment_note}"
                 )
                 copied_count += 1
               end
