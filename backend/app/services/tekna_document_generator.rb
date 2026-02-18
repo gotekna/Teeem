@@ -174,7 +174,7 @@ class TeknaDocumentGenerator
   end
 
   # Generate document and return hash with html and pdf_content
-  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {})
+  def generate(job: nil, contact: nil, purchase_order: nil, extra_data: {}, html_only: false)
     validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
 
     # Handle storage-sourced documents (fetch existing file, don't generate)
@@ -189,7 +189,7 @@ class TeknaDocumentGenerator
 
     context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
     html = render_template(context)
-    pdf_content = convert_to_pdf(html)
+    pdf_content = html_only ? nil : convert_to_pdf(html)
 
     {
       html: html,

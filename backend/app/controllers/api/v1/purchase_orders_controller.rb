@@ -679,7 +679,7 @@ module Api
       def generate_pdf
         if params[:format] == "html" || params[:preview]
           generator = TeknaDocumentGenerator.new(:purchase_order)
-          result = generator.generate(purchase_order: @purchase_order)
+          result = generator.generate(purchase_order: @purchase_order, html_only: true)
           render html: result[:html].html_safe
         else
           enqueue_pdf_and_respond(
