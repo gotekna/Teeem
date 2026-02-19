@@ -1567,9 +1567,27 @@ export default function TeeemTableView({
   // Priority: URL param > initialSearch prop > session storage
   // NOTE: We intentionally do NOT fall back to the atom value — the atom is global
   // and may contain a search term from a completely different page (e.g., Jobs → PO)
+  //
+  // ⚠️ DO NOT SIMPLIFY - Race Condition Fix (2026-02-19)
+  // ════════════════════════════════════════════════════════════════════════
+  // Embedded tables (with initialFilters) have a race condition:
+  //   1. This effect fires → triggers handleAutoFetchSearch(searchTerm)
+  //   2. But baseFilters is still [] (initialFilters effect hasn't run yet)
+  //   3. Search goes out WITHOUT required filters (e.g., job_id)
+  //   4. Returns wrong results (all POs instead of this job's POs)
+  //
+  // Fix: Wait for baseFilters when embedded context requires them.
+  // Don't mark as initialized until baseFilters are ready.
+  // The baseFiltersKey dep re-triggers this effect when filters arrive.
+  // ════════════════════════════════════════════════════════════════════════
   const hasInitializedSearchRef = useRef(false);
   useEffect(() => {
     if (hasInitializedSearchRef.current) return;
+
+    // Wait for baseFilters in embedded context (same guard as initial fetch effect)
+    // Without this, search fires before job_id/entity_type filters are set
+    if (initialFilters && initialFilters.length > 0 && baseFilters.length === 0) return;
+
     hasInitializedSearchRef.current = true;
 
     // Check URL for search param first (if persistSearchToUrl is enabled)
@@ -1605,7 +1623,7 @@ export default function TeeemTableView({
       // Clear it so the new table starts fresh.
       searchHook.actions.clearQuery();
     }
-  }, [cacheInitialized]); // Re-run when session storage becomes available
+  }, [cacheInitialized, baseFiltersKey]); // Re-run when session storage OR baseFilters become available
 
   // View-related state now managed by Jotai atoms (SSoT)
   // MIGRATION: Using useSorting hook for sort state and actions

@@ -101,14 +101,18 @@ module Api
 
             if foundation_searchable.any?
               # Filter out columns that can't be searched with ILIKE:
+              # - virtual columns: Ruby methods not backed by real DB columns (e.g. net_total)
               # - array columns: PostgreSQL ILIKE doesn't work on arrays
               # - tsvector columns: full-text search columns, not for ILIKE
               # - lookup columns: store integer IDs, not searchable text
+              real_db_columns = model.column_names
               array_columns = model.columns.select(&:array).map(&:name)
               tsvector_columns = model.columns.select { |c| c.type == :tsvector }.map(&:name)
               lookup_columns = @foundation.columns.where(column_type: Column::LOOKUP_COLUMN_TYPES).pluck(:column_name)
               excluded_columns = array_columns + tsvector_columns + lookup_columns
-              foundation_searchable.reject { |col| excluded_columns.include?(col) }
+              foundation_searchable
+                .select { |col| real_db_columns.include?(col) }
+                .reject { |col| excluded_columns.include?(col) }
             elsif @foundation.table_type == "system"
               # Fallback for system tables without column definitions: auto-detect text columns
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name).first(5)
