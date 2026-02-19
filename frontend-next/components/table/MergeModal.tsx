@@ -213,6 +213,7 @@ export function MergeModal({
                   >
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{displayValue}</span>
+                      <span className="text-xs text-muted-foreground font-mono">#{String(recordId)}</span>
                       {/* Entity Type Badge */}
                       {typeof record.entity_type === "string" && record.entity_type && (
                         <Badge
