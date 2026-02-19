@@ -2605,14 +2605,14 @@ module Api
                 next if checked_pairs.include?(pair_key)
                 checked_pairs.add(pair_key)
 
-                # FRC (Feb 2026): Skip pairs where one contact has no active link for THIS org.
-                # If one is confirmed active and the other isn't linked to this org at all,
-                # the unlinked one was likely merged/deleted in Xero (ghost duplicate).
+                # FRC (Feb 2026): Only show duplicates where BOTH contacts are confirmed
+                # active in THIS Xero org via ContactExternalLink. Contacts that appear
+                # only in invoice data without an active org-specific link may have been
+                # merged/deleted in Xero - recommending "merge in Xero" would be misleading.
+                # Unlinked contacts should be linked first (via Xero Sync Contacts page).
                 a_active = active_in_org.include?(a[:xero_id])
                 b_active = active_in_org.include?(b[:xero_id])
-                if (a_active && !b_active) || (b_active && !a_active)
-                  next
-                end
+                next unless a_active && b_active
 
                 # Skip if both contacts are linked to DIFFERENT TEEEM contacts
                 # (user has already determined these are separate people)
