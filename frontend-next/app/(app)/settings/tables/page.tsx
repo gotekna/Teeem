@@ -8,7 +8,6 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { GstCodesTab } from "./components/GstCodesTab";
-import { UomTab } from "./components/UomTab";
 import TeeemTableView from "@/components/table/TeeemTableView";
 
 /**
@@ -22,7 +21,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
  *   - categories (default): Pricebook Categories (TeeemTableView)
  *   - brands: Pricebook Brands (TeeemTableView)
  *   - ranges: Pricebook Ranges (TeeemTableView)
- *   - uom: Units of Measure (custom table)
+ *   - uom: Units of Measure (TeeemTableView)
  * - accounts: Accounting tables
  *   - gst (default): GST Codes (custom table)
  */
@@ -149,7 +148,13 @@ export default function TablesSettingsPage() {
                   </TabsContent>
 
                   <TabsContent value="uom" className="absolute inset-0 overflow-auto">
-                    <UomTab />
+                    <div className="flex flex-col h-full -mx-4">
+                      <TeeemTableView
+                        foundationId={FOUNDATION_SLUGS.UNITS_OF_MEASURE}
+                        tableName="Units of Measure"
+                        autoFetchRecords={true}
+                      />
+                    </div>
                   </TabsContent>
                 </div>
               </Tabs>

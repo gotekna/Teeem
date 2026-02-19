@@ -21,7 +21,7 @@
 #
 class TenantConfigSyncService
   # SSoT: Configuration tables available for sync
-  # Groups for UI organization: jobs, documents, contacts, schedule, operations
+  # Groups for UI organization: jobs, documents, contacts, schedule, pricebook, operations
   CONFIG_TABLES = {
     # ============================================================================
     # Jobs Group
@@ -260,6 +260,76 @@ class TenantConfigSyncService
     },
 
     # ============================================================================
+    # Pricebook Group
+    # ============================================================================
+    pricebook_categories: {
+      model: "PricebookCategory",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
+      description: "Pricebook organization categories",
+      group: "pricebook"
+    },
+    pricebook_brands: {
+      model: "PricebookBrand",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :color, :icon, :position, :is_active],
+      description: "Pricebook brand classifications",
+      group: "pricebook"
+    },
+    pricebook_ranges: {
+      model: "PricebookRange",
+      name_field: :name,
+      match_fields: [:name],
+      sync_fields: [:name, :display_name, :color, :icon, :position, :is_active],
+      description: "Pricebook product ranges",
+      group: "pricebook"
+    },
+    units_of_measure: {
+      model: "UnitOfMeasure",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :sort_order, :is_active],
+      description: "Units of measure (global lookup)",
+      group: "pricebook"
+    },
+    gst_codes: {
+      model: "GstCode",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :rate, :xero_tax_types, :active, :position],
+      description: "GST/tax code definitions",
+      group: "pricebook"
+    },
+    pricebook_items: {
+      model: "PricebookItem",
+      name_field: :item_name,
+      match_fields: [:item_code],
+      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
+                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
+                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
+                    :requires_photo, :requires_spec],
+      description: "Pricebook products and pricing",
+      group: "pricebook"
+    },
+    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
+    price_histories: {
+      model: "PriceHistory",
+      name_field: :id,
+      match_fields: [:pricebook_item_id, :supplier_id],
+      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
+                    :quote_reference, :lga, :date_effective, :user_name],
+      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
+      description: "Price histories (price_only suppliers only)",
+      group: "pricebook",
+      remap_fks: {
+        supplier_id: { model: "Contact", match_field: :display_name },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
+      }
+    },
+
+    # ============================================================================
     # Operations Group
     # ============================================================================
     meeting_types: {
@@ -273,40 +343,6 @@ class TenantConfigSyncService
                     :notification_settings, :is_active, :is_system_default],
       description: "Meeting type definitions",
       group: "operations"
-    },
-    pricebook_categories: {
-      model: "PricebookCategory",
-      name_field: :name,
-      match_fields: [:name],
-      sync_fields: [:name, :display_name, :position, :icon, :color, :is_active],
-      description: "Pricebook organization categories",
-      group: "operations"
-    },
-    pricebook_items: {
-      model: "PricebookItem",
-      name_field: :item_name,
-      match_fields: [:item_code],
-      sync_fields: [:item_code, :item_name, :category, :unit_of_measure, :current_price,
-                    :brand, :notes, :is_active, :supplier_price, :colour, :colour_code,
-                    :colour_brand, :lead_time_days, :call_time_days, :gst_code,
-                    :requires_photo, :requires_spec],
-      description: "Pricebook products and pricing",
-      group: "operations"
-    },
-    # price_histories MUST come after contacts + pricebook_items (FK dependencies)
-    price_histories: {
-      model: "PriceHistory",
-      name_field: :id,
-      match_fields: [:pricebook_item_id, :supplier_id],
-      sync_fields: [:pricebook_item_id, :supplier_id, :old_price, :new_price, :change_reason,
-                    :quote_reference, :lga, :date_effective, :user_name],
-      scope: -> { where(supplier_id: Contact.where(entity_type: "price_only").select(:id)) },  # SSoT: Only sync prices from price_only suppliers
-      description: "Price histories (price_only suppliers only)",
-      group: "operations",
-      remap_fks: {
-        supplier_id: { model: "Contact", match_field: :display_name },
-        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
-      }
     },
     public_holidays: {
       model: "PublicHoliday",
@@ -544,6 +580,7 @@ class TenantConfigSyncService
     "documents" => "Documents",
     "contacts" => "Contacts",
     "schedule" => "Schedule Master",
+    "pricebook" => "Pricebook",
     "operations" => "Operations",
     "estimating" => "Estimating",
     "finance" => "Finance",
