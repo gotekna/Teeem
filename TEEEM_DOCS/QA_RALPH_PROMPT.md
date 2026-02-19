@@ -90,8 +90,11 @@ evaluate_script(async () => {
     console.error = (...a) => { window.__qaErrors.push(a.join(' ')); orig(...a); };
     window.__qaCollectorActive = true;
   }
+  // Breadcrumb detection: BreadcrumbTrail.tsx renders <nav> inside .backdrop-blur-sm
+  const bcNav = document.querySelector('.backdrop-blur-sm nav');
   return ({
     hasContent: document.querySelector('main')?.children.length > 0,
+    breadcrumb: bcNav?.textContent?.trim() || null,
     url: location.pathname,
     title: document.title,
     consoleErrors: window.__qaErrors?.length || 0,
@@ -115,8 +118,9 @@ evaluate_script(async () => {
 | No console errors | `consoleErrors === 0` |
 | URL correct | `url` doesn't contain `/undefined` or unexpected hash |
 | Page loaded | `title` is not empty or generic "Teeem" only |
+| Breadcrumb visible | `breadcrumb` is not null and not empty |
 
-**Breadcrumbs:** Record if present but do NOT fail a page for missing breadcrumbs. Most TEEEM pages don't use `aria-label="breadcrumb"`.
+**Breadcrumbs:** Every page MUST have a visible breadcrumb trail. The selector `.backdrop-blur-sm nav` targets TEEEM's `BreadcrumbTrail.tsx` component. If `breadcrumb` is null/empty, create a `minor` finding with category `breadcrumb-missing`.
 
 If ALL pass → record as "passed" with the `js_check` data in `page_results`.
 
@@ -253,6 +257,7 @@ For each page in US-RESPONSIVE manifest:
     "iteration": 5,
     "js_check": {
       "hasContent": true,
+      "breadcrumb": "Settings > Company > Job Setup > Workflow",
       "url": "/settings/company/job-setup/workflow",
       "title": "Job Setup | Teeem",
       "consoleErrors": 0,
@@ -283,7 +288,7 @@ For each page in US-RESPONSIVE manifest:
 {
   "id": "finding-004",
   "severity": "critical|major|minor|info",
-  "category": "render-error|console-error|url-state-lost|scroll-blocked|dark-mode-broken|responsive-broken|modal-broken|performance|data-integrity",
+  "category": "render-error|console-error|breadcrumb-missing|url-state-lost|scroll-blocked|dark-mode-broken|responsive-broken|modal-broken|performance|data-integrity",
   "user_story_id": "US-CORPORATE",
   "page": "/corporate/consolidation",
   "description": "Page renders empty - main has 0 children",
@@ -304,7 +309,7 @@ For each page in US-RESPONSIVE manifest:
 |----------|------|
 | `critical` | Page won't load at all (white screen), data loss risk |
 | `major` | Console errors, broken functionality, missing content |
-| `minor` | Scroll problems, dark mode glitches, minor UI issues |
+| `minor` | Missing breadcrumbs, scroll problems, dark mode glitches, minor UI issues |
 | `info` | Performance observations, suggestions |
 
 ### Probable File Mapping
@@ -322,7 +327,7 @@ When creating findings, guess the source file:
 |---------|------------------------|----------|
 | Waiting for page load | `wait_for()` returns ~50KB snapshot | All-in-one JS check with built-in 5s wait loop (~200 bytes) |
 | Error collector reset | Separate `evaluate_script` call to re-inject | Baked into the all-in-one JS check |
-| Breadcrumb validation | Failed pages for null breadcrumbs | Info-only, not pass/fail |
+| Breadcrumb validation | Wrong selector (`aria-label="breadcrumb"`) | Correct selector (`.backdrop-blur-sm nav`) — pass/fail check |
 | 3 tool calls per page | navigate + wait_for + evaluate_script | navigate + ONE evaluate_script |
 | Snapshots for passing pages | Accidentally taken via wait_for | BANNED — only on failure, to FILE |
 | Screenshots for passing pages | Sometimes taken inline | BANNED — only on failure, to FILE |

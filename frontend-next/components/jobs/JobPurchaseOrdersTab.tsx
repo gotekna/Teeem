@@ -101,8 +101,9 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [templatePreview, setTemplatePreview] = useState<{
     items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; taskWillCreate: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number; profitCentreName: string | null; smScheduleMasterName: string | null }>;
     totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; tasksWillCreate: number; warnings: string[];
-    scheduleTemplate?: { id: number; name: string; rowCount: number; alreadyApplied: boolean; willCopy: boolean };
+    scheduleTemplate?: { id: number; name: string; rowCount: number; jobHasSchedule: boolean; sameTemplate: boolean; existingTaskCount: number; actionRequired: boolean; existingTemplateName?: string };
   } | null>(null);
+  const [scheduleAction, setScheduleAction] = useState<"copy_new" | "use_existing" | null>(null);
   const [loadingTemplatePacks, setLoadingTemplatePacks] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
@@ -280,6 +281,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const handleOpenTemplateModal = async () => {
     setSelectedPackId(null);
     setTemplatePreview(null);
+    setScheduleAction(null);
     setShowTemplateModal(true);
     await loadTemplatePacks();
   };
@@ -287,6 +289,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const handleSelectPack = async (packId: number) => {
     setSelectedPackId(packId);
     setTemplatePreview(null);
+    setScheduleAction(null);
     try {
       setLoadingPreview(true);
       const response = await api.get<{ success: boolean; data: typeof templatePreview }>(
@@ -306,6 +309,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setApplyingTemplate(true);
       await api.post(`/api/v1/po_template_packs/${selectedPackId}/apply`, {
         job_id: jobId,
+        ...(scheduleAction && { schedule_action: scheduleAction }),
       });
       setShowTemplateModal(false);
       setRefreshKey((k) => k + 1);
@@ -781,39 +785,72 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
             {templatePreview && !loadingPreview && (
               <div className="space-y-3">
-                {/* Schedule template info */}
-                {templatePreview.scheduleTemplate && (
-                  <div className={cn(
-                    "rounded-md p-3 flex items-start gap-3",
-                    templatePreview.scheduleTemplate.willCopy
-                      ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
-                      : "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-                  )}>
-                    {templatePreview.scheduleTemplate.willCopy ? (
-                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-                    ) : (
-                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
-                    )}
-                    <div>
-                      <p className={cn(
-                        "text-sm font-medium",
-                        templatePreview.scheduleTemplate.willCopy
-                          ? "text-blue-700 dark:text-blue-400"
-                          : "text-green-700 dark:text-green-400"
-                      )}>
-                        {templatePreview.scheduleTemplate.willCopy
-                          ? `Will copy schedule "${templatePreview.scheduleTemplate.name}" (${templatePreview.scheduleTemplate.rowCount} tasks with dependencies)`
-                          : `Schedule "${templatePreview.scheduleTemplate.name}" already applied to this job`
-                        }
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {templatePreview.scheduleTemplate.willCopy
-                          ? "The full schedule with task dependencies and calculated dates will be created first, then POs linked to those tasks."
-                          : "POs will link to the existing schedule tasks."
-                        }
-                      </p>
+                {/* Schedule template info - three scenarios:
+                    1. sameTemplate → silent (no UI needed, POs link to existing tasks)
+                    2. actionRequired → show choice: use existing or copy new schedule
+                    3. No schedule on job → show "will copy" info */}
+                {templatePreview.scheduleTemplate && !templatePreview.scheduleTemplate.sameTemplate && (
+                  templatePreview.scheduleTemplate.actionRequired ? (
+                    <div className="rounded-md p-3 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                            This job already has a schedule
+                            {templatePreview.scheduleTemplate.existingTemplateName
+                              ? ` ("${templatePreview.scheduleTemplate.existingTemplateName}")`
+                              : ` (${templatePreview.scheduleTemplate.existingTaskCount} tasks)`
+                            }
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            The template pack uses &quot;{templatePreview.scheduleTemplate.name}&quot;. Choose how to handle the schedule:
+                          </p>
+                        </div>
+                      </div>
+                      <div className="ml-8 space-y-2">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="scheduleAction"
+                            checked={scheduleAction === "use_existing"}
+                            onChange={() => setScheduleAction("use_existing")}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="text-sm font-medium">Use existing schedule</span>
+                            <p className="text-xs text-muted-foreground">Keep current tasks. POs will link to matching SM tasks where possible.</p>
+                          </div>
+                        </label>
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="scheduleAction"
+                            checked={scheduleAction === "copy_new"}
+                            onChange={() => setScheduleAction("copy_new")}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <span className="text-sm font-medium">Copy new schedule</span>
+                            <p className="text-xs text-muted-foreground">
+                              Add &quot;{templatePreview.scheduleTemplate.name}&quot; ({templatePreview.scheduleTemplate.rowCount} tasks with dependencies) to this job.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="rounded-md p-3 flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-400">
+                          Will copy schedule &quot;{templatePreview.scheduleTemplate.name}&quot; ({templatePreview.scheduleTemplate.rowCount} tasks with dependencies)
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          The full schedule with task dependencies and calculated dates will be created first, then POs linked to those tasks.
+                        </p>
+                      </div>
+                    </div>
+                  )
                 )}
 
                 {/* Summary badges */}
@@ -904,7 +941,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             </Button>
             <Button
               onClick={handleApplyTemplate}
-              disabled={!selectedPackId || !templatePreview || applyingTemplate}
+              disabled={
+                !selectedPackId || !templatePreview || applyingTemplate ||
+                (templatePreview?.scheduleTemplate?.actionRequired && !scheduleAction)
+              }
             >
               {applyingTemplate ? (
                 <>
@@ -914,10 +954,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               ) : (
                 <>
                   <FileStack className="h-4 w-4 mr-2" />
-                  {templatePreview?.scheduleTemplate?.willCopy
-                    ? `Apply Schedule + ${templatePreview?.totalPos || 0} POs`
-                    : `Apply All (${templatePreview?.totalPos || 0} POs)`
-                  }
+                  {(() => {
+                    const st = templatePreview?.scheduleTemplate;
+                    const willCopy = st && !st.sameTemplate && (
+                      (!st.jobHasSchedule) || scheduleAction === "copy_new"
+                    );
+                    return willCopy
+                      ? `Apply Schedule + ${templatePreview?.totalPos || 0} POs`
+                      : `Apply ${templatePreview?.totalPos || 0} POs`;
+                  })()}
                 </>
               )}
             </Button>

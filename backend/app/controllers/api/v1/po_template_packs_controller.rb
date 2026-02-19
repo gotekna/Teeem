@@ -56,7 +56,7 @@ module Api
       # POST /api/v1/po_template_packs/:id/apply
       def apply
         job = Job.find(params[:job_id])
-        service = PoTemplateApplyService.new(@pack, job)
+        service = PoTemplateApplyService.new(@pack, job, schedule_action: params[:schedule_action])
         result = service.call
 
         if result[:success]
@@ -117,8 +117,11 @@ module Api
             id: st[:id],
             name: st[:name],
             rowCount: st[:row_count],
-            alreadyApplied: st[:already_applied],
-            willCopy: st[:will_copy]
+            jobHasSchedule: st[:job_has_schedule],
+            sameTemplate: st[:same_template],
+            existingTaskCount: st[:existing_task_count],
+            actionRequired: st[:action_required],
+            existingTemplateName: st[:existing_template_name]
           }
         end
 
