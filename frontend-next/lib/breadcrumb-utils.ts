@@ -194,6 +194,8 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
 
   // Settings > Tables tabs
   "pricebook": "Pricebook",
+  "brands": "Brands",
+  "ranges": "Ranges",
   "accounts": "Accounts",
   "gst-table": "GST Table",
 
@@ -462,6 +464,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
+  "tables": ["pricebook", "brands", "ranges", "accounts"],
 };
 
 /**

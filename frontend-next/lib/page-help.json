@@ -1022,9 +1022,9 @@
     },
     "/settings/tables": {
       "title": "Tables",
-      "description": "Manage lookup tables including Pricebook Categories and GST Codes.",
-      "tips": ["Pricebook tab manages category groupings for pricebook items", "Accounts tab manages GST codes used in POs and Xero sync", "Changes to GST codes affect future calculations only"],
-      "tasks": ["Manage pricebook categories", "Add or edit GST codes", "Sync GST codes from Xero"]
+      "description": "Manage lookup tables including Pricebook Categories, Brands, Ranges, and GST Codes.",
+      "tips": ["Pricebook tab manages category groupings for pricebook items", "Brands tab manages brand names for pricebook items", "Ranges tab manages product range/line groupings for pricebook items", "Accounts tab manages GST codes used in POs and Xero sync"],
+      "tasks": ["Manage pricebook categories", "Manage pricebook brands", "Manage pricebook ranges", "Add or edit GST codes", "Sync GST codes from Xero"]
     },
     "/settings/connections": {
       "title": "Connections",

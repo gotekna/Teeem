@@ -16,11 +16,15 @@ import TeeemTableView from "@/components/table/TeeemTableView";
  *
  * Sub-tabs:
  * - pricebook: Pricebook Categories (TeeemTableView)
+ * - brands: Pricebook Brands (TeeemTableView)
+ * - ranges: Pricebook Ranges (TeeemTableView)
  * - accounts: GST Codes (custom table)
  */
 
 const TABLES_TABS = [
   { id: "pricebook", label: "Pricebook" },
+  { id: "brands", label: "Brands" },
+  { id: "ranges", label: "Ranges" },
   { id: "accounts", label: "Accounts" },
 ];
 
@@ -52,6 +56,24 @@ export default function TablesSettingsPage() {
             <div className="flex flex-col h-full -mx-4">
               <TeeemTableView
                 foundationId={FOUNDATION_SLUGS.PRICEBOOK_CATEGORIES}
+                autoFetchRecords={true}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="brands" className="absolute inset-0 overflow-auto">
+            <div className="flex flex-col h-full -mx-4">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.PRICEBOOK_BRANDS}
+                autoFetchRecords={true}
+              />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ranges" className="absolute inset-0 overflow-auto">
+            <div className="flex flex-col h-full -mx-4">
+              <TeeemTableView
+                foundationId={FOUNDATION_SLUGS.PRICEBOOK_RANGES}
                 autoFetchRecords={true}
               />
             </div>

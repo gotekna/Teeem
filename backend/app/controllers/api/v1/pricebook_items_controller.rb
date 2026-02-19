@@ -225,7 +225,7 @@ module Api
           item = PricebookItem.find_by(id: update[:id])
           if item
             # Permit the attributes we want to update (excluding :id which is used for lookup)
-            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
+            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category, :brand_id, :range_id, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
 
             # If update_price_to_current_default is true, create/update price history for the new default supplier
             if update[:update_price_to_current_default] == true && update[:default_supplier_id].present? && item.current_price.present?
@@ -888,10 +888,13 @@ module Api
           :item_code,
           :item_name,
           :category,
+          :category_id,
           :unit_of_measure,
           :current_price,
           :supplier_id,
           :brand,
+          :brand_id,
+          :range_id,
           :notes,
           :is_active,
           :needs_pricing_review,

@@ -110,14 +110,22 @@ interface UnitOfMeasure {
   name: string;
 }
 
+interface DropdownOption {
+  value: number;
+  label: string;
+}
+
 interface PriceBookItem {
   id: number;
   item_code: string;
   item_name: string;
   category: string;
+  category_id: number | null;
   unit_of_measure: string;
   current_price: number;
   brand: string | null;
+  brand_id: number | null;
+  range_id: number | null;
   notes: string | null;
   is_active: boolean;
   needs_pricing_review: boolean;
@@ -220,6 +228,14 @@ export default function PriceBookItemDetailPage() {
   const [savingUnit, setSavingUnit] = useState(false);
   const [savingGstCode, setSavingGstCode] = useState(false);
 
+  // Category, Brand, Range dropdown options
+  const [categoryOptions, setCategoryOptions] = useState<DropdownOption[]>([]);
+  const [brandOptions, setBrandOptions] = useState<DropdownOption[]>([]);
+  const [rangeOptions, setRangeOptions] = useState<DropdownOption[]>([]);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [savingRange, setSavingRange] = useState(false);
+
   // GST Code options - SSoT: Must match backend Gl::TaxRate::AUSTRALIAN_TAX_RATES
   const GST_CODE_OPTIONS = ['GST', 'GST-FREE', 'BAS-EXCLUDED'] as const;
 
@@ -233,6 +249,9 @@ export default function PriceBookItemDetailPage() {
   useEffect(() => {
     loadItem();
     loadUnitsOfMeasure();
+    loadCategoryOptions();
+    loadBrandOptions();
+    loadRangeOptions();
   }, [code]);
 
   // Lazy load suppliers when any supplier popover opens
@@ -285,6 +304,96 @@ export default function PriceBookItemDetailPage() {
       }
     } catch (err) {
       console.error("Failed to load units of measure:", err);
+    }
+  };
+
+  const loadCategoryOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_categories/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setCategoryOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load category options:", err);
+    }
+  };
+
+  const loadBrandOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_brands/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setBrandOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load brand options:", err);
+    }
+  };
+
+  const loadRangeOptions = async () => {
+    try {
+      const response = await api.get<{ success: boolean; options: DropdownOption[] }>('/api/v1/pricebook_ranges/dropdown');
+      if (response?.success && Array.isArray(response.options)) {
+        setRangeOptions(response.options);
+      }
+    } catch (err) {
+      console.error("Failed to load range options:", err);
+    }
+  };
+
+  const handleCategoryChange = async (newCategoryId: string) => {
+    if (!item) return;
+    const numericId = newCategoryId === "__none__" ? null : parseInt(newCategoryId, 10);
+    if (numericId === item.category_id) return;
+
+    const previousCategoryId = item.category_id;
+    setItem(prev => prev ? { ...prev, category_id: numericId } : null);
+
+    try {
+      setSavingCategory(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { category_id: numericId });
+    } catch (err) {
+      console.error("Failed to update category:", err);
+      setItem(prev => prev ? { ...prev, category_id: previousCategoryId } : null);
+    } finally {
+      setSavingCategory(false);
+    }
+  };
+
+  const handleBrandChange = async (newBrandId: string) => {
+    if (!item) return;
+    const numericId = newBrandId === "__none__" ? null : parseInt(newBrandId, 10);
+    if (numericId === item.brand_id) return;
+
+    const previousBrandId = item.brand_id;
+    setItem(prev => prev ? { ...prev, brand_id: numericId } : null);
+
+    try {
+      setSavingBrand(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { brand_id: numericId });
+    } catch (err) {
+      console.error("Failed to update brand:", err);
+      setItem(prev => prev ? { ...prev, brand_id: previousBrandId } : null);
+    } finally {
+      setSavingBrand(false);
+    }
+  };
+
+  const handleRangeChange = async (newRangeId: string) => {
+    if (!item) return;
+    const numericId = newRangeId === "__none__" ? null : parseInt(newRangeId, 10);
+    if (numericId === item.range_id) return;
+
+    const previousRangeId = item.range_id;
+    setItem(prev => prev ? { ...prev, range_id: numericId } : null);
+
+    try {
+      setSavingRange(true);
+      await api.patch(`/api/v1/pricebook/${code}`, { range_id: numericId });
+    } catch (err) {
+      console.error("Failed to update range:", err);
+      setItem(prev => prev ? { ...prev, range_id: previousRangeId } : null);
+    } finally {
+      setSavingRange(false);
     }
   };
 
@@ -967,11 +1076,69 @@ export default function PriceBookItemDetailPage() {
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Category</dt>
-                    <dd className="mt-1 text-sm">{item.category || "Uncategorized"}</dd>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.category_id?.toString() || "__none__"}
+                        onValueChange={handleCategoryChange}
+                        disabled={savingCategory}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select category..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No category</SelectItem>
+                          {categoryOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">Brand</dt>
-                    <dd className="mt-1 text-sm">{item.brand || "-"}</dd>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.brand_id?.toString() || "__none__"}
+                        onValueChange={handleBrandChange}
+                        disabled={savingBrand}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select brand..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No brand</SelectItem>
+                          {brandOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm font-medium text-muted-foreground">Range</dt>
+                    <dd className="mt-1">
+                      <Select
+                        value={item.range_id?.toString() || "__none__"}
+                        onValueChange={handleRangeChange}
+                        disabled={savingRange}
+                      >
+                        <SelectTrigger className="h-9 w-[200px]">
+                          <SelectValue placeholder="Select range..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No range</SelectItem>
+                          {rangeOptions.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value.toString()}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground">GST Code</dt>

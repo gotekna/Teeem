@@ -23,7 +23,7 @@ import {
   PinOff,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { clearAllCachedRecords } from "@/lib/records-cache";
+import { clearAllCachedRecordsAsync } from "@/lib/records-cache";
 import {
   Persona,
   getStoredPersona,
@@ -189,18 +189,19 @@ function SidebarContent({
     }
   };
 
-  // Clear ALL app caches - use this after hotfixes
+  // Clear ALL app caches - like opening incognito mode
+  // Awaits IndexedDB deletion before reload to guarantee clean slate
   const handleClearCache = async () => {
     setClearing(true);
     try {
-      // 1. Clear React Query cache
+      // 1. Clear React Query cache (sync, instant)
       queryClient.clear();
 
-      // 2. Clear records cache (L1 + L2)
-      clearAllCachedRecords();
+      // 2. Clear records cache L1 (memory) + L2 (IndexedDB) + delete database
+      // MUST await - previous bug: fire-and-forget meant page reloaded before IDB was cleared
+      await clearAllCachedRecordsAsync();
 
       // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
-      // Keys to preserve: token, auth, session, sidebar, api_url, api_environment
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -218,31 +219,15 @@ function SidebarContent({
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // 4. Clear sessionStorage (but not auth or API config)
-      const sessionKeysToRemove: string[] = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (
-          key &&
-          !key.includes("token") &&
-          !key.includes("auth") &&
-          !key.includes("session") &&
-          !key.includes("api_url") &&
-          !key.includes("api_environment")
-        ) {
-          sessionKeysToRemove.push(key);
-        }
-      }
-      sessionKeysToRemove.forEach((key) => sessionStorage.removeItem(key));
+      // 4. Clear all sessionStorage
+      sessionStorage.clear();
 
-
-      // Brief feedback then reload
-      setTimeout(() => {
-        window.location.reload();
-      }, 300);
+      // Reload after caches confirmed cleared
+      window.location.reload();
     } catch (err) {
       console.error("[ClearCache] Error:", err);
-      setClearing(false);
+      // Even on error, force reload to get fresh state
+      window.location.reload();
     }
   };
 

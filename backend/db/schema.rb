@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_19_200003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7515,6 +7515,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
     t.index ["tenant_id"], name: "index_price_histories_on_tenant_id"
   end
 
+  create_table "pricebook_brands", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_brands_on_is_active"
+    t.index ["position"], name: "index_pricebook_brands_on_position"
+    t.index ["tenant_id", "name"], name: "index_pricebook_brands_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebook_brands_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_pricebook_brands_on_tenant_id"
+  end
+
   create_table "pricebook_categories", force: :cascade do |t|
     t.string "name", null: false
     t.string "display_name"
@@ -7530,6 +7548,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
     t.index ["position"], name: "index_pricebook_categories_on_position"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebook_categories_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebook_categories_on_tenant_id"
+  end
+
+  create_table "pricebook_ranges", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "display_name"
+    t.string "color", default: "#6B7280"
+    t.string "icon"
+    t.integer "position", default: 0
+    t.boolean "is_active", default: true
+    t.bigint "tenant_id"
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["is_active"], name: "index_pricebook_ranges_on_is_active"
+    t.index ["position"], name: "index_pricebook_ranges_on_position"
+    t.index ["tenant_id", "name"], name: "index_pricebook_ranges_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id", "sync_key"], name: "idx_pricebook_ranges_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
+    t.index ["tenant_id"], name: "index_pricebook_ranges_on_tenant_id"
   end
 
   create_table "pricebooks", force: :cascade do |t|
@@ -7574,6 +7610,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
     t.bigint "image_storage_blob_id"
     t.bigint "spec_storage_blob_id"
     t.bigint "qr_code_storage_blob_id"
+    t.bigint "brand_id"
+    t.bigint "range_id"
+    t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
     t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
     t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
@@ -7587,6 +7626,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
     t.index ["price_last_updated_at"], name: "index_pricebooks_on_price_last_updated_at"
     t.index ["qr_code_file_id"], name: "index_pricebooks_on_qr_code_file_id"
     t.index ["qr_code_storage_blob_id"], name: "index_pricebooks_on_qr_code_storage_blob_id"
+    t.index ["range_id"], name: "index_pricebooks_on_range_id"
     t.index ["searchable_text"], name: "idx_pricebook_search", using: :gin
     t.index ["spec_file_id"], name: "index_pricebooks_on_spec_file_id"
     t.index ["spec_storage_blob_id"], name: "index_pricebooks_on_spec_storage_blob_id"
@@ -11779,10 +11819,14 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_100001) do
   add_foreign_key "price_histories", "contacts", column: "supplier_id", name: "fk_rails_price_histories_contact"
   add_foreign_key "price_histories", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "price_histories", "tenants"
+  add_foreign_key "pricebook_brands", "tenants"
   add_foreign_key "pricebook_categories", "tenants"
+  add_foreign_key "pricebook_ranges", "tenants"
   add_foreign_key "pricebooks", "contacts", column: "default_supplier_id", name: "fk_rails_pricebook_items_default_supplier"
   add_foreign_key "pricebooks", "contacts", column: "supplier_id", name: "fk_rails_pricebook_items_contact"
+  add_foreign_key "pricebooks", "pricebook_brands", column: "brand_id", on_delete: :nullify
   add_foreign_key "pricebooks", "pricebook_categories", column: "category_id"
+  add_foreign_key "pricebooks", "pricebook_ranges", column: "range_id", on_delete: :nullify
   add_foreign_key "pricebooks", "storage_blobs", column: "image_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "qr_code_storage_blob_id"
   add_foreign_key "pricebooks", "storage_blobs", column: "spec_storage_blob_id"

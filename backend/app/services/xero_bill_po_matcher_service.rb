@@ -220,15 +220,15 @@ class XeroBillPoMatcherService
 
     match_type = amount_matches.any? ? "amount+supplier" : "supplier-only"
 
-    # Update Xero bill Reference field
-    success = update_xero_reference(invoice_id, best.purchase_order_number)
+    # Always save the local link (PO → Xero bill) regardless of whether Xero accepts the update
+    best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
+    @matched_po_ids.add(best.id)
+    @stats[:matched] += 1
 
-    if success
-      best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
-      @matched_po_ids.add(best.id)
-      @stats[:matched] += 1
-      Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}] (#{match_type})")
-    end
+    # Try to update Xero bill Reference field (fails for PAID bills - that's OK)
+    update_xero_reference(invoice_id, best.purchase_order_number)
+
+    Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}] (#{match_type})")
   rescue StandardError => e
     error_msg = "Error matching bill #{invoice_number}: #{e.message}"
     Rails.logger.error("[XeroBillPoMatcher] #{error_msg}")

@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useRef, ReactNode } fro
 import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
+import { clearAllCachedRecords } from '@/lib/records-cache';
 import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import type { User } from '@/lib/types';
 
@@ -364,6 +365,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       // Clear the stored API URL and environment on logout
       clearApiUrl();
       clearEnvironment();
+
+      // Clear all data caches to prevent user data leaking between logins
+      // Records cache: L1 (memory) + L2 (IndexedDB, survives page reload)
+      clearAllCachedRecords();
+
+      // Clear app localStorage (preserve only auth/API keys which we just cleared above)
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          !key.includes("token") &&
+          !key.includes("auth") &&
+          !key.includes("api_url") &&
+          !key.includes("api_environment")
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+      // Clear sessionStorage (table filters, view state, etc.)
+      sessionStorage.clear();
     }
     setToken(null);
     setUser(null);

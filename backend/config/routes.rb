@@ -941,6 +941,22 @@ Rails.application.routes.draw do
         end
       end
 
+      # Price Book Brands (lookup table for pricebook items)
+      resources :pricebook_brands do
+        collection do
+          post :reorder
+          get :dropdown
+        end
+      end
+
+      # Price Book Ranges (lookup table for pricebook items)
+      resources :pricebook_ranges do
+        collection do
+          post :reorder
+          get :dropdown
+        end
+      end
+
       # Price Book management
       resources :pricebook, controller: "pricebook_items", path: "pricebook", constraints: { id: /[^\/]+/ } do
         member do

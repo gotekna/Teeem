@@ -133,6 +133,8 @@ export const FOUNDATION_SLUGS = {
   // ═══════════════════════════════════════════════════════════════════════════
   PRICEBOOK_ITEMS: 'pricebook-items',  // ⚠️ HYPHEN
   PRICEBOOK_CATEGORIES: 'pricebook_categories',  // underscore
+  PRICEBOOK_BRANDS: 'pricebook_brands',  // underscore
+  PRICEBOOK_RANGES: 'pricebook_ranges',  // underscore
   PRICE_HISTORIES: 'price-histories',  // ⚠️ HYPHEN
   RECIPES: 'recipes',
   RECIPE_CATEGORIES: 'recipe_categories',

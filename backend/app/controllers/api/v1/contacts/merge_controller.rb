@@ -414,13 +414,16 @@ module Api
 
           fk_refs = ActiveRecord::Base.connection.execute(fk_query)
 
-          # Tables where Rails dependent: :destroy will handle deletion -
-          # don't transfer these, let destroy clean them up naturally.
+          # Tables already handled by explicit merge methods above, or where
+          # Rails dependent: :destroy should clean up (small record counts).
+          # FRC (Feb 2026): contact_activities and sms_messages REMOVED from skip
+          # so they get TRANSFERRED via fast SQL UPDATE instead of destroyed
+          # one-by-one via dependent: :destroy (1000+ records = 30s+ timeout).
           skip_transfer = Set.new(%w[
-            contact_activities contact_emails contact_phones contact_addresses
+            contact_emails contact_phones contact_addresses
             contact_persons contact_group_memberships contact_external_links
             contact_company_group_memberships contact_relationships
-            sms_messages contact_quality_reviews users
+            contact_quality_reviews users
           ])
 
           fk_refs.each do |row|
