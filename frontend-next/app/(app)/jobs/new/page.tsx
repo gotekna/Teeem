@@ -34,6 +34,7 @@ import {
   CheckSquare,
   MoreVertical,
   Check,
+  Plus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -43,6 +44,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/api";
 import { formatContactLabel } from "@/lib/formatters/display-formatters";
 import { DEBOUNCE_SEARCH_MS } from "@/lib/constants/timeout-constants";
@@ -230,6 +239,18 @@ export default function NewJobPage() {
     contract_value: "",
     latitude: null,
     longitude: null,
+  });
+
+  // Quick-create contact dialog state
+  const { toast } = useToast();
+  const [quickCreateOpen, setQuickCreateOpen] = React.useState(false);
+  const [quickCreateRole, setQuickCreateRole] = React.useState<"client1" | "client2">("client1");
+  const [quickCreateSaving, setQuickCreateSaving] = React.useState(false);
+  const [quickCreateForm, setQuickCreateForm] = React.useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    entity_type: "person" as "person" | "company",
   });
 
   // Suburb search state
@@ -642,6 +663,63 @@ export default function NewJobPage() {
       ...prev,
       [role]: contact || undefined,
     }));
+  };
+
+  // Quick-create a new contact and auto-select it
+  const handleQuickCreateContact = async () => {
+    if (quickCreateSaving) return;
+    const { first_name, last_name, email, entity_type } = quickCreateForm;
+
+    if (entity_type === "person" && !first_name.trim()) {
+      toast({ title: "First name is required", variant: "destructive" });
+      return;
+    }
+    if (entity_type === "company" && !last_name.trim() && !first_name.trim()) {
+      toast({ title: "Company name is required", variant: "destructive" });
+      return;
+    }
+
+    setQuickCreateSaving(true);
+    try {
+      const params: Record<string, string> = { entity_type };
+      if (entity_type === "person") {
+        params.first_name = first_name.trim();
+        params.last_name = last_name.trim();
+        params.display_name = [first_name.trim(), last_name.trim()].filter(Boolean).join(" ");
+      } else {
+        // Company — use first_name field as company name
+        params.company_name = first_name.trim();
+        params.display_name = first_name.trim();
+      }
+      if (email.trim()) params.email = email.trim();
+
+      const response = await api.post<{ success: boolean; contact: Contact; errors?: string[] }>(
+        "/api/v1/contacts",
+        { contact: params }
+      );
+
+      if (response?.success && response.contact) {
+        // Reload contacts list and auto-select the new contact
+        await loadContacts();
+        handleContactSelect(quickCreateRole, response.contact);
+        setQuickCreateOpen(false);
+        setQuickCreateForm({ first_name: "", last_name: "", email: "", entity_type: "person" });
+        toast({ title: "Contact created", description: `${response.contact.display_name} created and selected` });
+      } else {
+        toast({ title: "Failed to create contact", description: response?.errors?.join(", ") || "Unknown error", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error("[NewJob] Failed to quick-create contact:", error);
+      toast({ title: "Error", description: error instanceof Error ? error.message : "Failed to create contact", variant: "destructive" });
+    } finally {
+      setQuickCreateSaving(false);
+    }
+  };
+
+  const openQuickCreate = (role: "client1" | "client2") => {
+    setQuickCreateRole(role);
+    setQuickCreateForm({ first_name: "", last_name: "", email: "", entity_type: "person" });
+    setQuickCreateOpen(true);
   };
 
   // Handle user selection for internal roles
@@ -1251,7 +1329,19 @@ export default function NewJobPage() {
                     </DropdownMenu>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="client1">Client 1 (Primary)</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="client1">Client 1 (Primary)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => openQuickCreate("client1")}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        New
+                      </Button>
+                    </div>
                     <ComboboxDropdown
                       placeholder="Search contacts..."
                       items={contactItems}
@@ -1270,7 +1360,19 @@ export default function NewJobPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="client2">Client 2</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="client2">Client 2</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => openQuickCreate("client2")}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        New
+                      </Button>
+                    </div>
                     <ComboboxDropdown
                       placeholder="Search contacts..."
                       items={contactItems}
@@ -1625,6 +1727,87 @@ export default function NewJobPage() {
           </Button>
         </div>
       </form>
+
+      {/* Quick-create contact dialog */}
+      <Dialog open={quickCreateOpen} onOpenChange={setQuickCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>New Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2" onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleQuickCreateContact(); } }}>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={quickCreateForm.entity_type === "person" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setQuickCreateForm(prev => ({ ...prev, entity_type: "person" }))}
+              >
+                <UserIcon className="h-4 w-4 mr-1" />
+                Person
+              </Button>
+              <Button
+                type="button"
+                variant={quickCreateForm.entity_type === "company" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setQuickCreateForm(prev => ({ ...prev, entity_type: "company" }))}
+              >
+                <Building2 className="h-4 w-4 mr-1" />
+                Company
+              </Button>
+            </div>
+
+            {quickCreateForm.entity_type === "person" ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>First Name *</Label>
+                  <Input
+                    placeholder="First name"
+                    value={quickCreateForm.first_name}
+                    onChange={(e) => setQuickCreateForm(prev => ({ ...prev, first_name: e.target.value }))}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Last Name</Label>
+                  <Input
+                    placeholder="Last name"
+                    value={quickCreateForm.last_name}
+                    onChange={(e) => setQuickCreateForm(prev => ({ ...prev, last_name: e.target.value }))}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Company Name *</Label>
+                <Input
+                  placeholder="Company name"
+                  value={quickCreateForm.first_name}
+                  onChange={(e) => setQuickCreateForm(prev => ({ ...prev, first_name: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                placeholder="email@example.com"
+                value={quickCreateForm.email}
+                onChange={(e) => setQuickCreateForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setQuickCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleQuickCreateContact} disabled={quickCreateSaving}>
+              {quickCreateSaving ? <><Spinner className="h-4 w-4 mr-2" /> Creating...</> : "Create & Select"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
