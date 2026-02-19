@@ -109,6 +109,15 @@ class XeroContactBatchProcessJob < ApplicationJob
 
   private
 
+  # ⚠️ DO NOT SIMPLIFY - Name fields excluded from updates (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════════
+  # Why: TEEEM names are SSoT. Xero's name is tracked via external_name on the
+  # ContactExternalLink. The Review tab shows discrepancies for manual resolution.
+  # BulkContactUpsertService uses update_all (bypasses callbacks), so display_name
+  # in attrs would directly overwrite the database without any protection.
+  # ════════════════════════════════════════════════════════════════════════
+  NAME_FIELDS = %i[display_name first_name last_name company_name_or_trust entity_type].freeze
+
   def build_operation(xero_contact, match_result, xero_org_id, tenant_name)
     attrs = build_contact_attrs(xero_contact)
 
@@ -120,10 +129,13 @@ class XeroContactBatchProcessJob < ApplicationJob
         return nil
       end
 
+      # Strip name fields from updates - TEEEM names are SSoT, not Xero
+      update_attrs = attrs.except(*NAME_FIELDS)
+
       {
         action: :update,
         contact_id: contact_id,
-        attrs: attrs,
+        attrs: update_attrs,
         xero_contact: xero_contact,
         xero_org_id: xero_org_id,
         tenant_name: tenant_name,
