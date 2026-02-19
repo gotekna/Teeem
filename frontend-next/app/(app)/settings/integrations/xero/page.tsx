@@ -33,6 +33,7 @@ import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroSyncStatusTab } from "./components/XeroSyncStatusTab";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { XeroCommonContacts } from "./components/XeroCommonContacts";
+import { XeroNameMismatches } from "./components/XeroNameMismatches";
 import { XeroOverview } from "./components/XeroOverview";
 import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
 import { useGetDuplicateCount } from "@/lib/hooks/useDuplicateContacts";
@@ -465,6 +466,10 @@ export default function XeroIntegrationPage() {
             <Users className="h-4 w-4 mr-2" />
             Common
           </TabsTrigger>
+          <TabsTrigger value="mismatches">
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            Review
+          </TabsTrigger>
           <TabsTrigger value="duplicates">
             <Users className="h-4 w-4 mr-2" />
             Duplicates
@@ -816,6 +821,11 @@ export default function XeroIntegrationPage() {
         {/* Common Contacts Tab */}
         <TabsContent value="common">
           <XeroCommonContacts />
+        </TabsContent>
+
+        {/* Name Mismatches Review Tab */}
+        <TabsContent value="mismatches">
+          <XeroNameMismatches />
         </TabsContent>
 
         {/* Duplicates Tab */}

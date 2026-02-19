@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { getIcon } from "@/lib/icon-map";
 import type { WarehouseFolder } from "@/lib/types/warehouse-folders";
 import type { Contact } from "../types";
@@ -171,13 +170,6 @@ export function ContactTabsRenderer({
       .sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
   }, [tabs]);
 
-  // Create a map for quick lookup of tabs by key
-  const tabsByKey = React.useMemo(() => {
-    const map = new Map<string, WarehouseFolder>();
-    tabs.forEach((tab) => map.set(tab.tab_key, tab));
-    return map;
-  }, [tabs]);
-
   return (
     <TabsList className="flex-wrap h-auto gap-1">
       {rootTabs.map((tab) => {
@@ -185,12 +177,6 @@ export function ContactTabsRenderer({
         const isVisible = evaluateVisibility(tab.visibility_rule, visibilityData);
         if (!isVisible) return null;
 
-        // Get visible children for dropdown
-        const visibleChildren = (tab.children || [])
-          .filter((child) => child.enabled && evaluateVisibility(child.visibility_rule, visibilityData))
-          .sort((a, b) => (a.order_position || 0) - (b.order_position || 0));
-
-        const hasMultipleChildren = visibleChildren.length > 1;
         const badgeCount = getTabBadgeCount(tab.tab_key, visibilityData);
         const showLock = !contact.can_view_confidential && (tab.tab_key === "corporate" || tab.tab_key === "financial");
 

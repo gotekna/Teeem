@@ -2624,6 +2624,7 @@ Rails.application.routes.draw do
           get :contact_sync_sessions
           post :trigger_sync_all
           get :common_contacts
+          get :name_mismatches
           get :unlinked_contacts
           get :xero_duplicates
           get :stale_xero_links

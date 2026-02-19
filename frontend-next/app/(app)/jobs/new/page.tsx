@@ -244,12 +244,13 @@ export default function NewJobPage() {
   // Quick-create contact dialog state
   const { toast } = useToast();
   const [quickCreateOpen, setQuickCreateOpen] = React.useState(false);
-  const [quickCreateRole, setQuickCreateRole] = React.useState<"client1" | "client2">("client1");
+  const [quickCreateRole, setQuickCreateRole] = React.useState<"client1" | "client2" | "referrer" | "external_sales">("client1");
   const [quickCreateSaving, setQuickCreateSaving] = React.useState(false);
   const [quickCreateForm, setQuickCreateForm] = React.useState({
     first_name: "",
     last_name: "",
     email: "",
+    mobile_phone: "",
     entity_type: "person" as "person" | "company",
   });
 
@@ -692,6 +693,7 @@ export default function NewJobPage() {
         params.display_name = first_name.trim();
       }
       if (email.trim()) params.email = email.trim();
+      if (quickCreateForm.mobile_phone.trim()) params.mobile_phone = quickCreateForm.mobile_phone.trim();
 
       const response = await api.post<{ success: boolean; contact: Contact; errors?: string[] }>(
         "/api/v1/contacts",
@@ -703,7 +705,7 @@ export default function NewJobPage() {
         await loadContacts();
         handleContactSelect(quickCreateRole, response.contact);
         setQuickCreateOpen(false);
-        setQuickCreateForm({ first_name: "", last_name: "", email: "", entity_type: "person" });
+        setQuickCreateForm({ first_name: "", last_name: "", email: "", mobile_phone: "", entity_type: "person" });
         toast({ title: "Contact created", description: `${response.contact.display_name} created and selected` });
       } else {
         toast({ title: "Failed to create contact", description: response?.errors?.join(", ") || "Unknown error", variant: "destructive" });
@@ -716,9 +718,9 @@ export default function NewJobPage() {
     }
   };
 
-  const openQuickCreate = (role: "client1" | "client2") => {
+  const openQuickCreate = (role: "client1" | "client2" | "referrer" | "external_sales") => {
     setQuickCreateRole(role);
-    setQuickCreateForm({ first_name: "", last_name: "", email: "", entity_type: "person" });
+    setQuickCreateForm({ first_name: "", last_name: "", email: "", mobile_phone: "", entity_type: "person" });
     setQuickCreateOpen(true);
   };
 
@@ -1399,7 +1401,19 @@ export default function NewJobPage() {
                     Referral & Sales
                   </h3>
                   <div className="space-y-2">
-                    <Label htmlFor="referrer">Referrer</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="referrer">Referrer</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => openQuickCreate("referrer")}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        New
+                      </Button>
+                    </div>
                     <ComboboxDropdown
                       placeholder="Search contacts..."
                       items={contactItems}
@@ -1418,7 +1432,19 @@ export default function NewJobPage() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="external_sales">External Sales</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="external_sales">External Sales</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => openQuickCreate("external_sales")}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        New
+                      </Button>
+                    </div>
                     <ComboboxDropdown
                       placeholder="Search contacts..."
                       items={contactItems}
@@ -1788,14 +1814,25 @@ export default function NewJobPage() {
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input
-                type="email"
-                placeholder="email@example.com"
-                value={quickCreateForm.email}
-                onChange={(e) => setQuickCreateForm(prev => ({ ...prev, email: e.target.value }))}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={quickCreateForm.email}
+                  onChange={(e) => setQuickCreateForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Mobile</Label>
+                <Input
+                  type="tel"
+                  placeholder="0400 000 000"
+                  value={quickCreateForm.mobile_phone}
+                  onChange={(e) => setQuickCreateForm(prev => ({ ...prev, mobile_phone: e.target.value }))}
+                />
+              </div>
             </div>
           </div>
           <DialogFooter>

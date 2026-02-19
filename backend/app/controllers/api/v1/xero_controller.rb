@@ -2294,6 +2294,79 @@ module Api
         end
       end
 
+      # GET /api/v1/xero/name_mismatches
+      # Returns contacts where TEEEM display_name differs from Xero external_name
+      # Groups by TEEEM contact, shows all Xero links per contact
+      def name_mismatches
+        begin
+          credentials = if current_tenant&.master_tenant?
+                          XeroCredential.all
+                        else
+                          XeroCredential.for_teeem_tenant(current_tenant)
+                        end
+          tenant_ids = credentials.pluck(:tenant_id)
+          cred_lookup = credentials.index_by(&:tenant_id)
+
+          # Find all linked contacts where external_name differs from contact display_name
+          links = ContactExternalLink
+            .xero
+            .where(xero_org_id: tenant_ids)
+            .where.not(contact_id: nil)
+            .includes(:contact)
+
+          # Group by contact, filter to those with at least one name mismatch
+          grouped = {}
+          links.find_each do |link|
+            contact = link.contact
+            next unless contact
+
+            teeem_name = contact.display_name.to_s.strip
+            xero_name = (link.external_name || "").strip
+            next if teeem_name.blank? && xero_name.blank?
+
+            is_mismatch = teeem_name.downcase != xero_name.downcase
+
+            grouped[contact.id] ||= {
+              id: contact.id,
+              display_name: teeem_name,
+              entity_type: contact.entity_type,
+              email: contact.email,
+              has_mismatch: false,
+              links: []
+            }
+
+            grouped[contact.id][:has_mismatch] = true if is_mismatch
+            grouped[contact.id][:links] << {
+              link_id: link.id,
+              xero_org_id: link.xero_org_id,
+              tenant_name: cred_lookup[link.xero_org_id]&.tenant_name || "Unknown",
+              external_name: xero_name,
+              external_contact_id: link.external_contact_id,
+              match_confidence: link.match_confidence,
+              match_type: link.match_type,
+              sync_enabled: link.sync_enabled,
+              is_mismatch: is_mismatch
+            }
+          end
+
+          # Only return contacts that have at least one name mismatch
+          mismatched = grouped.values
+            .select { |c| c[:has_mismatch] }
+            .sort_by { |c| c[:display_name].to_s.downcase }
+
+          render json: {
+            success: true,
+            data: {
+              total_count: mismatched.count,
+              contacts: mismatched
+            }
+          }
+        rescue StandardError => e
+          Rails.logger.error("Xero name_mismatches error: #{e.message}")
+          render_error("Failed to get name mismatches: #{e.message}", status: :internal_server_error)
+        end
+      end
+
       # GET /api/v1/xero/validate_contacts
       # Validate all contacts that should be synced to Xero
       def validate_contacts

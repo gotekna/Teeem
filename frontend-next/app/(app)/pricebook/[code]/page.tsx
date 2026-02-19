@@ -835,17 +835,13 @@ export default function PriceBookItemDetailPage() {
                   </div>
                 </div>
               ) : (
-                <div className="group">
+                <div
+                  className="group cursor-pointer rounded-md px-2 py-1 -mx-2 -my-1 hover:bg-muted/50 transition-colors"
+                  onClick={startEditingHeader}
+                >
                   <div className="flex items-center gap-2">
                     <h1 className="text-3xl font-bold">{item.item_name}</h1>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                      onClick={startEditingHeader}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <Pencil className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">Code: {item.item_code}</p>
                 </div>
