@@ -1806,7 +1806,7 @@ export function ViewManagerSheet({
                           </div>
                         )}
                         <AccordionContent className="flex-1 min-h-0 -mx-4 px-4 pt-0">
-                          <ScrollArea className="h-[calc(100vh-280px)]">
+                          <ScrollArea className="h-[calc(100vh-360px)]">
                             <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
