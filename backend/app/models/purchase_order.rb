@@ -73,6 +73,14 @@ class PurchaseOrder < ApplicationRecord
     SmTrade.find_by(id: trade_id)&.name
   end
 
+  def cost_centre_from_task
+    # Try SmTask.cost_centre first, then SmScheduleMaster.cost_centre
+    cc_id = sm_task&.cost_centre || sm_task&.sm_schedule_master&.cost_centre
+    return nil unless cc_id
+    cc = CostCentre.find_by(id: cc_id)
+    cc ? "#{cc.code} - #{cc.name}" : nil
+  end
+
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
@@ -511,6 +519,7 @@ class PurchaseOrder < ApplicationRecord
       'sm_schedule_master_id_via_task' => sm_schedule_master_id_via_task,
       'stage_from_task' => stage_from_task,
       'trade_from_task' => trade_from_task,
+      'cost_centre_from_task' => cost_centre_from_task,
       # Budget lockdown info
       'budget_locked' => budget_locked?,
       'budget_locked_by_name' => budget_locked_by&.name,

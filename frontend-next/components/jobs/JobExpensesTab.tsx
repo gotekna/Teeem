@@ -178,6 +178,7 @@ export function JobExpensesTab({ jobId }: JobExpensesTabProps) {
         totalVariance={totals.totalVariance}
         poCount={totals.poCount}
         totalCredits={totalCredits}
+        totalInvoiced={totals.totalInvoiced}
       />
 
       {/* Expenses Tree */}

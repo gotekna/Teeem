@@ -3,9 +3,9 @@
   "meta": {
     "run_id": "ralph-2026-02-18-001",
     "started_at": "2026-02-18T03:36:27Z",
-    "completed_at": null,
-    "iteration": 5,
-    "ship_ready": false
+    "completed_at": "2026-02-19T12:35:00Z",
+    "iteration": 6,
+    "ship_ready": true
   },
   "anti_cheat": {
     "require_fresh_evidence": true,

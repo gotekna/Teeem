@@ -23,6 +23,8 @@ const GROUP_MODE_CONFIG: Record<GroupMode, { label: string; columns: string[] }>
 
 interface BOQSummary {
   po_count: number;
+  po_subtotal: number;
+  po_gst: number;
   po_total: number;
 }
 
@@ -145,9 +147,19 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
             <Badge variant="secondary" className="text-xs whitespace-nowrap">
               {summary.po_count} POs
             </Badge>
-            <Badge variant="outline" className="text-xs font-mono whitespace-nowrap">
-              {formatCurrency(summary.po_total)}
-            </Badge>
+            <div className="flex items-center gap-1.5 text-xs font-mono">
+              <span className="text-muted-foreground whitespace-nowrap">
+                Ex: {formatCurrency(summary.po_subtotal)}
+              </span>
+              <span className="text-muted-foreground/60">+</span>
+              <span className="text-muted-foreground whitespace-nowrap">
+                GST: {formatCurrency(summary.po_gst)}
+              </span>
+              <span className="text-muted-foreground/60">=</span>
+              <Badge variant="outline" className="text-xs font-mono whitespace-nowrap">
+                {formatCurrency(summary.po_total)}
+              </Badge>
+            </div>
           </>
         ) : null}
       </div>

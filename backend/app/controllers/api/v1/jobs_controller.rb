@@ -973,6 +973,8 @@ module Api
         # Calculate summary from cost budgets + POs
         total_boq = cost_budgets.sum { |b| (b.total_budget || 0).to_f }
         total_po = purchase_orders.sum { |po| (po.total || 0).to_f }
+        total_po_ex_gst = purchase_orders.sum { |po| (po.sub_total || 0).to_f }
+        total_po_gst = purchase_orders.sum { |po| (po.tax || 0).to_f }
         total_variance = total_po - total_boq
 
         render json: {
@@ -986,6 +988,8 @@ module Api
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),
+            po_subtotal: total_po_ex_gst.round(2),
+            po_gst: total_po_gst.round(2),
             variance: total_variance.round(2),
             variance_percent: total_boq > 0 ? (total_variance / total_boq * 100).round(1) : 0,
             contract_value: @job.contract_value.to_f,
