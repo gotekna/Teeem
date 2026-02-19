@@ -75,7 +75,7 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/settings/integrations": "Integrations",
   "/settings/documents": "Documents",
   "/settings/operations": "Operations",
-  "/settings/accounts": "Accounts",
+  "/settings/tables": "Tables",
   "/settings/system": "System",
   "/settings/developer": "Developer",
 
@@ -192,7 +192,9 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "data-health": "Data Health",
   "offline": "Offline",
 
-  // Settings > Accounts tabs
+  // Settings > Tables tabs
+  "pricebook": "Pricebook",
+  "accounts": "Accounts",
   "gst-table": "GST Table",
 
   // Settings > Company > Warehouse Config sub-tabs

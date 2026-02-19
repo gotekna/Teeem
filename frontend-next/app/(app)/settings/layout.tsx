@@ -19,7 +19,7 @@ import {
   Wrench,
   Cable,
   Rocket,
-  Calculator,
+  Table2,
 } from "lucide-react";
 
 // Personal tabs - visible to all authenticated users
@@ -40,7 +40,7 @@ const ORGANIZATION_TABS = [
   { id: "corporate", label: "Corporate", icon: Building2 },
   { id: "company", label: "Company", icon: Building },
   { id: "operations", label: "Operations", icon: Wrench },
-  { id: "accounts", label: "Accounts", icon: Calculator },
+  { id: "tables", label: "Tables", icon: Table2 },
   { id: "connections", label: "Connections", icon: Cable },
   { id: "system", label: "System", icon: Server },
   { id: "developer", label: "Developer", icon: Code },
@@ -68,7 +68,7 @@ export default function SettingsLayout({
   // Detail pages are 2+ levels deep under sections without sub-tabs
   // Company and Connections sub-tabs still show navigation (e.g., /settings/company/info, /settings/connections/provider)
   // View paths (/settings/users/view/setup-2) are NOT detail pages - they're saved table views
-  const sectionsWithSubTabs = ["company", "connections", "operations", "accounts"];
+  const sectionsWithSubTabs = ["company", "connections", "operations", "tables"];
   const isViewPath = pathParts[1] === "view";
   const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]) && !isViewPath;
 

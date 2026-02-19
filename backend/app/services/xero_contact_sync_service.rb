@@ -652,38 +652,22 @@ class XeroContactSyncService
     # Determine if this is a company contact based on Xero data
     is_company = xero_contact_is_company?(xero_contact)
 
-    # Apply field mappings
-    # Note: Field mapping key is "display_name", not "name"
+    # ⚠️ DO NOT SIMPLIFY - Name fields are NEVER overwritten by Xero sync (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════════
+    # Why: TEEEM names are SSoT. Xero's name is tracked via external_name on the
+    # ContactExternalLink (updated in sync_matched_contact before this method).
+    # The Review tab (/settings/integrations/xero?tab=mismatches) shows discrepancies
+    # and lets users manually push TEEEM names to Xero or review differences.
+    #
+    # ❌ WRONG: Setting first_name/last_name/display_name/company_name_or_trust from Xero
+    #    - Triggers generate_display_name callback, overwrites user's chosen name
+    #    - Causes "Team Harder" → "Rachel Anne Harder" type bugs every 5 min
+    # ✅ CORRECT: Only set entity_type if blank (first sync). Names stay as user set them.
+    # ════════════════════════════════════════════════════════════════════════
     if importable_fields.include?("display_name")
-      # FRC: Only set entity_type if contact doesn't already have one set
-      # User's manual entity_type choice should be preserved (SSoT: user decision)
-      # This prevents Xero sync from overwriting "person" back to "company" when user corrects it
+      # Only set entity_type if contact doesn't already have one
       if teeem_contact.entity_type.blank?
         updates[:entity_type] = is_company ? "company" : "person"
-      end
-
-      # Only update name fields if entity_type matches what we would set
-      # This prevents clearing first_name/last_name when user set entity_type to "person"
-      # but Xero thinks it's a company (because FirstName is blank in Xero)
-      effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
-
-      if %w[company trust].include?(effective_entity_type)
-        # Company/trust: display_name comes from company_name_or_trust (SSoT).
-        # Only set from Xero if company_name_or_trust is blank (first sync).
-        # FRC (Feb 2026): When Xero links are transferred between contacts, the Xero
-        # "Name" may not match the company name. User's company_name_or_trust is SSoT.
-        if teeem_contact.company_name_or_trust.blank? && xero_contact["Name"].present?
-          updates[:display_name] = xero_contact["Name"]
-          updates[:company_name_or_trust] = xero_contact["Name"]
-        end
-        updates[:first_name] = nil
-        updates[:last_name] = nil
-      else
-        # Person/sole_trader: display_name is computed by generate_display_name callback
-        # from first_name + middle_name + last_name. Do NOT set display_name from Xero "Name"
-        # as it often contains the company name (e.g., "TL Electrical Pty Ltd") not the person name.
-        updates[:first_name] = xero_contact["FirstName"] if xero_contact["FirstName"].present?
-        updates[:last_name] = xero_contact["LastName"] if xero_contact["LastName"].present?
       end
     end
 
