@@ -57,8 +57,7 @@ export function ContactIdentityCard({
           });
         }
       } catch (err) {
-        console.error("[ContactIdentityCard] Failed to load user identity:", err);
-        // No linked user - that's fine
+        // No linked user - expected for contacts without a user account
         setUserIdentity(null);
       }
     };

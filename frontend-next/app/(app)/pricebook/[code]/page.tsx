@@ -79,6 +79,8 @@ import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrencyWithFallback, formatDateWithFallback } from "@/utils/formatters";
+import { clearCachedRecords } from "@/lib/records-cache";
+import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
 // Types
 interface PriceHistorySupplier {
@@ -351,6 +353,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingCategory(true);
       await api.patch(`/api/v1/pricebook/${code}`, { category_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update category:", err);
       setItem(prev => prev ? { ...prev, category_id: previousCategoryId } : null);
@@ -370,6 +373,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingBrand(true);
       await api.patch(`/api/v1/pricebook/${code}`, { brand_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update brand:", err);
       setItem(prev => prev ? { ...prev, brand_id: previousBrandId } : null);
@@ -389,6 +393,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingRange(true);
       await api.patch(`/api/v1/pricebook/${code}`, { range_id: numericId });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update range:", err);
       setItem(prev => prev ? { ...prev, range_id: previousRangeId } : null);
@@ -406,6 +411,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingUnit(true);
       await api.patch(`/api/v1/pricebook/${code}`, { unit_of_measure: newUnit });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update unit of measure:", err);
       setItem(prev => prev ? { ...prev, unit_of_measure: previousUnit } : null);
@@ -423,6 +429,7 @@ export default function PriceBookItemDetailPage() {
     try {
       setSavingGstCode(true);
       await api.patch(`/api/v1/pricebook/${code}`, { gst_code: newGstCode || null });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error("Failed to update GST code:", err);
       setItem(prev => prev ? { ...prev, gst_code: previousGstCode } : null);
@@ -466,6 +473,7 @@ export default function PriceBookItemDetailPage() {
         item_name: trimmedName,
         item_code: trimmedCode,
       });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       setItem(prev => prev ? { ...prev, item_name: trimmedName, item_code: trimmedCode } : null);
       setIsEditingHeader(false);
@@ -560,6 +568,7 @@ export default function PriceBookItemDetailPage() {
       await api.patch(`/api/v1/pricebook/${code}`, {
         [fieldName]: newValue,
       });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
     } catch (err) {
       console.error(`Failed to update ${fieldName}:`, err);
       setItem((prev) => (prev ? { ...prev, [fieldName]: currentValue } : null));
@@ -578,6 +587,7 @@ export default function PriceBookItemDetailPage() {
 
     try {
       await api.delete(`/api/v1/pricebook/${code}/price_histories/${historyToDelete.id}`);
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update state directly without reload - remove the deleted history
       setItem(prevItem => {
@@ -614,6 +624,7 @@ export default function PriceBookItemDetailPage() {
 
     try {
       await api.patch(`/api/v1/pricebook/${code}/price_histories/${historyToEdit.id}`, editFormData);
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
       setIsEditModalOpen(false);
       setHistoryToEdit(null);
       await loadItem();
@@ -649,7 +660,7 @@ export default function PriceBookItemDetailPage() {
         lga: newPriceEntry.lga.length > 0 ? newPriceEntry.lga : undefined,
         date_effective: newPriceEntry.date_effective || undefined,
       });
-
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update item state directly from response to avoid reload
       if (response?.success && response.item) {
@@ -698,6 +709,7 @@ export default function PriceBookItemDetailPage() {
       const response = await api.post(`/api/v1/pricebook/${code}/set_default_supplier`, {
         supplier_id: supplierId,
       });
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Update state directly without reload
       setItem(prevItem => {
@@ -811,6 +823,7 @@ export default function PriceBookItemDetailPage() {
       // Success - clear pending edits and reload to get updated current_price
       setPendingEdits(new Map());
       setEditingRows(new Set());
+      clearCachedRecords(FOUNDATION_SLUGS.PRICEBOOK_ITEMS);
 
       // Reload the item to get the recalculated current_price from backend
       await loadItem();

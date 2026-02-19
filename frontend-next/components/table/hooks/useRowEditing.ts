@@ -33,6 +33,7 @@ import {
 import { validateCell as validateCellValue } from '../core/column-renderer/CellValidation';
 import { api } from '@/lib/api';
 import { clearCachedRecords } from '@/lib/records-cache';
+import { invalidateLookupCache } from '../utils/lookup-cache';
 import { isLookupColumn } from '@/lib/constants/column-types';
 import type { TableColumn } from '../types';
 
@@ -302,8 +303,9 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
           });
         }
 
-        // Clear cache
+        // Clear cache (records + lookup options so downstream tables get fresh dropdowns)
         clearCachedRecords(foundationId);
+        invalidateLookupCache();
 
         // Optimistic update
         if (isAutoFetch && setRecords) {
@@ -326,6 +328,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         }
         if (foundationId) {
           clearCachedRecords(foundationId);
+          invalidateLookupCache();
         }
         if (isAutoFetch && setRecords) {
           setRecords(prev => prev.map(record => {

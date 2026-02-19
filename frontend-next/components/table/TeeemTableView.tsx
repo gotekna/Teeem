@@ -2245,6 +2245,7 @@ export default function TeeemTableView({
       // 🔴 CRITICAL: Clear cache to ensure other pages get fresh data
       // SSoT: records-cache.ts
       clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
 
       // OPTIMISTIC UPDATE: Remove deleted row from local state
       if (useAutoFetch) {
@@ -2815,6 +2816,7 @@ export default function TeeemTableView({
     // SSoT: records-cache.ts
     if (effectiveFoundationId) {
       clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
     }
 
     // Trigger refresh to show updated data
@@ -6111,6 +6113,7 @@ export default function TeeemTableView({
             onClick={() => {
               if (effectiveFoundationId) {
                 clearCachedRecords(effectiveFoundationId);
+                invalidateLookupCache();
               }
               triggerAutoRefresh();
               onRefresh?.();
@@ -6391,6 +6394,7 @@ export default function TeeemTableView({
           onImportComplete={() => {
             if (effectiveFoundationId) {
               clearCachedRecords(effectiveFoundationId);
+              invalidateLookupCache();
             }
             triggerAutoRefresh();
             onRefresh?.();

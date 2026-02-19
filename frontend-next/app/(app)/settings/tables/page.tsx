@@ -6,6 +6,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { GstCodesTab } from "./components/GstCodesTab";
+import { UomTab } from "./components/UomTab";
 import TeeemTableView from "@/components/table/TeeemTableView";
 
 /**
@@ -19,6 +20,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
  * - brands: Pricebook Brands (TeeemTableView)
  * - ranges: Pricebook Ranges (TeeemTableView)
  * - accounts: GST Codes (custom table)
+ * - uom: Units of Measure (custom table)
  */
 
 const TABLES_TABS = [
@@ -26,6 +28,7 @@ const TABLES_TABS = [
   { id: "brands", label: "Brands" },
   { id: "ranges", label: "Ranges" },
   { id: "accounts", label: "Accounts" },
+  { id: "uom", label: "UOM" },
 ];
 
 const DEFAULT_TAB = "pricebook";
@@ -81,6 +84,10 @@ export default function TablesSettingsPage() {
 
           <TabsContent value="accounts" className="absolute inset-0 overflow-auto">
             <GstCodesTab />
+          </TabsContent>
+
+          <TabsContent value="uom" className="absolute inset-0 overflow-auto">
+            <UomTab />
           </TabsContent>
         </div>
       </Tabs>
