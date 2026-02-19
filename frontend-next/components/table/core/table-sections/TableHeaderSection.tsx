@@ -426,7 +426,8 @@ export function TableHeaderSection({
                     { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
                     ...options
                       .filter(opt => opt.display != null && String(opt.display) !== '')
-                      .map((opt) => ({ id: String(opt.display), label: String(opt.display) })),
+                      .map((opt) => ({ id: String(opt.display), label: String(opt.display) }))
+                      .sort((a, b) => a.label.localeCompare(b.label)),
                   ];
                   const selectedLookup = lookupItems.find(item => item.id === (filterValue || 'all'));
 
@@ -456,7 +457,8 @@ export function TableHeaderSection({
                   { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
                   ...colMeta.choices
                     .filter(c => c && c !== '')
-                    .map((choice) => ({ id: choice, label: choice })),
+                    .map((choice) => ({ id: choice, label: choice }))
+                    .sort((a, b) => a.label.localeCompare(b.label)),
                 ];
                 const selectedChoice = choiceItems.find(item => item.id === (filterValue || 'all'));
 

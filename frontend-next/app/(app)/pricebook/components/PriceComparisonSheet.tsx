@@ -19,6 +19,7 @@ import { useToast } from "@/components/ui/use-toast";
 interface Supplier {
   id: number;
   name: string;
+  priceOnly?: boolean;
 }
 
 interface SupplierPrice {
@@ -269,7 +270,12 @@ export default function PriceComparisonSheet({
                     </th>
                     {suppliers.map(s => (
                       <th key={s.id} className="text-right p-2 min-w-[120px] font-medium">
-                        {s.name}
+                        <div className="flex flex-col items-end">
+                          <span>{s.name}</span>
+                          {s.priceOnly && (
+                            <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
+                          )}
+                        </div>
                       </th>
                     ))}
                     <th className="text-right p-2 min-w-[130px] sticky right-0 bg-background z-20 font-medium border-l">
@@ -369,6 +375,9 @@ export default function PriceComparisonSheet({
               )}
               {suppliers.length > 0 && (
                 <span className="ml-2">&middot; <span className="text-blue-500 dark:text-blue-400">*</span> = default supplier</span>
+              )}
+              {suppliers.some(s => s.priceOnly) && (
+                <span className="ml-2">&middot; <span className="text-orange-500 dark:text-orange-400">price only</span> = reference price contact</span>
               )}
             </div>
             <div className="flex gap-2">

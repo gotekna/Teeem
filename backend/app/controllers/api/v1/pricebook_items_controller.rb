@@ -633,7 +633,7 @@ module Api
 
               # Track supplier
               supplier = latest.supplier
-              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}" }
+              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: supplier&.entity_type == "price_only" }
 
               prices[supplier_id.to_s] = {
                 price: latest.new_price.to_f,

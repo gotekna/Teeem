@@ -192,12 +192,17 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "data-health": "Data Health",
   "offline": "Offline",
 
-  // Settings > Tables tabs
+  // Settings > Tables tabs (top-level)
   "pricebook": "Pricebook",
+  "accounts": "Accounts",
+
+  // Settings > Tables > Pricebook sub-tabs
   "brands": "Brands",
   "ranges": "Ranges",
-  "accounts": "Accounts",
-  "gst-table": "GST Table",
+  "uom": "UOM",
+
+  // Settings > Tables > Accounts sub-tabs
+  "gst": "GST",
 
   // Settings > Company > Warehouse Config sub-tabs
   "warehouse_folders": "Warehouse Folders",
@@ -464,7 +469,7 @@ const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
-  "tables": ["pricebook", "brands", "ranges", "accounts"],
+  "tables": ["pricebook", "accounts"],
 };
 
 /**
