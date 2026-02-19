@@ -1507,7 +1507,16 @@ export default function TeeemTableView({
     cacheSearch(newValue);
 
     // Auto-persist search to URL if enabled
-    if (persistSearchToUrl) {
+    // ⚠️ DO NOT SIMPLIFY - Use history.replaceState instead of router.replace (Feb 2026)
+    // ════════════════════════════════════════════════════════════════════
+    // Why: router.replace() triggers Next.js App Router navigation which causes
+    // the entire page to re-render. On view pages (e.g., /contacts/view/company-role),
+    // this re-render resets the view state, making the user lose their current view.
+    // history.replaceState() updates the URL bar silently without triggering navigation.
+    // ❌ WRONG: router.replace(newUrl, { scroll: false }) - triggers view reset
+    // ✅ CORRECT: window.history.replaceState() - silent URL update
+    // ════════════════════════════════════════════════════════════════════
+    if (persistSearchToUrl && typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (newValue) {
         params.set('search', newValue);
@@ -1515,9 +1524,13 @@ export default function TeeemTableView({
         params.delete('search');
       }
       const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
-      router.replace(newUrl, { scroll: false });
+      window.history.replaceState(
+        { ...window.history.state, as: newUrl, url: newUrl },
+        '',
+        newUrl
+      );
     }
-  }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl, router]);
+  }, [search, setSearchAtom, onSearchChange, cacheSearch, persistSearchToUrl]);
 
   // Keep searchRef in sync for use in auto-fetch refresh effect (defined before search atom)
   // CRITICAL: Use useEffect instead of render body to ensure other effects see the updated value
@@ -1547,11 +1560,15 @@ export default function TeeemTableView({
         setSearchAtom(searchToApply);
       }
       // Update URL if we restored from session storage (sync URL with restored search)
-      if (!urlSearchParam && sessionSearchParam && persistSearchToUrl) {
+      if (!urlSearchParam && sessionSearchParam && persistSearchToUrl && typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
         params.set('search', searchToApply);
         const newUrl = `${window.location.pathname}?${params.toString()}`;
-        router.replace(newUrl, { scroll: false });
+        window.history.replaceState(
+          { ...window.history.state, as: newUrl, url: newUrl },
+          '',
+          newUrl
+        );
       }
       // Always trigger server search to restore filtered results
       if (effectiveOnServerSearch) {

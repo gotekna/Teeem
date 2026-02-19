@@ -1045,6 +1045,7 @@ Rails.application.routes.draw do
           get :prices
           post :copy_history
           delete :categories, action: :remove_categories, as: :remove_categories
+          delete :remove_items
           post :bulk_update
           post :set_default
           delete :column, action: :delete_column

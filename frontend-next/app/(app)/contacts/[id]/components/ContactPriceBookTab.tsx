@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Package, Copy, TrendingUp, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Package, Copy, TrendingUp, Star, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -95,6 +96,7 @@ const ROUNDING_OPTIONS: { value: RoundingMode; label: string; description: strin
 ];
 
 export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBookTabProps) {
+  const router = useRouter();
   const [items, setItems] = useState<PricebookItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -396,6 +398,64 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }
   }, [contactId, toast]);
 
+  // Remove price history state
+  const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const [removeSelectedIds, setRemoveSelectedIds] = useState<(number | string)[]>([]);
+  const [removeClearSelection, setRemoveClearSelection] = useState<(() => void) | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  const handleOpenRemoveModal = useCallback((selectedIds: (number | string)[], clearSelection: () => void) => {
+    setRemoveSelectedIds(selectedIds);
+    setRemoveClearSelection(() => clearSelection);
+    setRemoveModalOpen(true);
+  }, []);
+
+  const removeSelectedItems = useMemo(() => {
+    const idSet = new Set(removeSelectedIds.map(Number));
+    return items.filter((item) => idSet.has(item.id));
+  }, [items, removeSelectedIds]);
+
+  const handleRemovePriceHistory = useCallback(async () => {
+    if (removeSelectedIds.length === 0) return;
+
+    setRemoving(true);
+    try {
+      const response = await api.delete<{
+        success: boolean;
+        message: string;
+        deleted_histories_count: number;
+        removed_default_count: number;
+      }>(`/api/v1/contacts/supplier_pricing/${contactId}/remove_items`, {
+        data: { pricebook_item_ids: removeSelectedIds.map(Number) },
+      });
+
+      if (response?.success) {
+        toast({
+          title: "Price History Removed",
+          description: response.message,
+        });
+        setRemoveModalOpen(false);
+        removeClearSelection?.();
+        loadPricebookItems();
+      } else {
+        toast({
+          title: "Remove Failed",
+          description: "Failed to remove price history. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to remove price history:", err);
+      toast({
+        title: "Remove Failed",
+        description: err instanceof Error ? err.message : "An error occurred while removing price history.",
+        variant: "destructive",
+      });
+    } finally {
+      setRemoving(false);
+    }
+  }, [removeSelectedIds, contactId, toast, removeClearSelection]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -436,6 +496,9 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           onRowUpdate={handleRowUpdate}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
+          onRowDoubleClick={(row) => {
+            if (row.item_code) router.push(`/pricebook/${row.item_code}`);
+          }}
           hideAddRecord
           customBulkActions={(selectedIds, clearSelection) => (
             <>
@@ -454,6 +517,15 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
               >
                 <Copy className="h-4 w-4 mr-1" />
                 Copy Prices ({selectedIds.length})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={() => handleOpenRemoveModal(selectedIds, clearSelection)}
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                Remove Prices ({selectedIds.length})
               </Button>
             </>
           )}
@@ -680,6 +752,70 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                 <>
                   <Copy className="h-4 w-4 mr-1" />
                   Save {copySelectedIds.length} Price{copySelectedIds.length !== 1 ? "s" : ""}
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Price History Modal */}
+      <Dialog open={removeModalOpen} onOpenChange={setRemoveModalOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Remove Price History</DialogTitle>
+            <DialogDescription>
+              Remove all price history for {removeSelectedIds.length} selected item{removeSelectedIds.length !== 1 ? "s" : ""} from{" "}
+              <span className="font-medium text-foreground">{contactName}</span>.
+              This will also remove {contactName} as default supplier for these items if applicable.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="border rounded-md overflow-auto max-h-[250px]">
+            <table className="w-full text-sm">
+              <thead className="bg-background sticky top-0 z-10 border-b">
+                <tr>
+                  <th className="text-left px-3 py-2 font-medium">Code</th>
+                  <th className="text-left px-3 py-2 font-medium">Item Name</th>
+                  <th className="text-right px-3 py-2 font-medium">Price</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {removeSelectedItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-1.5 font-mono text-xs">{item.item_code}</td>
+                    <td className="px-3 py-1.5 truncate max-w-[250px]">{item.item_name}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">
+                      {formatCurrency(item.supplier_price ?? item.current_price)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRemoveModalOpen(false)}
+              disabled={removing}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRemovePriceHistory}
+              disabled={removing}
+            >
+              {removing ? (
+                <>
+                  <Spinner size={16} className="mr-1" />
+                  Removing...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remove {removeSelectedIds.length} Price{removeSelectedIds.length !== 1 ? "s" : ""}
                 </>
               )}
             </Button>

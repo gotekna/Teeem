@@ -655,8 +655,6 @@ class XeroContactSyncService
     # Apply field mappings
     # Note: Field mapping key is "display_name", not "name"
     if importable_fields.include?("display_name")
-      updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
-
       # FRC: Only set entity_type if contact doesn't already have one set
       # User's manual entity_type choice should be preserved (SSoT: user decision)
       # This prevents Xero sync from overwriting "person" back to "company" when user corrects it
@@ -670,10 +668,15 @@ class XeroContactSyncService
       effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
 
       if %w[company trust].include?(effective_entity_type)
+        # Company/trust: display_name comes from Xero "Name", synced via sync_company_name_or_trust callback
+        updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
         updates[:first_name] = nil
         updates[:last_name] = nil
         updates[:company_name_or_trust] = xero_contact["Name"]
       else
+        # Person/sole_trader: display_name is computed by generate_display_name callback
+        # from first_name + middle_name + last_name. Do NOT set display_name from Xero "Name"
+        # as it often contains the company name (e.g., "TL Electrical Pty Ltd") not the person name.
         updates[:first_name] = xero_contact["FirstName"] if xero_contact["FirstName"].present?
         updates[:last_name] = xero_contact["LastName"] if xero_contact["LastName"].present?
       end

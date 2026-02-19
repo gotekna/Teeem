@@ -86,6 +86,58 @@ module Api
           render json: { success: false, error: "Failed to fetch prices: #{e.message}" }, status: :internal_server_error
         end
 
+        # DELETE /api/v1/contacts/supplier_pricing/:contact_id/remove_items
+        # Remove all price histories for specific pricebook items from this supplier
+        # Also removes this supplier as default if applicable
+        def remove_items
+          pricebook_item_ids = params[:pricebook_item_ids]
+
+          if pricebook_item_ids.blank? || !pricebook_item_ids.is_a?(Array) || pricebook_item_ids.empty?
+            return render json: {
+              success: false,
+              error: "pricebook_item_ids (array) is required"
+            }, status: :bad_request
+          end
+
+          item_ids = pricebook_item_ids.map(&:to_i)
+          deleted_histories_count = 0
+          removed_default_count = 0
+
+          ActiveRecord::Base.transaction do
+            # Delete all price histories for these items from this supplier
+            histories = PriceHistory.where(supplier_id: @contact.id, pricebook_item_id: item_ids)
+            deleted_histories_count = histories.count
+            histories.delete_all
+
+            # Remove as default supplier for these items if applicable
+            default_items = PricebookItem.where(id: item_ids, default_supplier_id: @contact.id)
+            removed_default_count = default_items.count
+            default_items.update_all(default_supplier_id: nil) if removed_default_count > 0
+          end
+
+          parts = []
+          parts << "#{deleted_histories_count} price #{deleted_histories_count == 1 ? 'history' : 'histories'}" if deleted_histories_count > 0
+          parts << "default supplier from #{removed_default_count} #{removed_default_count == 1 ? 'item' : 'items'}" if removed_default_count > 0
+
+          message = if parts.any?
+            "Removed #{parts.join(' and ')} for #{@contact.display_name}"
+          else
+            "No price histories found for this supplier on the selected items"
+          end
+
+          render json: {
+            success: true,
+            message: message,
+            deleted_histories_count: deleted_histories_count,
+            removed_default_count: removed_default_count
+          }
+        rescue => e
+          render json: {
+            success: false,
+            error: "Failed to remove price histories: #{e.message}"
+          }, status: :internal_server_error
+        end
+
         # POST /api/v1/contacts/supplier_pricing/:contact_id/copy_history
         # Copy price history from another supplier
         def copy_history

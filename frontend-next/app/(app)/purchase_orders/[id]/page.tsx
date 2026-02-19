@@ -1645,33 +1645,47 @@ export default function PurchaseOrderDetailPage() {
                   >
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
                       <div className="flex flex-col">
-                        <PricebookCodePicker
-                          value={item.pricebook_item ? {
-                            id: item.pricebook_item.id,
-                            item_code: item.pricebook_item.item_code,
-                            item_name: item.pricebook_item.item_name,
-                            current_price: item.pricebook_item.current_price,
-                            active_price: item.pricebook_item.active_price,
-                            gst_code: item.pricebook_item.gst_code,
-                            default_supplier: item.pricebook_item.default_supplier,
-                          } : null}
-                          onSelect={(pbItem) => {
-                            if (pbItem) {
-                              selectPricebookItem(originalIndex, {
-                                id: pbItem.id,
-                                item_code: pbItem.item_code,
-                                item_name: pbItem.item_name,
-                                current_price: pbItem.current_price,
-                                active_price: pbItem.active_price,
-                                gst_code: pbItem.gst_code,
-                                default_supplier: pbItem.default_supplier,
-                              });
-                            }
-                          }}
-                          placeholder="Search items..."
-                          showPrice
-                          className="border-0 rounded-none shadow-none focus-visible:ring-0"
-                        />
+                        <div className="flex items-center">
+                          <PricebookCodePicker
+                            value={item.pricebook_item ? {
+                              id: item.pricebook_item.id,
+                              item_code: item.pricebook_item.item_code,
+                              item_name: item.pricebook_item.item_name,
+                              current_price: item.pricebook_item.current_price,
+                              active_price: item.pricebook_item.active_price,
+                              gst_code: item.pricebook_item.gst_code,
+                              default_supplier: item.pricebook_item.default_supplier,
+                            } : null}
+                            onSelect={(pbItem) => {
+                              if (pbItem) {
+                                selectPricebookItem(originalIndex, {
+                                  id: pbItem.id,
+                                  item_code: pbItem.item_code,
+                                  item_name: pbItem.item_name,
+                                  current_price: pbItem.current_price,
+                                  active_price: pbItem.active_price,
+                                  gst_code: pbItem.gst_code,
+                                  default_supplier: pbItem.default_supplier,
+                                });
+                              }
+                            }}
+                            placeholder="Search items..."
+                            showPrice
+                            className="border-0 rounded-none shadow-none focus-visible:ring-0 flex-1"
+                          />
+                          {item.pricebook_item?.item_code && (
+                            <a
+                              href={`/pricebook/${encodeURIComponent(item.pricebook_item.item_code)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 p-1 mr-1 text-muted-foreground hover:text-foreground transition-colors"
+                              title={`View ${item.pricebook_item.item_code} in Price Book`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          )}
+                        </div>
                         {item.pricebook_item?.default_supplier && (
                           <div className="px-3 pb-1 -mt-1 text-xs text-muted-foreground truncate">
                             {item.pricebook_item.default_supplier.display_name || item.pricebook_item.default_supplier.name}
