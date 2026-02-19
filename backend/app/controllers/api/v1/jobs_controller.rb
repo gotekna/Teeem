@@ -921,7 +921,7 @@ module Api
               tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
               stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
               stagePosition: sm&.sequence_order,
-              costCentreName: nil,
+              costCentreName: po.cost_centre_from_task,
               items: po.line_items.sort_by(&:line_number).map do |item|
                 {
                   id: item.id,

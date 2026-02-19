@@ -337,6 +337,7 @@ export function PoTemplatesTab() {
         stageName: item.stageName,
         stagePosition: item.stagePosition,
         costCentreName: item.costCentreName,
+        profitCentreName: item.profitCentreName,
         items: (item.lineItems || []).map((li) => ({
           id: li.id,
           description: li.description,

@@ -12,13 +12,14 @@ import { useFoundationViewState } from "@/lib/view-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import type { BOQGroup } from "@/components/ui/bill-of-quantities";
 
-type GroupMode = "flat" | "supplier" | "stage" | "trade";
+type GroupMode = "flat" | "supplier" | "stage" | "trade" | "cost_centre";
 
 const GROUP_MODE_CONFIG: Record<GroupMode, { label: string; columns: string[] }> = {
   flat: { label: "PO / Task", columns: [] },
   supplier: { label: "Supplier", columns: ["supplier_id"] },
   stage: { label: "Stage", columns: ["stage_from_task"] },
   trade: { label: "Trade", columns: ["trade_from_task"] },
+  cost_centre: { label: "Cost Centre", columns: ["cost_centre_from_task"] },
 };
 
 interface BOQSummary {
@@ -47,9 +48,10 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
   const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState<GroupMode>("flat");
 
-  // Stage/Trade filter state (local - drives cascadeFilters on the atom)
+  // Stage/Trade/Cost Centre filter state (local - drives cascadeFilters on the atom)
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
+  const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
 
   // Write to the shared view state atom that TTV reads from
   const {
@@ -90,10 +92,15 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
     [...new Set(groups.map((g) => g.tradeName).filter(Boolean) as string[])].sort(),
     [groups]
   );
+  const uniqueCostCentres = useMemo(() =>
+    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
 
   const hasStages = uniqueStages.length > 0;
   const hasTrades = uniqueTrades.length > 0;
-  const hasActiveFilters = selectedStages.size > 0 || selectedTrades.size > 0;
+  const hasCostCentres = uniqueCostCentres.length > 0;
+  const hasActiveFilters = selectedStages.size > 0 || selectedTrades.size > 0 || selectedCostCentres.size > 0;
 
   // Toggle filter helper
   const toggleSetFilter = useCallback((value: string, setter: React.Dispatch<React.SetStateAction<Set<string>>>) => {
@@ -120,8 +127,11 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
     selectedTrades.forEach((trade) => {
       filters.push({ id: `po-trade-${trade}`, column: "trade_from_task", operator: "=", value: trade });
     });
+    selectedCostCentres.forEach((cc) => {
+      filters.push({ id: `po-cc-${cc}`, column: "cost_centre_from_task", operator: "=", value: cc });
+    });
     setCascadeFilters(filters);
-  }, [selectedStages, selectedTrades, setCascadeFilters]);
+  }, [selectedStages, selectedTrades, selectedCostCentres, setCascadeFilters]);
 
   // Reset atom state on unmount to avoid stale grouping
   useEffect(() => {
@@ -134,6 +144,7 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
   const clearAllFilters = useCallback(() => {
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
+    setSelectedCostCentres(new Set());
   }, []);
 
   return (
@@ -172,9 +183,10 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
         <span className="text-xs text-muted-foreground whitespace-nowrap">Group:</span>
         <div className="flex items-center rounded-md border border-input bg-background">
           {(Object.keys(GROUP_MODE_CONFIG) as GroupMode[]).map((mode, idx) => {
-            // Hide stage/trade toggles if no data
+            // Hide toggles if no data for that dimension
             if (mode === "stage" && !hasStages) return null;
             if (mode === "trade" && !hasTrades) return null;
+            if (mode === "cost_centre" && !hasCostCentres) return null;
 
             return (
               <button
@@ -217,6 +229,17 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
             onToggle={(v) => toggleSetFilter(v, setSelectedTrades)}
             placeholder="Trade..."
             label="Trade"
+          />
+        </div>
+      )}
+      {hasCostCentres && (
+        <div className="w-36">
+          <MultiSelectFilter
+            values={uniqueCostCentres}
+            selected={selectedCostCentres}
+            onToggle={(v) => toggleSetFilter(v, setSelectedCostCentres)}
+            placeholder="Cost Centre..."
+            label="Cost Centre"
           />
         </div>
       )}

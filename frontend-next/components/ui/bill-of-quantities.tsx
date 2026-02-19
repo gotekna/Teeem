@@ -51,6 +51,7 @@ export interface BOQGroup {
   stageName?: string | null;
   stagePosition?: number | null;
   costCentreName?: string | null;
+  profitCentreName?: string | null;
   items: BOQLineItem[];
 }
 
@@ -117,13 +118,14 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre";
+type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "profitCentre";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
   stage: "Stage",
   trade: "Trade",
   costCentre: "Cost Centre",
+  profitCentre: "Profit Centre",
 };
 
 export function BillOfQuantities({
@@ -170,10 +172,15 @@ export function BillOfQuantities({
     [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
     [groups]
   );
+  const uniqueProfitCentres = useMemo(() =>
+    [...new Set(groups.map((g) => g.profitCentreName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
   const hasStages = uniqueStages.length > 0;
   const hasTrades = uniqueTrades.length > 0;
   const hasSuppliers = uniqueSuppliers.length > 0;
   const hasCostCentres = uniqueCostCentres.length > 0;
+  const hasProfitCentres = uniqueProfitCentres.length > 0;
 
   // Sort + column filter state
   const [sortState, setSortState] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
@@ -183,6 +190,7 @@ export function BillOfQuantities({
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
   const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
+  const [selectedProfitCentres, setSelectedProfitCentres] = useState<Set<string>>(new Set());
 
   const toggleSort = useCallback((column: SortColumn) => {
     setSortState((prev) => {
@@ -211,8 +219,9 @@ export function BillOfQuantities({
       selectedSuppliers.size > 0 ||
       selectedStages.size > 0 ||
       selectedTrades.size > 0 ||
-      selectedCostCentres.size > 0,
-    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres]
+      selectedCostCentres.size > 0 ||
+      selectedProfitCentres.size > 0,
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -221,6 +230,7 @@ export function BillOfQuantities({
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
     setSelectedCostCentres(new Set());
+    setSelectedProfitCentres(new Set());
     setSortState(null);
   }, []);
 
@@ -252,9 +262,11 @@ export function BillOfQuantities({
       }
       const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
         : groupSortBy === "costCentre" ? (a.costCentreName || "")
+        : groupSortBy === "profitCentre" ? (a.profitCentreName || "")
         : (a.tradeName || "");
       const bVal = groupSortBy === "supplier" ? (b.supplierName || "")
         : groupSortBy === "costCentre" ? (b.costCentreName || "")
+        : groupSortBy === "profitCentre" ? (b.profitCentreName || "")
         : (b.tradeName || "");
       return aVal.localeCompare(bVal);
     });
@@ -415,6 +427,9 @@ export function BillOfQuantities({
     if (selectedCostCentres.size > 0) {
       result = result.filter((g) => g.costCentreName && selectedCostCentres.has(g.costCentreName));
     }
+    if (selectedProfitCentres.size > 0) {
+      result = result.filter((g) => g.profitCentreName && selectedProfitCentres.has(g.profitCentreName));
+    }
     const hasItemFilters =
       columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
     if (hasItemFilters) {
@@ -485,7 +500,7 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, sortState, getQty]);
 
   // Cascade sections: group POs under Stage/Supplier/Trade headers
   const cascadeSections = useMemo(() => {
@@ -496,7 +511,8 @@ export function BillOfQuantities({
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
             : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
-              : (group.tradeName || "No Trade");
+              : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
+                : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
@@ -589,11 +605,11 @@ export function BillOfQuantities({
               >
                 PO / Task
               </button>
-              {(["supplier", "stage", "trade", "costCentre"] as GroupSortBy[]).map((dim) => {
+              {(["supplier", "stage", "trade", "costCentre", "profitCentre"] as GroupSortBy[]).map((dim) => {
                 if (dim === "stage" && !hasStages) return null;
                 if (dim === "trade" && !hasTrades) return null;
                 if (dim === "supplier" && !hasSuppliers) return null;
-                // costCentre always visible (unallocated items grouped under "Unallocated")
+                if (dim === "profitCentre" && !hasProfitCentres) return null;
                 return (
                   <button
                     key={dim}
@@ -659,6 +675,15 @@ export function BillOfQuantities({
               onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
               placeholder="Cost Centre..."
               label="Cost Centre"
+            />
+          )}
+          {hasProfitCentres && (
+            <MultiSelectFilter
+              values={uniqueProfitCentres}
+              selected={selectedProfitCentres}
+              onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+              placeholder="Profit Centre..."
+              label="Profit Centre"
             />
           )}
           {(hasActiveFilters || sortState) && (
@@ -937,10 +962,11 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                       {group.taskName}
                     </div>
                   )}
-                  {(group.stageName || group.tradeName) && (
+                  {(group.stageName || group.tradeName || group.profitCentreName) && (
                     <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
                       {group.stageName && <span>{group.stageName}</span>}
                       {group.tradeName && <span>{group.tradeName}</span>}
+                      {group.profitCentreName && <span>{group.profitCentreName}</span>}
                     </div>
                   )}
                 </div>
