@@ -2614,13 +2614,14 @@ module Api
                 b_active = active_in_org.include?(b[:xero_id])
                 next unless a_active && b_active
 
-                # Skip if both contacts are linked to DIFFERENT TEEEM contacts
-                # (user has already determined these are separate people)
+                # Skip if both contacts are already linked to TEEEM contacts.
+                # Case 1: Linked to DIFFERENT TEEEM contacts = user determined they're separate people.
+                # Case 2: Linked to the SAME TEEEM contact = already merged in TEEEM. The Xero
+                #   side may still have two contacts, but that's a Xero-internal cleanup, not
+                #   actionable from TEEEM (and the "ghost" contact may already be deleted in Xero).
                 teeem_id_a = teeem_links[a[:xero_id]]
                 teeem_id_b = teeem_links[b[:xero_id]]
-                if teeem_id_a.present? && teeem_id_b.present? && teeem_id_a != teeem_id_b
-                  next
-                end
+                next if teeem_id_a.present? && teeem_id_b.present?
 
                 if likely_duplicate?(a[:name], b[:name], suffixes)
                   # Find or create group for this pair

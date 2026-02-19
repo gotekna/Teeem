@@ -3123,6 +3123,7 @@ export default function TeeemTableView({
   // Wrap cancel/save to also clear the active editing cell
   const startEditing = rowEditing.actions.startEditing;
   const startMultiEditing = rowEditing.actions.startMultiEditing;
+  const updateCell = rowEditing.actions.updateCell;
   const cancelEditing = useCallback(() => {
     rowEditing.actions.cancelEditing();
     setActiveEditingCell(null);
@@ -4359,6 +4360,7 @@ export default function TeeemTableView({
             column={column}
             rowEditingData={rowEditingData}
             setEditingData={setEditingData}
+            onCellChange={updateCell}
             validationError={validationErrors[entry.id]?.[column.key]}
             handleCellBlur={handleCellBlur}
             lookupOptions={lookupOptions}
@@ -4367,50 +4369,37 @@ export default function TeeemTableView({
         );
       }
 
-      // In edit mode: editing row, editable column, but NOT the active cell - show clickable display
+      // In edit mode: editing row, editable column, but NOT the active cell - render normally
+      // (clicking will activate this cell via the edit mode click handler below)
       if (isEditing && isColumnEditable && isEditMode) {
         return (
           <div
-            className="cursor-text hover:bg-blue-50/50 dark:hover:bg-blue-950/10 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className="cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
               setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
             }}
-            title="Click to edit this cell"
           >
             {renderCellWithRegistry(value, column, entry, "display")}
           </div>
         );
       }
 
-      // Show read-only indicator for non-editable columns when in row edit mode
+      // Non-editable columns in editing row - render normally (no italic/visual change)
       if (isEditing && !isColumnEditable) {
-        // Don't show indicator for select/actions columns
-        if (column.key === 'select' || column.key === 'actions') {
-          // Fall through to normal rendering
-        } else {
-          // Show the value with a subtle indicator it's not editable
-          return (
-            <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
-              {renderCellWithRegistry(value, column, entry, "display")}
-            </span>
-          );
-        }
+        // Fall through to normal rendering for all columns
       }
 
-      // Global edit mode OR alwaysEditable - show clickable cells that start row editing on click
-      // Cells stay as lightweight text until clicked
+      // Global edit mode OR alwaysEditable - clickable cells that start editing on click
       if ((isEditMode || alwaysEditable) && isColumnEditable) {
         return (
           <div
-            className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className="cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
-              // Start editing this row and activate this specific cell
               startEditing(entry);
               setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
             }}
-            title="Click to edit"
           >
             {renderCellWithRegistry(value, column, entry, "display")}
           </div>
@@ -5574,8 +5563,6 @@ export default function TeeemTableView({
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
                   isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-                  editingRowIds.has(row.id) && !dirtyRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
-                  dirtyRowIds.has(row.id) && "bg-orange-50 dark:bg-orange-950/20",
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
                 )}

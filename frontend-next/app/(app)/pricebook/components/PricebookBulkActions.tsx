@@ -101,13 +101,16 @@ export default function PricebookBulkActions({
     if (suppliers.length > 0) return;
     setLoadingSuppliers(true);
     try {
-      const response = await api.get<{ contacts: { id: number; display_name?: string; name?: string }[] }>(
-        "/api/v1/contacts?entity_type=company,trust,sole_trader,price_only"
-      );
-      const list = (response?.contacts || []).map((c) => ({
-        id: String(c.id),
-        label: c.display_name || c.name || `Contact ${c.id}`,
-        supplierId: c.id,
+      // Fetch from pricebook endpoint which returns filters.suppliers -
+      // only suppliers that have price histories or are default suppliers.
+      // limit=1 to avoid loading all items (we only need the filter metadata).
+      const response = await api.get<{
+        filters: { suppliers: [number, string][] };
+      }>("/api/v1/pricebook?limit=1&include_risk=false");
+      const list = (response?.filters?.suppliers || []).map(([id, name]) => ({
+        id: String(id),
+        label: name || `Supplier ${id}`,
+        supplierId: id,
       }));
       setSuppliers(list);
     } catch (err) {

@@ -202,8 +202,6 @@ export const VirtualizedFlatTable = memo(function VirtualizedFlatTable({
                       className={cn(
                         selectedRows.has(row.id) && "bg-muted/50",
                         isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-                        editingRowIds.has(row.id) && !dirtyRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
-                        dirtyRowIds.has(row.id) && "bg-orange-50 dark:bg-orange-950/20",
                         focusedRowIndex === rowIndex && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                         "hover:bg-muted/30 cursor-pointer"
                       )}

@@ -23,7 +23,7 @@
  * editing.actions.saveEditing();
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useAtom } from 'jotai';
 import {
   editingRowIdsAtom,
@@ -129,6 +129,9 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
   const [editingData, setEditingData] = useAtom(editingDataAtom);
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
 
+  // Track which fields the user explicitly modified (prevents sending untouched FK columns)
+  const modifiedFieldsRef = useRef<Record<string | number, Set<string>>>({});
+
   // ============================================================================
   // COMPUTED STATE
   // ============================================================================
@@ -224,9 +227,16 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     setEditingRowIds(new Set());
     setEditingData({});
     setValidationErrors({});
+    modifiedFieldsRef.current = {};
   }, [setEditingRowIds, setEditingData, setValidationErrors]);
 
   const updateCell = useCallback((rowId: string | number, columnKey: string, value: unknown) => {
+    // Track this field as explicitly modified by the user
+    if (!modifiedFieldsRef.current[rowId]) {
+      modifiedFieldsRef.current[rowId] = new Set();
+    }
+    modifiedFieldsRef.current[rowId].add(columnKey);
+
     setEditingData(prev => ({
       ...prev,
       [rowId]: {
@@ -325,7 +335,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
           .map(c => c.key)
       );
 
-      // Collect changes
+      // Collect changes - ONLY send fields the user explicitly modified
       const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
 
       for (const rowId of editingRowIds) {
@@ -333,13 +343,21 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         const rowData = editingData[rowId];
         if (!originalRow || !rowData) continue;
 
+        const modifiedForRow = modifiedFieldsRef.current[rowId];
         const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
           // Only send fields that correspond to actual editable columns
           if (!editableColumnKeys.has(key)) continue;
+          // Only send fields the user explicitly modified (prevents sending untouched FK columns)
+          if (!modifiedForRow?.has(key)) continue;
           const originalValue = originalRow[key];
           if (JSON.stringify(originalValue) !== JSON.stringify(value)) {
-            changes[key] = value;
+            // Sanitize FK values: convert 0/"0"/"" to null for _id columns
+            if (key.endsWith('_id') && (value === 0 || value === '0' || value === '')) {
+              changes[key] = null;
+            } else {
+              changes[key] = value;
+            }
           }
         }
 
@@ -398,10 +416,11 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       setEditingRowIds(new Set());
       setEditingData({});
       setValidationErrors({});
+      modifiedFieldsRef.current = {};
 
       toast?.({
         title: "Saved",
-        description: `Successfully saved ${editingRowIds.size} row${editingRowIds.size !== 1 ? "s" : ""}`,
+        description: `Successfully saved ${rowsToUpdate.length} row${rowsToUpdate.length !== 1 ? "s" : ""}`,
       });
     } catch (error) {
       console.error("Failed to save:", error);

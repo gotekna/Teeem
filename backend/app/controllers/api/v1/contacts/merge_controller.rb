@@ -194,8 +194,16 @@ module Api
           # for any table with a FK constraint but no Rails dependent option.
           transfer_all_remaining_fk_references(source, target_contact)
 
-          # Reload to clear cached associations (update_all bypasses ActiveRecord cache)
+          # FRC (Feb 2026): Reset ALL association caches before destroy.
+          # Contact has TWO has_many pointing at contact_external_links:
+          #   has_many :external_links (dependent: :destroy)
+          #   has_many :xero_links (dependent: :destroy)
+          # If association caches hold stale references, dependent: :destroy
+          # cascade-deletes links that were already transferred to the target.
+          # Reload + reset ensures destroy only affects records still owned by source.
           source.reload
+          source.external_links.reset
+          source.xero_links.reset
 
           # Delete the source contact (destroy! raises on failure for clear error)
           unless source.destroy
@@ -347,12 +355,15 @@ module Api
 
             if existing
               if xero_link.external_contact_id != existing.external_contact_id
-                xero_link.mark_stale!('not_found')
+                # FRC (Feb 2026): Keep as 'active' - this is a REAL Xero contact that
+                # should stay linked to the merged target. Marking as 'not_found' causes
+                # CleanupStaleXeroLinksJob to delete it after 7 days, then Xero sync
+                # recreates the contact as a duplicate.
                 xero_link.update!(
                   contact_id: target_contact.id,
-                  sync_error: "Contact merged - duplicate Xero link marked as stale"
+                  sync_error: "Contact merged - secondary Xero link for same org"
                 )
-                Rails.logger.info "[ContactMerge] Transferred stale Xero link: #{xero_link.external_contact_id}"
+                Rails.logger.info "[ContactMerge] Transferred Xero link (kept active): #{xero_link.external_contact_id}"
               else
                 Rails.logger.info "[ContactMerge] Deleting duplicate Xero link to #{xero_link.tenant_name}"
                 xero_link.destroy
