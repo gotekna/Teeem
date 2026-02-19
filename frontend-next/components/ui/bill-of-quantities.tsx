@@ -74,7 +74,7 @@ export interface BOQSavePayload {
   newLines: BOQNewLine[];
 }
 
-type SortColumn = "group" | "supplier" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
+type SortColumn = "group" | "supplier" | "profitCentre" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
 type SortDirection = "asc" | "desc";
 
 export interface BillOfQuantitiesProps {
@@ -463,11 +463,11 @@ export function BillOfQuantities({
       const { column, direction } = sortState;
       const dir = direction === "asc" ? 1 : -1;
 
-      if (column === "group" || column === "supplier") {
+      if (column === "group" || column === "supplier" || column === "profitCentre") {
         // Sort groups themselves
         result = [...result].sort((a, b) => {
-          const aVal = column === "group" ? a.name : (a.supplierName || "");
-          const bVal = column === "group" ? b.name : (b.supplierName || "");
+          const aVal = column === "group" ? a.name : column === "profitCentre" ? (a.profitCentreName || "") : (a.supplierName || "");
+          const bVal = column === "group" ? b.name : column === "profitCentre" ? (b.profitCentreName || "") : (b.supplierName || "");
           return aVal.localeCompare(bVal) * dir;
         });
       } else {
@@ -740,6 +740,9 @@ export function BillOfQuantities({
               <SortableHead column="supplier" sort={sortState} onSort={toggleSort} className="w-[160px]">
                 Supplier
               </SortableHead>
+              <SortableHead column="profitCentre" sort={sortState} onSort={toggleSort} className="w-[120px]">
+                Profit Centre
+              </SortableHead>
               <SortableHead column="description" sort={sortState} onSort={toggleSort}>
                 Description
               </SortableHead>
@@ -775,6 +778,14 @@ export function BillOfQuantities({
                   selected={selectedSuppliers}
                   onToggle={(v) => toggleSetFilter(selectedSuppliers, v, setSelectedSuppliers)}
                   placeholder="Supplier..."
+                />
+              </TableHead>
+              <TableHead className="py-1 px-2">
+                <MultiSelectFilter
+                  values={uniqueProfitCentres}
+                  selected={selectedProfitCentres}
+                  onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+                  placeholder="Profit Centre..."
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -817,7 +828,7 @@ export function BillOfQuantities({
                       className="bg-muted border-y-2 border-primary/20 cursor-pointer select-none hover:bg-muted/80 transition-colors"
                       onClick={() => toggleSection(section.label)}
                     >
-                      <TableCell colSpan={6} className="py-2 px-4 font-semibold text-sm">
+                      <TableCell colSpan={7} className="py-2 px-4 font-semibold text-sm">
                         <span className="inline-flex items-center gap-1.5">
                           {isExpanded ? (
                             <ChevronDown className="h-4 w-4 shrink-0" />
@@ -962,11 +973,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                       {group.taskName}
                     </div>
                   )}
-                  {(group.stageName || group.tradeName || group.profitCentreName) && (
+                  {(group.stageName || group.tradeName) && (
                     <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
                       {group.stageName && <span>{group.stageName}</span>}
                       {group.tradeName && <span>{group.tradeName}</span>}
-                      {group.profitCentreName && <span>{group.profitCentreName}</span>}
                     </div>
                   )}
                 </div>
@@ -980,6 +990,18 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 <div className="sticky top-10">
                   {group.supplierName || (
                     <span className="italic text-xs">No supplier</span>
+                  )}
+                </div>
+              </TableCell>
+            )}
+            {idx === 0 && (
+              <TableCell
+                rowSpan={totalDataRows}
+                className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}
+              >
+                <div className="sticky top-10">
+                  {group.profitCentreName || (
+                    <span className="italic text-xs">—</span>
                   )}
                 </div>
               </TableCell>
@@ -1102,7 +1124,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
       {/* Group total row with Add Line button */}
       <TableRow className={cn(color.bg, "border-b-2 border-border")}>
-        <TableCell colSpan={2} className={cn("border-r py-1", color.bg)}>
+        <TableCell colSpan={3} className={cn("border-r py-1", color.bg)}>
           {canEdit && (
             <Button
               variant="ghost"
