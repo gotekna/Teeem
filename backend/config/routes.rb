@@ -900,6 +900,7 @@ Rails.application.routes.draw do
           post :match_xero_bills
           get :template_variants
           get :template_preview
+          get :supplier_coverage_gaps
         end
         member do
           post :approve

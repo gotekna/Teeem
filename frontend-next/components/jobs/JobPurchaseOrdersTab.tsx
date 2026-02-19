@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -117,6 +117,18 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [saveTemplateSuccess, setSaveTemplateSuccess] = useState<string | null>(null);
   const [saveTemplatePreview, setSaveTemplatePreview] = useState<{ poCount: number; smTemplateName: string | null } | null>(null);
   const [loadingSavePreview, setLoadingSavePreview] = useState(false);
+
+  // Supplier coverage gaps - shows which POs have items not supplied by their supplier
+  const [coverageGaps, setCoverageGaps] = useState<Record<string, { covered: number; total: number }>>({});
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ success: boolean; gaps: Record<string, { covered: number; total: number }> }>(
+      `/api/v1/purchase_orders/supplier_coverage_gaps?job_id=${jobId}`
+    ).then((res) => {
+      if (!cancelled && res?.success) setCoverageGaps(res.gaps);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [jobId, refreshKey]);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -489,8 +501,31 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
         </span>
       );
     }
+
+    // Show warning icon on supplier column when supplier doesn't cover all items
+    if (columnKey === "supplier_id") {
+      const poId = String(entry.id);
+      const gap = coverageGaps[poId];
+      if (gap) {
+        // Foundation lookup values can be objects or raw IDs
+        const rawValue = entry.supplier_id;
+        const supplierName = typeof rawValue === "object" && rawValue !== null
+          ? ((rawValue as Record<string, unknown>).display || (rawValue as Record<string, unknown>).display_value || (rawValue as Record<string, unknown>).name || "")
+          : String(rawValue || "");
+        return (
+          <span className="flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            <span className="truncate">{String(supplierName)}</span>
+            <span className="text-xs text-amber-600 dark:text-amber-400 whitespace-nowrap">
+              ({gap.covered}/{gap.total})
+            </span>
+          </span>
+        );
+      }
+    }
+
     return null; // Use default renderer for other columns
-  }, []);
+  }, [coverageGaps]);
 
   return (
     <div className="flex flex-col h-full -mx-4">

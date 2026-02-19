@@ -796,8 +796,10 @@ class Contact < ApplicationRecord
 
   # Override display_name to use computed_display_name for team contacts
   # This ensures team contacts show "Person Name - Company Name" in all contexts
+  # Use read_attribute to safely handle partial SELECT queries (e.g. list_view_excluded_columns)
+  # that may not load is_team_contact, which would raise ActiveModel::MissingAttributeError
   def display_name
-    if is_team_contact && primary_company.present?
+    if read_attribute(:is_team_contact) && primary_company.present?
       computed_display_name
     else
       read_attribute(:display_name)

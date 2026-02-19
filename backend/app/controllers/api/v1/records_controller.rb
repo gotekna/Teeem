@@ -393,6 +393,11 @@ module Api
 
                 next nil unless valid_columns.include?(column)
 
+                # Also validate against actual DB columns to prevent PG::UndefinedColumn
+                # when Foundation column config diverges from the real DB schema
+                # (e.g., after a column rename/removal without updating Foundation config)
+                next nil unless model.column_names.include?(column)
+
                 # Build SQL condition based on operator
                 # Table-qualify to avoid PG::AmbiguousColumn when search JOINs lookup tables
                 conn = ActiveRecord::Base.connection
@@ -557,7 +562,9 @@ module Api
             @foundation.columns.pluck(:column_name)
           end
 
-          if valid_columns.include?(sort_by)
+          # Also validate against actual DB columns to prevent PG::UndefinedColumn
+          # when Foundation column config diverges from the real DB schema
+          if valid_columns.include?(sort_by) && model.column_names.include?(sort_by)
             # Use Arel to safely build the order clause
             query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
           else

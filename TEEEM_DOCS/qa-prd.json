@@ -4,8 +4,8 @@
     "run_id": "ralph-v2-20260220",
     "started_at": "2026-02-20T06:25:00Z",
     "completed_at": null,
-    "last_updated": "2026-02-19T23:28:18Z",
-    "iteration": 14,
+    "last_updated": "2026-02-19T23:37:42Z",
+    "iteration": 16,
     "ship_ready": false,
     "total_pages": 200,
     "total_stories": 19
@@ -1150,7 +1150,7 @@
       "title": "Company Settings",
       "icon": "save",
       "description": "Company settings with 9 tabs and their sub-tabs",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/settings/company",
         "/settings/company/info",
@@ -1414,6 +1414,45 @@
             "consoleErrors": 0,
             "bodyBg": "rgb(255, 255, 255)"
           }
+        },
+        "/settings/company/warehouse-config/email-config": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigEmail Config",
+            "url": "/settings/company/warehouse-config/email-config",
+            "title": "Email Config | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/warehouse-config/config-sync": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyWarehouse ConfigConfig Sync",
+            "url": "/settings/company/warehouse-config/config-sync",
+            "title": "Config Sync | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/company/offline": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCompanyOffline",
+            "url": "/settings/company/offline",
+            "title": "Offline | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -1422,7 +1461,7 @@
       "title": "Connections Settings",
       "icon": "save",
       "description": "Storage, Integrations, Migration, Costs, Backups",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/settings/connections",
         "/settings/connections/provider",
@@ -1451,14 +1490,145 @@
         "Xero integration shows sync status",
         "URL updates when clicking connection sub-tabs"
       ],
-      "page_results": {}
+      "page_results": {
+        "/settings/connections": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsStorage Provider",
+            "url": "/settings/connections/provider",
+            "title": "Storage Provider | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/connections/provider": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsStorage Provider",
+            "url": "/settings/connections/provider",
+            "title": "Storage Provider | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/connections/integrations": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsIntegrations",
+            "url": "/settings/connections/integrations",
+            "title": "Integrations | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/connections/migration": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsMigration",
+            "url": "/settings/connections/migration",
+            "title": "Migration | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/connections/costs": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsCost Comparison",
+            "url": "/settings/connections/costs",
+            "title": "Cost Comparison | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/connections/backups": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsBackups",
+            "url": "/settings/connections/backups",
+            "title": "Backups | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/integrations": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsConnectionsIntegrations",
+            "url": "/settings/connections/integrations",
+            "title": "Integrations | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/integrations/xero": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsIntegrationsXero",
+            "url": "/settings/integrations/xero",
+            "title": "Xero | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/integrations/microsoft": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsIntegrationsMicrosoft",
+            "url": "/settings/integrations/microsoft",
+            "title": "Microsoft | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/integrations/cloudflare": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsIntegrationsCloudflare",
+            "url": "/settings/integrations/cloudflare",
+            "title": "Cloudflare | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-SETTINGS-OPERATIONS",
       "title": "Operations Settings",
       "icon": "save",
       "description": "Schedule Master, SM Tasks, Contact Types, Meeting Types, etc.",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/settings/operations",
         "/settings/operations/po-templates",
@@ -1476,14 +1646,106 @@
         "Claim Templates page loads",
         "Tables settings shows lookup tables"
       ],
-      "page_results": {}
+      "page_results": {
+        "/settings/operations": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsSchedule Master",
+            "url": "/settings/operations/schedule-master",
+            "title": "Schedule Master | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/operations/po-templates": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsPO Templates",
+            "url": "/settings/operations/po-templates",
+            "title": "PO Templates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/operations/claim-templates": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsClaim Templates",
+            "url": "/settings/operations/claim-templates",
+            "title": "Claim Templates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/tables": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsTablesPricebookCategories",
+            "url": "/settings/tables/pricebook/categories",
+            "title": "Categories | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/training": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsTraining",
+            "url": "/settings/training",
+            "title": "Training | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/meeting-types": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Meeting Types",
+            "url": "/meeting-types",
+            "title": "Meeting Types | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/public-holidays": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:33:00Z",
+          "iteration": 15,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "Public HolidaysDefault View 1",
+            "url": "/public-holidays/view/default-view-1",
+            "title": "Public Holidays | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-SETTINGS-OTHER",
       "title": "Access Control, System, Developer & Admin",
       "icon": "save",
       "description": "Roles, Users, Corporate, System, Developer settings and admin pages",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/settings/users",
         "/settings/roles",
@@ -1514,7 +1776,268 @@
         "System settings loads",
         "Developer settings shows tools"
       ],
-      "page_results": {}
+      "page_results": {
+        "/settings/users": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsUsers",
+            "url": "/settings/users",
+            "title": "Users | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/roles": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsAccess ControlPermissions",
+            "url": "/settings/roles/permissions",
+            "title": "Permissions | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/corporate": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsCorporateGroups",
+            "url": "/settings/corporate/groups",
+            "title": "Groups | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/system": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsSystemNavigation",
+            "url": "/settings/system/navigation",
+            "title": "Navigation | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/developer": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsDeveloperComponents Lab",
+            "url": "/settings/developer/components",
+            "title": "Components Lab | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/documents": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsDocuments",
+            "url": "/settings/documents",
+            "title": "Documents | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/email-reseller": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsEmail Reseller",
+            "url": "/settings/email-reseller",
+            "title": "Email Reseller | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/email-reseller/subscriptions": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsEmail ResellerSubscriptions",
+            "url": "/settings/email-reseller/subscriptions",
+            "title": "Subscriptions | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/email-reseller/migrations": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsEmail ResellerMigrationsActive",
+            "url": "/settings/email-reseller/migrations/active",
+            "title": "Active | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/email-reseller/reports": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsEmail ResellerReports",
+            "url": "/settings/email-reseller/reports",
+            "title": "Reports | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/settings/email-reseller/settings": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsEmail ResellerSettings",
+            "url": "/settings/email-reseller/settings",
+            "title": "Settings | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/tenants": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsTenants",
+            "url": "/admin/tenants",
+            "title": "Tenants | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/referrers": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsReferrers",
+            "url": "/admin/referrers",
+            "title": "Referrers | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/saas-customers": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsSaas Customers",
+            "url": "/admin/saas-customers",
+            "title": "Saas Customers | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/support-tickets": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsSupport Tickets",
+            "url": "/admin/support-tickets",
+            "title": "Support Tickets | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/site-presence": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsSite PresenceActive",
+            "url": "/admin/site-presence/active",
+            "title": "Active | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/system/teeem-xl/list": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsTeeem XlList",
+            "url": "/admin/system/teeem-xl/list",
+            "title": "List | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/system/teeem-word/list": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsTeeem WordList",
+            "url": "/admin/system/teeem-word/list",
+            "title": "List | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/system/teeem-powerpoint/list": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsTeeem PowerpointList",
+            "url": "/admin/system/teeem-powerpoint/list",
+            "title": "List | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/admin/system/teeem-pdf/list": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:37:42Z",
+          "iteration": 16,
+          "js_check": {
+            "hasContent": true,
+            "breadcrumb": "SettingsOperationsTeeem PdfList",
+            "url": "/admin/system/teeem-pdf/list",
+            "title": "List | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-WAREHOUSE",

@@ -1072,6 +1072,53 @@ module Api
         raise ActiveRecord::RecordNotFound unless @purchase_order
       end
 
+      # GET /api/v1/purchase_orders/supplier_coverage_gaps?job_id=123
+      # Returns which POs have items not supplied by their selected supplier
+      # Efficient batch query: 3 queries total regardless of PO count
+      def supplier_coverage_gaps
+        job_id = params[:job_id]
+        return render json: { success: false, error: "job_id required" }, status: :unprocessable_entity unless job_id.present?
+
+        today = TenantSetting.today
+
+        # 1. Get all POs for this job that have a supplier, with their line items
+        pos = PurchaseOrder.where(job_id: job_id)
+          .where.not(supplier_id: nil)
+          .includes(line_items: :pricebook_item)
+
+        # 2. Collect all (supplier_id, pricebook_item_id) pairs we need to check
+        supplier_item_pairs = {}
+        pos.each do |po|
+          pb_ids = po.line_items.filter_map(&:pricebook_item_id)
+          next if pb_ids.empty?
+          supplier_item_pairs[po.id] = { supplier_id: po.supplier_id, pricebook_item_ids: pb_ids }
+        end
+
+        # 3. Batch-fetch all relevant price histories in one query
+        all_supplier_ids = supplier_item_pairs.values.map { |v| v[:supplier_id] }.uniq
+        all_pb_item_ids = supplier_item_pairs.values.flat_map { |v| v[:pricebook_item_ids] }.uniq
+
+        # Get which (supplier_id, pricebook_item_id) combinations have active prices
+        supplied_pairs = PriceHistory
+          .where(supplier_id: all_supplier_ids, pricebook_item_id: all_pb_item_ids)
+          .where("date_effective IS NULL OR date_effective <= ?", today)
+          .where("new_price IS NOT NULL AND new_price > 0")
+          .distinct
+          .pluck(:supplier_id, :pricebook_item_id)
+          .to_set
+
+        # 4. Compute coverage for each PO
+        gaps = {}
+        supplier_item_pairs.each do |po_id, data|
+          total = data[:pricebook_item_ids].length
+          covered = data[:pricebook_item_ids].count { |pb_id| supplied_pairs.include?([data[:supplier_id], pb_id]) }
+          next if covered >= total  # No gap - skip
+          gaps[po_id] = { covered: covered, total: total }
+        end
+
+        render json: { success: true, gaps: gaps }
+      end
+
       def purchase_order_params
         params.require(:purchase_order).permit(
           :job_id,

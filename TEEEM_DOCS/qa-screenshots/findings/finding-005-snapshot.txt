@@ -1,0 +1,5 @@
+uid=20_0 RootWebArea "Emails | Teeem" url="https://teeem-staging.vercel.app/leads/emails"
+  uid=20_1 region "Notifications (F8)"
+    uid=20_2 list
+  uid=20_3 region "Notifications alt+T" live="polite" relevant="additions text"
+  uid=20_4 alert atomic live="assertive" relevant="additions text"

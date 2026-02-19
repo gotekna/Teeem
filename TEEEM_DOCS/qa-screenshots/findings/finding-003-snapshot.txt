@@ -1,0 +1,5 @@
+uid=18_0 RootWebArea "Live | Teeem" url="https://teeem-staging.vercel.app/site-presence/live"
+  uid=18_1 region "Notifications (F8)"
+    uid=18_2 list
+  uid=18_3 region "Notifications alt+T" live="polite" relevant="additions text"
+  uid=18_4 alert atomic live="assertive" relevant="additions text"

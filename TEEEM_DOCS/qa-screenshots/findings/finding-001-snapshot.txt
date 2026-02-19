@@ -1,0 +1,40 @@
+uid=16_0 RootWebArea "Schedule Templates | Teeem" url="https://teeem-staging.vercel.app/schedule-templates"
+  uid=16_1 banner
+    uid=16_2 link "t teeem" url="https://teeem-staging.vercel.app/dashboard"
+      uid=16_3 StaticText "t"
+      uid=16_4 StaticText "teeem"
+    uid=16_5 button "Create Task"
+    uid=16_6 link "Chat" url="https://teeem-staging.vercel.app/chat"
+      uid=16_7 StaticText "Chat"
+    uid=16_8 link "Training Sessions" url="https://teeem-staging.vercel.app/training"
+      uid=16_9 StaticText "Training Sessions"
+    uid=16_10 button "Create New..." expandable haspopup="menu"
+    uid=16_11 button "Notifications" expandable haspopup="dialog"
+    uid=16_12 button "Email: 0 accounts" expandable haspopup="dialog"
+    uid=16_13 link "Office 365" description="Office 365: Not Connected" url="https://teeem-staging.vercel.app/settings/integrations/microsoft"
+      uid=16_14 StaticText "Office 365"
+    uid=16_15 link "Xero Connections" description="Xero: Not Connected" url="https://teeem-staging.vercel.app/settings/integrations/xero"
+      uid=16_16 StaticText "Xero Connections"
+    uid=16_17 button "Background Tasks: Loading..." expandable haspopup="dialog"
+    uid=16_18 link "Data Warehouse" url="https://teeem-staging.vercel.app/data-warehouse"
+      uid=16_19 StaticText "Data Warehouse"
+    uid=16_20 link "System Health" url="https://teeem-staging.vercel.app/system-health"
+    uid=16_21 button "AI Support Chat" description="Chat with Teeem AI" expandable haspopup="dialog"
+    uid=16_22 button "Get help" description="Get help for this page" expandable haspopup="dialog"
+    uid=16_23 link "Feature Requests & Suggestions" url="https://teeem-staging.vercel.app/feature-requests"
+    uid=16_24 button "RH" expandable haspopup="menu"
+  uid=16_25 complementary
+    uid=16_26 navigation
+    uid=16_27 button "0" description="Copy all console logs"
+    uid=16_28 button "! 0" description="Copy errors & warnings"
+    uid=16_29 button "Clear cache + hard refresh"
+    uid=16_30 button "Unpin sidebar" description="Unpin sidebar"
+    uid=16_31 button "Collapse sidebar" disableable disabled
+  uid=16_32 main
+  uid=16_33 navigation
+    uid=16_34 button "Schedule Templates" disableable disabled
+  uid=16_35 region "Notifications (F8)"
+    uid=16_36 list
+  uid=16_37 region "Notifications alt+T" live="polite" relevant="additions text"
+  uid=16_38 alert atomic live="assertive" relevant="additions text"
+    uid=16_39 StaticText "Schedule Templates | Teeem"

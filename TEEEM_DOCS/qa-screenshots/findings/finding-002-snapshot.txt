@@ -1,0 +1,5 @@
+uid=17_0 RootWebArea "Calendar | Teeem" url="https://teeem-staging.vercel.app/calendar"
+  uid=17_1 region "Notifications (F8)"
+    uid=17_2 list
+  uid=17_3 region "Notifications alt+T" live="polite" relevant="additions text"
+  uid=17_4 alert atomic live="assertive" relevant="additions text"

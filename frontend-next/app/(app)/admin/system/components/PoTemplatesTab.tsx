@@ -963,6 +963,12 @@ function TemplatesView({
                                           <th className="text-left py-1 font-medium">
                                             Description
                                           </th>
+                                          <th className="text-left py-1 font-medium w-28">
+                                            PB Code
+                                          </th>
+                                          <th className="text-left py-1 font-medium w-20">
+                                            PC
+                                          </th>
                                           <th className="text-right py-1 font-medium w-20">
                                             Qty
                                           </th>
@@ -984,6 +990,12 @@ function TemplatesView({
                                             className="border-t border-border/50"
                                           >
                                             <td className="py-1">{li.description}</td>
+                                            <td className="py-1 text-muted-foreground">
+                                              {li.pricebookItemCode || "—"}
+                                            </td>
+                                            <td className="py-1 text-muted-foreground">
+                                              {item.profitCentreName || "—"}
+                                            </td>
                                             <td className="text-right py-1 font-mono">
                                               {li.quantity}
                                             </td>
