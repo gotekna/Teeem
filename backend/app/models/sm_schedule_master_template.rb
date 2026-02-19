@@ -21,6 +21,7 @@ class SmScheduleMasterTemplate < ApplicationRecord
 
   has_many :copies, class_name: "SmScheduleMasterTemplate", foreign_key: :copied_from_id, dependent: :nullify
   has_many :job_types, dependent: :nullify
+  has_many :po_template_packs, dependent: :nullify
 
   # Validations
   validates :name, presence: true, length: { maximum: 255 }

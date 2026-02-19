@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/po_template_packs
       def index
         packs = PoTemplatePack.active.ordered
-          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre])
+          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre])
 
         render json: {
           success: true,
@@ -74,45 +74,55 @@ module Api
         result = service.preview
 
         # Convert to camelCase for frontend (service returns snake_case)
-        render json: {
-          success: true,
-          data: {
-            packName: result[:pack_name],
-            jobName: result[:job_name],
-            totalPos: result[:total_pos],
-            estimatedTotal: result[:estimated_total],
-            tasksMatched: result[:tasks_matched],
-            tasksUnmatched: result[:tasks_unmatched],
-            tasksWillCreate: result[:tasks_will_create],
-            suppliersMatched: result[:suppliers_matched],
-            suppliersUnmatched: result[:suppliers_unmatched],
-            warnings: result[:warnings],
-            items: result[:items].map { |item|
-              {
-                name: item[:name],
-                smScheduleMasterName: item[:sm_schedule_master_name],
-                supplierName: item[:supplier_name],
-                supplierMatched: item[:supplier_matched],
-                taskName: item[:task_name],
-                taskMatched: item[:task_matched],
-                taskWillCreate: item[:task_will_create],
-                lineItemCount: item[:line_item_count],
-                estimatedTotal: item[:estimated_total],
-                profitCentreName: item[:profit_centre_name],
-                lineItems: item[:line_items]&.map { |li|
-                  {
-                    description: li[:description],
-                    quantity: li[:quantity],
-                    unitPrice: li[:unit_price],
-                    gstCode: li[:gst_code],
-                    subtotal: li[:subtotal],
-                    priceSource: li[:price_source]
-                  }
+        data = {
+          packName: result[:pack_name],
+          jobName: result[:job_name],
+          totalPos: result[:total_pos],
+          estimatedTotal: result[:estimated_total],
+          tasksMatched: result[:tasks_matched],
+          tasksUnmatched: result[:tasks_unmatched],
+          tasksWillCreate: result[:tasks_will_create],
+          suppliersMatched: result[:suppliers_matched],
+          suppliersUnmatched: result[:suppliers_unmatched],
+          warnings: result[:warnings],
+          items: result[:items].map { |item|
+            {
+              name: item[:name],
+              smScheduleMasterName: item[:sm_schedule_master_name],
+              supplierName: item[:supplier_name],
+              supplierMatched: item[:supplier_matched],
+              taskName: item[:task_name],
+              taskMatched: item[:task_matched],
+              taskWillCreate: item[:task_will_create],
+              lineItemCount: item[:line_item_count],
+              estimatedTotal: item[:estimated_total],
+              profitCentreName: item[:profit_centre_name],
+              lineItems: item[:line_items]&.map { |li|
+                {
+                  description: li[:description],
+                  quantity: li[:quantity],
+                  unitPrice: li[:unit_price],
+                  gstCode: li[:gst_code],
+                  subtotal: li[:subtotal],
+                  priceSource: li[:price_source]
                 }
               }
             }
           }
         }
+
+        # Add schedule template info if present
+        if (st = result[:schedule_template])
+          data[:scheduleTemplate] = {
+            id: st[:id],
+            name: st[:name],
+            rowCount: st[:row_count],
+            alreadyApplied: st[:already_applied],
+            willCopy: st[:will_copy]
+          }
+        end
+
+        render json: { success: true, data: data }
       end
 
       # POST /api/v1/po_template_packs/:id/duplicate
@@ -201,7 +211,7 @@ module Api
 
       def set_pack
         @pack = PoTemplatePack
-          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
+          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
           .find(params[:id])
       end
 
@@ -234,6 +244,12 @@ module Api
         @cost_centres_map ||= CostCentre.pluck(:id, :name).to_h
       end
 
+      # Cache template row IDs per request to avoid N+1 on inTemplate checks
+      def template_row_ids(template)
+        @template_row_ids_cache ||= {}
+        @template_row_ids_cache[template.id] ||= template.sm_schedule_master_rows.active.pluck(:id).to_set
+      end
+
       # SSoT: Stage ordering from Job Stages (user-configured position)
       # Maps stage_name => position, used to sort BOQ cascade sections
       def stage_order_map
@@ -248,7 +264,7 @@ module Api
 
       def pack_params
         params.require(:po_template_pack).permit(
-          :name, :description, :is_active, :position,
+          :name, :description, :is_active, :position, :sm_schedule_master_template_id,
           po_template_items_attributes: [
             :id, :name, :sm_schedule_master_id, :supplier_id, :supplier_sync_key,
             :profit_centre_id, :position, :budget, :notes, :status_on_create, :_destroy,
@@ -261,6 +277,7 @@ module Api
       end
 
       def pack_json(pack, include_line_items: false)
+        template = pack.sm_schedule_master_template
         json = {
           id: pack.id,
           name: pack.name,
@@ -269,16 +286,19 @@ module Api
           position: pack.position,
           itemCount: pack.po_template_items.size,
           estimatedTotal: pack.estimated_total,
+          smScheduleMasterTemplateId: template&.id,
+          smScheduleMasterTemplateName: template&.name,
+          smScheduleMasterTemplateRowCount: template&.row_count,
           createdAt: pack.created_at&.iso8601,
           updatedAt: pack.updated_at&.iso8601,
           items: pack.po_template_items
             .sort_by { |item| item.sm_schedule_master&.sequence_order || Float::INFINITY }
-            .map { |item| item_json(item, include_line_items: include_line_items) }
+            .map { |item| item_json(item, include_line_items: include_line_items, template: template) }
         }
         json
       end
 
-      def item_json(item, include_line_items: false)
+      def item_json(item, include_line_items: false, template: nil)
         sm = item.sm_schedule_master
         json = {
           id: item.id,
@@ -299,7 +319,8 @@ module Api
           notes: item.notes,
           statusOnCreate: item.status_on_create,
           lineItemCount: item.po_template_line_items.size,
-          lineItemTotal: item.line_item_total
+          lineItemTotal: item.line_item_total,
+          inTemplate: template.present? ? template_row_ids(template).include?(item.sm_schedule_master_id) : nil
         }
 
         if include_line_items

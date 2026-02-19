@@ -7,17 +7,25 @@
 # 2. Finds matching SmTask on the job via sm_schedule_master_id, or creates one
 # 3. Creates PO with line items, using current pricebook prices when available
 #
+# Schedule handling (when pack has a linked SmScheduleMasterTemplate):
+# - No tasks on job → auto-copy schedule, then create POs
+# - Same template on job → silent, just create POs linked to existing tasks
+# - Different schedule on job → caller must pass schedule_action:
+#   "copy_new"     → copy the pack's schedule, then create POs
+#   "use_existing" → skip schedule copy, link POs to whatever tasks exist
+#
 # Usage:
-#   service = PoTemplateApplyService.new(pack, job)
+#   service = PoTemplateApplyService.new(pack, job, schedule_action: "use_existing")
 #   result = service.call   # Creates POs (all-or-nothing transaction)
 #   result = service.preview   # Returns what WOULD happen without creating
 #
 class PoTemplateApplyService
-  attr_reader :pack, :job, :warnings, :errors
+  attr_reader :pack, :job, :warnings, :errors, :options
 
-  def initialize(pack, job)
+  def initialize(pack, job, options = {})
     @pack = pack
     @job = job
+    @options = options.with_indifferent_access
     @warnings = []
     @errors = []
   end
@@ -25,7 +33,7 @@ class PoTemplateApplyService
   # Preview what would happen without creating anything
   def preview
     items = build_preview
-    {
+    result = {
       pack_name: pack.name,
       job_name: job.name,
       items: items,
@@ -38,13 +46,27 @@ class PoTemplateApplyService
       suppliers_matched: items.count { |i| i[:supplier_matched] },
       suppliers_unmatched: items.count { |i| !i[:supplier_matched] }
     }
+
+    # Add schedule template info if pack has a linked template
+    if (template = pack.sm_schedule_master_template)
+      result[:schedule_template] = build_schedule_info(template)
+    end
+
+    result
   end
 
   # Apply the template - creates all POs in a transaction
   def call
     created_pos = []
+    schedule_result = nil
 
     ActiveRecord::Base.transaction do
+      # Phase 1: Handle schedule copy based on situation
+      if (template = pack.sm_schedule_master_template)
+        schedule_result = handle_schedule_copy(template)
+      end
+
+      # Phase 2: Create POs (find_or_create_task will FIND existing tasks)
       pack.po_template_items.includes(:po_template_line_items, :sm_schedule_master, :supplier).each do |template_item|
         po = create_po_from_template(template_item)
         created_pos << po
@@ -54,6 +76,8 @@ class PoTemplateApplyService
     {
       success: true,
       created_count: created_pos.length,
+      schedule_copied: schedule_result.present? && schedule_result[:success],
+      schedule_tasks_created: schedule_result&.dig(:tasks_created) || 0,
       purchase_orders: created_pos.map { |po|
         {
           id: po.id,
@@ -74,6 +98,85 @@ class PoTemplateApplyService
   end
 
   private
+
+  # Determine schedule info for the preview response
+  def build_schedule_info(template)
+    job_task_count = job.sm_tasks.count
+    same = job_has_tasks_from_template?(template)
+
+    info = {
+      id: template.id,
+      name: template.name,
+      row_count: template.row_count,
+      job_has_schedule: job_task_count > 0,
+      same_template: same,
+      existing_task_count: job_task_count,
+      # action_required = job has tasks from a DIFFERENT template
+      action_required: job_task_count > 0 && !same
+    }
+
+    # Try to identify which template the existing tasks came from
+    if info[:action_required]
+      info[:existing_template_name] = detect_existing_template_name
+    end
+
+    info
+  end
+
+  # Decide whether/how to copy the schedule during apply
+  def handle_schedule_copy(template)
+    job_task_count = job.sm_tasks.count
+    same = job_has_tasks_from_template?(template)
+    schedule_action = options[:schedule_action]
+
+    if same
+      # Same template already on job → nothing to do, POs will find existing tasks
+      nil
+    elsif job_task_count == 0
+      # No schedule on job → auto-copy
+      copy_schedule(template)
+    elsif schedule_action == "copy_new"
+      # Different schedule exists, user chose to copy the new one
+      copy_schedule(template)
+    elsif schedule_action == "use_existing"
+      # Different schedule exists, user chose to keep it
+      warnings << "Using existing schedule tasks (#{job_task_count} tasks) - POs will link to matching tasks"
+      nil
+    else
+      # Different schedule exists but no action specified - this shouldn't happen
+      # if frontend is implemented correctly, but default to use_existing as safe option
+      warnings << "Job has existing schedule (#{job_task_count} tasks) - using existing tasks"
+      nil
+    end
+  end
+
+  def copy_schedule(template)
+    result = template.copy_to_construction(job, create_purchase_orders: false)
+    unless result[:success]
+      raise StandardError, "Schedule copy failed: #{result[:errors]&.join(', ')}"
+    end
+    warnings << "Copied schedule '#{template.name}' (#{result[:tasks_created]} tasks with dependencies)"
+    result
+  end
+
+  # Detect which template name the job's existing tasks came from
+  def detect_existing_template_name
+    existing_sm_ids = job.sm_tasks.where.not(sm_schedule_master_id: nil)
+                         .pluck(:sm_schedule_master_id).uniq
+    return nil if existing_sm_ids.empty?
+
+    # SmScheduleMaster rows store which templates they belong to in sm_template_ids JSONB
+    sm_rows = SmScheduleMaster.where(id: existing_sm_ids)
+    template_id_counts = Hash.new(0)
+    sm_rows.each do |row|
+      (row.sm_template_ids || []).each { |tid| template_id_counts[tid] += 1 }
+    end
+
+    return nil if template_id_counts.empty?
+
+    best_template_id = template_id_counts.max_by { |_, count| count }&.first
+    SmScheduleMasterTemplate.find_by(id: best_template_id)&.name
+  end
 
   def build_preview
     pack.po_template_items.includes(:po_template_line_items, :sm_schedule_master, :supplier, :profit_centre).map do |template_item|
@@ -210,6 +313,16 @@ class PoTemplateApplyService
     task.save!
     warnings << "Created schedule task '#{sm.name}' on job (was missing)"
     task
+  end
+
+  # Check if job already has tasks from this schedule template (idempotent guard)
+  # A template is considered "applied" if >50% of its rows have matching tasks on the job
+  def job_has_tasks_from_template?(template)
+    template_row_ids = template.sm_schedule_master_rows.active.pluck(:id)
+    return false if template_row_ids.empty?
+
+    existing_count = SmTask.where(job_id: job.id, sm_schedule_master_id: template_row_ids).count
+    existing_count > (template_row_ids.size / 2)
   end
 
   # Find the SmTask on this job that was created from the same SmScheduleMaster (preview only)

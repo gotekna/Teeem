@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_20_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7114,8 +7114,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_requests", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7193,8 +7192,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_vitals", force: :cascade do |t|
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -7440,6 +7438,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_schedule_master_template_id"
+    t.index ["sm_schedule_master_template_id"], name: "index_po_template_packs_on_sm_schedule_master_template_id"
     t.index ["tenant_id", "name"], name: "index_po_template_packs_on_tenant_id_and_name", unique: true
     t.index ["tenant_id", "sync_key"], name: "index_po_template_packs_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_po_template_packs_on_tenant_id"
@@ -7614,10 +7614,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
     t.bigint "qr_code_storage_blob_id"
     t.bigint "brand_id"
     t.bigint "range_id"
+    t.bigint "unit_of_measure_id"
+    t.bigint "gst_code_id"
     t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"
+    t.index ["gst_code_id"], name: "index_pricebooks_on_gst_code_id"
     t.index ["image_fetch_status"], name: "index_pricebooks_on_image_fetch_status"
     t.index ["image_file_id"], name: "index_pricebooks_on_image_file_id"
     t.index ["image_storage_blob_id"], name: "index_pricebooks_on_image_storage_blob_id"
@@ -7633,6 +7636,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
     t.index ["supplier_id"], name: "index_pricebooks_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "idx_pricebooks_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_pricebooks_on_tenant_id"
+    t.index ["unit_of_measure_id"], name: "index_pricebooks_on_unit_of_measure_id"
   end
 
   create_table "profit_centres", force: :cascade do |t|
@@ -11816,6 +11820,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
   add_foreign_key "po_template_items", "po_template_packs"
   add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify
   add_foreign_key "po_template_line_items", "po_template_items"
+  add_foreign_key "po_template_packs", "sm_schedule_master_templates"
   add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
   add_foreign_key "portal_users", "contacts"

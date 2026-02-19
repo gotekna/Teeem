@@ -11,7 +11,7 @@ import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { X } from "lucide-react";
+import { X, Link2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -337,6 +337,18 @@ export function TableHeaderSection({
                     </TooltipProvider>
                   ) : (
                     <span className="truncate">{column.label}</span>
+                  )}
+                  {isLookupColumn(column.column_type) && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Link2 className="h-3 w-3 shrink-0 text-muted-foreground/50" />
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>Lookup → {column.lookup_foundation_slug?.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'linked table'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )}
                 </ResizableColumnHeader>
               )}

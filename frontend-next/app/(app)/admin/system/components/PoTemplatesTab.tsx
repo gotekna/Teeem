@@ -34,6 +34,10 @@ import {
   FileStack,
   ChevronRight,
   ClipboardList,
+  CheckCircle2,
+  AlertTriangle,
+  Minus,
+  Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -97,6 +101,13 @@ interface TemplateItem {
   lineItemCount: number;
   lineItemTotal: number;
   lineItems?: TemplateLineItem[];
+  inTemplate: boolean | null;
+}
+
+interface SmTemplate {
+  id: number;
+  name: string;
+  rowCount: number;
 }
 
 interface TemplatePack {
@@ -107,6 +118,9 @@ interface TemplatePack {
   position: number;
   itemCount: number;
   estimatedTotal: number;
+  smScheduleMasterTemplateId: number | null;
+  smScheduleMasterTemplateName: string | null;
+  smScheduleMasterTemplateRowCount: number | null;
   createdAt: string;
   updatedAt: string;
   items: TemplateItem[];
@@ -124,13 +138,30 @@ export function PoTemplatesTab() {
   const [editingPack, setEditingPack] = useState<TemplatePack | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editTemplateId, setEditTemplateId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [smTemplates, setSmTemplates] = useState<SmTemplate[]>([]);
 
   // Lookup data for inline editing of template items
   const [smMasterRows, setSmMasterRows] = useState<SmMasterRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [profitCentres, setProfitCentres] = useState<ProfitCentreOption[]>([]);
   const [lookupsLoaded, setLookupsLoaded] = useState(false);
+
+  // Load SM templates for the pack edit dialog
+  const loadSmTemplates = useCallback(async () => {
+    if (smTemplates.length > 0) return;
+    try {
+      const res = await api.get<{ success: boolean; sm_schedule_master_templates: Array<{ id: number; name: string; row_count?: number }> }>(
+        "/api/v1/sm_schedule_master_templates"
+      );
+      setSmTemplates(
+        (res?.sm_schedule_master_templates || []).map((t) => ({ id: t.id, name: t.name, rowCount: t.row_count || 0 }))
+      );
+    } catch (err) {
+      console.error("Failed to load SM templates:", err);
+    }
+  }, [smTemplates.length]);
 
   // Load lookup data once (on first pack expand)
   const loadLookups = useCallback(async () => {
@@ -245,21 +276,28 @@ export function PoTemplatesTab() {
     setEditingPack(pack);
     setEditName(pack.name);
     setEditDescription(pack.description || "");
+    setEditTemplateId(pack.smScheduleMasterTemplateId);
     setShowEditDialog(true);
+    loadSmTemplates();
   };
 
   const handleSavePack = async () => {
     if (!editName.trim()) return;
     try {
       setSaving(true);
+      const packData = {
+        name: editName,
+        description: editDescription,
+        sm_schedule_master_template_id: editTemplateId,
+      };
       if (editingPack) {
         await api.patch(`/api/v1/po_template_packs/${editingPack.id}`, {
-          po_template_pack: { name: editName, description: editDescription },
+          po_template_pack: packData,
         });
         toast.success("Template pack updated");
       } else {
         await api.post("/api/v1/po_template_packs", {
-          po_template_pack: { name: editName, description: editDescription },
+          po_template_pack: packData,
         });
         toast.success("Template pack created");
       }
@@ -503,7 +541,9 @@ export function PoTemplatesTab() {
               setEditingPack(null);
               setEditName("");
               setEditDescription("");
+              setEditTemplateId(null);
               setShowEditDialog(true);
+              loadSmTemplates();
             }}
             smMasterRows={smMasterRows}
             suppliers={suppliers}
@@ -541,7 +581,7 @@ export function PoTemplatesTab() {
 
       {/* Edit/Create Pack Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>
               {editingPack ? "Edit Template Pack" : "New Template Pack"}
@@ -567,6 +607,28 @@ export function PoTemplatesTab() {
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 placeholder="Optional description..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Schedule Master Template</Label>
+              <p className="text-xs text-muted-foreground">
+                Link a schedule template to copy the full schedule (with dependencies) when applying this pack.
+              </p>
+              <ComboboxDropdown
+                items={smTemplates.map((t) => ({
+                  id: String(t.id),
+                  label: `${t.name} (${t.rowCount} tasks)`,
+                }))}
+                selectedItem={editTemplateId ? {
+                  id: String(editTemplateId),
+                  label: smTemplates.find(t => t.id === editTemplateId)?.name || "",
+                } : undefined}
+                onSelect={(item) => setEditTemplateId(Number(item.id))}
+                onClear={() => setEditTemplateId(null)}
+                placeholder="None (individual task creation)"
+                searchPlaceholder="Search templates..."
+                emptyResults="No schedule templates found"
+                clearable
               />
             </div>
           </div>
@@ -674,6 +736,12 @@ function TemplatesView({
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    {pack.smScheduleMasterTemplateName && (
+                      <Badge variant="secondary" className="text-xs gap-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30">
+                        <Calendar className="h-3 w-3" />
+                        {pack.smScheduleMasterTemplateName} ({pack.smScheduleMasterTemplateRowCount} tasks)
+                      </Badge>
+                    )}
                     <Badge variant="secondary" className="text-xs">
                       {pack.itemCount} POs
                     </Badge>
@@ -732,6 +800,9 @@ function TemplatesView({
                       <TableHeader>
                         <TableRow>
                           <TableHead className="w-8">#</TableHead>
+                          {pack.smScheduleMasterTemplateId && (
+                            <TableHead className="w-8" title="In linked schedule template" />
+                          )}
                           <TableHead>PO Name</TableHead>
                           <TableHead>SM Task</TableHead>
                           <TableHead>Supplier</TableHead>
@@ -749,6 +820,21 @@ function TemplatesView({
                               <TableCell className="text-muted-foreground text-xs" onClick={() => onExpandItem(item.id)}>
                                 {idx + 1}
                               </TableCell>
+                              {pack.smScheduleMasterTemplateId && (
+                                <TableCell className="px-1" title={
+                                  item.inTemplate === true ? "SM row exists in linked template"
+                                    : item.inTemplate === false ? "SM row NOT in linked template (mismatch)"
+                                    : "No SM row linked"
+                                }>
+                                  {item.inTemplate === true ? (
+                                    <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                  ) : item.inTemplate === false ? (
+                                    <AlertTriangle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
+                                  ) : (
+                                    <Minus className="h-4 w-4 text-muted-foreground/40" />
+                                  )}
+                                </TableCell>
+                              )}
                               <TableCell className="font-medium text-sm" onClick={() => onExpandItem(item.id)}>
                                 {item.name}
                               </TableCell>
@@ -869,7 +955,7 @@ function TemplatesView({
                             </TableRow>
                             {expandedItem === item.id && item.lineItems && (
                               <TableRow>
-                                <TableCell colSpan={7} className="bg-muted/30 p-0">
+                                <TableCell colSpan={pack.smScheduleMasterTemplateId ? 8 : 7} className="bg-muted/30 p-0">
                                   <div className="px-8 py-2">
                                     <table className="w-full text-xs">
                                       <thead>

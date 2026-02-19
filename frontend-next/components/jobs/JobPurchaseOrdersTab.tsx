@@ -23,6 +23,8 @@ import {
   Lock,
   LockOpen,
   FileStack,
+  Calendar,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -99,6 +101,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [templatePreview, setTemplatePreview] = useState<{
     items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; taskWillCreate: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number; profitCentreName: string | null; smScheduleMasterName: string | null }>;
     totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; tasksWillCreate: number; warnings: string[];
+    scheduleTemplate?: { id: number; name: string; rowCount: number; alreadyApplied: boolean; willCopy: boolean };
   } | null>(null);
   const [loadingTemplatePacks, setLoadingTemplatePacks] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -778,6 +781,41 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
             {templatePreview && !loadingPreview && (
               <div className="space-y-3">
+                {/* Schedule template info */}
+                {templatePreview.scheduleTemplate && (
+                  <div className={cn(
+                    "rounded-md p-3 flex items-start gap-3",
+                    templatePreview.scheduleTemplate.willCopy
+                      ? "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+                      : "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                  )}>
+                    {templatePreview.scheduleTemplate.willCopy ? (
+                      <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+                    )}
+                    <div>
+                      <p className={cn(
+                        "text-sm font-medium",
+                        templatePreview.scheduleTemplate.willCopy
+                          ? "text-blue-700 dark:text-blue-400"
+                          : "text-green-700 dark:text-green-400"
+                      )}>
+                        {templatePreview.scheduleTemplate.willCopy
+                          ? `Will copy schedule "${templatePreview.scheduleTemplate.name}" (${templatePreview.scheduleTemplate.rowCount} tasks with dependencies)`
+                          : `Schedule "${templatePreview.scheduleTemplate.name}" already applied to this job`
+                        }
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {templatePreview.scheduleTemplate.willCopy
+                          ? "The full schedule with task dependencies and calculated dates will be created first, then POs linked to those tasks."
+                          : "POs will link to the existing schedule tasks."
+                        }
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Summary badges */}
                 <div className="flex flex-wrap gap-2">
                   <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
@@ -876,7 +914,10 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               ) : (
                 <>
                   <FileStack className="h-4 w-4 mr-2" />
-                  Apply All ({templatePreview?.totalPos || 0} POs)
+                  {templatePreview?.scheduleTemplate?.willCopy
+                    ? `Apply Schedule + ${templatePreview?.totalPos || 0} POs`
+                    : `Apply All (${templatePreview?.totalPos || 0} POs)`
+                  }
                 </>
               )}
             </Button>

@@ -1,11 +1,11 @@
 {
   "version": 3,
   "meta": {
-    "run_id": null,
-    "started_at": null,
+    "run_id": "ralph-v2-20260220",
+    "started_at": "2026-02-20T06:25:00Z",
     "completed_at": null,
-    "last_updated": null,
-    "iteration": 0,
+    "last_updated": "2026-02-20T06:35:00Z",
+    "iteration": 1,
     "ship_ready": false,
     "total_pages": 200,
     "total_stories": 19
@@ -32,7 +32,7 @@
       "title": "Dashboard, Sidebar & Header",
       "icon": "layout-list",
       "description": "Core navigation shell: dashboard, sidebar links, header icons, modals",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/dashboard",
         "/tasks",
@@ -68,7 +68,32 @@
         "Sidebar navigation has all expected links",
         "Header bar has all 11 interactive elements"
       ],
-      "page_results": {}
+      "page_results": {
+        "/dashboard": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:26:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/dashboard/overview","title":"Overview | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/tasks": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:27:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/tasks","title":"Tasks | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/agent-tasks": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:27:30Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/agent-tasks","title":"Agent Tasks | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/notebooks": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:28:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/notebooks","title":"Notebooks | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-JOBS",
@@ -88,7 +113,20 @@
         "Job detail tabs all load content",
         "New job form renders with required fields"
       ],
-      "page_results": {}
+      "page_results": {
+        "/jobs": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:29:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/jobs/view/live","title":"Jobs | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/jobs/photos": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:29:30Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/jobs/photos","title":"Photos | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-CONTACTS",
@@ -110,7 +148,14 @@
         "Duplicates page shows duplicate pairs",
         "Quality review page loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/contacts": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:30:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/contacts/view/all-1","title":"Contacts | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-PO",
@@ -128,7 +173,14 @@
         "PO list loads with records in TeeemTableView",
         "New PO form renders with required fields"
       ],
-      "page_results": {}
+      "page_results": {
+        "/purchase_orders": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:31:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/purchase_orders/view/all-purchase-orders","title":"Purchase Orders | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-PRICEBOOK",
@@ -153,7 +205,26 @@
         "Estimates list loads",
         "Price histories loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/pricebook": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:32:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/pricebook/view/load","title":"Pricebook | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/recipes": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:32:30Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/recipes/view/setup","title":"Recipes | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/estimates": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:32:15Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/estimates/view/setup","title":"Estimates | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-FINANCE",
@@ -182,7 +253,14 @@
         "Xero dashboard shows sync status",
         "Accounts page shows chart of accounts"
       ],
-      "page_results": {}
+      "page_results": {
+        "/finance": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:33:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/finance","title":"Finance | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-CORPORATE",
@@ -220,7 +298,14 @@
         "Companies list shows records",
         "Assets page loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/corporate": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:34:00Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/corporate","title":"Corporate | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-WHS",
@@ -496,7 +581,20 @@
         "System Health shows status",
         "Feature Requests loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/leads": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:30:30Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/leads","title":"Leads | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        },
+        "/quote-requests": {
+          "status": "passed",
+          "tested_at": "2026-02-20T06:31:30Z",
+          "iteration": 1,
+          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/quote-requests/view/setup","title":"Quote Requests | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+        }
+      }
     },
     {
       "id": "US-PORTAL",

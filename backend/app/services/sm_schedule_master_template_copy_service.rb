@@ -110,7 +110,7 @@ class SmScheduleMasterTemplateCopyService
       sequence += 1
 
       task = SmTask.new(
-        construction_id: job.id,
+        job_id: job.id,
         sm_schedule_master_id: row.id,  # Link to SSoT SmScheduleMaster
         name: row.name,
         description: row.description,
