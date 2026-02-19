@@ -606,6 +606,98 @@ module Api
         }
       end
 
+      # POST /api/v1/pricebook/compare_all_prices
+      # Returns all supplier prices for selected items in a comparison format
+      def compare_all_prices
+        item_ids = params[:pricebook_item_ids]
+        unless item_ids.is_a?(Array) && item_ids.any?
+          return render json: { success: false, error: "pricebook_item_ids required" }, status: :unprocessable_entity
+        end
+
+        today = TenantSetting.today
+        items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: item_ids)
+
+        # Collect unique suppliers across all items
+        suppliers_hash = {}
+        items_data = items.map do |item|
+          prices = {}
+
+          # Group price histories by supplier, pick latest active price per supplier
+          item.price_histories
+            .select { |ph| ph.supplier_id.present? }
+            .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+            .group_by(&:supplier_id)
+            .each do |supplier_id, histories|
+              latest = histories.max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+              next unless latest&.new_price
+
+              # Track supplier
+              supplier = latest.supplier
+              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}" }
+
+              prices[supplier_id.to_s] = {
+                price: latest.new_price.to_f,
+                dateEffective: latest.date_effective&.iso8601
+              }
+            end
+
+          # Calculate highest price
+          highest_entry = prices.values.max_by { |p| p[:price] }
+          highest_supplier_id = highest_entry ? prices.find { |_k, v| v[:price] == highest_entry[:price] }&.first : nil
+
+          {
+            id: item.id,
+            itemCode: item.item_code,
+            itemName: item.item_name,
+            currentPrice: item.current_price&.to_f,
+            defaultSupplierId: item.default_supplier_id,
+            prices: prices,
+            highestPrice: highest_entry ? highest_entry[:price] : nil,
+            highestSupplierId: highest_supplier_id&.to_i
+          }
+        end
+
+        render json: {
+          success: true,
+          suppliers: suppliers_hash.values.sort_by { |s| s[:name].to_s },
+          items: items_data
+        }
+      end
+
+      # POST /api/v1/pricebook/apply_selected_prices
+      # Apply user-selected prices from the comparison sheet
+      def apply_selected_prices
+        updates = params[:updates]
+        unless updates.is_a?(Array) && updates.any?
+          return render json: { success: false, error: "updates required" }, status: :unprocessable_entity
+        end
+
+        updated_count = 0
+        unchanged_count = 0
+
+        updates.each do |update|
+          item = PricebookItem.find_by(id: update[:item_id])
+          next unless item
+
+          new_price = update[:new_price].to_f
+
+          if item.current_price&.to_f == new_price
+            unchanged_count += 1
+            next
+          end
+
+          item.skip_price_history_callback = true
+          item.update!(current_price: new_price)
+          updated_count += 1
+        end
+
+        render json: {
+          success: true,
+          updated_count: updated_count,
+          unchanged_count: unchanged_count
+        }
+      end
+
       def recalculate_current_price(item)
         # Find the active price history (most recent price from default supplier that's effective today or earlier)
         if item.default_supplier_id

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Copy, Star, Trash2, RefreshCw } from "lucide-react";
+import PriceComparisonSheet from "./PriceComparisonSheet";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,9 +75,8 @@ export default function PricebookBulkActions({
   const [suppliers, setSuppliers] = useState<SupplierComboItem[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
 
-  // Update Prices modal state
-  const [updateModalOpen, setUpdateModalOpen] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  // Update Prices comparison sheet state
+  const [comparisonSheetOpen, setComparisonSheetOpen] = useState(false);
 
   // Copy Prices modal state
   const [copyModalOpen, setCopyModalOpen] = useState(false);
@@ -127,45 +127,6 @@ export default function PricebookBulkActions({
   }, [priceAdjustment]);
 
   const hasAdjustment = adjustmentPercent !== 0 || roundingMode !== "none";
-
-  // ===== Update Prices from Defaults =====
-  const handleUpdatePrices = useCallback(async () => {
-    setUpdating(true);
-    try {
-      const response = await api.post<{
-        success: boolean;
-        updated_count: number;
-        skipped_count: number;
-        unchanged_count: number;
-      }>("/api/v1/pricebook/refresh_from_defaults", {
-        pricebook_item_ids: selectedIds.map(Number),
-      });
-
-      if (response?.success) {
-        const parts: string[] = [];
-        if (response.updated_count > 0) parts.push(`${response.updated_count} updated`);
-        if (response.unchanged_count > 0) parts.push(`${response.unchanged_count} unchanged`);
-        if (response.skipped_count > 0) parts.push(`${response.skipped_count} skipped (no default supplier)`);
-
-        toast({
-          title: "Prices Refreshed",
-          description: parts.join(", "),
-        });
-        setUpdateModalOpen(false);
-        clearSelection();
-        onRefresh();
-      }
-    } catch (err) {
-      console.error("Failed to refresh prices:", err);
-      toast({
-        title: "Refresh Failed",
-        description: err instanceof Error ? err.message : "An error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      setUpdating(false);
-    }
-  }, [selectedIds, toast, clearSelection, onRefresh]);
 
   // ===== Copy Prices =====
   const handleOpenCopyModal = useCallback(() => {
@@ -319,7 +280,7 @@ export default function PricebookBulkActions({
       <Button
         variant="outline"
         size="sm"
-        onClick={() => setUpdateModalOpen(true)}
+        onClick={() => setComparisonSheetOpen(true)}
       >
         <RefreshCw className="h-4 w-4 mr-1" />
         Update Prices ({selectedIds.length})
@@ -350,37 +311,14 @@ export default function PricebookBulkActions({
         Remove Prices ({selectedIds.length})
       </Button>
 
-      {/* ===== Update Prices Confirmation Dialog ===== */}
-      <Dialog open={updateModalOpen} onOpenChange={setUpdateModalOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Prices from Default Suppliers</DialogTitle>
-            <DialogDescription>
-              Refresh current prices for {selectedIds.length} selected item{selectedIds.length !== 1 ? "s" : ""} using
-              each item&apos;s default supplier&apos;s latest price history.
-              Items without a default supplier will be skipped.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setUpdateModalOpen(false)} disabled={updating}>
-              Cancel
-            </Button>
-            <Button onClick={handleUpdatePrices} disabled={updating}>
-              {updating ? (
-                <>
-                  <Spinner size={16} className="mr-1" />
-                  Updating...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-1" />
-                  Update {selectedIds.length} Item{selectedIds.length !== 1 ? "s" : ""}
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ===== Price Comparison Sheet ===== */}
+      <PriceComparisonSheet
+        open={comparisonSheetOpen}
+        onOpenChange={setComparisonSheetOpen}
+        selectedIds={selectedIds}
+        clearSelection={clearSelection}
+        onRefresh={onRefresh}
+      />
 
       {/* ===== Copy Prices Modal ===== */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
