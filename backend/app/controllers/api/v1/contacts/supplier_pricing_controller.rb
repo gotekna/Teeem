@@ -25,25 +25,29 @@ module Api
         def categories
           # Get distinct categories from pricebook items where this contact is the default supplier
           # or has provided price histories
-          categories_from_default = PricebookItem.where(default_supplier_id: @contact.id)
-                                                .where.not(category: nil)
+          # FRC (Feb 2026): PricebookItem has category_id FK, NOT a category varchar column.
+          # Must join pricebook_categories to get category names.
+          categories_from_default = PricebookItem.joins(:pricebook_category)
+                                                .where(default_supplier_id: @contact.id)
                                                 .distinct
-                                                .pluck(:category)
+                                                .pluck("pricebook_categories.name")
 
-          categories_from_histories = PricebookItem.joins(:price_histories)
+          categories_from_histories = PricebookItem.joins(:pricebook_category, :price_histories)
                                                   .where(price_histories: { supplier_id: @contact.id })
-                                                  .where.not(category: nil)
                                                   .distinct
-                                                  .pluck(:category)
+                                                  .pluck("pricebook_categories.name")
 
           all_categories = (categories_from_default + categories_from_histories).uniq.sort
 
           # Get item counts per category
           categories_with_counts = all_categories.map do |category|
-            default_count = PricebookItem.where(default_supplier_id: @contact.id, category: category).count
+            cat_id = PricebookCategory.find_by(name: category)&.id
+            next nil unless cat_id
+
+            default_count = PricebookItem.where(default_supplier_id: @contact.id, category_id: cat_id).count
             history_count = PricebookItem.joins(:price_histories)
                                         .where(price_histories: { supplier_id: @contact.id })
-                                        .where(category: category)
+                                        .where(category_id: cat_id)
                                         .distinct
                                         .count
 
@@ -53,7 +57,7 @@ module Api
               price_history_count: history_count,
               total_count: [default_count, history_count].max
             }
-          end
+          end.compact
 
           render json: {
             success: true,

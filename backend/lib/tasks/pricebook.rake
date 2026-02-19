@@ -623,8 +623,9 @@ namespace :pricebook do
     count = items.count
     puts "Found #{count} items without any price history:\n\n"
 
-    items.order(:category, :item_code).each do |item|
-      puts "  #{item.item_code.ljust(20)} | #{item.category&.ljust(25) || 'No Category'.ljust(25)} | $#{item.current_price&.round(2) || 'N/A'} | #{item.item_name.truncate(40)}"
+    items.includes(:pricebook_category).order(:category_id, :item_code).each do |item|
+      cat_name = item.pricebook_category&.name
+      puts "  #{item.item_code.ljust(20)} | #{cat_name&.ljust(25) || 'No Category'.ljust(25)} | $#{item.current_price&.round(2) || 'N/A'} | #{item.item_name.truncate(40)}"
     end
 
     puts "\n" + "=" * 80
