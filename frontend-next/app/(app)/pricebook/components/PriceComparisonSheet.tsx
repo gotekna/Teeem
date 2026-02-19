@@ -15,11 +15,17 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
+import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 
 interface Supplier {
   id: number;
   name: string;
   priceOnly?: boolean;
+}
+
+interface PriceOnlyContact {
+  id: number;
+  name: string;
 }
 
 interface SupplierPrice {
@@ -37,12 +43,15 @@ interface ComparisonItem {
   prices: Record<string, SupplierPrice>;
   highestPrice: number | null;
   highestSupplierId: number | null;
+  priceOnlySupplierId: number | null;
+  priceOnlySupplierName: string | null;
 }
 
 interface CompareResponse {
   success: boolean;
   suppliers: Supplier[];
   items: ComparisonItem[];
+  priceOnlyContacts: PriceOnlyContact[];
 }
 
 interface PriceComparisonSheetProps {
@@ -71,8 +80,11 @@ export default function PriceComparisonSheet({
   const [applying, setApplying] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<ComparisonItem[]>([]);
+  const [priceOnlyContacts, setPriceOnlyContacts] = useState<PriceOnlyContact[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
+  const [selectedPriceOnlyContact, setSelectedPriceOnlyContact] = useState<Record<number, string>>({});
+  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().split("T")[0]);
 
   // Fetch comparison data when sheet opens
   // Note: toast excluded from deps - it's a new reference every render and would cause infinite loop
@@ -94,10 +106,12 @@ export default function PriceComparisonSheet({
         if (response?.success) {
           setSuppliers(response.suppliers);
           setItems(response.items);
+          setPriceOnlyContacts(response.priceOnlyContacts || []);
 
-          // Auto-select all rows and pre-fill with highest price
+          // Auto-select all rows and pre-fill with highest price + existing price_only contact
           const rows = new Set<number>();
           const prices: Record<number, string> = {};
+          const poContacts: Record<number, string> = {};
           for (const item of response.items) {
             rows.add(item.id);
             if (item.highestPrice != null) {
@@ -105,9 +119,14 @@ export default function PriceComparisonSheet({
             } else {
               prices[item.id] = "";
             }
+            // Pre-select the existing price_only contact if one exists
+            if (item.priceOnlySupplierId != null) {
+              poContacts[item.id] = String(item.priceOnlySupplierId);
+            }
           }
           setSelectedRows(rows);
           setSelectedPrices(prices);
+          setSelectedPriceOnlyContact(poContacts);
         }
       } catch (err) {
         console.error("Failed to fetch comparison data:", err);
@@ -130,8 +149,11 @@ export default function PriceComparisonSheet({
     if (!open) {
       setSuppliers([]);
       setItems([]);
+      setPriceOnlyContacts([]);
       setSelectedRows(new Set());
       setSelectedPrices({});
+      setSelectedPriceOnlyContact({});
+      setEffectiveDate(new Date().toISOString().split("T")[0]);
     }
   }, [open]);
 
@@ -165,6 +187,28 @@ export default function PriceComparisonSheet({
     });
   }, []);
 
+  const setPriceOnlyForItem = useCallback((itemId: number, contactId: string) => {
+    setSelectedPriceOnlyContact(prev => ({ ...prev, [itemId]: contactId }));
+  }, []);
+
+  // Mass update: set price_only contact for all selected rows
+  const massSetPriceOnly = useCallback((contactId: string) => {
+    const clearValue = contactId === "__clear__" ? "" : contactId;
+    setSelectedPriceOnlyContact(prev => {
+      const next = { ...prev };
+      for (const id of selectedRows) {
+        next[id] = clearValue;
+      }
+      return next;
+    });
+  }, [selectedRows]);
+
+  // ComboboxDropdown items for price_only contacts
+  const poComboItems = useMemo<ComboboxItem[]>(
+    () => priceOnlyContacts.map(poc => ({ id: String(poc.id), label: poc.name })),
+    [priceOnlyContacts]
+  );
+
   // Count of rows with valid selected prices
   const applyCount = useMemo(() => {
     let count = 0;
@@ -176,11 +220,19 @@ export default function PriceComparisonSheet({
   }, [selectedRows, selectedPrices]);
 
   const handleApply = useCallback(async () => {
-    const updates: { item_id: number; new_price: number }[] = [];
+    const updates: { item_id: number; new_price: number; price_only_contact_id?: number }[] = [];
     for (const id of selectedRows) {
       const val = selectedPrices[id];
       if (val && !isNaN(parseFloat(val))) {
-        updates.push({ item_id: id, new_price: parseFloat(val) });
+        const update: { item_id: number; new_price: number; price_only_contact_id?: number } = {
+          item_id: id,
+          new_price: parseFloat(val),
+        };
+        const poContactId = selectedPriceOnlyContact[id];
+        if (poContactId) {
+          update.price_only_contact_id = Number(poContactId);
+        }
+        updates.push(update);
       }
     }
 
@@ -192,7 +244,7 @@ export default function PriceComparisonSheet({
         success: boolean;
         updated_count: number;
         unchanged_count: number;
-      }>("/api/v1/pricebook/apply_selected_prices", { updates });
+      }>("/api/v1/pricebook/apply_selected_prices", { updates, effective_date: effectiveDate });
 
       if (response?.success) {
         const parts: string[] = [];
@@ -217,7 +269,7 @@ export default function PriceComparisonSheet({
     } finally {
       setApplying(false);
     }
-  }, [selectedRows, selectedPrices, toast, onOpenChange, clearSelection, onRefresh]);
+  }, [selectedRows, selectedPrices, selectedPriceOnlyContact, effectiveDate, toast, onOpenChange, clearSelection, onRefresh]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -228,10 +280,25 @@ export default function PriceComparisonSheet({
       >
         {/* Header */}
         <SheetHeader className="px-6 pt-4 pb-2 shrink-0">
-          <h2 className="text-lg font-semibold">Compare All Supplier Prices</h2>
-          <SheetDescription>
-            {items.length} item{items.length !== 1 ? "s" : ""} &middot; {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""}
-          </SheetDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Compare All Supplier Prices</h2>
+              <SheetDescription>
+                {items.length} item{items.length !== 1 ? "s" : ""} &middot; {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""}
+              </SheetDescription>
+            </div>
+            {items.length > 0 && (
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Effective Date</label>
+                <Input
+                  type="date"
+                  value={effectiveDate}
+                  onChange={e => setEffectiveDate(e.target.value)}
+                  className="w-40 h-8 text-sm"
+                />
+              </div>
+            )}
+          </div>
         </SheetHeader>
 
         {/* Table area */}
@@ -278,8 +345,34 @@ export default function PriceComparisonSheet({
                         </div>
                       </th>
                     ))}
-                    <th className="text-right p-2 min-w-[130px] sticky right-0 bg-background z-20 font-medium border-l">
+                    <th className="text-right p-2 min-w-[130px] font-medium border-l">
                       Selected Price
+                    </th>
+                    <th className="text-left p-2 min-w-[140px] font-medium border-l">
+                      <div className="flex flex-col">
+                        <span>Current</span>
+                        <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
+                      </div>
+                    </th>
+                    <th className="text-left p-2 min-w-[200px] sticky right-0 bg-background z-20 font-medium border-l">
+                      <div className="flex flex-col gap-1">
+                        <span>Price Only Contact</span>
+                        {priceOnlyContacts.length > 0 && selectedRows.size > 0 ? (
+                          <div className="font-normal">
+                            <ComboboxDropdown
+                              items={poComboItems}
+                              placeholder={`Set all ${selectedRows.size} selected...`}
+                              searchPlaceholder="Search contacts..."
+                              onSelect={(item) => massSetPriceOnly(item.id)}
+                              clearable
+                              onClear={() => massSetPriceOnly("__clear__")}
+                              className="h-6 text-[10px]"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-normal text-muted-foreground">set for selected rows</span>
+                        )}
+                      </div>
                     </th>
                   </tr>
                 </thead>
@@ -287,6 +380,7 @@ export default function PriceComparisonSheet({
                   {items.map(item => {
                     const isSelected = selectedRows.has(item.id);
                     const selectedVal = selectedPrices[item.id] ?? "";
+                    const selectedPoContact = selectedPriceOnlyContact[item.id] ?? "";
 
                     return (
                       <tr
@@ -342,7 +436,7 @@ export default function PriceComparisonSheet({
                             </td>
                           );
                         })}
-                        <td className="p-2 sticky right-0 bg-background border-l">
+                        <td className="p-2 border-l">
                           <div className="flex items-center justify-end">
                             <span className="text-muted-foreground mr-1">$</span>
                             <Input
@@ -355,6 +449,29 @@ export default function PriceComparisonSheet({
                               placeholder="0.00"
                             />
                           </div>
+                        </td>
+                        <td className="p-2 border-l text-left text-xs truncate max-w-[140px]" title={item.priceOnlySupplierName || "None"}>
+                          {item.priceOnlySupplierName ? (
+                            <span className="text-orange-500 dark:text-orange-400">{item.priceOnlySupplierName}</span>
+                          ) : (
+                            <span className="text-muted-foreground/40">&mdash;</span>
+                          )}
+                        </td>
+                        <td className="p-2 sticky right-0 bg-background border-l">
+                          {priceOnlyContacts.length > 0 ? (
+                            <ComboboxDropdown
+                              items={poComboItems}
+                              placeholder="No price only"
+                              searchPlaceholder="Search contacts..."
+                              selectedItem={poComboItems.find(i => i.id === selectedPoContact)}
+                              onSelect={(selected) => setPriceOnlyForItem(item.id, selected.id)}
+                              clearable
+                              onClear={() => setPriceOnlyForItem(item.id, "")}
+                              className="h-8 text-xs"
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground/40">No price only contacts</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -375,9 +492,6 @@ export default function PriceComparisonSheet({
               )}
               {suppliers.length > 0 && (
                 <span className="ml-2">&middot; <span className="text-blue-500 dark:text-blue-400">*</span> = default supplier</span>
-              )}
-              {suppliers.some(s => s.priceOnly) && (
-                <span className="ml-2">&middot; <span className="text-orange-500 dark:text-orange-400">price only</span> = reference price contact</span>
               )}
             </div>
             <div className="flex gap-2">

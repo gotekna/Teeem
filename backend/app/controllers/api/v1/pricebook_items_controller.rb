@@ -617,10 +617,18 @@ module Api
         today = TenantSetting.today
         items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: item_ids)
 
+        # Get all price_only contacts for the dropdown
+        price_only_contact_ids = Contact.where(entity_type: "price_only", is_active: true).pluck(:id).to_set
+        price_only_contacts = Contact.where(id: price_only_contact_ids)
+          .order(:display_name)
+          .pluck(:id, :display_name)
+          .map { |id, name| { id: id, name: name } }
+
         # Collect unique suppliers across all items
         suppliers_hash = {}
         items_data = items.map do |item|
           prices = {}
+          price_only_supplier_id = nil
 
           # Group price histories by supplier, pick latest active price per supplier
           item.price_histories
@@ -633,13 +641,27 @@ module Api
 
               # Track supplier
               supplier = latest.supplier
-              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: supplier&.entity_type == "price_only" }
+              is_price_only = price_only_contact_ids.include?(supplier_id)
+              suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: is_price_only }
+
+              # Track the price_only supplier for this item (use the one with the latest price)
+              if is_price_only
+                price_only_supplier_id = supplier_id
+              end
 
               prices[supplier_id.to_s] = {
                 price: latest.new_price.to_f,
                 dateEffective: latest.date_effective&.iso8601
               }
             end
+
+          # If no price_only supplier found in active prices, check ALL price histories
+          if price_only_supplier_id.nil?
+            all_po_history = item.price_histories
+              .select { |ph| ph.supplier_id.present? && price_only_contact_ids.include?(ph.supplier_id) }
+              .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+            price_only_supplier_id = all_po_history&.supplier_id
+          end
 
           # Calculate highest price
           highest_entry = prices.values.max_by { |p| p[:price] }
@@ -654,14 +676,17 @@ module Api
             defaultSupplierName: item.default_supplier&.display_name,
             prices: prices,
             highestPrice: highest_entry ? highest_entry[:price] : nil,
-            highestSupplierId: highest_supplier_id&.to_i
+            highestSupplierId: highest_supplier_id&.to_i,
+            priceOnlySupplierId: price_only_supplier_id,
+            priceOnlySupplierName: price_only_supplier_id ? (suppliers_hash.dig(price_only_supplier_id, :name) || Contact.find_by(id: price_only_supplier_id)&.display_name) : nil
           }
         end
 
         render json: {
           success: true,
           suppliers: suppliers_hash.values.sort_by { |s| s[:name].to_s },
-          items: items_data
+          items: items_data,
+          priceOnlyContacts: price_only_contacts
         }
       end
 
@@ -673,6 +698,12 @@ module Api
           return render json: { success: false, error: "updates required" }, status: :unprocessable_entity
         end
 
+        effective_date = if params[:effective_date].present?
+          Date.parse(params[:effective_date])
+        else
+          TenantSetting.today
+        end
+
         updated_count = 0
         unchanged_count = 0
 
@@ -681,15 +712,33 @@ module Api
           next unless item
 
           new_price = update[:new_price].to_f
+          price_only_contact_id = update[:price_only_contact_id]
 
-          if item.current_price&.to_f == new_price
+          if item.current_price&.to_f == new_price && price_only_contact_id.blank?
             unchanged_count += 1
             next
           end
 
-          item.skip_price_history_callback = true
-          item.update!(current_price: new_price)
-          updated_count += 1
+          # Update the item's current price
+          if item.current_price&.to_f != new_price
+            item.skip_price_history_callback = true
+            item.update!(current_price: new_price)
+            updated_count += 1
+          else
+            unchanged_count += 1
+          end
+
+          # Create price history for the selected price_only contact
+          if price_only_contact_id.present?
+            PriceHistory.create!(
+              pricebook_item: item,
+              supplier_id: price_only_contact_id.to_i,
+              new_price: new_price,
+              old_price: item.current_price_before_last_save,
+              date_effective: effective_date,
+              source: "comparison_sheet"
+            )
+          end
         end
 
         render json: {

@@ -121,6 +121,7 @@ export default function TablesSettingsPage() {
                   <div className="flex flex-col h-full -mx-4">
                     <TeeemTableView
                       foundationId={FOUNDATION_SLUGS.PRICEBOOK_CATEGORIES}
+                      tableName="Categories"
                       autoFetchRecords={true}
                     />
                   </div>
@@ -130,6 +131,7 @@ export default function TablesSettingsPage() {
                   <div className="flex flex-col h-full -mx-4">
                     <TeeemTableView
                       foundationId={FOUNDATION_SLUGS.PRICEBOOK_BRANDS}
+                      tableName="Brands"
                       autoFetchRecords={true}
                     />
                   </div>
@@ -139,6 +141,7 @@ export default function TablesSettingsPage() {
                   <div className="flex flex-col h-full -mx-4">
                     <TeeemTableView
                       foundationId={FOUNDATION_SLUGS.PRICEBOOK_RANGES}
+                      tableName="Ranges"
                       autoFetchRecords={true}
                     />
                   </div>
