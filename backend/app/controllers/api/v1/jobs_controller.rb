@@ -880,6 +880,7 @@ module Api
 
             # Add matched PO line items as their own group
             matched_pos.each do |po|
+              sm = po.sm_task&.sm_schedule_master
               items = po.line_items.sort_by(&:line_number).map do |item|
                 {
                   id: item.id,
@@ -897,11 +898,11 @@ module Api
                 name: po.purchase_order_number || "PO-#{po.id}",
                 supplierId: po.supplier_id,
                 supplierName: po.supplier&.display_name,
-                taskName: po.description,
-                tradeName: nil,
-                stageName: nil,
-                stagePosition: nil,
-                costCentreName: cc_name,
+                taskName: po.sm_task&.name || po.description,
+                tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
+                stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+                stagePosition: sm&.sequence_order,
+                costCentreName: po.cost_centre_from_task,
                 items: items
               }
             end
