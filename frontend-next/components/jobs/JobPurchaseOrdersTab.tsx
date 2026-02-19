@@ -34,6 +34,7 @@ import { useAtom, useSetAtom } from "jotai";
 import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
+import { POSummaryToolbar } from "@/components/jobs/POSummaryToolbar";
 import type { Contact as BaseContact, User } from '@/lib/types';
 
 // Local Role interface for combobox usage
@@ -428,6 +429,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
 
   return (
     <div className="flex flex-col h-full -mx-4">
+      <POSummaryToolbar jobId={jobId} />
       {/* TeeemTableView with server-side filtering by job_id */}
       {/* SSoT: onAddRow opens the PO modal - single way to create POs */}
       <TeeemTableView

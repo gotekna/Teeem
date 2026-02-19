@@ -14,19 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, Check, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
+import { Save, Undo2, Plus, X, ArrowUp, ArrowDown, ArrowUpDown, ChevronsUpDown, ChevronRight, ChevronDown, ChevronsDownUp } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command";
-import { CommandList } from "cmdk";
 
 // ============================================================================
 // Bill of Quantities - Reusable Component
@@ -1392,70 +1384,3 @@ function PricebookLineSearch({
   );
 }
 
-// Multi-select filter popover (used for Supplier, Stage, Trade)
-function MultiSelectFilter({
-  values,
-  selected,
-  onToggle,
-  placeholder,
-  label,
-}: {
-  values: string[];
-  selected: Set<string>;
-  onToggle: (value: string) => void;
-  placeholder: string;
-  label?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const count = selected.size;
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          className={cn(
-            "flex items-center gap-1 h-6 px-1.5 text-xs rounded border border-input bg-background hover:bg-muted transition-colors w-full min-w-0",
-            count > 0 && "border-primary/50 bg-primary/5"
-          )}
-        >
-          {count > 0 ? (
-            <span className="truncate font-medium">
-              {label ? `${label}: ` : ""}{count} selected
-            </span>
-          ) : (
-            <span className="truncate text-muted-foreground">{placeholder}</span>
-          )}
-          <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[220px] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={`Search ${label || ""}...`} className="h-8 text-xs" />
-          <CommandList>
-            <CommandEmpty className="py-2 text-center text-xs text-muted-foreground">
-              No matches.
-            </CommandEmpty>
-            <CommandGroup className="max-h-[200px] overflow-auto">
-              {values.map((value) => (
-                <CommandItem
-                  key={value}
-                  value={value}
-                  onSelect={() => onToggle(value)}
-                  className="text-xs gap-2"
-                >
-                  <Check
-                    className={cn(
-                      "h-3 w-3 shrink-0",
-                      selected.has(value) ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  <span className="truncate">{value}</span>
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-}
