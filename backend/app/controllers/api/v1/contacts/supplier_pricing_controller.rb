@@ -16,7 +16,9 @@ module Api
       class SupplierPricingController < ApplicationController
         before_action :authorize_request
         before_action :set_contact
-        before_action :require_supplier
+        # Skip supplier check for copy_history (target may not be a supplier yet)
+        # and prices (fetching target's current prices for comparison)
+        before_action :require_supplier, except: [:copy_history, :prices]
 
         # GET /api/v1/contacts/supplier_pricing/:contact_id/categories
         # Returns categories where this supplier has pricing

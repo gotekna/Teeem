@@ -534,7 +534,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
 
       {/* Copy Prices Modal */}
       <Dialog open={copyModalOpen} onOpenChange={setCopyModalOpen}>
-        <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col">
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Copy Prices to Supplier</DialogTitle>
             <DialogDescription>
@@ -657,18 +657,18 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
                     <tr>
                       <th className="text-left px-3 py-2 font-medium">Code</th>
                       <th className="text-left px-3 py-2 font-medium">Item Name</th>
-                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
-                        {contactName}
+                      <th className="text-right px-3 py-2 font-medium">
+                        <span className="truncate block max-w-[120px] ml-auto" title={contactName}>Source</span>
                       </th>
                       {targetSupplier && (
-                        <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
-                          {targetSupplier.name || "Target"} Current
+                        <th className="text-right px-3 py-2 font-medium">
+                          Current
                         </th>
                       )}
-                      <th className="text-right px-3 py-2 font-medium whitespace-nowrap">
+                      <th className="text-right px-3 py-2 font-medium">
                         <span className="flex items-center justify-end gap-1">
                           {hasAdjustment && <TrendingUp className="h-3 w-3" />}
-                          {targetSupplier ? `${targetSupplier.name || "Target"} New` : "New Price"}
+                          New Price
                         </span>
                       </th>
                     </tr>
