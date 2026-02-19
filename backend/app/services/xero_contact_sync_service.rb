@@ -668,11 +668,16 @@ class XeroContactSyncService
       effective_entity_type = teeem_contact.entity_type.presence || (is_company ? "company" : "person")
 
       if %w[company trust].include?(effective_entity_type)
-        # Company/trust: display_name comes from Xero "Name", synced via sync_company_name_or_trust callback
-        updates[:display_name] = xero_contact["Name"] if xero_contact["Name"].present?
+        # Company/trust: display_name comes from company_name_or_trust (SSoT).
+        # Only set from Xero if company_name_or_trust is blank (first sync).
+        # FRC (Feb 2026): When Xero links are transferred between contacts, the Xero
+        # "Name" may not match the company name. User's company_name_or_trust is SSoT.
+        if teeem_contact.company_name_or_trust.blank? && xero_contact["Name"].present?
+          updates[:display_name] = xero_contact["Name"]
+          updates[:company_name_or_trust] = xero_contact["Name"]
+        end
         updates[:first_name] = nil
         updates[:last_name] = nil
-        updates[:company_name_or_trust] = xero_contact["Name"]
       else
         # Person/sole_trader: display_name is computed by generate_display_name callback
         # from first_name + middle_name + last_name. Do NOT set display_name from Xero "Name"
