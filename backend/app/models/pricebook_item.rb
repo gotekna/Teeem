@@ -19,6 +19,15 @@ class PricebookItem < ApplicationRecord
   belongs_to :qr_code_storage_blob, class_name: "StorageBlob", optional: true
   has_many :price_histories, dependent: :destroy
 
+  # Safe eager load associations for Foundation API (records_controller apply_eager_loading)
+  # Uses explicit whitelist to prevent include(:gst_code) errors from the old association name
+  # (before rename: belongs_to :gst_code → now: belongs_to :gst_code_record)
+  # Blob associations excluded: heavy and loaded only when needed (show/image actions)
+  def self.safe_eager_load_associations
+    [:supplier, :default_supplier, :pricebook_category, :pricebook_brand, :pricebook_range,
+     :uom_record, :gst_code_record]
+  end
+
   # Attribute for skipping price history callback
   attr_accessor :skip_price_history_callback
 

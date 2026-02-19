@@ -4,13 +4,13 @@
     "run_id": "ralph-v2-20260220",
     "started_at": "2026-02-20T06:25:00Z",
     "completed_at": null,
-    "last_updated": "2026-02-20T11:20:00Z",
-    "iteration": 10,
-    "ship_ready": true,
+    "last_updated": "2026-02-19T23:12:27Z",
+    "iteration": 11,
+    "ship_ready": false,
     "total_pages": 200,
     "total_stories": 19
   },
-  "protocol_reminder": "1) navigate_page to URL. 2) Run ALL-IN-ONE evaluate_script (waits 5s, re-injects error collector, checks hasContent + breadcrumb + consoleErrors + url + title). 3) Breadcrumb REQUIRED: .backdrop-blur-sm nav must have text content — missing = minor finding. 4) If PASS: record js_check in page_results. 5) If FAIL: take_snapshot + take_screenshot to FILE, create finding. 6) NEVER call wait_for() — use the all-in-one JS check. 7) After 20 pages, SAVE and yield.",
+  "protocol_reminder": "1) navigate_page to URL. 2) Run ALL-IN-ONE evaluate_script (waits UP TO 15s for REAL content \u2014 detects and waits through spinners, 'Loading...' text, and skeletons). 3) hasContent is only true when REAL content loaded (not just a spinner). isStillLoading=true after 15s = STUCK page = major finding. 4) Breadcrumb REQUIRED: .backdrop-blur-sm nav must have text content \u2014 missing = minor finding. 5) If PASS: record js_check in page_results. 6) If FAIL: take_snapshot + take_screenshot to FILE, create finding. 7) NEVER call wait_for(). 8) After 20 pages, SAVE and yield.",
   "anti_cheat": {
     "require_fresh_evidence": true,
     "max_pages_per_iteration": 20,
@@ -42,12 +42,30 @@
       "tab_manifest": {},
       "modal_manifest": {
         "/dashboard": [
-          { "trigger": "Create New dropdown", "description": "Header Create New menu shows Jobs, Contacts, POs, Cases, Tasks" },
-          { "trigger": "NotificationBell", "description": "Opens notifications panel" },
-          { "trigger": "Email Popover", "description": "Shows email accounts + unread count" },
-          { "trigger": "SupportChatWidget", "description": "Opens AI chat" },
-          { "trigger": "FloatingHelpButton", "description": "Shows page-specific help" },
-          { "trigger": "User menu", "description": "Shows Profile, Settings, Dark Mode, Logout" }
+          {
+            "trigger": "Create New dropdown",
+            "description": "Header Create New menu shows Jobs, Contacts, POs, Cases, Tasks"
+          },
+          {
+            "trigger": "NotificationBell",
+            "description": "Opens notifications panel"
+          },
+          {
+            "trigger": "Email Popover",
+            "description": "Shows email accounts + unread count"
+          },
+          {
+            "trigger": "SupportChatWidget",
+            "description": "Opens AI chat"
+          },
+          {
+            "trigger": "FloatingHelpButton",
+            "description": "Shows page-specific help"
+          },
+          {
+            "trigger": "User menu",
+            "description": "Shows Profile, Settings, Dark Mode, Logout"
+          }
         ]
       },
       "header_checks": [
@@ -71,29 +89,59 @@
       "page_results": {
         "/dashboard": {
           "status": "passed",
-          "tested_at": "2026-02-20T07:05:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Dashboard › OverviewOverview","url":"/dashboard/overview","title":"Overview | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Dashboard > OverviewOverview",
+            "url": "/dashboard/overview",
+            "title": "Overview | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/tasks": {
           "status": "passed",
-          "tested_at": "2026-02-20T07:06:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Tasks","url":"/tasks","title":"Tasks | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Tasks",
+            "url": "/tasks",
+            "title": "Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/agent-tasks": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:27:30Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/agent-tasks","title":"Agent Tasks | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Agent Tasks",
+            "url": "/agent-tasks",
+            "title": "Agent Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/notebooks": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:28:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/notebooks","title":"Notebooks | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Notebooks",
+            "url": "/notebooks",
+            "title": "Notebooks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -118,23 +166,45 @@
       "page_results": {
         "/jobs": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:29:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/jobs/view/live","title":"Jobs | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "JobsLive",
+            "url": "/jobs/view/live",
+            "title": "Jobs | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/jobs/new": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:50:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"JobsNew Job","url":"/jobs/new","title":"New Job | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "JobsNew Job",
+            "url": "/jobs/new",
+            "title": "New Job | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/jobs/photos": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:29:30Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/jobs/photos","title":"Photos | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "JobsPhotos",
+            "url": "/jobs/photos",
+            "title": "Photos | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -161,28 +231,59 @@
       "page_results": {
         "/contacts": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:30:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/contacts/view/all-1","title":"Contacts | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "ContactsAll 1",
+            "url": "/contacts/view/all-1",
+            "title": "Contacts | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/contacts/new": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:51:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"ContactsNew Contact","url":"/contacts/new","title":"New Contact | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "ContactsNew Contact",
+            "url": "/contacts/new",
+            "title": "New Contact | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/contacts/duplicates": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:52:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"ContactsDuplicates","url":"/contacts/duplicates","title":"Duplicates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "ContactsDuplicates",
+            "url": "/contacts/duplicates",
+            "title": "Duplicates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/contacts/quality-review": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:53:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"ContactsQuality Review","url":"/contacts/quality-review","title":"Quality Review | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "ContactsQuality Review",
+            "url": "/contacts/quality-review",
+            "title": "Quality Review | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -205,16 +306,31 @@
       "page_results": {
         "/purchase_orders": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:31:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/purchase_orders/view/all-purchase-orders","title":"Purchase Orders | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Purchase OrdersAll Purchase Orders",
+            "url": "/purchase_orders/view/all-purchase-orders",
+            "title": "Purchase Orders | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/purchase_orders/new": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:54:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Purchase OrdersNew PO","url":"/purchase_orders/new","title":"New PO | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Purchase OrdersNew PO",
+            "url": "/purchase_orders/new",
+            "title": "New PO | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -244,42 +360,87 @@
       "page_results": {
         "/pricebook": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:32:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/pricebook/view/load","title":"Pricebook | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "PricebookLoad",
+            "url": "/pricebook/view/load",
+            "title": "Pricebook | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/pricebook/colour-swatches": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:55:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"PricebookColour Swatches","url":"/pricebook/colour-swatches","title":"Colour Swatches | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "PricebookColour Swatches",
+            "url": "/pricebook/colour-swatches",
+            "title": "Colour Swatches | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/pricebook/health": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:56:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"PricebookHealth","url":"/pricebook/health","title":"Health | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "PricebookHealth",
+            "url": "/pricebook/health",
+            "title": "Health | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/recipes": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:32:30Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/recipes/view/setup","title":"Recipes | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Recipes",
+            "url": "/recipes",
+            "title": "Recipes | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/estimates": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:32:15Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/estimates/view/setup","title":"Estimates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "EstimatesSetup",
+            "url": "/estimates/view/setup",
+            "title": "Estimates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/price_histories": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:57:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Price HistoriesDefault View 1","url":"/price_histories/view/default-view-1","title":"Price Histories | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Price HistoriesDefault View 1",
+            "url": "/price_histories/view/default-view-1",
+            "title": "Price Histories | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -288,7 +449,7 @@
       "title": "Finance, Financial, Xero & Accounts",
       "icon": "database",
       "description": "Finance module pages, Xero integration, accounts",
-      "status": "completed",
+      "status": "in_progress",
       "page_manifest": [
         "/finance",
         "/finance/bills",
@@ -313,70 +474,17 @@
       "page_results": {
         "/finance": {
           "status": "passed",
-          "tested_at": "2026-02-20T06:33:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/finance","title":"Finance | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
-        },
-        "/finance/bills": {
-          "status": "passed",
-          "tested_at": "2026-02-20T06:58:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinanceBillsSetup","url":"/finance/bills/view/setup","title":"Bills | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/finance/payments": {
-          "status": "passed",
-          "tested_at": "2026-02-20T06:59:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinancePayments","url":"/finance/payments","title":"Payments | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/finance/settings": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:00:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinanceSettings","url":"/finance/settings","title":"Settings | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/financial": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:00:30Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Financial","url":"/financial","title":"Financial | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/financial/reports": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:01:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinancialReportsBalance Sheet","url":"/financial/reports/balance_sheet","title":"Balance Sheet | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/financial/transactions": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:01:30Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinancialTransactionsXero","url":"/financial/transactions/xero","title":"Xero | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/financial/tas": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:02:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"FinancialTasCompanies","url":"/financial/tas/companies","title":"Companies | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/accounts": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:02:30Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Accounts","url":"/accounts","title":"Accounts | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/xero": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:03:00Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"Xero","url":"/xero","title":"Xero | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/xero/sync": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:03:30Z",
-          "iteration": 2,
-          "js_check": {"hasContent":true,"breadcrumb":"XeroSync","url":"/xero/sync","title":"Sync | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
+          "tested_at": "2026-02-19T23:12:27Z",
+          "iteration": 11,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Finance",
+            "url": "/finance",
+            "title": "Finance | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         }
       }
     },
@@ -385,7 +493,7 @@
       "title": "Corporate Module",
       "icon": "layout-list",
       "description": "All 17 corporate sub-pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/corporate",
         "/corporate/structure",
@@ -416,136 +524,14 @@
         "Companies list shows records",
         "Assets page loads"
       ],
-      "page_results": {
-        "/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-20T06:34:00Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/corporate","title":"Corporate | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "breadcrumb:null from iteration 1 wrong selector - needs re-test"
-        },
-        "/corporate/structure": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:30:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateStructure","url":"/corporate/structure","title":"Structure | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/directors": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:30:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateDirectors","url":"/corporate/directors","title":"Directors | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/shareholders": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:31:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateShareholders","url":"/corporate/shareholders","title":"Shareholders | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/beneficiaries": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:31:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateBeneficiaries","url":"/corporate/beneficiaries","title":"Beneficiaries | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/memberships": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:32:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateMemberships","url":"/corporate/memberships","title":"Memberships | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/charity-members": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:32:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateCharity Members","url":"/corporate/charity-members","title":"Charity Members | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/companies": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:33:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateCompaniesLive","url":"/corporate/companies/view/live","title":"Companies | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/companies/new": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:33:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateCompaniesNew","url":"/corporate/companies/new","title":"New | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/groups": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:34:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateGroups","url":"/corporate/groups","title":"Groups | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/people": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:34:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporatePeople","url":"/corporate/people","title":"People | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/compliance-calendar": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:35:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateCompliance Calendar","url":"/corporate/compliance-calendar","title":"Compliance Calendar | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/assets": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:35:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateAssetsSetup","url":"/corporate/assets/view/setup","title":"Assets | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/assets/new": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:36:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateAssetsNew","url":"/corporate/assets/new","title":"New | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/assets/reports": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:36:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateAssetsReportsSummary","url":"/corporate/assets/reports/summary","title":"Summary | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/asic-logins": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:37:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateASIC Logins","url":"/corporate/asic-logins","title":"ASIC Logins | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/minute-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:37:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateMinute Templates","url":"/corporate/minute-templates","title":"Minute Templates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/document-types": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:38:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateDocument TypesNo Primary","url":"/corporate/document-types/view/no-primary","title":"Document Types | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/consolidation": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:38:30Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateConsolidation","url":"/corporate/consolidation","title":"Consolidation | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/corporate/health": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:39:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"CorporateHealth","url":"/corporate/health","title":"Health | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-WHS",
       "title": "WHS Module",
       "icon": "clipboard-check",
       "description": "Work Health & Safety pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/whs",
         "/whs/dashboard",
@@ -562,57 +548,14 @@
         "Dashboard shows safety metrics",
         "Each sub-page renders"
       ],
-      "page_results": {
-        "/whs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T07:40:00Z",
-          "iteration": 3,
-          "js_check": {"hasContent":true,"breadcrumb":"WHS","url":"/whs","title":"WHS | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:10:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSDashboard","url":"/whs/dashboard","title":"Dashboard | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/incidents": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:10:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSIncidents","url":"/whs/incidents","title":"Incidents | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/inspections": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:11:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSInspections","url":"/whs/inspections","title":"Inspections | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/inductions": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:11:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSInductions","url":"/whs/inductions","title":"Inductions | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/swms": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:12:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSSWMS","url":"/whs/swms","title":"SWMS | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/whs/action-items": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:12:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"WHSAction Items","url":"/whs/action-items","title":"Action Items | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-PERSONAL",
       "title": "Personal Settings",
       "icon": "save",
       "description": "Profile, Notifications, Security, Preferences",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/profile",
         "/settings/notifications",
@@ -627,39 +570,14 @@
         "Security shows password and 2FA options",
         "Preferences loads"
       ],
-      "page_results": {
-        "/settings/profile": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:15:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsProfile","url":"/settings/profile","title":"Profile | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/notifications": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:15:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsNotifications","url":"/settings/notifications","title":"Notifications | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/security": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:16:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsSecurity","url":"/settings/security","title":"Security | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/preferences": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:16:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsPreferences","url":"/settings/preferences","title":"Preferences | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-COMPANY",
       "title": "Company Settings",
       "icon": "save",
       "description": "Company settings with 9 tabs and their sub-tabs",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/company",
         "/settings/company/info",
@@ -682,9 +600,30 @@
         "/settings/company/offline"
       ],
       "tab_manifest": {
-        "/settings/company": ["info", "brand-colors", "documents", "holidays", "workflows", "job-setup", "warehouse-config", "offline"],
-        "/settings/company/job-setup": ["types", "statuses", "stages", "suburbs", "workflow"],
-        "/settings/company/warehouse-config": ["corporate", "jobs", "contacts", "email-config", "config-sync"]
+        "/settings/company": [
+          "info",
+          "brand-colors",
+          "documents",
+          "holidays",
+          "workflows",
+          "job-setup",
+          "warehouse-config",
+          "offline"
+        ],
+        "/settings/company/job-setup": [
+          "types",
+          "statuses",
+          "stages",
+          "suburbs",
+          "workflow"
+        ],
+        "/settings/company/warehouse-config": [
+          "corporate",
+          "jobs",
+          "contacts",
+          "email-config",
+          "config-sync"
+        ]
       },
       "modal_manifest": {},
       "domain_checks": [
@@ -694,133 +633,14 @@
         "Warehouse Config sub-tabs load",
         "URL updates when clicking sub-tabs"
       ],
-      "page_results": {
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:20:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyInfo","url":"/settings/company/info","title":"Info | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/company/info"
-        },
-        "/settings/company/info": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:20:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyInfo","url":"/settings/company/info","title":"Info | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/brand-colors": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:20:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyBrand Colors","url":"/settings/company/brand-colors","title":"Brand Colors | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/documents": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:21:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyDocumentsDocument Types","url":"/settings/company/documents/types","title":"Document Types | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/company/documents/types"
-        },
-        "/settings/company/holidays": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:21:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyHolidays","url":"/settings/company/holidays","title":"Holidays | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/workflows": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:22:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWorkflows","url":"/settings/company/workflows","title":"Workflows | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/job-setup": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:22:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupLists","url":"/settings/company/job-setup/lists","title":"Lists | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/company/job-setup/lists"
-        },
-        "/settings/company/job-setup/types": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:23:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupDocument Types","url":"/settings/company/job-setup/types","title":"Document Types | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/job-setup/statuses": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:23:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupStatuses","url":"/settings/company/job-setup/statuses","title":"Statuses | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/job-setup/stages": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:24:00Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupStages","url":"/settings/company/job-setup/stages","title":"Stages | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/job-setup/suburbs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:24:30Z",
-          "iteration": 4,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupSuburbs","url":"/settings/company/job-setup/suburbs","title":"Suburbs | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/job-setup/workflow": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:50:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyJob SetupWorkflow","url":"/settings/company/job-setup/workflow","title":"Workflow | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/warehouse-config": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:50:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigWarehouse Folders","url":"/settings/company/warehouse-config/warehouse_folders","title":"Warehouse Folders | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/company/warehouse-config/warehouse_folders"
-        },
-        "/settings/company/warehouse-config/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:51:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigCorporate","url":"/settings/company/warehouse-config/corporate","title":"Corporate | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/warehouse-config/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:51:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigJobs","url":"/settings/company/warehouse-config/jobs","title":"Jobs | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/warehouse-config/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:52:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigContacts","url":"/settings/company/warehouse-config/contacts","title":"Contacts | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/warehouse-config/email-config": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:52:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigEmail Config","url":"/settings/company/warehouse-config/email-config","title":"Email Config | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/warehouse-config/config-sync": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:53:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyWarehouse ConfigConfig Sync","url":"/settings/company/warehouse-config/config-sync","title":"Config Sync | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/company/offline": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:53:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCompanyOffline","url":"/settings/company/offline","title":"Offline | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-CONNECTIONS",
       "title": "Connections Settings",
       "icon": "save",
       "description": "Storage, Integrations, Migration, Costs, Backups",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/connections",
         "/settings/connections/provider",
@@ -834,7 +654,13 @@
         "/settings/integrations/cloudflare"
       ],
       "tab_manifest": {
-        "/settings/connections": ["provider", "integrations", "migration", "costs", "backups"]
+        "/settings/connections": [
+          "provider",
+          "integrations",
+          "migration",
+          "costs",
+          "backups"
+        ]
       },
       "modal_manifest": {},
       "domain_checks": [
@@ -843,77 +669,14 @@
         "Xero integration shows sync status",
         "URL updates when clicking connection sub-tabs"
       ],
-      "page_results": {
-        "/settings/connections": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:54:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsStorage Provider","url":"/settings/connections/provider","title":"Storage Provider | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/connections/provider"
-        },
-        "/settings/connections/provider": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:54:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsStorage Provider","url":"/settings/connections/provider","title":"Storage Provider | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/connections/integrations": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:55:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsIntegrations","url":"/settings/connections/integrations","title":"Integrations | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/connections/migration": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:55:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsMigration","url":"/settings/connections/migration","title":"Migration | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/connections/costs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:56:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsCost Comparison","url":"/settings/connections/costs","title":"Cost Comparison | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/connections/backups": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:56:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsBackups","url":"/settings/connections/backups","title":"Backups | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/integrations": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:57:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsConnectionsIntegrations","url":"/settings/connections/integrations","title":"Integrations | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/connections/integrations"
-        },
-        "/settings/integrations/xero": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:57:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsIntegrationsXero","url":"/settings/integrations/xero","title":"Xero | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/integrations/microsoft": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:58:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsIntegrationsMicrosoft","url":"/settings/integrations/microsoft","title":"Microsoft | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/integrations/cloudflare": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:58:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsIntegrationsCloudflare","url":"/settings/integrations/cloudflare","title":"Cloudflare | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-OPERATIONS",
       "title": "Operations Settings",
       "icon": "save",
       "description": "Schedule Master, SM Tasks, Contact Types, Meeting Types, etc.",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/operations",
         "/settings/operations/po-templates",
@@ -931,59 +694,14 @@
         "Claim Templates page loads",
         "Tables settings shows lookup tables"
       ],
-      "page_results": {
-        "/settings/operations": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:59:00Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsSchedule Master","url":"/settings/operations/schedule-master","title":"Schedule Master | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/operations/schedule-master"
-        },
-        "/settings/operations/po-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-20T08:59:30Z",
-          "iteration": 5,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsPO Templates","url":"/settings/operations/po-templates","title":"PO Templates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/operations/claim-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:10:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsClaim Templates","url":"/settings/operations/claim-templates","title":"Claim Templates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/tables": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:10:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsTablesPricebookCategories","url":"/settings/tables/pricebook/categories","title":"Categories | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/tables/pricebook/categories"
-        },
-        "/settings/training": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:11:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsTraining","url":"/settings/training","title":"Training | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/meeting-types": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:11:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"Meeting Types","url":"/meeting-types","title":"Meeting Types | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/public-holidays": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:12:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"Public HolidaysDefault View 1","url":"/public-holidays/view/default-view-1","title":"Public Holidays | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SETTINGS-OTHER",
       "title": "Access Control, System, Developer & Admin",
       "icon": "save",
       "description": "Roles, Users, Corporate, System, Developer settings and admin pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/settings/users",
         "/settings/roles",
@@ -1014,141 +732,14 @@
         "System settings loads",
         "Developer settings shows tools"
       ],
-      "page_results": {
-        "/settings/users": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:15:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsUsers","url":"/settings/users","title":"Users | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/roles": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:15:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsAccess ControlPermissions","url":"/settings/roles/permissions","title":"Permissions | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/roles/permissions"
-        },
-        "/settings/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:16:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsCorporateGroups","url":"/settings/corporate/groups","title":"Groups | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/corporate/groups"
-        },
-        "/settings/system": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:16:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsSystemNavigation","url":"/settings/system/navigation","title":"Navigation | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/system/navigation"
-        },
-        "/settings/developer": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:17:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsDeveloperComponents Lab","url":"/settings/developer/components","title":"Components Lab | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /settings/developer/components"
-        },
-        "/settings/documents": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:17:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsDocuments","url":"/settings/documents","title":"Documents | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/email-reseller": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:18:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsEmail Reseller","url":"/settings/email-reseller","title":"Email Reseller | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/email-reseller/subscriptions": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:18:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsEmail ResellerSubscriptions","url":"/settings/email-reseller/subscriptions","title":"Subscriptions | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/email-reseller/migrations": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:19:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsEmail ResellerMigrationsActive","url":"/settings/email-reseller/migrations/active","title":"Active | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to .../migrations/active"
-        },
-        "/settings/email-reseller/reports": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:19:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsEmail ResellerReports","url":"/settings/email-reseller/reports","title":"Reports | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/settings/email-reseller/settings": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:20:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsEmail ResellerSettings","url":"/settings/email-reseller/settings","title":"Settings | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/tenants": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:20:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsTenants","url":"/admin/tenants","title":"Tenants | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/referrers": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:21:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsReferrers","url":"/admin/referrers","title":"Referrers | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/saas-customers": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:21:30Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsSaas Customers","url":"/admin/saas-customers","title":"Saas Customers | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/support-tickets": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:22:00Z",
-          "iteration": 6,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsSupport Tickets","url":"/admin/support-tickets","title":"Support Tickets | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/site-presence": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:40:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsSite PresenceActive","url":"/admin/site-presence/active","title":"Active | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /admin/site-presence/active"
-        },
-        "/admin/system/teeem-xl/list": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:40:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsTeeem XlList","url":"/admin/system/teeem-xl/list","title":"List | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/system/teeem-word/list": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:41:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsTeeem WordList","url":"/admin/system/teeem-word/list","title":"List | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/system/teeem-powerpoint/list": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:41:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsTeeem PowerpointList","url":"/admin/system/teeem-powerpoint/list","title":"List | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/admin/system/teeem-pdf/list": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:42:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"SettingsOperationsTeeem PdfList","url":"/admin/system/teeem-pdf/list","title":"List | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-WAREHOUSE",
       "title": "File Warehouse",
       "icon": "database",
       "description": "Warehouse views and data warehouse",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/warehouse",
         "/data-warehouse",
@@ -1164,46 +755,14 @@
         "My Docs shows personal files",
         "DocSort shows classification UI"
       ],
-      "page_results": {
-        "/warehouse": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:45:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"File WarehouseTree","url":"/warehouse/tree","title":"Tree | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /warehouse/tree"
-        },
-        "/data-warehouse": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:45:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Data Warehouse","url":"/data-warehouse","title":"Data Warehouse | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/my-docs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:46:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"My Docs","url":"/my-docs","title":"My Docs | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/docsort": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:46:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Docsort","url":"/docsort","title":"Docsort | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/import": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:47:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Import","url":"/import","title":"Import | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-SM",
       "title": "Schedule Master & Calendar",
       "icon": "gauge",
       "description": "Schedule Master, templates, tasks, calendar",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/schedule-master",
         "/schedule-templates",
@@ -1219,53 +778,14 @@
         "Calendar renders with events",
         "SM Tasks shows task list"
       ],
-      "page_results": {
-        "/schedule-master": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:50:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Schedule Master","url":"/schedule-master","title":"Schedule Master | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/schedule-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:50:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Schedule Templates","url":"/schedule-templates","title":"Schedule Templates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/sm_tasks": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:51:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Tasks","url":"/tasks","title":"Tasks | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /tasks"
-        },
-        "/task-templates": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:51:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Schedule Templates","url":"/schedule-templates","title":"Schedule Templates | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /schedule-templates"
-        },
-        "/calendar": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:52:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Calendar","url":"/calendar","title":"Calendar | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/site-presence/live": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:52:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Site PresenceLive","url":"/site-presence/live","title":"Live | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-OTHER",
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -1307,188 +827,14 @@
         "System Health shows status",
         "Feature Requests loads"
       ],
-      "page_results": {
-        "/leads": {
-          "status": "passed",
-          "tested_at": "2026-02-20T06:30:30Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/leads","title":"Leads | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/quote-requests": {
-          "status": "passed",
-          "tested_at": "2026-02-20T06:31:30Z",
-          "iteration": 1,
-          "js_check": {"hasContent":true,"breadcrumb":null,"url":"/quote-requests/view/setup","title":"Quote Requests | Teeem","scrollable":false,"consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/leads/emails": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:55:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"LeadsEmails","url":"/leads/emails","title":"Emails | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/cases": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:55:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Cases","url":"/cases","title":"Cases | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/cases/new": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:56:00Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"CasesNew","url":"/cases/new","title":"New | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/email": {
-          "status": "passed",
-          "tested_at": "2026-02-20T09:56:30Z",
-          "iteration": 7,
-          "js_check": {"hasContent":true,"breadcrumb":"Email","url":"/email","title":"Email | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/email/rules": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:10:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"EmailRules","url":"/email/rules","title":"Rules | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/email/settings": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:10:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"EmailSettingsBlacklist","url":"/email/settings/blacklist","title":"Blacklist | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /email/settings/blacklist, slow load"
-        },
-        "/meetings": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:11:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"MeetingsUpcoming","url":"/meetings/upcoming","title":"Upcoming | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /meetings/upcoming, slow load"
-        },
-        "/meetings/new": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:11:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"MeetingsNew","url":"/meetings/new","title":"New | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/chat": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:12:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Chat","url":"/chat","title":"Chat | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/training": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:12:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"TrainingAll","url":"/training/all","title":"All | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /training/all"
-        },
-        "/plans": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:13:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Plans","url":"/plans","title":"Plans | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/workflows": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:13:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"WorkflowsTasks","url":"/workflows/tasks","title":"Tasks | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /workflows/tasks"
-        },
-        "/workflows/processes": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:14:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"WorkflowsProcesses","url":"/workflows/processes","title":"Processes | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/designer": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:14:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Designer","url":"/designer","title":"Designer | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/designer/new": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:15:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"DesignerNew","url":"/designer/new","title":"New | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/e-signature": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:15:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"E Signature","url":"/e-signature","title":"E Signature | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/e-signature/prepare": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:16:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"E SignaturePrepare","url":"/e-signature/prepare","title":"Prepare | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/support": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:16:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Support","url":"/support","title":"Support | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/feature-requests": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:17:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Feature Requests","url":"/feature-requests","title":"Feature Requests | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/system-health": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:17:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"System Health","url":"/system-health","title":"System Health | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/system-performance": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:18:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"System Performance","url":"/system-performance","title":"System Performance | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/brand-guidelines": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:18:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":false,"breadcrumb":null,"url":"/brand-guidelines","title":"Brand Guidelines | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "No <main> element - standalone page outside standard layout. Body has 14 children, title loads correctly."
-        },
-        "/design-system": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:19:00Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Design System","url":"/design-system","title":"Design System | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/profile": {
-          "status": "passed",
-          "tested_at": "2026-02-20T10:19:30Z",
-          "iteration": 8,
-          "js_check": {"hasContent":true,"breadcrumb":"Profile","url":"/profile","title":"Profile | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/missing": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:00:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"breadcrumb":"Missing","url":"/missing","title":"Missing | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        },
-        "/company-groups": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:00:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"breadcrumb":"Company Groups","url":"/company-groups","title":"Company Groups | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-PORTAL",
       "title": "Customer Portal",
       "icon": "layout-list",
       "description": "Customer-facing portal pages",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/portal",
         "/portal/login",
@@ -1505,71 +851,14 @@
         "Portal login page loads",
         "Portal pages render for authenticated users"
       ],
-      "page_results": {
-        "/portal": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:02:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/portal/view/setup","title":"Portal | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)"},
-          "note": "Redirects to /portal/view/setup - admin portal setup page"
-        },
-        "/portal/login": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:02:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":false,"url":"/portal/login","title":"Login | Teeem","consoleErrors":0,"bodyBg":"rgb(255, 255, 255)","hasForm":true,"hasInput":true},
-          "note": "Standalone login page - no <main> element, has form + input. Expected."
-        },
-        "/portal/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:03:00Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        },
-        "/portal/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:03:30Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        },
-        "/portal/invoices": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:04:00Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        },
-        "/portal/quotes": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:04:30Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        },
-        "/portal/schedule": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:05:00Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        },
-        "/portal/settings": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:05:30Z",
-          "iteration": 9,
-          "js_check": {"url":"/portal/login","title":"Login | Teeem","hasForm":true,"consoleErrors":0},
-          "note": "Correctly redirects to /portal/login - auth required"
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-DARK",
       "title": "Dark Mode Sweep",
       "icon": "palette",
       "description": "Verify dark mode on key pages - no white backgrounds, readable text",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/dashboard",
         "/jobs",
@@ -1593,93 +882,14 @@
         "No elements with white/light hardcoded backgrounds",
         "Cards and panels use dark variants"
       ],
-      "page_results": {
-        "/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:06:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/dashboard/overview","title":"Overview | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:06:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/jobs/view/live","title":"Jobs | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:07:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/contacts/view/all-1","title":"Contacts | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/purchase_orders": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:07:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/purchase_orders/view/all-purchase-orders","title":"Purchase Orders | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/pricebook": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:08:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/pricebook","title":"Pricebook | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/finance": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:08:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/finance","title":"Finance | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:09:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/settings/company/info","title":"Info | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/settings/connections": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:09:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/settings/connections/provider","title":"Storage Provider | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/corporate": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:10:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/corporate","title":"Corporate | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/whs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:10:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/whs","title":"WHS | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/email": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:11:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/email","title":"Email | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/warehouse": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:11:30Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/warehouse/tree","title":"Tree | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        },
-        "/system-health": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:12:00Z",
-          "iteration": 9,
-          "js_check": {"hasContent":true,"url":"/system-health/health","title":"Health | Teeem","consoleErrors":0,"bodyBg":"rgb(13, 13, 13)","isDark":true,"rgb":{"r":13,"g":13,"b":13}}
-        }
-      }
+      "page_results": {}
     },
     {
       "id": "US-RESPONSIVE",
       "title": "Responsive Layout Sweep",
       "icon": "gauge",
       "description": "Verify key pages at tablet (768px) and mobile (375px) viewports",
-      "status": "completed",
+      "status": "pending",
       "page_manifest": [
         "/dashboard",
         "/jobs",
@@ -1698,56 +908,7 @@
         "No horizontal overflow at narrow viewports",
         "Navigation adapts to mobile layout"
       ],
-      "page_results": {
-        "/dashboard": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:15:00Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/dashboard/overview","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/dashboard/overview","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/jobs": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:15:30Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/jobs/view/live","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/jobs/view/live","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/contacts": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:16:00Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/contacts/view/all-1","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/contacts/view/all-1","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/purchase_orders": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:16:30Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/purchase_orders/view/all-purchase-orders","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/purchase_orders/view/all-purchase-orders","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/settings/profile": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:17:00Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/settings/profile","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/settings/profile","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/settings/company": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:17:30Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/settings/company/info","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/settings/company/info","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/email": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:18:00Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/email","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/email","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        },
-        "/system-health": {
-          "status": "passed",
-          "tested_at": "2026-02-20T11:18:30Z",
-          "iteration": 10,
-          "js_check": {"768px":{"hasContent":true,"url":"/system-health/health","viewport":768,"hasHOverflow":false,"consoleErrors":0},"375px":{"hasContent":true,"url":"/system-health/health","viewport":500,"hasHOverflow":false,"consoleErrors":0}}
-        }
-      }
+      "page_results": {}
     }
   ],
   "findings": []

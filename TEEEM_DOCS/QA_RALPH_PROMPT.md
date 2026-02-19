@@ -74,13 +74,28 @@ navigate_page(url: "https://teeem-staging.vercel.app{path}")
 
 #### 3b. Run the ALL-IN-ONE JS Check
 
-**This is THE ONLY tool call you need per page.** It waits for content, re-injects the error collector, and runs all checks in one call (~200 bytes returned):
+**This is THE ONLY tool call you need per page.** It waits for REAL content (not spinners), re-injects the error collector, and runs all checks in one call (~300 bytes returned):
 
 ```javascript
 evaluate_script(async () => {
-  // Wait up to 5 seconds for main to have content
-  for (let i = 0; i < 10; i++) {
-    if (document.querySelector('main')?.children.length > 0) break;
+  // Helper: detect loading indicators (spinners, "Loading..." text, skeletons)
+  const isStillLoading = () => {
+    const main = document.querySelector('main');
+    if (!main || main.children.length === 0) return true;
+    const text = main.textContent || '';
+    // Check for loading text patterns
+    if (/loading\.\.\./i.test(text) && text.replace(/loading[^.]*\.\.\./gi, '').trim().length < 50) return true;
+    // Check for spinner-only content (animate-spin with minimal other content)
+    const spinners = main.querySelectorAll('[class*="animate-spin"], [class*="spinner"]');
+    if (spinners.length > 0 && main.querySelectorAll('table, form, [role="tabpanel"], .card, [class*="Card"]').length === 0) return true;
+    // Check for skeleton loaders
+    const skeletons = main.querySelectorAll('[class*="skeleton"], [class*="Skeleton"], [class*="animate-pulse"]');
+    if (skeletons.length > 2 && main.querySelectorAll('table, form, [role="tabpanel"]').length === 0) return true;
+    return false;
+  };
+  // Wait up to 15 seconds for REAL content (not spinners)
+  for (let i = 0; i < 30; i++) {
+    if (!isStillLoading()) break;
     await new Promise(r => setTimeout(r, 500));
   }
   // Re-inject error collector (navigate_page resets JS state)
@@ -92,8 +107,11 @@ evaluate_script(async () => {
   }
   // Breadcrumb detection: BreadcrumbTrail.tsx renders <nav> inside .backdrop-blur-sm
   const bcNav = document.querySelector('.backdrop-blur-sm nav');
+  const main = document.querySelector('main');
+  const stillLoading = isStillLoading();
   return ({
-    hasContent: document.querySelector('main')?.children.length > 0,
+    hasContent: main?.children.length > 0 && !stillLoading,
+    isStillLoading: stillLoading,
     breadcrumb: bcNav?.textContent?.trim() || null,
     url: location.pathname,
     title: document.title,
@@ -103,6 +121,8 @@ evaluate_script(async () => {
   });
 })
 ```
+
+**Key difference from v2:** The check now detects loading spinners, "Loading..." text, and skeleton placeholders. A page with only a spinner is NOT considered loaded — `hasContent` will be `false` and `isStillLoading` will be `true`. The wait loop runs up to 15 seconds (30 × 500ms) giving slow API calls time to complete.
 
 **CRITICAL CONTEXT RULES:**
 - **NEVER call `wait_for()`** — it returns a full page snapshot (~50KB) that wastes context
@@ -114,11 +134,14 @@ evaluate_script(async () => {
 
 | Check | Pass condition |
 |-------|----------------|
-| No white screen | `hasContent === true` |
+| No white screen | `hasContent === true` (content loaded AND no spinners) |
+| Not stuck loading | `isStillLoading === false` (no spinners, "Loading..." text, or skeletons) |
 | No console errors | `consoleErrors === 0` |
 | URL correct | `url` doesn't contain `/undefined` or unexpected hash |
 | Page loaded | `title` is not empty or generic "Teeem" only |
 | Breadcrumb visible | `breadcrumb` is not null and not empty |
+
+**CRITICAL:** If `isStillLoading === true` after 15 seconds, the page is STUCK. This is a `major` finding with category `render-error`. The page has a loading spinner but never finished loading — likely an API failure or component crash.
 
 **Breadcrumbs:** Every page MUST have a visible breadcrumb trail. The selector `.backdrop-blur-sm nav` targets TEEEM's `BreadcrumbTrail.tsx` component. If `breadcrumb` is null/empty, create a `minor` finding with category `breadcrumb-missing`.
 
@@ -325,7 +348,7 @@ When creating findings, guess the source file:
 
 | Problem | v2 Approach (wasteful) | v2.1 Fix |
 |---------|------------------------|----------|
-| Waiting for page load | `wait_for()` returns ~50KB snapshot | All-in-one JS check with built-in 5s wait loop (~200 bytes) |
+| Waiting for page load | `wait_for()` returns ~50KB snapshot | All-in-one JS check with built-in 15s smart wait loop — detects spinners, "Loading..." text, skeletons (~300 bytes) |
 | Error collector reset | Separate `evaluate_script` call to re-inject | Baked into the all-in-one JS check |
 | Breadcrumb validation | Wrong selector (`aria-label="breadcrumb"`) | Correct selector (`.backdrop-blur-sm nav`) — pass/fail check |
 | 3 tool calls per page | navigate + wait_for + evaluate_script | navigate + ONE evaluate_script |
