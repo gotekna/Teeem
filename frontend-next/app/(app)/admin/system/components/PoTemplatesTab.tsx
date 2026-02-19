@@ -439,7 +439,7 @@ export function PoTemplatesTab() {
   const boqGroups: BOQGroup[] = React.useMemo(() => {
     if (!selectedPack) return [];
     return selectedPack.items
-      .filter((item) => item.lineItems && item.lineItems.length > 0)
+      .filter((item) => item.lineItems !== undefined)
       .map((item) => ({
         id: item.id,
         name: item.name,
