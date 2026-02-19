@@ -240,7 +240,7 @@ module Api
         end
 
         if defined?(NavigationItem)
-          NavigationItem.where.not(icon: [nil, '']).each do |item|
+          NavigationItem.where.not(icon: [nil, '']).includes(:navigation_group).each do |item|
             icon = item.icon
             usages[icon] ||= []
             usages[icon] << {

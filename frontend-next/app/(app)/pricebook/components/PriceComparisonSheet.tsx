@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,8 @@ interface PriceComparisonSheetProps {
   selectedIds: (number | string)[];
   clearSelection: () => void;
   onRefresh: () => void;
+  /** Optional supplier IDs to always include as columns (even if they have no prices for the items) */
+  includeSupplierIds?: number[];
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -151,6 +153,7 @@ export default function PriceComparisonSheet({
   selectedIds,
   clearSelection,
   onRefresh,
+  includeSupplierIds,
 }: PriceComparisonSheetProps) {
   const { toast } = useToast();
 
@@ -167,10 +170,17 @@ export default function PriceComparisonSheet({
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
 
+  // Stabilize selectedIds - parent passes Array.from(selectedRows) which creates
+  // a new array reference every render, causing useEffect to re-fire infinitely.
+  // Use a serialized key for the dependency and a ref for the actual values.
+  const selectedIdsKey = useMemo(() => selectedIds.map(Number).sort((a, b) => a - b).join(","), [selectedIds]);
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
   // Fetch comparison data when sheet opens
   // Note: toast excluded from deps - it's a new reference every render and would cause infinite loop
   useEffect(() => {
-    if (!open || selectedIds.length === 0) return;
+    if (!open || selectedIdsRef.current.length === 0) return;
 
     let cancelled = false;
     setLoading(true);
@@ -179,7 +189,10 @@ export default function PriceComparisonSheet({
       try {
         const response = await api.post<CompareResponse>(
           "/api/v1/pricebook/compare_all_prices",
-          { pricebook_item_ids: selectedIds.map(Number) }
+          {
+            pricebook_item_ids: selectedIdsRef.current.map(Number),
+            ...(includeSupplierIds?.length ? { include_supplier_ids: includeSupplierIds } : {}),
+          }
         );
 
         if (cancelled) return;
@@ -227,7 +240,7 @@ export default function PriceComparisonSheet({
 
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedIds]);
+  }, [open, selectedIdsKey]);
 
   // Reset state when sheet closes
   useEffect(() => {

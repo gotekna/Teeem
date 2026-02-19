@@ -787,11 +787,19 @@ module Api
         end
 
         # Get valid column names for this foundation
-        valid_columns = if @foundation.table_type == "system"
+        # FRC (Feb 2026): Always intersect Foundation column config with actual model column names
+        # + defined setter methods. Prevents ActiveModel::UnknownAttributeError when Foundation
+        # columns in admin UI diverge from DB schema (e.g., "status" column configured but
+        # not present in the contacts table). Sentry error: TEEEM-BACKEND-19.
+        foundation_columns = if @foundation.table_type == "system"
           model.column_names
         else
           @foundation.columns.pluck(:column_name)
         end
+        model_column_names = model.column_names.to_set
+        valid_columns = foundation_columns.select { |col|
+          model_column_names.include?(col.to_s) || model.method_defined?("#{col}=")
+        }
 
         # Filter updates to only valid columns
         filtered_updates = updates.select { |k, _| valid_columns.include?(k.to_s) }
@@ -1094,6 +1102,17 @@ module Api
         # - This handles legacy patterns like Contact.roles, SmScheduleMaster.assigned_role
         model = @foundation.dynamic_model
         permitted = convert_lookup_ids_to_strings(model, permitted.to_h).with_indifferent_access
+
+        # FRC (Feb 2026): Filter to only include attributes the model can accept.
+        # Prevents ActiveModel::UnknownAttributeError when a Foundation column name (e.g., "status")
+        # does not exist as a DB column or virtual attribute setter on the underlying model.
+        # Root cause: Foundation column config in admin UI can diverge from the actual DB schema.
+        # Fix: Intersect permitted params with model.column_names + defined setter methods.
+        # Sentry error: TEEEM-BACKEND-19 "unknown attribute 'status' for Contact."
+        model_column_names = model.column_names.to_set
+        permitted = permitted.select { |k, _|
+          model_column_names.include?(k.to_s) || model.method_defined?("#{k}=")
+        }
 
         permitted
       end

@@ -61,6 +61,7 @@ import {
   Send,
   Paperclip,
   Files,
+  BarChart3,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -87,6 +88,7 @@ import {
   STATUS_BADGE_VARIANTS,
 } from "@/lib/constants/purchase-order-constants";
 import { useGstCodes } from "@/lib/hooks/useGstCodes";
+import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
 
 // Schedule Sync Preview Types
 interface SyncTaskPredecessor {
@@ -259,6 +261,10 @@ export default function PurchaseOrderDetailPage() {
 
   // Profit centres for the job
   const [profitCentres, setProfitCentres] = useState<ProfitCentre[]>([]);
+
+  // Price comparison sheet (for unsupplied items)
+  const [priceComparisonOpen, setPriceComparisonOpen] = useState(false);
+  const [priceComparisonItemIds, setPriceComparisonItemIds] = useState<number[]>([]);
 
   // Budget lockdown state
   const [budgetLocked, setBudgetLocked] = useState(false);
@@ -1628,11 +1634,11 @@ export default function PurchaseOrderDetailPage() {
                     !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
 
                   // Determine background color (priority: grey out > not supplied > price changed > normal)
-                  // Not supplied = amber, Price changed = orange
+                  // Not supplied = yellow, Price changed = orange
                   const rowBgColor = shouldGreyOut
                     ? '#f1f5f9'
                     : isNotSuppliedBySelectedSupplier
-                      ? '#fef3c7' // amber-100 for items not supplied
+                      ? '#fef08a' // yellow-200 for items not supplied by selected supplier
                       : hasPriceChanged
                         ? '#fb923c' // orange for price changed
                         : undefined;
@@ -1690,6 +1696,19 @@ export default function PurchaseOrderDetailPage() {
                           <div className="px-3 pb-1 -mt-1 text-xs text-muted-foreground truncate">
                             {item.pricebook_item.default_supplier.display_name || item.pricebook_item.default_supplier.name}
                           </div>
+                        )}
+                        {isNotSuppliedBySelectedSupplier && item.pricebook_item_id && (
+                          <button
+                            className="inline-flex items-center gap-1 text-xs mx-3 mb-1 px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors cursor-pointer"
+                            onClick={() => {
+                              setPriceComparisonItemIds([item.pricebook_item_id!]);
+                              setPriceComparisonOpen(true);
+                            }}
+                            title="Compare prices from other suppliers for this item"
+                          >
+                            <BarChart3 className="h-3 w-3" />
+                            Compare Prices
+                          </button>
                         )}
                       </div>
                     </TableCell>
@@ -2270,6 +2289,16 @@ export default function PurchaseOrderDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Price Comparison Sheet for unsupplied items */}
+      <PriceComparisonSheet
+        open={priceComparisonOpen}
+        onOpenChange={setPriceComparisonOpen}
+        selectedIds={priceComparisonItemIds}
+        includeSupplierIds={selectedSupplier ? [selectedSupplier.id] : undefined}
+        clearSelection={() => setPriceComparisonItemIds([])}
+        onRefresh={() => {}}
+      />
     </div>
   );
 }

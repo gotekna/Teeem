@@ -97,7 +97,19 @@ class XeroContactSyncService
     begin
       # Fetch all contacts from Xero for this tenant
       xero_contacts = fetch_xero_contacts(tenant_id)
-      teeem_contacts = Contact.all.to_a
+      # N+1 fix: eager-load all associations accessed in process_contacts_for_tenant:
+      #   - contact_emails: primary_email (line ~237), teeem_by_email index, ContactEmail SSoT
+      #   - contact_phones: primary_mobile, primary_office_phone (build_xero_contact_payload)
+      #   - contact_addresses: build_xero_addresses, sync_addresses_from_xero
+      #   - contact_persons: sync_contact_persons (existing_persons lookup)
+      #   - xero_links: sync_contact_to_tenant (find_by xero_org_id), create_or_update_xero_link
+      teeem_contacts = Contact.includes(
+        :contact_emails,
+        :contact_phones,
+        :contact_addresses,
+        :contact_persons,
+        :xero_links
+      ).to_a
 
       Rails.logger.info("Fetched #{xero_contacts.length} Xero contacts and #{teeem_contacts.length} TEEEM contacts")
 
@@ -222,10 +234,15 @@ class XeroContactSyncService
 
     # Get existing links for this Xero org
     # FRC (Feb 2026): Renamed tenant_id to xero_org_id for consistency
-    existing_links = ContactExternalLink.xero.where(xero_org_id: tenant_id).index_by(&:external_contact_id)
+    # N+1 fix: includes(:contact) so link.contact doesn't fire per-row queries below
+    existing_links = ContactExternalLink.xero
+                                        .where(xero_org_id: tenant_id)
+                                        .includes(:contact)
+                                        .index_by(&:external_contact_id)
 
     # Build lookup maps for efficient matching
-    teeem_by_xero_link = existing_links.transform_values { |link| Contact.find_by(id: link.contact_id) }
+    # N+1 fix: contacts already eager-loaded via includes(:contact) above - no extra queries
+    teeem_by_xero_link = existing_links.transform_values(&:contact)
     teeem_by_tax_number = teeem_contacts.select { |c| c.abn.present? }
                                           .group_by(&:abn)
     # SSoT: Use primary_email from contact_emails table
@@ -442,8 +459,10 @@ class XeroContactSyncService
 
     # Priority 2: Exact email match (100% confidence, auto-link)
     # SSoT: Search in contact_emails table
+    # N+1 fix: includes(:contact) so contact_email.contact doesn't fire a second query
     if xero_email.present?
-      contact_email = ContactEmail.joins(:contact)
+      contact_email = ContactEmail.includes(:contact)
+        .joins(:contact)
         .where("LOWER(contact_emails.email) = ?", xero_email.downcase.strip)
         .where.not(contacts: { entity_type: 'price_only' })
         .first
@@ -903,7 +922,7 @@ class XeroContactSyncService
       last_name: is_company ? nil : xero_contact["LastName"],
       company_name_or_trust: is_company ? xero_contact["Name"] : nil,
       entity_type: is_company ? "company" : "person",
-      tax_number: normalize_tax_number(xero_contact["TaxNumber"]),
+      abn: normalize_tax_number(xero_contact["TaxNumber"]),  # FRC: column renamed tax_number→abn in migration 20251215220404
       email: extract_xero_email(xero_contact),
       roles: roles.any? ? roles : nil,
       xero_contact_types: xero_contact_types,
@@ -1494,7 +1513,8 @@ class XeroContactSyncService
     Rails.logger.info("Found #{count} orphaned xero_links for tenant #{tenant_id}")
 
     # Mark all orphaned links as not_found (SSoT: track stale links instead of immediate deletion)
-    orphaned_links.find_each do |link|
+    # N+1 fix: includes(:contact) so link.contact doesn't fire a query per iteration
+    orphaned_links.includes(:contact).find_each do |link|
       begin
         contact = link.contact
         Rails.logger.info("Marking as stale: #{contact&.display_name} (xero_id: #{link.external_contact_id})")

@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/po_template_packs
       def index
         packs = PoTemplatePack.active.ordered
-          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre])
+          .includes(:sm_schedule_master_template, po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
 
         render json: {
           success: true,

@@ -130,15 +130,20 @@ class XeroHealthMonitorJob < ApplicationJob
         .where(finished_at: nil)
         .where(class_name: job_class_name)
         .where("created_at < ?", orphan_threshold)
+        .to_a
 
-      old_pending_jobs.find_each do |job|
-        # Check if job has any execution record
-        has_scheduled = SolidQueue::ScheduledExecution.exists?(job_id: job.id)
-        has_claimed = SolidQueue::ClaimedExecution.exists?(job_id: job.id)
-        has_ready = SolidQueue::ReadyExecution.exists?(job_id: job.id)
+      next if old_pending_jobs.empty?
 
-        if !has_scheduled && !has_claimed && !has_ready
-          # This job is orphaned - delete it
+      job_ids = old_pending_jobs.map(&:id)
+
+      # Bulk-fetch all job IDs that have execution records (avoids 3x N+1 per job)
+      scheduled_job_ids = SolidQueue::ScheduledExecution.where(job_id: job_ids).pluck(:job_id).to_set
+      claimed_job_ids   = SolidQueue::ClaimedExecution.where(job_id: job_ids).pluck(:job_id).to_set
+      ready_job_ids     = SolidQueue::ReadyExecution.where(job_id: job_ids).pluck(:job_id).to_set
+
+      old_pending_jobs.each do |job|
+        # A job is orphaned if it has no execution record in any queue table
+        if !scheduled_job_ids.include?(job.id) && !claimed_job_ids.include?(job.id) && !ready_job_ids.include?(job.id)
           Rails.logger.warn "[XeroHealthMonitor] Deleting orphaned job: #{job_class_name} (ID: #{job.id}, created: #{job.created_at})"
           job.destroy
           cleaned += 1

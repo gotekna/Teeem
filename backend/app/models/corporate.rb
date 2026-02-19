@@ -647,7 +647,7 @@ class Corporate < ApplicationRecord
     Thread.current[:syncing_company_to_contact] = true
 
     # Strip spaces from ABN before syncing to Contact (Contact stores without formatting)
-    contact.update!(tax_number: abn&.gsub(/\s/, ""))
+    contact.update!(abn: abn&.gsub(/\s/, ""))  # FRC: column renamed tax_number→abn in migration 20251215220404
   rescue StandardError => e
     Rails.logger.error("Corporate##{id}: Sync ABN to Contact failed - #{e.message}")
   ensure

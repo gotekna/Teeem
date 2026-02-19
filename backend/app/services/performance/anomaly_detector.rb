@@ -85,6 +85,7 @@ module Performance
         anomalies = []
 
         current_hour = Time.current.beginning_of_hour
+        baseline_start = 7.days.ago
 
         # Get endpoints with errors in the current hour
         current_errors = PerformanceRequest
@@ -96,29 +97,43 @@ module Performance
 
         return anomalies if current_errors.empty?
 
+        # Bulk-fetch total request counts for all affected endpoints (avoids N+1)
+        affected_endpoints = current_errors.map(&:endpoint)
+
+        total_by_endpoint = PerformanceRequest
+          .where("created_at >= ?", current_hour)
+          .where(endpoint: affected_endpoints)
+          .group(:endpoint)
+          .count
+
+        # Bulk-fetch baseline error counts for all affected endpoints (avoids N+1)
+        baseline_errors_by_endpoint = PerformanceRequest
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(endpoint: affected_endpoints)
+          .where("status_code >= 500")
+          .group(:endpoint)
+          .count
+
+        # Bulk-fetch baseline total counts for all affected endpoints (avoids N+1)
+        baseline_total_by_endpoint = PerformanceRequest
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(endpoint: affected_endpoints)
+          .group(:endpoint)
+          .count
+
         current_errors.each do |record|
           endpoint = record.endpoint
           error_count = record.error_count
 
-          # Get total requests for this hour to calculate rate
-          total_requests = PerformanceRequest
-            .where("created_at >= ?", current_hour)
-            .where(endpoint: endpoint)
-            .count
-
+          total_requests = total_by_endpoint[endpoint] || 0
           next if total_requests < 10 # Need enough requests
 
           current_error_rate = error_count.to_f / total_requests
 
-          # Get baseline error rate
-          baseline_error_rate = PerformanceRequest
-            .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-            .where(endpoint: endpoint)
-            .where("status_code >= 500")
-            .count.to_f / [PerformanceRequest
-              .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-              .where(endpoint: endpoint)
-              .count, 1].max
+          # Compute baseline error rate from preloaded bulk data
+          baseline_errors = baseline_errors_by_endpoint[endpoint] || 0
+          baseline_total = [baseline_total_by_endpoint[endpoint] || 0, 1].max
+          baseline_error_rate = baseline_errors.to_f / baseline_total
 
           # Simple threshold: 5x baseline or > 5% error rate
           next unless current_error_rate > 0.05 || current_error_rate > (baseline_error_rate * 5)
@@ -155,6 +170,7 @@ module Performance
         anomalies = []
 
         current_hour = Time.current.beginning_of_hour
+        baseline_start = 7.days.ago
 
         # Count slow queries per table in current hour
         current_counts = PerformanceSlowQuery
@@ -164,14 +180,20 @@ module Performance
 
         return anomalies if current_counts.empty?
 
+        # Bulk-fetch 7-day baseline counts for all affected tables (avoids N+1)
+        affected_tables = current_counts.keys
+        baseline_counts_by_table = PerformanceSlowQuery
+          .where("created_at > ? AND created_at < ?", baseline_start, current_hour)
+          .where(table_name: affected_tables)
+          .group(:table_name)
+          .count
+
         current_counts.each do |table_name, current_count|
           next if current_count < 5 # Minimum threshold
 
-          # Get baseline hourly average
-          baseline_avg = PerformanceSlowQuery
-            .where("created_at > ? AND created_at < ?", 7.days.ago, current_hour)
-            .where(table_name: table_name)
-            .count.to_f / (7 * 24) # Average per hour over 7 days
+          # Compute baseline hourly average from preloaded bulk data (avoids N+1)
+          baseline_total = baseline_counts_by_table[table_name] || 0
+          baseline_avg = baseline_total.to_f / (7 * 24) # Average per hour over 7 days
 
           next if baseline_avg < 1 # Not enough baseline data
 

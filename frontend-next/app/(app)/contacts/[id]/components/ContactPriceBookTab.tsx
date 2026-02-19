@@ -250,6 +250,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const columns: TableColumn[] = useMemo(() => [
     { key: "item_code", label: "Code", width: 120, sortable: true, column_type: "single_line_text" },
     { key: "item_name", label: "Item Name", width: 300, sortable: true, column_type: "single_line_text" },
+    { key: "is_default", label: "Default", width: 80, sortable: true, column_type: "boolean" },
     { key: "supplier_price", label: "Supplier Price", width: 130, sortable: true, column_type: "currency" },
     { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
     { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
@@ -264,6 +265,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       id: item.id,
       item_code: item.item_code,
       item_name: item.item_name,
+      is_default: item.default_supplier?.id === contactId,
       category: item.category,
       brand: item.brand,
       unit_of_measure: item.unit_of_measure,
@@ -272,7 +274,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
       price_last_updated_at: item.price_last_updated_at,
       needs_pricing_review: item.needs_pricing_review,
     }));
-  }, [items]);
+  }, [items, contactId]);
 
   // Fetch target supplier's current prices when target is selected
   useEffect(() => {
@@ -408,12 +410,13 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     if (selectedIds.length === 0) return;
 
     try {
+      const itemIds = selectedIds.map(Number);
       const response = await api.post<{
         success: boolean;
         message: string;
         updated_count: number;
       }>(`/api/v1/contacts/supplier_pricing/${contactId}/set_default`, {
-        pricebook_item_ids: selectedIds.map(Number),
+        pricebook_item_ids: itemIds,
       });
 
       if (response?.success) {
@@ -423,6 +426,12 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
         });
         clearSelection();
         loadPricebookItems();
+      } else {
+        toast({
+          title: "Update Failed",
+          description: "Server returned an unexpected response.",
+          variant: "destructive",
+        });
       }
     } catch (err) {
       console.error("Failed to set default supplier:", err);

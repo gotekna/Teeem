@@ -321,7 +321,7 @@ class XeroApiClient
                         XeroCredential.for_teeem_tenant(tenant)
                       else
                         XeroCredential.all  # Fallback for backward compatibility
-                      end
+                      end.to_a  # Materialize once to avoid repeated queries (empty?, count, each)
 
     # FRC (Feb 2026): Derive primary from tenant-scoped set, NOT global XeroCredential.current
     # Bug: XeroCredential.current is unscoped - returns Tekna Homes even on Pilgrim tenant

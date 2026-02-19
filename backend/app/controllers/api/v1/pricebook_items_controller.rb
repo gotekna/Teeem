@@ -622,8 +622,18 @@ module Api
           .pluck(:id, :display_name)
           .map { |id, name| { id: id, name: name } }
 
+        # Include specific suppliers as columns even if they have no prices
+        # (used by PO page to show the selected supplier for comparison)
+        include_supplier_ids = Array(params[:include_supplier_ids]).map(&:to_i).reject(&:zero?)
+
         # Collect unique suppliers across all items
         suppliers_hash = {}
+        # Pre-seed included suppliers so they always appear as columns
+        if include_supplier_ids.any?
+          Contact.where(id: include_supplier_ids).pluck(:id, :display_name).each do |id, name|
+            suppliers_hash[id] = { id: id, name: name || "Supplier #{id}", priceOnly: price_only_contact_ids.include?(id) }
+          end
+        end
         items_data = items.map do |item|
           prices = {}
           price_only_supplier_id = nil
