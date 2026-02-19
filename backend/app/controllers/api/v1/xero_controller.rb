@@ -2314,9 +2314,35 @@ module Api
             .where.not(contact_id: nil)
             .includes(:contact)
 
+          # Dynamic: For links with missing external_name, fetch live from Xero API
+          # This is self-healing - opens the Review tab and stale data gets fixed
+          xero_client = nil
+          links_needing_fetch = links.select { |l| l.external_name.blank? && l.external_contact_id.present? }
+          if links_needing_fetch.any?
+            xero_client ||= XeroApiClient.new
+            links_needing_fetch.each do |link|
+              begin
+                result = xero_client.get("Contacts/#{link.external_contact_id}", tenant_id: link.xero_org_id)
+                if result.is_a?(Hash) && result["Contacts"]&.first
+                  xero_contact = result["Contacts"].first
+                  xero_name = xero_contact["Name"]
+                  xero_status = xero_contact["ContactStatus"]&.downcase
+                  link.update_columns(
+                    external_name: xero_name,
+                    xero_contact_status: xero_status || link.xero_contact_status
+                  )
+                  # Reload to reflect updated values
+                  link.reload
+                end
+              rescue => e
+                Rails.logger.warn("[Xero] name_mismatches: failed to fetch contact #{link.external_contact_id}: #{e.message}")
+              end
+            end
+          end
+
           # Group by contact, filter to those with at least one name mismatch
           grouped = {}
-          links.find_each do |link|
+          links.each do |link|
             contact = link.contact
             next unless contact
 

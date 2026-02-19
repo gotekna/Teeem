@@ -102,31 +102,21 @@ class XeroBillPoMatcherService
       ContactExternalLink.xero.where(contact_id: po.supplier_id).pluck(:external_contact_id)
     }.flatten.uniq
 
-    # Build amount ranges from PO totals for pre-filtering
-    po_amounts = @native_pos.filter_map { |po| po.total&.to_f }.reject(&:zero?)
-    amount_ranges = po_amounts.map { |amt| [(amt * (1 - AMOUNT_TOLERANCE)), (amt * (1 + AMOUNT_TOLERANCE))] }
-
-    Rails.logger.info("[XeroBillPoMatcher] Pre-filter: #{supplier_contact_ids.length} Xero contact IDs, #{po_amounts.length} PO amounts")
+    Rails.logger.info("[XeroBillPoMatcher] Pre-filter: #{supplier_contact_ids.length} Xero contact IDs")
 
     # Fetch bills per supplier (targeted API calls instead of fetching ALL bills)
     supplier_bills = fetch_bills_by_suppliers(supplier_contact_ids)
 
-    # Pre-filter by amount AND not already matched
-    candidates = supplier_bills.select do |bill|
+    # Pre-filter: skip already-matched bills
+    candidates = supplier_bills.reject do |bill|
       ref = bill["Reference"].to_s.strip
       if ref.match?(/^PO-\d{6}$/)
         @stats[:already_matched] += 1
-        next false
+        true
       end
-
-      bill_total = (bill["Total"] || 0).to_f
-      next false if bill_total.zero?
-
-      # Bill total must be within tolerance of at least one PO amount
-      amount_ranges.any? { |lower, upper| bill_total.between?(lower, upper) }
     end
 
-    Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} bills match by supplier+amount (from #{supplier_bills.length} supplier-filtered), fetching details...")
+    Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} candidate bills from #{supplier_bills.length} supplier-filtered, fetching details...")
 
     # Fetch detail only for supplier+amount matched bills (need tracking data)
     detailed_bills = candidates.map.with_index do |bill, index|
@@ -204,42 +194,40 @@ class XeroBillPoMatcherService
     bill_supplier = bill.dig("Contact", "Name").to_s
     xero_contact_id = bill.dig("Contact", "ContactID")
 
-    if bill_total.zero?
-      @stats[:skipped] += 1
-      return
-    end
-
-    # Find candidates: same supplier + similar amount
-    lower = bill_total * (1 - AMOUNT_TOLERANCE)
-    upper = bill_total * (1 + AMOUNT_TOLERANCE)
-
-    candidates = native_pos.select do |po|
+    # Find all POs from this supplier (not yet matched)
+    supplier_candidates = native_pos.select do |po|
       next false if @matched_po_ids.include?(po.id)
-      next false if po.total.nil? || po.total.zero?
-      next false unless po.total.to_f.between?(lower, upper)
-
-      # Match supplier by contact link or name
       supplier_matches?(po, xero_contact_id, bill_supplier)
     end
 
-    if candidates.empty?
+    if supplier_candidates.empty?
       @stats[:skipped] += 1
-      Rails.logger.debug("[XeroBillPoMatcher] No match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
+      Rails.logger.debug("[XeroBillPoMatcher] No supplier match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
       return
     end
 
-    # Pick best match: closest amount
-    best = candidates.min_by { |po| (po.total.to_f - bill_total).abs }
+    # Prefer amount match (within tolerance), fall back to supplier-only
+    lower = bill_total * (1 - AMOUNT_TOLERANCE)
+    upper = bill_total * (1 + AMOUNT_TOLERANCE)
+    amount_matches = supplier_candidates.select { |po| po.total&.to_f&.between?(lower, upper) }
+
+    best = if amount_matches.any?
+      amount_matches.min_by { |po| (po.total.to_f - bill_total).abs }
+    else
+      # No amount match - link by supplier, pick closest amount
+      supplier_candidates.min_by { |po| ((po.total || 0).to_f - bill_total).abs }
+    end
+
+    match_type = amount_matches.any? ? "amount+supplier" : "supplier-only"
 
     # Update Xero bill Reference field
     success = update_xero_reference(invoice_id, best.purchase_order_number)
 
     if success
-      # Link the PO to this Xero bill locally
       best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
       @matched_po_ids.add(best.id)
       @stats[:matched] += 1
-      Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}]")
+      Rails.logger.info("[XeroBillPoMatcher] Matched #{invoice_number} ($#{bill_total}) → #{best.purchase_order_number} ($#{best.total}) [#{bill_supplier}] (#{match_type})")
     end
   rescue StandardError => e
     error_msg = "Error matching bill #{invoice_number}: #{e.message}"
