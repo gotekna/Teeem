@@ -1,4 +1,8 @@
 class PurchaseOrderLineItem < ApplicationRecord
+  # FRC (Feb 2026): acts_as_tenant REQUIRED. Without it, delete_all/update_all are UNSCOPED
+  # and affect ALL tenants. This caused total loss of Tekna PO line items.
+  acts_as_tenant :tenant
+
   # SSoT: GstCode model (database table, tenant-scoped)
 
   # Associations
