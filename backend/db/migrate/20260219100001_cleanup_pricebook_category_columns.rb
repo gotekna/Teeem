@@ -4,6 +4,8 @@ class CleanupPricebookCategoryColumns < ActiveRecord::Migration[8.0]
   #   1. Makes category_id (lookup) visible in Foundation (has_ui: true)
   #   2. Removes the legacy text "category" from all view column configs
   #   3. Ensures category_id is in all views where category was
+  #   4. Creates missing PricebookCategory records for unmatched text categories
+  #   5. Populates category_id for any remaining unmatched items
 
   def up
     pb_foundation = Foundation.find_by(slug: "pricebook-items")
@@ -62,6 +64,50 @@ class CleanupPricebookCategoryColumns < ActiveRecord::Migration[8.0]
     end
 
     puts "  Updated #{updated} views to use category_id instead of category"
+
+    # Step 3: Create missing PricebookCategory records for unmatched text categories
+    # and populate category_id
+    unmatched = execute(<<~SQL).to_a
+      SELECT DISTINCT p.category, p.tenant_id
+      FROM pricebooks p
+      WHERE p.category IS NOT NULL
+        AND p.category != ''
+        AND p.category_id IS NULL
+        AND p.is_active = true
+    SQL
+
+    created = 0
+    unmatched.each do |row|
+      cat_name = row["category"]
+      tenant_id = row["tenant_id"]
+
+      # Create category if it doesn't exist for this tenant
+      existing = execute("SELECT id FROM pricebook_categories WHERE name = #{quote(cat_name)} AND tenant_id = #{tenant_id.to_i} LIMIT 1").to_a
+      if existing.empty?
+        max_pos = execute("SELECT COALESCE(MAX(position), 0) FROM pricebook_categories WHERE tenant_id = #{tenant_id.to_i}").first["coalesce"]
+        execute(<<~SQL)
+          INSERT INTO pricebook_categories (name, tenant_id, is_active, position, created_at, updated_at)
+          VALUES (#{quote(cat_name)}, #{tenant_id.to_i}, true, #{max_pos.to_i + 1}, NOW(), NOW())
+        SQL
+        created += 1
+      end
+    end
+
+    puts "  Created #{created} missing PricebookCategory records"
+
+    # Now populate category_id for any remaining unmatched items
+    populated = execute(<<~SQL).cmd_tuples
+      UPDATE pricebooks p
+      SET category_id = pc.id
+      FROM pricebook_categories pc
+      WHERE pc.name = p.category
+        AND pc.tenant_id = p.tenant_id
+        AND p.category IS NOT NULL
+        AND p.category != ''
+        AND p.category_id IS NULL
+    SQL
+
+    puts "  Populated category_id on #{populated} remaining items"
   end
 
   def down
