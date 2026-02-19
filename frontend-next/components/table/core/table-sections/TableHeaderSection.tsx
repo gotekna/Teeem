@@ -376,7 +376,7 @@ export function TableHeaderSection({
                     ...stickyStyles,
                   }}
                   className={cn(
-                    "sticky top-[28px] py-1 px-1",
+                    "sticky top-[28px] py-1 px-1 pointer-events-none",
                     isSticky ? "z-30" : "z-20",
                     column.key === "select" && "!border-r-0",
                     column.key === "actions" && "!border-l-0"

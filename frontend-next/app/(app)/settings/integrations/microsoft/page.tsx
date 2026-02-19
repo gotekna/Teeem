@@ -914,29 +914,6 @@ function EmailSyncTab({
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Spinner size={24} className="text-muted-foreground mr-2" />
-        <span className="text-muted-foreground">Loading email sync data...</span>
-      </div>
-    );
-  }
-
-  if (!syncDashboard) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Mail className="h-10 w-10 text-muted-foreground mb-3" />
-          <p className="text-lg font-medium">No email sync data available</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Connect an organization first to start syncing emails.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   // FRC (Feb 2026): Memoize connectedOrgs to prevent unstable array references.
   // orgs.filter() creates a new array every render, which broke useMemo dependencies
   // downstream (overallPhases) causing React error #310 (too many re-renders).
@@ -947,12 +924,13 @@ function EmailSyncTab({
 
   // Compute importable user count: licensed M365 users not already in TEEEM
   const { importableByOrg, totalImportable } = React.useMemo(() => {
+    if (!syncDashboard) return { importableByOrg: new Map<number, number>(), totalImportable: 0 };
     const teeemEmails = new Set(
-      (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
+      (syncDashboard.teeem_user_emails || []).map(e => e.toLowerCase())
     );
     const importable = new Map<number, number>();
     for (const org of connectedOrgs) {
-      const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
+      const orgStats = syncDashboard.organizations?.find(o => o.id === org.id);
       const count = (orgStats?.tenant_users || []).filter(
         u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
       ).length;
@@ -964,6 +942,12 @@ function EmailSyncTab({
 
   // Aggregate 3-phase progress across all orgs
   const overallPhases = React.useMemo(() => {
+    if (!syncDashboard) return {
+      metadata: { total: 0, done: 0, pct: 100 },
+      eml: { total: 0, done: 0, unavailable: 0, pending: 0, pct: 100 },
+      att: { total: 0, done: 0, pending: 0, pct: 100 },
+    };
+
     let metadataTotal = 0;
     let emlTotal = 0, emlDone = 0, emlUnavailable = 0;
     let attTotal = 0, attDone = 0;
@@ -1001,6 +985,30 @@ function EmailSyncTab({
       },
     };
   }, [connectedOrgs, syncDashboard]);
+
+  // Early returns AFTER all hooks (React rules of hooks - hooks must be called unconditionally)
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Spinner size={24} className="text-muted-foreground mr-2" />
+        <span className="text-muted-foreground">Loading email sync data...</span>
+      </div>
+    );
+  }
+
+  if (!syncDashboard) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <Mail className="h-10 w-10 text-muted-foreground mb-3" />
+          <p className="text-lg font-medium">No email sync data available</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Connect an organization first to start syncing emails.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleImport = async (orgId: number) => {
     setImporting(true);

@@ -66,6 +66,9 @@ export const API_PAGE_SIZES = {
   /** Large dropdown data (pricebook items, lookup values) */
   LARGE_DROPDOWN: 1000,
 
+  /** Server-side search results (return all matching records up to this limit) */
+  SERVER_SEARCH: 2000,
+
   /** Expanded group fetch (get all records for a group) */
   GROUP_EXPANSION: 10000,
 } as const;

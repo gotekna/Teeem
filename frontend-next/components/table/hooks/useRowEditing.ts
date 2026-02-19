@@ -311,6 +311,20 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     }
 
     try {
+      // Build set of editable column keys - ONLY these get sent to the API
+      // This prevents sending expanded lookup objects, display values, and computed fields
+      // which would cause FK violations (e.g. supplier_id=0 from coercing {id:123,name:"..."})
+      const NON_EDITABLE_KEYS = ['id', 'created_at', 'updated_at', 'select', 'actions'];
+      const editableColumnKeys = new Set(
+        columns
+          .filter(c => {
+            const isComputed = c.column_type === 'computed' || c.column_type === 'formula';
+            const isSystem = NON_EDITABLE_KEYS.includes(c.key) || c.system === true;
+            return c.editable !== false && !isSystem && !isComputed;
+          })
+          .map(c => c.key)
+      );
+
       // Collect changes
       const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
 
@@ -321,6 +335,8 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
 
         const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
+          // Only send fields that correspond to actual editable columns
+          if (!editableColumnKeys.has(key)) continue;
           const originalValue = originalRow[key];
           if (JSON.stringify(originalValue) !== JSON.stringify(value)) {
             changes[key] = value;

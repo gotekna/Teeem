@@ -1239,7 +1239,9 @@ export default function TeeemTableView({
 
   // Auto-load more records in background after initial render
   // ULTRA Solution: Include base filters to ensure consistent data loading
-  // IMPORTANT: Skip load-more when there's an active search - search results are complete
+  // ⚠️ SEARCH-AWARE: When search is active, load-more includes search params so it fetches
+  // more MATCHING records (not unfiltered records that would contaminate search results).
+  // Client-side search is disabled when server search exists, so load-more MUST be server-aware.
   useEffect(() => {
     // Skip load-more when:
     // 1. Not in auto-fetch mode
@@ -1247,23 +1249,38 @@ export default function TeeemTableView({
     // 3. Already loading
     // 4. No records yet (initial state)
     // 5. Reached autoFetchLimit (if specified) - search still works via server API
-    // NOTE: Background loading continues even during search - client-side filtering shows matches as they load
-    const reachedLimit = autoFetchLimit !== undefined && autoFetchedRecords.length >= autoFetchLimit;
+    //    (autoFetchLimit only applies to non-search loading to cap background fetch)
+    const reachedLimit = !searchRef.current && autoFetchLimit !== undefined && autoFetchedRecords.length >= autoFetchLimit;
     if (!useAutoFetch || !hasMore || isLoadingMore || autoFetchedRecords.length === 0 || reachedLimit) return;
 
     const timer = setTimeout(async () => {
-      // Re-check conditions inside timeout (state may have changed)
+      // Re-check conditions inside timeout (state may have changed since timer was set)
       if (!hasMore || isLoadingMore) return;
 
       const lastRecord = autoFetchedRecords[autoFetchedRecords.length - 1];
       const cursor = lastRecord?.id;
+      const activeSearch = searchRef.current;
 
       setIsLoadingMore(true);
       try {
         const params: Record<string, any> = { cursor, limit: TABLE_ROW_LIMIT };
-        // ULTRA FIX: Only include BASE filters in load-more (not view/cascade filters)
-        // This enables instant view switching - all data loads regardless of current view
-        if (baseFilters.length > 0) {
+        // When search is active, include search params so load-more fetches more MATCHING records
+        if (activeSearch) {
+          params.search = activeSearch;
+        }
+        // When search is active, include ALL filters (base + cascade) to match search behavior.
+        // When not searching, only include BASE filters (enables instant view switching).
+        if (activeSearch) {
+          const currentFilters = cascadeFiltersRef.current;
+          const allFilters = [...baseFilters, ...currentFilters];
+          if (allFilters.length > 0) {
+            params.filters = JSON.stringify(allFilters.map(f => ({
+              column: f.column,
+              operator: f.operator,
+              value: f.value,
+            })));
+          }
+        } else if (baseFilters.length > 0) {
           params.filters = JSON.stringify(baseFilters.map(f => ({
             column: f.column,
             operator: f.operator,
@@ -1282,8 +1299,9 @@ export default function TeeemTableView({
           const existingIds = new Set(prev.map(r => r.id));
           const newRecords = (response.records || []).filter(r => !existingIds.has(r.id));
           const mergedRecords = [...prev, ...newRecords];
-          // CACHE: Update cache with merged records for back navigation
-          if (effectiveFoundationId) {
+          // CACHE: Only update cache when NOT searching (search results are temporary,
+          // the cache should hold the full unfiltered dataset for back navigation)
+          if (effectiveFoundationId && !activeSearch) {
             setCachedRecords(effectiveFoundationId, mergedRecords as Record<string, unknown>[], null, newHasMore);
           }
           return mergedRecords;
@@ -1310,7 +1328,7 @@ export default function TeeemTableView({
     try {
       const params: Record<string, any> = {
         search: searchTerm,
-        limit: TABLE_ROW_LIMIT,
+        limit: API_PAGE_SIZES.SERVER_SEARCH,
       };
       // Pass search mode to backend if specified (backend defaults to 'contains')
       if (mode) {
@@ -2103,6 +2121,10 @@ export default function TeeemTableView({
   const [validationErrors, setValidationErrors] = useAtom(legacyValidationErrorsAtom);
   const [lookupOptions, setLookupOptions] = useAtom(lookupOptionsAtom);
   const [lookupLoading, setLookupLoading] = useAtom(lookupLoadingAtom);
+
+  // Track which specific cell is actively being edited (row + column)
+  // This prevents the entire row from expanding into editors when only one cell was clicked
+  const [activeEditingCell, setActiveEditingCell] = useState<{ rowId: string | number; columnKey: string } | null>(null);
 
   // Clear editing state on mount - prevents stale state from persisting across navigations
   // This fixes the issue where navigating to a detail page and back shows stale edit rows
@@ -3092,14 +3114,20 @@ export default function TeeemTableView({
     onRefresh,
     onRowUpdate,
     isAutoFetch: useAutoFetch,
+    isEditMode,
     setRecords: setAutoFetchedRecords,
     fetchLookupOptions,
   });
 
   // Aliases for backward compatibility - point to hook actions
+  // Wrap cancel/save to also clear the active editing cell
   const startEditing = rowEditing.actions.startEditing;
   const startMultiEditing = rowEditing.actions.startMultiEditing;
-  const cancelEditing = rowEditing.actions.cancelEditing;
+  const cancelEditing = useCallback(() => {
+    rowEditing.actions.cancelEditing();
+    setActiveEditingCell(null);
+  }, [rowEditing.actions]);
+  const dirtyRowIds = rowEditing.state.dirtyRowIds;
 
   // Handler for row double-click - uses parent handler if provided, else opens edit dialog (if available), else inline editing
   const handleRowDoubleClick = useCallback((row: TableRowType) => {
@@ -3150,8 +3178,11 @@ export default function TeeemTableView({
   // Validate a cell - alias to hook action
   const handleCellBlur = rowEditing.actions.validateCell;
 
-  // Save editing - alias to hook action
-  const saveEditing = rowEditing.actions.saveEditing;
+  // Save editing - wraps hook action to also clear active cell
+  const saveEditing = useCallback(async () => {
+    await rowEditing.actions.saveEditing();
+    setActiveEditingCell(null);
+  }, [rowEditing.actions]);
 
   // Bulk update handler - delegates to useBulkOperations hook (Phase 10 extraction)
   const handleBulkUpdate = bulkOperations.actions.executeUpdate;
@@ -4315,8 +4346,13 @@ export default function TeeemTableView({
       const isSystemColumn = NON_EDITABLE_COLUMNS.includes(column.key) || column.system === true;
       const isColumnEditable = column.editable !== false && !isSystemColumn && !isComputed;
 
-      // Row-level editing (pencil icon clicked) - show editor for entire row
-      if (isEditing && isColumnEditable) {
+      // Cell-level editing: in edit mode, only show editor for the active cell
+      // In non-edit mode (pencil/double-click), show all editors for the row
+      const isActiveCell = activeEditingCell?.rowId === entry.id && activeEditingCell?.columnKey === column.key;
+      const showEditor = isEditMode ? isActiveCell : true; // Edit mode = cell-level, pencil = all cells
+
+      // Show editor for this cell (either active cell in edit mode, or all cells via pencil)
+      if (isEditing && isColumnEditable && showEditor) {
         return (
           <RowEditingCell
             entry={entry}
@@ -4331,6 +4367,22 @@ export default function TeeemTableView({
         );
       }
 
+      // In edit mode: editing row, editable column, but NOT the active cell - show clickable display
+      if (isEditing && isColumnEditable && isEditMode) {
+        return (
+          <div
+            className="cursor-text hover:bg-blue-50/50 dark:hover:bg-blue-950/10 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
+            }}
+            title="Click to edit this cell"
+          >
+            {renderCellWithRegistry(value, column, entry, "display")}
+          </div>
+        );
+      }
+
       // Show read-only indicator for non-editable columns when in row edit mode
       if (isEditing && !isColumnEditable) {
         // Don't show indicator for select/actions columns
@@ -4338,7 +4390,6 @@ export default function TeeemTableView({
           // Fall through to normal rendering
         } else {
           // Show the value with a subtle indicator it's not editable
-          // Use registry for display, wrapped in italic styling
           return (
             <span className="text-muted-foreground italic" title={isComputed ? "Computed column" : "System column - not editable"}>
               {renderCellWithRegistry(value, column, entry, "display")}
@@ -4355,8 +4406,9 @@ export default function TeeemTableView({
             className="cursor-text hover:bg-blue-50 dark:hover:bg-blue-950/20 px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
             onClick={(e) => {
               e.stopPropagation();
-              // Start editing this row when cell is clicked
+              // Start editing this row and activate this specific cell
               startEditing(entry);
+              setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
             }}
             title="Click to edit"
           >
@@ -5474,6 +5526,7 @@ export default function TeeemTableView({
           visibleColumnsInOrder={visibleColumnsInOrder}
           columnWidths={columnWidths}
           editingRowIds={editingRowIds}
+          dirtyRowIds={dirtyRowIds}
           getStickyColumnStyles={getStickyColumnStyles}
           isSystemGeneratedColumn={isSystemGeneratedColumn}
           SYSTEM_COLUMN_BG={SYSTEM_COLUMN_BG}
@@ -5521,7 +5574,8 @@ export default function TeeemTableView({
                 className={cn(
                   selectedRows.has(row.id) && "bg-muted/50",
                   isRowInDragRange(row.id) && !selectedRows.has(row.id) && "bg-blue-100 dark:bg-blue-900/30",
-                  editingRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
+                  editingRowIds.has(row.id) && !dirtyRowIds.has(row.id) && "bg-blue-50 dark:bg-blue-950/20",
+                  dirtyRowIds.has(row.id) && "bg-orange-50 dark:bg-orange-950/20",
                   isFocused && tableHasFocus && "ring-2 ring-inset ring-primary/50 bg-primary/5",
                   "hover:bg-muted/30 cursor-pointer"
                 )}
@@ -6155,6 +6209,7 @@ export default function TeeemTableView({
       <ToolbarSecondRow
         disableSavedViews={disableSavedViews}
         editingRowCount={editingRowIds.size}
+        dirtyRowCount={dirtyRowIds.size}
         validationErrorCount={Object.values(validationErrors).reduce(
           (count, rowErrors) => count + Object.keys(rowErrors).length,
           0
