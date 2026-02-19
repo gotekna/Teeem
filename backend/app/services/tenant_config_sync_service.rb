@@ -615,14 +615,21 @@ class TenantConfigSyncService
 
     CONFIG_TABLES.each do |key, config|
       model = config[:model].constantize
+      has_tenant = model.column_names.include?("tenant_id")
 
-      master_count = if master
+      master_count = if !has_tenant
+        scoped_query(model, config).count
+      elsif master
         ActsAsTenant.with_tenant(master) { scoped_query(model, config).count }
       else
         0
       end
 
-      tenant_count = ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
+      tenant_count = if has_tenant
+        ActsAsTenant.with_tenant(tenant) { scoped_query(model, config).count }
+      else
+        scoped_query(model, config).count
+      end
 
       counts[key.to_s] = {
         master: master_count,
@@ -642,15 +649,25 @@ class TenantConfigSyncService
 
     CONFIG_TABLES.each do |key, config|
       model = config[:model].constantize
+      has_tenant = model.column_names.include?("tenant_id")
       counts[key.to_s] = {}
 
-      tenants.each do |t|
-        count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
-        counts[key.to_s][t.slug || t.id.to_s] = count
-      end
+      if has_tenant
+        tenants.each do |t|
+          count = ActsAsTenant.with_tenant(t) { scoped_query(model, config).count }
+          counts[key.to_s][t.slug || t.id.to_s] = count
+        end
 
-      # Also count NULL tenant records (unscoped)
-      counts[key.to_s]["null"] = model.unscoped.where(tenant_id: nil).count
+        # Also count NULL tenant records (unscoped)
+        counts[key.to_s]["null"] = model.unscoped.where(tenant_id: nil).count
+      else
+        # Global lookup table (no tenant_id) - same count for all tenants
+        global_count = scoped_query(model, config).count
+        tenants.each do |t|
+          counts[key.to_s][t.slug || t.id.to_s] = global_count
+        end
+        counts[key.to_s]["null"] = 0
+      end
     end
 
     {

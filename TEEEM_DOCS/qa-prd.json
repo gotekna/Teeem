@@ -4,8 +4,8 @@
     "run_id": "ralph-v2-20260220",
     "started_at": "2026-02-20T06:25:00Z",
     "completed_at": null,
-    "last_updated": "2026-02-19T23:37:42Z",
-    "iteration": 16,
+    "last_updated": "2026-02-19T23:58:09Z",
+    "iteration": 18,
     "ship_ready": false,
     "total_pages": 200,
     "total_stories": 19
@@ -2044,7 +2044,7 @@
       "title": "File Warehouse",
       "icon": "database",
       "description": "Warehouse views and data warehouse",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/warehouse",
         "/data-warehouse",
@@ -2060,14 +2060,86 @@
         "My Docs shows personal files",
         "DocSort shows classification UI"
       ],
-      "page_results": {}
+      "page_results": {
+        "/warehouse": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "File WarehouseTree",
+            "url": "/warehouse/tree",
+            "title": "Tree | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/data-warehouse": {
+          "status": "failed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": false,
+            "isStillLoading": true,
+            "breadcrumb": "Data Warehouse",
+            "url": "/data-warehouse",
+            "title": "Data Warehouse | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          },
+          "finding_id": "finding-001"
+        },
+        "/my-docs": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "My Docs",
+            "url": "/my-docs",
+            "title": "My Docs | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/docsort": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Docsort",
+            "url": "/docsort",
+            "title": "Docsort | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/import": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Import",
+            "url": "/import",
+            "title": "Import | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-SM",
       "title": "Schedule Master & Calendar",
       "icon": "gauge",
       "description": "Schedule Master, templates, tasks, calendar",
-      "status": "pending",
+      "status": "completed",
       "page_manifest": [
         "/schedule-master",
         "/schedule-templates",
@@ -2083,14 +2155,99 @@
         "Calendar renders with events",
         "SM Tasks shows task list"
       ],
-      "page_results": {}
+      "page_results": {
+        "/schedule-master": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Schedule Master",
+            "url": "/schedule-master",
+            "title": "Schedule Master | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/schedule-templates": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Schedule Templates",
+            "url": "/schedule-templates",
+            "title": "Schedule Templates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/sm_tasks": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Tasks",
+            "url": "/tasks",
+            "title": "Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/task-templates": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Schedule Templates",
+            "url": "/schedule-templates",
+            "title": "Schedule Templates | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/calendar": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Calendar",
+            "url": "/calendar",
+            "title": "Calendar | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/site-presence/live": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Site PresenceLive",
+            "url": "/site-presence/live",
+            "title": "Live | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-OTHER",
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -2132,14 +2289,409 @@
         "System Health shows status",
         "Feature Requests loads"
       ],
-      "page_results": {}
+      "page_results": {
+        "/leads": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Leads",
+            "url": "/leads",
+            "title": "Leads | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/leads/emails": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "LeadsEmails",
+            "url": "/leads/emails",
+            "title": "Emails | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/quote-requests": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Quote RequestsSetup",
+            "url": "/quote-requests/view/setup",
+            "title": "Quote Requests | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/cases": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "CasesCases",
+            "url": "/cases/tab/cases",
+            "title": "Cases | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/cases/new": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "CasesNew",
+            "url": "/cases/new",
+            "title": "New | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/email": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Email",
+            "url": "/email",
+            "title": "Email | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/email/rules": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "EmailRules",
+            "url": "/email/rules",
+            "title": "Rules | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/email/settings": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "EmailSettingsBlacklist",
+            "url": "/email/settings/blacklist",
+            "title": "Blacklist | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/meetings": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:52:15Z",
+          "iteration": 17,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "MeetingsUpcoming",
+            "url": "/meetings/upcoming",
+            "title": "Upcoming | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/meetings/new": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "MeetingsNew",
+            "url": "/meetings/new",
+            "title": "New | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/chat": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Chat",
+            "url": "/chat",
+            "title": "Chat | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/training": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "TrainingAll",
+            "url": "/training/all",
+            "title": "All | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/plans": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Plans",
+            "url": "/plans",
+            "title": "Plans | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/workflows": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "WorkflowsTasks",
+            "url": "/workflows/tasks",
+            "title": "Tasks | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/workflows/processes": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "WorkflowsProcessesProcesses",
+            "url": "/workflows/processes/processes",
+            "title": "Processes | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/designer": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Designer",
+            "url": "/designer",
+            "title": "Designer | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/designer/new": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "DesignerNew",
+            "url": "/designer/new",
+            "title": "New | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/e-signature": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "E Signature",
+            "url": "/e-signature",
+            "title": "E Signature | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/e-signature/prepare": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "E SignaturePrepare",
+            "url": "/e-signature/prepare",
+            "title": "Prepare | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/support": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Support",
+            "url": "/support",
+            "title": "Support | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/feature-requests": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Feature Requests",
+            "url": "/feature-requests",
+            "title": "Feature Requests | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/system-health": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "System HealthHealth",
+            "url": "/system-health/health",
+            "title": "Health | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/system-performance": {
+          "status": "failed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": false,
+            "isStillLoading": true,
+            "breadcrumb": "System Performance",
+            "url": "/system-performance",
+            "title": "System Performance | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          },
+          "finding_id": "finding-002"
+        },
+        "/brand-guidelines": {
+          "status": "failed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": false,
+            "isStillLoading": true,
+            "breadcrumb": null,
+            "url": "/brand-guidelines",
+            "title": "Brand Guidelines | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          },
+          "finding_id": "finding-003"
+        },
+        "/design-system": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Design SystemKanban",
+            "url": "/design-system/kanban",
+            "title": "Kanban | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/missing": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Missing",
+            "url": "/missing",
+            "title": "Missing | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/profile": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Profile",
+            "url": "/profile",
+            "title": "Profile | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        },
+        "/company-groups": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "Company Groups",
+            "url": "/company-groups",
+            "title": "Company Groups | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-PORTAL",
       "title": "Customer Portal",
       "icon": "layout-list",
       "description": "Customer-facing portal pages",
-      "status": "pending",
+      "status": "in_progress",
       "page_manifest": [
         "/portal",
         "/portal/login",
@@ -2156,7 +2708,22 @@
         "Portal login page loads",
         "Portal pages render for authenticated users"
       ],
-      "page_results": {}
+      "page_results": {
+        "/portal": {
+          "status": "passed",
+          "tested_at": "2026-02-19T23:58:09Z",
+          "iteration": 18,
+          "js_check": {
+            "hasContent": true,
+            "isStillLoading": false,
+            "breadcrumb": "PortalSetup",
+            "url": "/portal/view/setup",
+            "title": "Portal | Teeem",
+            "consoleErrors": 0,
+            "bodyBg": "rgb(255, 255, 255)"
+          }
+        }
+      }
     },
     {
       "id": "US-DARK",
@@ -2216,5 +2783,54 @@
       "page_results": {}
     }
   ],
-  "findings": []
+  "findings": [
+    {
+      "id": "finding-001",
+      "severity": "major",
+      "category": "render-error",
+      "user_story_id": "US-WAREHOUSE",
+      "page": "/data-warehouse",
+      "description": "Data Warehouse page stuck loading - spinner visible after 25+ seconds, no table or content rendered",
+      "console_errors": [],
+      "probable_file": "frontend-next/app/(app)/data-warehouse/page.tsx",
+      "fix_hint": "Page shows spinner indefinitely. Likely API call failing or hanging. Check network tab for failed/pending requests to Foundation API.",
+      "status": "open",
+      "found_at": "2026-02-19T23:52:15Z",
+      "found_iteration": 17,
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-001.png"
+    },
+    {
+      "id": "finding-002",
+      "severity": "major",
+      "category": "render-error",
+      "user_story_id": "US-OTHER",
+      "page": "/system-performance",
+      "description": "System Performance page stuck loading - spinner visible after 25+ seconds, no content rendered",
+      "console_errors": [],
+      "probable_file": "frontend-next/app/(app)/system-performance/page.tsx",
+      "fix_hint": "Page shows spinner indefinitely. Likely API call failing or component not resolving. Check for slow/failing backend endpoint.",
+      "status": "open",
+      "found_at": "2026-02-19T23:58:09Z",
+      "found_iteration": 18,
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-002.png"
+    },
+    {
+      "id": "finding-003",
+      "severity": "critical",
+      "category": "render-error",
+      "user_story_id": "US-OTHER",
+      "page": "/brand-guidelines",
+      "description": "Brand Guidelines page renders white screen - main element has 0 children after 25+ seconds, no breadcrumb",
+      "console_errors": [],
+      "probable_file": "frontend-next/app/(app)/brand-guidelines/page.tsx",
+      "fix_hint": "Complete white screen - main has zero children. Component may be crashing silently or route may not have a page component.",
+      "status": "open",
+      "found_at": "2026-02-19T23:58:09Z",
+      "found_iteration": 18,
+      "snapshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-003-snapshot.txt",
+      "screenshot_file": "TEEEM_DOCS/qa-screenshots/findings/finding-003.png"
+    }
+  ]
 }
