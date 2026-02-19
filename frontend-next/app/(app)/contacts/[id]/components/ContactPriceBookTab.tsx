@@ -196,7 +196,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setLoadingSuppliers(true);
     try {
       const response = await api.get<{ contacts: { id: number; display_name?: string; name?: string }[] }>(
-        "/api/v1/contacts?entity_type=company,trust,sole_trader"
+        "/api/v1/contacts?entity_type=company,trust,sole_trader,price_only"
       );
       const list = (response?.contacts || []).map((c) => ({
         id: String(c.id),

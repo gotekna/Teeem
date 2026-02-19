@@ -181,6 +181,12 @@ export default function PriceBookItemDetailPage() {
   const [imageError, setImageError] = useState(false);
   const [qrCodeError, setQrCodeError] = useState(false);
 
+  // Header edit state (name + code)
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCode, setEditCode] = useState("");
+  const [savingHeader, setSavingHeader] = useState(false);
+
   // Modal states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [historyToDelete, setHistoryToDelete] = useState<PriceHistory | null>(null);
@@ -313,6 +319,59 @@ export default function PriceBookItemDetailPage() {
       setItem(prev => prev ? { ...prev, gst_code: previousGstCode } : null);
     } finally {
       setSavingGstCode(false);
+    }
+  };
+
+  const startEditingHeader = () => {
+    if (!item) return;
+    setEditName(item.item_name);
+    setEditCode(item.item_code);
+    setIsEditingHeader(true);
+  };
+
+  const cancelEditingHeader = () => {
+    setIsEditingHeader(false);
+    setEditName("");
+    setEditCode("");
+  };
+
+  const saveHeader = async () => {
+    if (!item) return;
+    const trimmedName = editName.trim();
+    const trimmedCode = editCode.trim();
+
+    if (!trimmedName || !trimmedCode) {
+      toast({ title: "Name and code are required", variant: "destructive" });
+      return;
+    }
+
+    // No changes
+    if (trimmedName === item.item_name && trimmedCode === item.item_code) {
+      setIsEditingHeader(false);
+      return;
+    }
+
+    try {
+      setSavingHeader(true);
+      await api.patch(`/api/v1/pricebook/${code}`, {
+        item_name: trimmedName,
+        item_code: trimmedCode,
+      });
+
+      setItem(prev => prev ? { ...prev, item_name: trimmedName, item_code: trimmedCode } : null);
+      setIsEditingHeader(false);
+
+      // If code changed, update URL to match new code
+      if (trimmedCode !== item.item_code) {
+        router.replace(`/pricebook/${encodeURIComponent(trimmedCode)}`);
+      }
+
+      toast({ title: "Updated successfully" });
+    } catch (err) {
+      console.error("Failed to update name/code:", err);
+      toast({ title: "Failed to update", variant: "destructive" });
+    } finally {
+      setSavingHeader(false);
     }
   };
 
@@ -735,9 +794,62 @@ export default function PriceBookItemDetailPage() {
           </div>
 
           <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">{item.item_name}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">Code: {item.item_code}</p>
+            <div className="flex-1 min-w-0 mr-4">
+              {isEditingHeader ? (
+                <div className="space-y-2">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Item Name</Label>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveHeader();
+                        if (e.key === "Escape") cancelEditingHeader();
+                      }}
+                      className="text-2xl font-bold h-auto py-1"
+                      autoFocus
+                      disabled={savingHeader}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Item Code</Label>
+                    <Input
+                      value={editCode}
+                      onChange={(e) => setEditCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") saveHeader();
+                        if (e.key === "Escape") cancelEditingHeader();
+                      }}
+                      className="text-sm h-auto py-1 w-64"
+                      disabled={savingHeader}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveHeader} disabled={savingHeader}>
+                      {savingHeader ? <Spinner className="h-4 w-4" /> : <Check className="h-4 w-4 mr-1" />}
+                      Save
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelEditingHeader} disabled={savingHeader}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="group">
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-3xl font-bold">{item.item_name}</h1>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
+                      onClick={startEditingHeader}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">Code: {item.item_code}</p>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               {item.price_freshness && (
