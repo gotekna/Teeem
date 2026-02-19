@@ -296,7 +296,13 @@ class WarehouseDocumentCreator
 
     if find_by[:metadata_match].present?
       find_by[:metadata_match].each do |key, value|
-        scope = scope.where("metadata->>? = ?", key.to_s, value.to_s)
+        # FRC (Feb 2026): Use explicit single-quoted key name to match all other metadata JSONB
+        # patterns in the codebase (e.g. where("metadata->>'is_primary' = ?", "true")).
+        # The `?` placeholder for the key position is ambiguous in some pg adapter versions
+        # when used immediately after the ->> operator (Sentry TEEEM-BACKEND-7H).
+        # connection.quote() returns 'key' with single quotes — identical to hardcoded patterns.
+        quoted_key = ActiveRecord::Base.connection.quote(key.to_s)
+        scope = scope.where("metadata->>#{quoted_key} = ?", value.to_s)
       end
     end
 

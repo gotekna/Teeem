@@ -9,8 +9,8 @@ class PoTemplateLineItem < ApplicationRecord
 
   # Validations
   validates :description, presence: true
-  validates :quantity, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
-  validates :unit_price, numericality: { greater_than_or_equal_to: 0, allow_nil: false }
+  validates :quantity, numericality: { allow_nil: false }
+  validates :unit_price, numericality: { allow_nil: false }
   validates :line_number, presence: true, numericality: { only_integer: true, greater_than: 0 }
   validate :gst_code_exists_in_database
 
