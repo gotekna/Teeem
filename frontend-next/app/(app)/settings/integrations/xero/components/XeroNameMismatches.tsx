@@ -24,12 +24,14 @@ interface MismatchLink {
   link_id: number;
   xero_org_id: string;
   tenant_name: string;
-  external_name: string;
+  external_name: string | null;
   external_contact_id: string;
+  xero_contact_status: string | null;
   match_confidence: number | null;
   match_type: string | null;
   sync_enabled: boolean;
   is_mismatch: boolean;
+  is_missing_name: boolean;
 }
 
 interface MismatchContact {
@@ -37,7 +39,9 @@ interface MismatchContact {
   display_name: string;
   entity_type: string;
   email: string | null;
+  is_active: boolean;
   has_mismatch: boolean;
+  has_missing_name: boolean;
   links: MismatchLink[];
 }
 
@@ -45,6 +49,8 @@ interface NameMismatchesResponse {
   success: boolean;
   data: {
     total_count: number;
+    mismatch_count: number;
+    missing_name_count: number;
     contacts: MismatchContact[];
   };
   error?: string;
@@ -57,6 +63,8 @@ export function XeroNameMismatches() {
   const [error, setError] = React.useState<string | null>(null);
   const [contacts, setContacts] = React.useState<MismatchContact[]>([]);
   const [totalCount, setTotalCount] = React.useState(0);
+  const [mismatchCount, setMismatchCount] = React.useState(0);
+  const [missingNameCount, setMissingNameCount] = React.useState(0);
   const [pushingLinks, setPushingLinks] = React.useState<Set<number>>(new Set());
 
   const fetchMismatches = React.useCallback(async () => {
@@ -67,6 +75,8 @@ export function XeroNameMismatches() {
       if (response.success && response.data) {
         setContacts(response.data.contacts);
         setTotalCount(response.data.total_count);
+        setMismatchCount(response.data.mismatch_count);
+        setMissingNameCount(response.data.missing_name_count);
       } else {
         setError(response.error || "Failed to fetch name mismatches");
       }
@@ -113,7 +123,7 @@ export function XeroNameMismatches() {
   // Push TEEEM name to ALL mismatched links for a contact
   const handlePushAllForContact = async (contact: MismatchContact) => {
     const mismatchedLinkIds = contact.links
-      .filter((l) => l.is_mismatch)
+      .filter((l) => l.is_mismatch || l.is_missing_name)
       .map((l) => l.link_id);
 
     if (mismatchedLinkIds.length === 0) return;
@@ -192,18 +202,25 @@ export function XeroNameMismatches() {
                 Name Mismatches
               </CardTitle>
               <CardDescription>
-                Contacts where TEEEM name differs from Xero name. Push TEEEM name to Xero or click the contact to re-link.
+                Contacts where TEEEM name differs from Xero name, or Xero name is missing. Push TEEEM name to Xero or click the contact to review.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Badge className={cn(
-                "hover:bg-current",
-                totalCount > 0
-                  ? "bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300"
-                  : "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-              )}>
-                {totalCount} {totalCount === 1 ? "Mismatch" : "Mismatches"}
-              </Badge>
+              {mismatchCount > 0 && (
+                <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 hover:bg-amber-100">
+                  {mismatchCount} Name {mismatchCount === 1 ? "Mismatch" : "Mismatches"}
+                </Badge>
+              )}
+              {missingNameCount > 0 && (
+                <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">
+                  {missingNameCount} Missing Name{missingNameCount !== 1 ? "s" : ""}
+                </Badge>
+              )}
+              {totalCount === 0 && (
+                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 hover:bg-green-100">
+                  All Good
+                </Badge>
+              )}
               <Button variant="ghost" size="sm" onClick={fetchMismatches}>
                 <RefreshCw className="h-4 w-4" />
               </Button>
@@ -223,6 +240,7 @@ export function XeroNameMismatches() {
             <div className="space-y-4">
               {contacts.map((contact) => {
                 const mismatchCount = contact.links.filter((l) => l.is_mismatch).length;
+                const missingCount = contact.links.filter((l) => l.is_missing_name).length;
                 return (
                   <div
                     key={contact.id}
@@ -249,6 +267,11 @@ export function XeroNameMismatches() {
                             <Badge variant="outline" className="text-xs">
                               {contact.entity_type || "unknown"}
                             </Badge>
+                            {!contact.is_active && (
+                              <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200">
+                                Archived
+                              </Badge>
+                            )}
                             {contact.email && (
                               <span className="text-xs">{contact.email}</span>
                             )}
@@ -256,10 +279,17 @@ export function XeroNameMismatches() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 hover:bg-amber-100">
-                          {mismatchCount} / {contact.links.length} differ
-                        </Badge>
-                        {mismatchCount > 1 && (
+                        {mismatchCount > 0 && (
+                          <Badge className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 hover:bg-amber-100">
+                            {mismatchCount} differ
+                          </Badge>
+                        )}
+                        {missingCount > 0 && (
+                          <Badge className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 hover:bg-blue-100">
+                            {missingCount} no name
+                          </Badge>
+                        )}
+                        {(mismatchCount + missingCount) > 1 && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -287,31 +317,46 @@ export function XeroNameMismatches() {
                               "flex items-center justify-between p-2 rounded text-sm",
                               link.is_mismatch
                                 ? "bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800"
-                                : "bg-muted"
+                                : link.is_missing_name
+                                  ? "bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800"
+                                  : "bg-muted"
                             )}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <span className="font-medium shrink-0">{link.tenant_name}</span>
                               <span className="text-muted-foreground shrink-0">→</span>
-                              <span
-                                className={cn(
-                                  "truncate",
-                                  link.is_mismatch
-                                    ? "text-amber-700 dark:text-amber-300 font-medium"
-                                    : "text-muted-foreground"
-                                )}
-                              >
-                                {link.external_name || "—"}
-                              </span>
+                              {link.external_name ? (
+                                <span
+                                  className={cn(
+                                    "truncate",
+                                    link.is_mismatch
+                                      ? "text-amber-700 dark:text-amber-300 font-medium"
+                                      : "text-muted-foreground"
+                                  )}
+                                >
+                                  {link.external_name}
+                                </span>
+                              ) : (
+                                <span className="text-blue-600 dark:text-blue-400 italic text-xs">
+                                  No name stored
+                                  {link.external_contact_id && (
+                                    <span className="font-mono ml-1 not-italic">
+                                      (ID: {link.external_contact_id.substring(0, 8)}...)
+                                    </span>
+                                  )}
+                                </span>
+                              )}
+                              {link.xero_contact_status && link.xero_contact_status !== "active" && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 shrink-0">
+                                  {link.xero_contact_status}
+                                </Badge>
+                              )}
                               {link.is_mismatch && (
                                 <X className="h-3 w-3 text-amber-500 shrink-0" />
                               )}
-                              {!link.is_mismatch && (
-                                <Check className="h-3 w-3 text-green-500 shrink-0" />
-                              )}
                             </div>
                             <div className="flex items-center gap-2 shrink-0 ml-2">
-                              {link.is_mismatch && (
+                              {(link.is_mismatch || link.is_missing_name) && (
                                 <Button
                                   size="sm"
                                   variant="ghost"

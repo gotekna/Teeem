@@ -2322,43 +2322,56 @@ module Api
 
             teeem_name = contact.display_name.to_s.strip
             xero_name = (link.external_name || "").strip
-            next if teeem_name.blank? && xero_name.blank?
 
-            is_mismatch = teeem_name.downcase != xero_name.downcase
+            # A "name mismatch" requires BOTH names to be present and different.
+            # Blank external_name = "missing name" (different category, still shown).
+            has_xero_name = xero_name.present?
+            is_mismatch = has_xero_name ? (teeem_name.downcase != xero_name.downcase) : false
+            is_missing_name = !has_xero_name && teeem_name.present?
+
+            # Skip links where both names match (no issue)
+            next if has_xero_name && !is_mismatch
 
             grouped[contact.id] ||= {
               id: contact.id,
               display_name: teeem_name,
               entity_type: contact.entity_type,
               email: contact.email,
+              is_active: contact.is_active,
               has_mismatch: false,
+              has_missing_name: false,
               links: []
             }
 
             grouped[contact.id][:has_mismatch] = true if is_mismatch
+            grouped[contact.id][:has_missing_name] = true if is_missing_name
             grouped[contact.id][:links] << {
               link_id: link.id,
               xero_org_id: link.xero_org_id,
               tenant_name: cred_lookup[link.xero_org_id]&.tenant_name || "Unknown",
-              external_name: xero_name,
+              external_name: xero_name.presence,
               external_contact_id: link.external_contact_id,
+              xero_contact_status: link.xero_contact_status,
               match_confidence: link.match_confidence,
               match_type: link.match_type,
               sync_enabled: link.sync_enabled,
-              is_mismatch: is_mismatch
+              is_mismatch: is_mismatch,
+              is_missing_name: is_missing_name
             }
           end
 
-          # Only return contacts that have at least one name mismatch
-          mismatched = grouped.values
-            .select { |c| c[:has_mismatch] }
-            .sort_by { |c| c[:display_name].to_s.downcase }
+          # Return contacts with mismatches first, then missing names
+          results = grouped.values
+            .select { |c| c[:has_mismatch] || c[:has_missing_name] }
+            .sort_by { |c| [c[:has_mismatch] ? 0 : 1, c[:display_name].to_s.downcase] }
 
           render json: {
             success: true,
             data: {
-              total_count: mismatched.count,
-              contacts: mismatched
+              total_count: results.count,
+              mismatch_count: results.count { |c| c[:has_mismatch] },
+              missing_name_count: results.count { |c| c[:has_missing_name] && !c[:has_mismatch] },
+              contacts: results
             }
           }
         rescue StandardError => e
