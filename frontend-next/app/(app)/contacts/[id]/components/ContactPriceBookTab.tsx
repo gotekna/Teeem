@@ -174,7 +174,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setError(null);
     try {
       const response = await api.get<PricebookResponse>(
-        `/api/v1/pricebook?supplier_id=${contactId}&limit=0`
+        `/api/v1/pricebook?supplier_id=${contactId}&limit=0&include_risk=false`
       );
 
       if (response?.items) {
