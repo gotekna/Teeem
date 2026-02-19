@@ -539,8 +539,8 @@ export default function PriceBookItemDetailPage() {
           return effectiveDate <= today;
         })
         .sort((a, b) => {
-          const dateA = a.date_effective ? new Date(a.date_effective) : new Date(a.created_at);
-          const dateB = b.date_effective ? new Date(b.date_effective) : new Date(b.created_at);
+          const dateA = new Date(a.date_effective || a.created_at);
+          const dateB = new Date(b.date_effective || b.created_at);
           return dateB.getTime() - dateA.getTime();
         })[0];
 
@@ -1047,7 +1047,6 @@ export default function PriceBookItemDetailPage() {
                     <dd className="mt-1 text-sm">
                       {formatDateWithFallback(
                         activePriceHistory?.date_effective ||
-                          activePriceHistory?.created_at ||
                           item.price_last_updated_at,
                         "Never"
                       )}
@@ -1261,7 +1260,7 @@ export default function PriceBookItemDetailPage() {
                                 className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted px-2 py-1 rounded"
                                 onClick={() => handleStartEdit(history.id, history)}
                               >
-                                {formatDateWithFallback(history.date_effective || history.created_at, "Never")}
+                                {formatDateWithFallback(history.date_effective, "Never")}
                                 {isActive && (
                                   <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs">
                                     Active

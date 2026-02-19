@@ -41,7 +41,9 @@ class PricebookItem < ApplicationRecord
   # Scopes
   scope :active, -> { where(is_active: true) }
   scope :needs_pricing, -> { where(needs_pricing_review: true) }
-  scope :by_category, ->(category) { where(category: category) if category.present? }
+  scope :by_category, ->(category_name) {
+    joins(:pricebook_category).where(pricebook_categories: { name: category_name }) if category_name.present?
+  }
   scope :by_colour, ->(colour) { where(colour: colour) if colour.present? }
   scope :with_colour, -> { where.not(colour: [nil, ""]) }
   scope :by_supplier, ->(supplier_id) {
@@ -80,7 +82,7 @@ class PricebookItem < ApplicationRecord
       # Medium risk: price < 3 months but missing supplier info
       where("current_price IS NOT NULL AND current_price > 0")
         .where("price_last_updated_at >= ?", 3.months.ago)
-        .where("supplier_id IS NULL OR brand IS NULL OR category IS NULL")
+        .where("supplier_id IS NULL OR brand IS NULL OR category_id IS NULL")
     when "low"
       # Low risk: recent price AND has supplier info
       where("current_price IS NOT NULL AND current_price > 0")
@@ -116,7 +118,9 @@ class PricebookItem < ApplicationRecord
 
   # Class methods
   def self.categories
-    where.not(category: nil).distinct.pluck(:category).sort
+    PricebookCategory.where(
+      id: select(:category_id).where.not(category_id: nil).distinct
+    ).order(:name).pluck(:name)
   end
 
   def self.units_of_measure
@@ -280,7 +284,7 @@ class PricebookItem < ApplicationRecord
     score = 0
     score += 30 unless supplier_id.present?
     score += 20 unless brand.present?
-    score += 10 unless category.present?
+    score += 10 unless category_id.present?
     score
   end
 
@@ -399,7 +403,8 @@ class PricebookItem < ApplicationRecord
       old_price: old_price,
       new_price: new_price,
       change_reason: "manual_edit",
-      supplier_id: tracking_supplier_id
+      supplier_id: tracking_supplier_id,
+      date_effective: TenantSetting.today
     )
   end
 

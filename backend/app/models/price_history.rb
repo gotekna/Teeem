@@ -16,8 +16,12 @@ class PriceHistory < ApplicationRecord
   # SSoT: Keep PricebookItem.current_price in sync with default supplier's latest price
   after_commit :sync_current_price_to_item, on: [:create, :update], if: :price_fields_changed?
 
+  # Guardrail: date_effective must never be null - default to today if missing
+  before_validation :ensure_date_effective
+
   # Validations
   validates :pricebook_item_id, presence: true
+  validates :date_effective, presence: true
   validates :new_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :old_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validate :supplier_belongs_to_same_tenant
@@ -45,6 +49,10 @@ class PriceHistory < ApplicationRecord
   validate :prevent_duplicate_price_history, on: :create
 
   private
+
+  def ensure_date_effective
+    self.date_effective ||= TenantSetting.today
+  end
 
   # Tenant isolation: supplier must belong to the same tenant as the price history.
   # Uses unscoped lookup because acts_as_tenant would hide the cross-tenant contact.

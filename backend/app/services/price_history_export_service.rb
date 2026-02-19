@@ -82,7 +82,7 @@ class PriceHistoryExportService
           item.id,
           item.item_code.to_s,
           item.item_name.to_s,
-          item.category.to_s,
+          item.pricebook_category&.name.to_s,
           item.unit_of_measure.to_s,
           item.current_price,
           supplier_name.to_s,

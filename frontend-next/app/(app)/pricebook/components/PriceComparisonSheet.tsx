@@ -32,7 +32,6 @@ interface PriceOnlyContact {
 interface SupplierPrice {
   price: number;
   dateEffective: string | null;
-  createdAt: string | null;
 }
 
 interface ComparisonItem {
@@ -526,7 +525,7 @@ export default function PriceComparisonSheet({
                               onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price)}
                               title={
                                 supplierPrice
-                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${(supplierPrice.dateEffective || supplierPrice.createdAt) ? ` (effective ${supplierPrice.dateEffective || supplierPrice.createdAt})` : ""}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
+                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${supplierPrice.dateEffective ? ` (effective ${supplierPrice.dateEffective})` : ""}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
                                   : "No price"
                               }
                             >
@@ -541,9 +540,9 @@ export default function PriceComparisonSheet({
                                       <span className="text-[10px] text-orange-500 dark:text-orange-400" title="Current price only">PO</span>
                                     )}
                                   </span>
-                                  {(supplierPrice.dateEffective || supplierPrice.createdAt) && (
+                                  {supplierPrice.dateEffective && (
                                     <span className="text-[10px] text-muted-foreground">
-                                      {new Date((supplierPrice.dateEffective || supplierPrice.createdAt)! + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })}
+                                      {new Date(supplierPrice.dateEffective + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })}
                                     </span>
                                   )}
                                 </div>

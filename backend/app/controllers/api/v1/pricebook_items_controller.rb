@@ -53,20 +53,17 @@ module Api
           column_mapping = {
             "item_code" => "item_code",
             "item_name" => "item_name",
-            "category" => "category",
-            "current_price" => "current_price",
-            "supplier" => "contacts.display_name"
+            "current_price" => "current_price"
           }
 
-          db_column = column_mapping[sort_column] || "item_code"
-
-          # Join contacts table if sorting by supplier
           if sort_column == "supplier"
             @items = @items.left_joins(:supplier)
-            # Use Arel to safely construct the query
             @items = @items.order(Arel.sql("#{Contact.connection.quote_column_name('contacts')}.#{Contact.connection.quote_column_name('display_name')} #{sort_direction}"))
+          elsif sort_column == "category"
+            @items = @items.left_joins(:pricebook_category)
+            @items = @items.order(Arel.sql("pricebook_categories.name #{sort_direction}"))
           else
-            # Use Arel to safely construct the query with sanitized column name
+            db_column = column_mapping[sort_column] || "item_code"
             @items = @items.order(Arel.sql("#{PricebookItem.connection.quote_column_name(db_column)} #{sort_direction}"))
           end
         end
@@ -102,15 +99,16 @@ module Api
         suppliers_list = if params[:category].present?
           # Get suppliers (contacts) who have items in the selected category
           # Check both as default supplier AND in price history
+          cat_ids = PricebookCategory.where(name: params[:category]).pluck(:id)
           default_supplier_ids = Contact.joins("INNER JOIN pricebooks ON pricebooks.default_supplier_id = contacts.id")
-                                        .where(pricebooks: { category: params[:category], is_active: true })
+                                        .where(pricebooks: { category_id: cat_ids, is_active: true })
                                         .where("contacts.roles LIKE '%supplier%'")
                                         .distinct
                                         .pluck(:id)
 
           price_history_supplier_ids = Contact.joins("INNER JOIN price_histories ON price_histories.supplier_id = contacts.id")
                                               .joins("INNER JOIN pricebooks ON pricebooks.id = price_histories.pricebook_item_id")
-                                              .where(pricebooks: { category: params[:category], is_active: true })
+                                              .where(pricebooks: { category_id: cat_ids, is_active: true })
                                               .where("contacts.roles LIKE '%supplier%'")
                                               .distinct
                                               .pluck(:id)
@@ -225,7 +223,7 @@ module Api
           item = PricebookItem.find_by(id: update[:id])
           if item
             # Permit the attributes we want to update (excluding :id which is used for lookup)
-            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category, :brand_id, :range_id, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
+            permitted_attrs = update.to_unsafe_h.slice(:current_price, :supplier_id, :default_supplier_id, :notes, :category_id, :brand_id, :range_id, :requires_photo, :requires_spec, :photo_attached, :spec_attached, :needs_pricing_review)
 
             # If update_price_to_current_default is true, create/update price history for the new default supplier
             if update[:update_price_to_current_default] == true && update[:default_supplier_id].present? && item.current_price.present?
@@ -651,8 +649,7 @@ module Api
 
               prices[supplier_id.to_s] = {
                 price: latest.new_price.to_f,
-                dateEffective: latest.date_effective&.iso8601,
-                createdAt: latest.created_at&.to_date&.iso8601
+                dateEffective: latest.date_effective&.iso8601
               }
             end
 
