@@ -669,6 +669,11 @@ module Api
           highest_entry = prices.values.max_by { |p| p[:price] }
           highest_supplier_id = highest_entry ? prices.find { |_k, v| v[:price] == highest_entry[:price] }&.first : nil
 
+          # Get LGA from the most recent price history that has LGA set
+          latest_with_lga = item.price_histories
+            .select { |ph| ph.lga.present? }
+            .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
           {
             id: item.id,
             itemCode: item.item_code,
@@ -680,7 +685,8 @@ module Api
             highestPrice: highest_entry ? highest_entry[:price] : nil,
             highestSupplierId: highest_supplier_id&.to_i,
             priceOnlySupplierId: price_only_supplier_id,
-            priceOnlySupplierName: price_only_supplier_name
+            priceOnlySupplierName: price_only_supplier_name,
+            lga: latest_with_lga&.lga || []
           }
         end
 
@@ -715,8 +721,9 @@ module Api
 
           new_price = update[:new_price].to_f
           price_only_contact_id = update[:price_only_contact_id]
+          lga_values = Array(update[:lga]).select(&:present?)
 
-          if item.current_price&.to_f == new_price && price_only_contact_id.blank?
+          if item.current_price&.to_f == new_price && price_only_contact_id.blank? && lga_values.empty?
             unchanged_count += 1
             next
           end
@@ -730,7 +737,7 @@ module Api
             unchanged_count += 1
           end
 
-          # Create price history for the selected price_only contact
+          # Create price history for the selected price_only contact (with LGA if provided)
           if price_only_contact_id.present?
             PriceHistory.create!(
               pricebook_item: item,
@@ -738,8 +745,23 @@ module Api
               new_price: new_price,
               old_price: item.current_price_before_last_save,
               date_effective: effective_date,
-              change_reason: "Applied from comparison sheet"
+              change_reason: "Applied from comparison sheet",
+              lga: lga_values.presence || []
             )
+          elsif lga_values.present?
+            # LGA set but no price_only contact - create history with default supplier
+            supplier_id = item.default_supplier_id || item.supplier_id
+            if supplier_id
+              PriceHistory.create!(
+                pricebook_item: item,
+                supplier_id: supplier_id,
+                new_price: new_price,
+                old_price: item.current_price_before_last_save,
+                date_effective: effective_date,
+                change_reason: "Applied from comparison sheet",
+                lga: lga_values
+              )
+            end
           end
         end
 

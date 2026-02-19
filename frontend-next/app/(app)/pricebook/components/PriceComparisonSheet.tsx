@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,15 @@ import {
   SheetFooter,
   SheetDescription,
 } from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { applyRounding, ROUNDING_OPTIONS, type RoundingMode } from "./PricebookBulkActions";
+import { QLD_COUNCILS, formatLga } from "@/lib/constants/lga-constants";
 
 interface Supplier {
   id: number;
@@ -46,6 +52,7 @@ interface ComparisonItem {
   highestSupplierId: number | null;
   priceOnlySupplierId: number | null;
   priceOnlySupplierName: string | null;
+  lga: string[];
 }
 
 interface CompareResponse {
@@ -68,6 +75,76 @@ function formatCurrency(value: number | null | undefined): string {
   return `$${value.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Compact multi-select popover for LGA values */
+function LgaMultiSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: string[];
+  onChange: (lga: string[]) => void;
+  className?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={`justify-between font-normal ${className ?? "h-8 text-xs w-full"}`}
+        >
+          <span className="truncate">{formatLga(value)}</span>
+          <ChevronDown className="h-3 w-3 ml-1 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-60 p-2" align="start">
+        <div className="flex items-center gap-1 mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-6 px-2"
+            onClick={() => onChange(QLD_COUNCILS.slice())}
+          >
+            All
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-6 px-2"
+            onClick={() => onChange([])}
+          >
+            None
+          </Button>
+        </div>
+        <div className="space-y-1 max-h-48 overflow-y-auto">
+          {QLD_COUNCILS.map((council) => {
+            const isChecked = value.includes(council);
+            const short = council.replace(/ (City |Regional )?Council/g, "").trim();
+            return (
+              <label
+                key={council}
+                className="flex items-center gap-2 px-1 py-0.5 hover:bg-muted rounded cursor-pointer text-xs"
+              >
+                <Checkbox
+                  checked={isChecked}
+                  onCheckedChange={() => {
+                    onChange(
+                      isChecked
+                        ? value.filter((l) => l !== council)
+                        : [...value, council]
+                    );
+                  }}
+                />
+                <span>{short}</span>
+              </label>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function PriceComparisonSheet({
   open,
   onOpenChange,
@@ -85,6 +162,7 @@ export default function PriceComparisonSheet({
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
   const [selectedPriceOnlyContact, setSelectedPriceOnlyContact] = useState<Record<number, string>>({});
+  const [selectedLga, setSelectedLga] = useState<Record<number, string[]>>({});
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [priceAdjustment, setPriceAdjustment] = useState<string>("");
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
@@ -111,10 +189,11 @@ export default function PriceComparisonSheet({
           setItems(response.items);
           setPriceOnlyContacts(response.priceOnlyContacts || []);
 
-          // Auto-select all rows and pre-fill with highest price + existing price_only contact
+          // Auto-select all rows and pre-fill with highest price + existing price_only contact + LGA
           const rows = new Set<number>();
           const prices: Record<number, string> = {};
           const poContacts: Record<number, string> = {};
+          const lgas: Record<number, string[]> = {};
           for (const item of response.items) {
             rows.add(item.id);
             if (item.highestPrice != null) {
@@ -126,10 +205,13 @@ export default function PriceComparisonSheet({
             if (item.priceOnlySupplierId != null) {
               poContacts[item.id] = String(item.priceOnlySupplierId);
             }
+            // Pre-fill LGA from existing price history (default to all if has values, empty if not)
+            lgas[item.id] = item.lga?.length > 0 ? item.lga : QLD_COUNCILS.slice();
           }
           setSelectedRows(rows);
           setSelectedPrices(prices);
           setSelectedPriceOnlyContact(poContacts);
+          setSelectedLga(lgas);
         }
       } catch (err) {
         console.error("Failed to fetch comparison data:", err);
@@ -156,6 +238,7 @@ export default function PriceComparisonSheet({
       setSelectedRows(new Set());
       setSelectedPrices({});
       setSelectedPriceOnlyContact({});
+      setSelectedLga({});
       setEffectiveDate(new Date().toISOString().split("T")[0]);
       setPriceAdjustment("");
       setRoundingMode("none");
@@ -196,6 +279,10 @@ export default function PriceComparisonSheet({
     setSelectedPriceOnlyContact(prev => ({ ...prev, [itemId]: contactId }));
   }, []);
 
+  const setLgaForItem = useCallback((itemId: number, lga: string[]) => {
+    setSelectedLga(prev => ({ ...prev, [itemId]: lga }));
+  }, []);
+
   // Mass update: set price_only contact for all selected rows
   const massSetPriceOnly = useCallback((contactId: string) => {
     const clearValue = contactId === "__clear__" ? "" : contactId;
@@ -203,6 +290,17 @@ export default function PriceComparisonSheet({
       const next = { ...prev };
       for (const id of selectedRows) {
         next[id] = clearValue;
+      }
+      return next;
+    });
+  }, [selectedRows]);
+
+  // Mass update: set LGA for all selected rows
+  const massSetLga = useCallback((lga: string[]) => {
+    setSelectedLga(prev => {
+      const next = { ...prev };
+      for (const id of selectedRows) {
+        next[id] = lga;
       }
       return next;
     });
@@ -252,17 +350,21 @@ export default function PriceComparisonSheet({
   }, [selectedRows, selectedPrices]);
 
   const handleApply = useCallback(async () => {
-    const updates: { item_id: number; new_price: number; price_only_contact_id?: number }[] = [];
+    const updates: { item_id: number; new_price: number; price_only_contact_id?: number; lga?: string[] }[] = [];
     for (const id of selectedRows) {
       const val = selectedPrices[id];
       if (val && !isNaN(parseFloat(val))) {
-        const update: { item_id: number; new_price: number; price_only_contact_id?: number } = {
+        const update: { item_id: number; new_price: number; price_only_contact_id?: number; lga?: string[] } = {
           item_id: id,
           new_price: parseFloat(val),
         };
         const poContactId = selectedPriceOnlyContact[id];
         if (poContactId) {
           update.price_only_contact_id = Number(poContactId);
+        }
+        const lga = selectedLga[id];
+        if (lga && lga.length > 0) {
+          update.lga = lga;
         }
         updates.push(update);
       }
@@ -301,7 +403,7 @@ export default function PriceComparisonSheet({
     } finally {
       setApplying(false);
     }
-  }, [selectedRows, selectedPrices, selectedPriceOnlyContact, effectiveDate, toast, onOpenChange, clearSelection, onRefresh]);
+  }, [selectedRows, selectedPrices, selectedPriceOnlyContact, selectedLga, effectiveDate, toast, onOpenChange, clearSelection, onRefresh]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -459,6 +561,20 @@ export default function PriceComparisonSheet({
                     <th className="text-right p-2 min-w-[130px] font-medium border-l">
                       Selected Price
                     </th>
+                    <th className="text-left p-2 min-w-[140px] font-medium border-l">
+                      <div className="flex flex-col gap-1">
+                        <span>LGA</span>
+                        {selectedRows.size > 0 && (
+                          <div className="font-normal">
+                            <LgaMultiSelect
+                              value={QLD_COUNCILS.slice()}
+                              onChange={massSetLga}
+                              className="h-6 text-[10px] w-full"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </th>
                     <th className="text-left p-2 min-w-[200px] sticky right-0 bg-background z-20 font-medium border-l">
                       <div className="flex flex-col gap-1">
                         <span>Price Only Contact</span>
@@ -486,6 +602,7 @@ export default function PriceComparisonSheet({
                     const isSelected = selectedRows.has(item.id);
                     const selectedVal = selectedPrices[item.id] ?? "";
                     const selectedPoContact = selectedPriceOnlyContact[item.id] ?? "";
+                    const itemLga = selectedLga[item.id] ?? [];
 
                     return (
                       <tr
@@ -565,6 +682,13 @@ export default function PriceComparisonSheet({
                               placeholder="0.00"
                             />
                           </div>
+                        </td>
+                        <td className="p-2 border-l">
+                          <LgaMultiSelect
+                            value={itemLga}
+                            onChange={(lga) => setLgaForItem(item.id, lga)}
+                            className="h-8 text-xs w-full"
+                          />
                         </td>
                         <td className="p-2 sticky right-0 bg-background border-l">
                           {priceOnlyContacts.length > 0 ? (
