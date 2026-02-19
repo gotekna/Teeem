@@ -38,8 +38,11 @@ module Api
         invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page).to_a
 
         # Batch-load SyncConfigurations to avoid N+1
-        tenant_ids = invoices.map(&:tenant_id).compact.uniq
-        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
+        # FRC (Feb 2026): Use xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer FK).
+        # tenant_id is an integer FK to TEEEM's tenants table.
+        # xero_org_id is the Xero organization UUID that maps to SyncConfiguration.xero_tenant_id.
+        xero_org_ids = invoices.map(&:xero_org_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
 
         render json: {
           success: true,
@@ -155,8 +158,9 @@ module Api
         end
 
         # Batch-load SyncConfigurations to avoid N+1 in serialize_invoice
-        tenant_ids = invoices.map(&:tenant_id).compact.uniq
-        config_lookup = SyncConfiguration.where(xero_tenant_id: tenant_ids).index_by(&:xero_tenant_id)
+        # FRC (Feb 2026): Use xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer FK).
+        xero_org_ids = invoices.map(&:xero_org_id).compact.uniq
+        config_lookup = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
 
         render json: {
           success: true,
@@ -470,7 +474,7 @@ module Api
 
         # Optionally push to Xero immediately
         if push_to_xero && invoice.can_export?
-          service = ExternalInvoiceSyncService.new(source: invoice.source, tenant_id: invoice.tenant_id)
+          service = ExternalInvoiceSyncService.new(source: invoice.source, tenant_id: invoice.xero_org_id)
           service.send(:push_invoice_to_xero, invoice)
         end
 
@@ -668,12 +672,13 @@ module Api
 
       def serialize_invoice(invoice, include_details: false, config_lookup: nil)
         # Look up tenant name from SyncConfiguration (use pre-loaded hash if available)
+        # FRC (Feb 2026): Use xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer FK).
         tenant_name = nil
-        if invoice.tenant_id.present?
+        if invoice.xero_org_id.present?
           config = if config_lookup
-            config_lookup[invoice.tenant_id]
+            config_lookup[invoice.xero_org_id]
           else
-            SyncConfiguration.find_by(xero_tenant_id: invoice.tenant_id)
+            SyncConfiguration.find_by(xero_tenant_id: invoice.xero_org_id)
           end
           tenant_name = config&.xero_tenant_name
         end
