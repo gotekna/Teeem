@@ -614,6 +614,14 @@ export function isRelatedPath(path1: string, path2: string): boolean {
         return false;
       }
     }
+
+    // Detect depth gap within same settings section
+    // e.g., /settings/tables → /settings/tables/pricebook/categories (jumped 2 segments)
+    // When router.replace() chains skip intermediate paths, the trail misses items like "Pricebook".
+    // Force rebuild from URL so all intermediate breadcrumb items are included.
+    if (segments2.length - segments1.length > 1) {
+      return false;
+    }
   }
 
   // Check if first segment matches (e.g., both under /jobs)

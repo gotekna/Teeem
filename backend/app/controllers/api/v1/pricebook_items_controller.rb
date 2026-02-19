@@ -651,7 +651,8 @@ module Api
 
               prices[supplier_id.to_s] = {
                 price: latest.new_price.to_f,
-                dateEffective: latest.date_effective&.iso8601
+                dateEffective: latest.date_effective&.iso8601,
+                createdAt: latest.created_at&.to_date&.iso8601
               }
             end
 

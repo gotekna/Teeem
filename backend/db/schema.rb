@@ -7572,7 +7572,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_200004) do
   create_table "pricebooks", force: :cascade do |t|
     t.string "item_code", null: false
     t.string "item_name", null: false
-    t.string "category"
     t.string "unit_of_measure", default: "Each"
     t.decimal "current_price", precision: 10, scale: 2
     t.bigint "supplier_id"
@@ -7614,8 +7613,6 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_200004) do
     t.bigint "brand_id"
     t.bigint "range_id"
     t.index ["brand_id"], name: "index_pricebooks_on_brand_id"
-    t.index ["category", "is_active", "supplier_id"], name: "index_pricebook_items_on_category_active_supplier"
-    t.index ["category"], name: "index_pricebooks_on_category"
     t.index ["category_id"], name: "index_pricebooks_on_category_id"
     t.index ["colour"], name: "index_pricebooks_on_colour"
     t.index ["default_supplier_id"], name: "index_pricebooks_on_default_supplier_id"

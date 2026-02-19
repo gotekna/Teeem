@@ -137,6 +137,10 @@ module Api
               target_foundation = Foundation.find_by(id: lookup_col.lookup_foundation_id)
               next unless target_foundation
 
+              # Skip JOIN if the DB column isn't an integer FK (e.g., category stores text not IDs)
+              db_col = model.columns.find { |c| c.name == lookup_col.column_name }
+              next unless db_col && [:integer, :bigint].include?(db_col.type)
+
               target_table = target_foundation.database_table_name
               display_col = lookup_col.lookup_display_column
               # Unique alias prevents conflicts when multiple lookups target the same table
@@ -390,8 +394,9 @@ module Api
                 next nil unless valid_columns.include?(column)
 
                 # Build SQL condition based on operator
+                # Table-qualify to avoid PG::AmbiguousColumn when search JOINs lookup tables
                 conn = ActiveRecord::Base.connection
-                quoted_column = conn.quote_column_name(column)
+                quoted_column = "#{model.table_name}.#{conn.quote_column_name(column)}"
 
                 # Get actual database column type for type-safe operations
                 db_column = model.columns.find { |c| c.name == column }

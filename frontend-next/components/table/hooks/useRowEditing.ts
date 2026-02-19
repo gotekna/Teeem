@@ -380,7 +380,9 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         clearCachedRecords(foundationId);
         invalidateLookupCache();
 
-        // Optimistic update
+        // Optimistic update: apply changes to local records immediately
+        // When optimistic update succeeds, skip onRefresh to avoid component remount
+        // (remount discards optimistic state and shows stale SSR data until re-fetch)
         if (isAutoFetch && setRecords) {
           setRecords(prev => prev.map(record => {
             const update = rowsToUpdate.find(r => r.rowId === record.id);
@@ -389,9 +391,10 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
             }
             return record;
           }));
+        } else {
+          // No optimistic update available - fall back to parent refresh
+          onRefresh?.();
         }
-
-        onRefresh?.();
       } else if (onRowUpdate) {
         // Legacy: call onRowUpdate for each field
         for (const { rowId, changes } of rowsToUpdate) {

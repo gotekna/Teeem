@@ -32,6 +32,7 @@ interface PriceOnlyContact {
 interface SupplierPrice {
   price: number;
   dateEffective: string | null;
+  createdAt: string | null;
 }
 
 interface ComparisonItem {
@@ -525,20 +526,27 @@ export default function PriceComparisonSheet({
                               onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price)}
                               title={
                                 supplierPrice
-                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
+                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${(supplierPrice.dateEffective || supplierPrice.createdAt) ? ` (effective ${supplierPrice.dateEffective || supplierPrice.createdAt})` : ""}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
                                   : "No price"
                               }
                             >
                               {supplierPrice ? (
-                                <span className="inline-flex items-center gap-1">
-                                  {formatCurrency(supplierPrice.price)}
-                                  {isDefault && (
-                                    <span className="text-[10px] text-blue-500 dark:text-blue-400" title="Default supplier">*</span>
+                                <div className="flex flex-col items-end">
+                                  <span className="inline-flex items-center gap-1">
+                                    {formatCurrency(supplierPrice.price)}
+                                    {isDefault && (
+                                      <span className="text-[10px] text-blue-500 dark:text-blue-400" title="Default supplier">*</span>
+                                    )}
+                                    {isPriceOnly && (
+                                      <span className="text-[10px] text-orange-500 dark:text-orange-400" title="Current price only">PO</span>
+                                    )}
+                                  </span>
+                                  {(supplierPrice.dateEffective || supplierPrice.createdAt) && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      {new Date((supplierPrice.dateEffective || supplierPrice.createdAt)! + "T00:00:00").toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })}
+                                    </span>
                                   )}
-                                  {isPriceOnly && (
-                                    <span className="text-[10px] text-orange-500 dark:text-orange-400" title="Current price only">PO</span>
-                                  )}
-                                </span>
+                                </div>
                               ) : (
                                 <span className="text-muted-foreground/40">&mdash;</span>
                               )}
