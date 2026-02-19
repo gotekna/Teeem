@@ -182,6 +182,12 @@ module Api
           # Transfer job and case associations
           transfer_associations(source, target_contact)
 
+          # FRC (Feb 2026): Transfer user link before destroy.
+          # Contact#before_destroy :prevent_destruction_if_has_user blocks deletion
+          # if a User is still linked. Must handle this BEFORE the dynamic FK transfer
+          # and before calling destroy.
+          transfer_user_link(source, target_contact)
+
           # Transfer ALL remaining FK references that Rails dependent options don't cover.
           # This dynamically finds every FK constraint pointing to contacts and moves
           # references from source → target. Without this, postgres blocks the DELETE
@@ -414,7 +420,7 @@ module Api
             contact_activities contact_emails contact_phones contact_addresses
             contact_persons contact_group_memberships contact_external_links
             contact_company_group_memberships contact_relationships
-            sms_messages contact_quality_reviews
+            sms_messages contact_quality_reviews users
           ])
 
           fk_refs.each do |row|
@@ -440,6 +446,23 @@ module Api
                 Rails.logger.info("[ContactMerge] Transferred #{count} #{table}.#{column} refs: #{source.id} → #{target.id}")
               end
             end
+          end
+        end
+
+        # FRC (Feb 2026): Contact#before_destroy :prevent_destruction_if_has_user
+        # blocks deletion if a User record is linked via has_one :user.
+        # Transfer user to target or unlink before destroying source.
+        def transfer_user_link(source, target_contact)
+          return unless source.user.present?
+
+          if target_contact.user.blank?
+            # Transfer user to target (same person, merged contact)
+            source.user.update!(contact_id: target_contact.id)
+            Rails.logger.info("[ContactMerge] Transferred user #{source.user.email} from contact #{source.id} → #{target_contact.id}")
+          else
+            # Both have users - unlink from source (user account preserved but unlinked)
+            Rails.logger.warn("[ContactMerge] Both contacts have users (source: #{source.user.email}, target: #{target_contact.user.email}). Unlinking source user.")
+            source.user.update!(contact_id: nil)
           end
         end
 
