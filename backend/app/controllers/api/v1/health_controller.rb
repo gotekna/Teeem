@@ -203,12 +203,13 @@ module Api
       # DEPRECATED: Use GET /api/v1/foundations/pricebook-items/health instead
       def pricebook
         Rails.logger.warn "[DEPRECATED] GET /api/v1/health/pricebook - use /api/v1/foundations/pricebook-items/health instead"
-        # Get pricebook items without default supplier
+        # Get pricebook items without default supplier (SSoT: category via category_id FK)
         items_without_default_supplier_query = PricebookItem.active
           .where(default_supplier_id: nil)
 
         items_without_default_supplier_count = items_without_default_supplier_query.count
         items_without_default_supplier = items_without_default_supplier_query
+          .includes(:pricebook_category)
           .order(:item_code)
           .limit(100)
 
@@ -220,13 +221,14 @@ module Api
         # Find items with default supplier but no price history
         items_with_missing_price_history = find_items_with_missing_price_history
 
-        # Find items that require photo but have no image
+        # Find items that require photo but have no image (SSoT: category via category_id FK)
         items_requiring_photo_query = PricebookItem.active
           .where(requires_photo: true)
           .where("image_url IS NULL OR image_url = ''")
 
         items_requiring_photo_count = items_requiring_photo_query.count
         items_requiring_photo_without_image = items_requiring_photo_query
+          .includes(:pricebook_category)
           .order(:item_code)
           .limit(100)
 
@@ -234,7 +236,7 @@ module Api
           totalPricebookItems: PricebookItem.active.count,
           itemsWithoutDefaultSupplier: {
             count: items_without_default_supplier_count,
-            items: items_without_default_supplier
+            items: serialize_items_with_category(items_without_default_supplier)
           },
           suppliersWithIncompleteCategoryPricing: {
             count: incomplete_suppliers_data[:results].length,
@@ -248,7 +250,7 @@ module Api
           },
           itemsRequiringPhotoWithoutImage: {
             count: items_requiring_photo_count,
-            items: items_requiring_photo_without_image
+            items: serialize_items_with_category(items_requiring_photo_without_image)
           }
         }
       end
@@ -283,15 +285,24 @@ module Api
 
         # Get the missing items with details
         missing_items = PricebookItem.active
+          .includes(:pricebook_category)
           .where(id: missing_item_ids)
           .order(:item_code)
 
         render json: {
-          items: missing_items
+          items: serialize_items_with_category(missing_items)
         }
       end
 
       private
+
+      # SSoT: Serialize pricebook items with category name from category_id FK
+      # (category varchar column was dropped - use pricebook_category association)
+      def serialize_items_with_category(items)
+        items.map do |item|
+          item.as_json.merge("category" => item.pricebook_category&.name)
+        end
+      end
 
       def find_suppliers_with_incomplete_categories
         results = []

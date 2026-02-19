@@ -163,15 +163,7 @@ const API_URL = getApiBaseUrl();
 
 // QLD Local Government Areas for LGA dropdown
 // SSoT: Must match backend PriceHistory model LGA validation
-const QLD_COUNCILS = [
-  'Brisbane City Council',
-  'City of Gold Coast',
-  'Sunshine Coast Regional Council',
-  'Lockyer Valley Regional Council',
-  'Toowoomba Regional Council',
-  'Redland City Council',
-  'Scenic Rim Regional Council'
-];
+import { QLD_COUNCILS } from "@/lib/constants/lga-constants";
 
 const QLD_COUNCIL_ITEMS = QLD_COUNCILS.map(c => ({ id: c, label: c }));
 

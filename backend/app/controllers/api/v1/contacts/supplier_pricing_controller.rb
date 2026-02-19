@@ -198,10 +198,10 @@ module Api
               .select("DISTINCT ON (pricebook_item_id) price_histories.*")
               .order(order_clause)
 
-            # Filter by categories if provided
-            # Note: PricebookItem uses table_name = 'pricebooks'
+            # Filter by categories if provided (SSoT: category_id FK to pricebook_categories)
             if categories_param.present? && categories_param.is_a?(Array) && categories_param.any?
-              source_price_histories = source_price_histories.where(pricebooks: { category: categories_param })
+              cat_ids = PricebookCategory.where(name: categories_param).pluck(:id)
+              source_price_histories = source_price_histories.where(pricebooks: { category_id: cat_ids })
             end
 
             # Filter by specific pricebook item IDs if provided
@@ -314,10 +314,11 @@ module Api
 
           ActiveRecord::Base.transaction do
             # Find all pricebook items where this contact is the default supplier
-            # and the category is in the provided list
+            # and the category is in the provided list (SSoT: category_id FK)
+            cat_ids = PricebookCategory.where(name: categories_param).pluck(:id)
             default_supplier_items = PricebookItem.where(
               default_supplier_id: @contact.id,
-              category: categories_param
+              category_id: cat_ids
             )
 
             default_supplier_items.each do |item|
@@ -326,10 +327,9 @@ module Api
             end
 
             # Delete all price histories for this supplier in the selected categories
-            # Note: PricebookItem uses table_name = 'pricebooks'
             price_histories_to_delete = PriceHistory.joins(:pricebook_item)
               .where(supplier_id: @contact.id)
-              .where(pricebooks: { category: categories_param })
+              .where(pricebooks: { category_id: cat_ids })
 
             deleted_price_histories_count = price_histories_to_delete.count
             price_histories_to_delete.delete_all
