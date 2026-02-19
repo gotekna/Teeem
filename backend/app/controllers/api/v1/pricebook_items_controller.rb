@@ -1090,7 +1090,6 @@ module Api
         params.require(:pricebook_item).permit(
           :item_code,
           :item_name,
-          :category,
           :category_id,
           :unit_of_measure,
           :current_price,

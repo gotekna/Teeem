@@ -29,7 +29,7 @@ module Importers
         unit: normalize_value(row["unit"]) || "each",
         cost_price: parse_decimal(row["cost_price"]),
         sell_price: parse_decimal(row["sell_price"]),
-        category: find_or_create_category(row["category"]),
+        pricebook_category: find_or_create_category(row["category"]),
         supplier_name: normalize_value(row["supplier"]),
         is_active: parse_boolean(row["active"]) != false
       )

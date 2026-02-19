@@ -255,23 +255,26 @@ module Api
 
       def missing_items
         supplier_id = params[:supplier_id]
-        category = params[:category]
+        category_name = params[:category]
 
-        if supplier_id.blank? || category.blank?
+        if supplier_id.blank? || category_name.blank?
           render json: { error: "supplier_id and category are required" }, status: :bad_request
           return
         end
 
+        # Look up category_id from name (SSoT: category_id FK to pricebook_categories)
+        category_ids = PricebookCategory.where(name: category_name).pluck(:id)
+
         # Get all active items in this category
         all_items_in_category = PricebookItem.active
-          .where(category: category)
+          .where(category_id: category_ids)
           .pluck(:id)
 
         # Get items this supplier has price history for
         items_with_price_history = PriceHistory
           .where(supplier_id: supplier_id)
           .joins(:pricebook_item)
-          .where(pricebooks: { category: category, is_active: true })
+          .where(pricebooks: { category_id: category_ids, is_active: true })
           .pluck(:pricebook_item_id)
           .uniq
 
@@ -302,24 +305,23 @@ module Api
           supplier = Contact.find_by(id: supplier_id)
           next unless supplier
 
-          # Get categories this supplier has price history for
-          categories = PriceHistory
-            .joins(:pricebook_item)
+          # Get categories this supplier has price history for (SSoT: category_id FK)
+          category_data = PriceHistory
+            .joins(pricebook_item: :pricebook_category)
             .where(supplier_id: supplier_id)
             .where(pricebooks: { is_active: true })
             .distinct
-            .pluck("pricebooks.category")
-            .compact
+            .pluck("pricebook_categories.id", "pricebook_categories.name")
 
-          categories.each do |category|
+          category_data.each do |cat_id, category_name|
             # Count total active items in this category
-            total_items = PricebookItem.active.where(category: category).count
+            total_items = PricebookItem.active.where(category_id: cat_id).count
 
             # Count items this supplier has price history for in this category
             supplier_items = PriceHistory
               .joins(:pricebook_item)
               .where(supplier_id: supplier_id)
-              .where(pricebooks: { category: category, is_active: true })
+              .where(pricebooks: { category_id: cat_id, is_active: true })
               .distinct
               .count("pricebooks.id")
 
@@ -331,7 +333,7 @@ module Api
                   id: supplier.id,
                   name: supplier.display_name
                 },
-                category: category,
+                category: category_name,
                 items_with_pricing: supplier_items,
                 total_items_in_category: total_items,
                 coverage_percentage: ((supplier_items.to_f / total_items) * 100).round(1),
@@ -356,7 +358,7 @@ module Api
         items_with_issues = []
 
         # Get all active items that have a default supplier set
-        PricebookItem.active.where.not(default_supplier_id: nil).includes(:default_supplier).find_each do |item|
+        PricebookItem.active.where.not(default_supplier_id: nil).includes(:default_supplier, :pricebook_category).find_each do |item|
           # Check if there's a price history entry for this item with the default supplier
           has_price_history = PriceHistory.exists?(
             pricebook_item_id: item.id,
@@ -368,7 +370,7 @@ module Api
               id: item.id,
               item_code: item.item_code,
               item_name: item.item_name,
-              category: item.category,
+              category: item.pricebook_category&.name,
               current_price: item.current_price,
               default_supplier: {
                 id: item.default_supplier&.id,

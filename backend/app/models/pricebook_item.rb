@@ -12,6 +12,8 @@ class PricebookItem < ApplicationRecord
   belongs_to :pricebook_category, foreign_key: "category_id", optional: true
   belongs_to :pricebook_brand, foreign_key: "brand_id", optional: true
   belongs_to :pricebook_range, foreign_key: "range_id", optional: true
+  belongs_to :unit_of_measure, optional: true
+  belongs_to :gst_code, optional: true
   belongs_to :image_storage_blob, class_name: "StorageBlob", optional: true
   belongs_to :spec_storage_blob, class_name: "StorageBlob", optional: true
   belongs_to :qr_code_storage_blob, class_name: "StorageBlob", optional: true

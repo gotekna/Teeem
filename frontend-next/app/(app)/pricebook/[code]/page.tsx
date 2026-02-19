@@ -121,7 +121,6 @@ interface PriceBookItem {
   id: number;
   item_code: string;
   item_name: string;
-  category: string;
   category_id: number | null;
   unit_of_measure: string;
   current_price: number;
