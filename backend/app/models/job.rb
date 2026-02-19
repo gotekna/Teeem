@@ -135,8 +135,9 @@ class Job < ApplicationRecord
 
   # Validations
   validates :name, presence: true
-  # SSoT: Supervisor is now stored via job_contacts (role: "supervisor"), not site_supervisor_name column
-  # The column is kept for legacy compatibility but validation removed
+  # SSoT: Supervisor is stored via job_contacts (role: "supervisor")
+  # Note: site_supervisor_name/phone columns removed from jobs table (Jan 2026 migration)
+  # Use job.site_supervisor_info to get supervisor name/phone
   validates :suburb, presence: true, if: :has_address_components?
   validates :state, presence: true, if: :has_address_components?
   validates :postcode, length: { is: 4 }, allow_blank: true, if: -> { postcode.present? }

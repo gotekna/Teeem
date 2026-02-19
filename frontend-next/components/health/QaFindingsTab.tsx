@@ -332,7 +332,9 @@ export function QaFindingsTab() {
             </p>
             <p className="text-sm text-muted-foreground">
               {filter === "all"
-                ? "QA agents haven't found any issues yet. Run /rqar to start testing."
+                ? meta && meta.iteration > 0
+                  ? `QA completed ${meta.iteration} iterations with zero issues found. Check the QA PRD tab for full page coverage.`
+                  : "QA agents haven't found any issues yet. Run /rqar to start testing."
                 : "No findings match this filter."}
             </p>
           </CardContent>

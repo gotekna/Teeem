@@ -176,10 +176,10 @@ module Api
 
         # Get list of companies with pending work
         companies_with_pending = Corporate
-          .joins("LEFT JOIN bank_statement_reports ON bank_statement_reports.company_id = corporate_companies.id")
+          .joins("LEFT JOIN bank_statement_reports ON bank_statement_reports.company_id = corporates.id")
           .where(bank_statement_reports: { status: "completed" })
-          .select("corporate_companies.id, corporate_companies.name, corporate_companies.code")
-          .group("corporate_companies.id, corporate_companies.name, corporate_companies.code")
+          .select("corporates.id, corporates.name, corporates.code")
+          .group("corporates.id, corporates.name, corporates.code")
           .having("COUNT(bank_statement_reports.id) > 0")
           .map do |company|
             company_progress = BankStatementBatchRegenerateJob.progress(company_id: company.id, force: force)

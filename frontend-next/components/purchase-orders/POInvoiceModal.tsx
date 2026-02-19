@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -9,37 +10,53 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, FileX2 } from "lucide-react";
+import { Receipt } from "lucide-react";
 import { api } from "@/lib/api";
 import { BillsInvoiceViewer, type BillDetail } from "@/components/invoice/BillsInvoiceViewer";
 import { POSummaryView } from "@/components/purchase-orders/POSummaryView";
 import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 
 export function POInvoiceModal() {
+  const router = useRouter();
   const { isOpen, poId, poNumber, close } = usePOInvoiceModal();
 
   const [bills, setBills] = useState<BillDetail[]>([]);
   const [selectedBill, setSelectedBill] = useState<BillDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  // Only show Dialog AFTER we confirm bills exist (prevents flash)
+  const [hasBills, setHasBills] = useState(false);
 
   const fetchBills = useCallback(async (id: string | number) => {
     setLoading(true);
+    setHasBills(false);
     try {
       const response = await api.get<{ bills: BillDetail[]; total_count: number }>(
         `/api/v1/purchase_orders/${id}/bills`
       );
       if (response) {
-        setBills(response.bills || []);
-        setSelectedBill(response.bills?.[0] || null);
+        const fetchedBills = response.bills || [];
+        if (fetchedBills.length === 0) {
+          // No invoices — navigate to full PO editor instead
+          const slug = String(id).replace("PO-", "");
+          close();
+          router.push(`/purchase_orders/${slug}`);
+          return;
+        }
+        setBills(fetchedBills);
+        setSelectedBill(fetchedBills[0] || null);
+        setHasBills(true);
       }
     } catch (err) {
       console.error("Failed to load bills for PO:", err);
-      setBills([]);
-      setSelectedBill(null);
+      // On error, also navigate to PO editor as fallback
+      const slug = String(id).replace("PO-", "");
+      close();
+      router.push(`/purchase_orders/${slug}`);
+      return;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [close, router]);
 
   // Fetch bills when modal opens with a new PO
   useEffect(() => {
@@ -48,13 +65,14 @@ export function POInvoiceModal() {
     } else {
       setBills([]);
       setSelectedBill(null);
+      setHasBills(false);
     }
   }, [isOpen, poId, fetchBills]);
 
   const displayTitle = poNumber ? `${poNumber} vs Invoice` : "PO vs Invoice";
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) close(); }}>
+    <Dialog open={isOpen && hasBills} onOpenChange={(open) => { if (!open) close(); }}>
       <DialogContent className="max-w-[95vw] max-h-[90vh] h-[90vh] p-0 gap-0 flex flex-col">
         {/* Header */}
         <DialogHeader className="px-4 py-3 border-b shrink-0">
@@ -88,19 +106,7 @@ export function POInvoiceModal() {
               <div className="flex items-center justify-center h-full">
                 <Spinner />
               </div>
-            ) : bills.length === 0 ? (
-              /* Empty State */
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3 p-8">
-                <FileX2 className="h-12 w-12 opacity-40" />
-                <div className="text-center">
-                  <p className="font-medium">No matched invoices</p>
-                  <p className="text-sm mt-1">
-                    No bills or invoices have been matched to this purchase order yet.
-                  </p>
-                </div>
-              </div>
             ) : (
-              /* Bill Viewer */
               <BillsInvoiceViewer
                 bill={selectedBill}
                 bills={bills}

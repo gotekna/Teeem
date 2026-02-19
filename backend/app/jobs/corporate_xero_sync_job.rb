@@ -46,7 +46,7 @@ class CorporateXeroSyncJob < ApplicationJob
 
     # Get companies to process
     companies = fetch_companies(options[:company_ids])
-    companies = companies.where("corporate_companies.id >= ?", start_from) if start_from.present?
+    companies = companies.where("corporates.id >= ?", start_from) if start_from.present?
     Rails.logger.info("[CorporateXeroSyncJob] Found #{companies.count} companies to sync")
 
     companies.each do |company|

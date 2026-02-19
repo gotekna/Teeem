@@ -1066,7 +1066,6 @@ module Api
           { line_items: [:profit_centre, { pricebook_item: :default_supplier }] },
           :supplier,
           { job: { job_contacts: :user } },
-          :sm_tasks,
           :document_tasks,
           { sm_task: :sm_schedule_master }
         ).find_by_slug(params[:id])
