@@ -157,6 +157,8 @@ export default function PriceComparisonSheet({
       setSelectedPrices({});
       setSelectedPriceOnlyContact({});
       setEffectiveDate(new Date().toISOString().split("T")[0]);
+      setPriceAdjustment("");
+      setRoundingMode("none");
     }
   }, [open]);
 
@@ -205,6 +207,33 @@ export default function PriceComparisonSheet({
       return next;
     });
   }, [selectedRows]);
+
+  // Parse percentage
+  const adjustmentPercent = useMemo(() => {
+    const val = parseFloat(priceAdjustment);
+    return isNaN(val) ? 0 : val;
+  }, [priceAdjustment]);
+
+  // Apply price adjustment % and rounding to all selected prices
+  const applyAdjustmentToSelected = useCallback(() => {
+    if (adjustmentPercent === 0 && roundingMode === "none") return;
+    setSelectedPrices(prev => {
+      const next = { ...prev };
+      for (const id of selectedRows) {
+        const val = parseFloat(next[id]);
+        if (isNaN(val) || val === 0) continue;
+        let adjusted = val;
+        if (adjustmentPercent !== 0) {
+          adjusted = val * (1 + adjustmentPercent / 100);
+        }
+        if (roundingMode !== "none") {
+          adjusted = applyRounding(adjusted, roundingMode);
+        }
+        next[id] = adjusted.toFixed(2);
+      }
+      return next;
+    });
+  }, [adjustmentPercent, roundingMode, selectedRows]);
 
   // ComboboxDropdown items for price_only contacts
   const poComboItems = useMemo<ComboboxItem[]>(
@@ -302,6 +331,85 @@ export default function PriceComparisonSheet({
               </div>
             )}
           </div>
+
+          {/* Price Adjustment & Rounding - compact row */}
+          {items.length > 0 && (
+            <div className="flex items-center gap-4 pt-2 flex-wrap">
+              {/* Price Adjustment % */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">Adjust %</label>
+                <div className="relative w-20">
+                  <Input
+                    type="number"
+                    step="0.5"
+                    placeholder="0"
+                    value={priceAdjustment}
+                    onChange={(e) => setPriceAdjustment(e.target.value)}
+                    className="h-7 text-sm pr-6"
+                  />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">%</span>
+                </div>
+                {[3, 5, 10].map((pct) => (
+                  <Button
+                    key={pct}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPriceAdjustment(String(pct))}
+                    className={`h-7 px-2 text-xs ${adjustmentPercent === pct ? "border-primary bg-primary/5" : ""}`}
+                  >
+                    +{pct}%
+                  </Button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-border" />
+
+              {/* Round Up */}
+              <div className="flex items-center gap-1">
+                <label className="text-xs font-medium text-muted-foreground whitespace-nowrap mr-1">Round Up</label>
+                {ROUNDING_OPTIONS.map((opt) => (
+                  <Button
+                    key={opt.value}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setRoundingMode(opt.value)}
+                    className={`h-7 px-2 text-xs ${roundingMode === opt.value ? "border-primary bg-primary/5" : ""}`}
+                    title={opt.description}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-border" />
+
+              {/* Apply button */}
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 px-3 text-xs"
+                disabled={adjustmentPercent === 0 && roundingMode === "none"}
+                onClick={applyAdjustmentToSelected}
+              >
+                Apply to Selected
+              </Button>
+
+              {/* Status text */}
+              {(adjustmentPercent !== 0 || roundingMode !== "none") && (
+                <span className="text-xs text-muted-foreground">
+                  {adjustmentPercent !== 0 && `${adjustmentPercent > 0 ? "+" : ""}${adjustmentPercent}%`}
+                  {adjustmentPercent !== 0 && roundingMode !== "none" && " + "}
+                  {roundingMode !== "none" && (
+                    roundingMode === "smart"
+                      ? "Smart round"
+                      : `Round to ${ROUNDING_OPTIONS.find(o => o.value === roundingMode)?.label}`
+                  )}
+                </span>
+              )}
+            </div>
+          )}
         </SheetHeader>
 
         {/* Table area */}

@@ -344,12 +344,14 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         if (!originalRow || !rowData) continue;
 
         const modifiedForRow = modifiedFieldsRef.current[rowId];
+        const hasTracking = modifiedForRow && modifiedForRow.size > 0;
         const changes: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(rowData)) {
           // Only send fields that correspond to actual editable columns
           if (!editableColumnKeys.has(key)) continue;
-          // Only send fields the user explicitly modified (prevents sending untouched FK columns)
-          if (!modifiedForRow?.has(key)) continue;
+          // If we have explicit tracking, only send tracked fields
+          // If no tracking (fallback), send all changed editable fields
+          if (hasTracking && !modifiedForRow.has(key)) continue;
           const originalValue = originalRow[key];
           if (JSON.stringify(originalValue) !== JSON.stringify(value)) {
             // Sanitize FK values: convert 0/"0"/"" to null for _id columns

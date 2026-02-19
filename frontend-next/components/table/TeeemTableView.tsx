@@ -4370,44 +4370,64 @@ export default function TeeemTableView({
       // Cell-level editing: in edit mode, only show editor for the active cell
       // In non-edit mode (pencil/double-click), show all editors for the row
       const isActiveCell = activeEditingCell?.rowId === entry.id && activeEditingCell?.columnKey === column.key;
-      const showEditor = isEditMode ? isActiveCell : true; // Edit mode = cell-level, pencil = all cells
+      const showEditor = isActiveCell; // Always cell-level: only the clicked cell shows an editor
+
+      // Check if this specific cell has been modified (for orange highlight)
+      const originalRow = isEditing ? effectiveEntries.find(r => r.id === entry.id) : null;
+      const isCellDirty = isEditing && originalRow &&
+        JSON.stringify(rowEditingData[column.key]) !== JSON.stringify(originalRow[column.key]);
 
       // Show editor for this cell (either active cell in edit mode, or all cells via pencil)
       if (isEditing && isColumnEditable && showEditor) {
         return (
-          <RowEditingCell
-            entry={entry}
-            column={column}
-            rowEditingData={rowEditingData}
-            setEditingData={setEditingData}
-            onCellChange={updateCell}
-            validationError={validationErrors[entry.id]?.[column.key]}
-            handleCellBlur={handleCellBlur}
-            lookupOptions={lookupOptions}
-            lookupLoading={lookupLoading}
-          />
+          <div className={cn(
+            isCellDirty && "bg-orange-50 dark:bg-orange-950/20"
+          )}>
+            <RowEditingCell
+              entry={entry}
+              column={column}
+              rowEditingData={rowEditingData}
+              setEditingData={setEditingData}
+              onCellChange={updateCell}
+              validationError={validationErrors[entry.id]?.[column.key]}
+              handleCellBlur={handleCellBlur}
+              lookupOptions={lookupOptions}
+              lookupLoading={lookupLoading}
+            />
+          </div>
         );
       }
 
-      // In edit mode: editing row, editable column, but NOT the active cell - render normally
-      // (clicking will activate this cell via the edit mode click handler below)
+      // In edit mode: editing row, editable column, but NOT the active cell
+      // Show the EDITED value (from editingData) so user can see pending changes
       if (isEditing && isColumnEditable && isEditMode) {
+        // For lookup columns, resolve the ID to a display name
+        const editedValue = rowEditingData[column.key];
+        let displayValue = editedValue ?? value;
+        if (isLookupColumn(column.column_type) && editedValue != null) {
+          const opts = lookupOptions[column.key];
+          const match = opts?.find(o => String(o.id) === String(editedValue));
+          displayValue = match ? match.display : value;
+        }
         return (
           <div
-            className="cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]"
+            className={cn(
+              "cursor-text px-1 py-0.5 -mx-1 -my-0.5 rounded min-h-[24px]",
+              isCellDirty && "bg-orange-100 dark:bg-orange-950/30"
+            )}
             onClick={(e) => {
               e.stopPropagation();
               setActiveEditingCell({ rowId: entry.id, columnKey: column.key });
             }}
           >
-            {renderCellWithRegistry(value, column, entry, "display")}
+            {renderCellWithRegistry(displayValue, column, entry, "display")}
           </div>
         );
       }
 
-      // Non-editable columns in editing row - render normally (no italic/visual change)
+      // Non-editable columns in editing row - render normally
       if (isEditing && !isColumnEditable) {
-        // Fall through to normal rendering for all columns
+        // Fall through to normal rendering
       }
 
       // Global edit mode OR alwaysEditable - clickable cells that start editing on click

@@ -740,7 +740,7 @@ module Api
               new_price: new_price,
               old_price: item.current_price_before_last_save,
               date_effective: effective_date,
-              source: "comparison_sheet"
+              change_reason: "Applied from comparison sheet"
             )
           end
         end

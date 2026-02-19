@@ -81,9 +81,10 @@ module Api
         bank_accounts_linked = bank_accounts_count > 0
 
         # Count Xero-linked contacts (from contact_external_links)
+        # FRC (Feb 2026): ContactExternalLink has xero_org_id, not tenant_id
         contacts_count = ContactExternalLink.joins(:contact)
           .where(source: "xero", sync_enabled: true)
-          .where(tenant_id: connection&.xero_tenant_id)
+          .where(xero_org_id: connection&.xero_tenant_id)
           .count
         contacts_synced = contacts_count > 0
 

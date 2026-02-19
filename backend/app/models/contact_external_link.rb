@@ -3,6 +3,11 @@ class ContactExternalLink < ApplicationRecord
 
   belongs_to :contact
 
+  # FRC (Feb 2026): Alias for external_name — the actual column is external_name,
+  # but some Column records and API responses reference external_contact_name.
+  # Without this alias, Foundation API calls `record.send('external_contact_name')` → NoMethodError.
+  alias_attribute :external_contact_name, :external_name
+
   # Callbacks to keep Contact's cached xero columns in sync
   after_save :update_contact_xero_cache
   after_destroy :update_contact_xero_cache
