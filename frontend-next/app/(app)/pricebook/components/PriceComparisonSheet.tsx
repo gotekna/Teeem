@@ -348,12 +348,6 @@ export default function PriceComparisonSheet({
                     <th className="text-right p-2 min-w-[130px] font-medium border-l">
                       Selected Price
                     </th>
-                    <th className="text-left p-2 min-w-[140px] font-medium border-l">
-                      <div className="flex flex-col">
-                        <span>Current</span>
-                        <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
-                      </div>
-                    </th>
                     <th className="text-left p-2 min-w-[200px] sticky right-0 bg-background z-20 font-medium border-l">
                       <div className="flex flex-col gap-1">
                         <span>Price Only Contact</span>
@@ -409,17 +403,18 @@ export default function PriceComparisonSheet({
                           const supplierPrice = item.prices[String(s.id)];
                           const isHighest = item.highestSupplierId === s.id && supplierPrice;
                           const isDefault = item.defaultSupplierId === s.id;
+                          const isPriceOnly = item.priceOnlySupplierId === s.id;
 
                           return (
                             <td
                               key={s.id}
                               className={`p-2 text-right cursor-pointer hover:bg-primary/10 transition-colors ${
                                 isHighest ? "font-semibold text-green-600 dark:text-green-400" : ""
-                              }`}
+                              } ${isPriceOnly ? "bg-orange-50 dark:bg-orange-950/30" : ""}`}
                               onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price)}
                               title={
                                 supplierPrice
-                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${isDefault ? " (default supplier)" : ""}`
+                                  ? `Click to select ${formatCurrency(supplierPrice.price)}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
                                   : "No price"
                               }
                             >
@@ -428,6 +423,9 @@ export default function PriceComparisonSheet({
                                   {formatCurrency(supplierPrice.price)}
                                   {isDefault && (
                                     <span className="text-[10px] text-blue-500 dark:text-blue-400" title="Default supplier">*</span>
+                                  )}
+                                  {isPriceOnly && (
+                                    <span className="text-[10px] text-orange-500 dark:text-orange-400" title="Current price only">PO</span>
                                   )}
                                 </span>
                               ) : (
@@ -449,13 +447,6 @@ export default function PriceComparisonSheet({
                               placeholder="0.00"
                             />
                           </div>
-                        </td>
-                        <td className="p-2 border-l text-left text-xs truncate max-w-[140px]" title={item.priceOnlySupplierName || "None"}>
-                          {item.priceOnlySupplierName ? (
-                            <span className="text-orange-500 dark:text-orange-400">{item.priceOnlySupplierName}</span>
-                          ) : (
-                            <span className="text-muted-foreground/40">&mdash;</span>
-                          )}
                         </td>
                         <td className="p-2 sticky right-0 bg-background border-l">
                           {priceOnlyContacts.length > 0 ? (

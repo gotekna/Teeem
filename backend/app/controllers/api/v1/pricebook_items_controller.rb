@@ -656,12 +656,16 @@ module Api
             end
 
           # If no price_only supplier found in active prices, check ALL price histories
+          price_only_supplier_name = nil
           if price_only_supplier_id.nil?
             all_po_history = item.price_histories
               .select { |ph| ph.supplier_id.present? && price_only_contact_ids.include?(ph.supplier_id) }
               .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
             price_only_supplier_id = all_po_history&.supplier_id
+            price_only_supplier_name = all_po_history&.supplier&.display_name
           end
+          # Resolve name from suppliers_hash (active prices) or fallback already set above
+          price_only_supplier_name ||= suppliers_hash.dig(price_only_supplier_id, :name) if price_only_supplier_id
 
           # Calculate highest price
           highest_entry = prices.values.max_by { |p| p[:price] }
@@ -678,7 +682,7 @@ module Api
             highestPrice: highest_entry ? highest_entry[:price] : nil,
             highestSupplierId: highest_supplier_id&.to_i,
             priceOnlySupplierId: price_only_supplier_id,
-            priceOnlySupplierName: price_only_supplier_id ? (suppliers_hash.dig(price_only_supplier_id, :name) || Contact.find_by(id: price_only_supplier_id)&.display_name) : nil
+            priceOnlySupplierName: price_only_supplier_name
           }
         end
 
