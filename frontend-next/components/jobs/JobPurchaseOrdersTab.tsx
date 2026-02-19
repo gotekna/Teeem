@@ -97,8 +97,8 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [templatePacks, setTemplatePacks] = useState<Array<{ id: number; name: string; itemCount: number; estimatedTotal: number }>>([]);
   const [selectedPackId, setSelectedPackId] = useState<number | null>(null);
   const [templatePreview, setTemplatePreview] = useState<{
-    items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number }>;
-    totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; warnings: string[];
+    items: Array<{ name: string; supplierName: string | null; taskName: string | null; taskMatched: boolean; taskWillCreate: boolean; supplierMatched: boolean; lineItemCount: number; estimatedTotal: number; profitCentreName: string | null; smScheduleMasterName: string | null }>;
+    totalPos: number; estimatedTotal: number; tasksMatched: number; tasksUnmatched: number; tasksWillCreate: number; warnings: string[];
   } | null>(null);
   const [loadingTemplatePacks, setLoadingTemplatePacks] = useState(false);
   const [loadingPreview, setLoadingPreview] = useState(false);
@@ -738,7 +738,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       </Dialog>
       {/* Apply Template Modal */}
       <Dialog open={showTemplateModal} onOpenChange={setShowTemplateModal}>
-        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+        <DialogContent className="sm:max-w-[800px] max-h-[80vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Apply PO Template</DialogTitle>
             <DialogDescription>
@@ -786,9 +786,14 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                   <span className="inline-flex items-center rounded-md bg-green-100 dark:bg-green-900/30 px-2.5 py-1 text-xs font-medium text-green-700 dark:text-green-400">
                     {templatePreview.tasksMatched} tasks matched
                   </span>
+                  {templatePreview.tasksWillCreate > 0 && (
+                    <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-400">
+                      {templatePreview.tasksWillCreate} tasks to create
+                    </span>
+                  )}
                   {templatePreview.tasksUnmatched > 0 && (
                     <span className="inline-flex items-center rounded-md bg-amber-100 dark:bg-amber-900/30 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400">
-                      {templatePreview.tasksUnmatched} unmatched
+                      {templatePreview.tasksUnmatched} no template
                     </span>
                   )}
                   <span className="inline-flex items-center rounded-md bg-muted px-2.5 py-1 text-xs font-mono font-medium">
@@ -816,6 +821,7 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                         <th className="text-left py-2 px-3 font-medium">PO Name</th>
                         <th className="text-left py-2 px-3 font-medium">Supplier</th>
                         <th className="text-left py-2 px-3 font-medium">Task</th>
+                        <th className="text-left py-2 px-3 font-medium">PC</th>
                         <th className="text-right py-2 px-3 font-medium">Lines</th>
                         <th className="text-right py-2 px-3 font-medium">Total</th>
                       </tr>
@@ -830,11 +836,16 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
                           <td className="py-1.5 px-3">
                             {item.taskMatched ? (
                               <span className="text-green-700 dark:text-green-400">{item.taskName}</span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400 italic">
-                                {item.taskName || "no link"}
+                            ) : item.taskWillCreate ? (
+                              <span className="text-blue-600 dark:text-blue-400">
+                                + {item.taskName}
                               </span>
+                            ) : (
+                              <span className="text-muted-foreground italic">no link</span>
                             )}
+                          </td>
+                          <td className="py-1.5 px-3 text-muted-foreground">
+                            {item.profitCentreName || <span className="italic">—</span>}
                           </td>
                           <td className="py-1.5 px-3 text-right">{item.lineItemCount}</td>
                           <td className="py-1.5 px-3 text-right font-mono">

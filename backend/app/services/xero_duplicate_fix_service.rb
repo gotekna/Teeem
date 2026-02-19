@@ -106,48 +106,44 @@ class XeroDuplicateFixService
   # @param group_id [String] Normalized name (parameterized)
   # @param target_contact_id [Integer] The SSoT contact to merge into
   # @return [Hash] Result with merged_count and deleted_ids
+  #
+  # FRC (Feb 2026): Previous manual merge only handled 5 FK types but contacts have 60+ DB FK
+  # constraints (gl_invoices, bill_inboxes, meeting_participants, etc.). source.destroy! failed
+  # with FK violation errors. Now delegates to GenericMergeService which handles ALL FKs via
+  # Rails reflection + database schema queries.
   def merge_group(group_id, target_contact_id)
     target = Contact.find(target_contact_id)
 
     # Find all contacts in this group by matching against target's normalized name
     # This ensures we use the same normalization as find_duplicate_groups
     # Don't try to reverse parameterize - special chars like & get lost
-    contacts = Contact.where(is_active: true)
+    sources = Contact.where(is_active: true)
                      .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = LOWER(TRIM(REGEXP_REPLACE(?, '\\s+', ' ', 'g')))", target.display_name)
                      .where.not(id: target_contact_id)
+                     .to_a
 
-    deleted_ids = []
-    merged_count = 0
-
-    ActiveRecord::Base.transaction do
-      contacts.each do |source|
-        # 1. Move Xero links to target
-        merge_xero_links(target, [ source ])
-
-        # 2. Transfer relationships
-        transfer_relationships(target, source)
-
-        # 3. Merge contact data (fill missing fields on target)
-        merge_contact_data(target, source)
-
-        # 4. Reload source to clear association caches (critical for destroy!)
-        #    After update_all transfers, Rails cache still shows old associations
-        #    This prevents dependent: :restrict_with_error from false-triggering
-        source.reload
-
-        # 5. Hard-delete source contact
-        deleted_ids << source.id
-        source.destroy!
-
-        merged_count += 1
-      end
-
-      target.save!
+    if sources.empty?
+      return {
+        success: true,
+        merged_count: 0,
+        deleted_ids: [],
+        target_id: target.id
+      }
     end
+
+    deleted_ids = sources.map(&:id)
+
+    # GenericMergeService handles ALL FK references:
+    # - Rails associations (has_many/has_one with any dependent option)
+    # - Database FK constraints (catches undeclared associations)
+    # - Unique constraint conflicts (deletes duplicates)
+    # - Fills blank fields from sources
+    merger = GenericMergeService.new(target, sources, Contact)
+    merger.merge!
 
     {
       success: true,
-      merged_count: merged_count,
+      merged_count: merger.merged_count,
       deleted_ids: deleted_ids,
       target_id: target.id
     }

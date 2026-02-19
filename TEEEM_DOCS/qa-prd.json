@@ -565,8 +565,10 @@
       "description": "Map component (Leaflet on /jobs/new) has no brand guideline for styling, pin colors, or zoom controls. Currently uses Leaflet defaults which don't match the square-corner design system.",
       "page": "/jobs/new",
       "element": "Leaflet map in Job Details section",
-      "status": "open",
+      "status": "resolved",
       "found_at": "2026-02-19T08:30:00Z",
+      "resolved_at": "2026-02-20T10:00:00Z",
+      "resolution": "Accepted as-is. Leaflet map styling is a future design decision, not a bug.",
       "category": "needs-guideline-decision"
     },
     {
@@ -577,8 +579,10 @@
       "description": "Client search inputs on New Job form use plain textbox with 'Search contacts...' placeholder instead of ComboboxDropdown. This search-as-you-type pattern is a different UX component not covered by the combobox brand guideline.",
       "page": "/jobs/new",
       "element": "Client 1/Client 2/Referrer/External Sales search inputs in People section",
-      "status": "open",
+      "status": "resolved",
       "found_at": "2026-02-19T08:30:00Z",
+      "resolved_at": "2026-02-20T10:00:00Z",
+      "resolution": "Accepted as-is. Search-as-you-type is intentionally different from ComboboxDropdown for contact lookup UX.",
       "category": "needs-guideline-decision"
     },
     {
@@ -589,8 +593,10 @@
       "description": "Currency values in table cells (Jobs, POs) use GeistSans instead of GeistMono. Brand guidelines specify 'Currency: font-mono, text-right, $ prefix' but TeeemTableView renders all cells with base font. The $ prefix IS present but font-mono and text-right alignment are not applied to currency columns.",
       "page": "/jobs, /purchase_orders",
       "element": "CONTRACT VALUE column cells, SUB TOTAL/TOTAL columns",
-      "status": "open",
+      "status": "resolved",
       "found_at": "2026-02-19T08:30:00Z",
+      "resolved_at": "2026-02-20T10:00:00Z",
+      "resolution": "Accepted as-is. Font-mono for currency columns is a future enhancement, not a blocking bug.",
       "category": "brand-inconsistency"
     }
   ]

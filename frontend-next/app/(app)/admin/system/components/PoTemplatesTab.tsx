@@ -43,7 +43,25 @@ import {
   type BOQGroup,
   type BOQSavePayload,
 } from "@/components/ui/bill-of-quantities";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { formatCurrency } from "@/utils/formatters";
+
+// Lookup types for inline editing
+interface SmMasterRow {
+  id: number;
+  name: string;
+}
+
+interface SupplierOption {
+  id: number;
+  displayName: string;
+}
+
+interface ProfitCentreOption {
+  id: number;
+  code: string;
+  name: string;
+}
 
 // Types matching backend JSON response
 interface TemplateLineItem {
@@ -108,6 +126,42 @@ export function PoTemplatesTab() {
   const [editDescription, setEditDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Lookup data for inline editing of template items
+  const [smMasterRows, setSmMasterRows] = useState<SmMasterRow[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
+  const [profitCentres, setProfitCentres] = useState<ProfitCentreOption[]>([]);
+  const [lookupsLoaded, setLookupsLoaded] = useState(false);
+
+  // Load lookup data once (on first pack expand)
+  const loadLookups = useCallback(async () => {
+    if (lookupsLoaded) return;
+    try {
+      const [smRes, contactsRes, pcRes] = await Promise.all([
+        api.get<{ success: boolean; data: { records: Array<{ id: number; name: string }> } }>(
+          "/api/v1/foundations/sm-schedule-master/records?per_page=500"
+        ),
+        api.get<{ success: boolean; data: Array<{ id: number; display_name: string }> }>(
+          "/api/v1/contacts?per_page=500&type=suppliers"
+        ),
+        api.get<{ success: boolean; data: Array<{ id: number; code: string; name: string }> }>(
+          "/api/v1/profit_centres"
+        ),
+      ]);
+      setSmMasterRows(
+        (smRes?.data?.records || []).map((r) => ({ id: r.id, name: r.name }))
+      );
+      setSuppliers(
+        (contactsRes?.data || []).map((c) => ({ id: c.id, displayName: c.display_name }))
+      );
+      setProfitCentres(
+        (pcRes?.data || []).map((pc: { id: number; code: string; name: string }) => ({ id: pc.id, code: pc.code, name: pc.name }))
+      );
+      setLookupsLoaded(true);
+    } catch (err) {
+      console.error("Failed to load lookups:", err);
+    }
+  }, [lookupsLoaded]);
+
   const loadPacks = useCallback(async () => {
     try {
       setLoading(true);
@@ -144,6 +198,26 @@ export function PoTemplatesTab() {
     }
   }, []);
 
+  // Update a single template item field via PATCH
+  const handleUpdateItem = useCallback(
+    async (packId: number, itemId: number, field: string, value: number | null) => {
+      try {
+        await api.patch(`/api/v1/po_template_packs/${packId}`, {
+          po_template_pack: {
+            po_template_items_attributes: [{ id: itemId, [field]: value }],
+          },
+        });
+        // Reload to get fresh data with resolved names
+        await loadPackDetails(packId);
+        toast.success("Template item updated");
+      } catch (err) {
+        console.error("Failed to update item:", err);
+        toast.error("Failed to update template item");
+      }
+    },
+    [loadPackDetails]
+  );
+
   // Load details when switching to BOQ tab or selecting a pack
   useEffect(() => {
     if (subTab === "boq" && selectedPackId) {
@@ -163,6 +237,7 @@ export function PoTemplatesTab() {
       setExpandedPack(packId);
       setExpandedItem(null);
       loadPackDetails(packId);
+      loadLookups();
     }
   };
 
@@ -430,6 +505,10 @@ export function PoTemplatesTab() {
               setEditDescription("");
               setShowEditDialog(true);
             }}
+            smMasterRows={smMasterRows}
+            suppliers={suppliers}
+            profitCentres={profitCentres}
+            onUpdateItem={handleUpdateItem}
           />
         </TabsContent>
 
@@ -522,6 +601,10 @@ function TemplatesView({
   onDelete,
   onOpenBoq,
   onNewPack,
+  smMasterRows,
+  suppliers,
+  profitCentres,
+  onUpdateItem,
 }: {
   packs: TemplatePack[];
   expandedPack: number | null;
@@ -533,7 +616,12 @@ function TemplatesView({
   onDelete: (id: number) => void;
   onOpenBoq: (id: number) => void;
   onNewPack: () => void;
+  smMasterRows: SmMasterRow[];
+  suppliers: SupplierOption[];
+  profitCentres: ProfitCentreOption[];
+  onUpdateItem: (packId: number, itemId: number, field: string, value: number | null) => Promise<void>;
 }) {
+  const [editingCell, setEditingCell] = useState<string | null>(null);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -647,6 +735,7 @@ function TemplatesView({
                           <TableHead>PO Name</TableHead>
                           <TableHead>SM Task</TableHead>
                           <TableHead>Supplier</TableHead>
+                          <TableHead>PC</TableHead>
                           <TableHead className="text-right">Lines</TableHead>
                           <TableHead className="text-right">Total</TableHead>
                         </TableRow>
@@ -656,37 +745,131 @@ function TemplatesView({
                           <React.Fragment key={item.id}>
                             <TableRow
                               className="cursor-pointer hover:bg-muted/50"
-                              onClick={() => onExpandItem(item.id)}
                             >
-                              <TableCell className="text-muted-foreground text-xs">
+                              <TableCell className="text-muted-foreground text-xs" onClick={() => onExpandItem(item.id)}>
                                 {idx + 1}
                               </TableCell>
-                              <TableCell className="font-medium text-sm">
+                              <TableCell className="font-medium text-sm" onClick={() => onExpandItem(item.id)}>
                                 {item.name}
                               </TableCell>
-                              <TableCell className="text-sm text-muted-foreground">
-                                {item.smScheduleMasterName || (
-                                  <span className="italic">No task link</span>
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `task-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={smMasterRows.map((r) => ({
+                                      id: String(r.id),
+                                      label: r.name,
+                                    }))}
+                                    selectedItem={item.smScheduleMasterId ? {
+                                      id: String(item.smScheduleMasterId),
+                                      label: item.smScheduleMasterName || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "sm_schedule_master_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "sm_schedule_master_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select SM task..."
+                                    searchPlaceholder="Search tasks..."
+                                    emptyResults="No tasks found"
+                                    className="w-[200px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`task-${item.id}`)}
+                                  >
+                                    {item.smScheduleMasterName || (
+                                      <span className="italic text-muted-foreground">Click to link task</span>
+                                    )}
+                                  </button>
                                 )}
                               </TableCell>
-                              <TableCell className="text-sm">
-                                {item.supplierName ||
-                                  item.supplierSyncKey || (
-                                    <span className="text-muted-foreground italic">
-                                      No supplier
-                                    </span>
-                                  )}
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `supplier-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={suppliers.map((s) => ({
+                                      id: String(s.id),
+                                      label: s.displayName,
+                                    }))}
+                                    selectedItem={item.supplierId ? {
+                                      id: String(item.supplierId),
+                                      label: item.supplierName || item.supplierSyncKey || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "supplier_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "supplier_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select supplier..."
+                                    searchPlaceholder="Search suppliers..."
+                                    emptyResults="No suppliers found"
+                                    className="w-[200px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`supplier-${item.id}`)}
+                                  >
+                                    {item.supplierName || item.supplierSyncKey || (
+                                      <span className="italic text-muted-foreground">Click to set</span>
+                                    )}
+                                  </button>
+                                )}
                               </TableCell>
-                              <TableCell className="text-right text-sm">
+                              <TableCell className="text-sm p-1" onClick={(e) => e.stopPropagation()}>
+                                {editingCell === `pc-${item.id}` ? (
+                                  <ComboboxDropdown
+                                    items={profitCentres.map((pc) => ({
+                                      id: String(pc.id),
+                                      label: pc.code || pc.name,
+                                    }))}
+                                    selectedItem={item.profitCentreId ? {
+                                      id: String(item.profitCentreId),
+                                      label: item.profitCentreName || "",
+                                    } : undefined}
+                                    onSelect={async (selected) => {
+                                      await onUpdateItem(pack.id, item.id, "profit_centre_id", Number(selected.id));
+                                      setEditingCell(null);
+                                    }}
+                                    onClear={async () => {
+                                      await onUpdateItem(pack.id, item.id, "profit_centre_id", null);
+                                      setEditingCell(null);
+                                    }}
+                                    placeholder="Select PC..."
+                                    searchPlaceholder="Search..."
+                                    emptyResults="No profit centres"
+                                    className="w-[140px]"
+                                    clearable
+                                  />
+                                ) : (
+                                  <button
+                                    className="text-left w-full px-2 py-1 rounded hover:bg-muted/80 transition-colors"
+                                    onClick={() => setEditingCell(`pc-${item.id}`)}
+                                  >
+                                    {item.profitCentreName || (
+                                      <span className="italic text-muted-foreground">—</span>
+                                    )}
+                                  </button>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right text-sm" onClick={() => onExpandItem(item.id)}>
                                 {item.lineItemCount}
                               </TableCell>
-                              <TableCell className="text-right text-sm font-mono">
+                              <TableCell className="text-right text-sm font-mono" onClick={() => onExpandItem(item.id)}>
                                 {formatCurrency(item.lineItemTotal)}
                               </TableCell>
                             </TableRow>
                             {expandedItem === item.id && item.lineItems && (
                               <TableRow>
-                                <TableCell colSpan={6} className="bg-muted/30 p-0">
+                                <TableCell colSpan={7} className="bg-muted/30 p-0">
                                   <div className="px-8 py-2">
                                     <table className="w-full text-xs">
                                       <thead>

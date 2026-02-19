@@ -30,7 +30,7 @@ class ContactMatcher
   def initialize(teeem_tenant_id, xero_org_id: nil)
     @teeem_tenant_id = teeem_tenant_id
     @xero_org_id = xero_org_id
-    @stats = { linked: 0, abn: 0, email: 0, fuzzy: 0, not_found: 0 }
+    @stats = { linked: 0, abn: 0, email: 0, exact_name: 0, fuzzy: 0, not_found: 0 }
     build_indices
   end
 
@@ -66,7 +66,16 @@ class ContactMatcher
                             .pluck('LOWER(contact_emails.email)', :contact_id)
                             .to_h
 
-    Rails.logger.info("[ContactMatcher] Built indices: #{@by_external_id.size} links, #{@by_abn.size} ABNs, #{@by_email.size} emails")
+    # Index by normalized display_name (lowercase, trimmed, collapsed whitespace)
+    # FRC (Feb 2026): Catches case-only differences like "Howard Smith Wharves" vs "howard smith wharves"
+    @by_name = scope.where.not(display_name: [nil, ''])
+                    .pluck(:id, :display_name)
+                    .each_with_object({}) do |(id, name), hash|
+      normalized = name.downcase.gsub(/\s+/, ' ').strip
+      hash[normalized] ||= id  # Keep first match (oldest contact)
+    end
+
+    Rails.logger.info("[ContactMatcher] Built indices: #{@by_external_id.size} links, #{@by_abn.size} ABNs, #{@by_email.size} emails, #{@by_name.size} names")
   end
 
   # Find matching TEEEM contact for a Xero contact
@@ -116,7 +125,26 @@ class ContactMatcher
       end
     end
 
-    # Priority 4: Fuzzy name match (PostgreSQL trigram - indexed O(log n))
+    # Priority 4: Exact case-insensitive name match (O(1))
+    # FRC (Feb 2026): Catches case-only differences like "Howard Smith Wharves" vs "howard smith wharves"
+    # from different Xero orgs. No entity_type filter - any active contact matches.
+    if name = xero_contact['Name']&.strip
+      if name.present?
+        normalized_name = name.downcase.gsub(/\s+/, ' ').strip
+        if contact_id = @by_name[normalized_name]
+          @stats[:exact_name] += 1
+          return {
+            found: true,
+            contact_id: contact_id,
+            match_type: :exact_name,
+            needs_review: false,
+            match_confidence: 1.0
+          }
+        end
+      end
+    end
+
+    # Priority 5: Fuzzy name match (PostgreSQL trigram - indexed O(log n))
     if name = xero_contact['Name']&.strip
       if name.present? && name.length >= 3
         match = fuzzy_name_match(name)

@@ -73,7 +73,46 @@ module Api
         service = PoTemplateApplyService.new(@pack, job)
         result = service.preview
 
-        render json: { success: true, data: result }
+        # Convert to camelCase for frontend (service returns snake_case)
+        render json: {
+          success: true,
+          data: {
+            packName: result[:pack_name],
+            jobName: result[:job_name],
+            totalPos: result[:total_pos],
+            estimatedTotal: result[:estimated_total],
+            tasksMatched: result[:tasks_matched],
+            tasksUnmatched: result[:tasks_unmatched],
+            tasksWillCreate: result[:tasks_will_create],
+            suppliersMatched: result[:suppliers_matched],
+            suppliersUnmatched: result[:suppliers_unmatched],
+            warnings: result[:warnings],
+            items: result[:items].map { |item|
+              {
+                name: item[:name],
+                smScheduleMasterName: item[:sm_schedule_master_name],
+                supplierName: item[:supplier_name],
+                supplierMatched: item[:supplier_matched],
+                taskName: item[:task_name],
+                taskMatched: item[:task_matched],
+                taskWillCreate: item[:task_will_create],
+                lineItemCount: item[:line_item_count],
+                estimatedTotal: item[:estimated_total],
+                profitCentreName: item[:profit_centre_name],
+                lineItems: item[:line_items]&.map { |li|
+                  {
+                    description: li[:description],
+                    quantity: li[:quantity],
+                    unitPrice: li[:unit_price],
+                    gstCode: li[:gst_code],
+                    subtotal: li[:subtotal],
+                    priceSource: li[:price_source]
+                  }
+                }
+              }
+            }
+          }
+        }
       end
 
       # POST /api/v1/po_template_packs/:id/duplicate

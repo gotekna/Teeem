@@ -458,7 +458,29 @@ class XeroContactSyncService
       end
     end
 
-    # Priority 3: Fuzzy name match (requires review)
+    # Priority 3: Exact case-insensitive name match (100% confidence, auto-link)
+    # FRC (Feb 2026): Fuzzy matching filters by entity_type which can miss valid matches.
+    # "Howard Smith Wharves" vs "howard smith wharves" from different Xero orgs were not
+    # matched because the name doesn't contain company keywords (pty, ltd, etc.).
+    # This exact name match has NO entity_type filter - catches all case/whitespace differences.
+    if xero_name.present?
+      normalized_xero_name = xero_name.downcase.gsub(/\s+/, ' ').strip
+      existing_contact = Contact.where(is_active: true)
+        .where.not(entity_type: 'price_only')
+        .where("LOWER(TRIM(REGEXP_REPLACE(display_name, '\\s+', ' ', 'g'))) = ?", normalized_xero_name)
+        .first
+      if existing_contact
+        Rails.logger.info("Cross-tenant match by exact name: #{xero_name} -> #{existing_contact.display_name}")
+        return {
+          contact: existing_contact,
+          match_type: "exact_name",
+          match_confidence: 1.0,
+          needs_review: false
+        }
+      end
+    end
+
+    # Priority 4: Fuzzy name match (requires review for <95% confidence)
     if xero_name.present?
       # Include companies, trusts, sole traders AND contacts with no entity_type
       # Also include any contact whose name looks like a company (contains Pty, Ltd, etc.)
