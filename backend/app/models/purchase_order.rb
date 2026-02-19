@@ -81,6 +81,15 @@ class PurchaseOrder < ApplicationRecord
     cc ? "#{cc.code} - #{cc.name}" : nil
   end
 
+  def profit_centre_from_line_items
+    # Derive PO-level profit centre from line items
+    # If all line items share the same profit centre, use that; otherwise first non-nil
+    pc_ids = line_items.filter_map(&:profit_centre_id).uniq
+    return nil if pc_ids.empty?
+    pc = ProfitCentre.find_by(id: pc_ids.first)
+    pc ? "#{pc.code} - #{pc.name}" : nil
+  end
+
   has_many :purchase_order_documents, dependent: :destroy
   has_many :document_tasks, through: :purchase_order_documents
   has_many :kudos_events, dependent: :destroy
@@ -520,6 +529,7 @@ class PurchaseOrder < ApplicationRecord
       'stage_from_task' => stage_from_task,
       'trade_from_task' => trade_from_task,
       'cost_centre_from_task' => cost_centre_from_task,
+      'profit_centre_from_line_items' => profit_centre_from_line_items,
       # Budget lockdown info
       'budget_locked' => budget_locked?,
       'budget_locked_by_name' => budget_locked_by&.name,

@@ -12,7 +12,7 @@ import { useFoundationViewState } from "@/lib/view-state";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import type { BOQGroup } from "@/components/ui/bill-of-quantities";
 
-type GroupMode = "flat" | "supplier" | "stage" | "trade" | "cost_centre";
+type GroupMode = "flat" | "supplier" | "stage" | "trade" | "cost_centre" | "profit_centre";
 
 const GROUP_MODE_CONFIG: Record<GroupMode, { label: string; columns: string[] }> = {
   flat: { label: "PO / Task", columns: [] },
@@ -20,6 +20,7 @@ const GROUP_MODE_CONFIG: Record<GroupMode, { label: string; columns: string[] }>
   stage: { label: "Stage", columns: ["stage_from_task"] },
   trade: { label: "Trade", columns: ["trade_from_task"] },
   cost_centre: { label: "Cost Centre", columns: ["cost_centre_from_task"] },
+  profit_centre: { label: "Profit Centre", columns: ["profit_centre_from_line_items"] },
 };
 
 interface BOQSummary {
@@ -96,10 +97,15 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
     [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
     [groups]
   );
+  const uniqueProfitCentres = useMemo(() =>
+    [...new Set(groups.map((g) => g.profitCentreName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
 
   const hasStages = uniqueStages.length > 0;
   const hasTrades = uniqueTrades.length > 0;
   const hasCostCentres = uniqueCostCentres.length > 0;
+  const hasProfitCentres = uniqueProfitCentres.length > 0;
   const hasActiveFilters = selectedStages.size > 0 || selectedTrades.size > 0 || selectedCostCentres.size > 0;
 
   // Toggle filter helper
@@ -183,11 +189,6 @@ export function POSummaryToolbar({ jobId }: POSummaryToolbarProps) {
         <span className="text-xs text-muted-foreground whitespace-nowrap">Group:</span>
         <div className="flex items-center rounded-md border border-input bg-background">
           {(Object.keys(GROUP_MODE_CONFIG) as GroupMode[]).map((mode, idx) => {
-            // Hide toggles if no data for that dimension
-            if (mode === "stage" && !hasStages) return null;
-            if (mode === "trade" && !hasTrades) return null;
-            if (mode === "cost_centre" && !hasCostCentres) return null;
-
             return (
               <button
                 key={mode}

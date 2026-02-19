@@ -156,10 +156,39 @@ module Api
         render json: { success: true, data: pack_json(new_pack.reload, include_line_items: true) }, status: :created
       end
 
+      # GET /api/v1/po_template_packs/preview_from_job
+      def preview_from_job
+        job = Job.find(params[:job_id])
+        pos = PurchaseOrder.where(job_id: job.id).where.not(status: "cancelled").includes(sm_task: :sm_schedule_master)
+
+        # Detect SM template (same logic as create_from_job)
+        template_id_counts = Hash.new(0)
+        pos.each do |po|
+          sm_row = po.sm_task&.sm_schedule_master
+          next unless sm_row
+          (sm_row.sm_template_ids || []).each { |tid| template_id_counts[tid] += 1 }
+        end
+
+        template_name = nil
+        if template_id_counts.any?
+          best_id = template_id_counts.max_by { |_, count| count }&.first
+          template_name = SmScheduleMasterTemplate.find_by(id: best_id)&.name if best_id
+        end
+
+        render json: {
+          success: true,
+          data: {
+            poCount: pos.count,
+            smTemplateName: template_name
+          }
+        }
+      end
+
       # POST /api/v1/po_template_packs/create_from_job
       def create_from_job
         job = Job.find(params[:job_id])
         name = params[:name] || "Template from #{job.job_code}"
+        include_suppliers = params[:include_suppliers] != false && params[:include_suppliers] != "false"
 
         pack = nil
         ActiveRecord::Base.transaction do
@@ -170,18 +199,79 @@ module Api
           )
 
           pos = PurchaseOrder.where(job_id: job.id)
+            .where.not(status: "cancelled")
             .includes(:supplier, sm_task: :sm_schedule_master)
-            .includes(:line_items)
+            .includes(line_items: [{ pricebook_item: :pricebook_category }, :profit_centre])
 
           # Sort by SM sequence_order so position reflects Schedule Master order
           sorted_pos = pos.sort_by { |po| po.sm_task&.sm_schedule_master&.sequence_order || Float::INFINITY }
 
+          # Auto-detect SM template from job's SM rows (pick most common template)
+          template_id_counts = Hash.new(0)
+          sorted_pos.each do |po|
+            sm_row = po.sm_task&.sm_schedule_master
+            next unless sm_row
+            (sm_row.sm_template_ids || []).each { |tid| template_id_counts[tid] += 1 }
+          end
+          if template_id_counts.any?
+            best_template_id = template_id_counts.max_by { |_tid, count| count }&.first
+            pack.update!(sm_schedule_master_template_id: best_template_id) if best_template_id
+          end
+
+          # When not including real suppliers, resolve price_only contacts
+          # No fallback — blank is better than wrong:
+          #   1. Supplier is already price_only → keep it
+          #   2. Line items have pricebook links → category name → price_only contact
+          #   3. Otherwise → nil (user sets manually)
+          price_only_by_name = {}
+          unless include_suppliers
+            price_only_by_name = Contact.where(entity_type: "price_only")
+              .index_by(&:display_name)
+          end
+
           sorted_pos.each_with_index do |po, idx|
+            # Determine profit centre from line items (most common across lines)
+            pc_counts = Hash.new(0)
+            po.line_items.each { |li| pc_counts[li.profit_centre_id] += 1 if li.profit_centre_id }
+            most_common_pc_id = pc_counts.any? ? pc_counts.max_by { |_id, c| c }.first : nil
+
+            # Resolve supplier
+            if include_suppliers
+              template_supplier_id = po.supplier_id
+              template_supplier_name = po.supplier&.display_name
+            else
+              supplier = po.supplier
+              if supplier&.entity_type == "price_only"
+                # Already a price_only contact — keep it
+                template_supplier_id = supplier.id
+                template_supplier_name = supplier.display_name
+              else
+                # Line items → pricebook category → price_only contact
+                # No match = blank (fail fast, no guessing)
+                price_only_contact = nil
+                cat_counts = Hash.new(0)
+                po.line_items.each do |li|
+                  next unless li.pricebook_item_id
+                  cat = li.pricebook_item&.pricebook_category
+                  cat_contact = cat ? price_only_by_name[cat.name] : nil
+                  cat_counts[cat_contact] += 1 if cat_contact
+                end
+                price_only_contact = cat_counts.any? ? cat_counts.max_by { |_, c| c }.first : nil
+
+                template_supplier_id = price_only_contact&.id
+                template_supplier_name = price_only_contact&.display_name
+              end
+            end
+
+            item_name = po.sm_task&.name || po.description || "PO #{po.purchase_order_number}"
             item = pack.po_template_items.create!(
-              name: po.sm_task&.name || po.description || "PO #{po.purchase_order_number}",
+              name: item_name,
+              # Scope sync_key to pack + position so items never collide
+              sync_key: PoTemplateItem.build_sync_key("pack-#{pack.id}-#{idx}", item_name),
               sm_schedule_master_id: po.sm_task&.sm_schedule_master_id,
-              supplier_id: po.supplier_id,
-              supplier_sync_key: po.supplier&.display_name,
+              supplier_id: template_supplier_id,
+              supplier_sync_key: template_supplier_name,
+              profit_centre_id: most_common_pc_id,
               position: idx,
               budget: po.budget,
               notes: po.description,

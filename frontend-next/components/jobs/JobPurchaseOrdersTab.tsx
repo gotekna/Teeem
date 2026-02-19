@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -25,6 +24,7 @@ import {
   FileStack,
   Calendar,
   CheckCircle2,
+  BookmarkPlus,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -37,6 +37,7 @@ import { selectedRowsAtom, clearSelectionAtom } from "@/lib/table-atoms";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { INTERNAL_ROLES } from "@/lib/constants/job-roles";
 import { POSummaryToolbar } from "@/components/jobs/POSummaryToolbar";
+import { usePOInvoiceModal } from "@/hooks/use-po-invoice-modal";
 import type { Contact as BaseContact, User } from '@/lib/types';
 
 // Local Role interface for combobox usage
@@ -85,8 +86,8 @@ interface JobPurchaseOrdersTabProps {
 }
 
 export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabProps) {
-  const router = useRouter();
   const { user: currentUser } = useAuth();
+  const { open: openPOInvoice } = usePOInvoiceModal();
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Selection state from Jotai atoms (shared with TeeemTableView)
@@ -108,6 +109,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [applyingTemplate, setApplyingTemplate] = useState(false);
 
+  // Save as Template state
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [saveTemplateName, setSaveTemplateName] = useState("");
+  const [saveIncludeSuppliers, setSaveIncludeSuppliers] = useState(true);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [saveTemplateSuccess, setSaveTemplateSuccess] = useState<string | null>(null);
+  const [saveTemplatePreview, setSaveTemplatePreview] = useState<{ poCount: number; smTemplateName: string | null } | null>(null);
+  const [loadingSavePreview, setLoadingSavePreview] = useState(false);
+
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -127,14 +137,14 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
   const [assignedUserId, setAssignedUserId] = useState<string>("");
   const [assignedRole, setAssignedRole] = useState<string>("");
 
-  // Handle row click - navigate to PO detail page
+  // Handle row click - open PO in Sheet (instant, no page navigation)
   const handleRowClick = useCallback((row: TableRow) => {
     const poNumber = row.purchase_order_number as string | undefined;
     const slug = poNumber?.replace('PO-', '') || row.id;
     if (slug) {
-      router.push(`/purchase_orders/${slug}`);
+      openPOInvoice(slug, poNumber);
     }
-  }, [router]);
+  }, [openPOInvoice]);
 
   // Handle inline row update - use slug-based API
   const handleRowUpdate = useCallback(async (rowId: number | string, field: string, value: unknown) => {
@@ -321,6 +331,54 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
     }
   };
 
+  // Save as Template handlers
+  const handleOpenSaveTemplate = async () => {
+    setSaveTemplateName(`Template from ${jobTitle || "Job"}`);
+    setSaveIncludeSuppliers(true);
+    setSavingTemplate(false);
+    setSaveTemplateSuccess(null);
+    setSaveTemplatePreview(null);
+    setShowSaveTemplateModal(true);
+    // Fetch preview (PO count + detected SM template)
+    try {
+      setLoadingSavePreview(true);
+      const response = await api.get<{ success: boolean; data: { poCount: number; smTemplateName: string | null } }>(
+        `/api/v1/po_template_packs/preview_from_job?job_id=${jobId}`
+      );
+      setSaveTemplatePreview(response?.data || null);
+    } catch (err) {
+      console.error("Failed to load save template preview:", err);
+    } finally {
+      setLoadingSavePreview(false);
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!saveTemplateName.trim()) return;
+    try {
+      setSavingTemplate(true);
+      setSaveTemplateSuccess(null);
+      const response = await api.post<{ success: boolean; message: string }>(
+        "/api/v1/po_template_packs/create_from_job",
+        {
+          job_id: jobId,
+          name: saveTemplateName.trim(),
+          include_suppliers: saveIncludeSuppliers,
+        }
+      );
+      setSaveTemplateSuccess(response?.message || "Template saved successfully");
+      // Auto-close after brief delay
+      setTimeout(() => {
+        setShowSaveTemplateModal(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to save as template:", err);
+      setError("Failed to save as template");
+    } finally {
+      setSavingTemplate(false);
+    }
+  };
+
   const handleOpenCreateModal = async () => {
     setError(null);
     setSelectedContact(null);
@@ -370,11 +428,11 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
       setShowCreateModal(false);
       setRefreshKey(k => k + 1);
 
-      // Navigate to PO detail page if requested
+      // Open PO in Sheet if requested (instant, no page navigation)
       if (openAfterCreate && response?.purchase_order) {
         const poNumber = response.purchase_order.purchase_order_number;
         const slug = poNumber?.replace('PO-', '') || response.purchase_order.id;
-        router.push(`/purchase_orders/${slug}`);
+        openPOInvoice(slug, poNumber);
       }
     } catch (err) {
       console.error("Failed to create purchase order:", err);
@@ -463,6 +521,15 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
             >
               <FileStack className="h-4 w-4" />
               Apply Template
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleOpenSaveTemplate}
+              className="gap-1"
+            >
+              <BookmarkPlus className="h-4 w-4" />
+              Save as Template
             </Button>
             <Button
               variant="outline"
@@ -967,6 +1034,107 @@ export function JobPurchaseOrdersTab({ jobId, jobTitle }: JobPurchaseOrdersTabPr
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save as Template Modal */}
+      <Dialog open={showSaveTemplateModal} onOpenChange={setShowSaveTemplateModal}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Save as PO Template</DialogTitle>
+            <DialogDescription>
+              Create a reusable template from this job&apos;s purchase orders.
+            </DialogDescription>
+          </DialogHeader>
+
+          {saveTemplateSuccess ? (
+            <div className="flex items-center gap-2 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3">
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <p className="text-sm text-green-700 dark:text-green-400">{saveTemplateSuccess}</p>
+            </div>
+          ) : (
+            <>
+              {/* Preview summary */}
+              {loadingSavePreview ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Spinner size={14} />
+                  <span className="text-sm text-muted-foreground">Loading preview...</span>
+                </div>
+              ) : saveTemplatePreview && (
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center rounded-md bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+                    {saveTemplatePreview.poCount} POs
+                  </span>
+                  {saveTemplatePreview.smTemplateName && (
+                    <span className="inline-flex items-center rounded-md bg-blue-100 dark:bg-blue-900/30 px-2.5 py-1 text-xs font-medium text-blue-700 dark:text-blue-400">
+                      {saveTemplatePreview.smTemplateName}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <Label htmlFor="template-name">Template Name</Label>
+                  <div className="relative">
+                    <Input
+                      id="template-name"
+                      value={saveTemplateName}
+                      onChange={(e) => setSaveTemplateName(e.target.value)}
+                      placeholder="Enter template name..."
+                      autoFocus
+                      className="pr-8"
+                    />
+                    {saveTemplateName && (
+                      <button
+                        type="button"
+                        onClick={() => setSaveTemplateName("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={saveIncludeSuppliers}
+                    onChange={(e) => setSaveIncludeSuppliers(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <div>
+                    <span className="text-sm font-medium">Include Suppliers</span>
+                    <p className="text-xs text-muted-foreground">
+                      {saveIncludeSuppliers
+                        ? "Each PO keeps its assigned supplier contact (e.g. TL Electrical Pty Ltd)"
+                        : "Price only — uses pricebook category contacts instead (e.g. ELECTRICAL)"}
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowSaveTemplateModal(false)} disabled={savingTemplate}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveTemplate} disabled={savingTemplate || !saveTemplateName.trim()}>
+                  {savingTemplate ? (
+                    <>
+                      <Spinner size={16} className="mr-2" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <BookmarkPlus className="h-4 w-4 mr-2" />
+                      Save Template
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

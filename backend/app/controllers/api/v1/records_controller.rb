@@ -1601,6 +1601,11 @@ module Api
           associations << { job_contacts: :contact }
         end
 
+        # PurchaseOrder: Need line_items with profit_centre for profit_centre_from_line_items virtual column
+        if model == PurchaseOrder
+          associations << { line_items: :profit_centre }
+        end
+
         # Apply eager loading if we found associations
         if associations.any?
           query.includes(*associations)

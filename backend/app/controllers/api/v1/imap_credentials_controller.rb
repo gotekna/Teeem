@@ -605,6 +605,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
     else
       render_error(result.error || "Failed to send email", status: :unprocessable_entity)
     end
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    render_error("Cannot decrypt email credentials. If using a database from a different environment, the encryption keys don't match.", status: :unprocessable_entity)
   rescue => e
     render_error("Failed to send email: #{e.message}", status: :unprocessable_entity)
   end
@@ -641,6 +643,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
     else
       render_error(result.error || "Failed to schedule email", status: :unprocessable_entity)
     end
+  rescue ActiveRecord::Encryption::Errors::Decryption => e
+    render_error("Cannot decrypt email credentials. If using a database from a different environment, the encryption keys don't match.", status: :unprocessable_entity)
   rescue => e
     render_error("Failed to schedule email: #{e.message}", status: :unprocessable_entity)
   end

@@ -769,7 +769,7 @@ module Api
       def boq
         purchase_orders = @job.purchase_orders
                               .where.not(status: "cancelled")
-                              .includes(:supplier, line_items: :pricebook_item,
+                              .includes(:supplier, line_items: [:pricebook_item, :profit_centre],
                                         sm_task: :sm_schedule_master)
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
@@ -851,6 +851,7 @@ module Api
                   stageName: nil,
                   stagePosition: nil,
                   costCentreName: cc_name,
+                  profitCentreName: nil,
                   items: items
                 }
               end
@@ -866,6 +867,7 @@ module Api
                 stageName: nil,
                 stagePosition: nil,
                 costCentreName: cc_name,
+                profitCentreName: nil,
                 items: [{
                   id: "budget-#{budget.id}",
                   description: "Budget allocation",
@@ -899,10 +901,11 @@ module Api
                 supplierId: po.supplier_id,
                 supplierName: po.supplier&.display_name,
                 taskName: po.sm_task&.name || po.description,
-                tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
-                stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+                tradeName: po.trade_from_task,
+                stageName: po.stage_from_task,
                 stagePosition: sm&.sequence_order,
                 costCentreName: po.cost_centre_from_task,
+                profitCentreName: po.profit_centre_from_line_items,
                 items: items
               }
             end
@@ -919,10 +922,11 @@ module Api
               supplierId: po.supplier_id,
               supplierName: po.supplier&.display_name,
               taskName: po.sm_task&.name || po.description,
-              tradeName: sm&.trade.is_a?(String) ? sm.trade : nil,
-              stageName: sm&.stage.is_a?(String) ? sm.stage : nil,
+              tradeName: po.trade_from_task,
+              stageName: po.stage_from_task,
               stagePosition: sm&.sequence_order,
               costCentreName: po.cost_centre_from_task,
+              profitCentreName: po.profit_centre_from_line_items,
               items: po.line_items.sort_by(&:line_number).map do |item|
                 {
                   id: item.id,
@@ -966,6 +970,7 @@ module Api
               stageName: nil,
               stagePosition: nil,
               costCentreName: nil,
+              profitCentreName: nil,
               items: unmatched_items
             }
           end

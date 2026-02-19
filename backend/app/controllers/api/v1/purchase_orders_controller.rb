@@ -1063,9 +1063,12 @@ module Api
 
       def set_purchase_order
         @purchase_order = PurchaseOrder.includes(
-          { line_items: { pricebook_item: :default_supplier } },
+          { line_items: [:profit_centre, { pricebook_item: :default_supplier }] },
           :supplier,
-          :job
+          { job: { job_contacts: :user } },
+          :sm_tasks,
+          :document_tasks,
+          { sm_task: :sm_schedule_master }
         ).find_by_slug(params[:id])
         raise ActiveRecord::RecordNotFound unless @purchase_order
       end

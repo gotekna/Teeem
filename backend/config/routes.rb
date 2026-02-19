@@ -870,6 +870,7 @@ Rails.application.routes.draw do
       # PO Template Packs - template collections for stamping POs onto jobs
       resources :po_template_packs do
         collection do
+          get :preview_from_job
           post :create_from_job
         end
         member do
