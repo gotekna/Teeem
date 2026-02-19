@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { applyRounding, ROUNDING_OPTIONS, type RoundingMode } from "./PricebookBulkActions";
 
 interface Supplier {
   id: number;
@@ -85,6 +86,8 @@ export default function PriceComparisonSheet({
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
   const [selectedPriceOnlyContact, setSelectedPriceOnlyContact] = useState<Record<number, string>>({});
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [priceAdjustment, setPriceAdjustment] = useState<string>("");
+  const [roundingMode, setRoundingMode] = useState<RoundingMode>("none");
 
   // Fetch comparison data when sheet opens
   // Note: toast excluded from deps - it's a new reference every render and would cause infinite loop

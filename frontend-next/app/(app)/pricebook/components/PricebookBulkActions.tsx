@@ -28,7 +28,7 @@ interface PricebookBulkActionsProps {
   onRefresh: () => void;
 }
 
-type RoundingMode = "none" | "smart" | "0.10" | "0.50" | "1" | "5" | "10";
+export type RoundingMode = "none" | "smart" | "0.10" | "0.50" | "1" | "5" | "10";
 
 function formatCurrency(value: number | null | undefined): string {
   if (value == null) return "\u2014";
@@ -40,7 +40,7 @@ function getLocalDateString(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function applyRounding(price: number, mode: RoundingMode): number {
+export function applyRounding(price: number, mode: RoundingMode): number {
   if (mode === "none") return price;
   let increment: number;
   if (mode === "smart") {
@@ -54,7 +54,7 @@ function applyRounding(price: number, mode: RoundingMode): number {
   return Math.ceil(price / increment) * increment;
 }
 
-const ROUNDING_OPTIONS: { value: RoundingMode; label: string; description: string }[] = [
+export const ROUNDING_OPTIONS: { value: RoundingMode; label: string; description: string }[] = [
   { value: "none", label: "None", description: "No rounding" },
   { value: "smart", label: "Smart", description: "Auto: 10c / 50c / $1 / $10 based on price" },
   { value: "0.10", label: "$0.10", description: "Round up to nearest 10 cents" },

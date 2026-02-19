@@ -601,6 +601,7 @@ export default function TeeemTableView({
 }: TeeemTableViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { user } = useAuth();
 
   // Debug mode - add ?debug=grid to URL to show layout visualization
@@ -636,8 +637,10 @@ export default function TeeemTableView({
   // 1. URL views are from parent page or other tabs (would pollute this table's filter context)
   // 2. initialFilters defines the authoritative filter context for this table instance
   // 3. extraQueryParams (e.g., job_id) means cache is scoped differently than foundationId alone
+  // 4. Settings pages use tab-based URL routing - view segments would corrupt tab navigation
   // Used by: loadViewState (skip URL write), loadSavedViews (skip URL read), cache restoration (skip stale data)
-  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0) || !!extraQueryParams;
+  const isSettingsPage = pathname?.startsWith('/settings/') ?? false;
+  const isEmbeddedContext = !!(initialFilters && initialFilters.length > 0) || !!extraQueryParams || isSettingsPage;
 
   // ============================================================================
   // DEPRECATION WARNING: entries prop with Foundation-backed tables
@@ -1507,7 +1510,6 @@ export default function TeeemTableView({
   // This fixes bugs where:
   // 1. Search persists when switching between Financial sub-tabs (foundationId change)
   // 2. Search persists when navigating to a different contact (pathname change)
-  const pathname = usePathname();
   const prevFoundationIdRef = useRef(effectiveFoundationId);
   const prevPathnameRef = useRef(pathname);
   useEffect(() => {
