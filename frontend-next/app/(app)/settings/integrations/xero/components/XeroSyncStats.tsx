@@ -396,6 +396,9 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
   const [jobImportOpen, setJobImportOpen] = React.useState(false);
   const [databuildImportOpen, setDatabuildImportOpen] = React.useState(false);
 
+  // Track whether initial per-tenant PDF sync has been fetched
+  const hasFetchedPdfSyncRef = React.useRef(false);
+
   // Search/filter state for large tenant lists (Scale to 15k feature)
   const [searchQuery, setSearchQuery] = React.useState("");
   // Track expanded tenant cards for lazy-loading PDF details
@@ -437,15 +440,41 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
           globalBlobHealth = globalPdfResponse.data.blob_health;
         }
 
-        // Per-tenant PDF sync is now lazy-loaded only for expanded tenants
-        // This eliminates N API calls on every 30s poll cycle
+        // On first load, fetch per-tenant PDF sync in parallel for all tenants.
+        // On subsequent polls, preserve existing data (don't re-fetch every 30s).
+        // FRC (Feb 2026): Previously lazy-loaded only on expand, which caused
+        // Stage 2 to always show "0/total" until user clicked each card.
+        const isFirstFetch = !hasFetchedPdfSyncRef.current;
+        let perTenantPdfData: Record<string, { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats }> = {};
+
+        if (isFirstFetch && response.data.tenants.length > 0) {
+          hasFetchedPdfSyncRef.current = true;
+          const pdfResponses = await Promise.all(
+            response.data.tenants.map((tenant) =>
+              api.get<{ success: boolean; data: { pdf_sync?: TenantPdfSyncStats; data_sync?: TenantDataSyncStats } }>(
+                `/api/v1/xero/pdf_sync_status?tenant_id=${tenant.tenant_id}`
+              ).catch(() => null)
+            )
+          );
+          response.data.tenants.forEach((tenant, i) => {
+            const pdfRes = pdfResponses[i];
+            if (pdfRes?.success && pdfRes.data) {
+              perTenantPdfData[tenant.tenant_id] = {
+                pdf_sync: pdfRes.data.pdf_sync,
+                data_sync: pdfRes.data.data_sync,
+              };
+            }
+          });
+        }
+
         const enrichedTenants = response.data.tenants.map((tenant) => {
-          // Preserve existing pdf_sync/data_sync data from previous fetches
+          // On first load, use freshly-fetched data; on polls, preserve existing
           const existing = data?.tenants?.find((t) => t.tenant_id === tenant.tenant_id);
+          const freshPdf = perTenantPdfData[tenant.tenant_id];
           return {
             ...tenant,
-            pdf_sync: existing?.pdf_sync,
-            data_sync: existing?.data_sync,
+            pdf_sync: freshPdf?.pdf_sync ?? existing?.pdf_sync,
+            data_sync: freshPdf?.data_sync ?? existing?.data_sync,
           };
         });
 
@@ -480,6 +509,12 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
     const interval = setInterval(fetchData, POLLING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [fetchData, isActiveTab]);
+
+  // Manual refresh re-fetches per-tenant PDF sync data too
+  const handleManualRefresh = React.useCallback(() => {
+    hasFetchedPdfSyncRef.current = false;
+    fetchData();
+  }, [fetchData]);
 
   const handleSyncContacts = async () => {
     setSyncing("contacts");
@@ -668,7 +703,7 @@ export function XeroSyncStats({ isActiveTab = true }: XeroSyncStatsProps) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={fetchData}
+                onClick={handleManualRefresh}
                 disabled={loading}
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />

@@ -651,6 +651,7 @@ module Api
             itemName: item.item_name,
             currentPrice: item.current_price&.to_f,
             defaultSupplierId: item.default_supplier_id,
+            defaultSupplierName: item.default_supplier&.display_name,
             prices: prices,
             highestPrice: highest_entry ? highest_entry[:price] : nil,
             highestSupplierId: highest_supplier_id&.to_i

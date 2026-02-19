@@ -32,6 +32,7 @@ interface ComparisonItem {
   itemName: string;
   currentPrice: number | null;
   defaultSupplierId: number | null;
+  defaultSupplierName: string | null;
   prices: Record<string, SupplierPrice>;
   highestPrice: number | null;
   highestSupplierId: number | null;
@@ -73,6 +74,7 @@ export default function PriceComparisonSheet({
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
 
   // Fetch comparison data when sheet opens
+  // Note: toast excluded from deps - it's a new reference every render and would cause infinite loop
   useEffect(() => {
     if (!open || selectedIds.length === 0) return;
 
@@ -119,7 +121,8 @@ export default function PriceComparisonSheet({
     })();
 
     return () => { cancelled = true; };
-  }, [open, selectedIds, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedIds]);
 
   // Reset state when sheet closes
   useEffect(() => {
@@ -261,6 +264,9 @@ export default function PriceComparisonSheet({
                     <th className="text-right p-2 min-w-[100px] font-medium">
                       Current
                     </th>
+                    <th className="text-left p-2 min-w-[140px] font-medium">
+                      Default Supplier
+                    </th>
                     {suppliers.map(s => (
                       <th key={s.id} className="text-right p-2 min-w-[120px] font-medium">
                         {s.name}
@@ -295,6 +301,9 @@ export default function PriceComparisonSheet({
                         </td>
                         <td className="p-2 text-right text-muted-foreground">
                           {formatCurrency(item.currentPrice)}
+                        </td>
+                        <td className="p-2 text-left text-xs truncate max-w-[180px]" title={item.defaultSupplierName || "None"}>
+                          {item.defaultSupplierName || <span className="text-muted-foreground/40">&mdash;</span>}
                         </td>
                         {suppliers.map(s => {
                           const supplierPrice = item.prices[String(s.id)];
