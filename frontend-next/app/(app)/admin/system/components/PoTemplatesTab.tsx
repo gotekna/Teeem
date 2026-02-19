@@ -66,6 +66,8 @@ interface TemplateItem {
   tradeName: string | null;
   stageName: string | null;
   stagePosition: number | null;
+  profitCentreId: number | null;
+  profitCentreName: string | null;
   costCentreName: string | null;
   supplierId: number | null;
   supplierName: string | null;

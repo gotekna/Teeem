@@ -583,10 +583,20 @@ export function BillOfQuantities({
           <div className="flex items-center gap-1.5 ml-2">
             <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
             <div className="flex items-center rounded-md border border-input bg-background">
-              {/* PO/Task always active */}
-              <span className="px-2.5 py-1 text-xs bg-primary text-primary-foreground rounded-l-md">
+              <button
+                onClick={() => {
+                  setGroupSortBy(null);
+                  setExpandedSections(new Set());
+                }}
+                className={cn(
+                  "px-2.5 py-1 text-xs transition-colors rounded-l-md",
+                  groupSortBy === null
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+              >
                 PO / Task
-              </span>
+              </button>
               {(["supplier", "stage", "trade", "costCentre"] as GroupSortBy[]).map((dim) => {
                 if (dim === "stage" && !hasStages) return null;
                 if (dim === "trade" && !hasTrades) return null;

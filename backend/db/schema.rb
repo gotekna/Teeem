@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_19_210000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_19_230000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7403,7 +7403,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_210000) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "profit_centre_id"
     t.index ["po_template_pack_id"], name: "index_po_template_items_on_po_template_pack_id"
+    t.index ["profit_centre_id"], name: "index_po_template_items_on_profit_centre_id"
     t.index ["sm_schedule_master_id"], name: "index_po_template_items_on_sm_schedule_master_id"
     t.index ["supplier_id"], name: "index_po_template_items_on_supplier_id"
     t.index ["tenant_id", "sync_key"], name: "index_po_template_items_on_tenant_id_and_sync_key", unique: true, where: "(sync_key IS NOT NULL)"
@@ -7727,10 +7729,12 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_210000) do
     t.string "colour_code"
     t.string "spec_reference"
     t.bigint "profit_centre_id"
+    t.bigint "tenant_id"
     t.index ["pricebook_item_id"], name: "index_purchase_order_line_items_on_pricebook_item_id"
     t.index ["profit_centre_id"], name: "index_purchase_order_line_items_on_profit_centre_id"
     t.index ["purchase_order_id", "line_number"], name: "index_po_line_items_on_po_and_line_num"
     t.index ["purchase_order_id"], name: "index_purchase_order_line_items_on_purchase_order_id"
+    t.index ["tenant_id"], name: "index_purchase_order_line_items_on_tenant_id"
   end
 
   create_table "purchase_orders", force: :cascade do |t|
@@ -11810,6 +11814,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_210000) do
   add_foreign_key "plan_uploads", "jobs"
   add_foreign_key "plan_uploads", "users", column: "uploaded_by_id"
   add_foreign_key "po_template_items", "po_template_packs"
+  add_foreign_key "po_template_items", "profit_centres", on_delete: :nullify
   add_foreign_key "po_template_line_items", "po_template_items"
   add_foreign_key "polaris_credentials", "tenants", on_delete: :cascade
   add_foreign_key "portal_access_logs", "portal_users"
@@ -11839,6 +11844,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_19_210000) do
   add_foreign_key "purchase_order_line_items", "pricebooks", column: "pricebook_item_id"
   add_foreign_key "purchase_order_line_items", "profit_centres", on_delete: :nullify
   add_foreign_key "purchase_order_line_items", "purchase_orders"
+  add_foreign_key "purchase_order_line_items", "tenants"
   add_foreign_key "purchase_orders", "bill_inboxes", column: "last_bill_inbox_id"
   add_foreign_key "purchase_orders", "contacts", column: "supplier_id", name: "fk_rails_purchase_orders_contact"
   add_foreign_key "purchase_orders", "estimates"

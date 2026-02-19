@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/po_template_packs
       def index
         packs = PoTemplatePack.active.ordered
-          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master])
+          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre])
 
         render json: {
           success: true,
@@ -161,7 +161,9 @@ module Api
       private
 
       def set_pack
-        @pack = PoTemplatePack.find(params[:id])
+        @pack = PoTemplatePack
+          .includes(po_template_items: [:po_template_line_items, :sm_schedule_master, :profit_centre, :supplier])
+          .find(params[:id])
       end
 
       # SSoT: Trades lookup (ID => name) from Foundation SM Trades
@@ -210,7 +212,7 @@ module Api
           :name, :description, :is_active, :position,
           po_template_items_attributes: [
             :id, :name, :sm_schedule_master_id, :supplier_id, :supplier_sync_key,
-            :position, :budget, :notes, :status_on_create, :_destroy,
+            :profit_centre_id, :position, :budget, :notes, :status_on_create, :_destroy,
             po_template_line_items_attributes: [
               :id, :description, :quantity, :unit_price, :gst_code,
               :pricebook_item_id, :pricebook_item_code, :line_number, :_destroy
@@ -247,7 +249,9 @@ module Api
           tradeName: sm&.trade.present? ? trades_map[sm.trade.to_i] : nil,
           stageName: sm&.stage.present? ? stages_map[sm.stage.to_i] : nil,
           stagePosition: sm&.stage.present? ? stage_order_map[sm.stage.to_i] : nil,
-          costCentreName: sm&.cost_centre.present? ? cost_centres_map[sm.cost_centre] : nil,
+          profitCentreId: item.profit_centre_id,
+          profitCentreName: item.profit_centre&.name,
+          costCentreName: item.profit_centre&.name || (sm&.cost_centre.present? ? cost_centres_map[sm.cost_centre] : nil),
           supplierId: item.supplier_id,
           supplierName: item.supplier&.display_name,
           supplierSyncKey: item.supplier_sync_key,
