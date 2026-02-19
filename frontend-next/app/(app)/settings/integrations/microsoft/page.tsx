@@ -35,11 +35,14 @@ import {
   ChevronRight,
   ChevronsDownUp,
   UserPlus,
+  Paperclip,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { BackButton } from "@/components/ui/back-button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
@@ -279,9 +282,10 @@ export default function MicrosoftIntegrationPage() {
   const searchParams = useSearchParams();
 
   // SSoT: URL state for tab
-  const [urlState, setUrlState] = useUrlState({
-    tab: null as string | null,
-  });
+  // FRC (Feb 2026): Stable defaults object prevents useUrlState from recomputing
+  // state/setState on every render (inline objects create new references each time).
+  const urlDefaults = React.useMemo(() => ({ tab: null as string | null }), []);
+  const [urlState, setUrlState] = useUrlState(urlDefaults);
   const currentTab = urlState.tab || "organizations";
 
   // Core state - loaded on page mount
@@ -335,6 +339,18 @@ export default function MicrosoftIntegrationPage() {
       const data = await api.get<HealthDashboard>("/api/v1/microsoft_app/health_dashboard");
       setHealthData(data);
       loadedTabsRef.current.add("health");
+
+      // FRC (Feb 2026): health_dashboard returns org data as a superset of /status.
+      // Update orgStatus to keep org list fresh without a separate /status call.
+      if (data?.organizations?.length) {
+        setOrgStatus(prev => prev ? {
+          ...prev,
+          organizations: prev.organizations?.map(org => {
+            const healthOrg = data.organizations?.find((h: { id: number }) => h.id === org.id);
+            return healthOrg ? { ...org, status: healthOrg.status, token_valid: healthOrg.token_valid } : org;
+          }) ?? prev.organizations
+        } : prev);
+      }
     } catch (err) {
       console.error("Failed to fetch health dashboard:", err);
     } finally {
@@ -346,7 +362,7 @@ export default function MicrosoftIntegrationPage() {
     if (loadedTabsRef.current.has("email-sync")) return;
     setSyncLoading(true);
     try {
-      const response = await api.get<{ success: boolean; data: SyncDashboard }>("/api/v1/synced_emails/sync_dashboard");
+      const response = await api.get<{ success: boolean; data: SyncDashboard }>("/api/v1/synced_emails/sync_dashboard?include_tenant_users=true");
       setSyncDashboard(response?.data || null);
       loadedTabsRef.current.add("email-sync");
     } catch (err) {
@@ -372,6 +388,7 @@ export default function MicrosoftIntegrationPage() {
   }, []);
 
   // Handle consent callback params
+  const hasConsentParam = searchParams.get("app_consent_success") !== null || searchParams.get("app_consent_error") !== null;
   React.useEffect(() => {
     const consentSuccess = searchParams.get("app_consent_success");
     const consentError = searchParams.get("app_consent_error");
@@ -379,14 +396,15 @@ export default function MicrosoftIntegrationPage() {
     if (consentError) setError(decodeURIComponent(consentError));
   }, [searchParams, fetchStatus]);
 
-  // Initial load
+  // Initial load - skip if consent params present (consent effect handles it)
   React.useEffect(() => {
+    if (hasConsentParam) return;
     if (isAdmin) {
       fetchStatus();
     } else {
       setLoading(false);
     }
-  }, [isAdmin, fetchStatus]);
+  }, [isAdmin, fetchStatus, hasConsentParam]);
 
   // Lazy load tab data when tab changes
   React.useEffect(() => {
@@ -410,7 +428,7 @@ export default function MicrosoftIntegrationPage() {
           setConsentUrl(null);
           window.location.reload();
         }
-      } catch { /* ignore polling errors */ }
+      } catch (err) { console.error("[Microsoft] polling error:", err); /* ignore polling errors */ }
     }, 5000);
     return () => clearInterval(interval);
   }, [waitingForConsent, consentOrgName]);
@@ -593,7 +611,6 @@ export default function MicrosoftIntegrationPage() {
               loadedTabsRef.current.delete("health");
               fetchHealthDashboard();
             }}
-            onRefreshStatus={fetchStatus}
           />
         </TabsContent>
       </Tabs>
@@ -874,7 +891,7 @@ function EmailSyncTab({
 }) {
   // Per-org collapsible state - default all expanded
   const [expandedOrgs, setExpandedOrgs] = React.useState<Set<number>>(
-    new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
+    () => new Set(orgs.filter(o => o.status === "connected").map(o => o.id))
   );
   const [importing, setImporting] = React.useState(false);
   const [expandedMailboxes, setExpandedMailboxes] = React.useState<Set<string>>(new Set());
@@ -920,21 +937,70 @@ function EmailSyncTab({
     );
   }
 
-  const connectedOrgs = orgs.filter(o => o.status === "connected");
+  // FRC (Feb 2026): Memoize connectedOrgs to prevent unstable array references.
+  // orgs.filter() creates a new array every render, which broke useMemo dependencies
+  // downstream (overallPhases) causing React error #310 (too many re-renders).
+  const connectedOrgs = React.useMemo(
+    () => orgs.filter(o => o.status === "connected"),
+    [orgs]
+  );
 
   // Compute importable user count: licensed M365 users not already in TEEEM
-  const teeemEmails = new Set(
-    (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
-  );
-  const importableByOrg = new Map<number, number>();
-  for (const org of connectedOrgs) {
-    const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
-    const count = (orgStats?.tenant_users || []).filter(
-      u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
-    ).length;
-    if (count > 0) importableByOrg.set(org.id, count);
-  }
-  const totalImportable = Array.from(importableByOrg.values()).reduce((a, b) => a + b, 0);
+  const { importableByOrg, totalImportable } = React.useMemo(() => {
+    const teeemEmails = new Set(
+      (syncDashboard?.teeem_user_emails || []).map(e => e.toLowerCase())
+    );
+    const importable = new Map<number, number>();
+    for (const org of connectedOrgs) {
+      const orgStats = syncDashboard?.organizations?.find(o => o.id === org.id);
+      const count = (orgStats?.tenant_users || []).filter(
+        u => u.has_license && u.mailbox_type === "user" && u.email && !teeemEmails.has(u.email.toLowerCase())
+      ).length;
+      if (count > 0) importable.set(org.id, count);
+    }
+    const total = Array.from(importable.values()).reduce((a, b) => a + b, 0);
+    return { importableByOrg: importable, totalImportable: total };
+  }, [connectedOrgs, syncDashboard]);
+
+  // Aggregate 3-phase progress across all orgs
+  const overallPhases = React.useMemo(() => {
+    let metadataTotal = 0;
+    let emlTotal = 0, emlDone = 0, emlUnavailable = 0;
+    let attTotal = 0, attDone = 0;
+
+    for (const org of connectedOrgs) {
+      const orgStats = syncDashboard.organizations?.find(o => o.id === org.id);
+      for (const m of orgStats?.mailboxes || []) {
+        metadataTotal += m.email_count;
+        emlTotal += m.email_count;
+        emlDone += m.email_blob_count ?? 0;
+        emlUnavailable += m.content_unavailable_count ?? 0;
+        attTotal += m.attachment_count ?? 0;
+        attDone += m.blob_count ?? 0;
+      }
+    }
+
+    const emlEffectiveTotal = emlTotal - emlUnavailable;
+    const emlPending = Math.max(0, emlEffectiveTotal - emlDone);
+    const attPending = Math.max(0, attTotal - attDone);
+
+    return {
+      metadata: { total: metadataTotal, done: metadataTotal, pct: 100 },
+      eml: {
+        total: emlEffectiveTotal,
+        done: emlDone,
+        unavailable: emlUnavailable,
+        pending: emlPending,
+        pct: emlEffectiveTotal > 0 ? Math.round((emlDone / emlEffectiveTotal) * 100) : 100,
+      },
+      att: {
+        total: attTotal,
+        done: attDone,
+        pending: attPending,
+        pct: attTotal > 0 ? Math.round((attDone / attTotal) * 100) : 100,
+      },
+    };
+  }, [connectedOrgs, syncDashboard]);
 
   const handleImport = async (orgId: number) => {
     setImporting(true);
@@ -989,6 +1055,83 @@ function EmailSyncTab({
           </Button>
         </div>
       </div>
+
+      {/* 3-Phase Summary Cards */}
+      {(syncDashboard.total_emails ?? 0) > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {/* Phase 1: Metadata */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.metadata.pct === 100 && "border-purple-200 dark:border-purple-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Database className="h-3.5 w-3.5 text-purple-500" />
+              Phase 1: Metadata
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.metadata.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.metadata.done.toLocaleString()}/{overallPhases.metadata.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.metadata.pct}
+              className="h-1.5 bg-purple-100 dark:bg-purple-950 [&>div]:bg-purple-500"
+            />
+            <div className="text-xs text-green-600 dark:text-green-400">Complete</div>
+          </div>
+
+          {/* Phase 2: EML Bodies */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.eml.pct === 100 && "border-blue-200 dark:border-blue-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Mail className="h-3.5 w-3.5 text-blue-500" />
+              Phase 2: EML Bodies
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.eml.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.eml.done.toLocaleString()}/{overallPhases.eml.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.eml.pct}
+              className="h-1.5 bg-blue-100 dark:bg-blue-950 [&>div]:bg-blue-500"
+            />
+            <div className="text-xs">
+              {overallPhases.eml.pct === 100 ? (
+                <span className="text-green-600 dark:text-green-400">Complete</span>
+              ) : (
+                <span className="text-muted-foreground">{overallPhases.eml.pending.toLocaleString()} pending</span>
+              )}
+            </div>
+          </div>
+
+          {/* Phase 3: Attachments */}
+          <div className={cn(
+            "rounded-lg border p-3 space-y-2",
+            overallPhases.att.pct === 100 && "border-amber-200 dark:border-amber-800/50"
+          )}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Paperclip className="h-3.5 w-3.5 text-amber-500" />
+              Phase 3: Attachments
+            </div>
+            <div className="text-2xl font-bold tabular-nums">{overallPhases.att.pct}%</div>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {overallPhases.att.done.toLocaleString()}/{overallPhases.att.total.toLocaleString()}
+            </div>
+            <Progress
+              value={overallPhases.att.pct}
+              className="h-1.5 bg-amber-100 dark:bg-amber-950 [&>div]:bg-amber-500"
+            />
+            <div className="text-xs">
+              {overallPhases.att.pct === 100 ? (
+                <span className="text-green-600 dark:text-green-400">Complete</span>
+              ) : (
+                <span className="text-muted-foreground">{overallPhases.att.pending.toLocaleString()} pending</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Per-org sections */}
       {connectedOrgs.map((org) => {
@@ -1244,30 +1387,56 @@ function EmailSyncTab({
                                   const emailTotal = row.mailboxStat.email_count;
                                   const emlUploaded = row.mailboxStat.email_blob_count ?? 0;
                                   const unavailable = row.mailboxStat.content_unavailable_count ?? 0;
-                                  const emlPending = emailTotal - emlUploaded - unavailable;
+                                  const emlEffective = emailTotal - unavailable;
+                                  const emlPending = Math.max(0, emlEffective - emlUploaded);
                                   const emlDone = emlPending <= 0;
+                                  const emlPct = emlEffective > 0 ? Math.round((emlUploaded / emlEffective) * 100) : 100;
 
                                   const attTotal = row.mailboxStat.attachment_count ?? 0;
                                   const attDownloaded = row.mailboxStat.blob_count ?? 0;
-                                  const attPending = attTotal - attDownloaded;
+                                  const attPending = Math.max(0, attTotal - attDownloaded);
                                   const attDone = attTotal === 0 || attPending <= 0;
+                                  const attPct = attTotal > 0 ? Math.round((attDownloaded / attTotal) * 100) : 100;
 
-                                  const allDone = emlDone && attDone;
                                   if (emailTotal === 0) return <span className="text-muted-foreground">—</span>;
 
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <div className="flex flex-col items-end gap-0.5">
-                                          <span className="flex items-center gap-1">
-                                            <span className={emlDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                              {emlDone ? "✓" : "◌"} .eml {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}
+                                        <div className="flex flex-col items-end gap-1 min-w-[140px]">
+                                          <div className="flex items-center gap-1.5 w-full">
+                                            <span className="text-muted-foreground w-7 text-right">.eml</span>
+                                            <Progress
+                                              value={emlPct}
+                                              className={cn(
+                                                "h-1.5 w-16 bg-muted",
+                                                emlDone ? "[&>div]:bg-green-500" : "[&>div]:bg-blue-500"
+                                              )}
+                                            />
+                                            <span className={cn(
+                                              "tabular-nums",
+                                              emlDone ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                                            )}>
+                                              {emlUploaded.toLocaleString()}/{emlEffective.toLocaleString()}
                                             </span>
-                                          </span>
+                                          </div>
                                           {attTotal > 0 && (
-                                            <span className={attDone ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400"}>
-                                              {attDone ? "✓" : "◌"} attach {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
-                                            </span>
+                                            <div className="flex items-center gap-1.5 w-full">
+                                              <span className="text-muted-foreground w-7 text-right">att.</span>
+                                              <Progress
+                                                value={attPct}
+                                                className={cn(
+                                                  "h-1.5 w-16 bg-muted",
+                                                  attDone ? "[&>div]:bg-green-500" : "[&>div]:bg-amber-500"
+                                                )}
+                                              />
+                                              <span className={cn(
+                                                "tabular-nums",
+                                                attDone ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
+                                              )}>
+                                                {attDownloaded.toLocaleString()}/{attTotal.toLocaleString()}
+                                              </span>
+                                            </div>
                                           )}
                                         </div>
                                       </TooltipTrigger>
@@ -1275,7 +1444,7 @@ function EmailSyncTab({
                                         <div className="space-y-1">
                                           <p className="font-medium">Three-stage sync:</p>
                                           <p>① Metadata: {emailTotal.toLocaleString()} records ✓</p>
-                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emailTotal.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
+                                          <p>② .eml bodies: {emlUploaded.toLocaleString()}/{emlEffective.toLocaleString()}{emlDone ? " ✓" : ` (${emlPending.toLocaleString()} pending)`}</p>
                                           {unavailable > 0 && <p className="text-muted-foreground ml-3">{unavailable.toLocaleString()} permanently unavailable</p>}
                                           <p>③ Attachments: {attTotal > 0 ? `${attDownloaded.toLocaleString()}/${attTotal.toLocaleString()}${attDone ? " ✓" : ` (${attPending.toLocaleString()} pending)`}` : "none"}</p>
                                         </div>
@@ -1683,13 +1852,11 @@ function HealthTab({
   loading,
   orgs,
   onRefresh,
-  onRefreshStatus,
 }: {
   healthData: HealthDashboard | null;
   loading: boolean;
   orgs: OrgCredential[];
   onRefresh: () => void;
-  onRefreshStatus: () => void;
 }) {
   const [retryingOrgId, setRetryingOrgId] = React.useState<number | null>(null);
   const [testingOrgId, setTestingOrgId] = React.useState<number | null>(null);
@@ -1727,7 +1894,8 @@ function HealthTab({
       if (!response?.success) {
         setTestErrors(prev => ({ ...prev, [orgId]: response?.error || "Test failed" }));
       }
-      onRefreshStatus();
+      // Refresh health dashboard (which also syncs org status) instead of separate status call
+      onRefresh();
     } catch (err: unknown) {
       const e = err as { data?: { error?: string }; message?: string };
       setTestErrors(prev => ({ ...prev, [orgId]: e.data?.error || e.message || "Test failed" }));

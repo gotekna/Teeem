@@ -197,7 +197,8 @@ export function UnrealEngineTab() {
       } else {
         setServerStatus("stopped");
       }
-    } catch {
+    } catch (err) {
+      console.error("[UnrealEngineTab] Local server ping failed:", err);
       setServerStatus("stopped");
     } finally {
       setCheckingStatus(false);

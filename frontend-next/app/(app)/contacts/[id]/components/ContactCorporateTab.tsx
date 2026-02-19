@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 /**
  * SSoT: Contact Corporate Tab
@@ -187,6 +188,7 @@ export function ContactCorporateTab({
 // ================================
 
 function IdentitySubTab({ contact }: { contact: Contact; }) {
+  const { toast } = useToast();
   const [savingField, setSavingField] = useState<string | null>(null);
   const [localContact, setLocalContact] = useState(contact);
   const [editingDob, setEditingDob] = useState(false);
@@ -221,7 +223,10 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
       const { api } = await import("@/lib/api");
       await api.patch(`/api/v1/contacts/${contact.id}`, { contact: { [field]: value } });
       setLocalContact((prev) => ({ ...prev, [field]: value }));
-    } catch { /* ignore */ }
+    } catch (err) {
+      console.error(`[ContactCorporate] Failed to save ${field}:`, err);
+      toast({ title: "Save failed", description: `Could not update ${field}. Please try again.`, variant: "destructive" });
+    }
     setSavingField(null);
   };
   return (

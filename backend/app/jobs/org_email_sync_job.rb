@@ -125,6 +125,7 @@ class OrgEmailSyncJob < ApplicationJob
     # Performance: Thread-safe caches for parallel folder sync
     @user_cache = Concurrent::Map.new
     @blacklist_cache = nil
+    @oldest_email_year_updates = {}
     # SSoT: Find credential using org-scoped lookup
     @credential = find_credential(organization_id: organization_id, credential_id: credential_id, org_name: org_name)
 
@@ -374,6 +375,9 @@ class OrgEmailSyncJob < ApplicationJob
             end
           end
 
+          # Persist smart target cache if any mailbox's oldest email was discovered this cycle
+          oldest_email_year_cache = (sync_config["mailbox_oldest_email_year"] || {}).merge(@oldest_email_year_updates || {})
+
           updated_config = sync_config.merge(
             "mailbox_synced_at" => mailbox_synced_at,
             "mailbox_last_attempted_at" => mailbox_last_attempted_at,
@@ -381,7 +385,8 @@ class OrgEmailSyncJob < ApplicationJob
             "mailbox_errors" => mailbox_errors,
             "folder_stats" => folder_stats,
             "mailbox_sync_depth" => mailbox_sync_depth,
-            "backfill_completed" => backfill_completed_map
+            "backfill_completed" => backfill_completed_map,
+            "mailbox_oldest_email_year" => oldest_email_year_cache
           )
           @credential.update_columns(last_sync_at: Time.current, sync_config: updated_config)
         rescue StandardError => e
@@ -474,6 +479,7 @@ class OrgEmailSyncJob < ApplicationJob
       final_target = target_year || (Date.current.year - sync_years)
       total_synced = 0
       current_year = depth_year
+      @consecutive_empty_years = 0
       mailbox_start_time = Time.current
 
       # Fetch folders ONCE - same folder structure across all years
@@ -486,6 +492,88 @@ class OrgEmailSyncJob < ApplicationJob
       existing_folder_stats = @credential.sync_config&.dig("folder_stats", user_email.downcase) || {}
       folder_results = Concurrent::Hash.new
       thread_count = inline_quick ? INLINE_PARALLEL_THREADS : PARALLEL_FOLDER_THREADS
+
+      # ⚠️ ULTRA FIX (Feb 2026): Smart backfill target - use oldest email instead of blind sync_years
+      # ════════════════════════════════════════════════════════════════
+      # Root cause: Pilgrim has 56 mailboxes with sync_years=15 (target: 2011). Most mailboxes
+      # only have emails from 2024+, but we were scanning all 15 years = 840 mailbox-years.
+      # With smart targets based on actual oldest email: ~80 mailbox-years (10x speedup).
+      # One API call per mailbox, cached forever in sync_config.
+      # ════════════════════════════════════════════════════════════════
+      sc = @credential.sync_config || {}
+      oldest_cache = sc["mailbox_oldest_email_year"] || {}
+      smart_target = oldest_cache[user_email.downcase]
+
+      if smart_target.nil?
+        begin
+          oldest_date = client.get_oldest_email_date(user_email)
+          if oldest_date
+            smart_target = oldest_date.year
+            Rails.logger.info "[SYNC-DEBUG] #{user_email}: oldest email is #{oldest_date.year}, using as smart target"
+          else
+            smart_target = Date.current.year  # Empty mailbox - nothing to backfill
+            Rails.logger.info "[SYNC-DEBUG] #{user_email}: mailbox is EMPTY, skipping backfill"
+          end
+        rescue => e
+          smart_target = nil  # Fallback to sync_years on error
+          Rails.logger.warn "[SYNC-DEBUG] #{user_email}: oldest email check failed (#{e.message}), using default target #{final_target}"
+        end
+
+        # Cache for future cycles (one API call per mailbox, ever)
+        # Communicated back to perform via @oldest_email_year_updates
+        if smart_target
+          @oldest_email_year_updates ||= {}
+          @oldest_email_year_updates[user_email.downcase] = smart_target
+        end
+      else
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: using cached oldest email year: #{smart_target}"
+      end
+
+      # Use the smarter of: oldest email year vs sync_years target
+      if smart_target
+        original_target = final_target
+        final_target = [smart_target, final_target].max
+        if final_target > original_target
+          saved_years = final_target - original_target
+          Rails.logger.info "[SYNC-DEBUG] #{user_email}: smart target #{final_target} (saved #{saved_years} years of scanning vs original #{original_target})"
+        end
+      end
+
+      # ⚠️ ULTRA FIX (Feb 2026): Incremental sync FIRST, then backfill
+      # ════════════════════════════════════════════════════════════════
+      # Root cause: Backfill and incremental were mutually exclusive. While backfilling
+      # (which can take DAYS for large mailboxes with 15 years of history), users couldn't
+      # see today's new emails. rachel, andrew, robert @tekna.com.au were stuck in backfill
+      # for weeks - clients couldn't see incoming emails.
+      # ❌ WRONG: Process ALL historical years before ever fetching new emails
+      # ✅ CORRECT: Quick incremental pass first (new emails since last sync, usually <30s),
+      #   then continue year-by-year backfill with remaining budget.
+      # ════════════════════════════════════════════════════════════════
+      if mailbox_last_synced_at
+        incremental_since = [mailbox_last_synced_at - SYNC_OVERLAP_BUFFER, SYNC_MINIMUM_LOOKBACK.ago].min
+        @sync_before = nil
+        saved_metadata_mode = @metadata_first_mode
+        saved_initial_sync = @is_initial_sync
+        @metadata_first_mode = false  # Include body for new emails (users will read these)
+        @is_initial_sync = false      # Per-email upsert with full enrichment
+
+        # Budget: max 90s or 25% of time budget, whichever is smaller
+        incremental_budget = [90, time_budget ? time_budget / 4 : 90].min
+
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: INCREMENTAL-FIRST pass (since=#{incremental_since.iso8601}, budget=#{incremental_budget}s)"
+        incremental_start = Time.current
+        incremental_synced = sync_folders_parallel(client, user_email, folders, incremental_since,
+          thread_count: thread_count, time_budget: incremental_budget,
+          existing_folder_stats: {}, folder_results: folder_results)
+        incremental_elapsed = (Time.current - incremental_start).round(1)
+
+        total_synced += incremental_synced
+        Rails.logger.info "[SYNC-DEBUG] #{user_email}: INCREMENTAL-FIRST complete: #{incremental_synced} new emails in #{incremental_elapsed}s"
+
+        # Restore modes for backfill pass
+        @metadata_first_mode = saved_metadata_mode
+        @is_initial_sync = saved_initial_sync
+      end
 
       while current_year >= final_target
         # Check remaining time budget before starting next year
@@ -519,6 +607,21 @@ class OrgEmailSyncJob < ApplicationJob
           # (upsert_all handles duplicates safely so re-syncing is harmless)
           Rails.logger.info "[SYNC-DEBUG] #{user_email}: year #{current_year} interrupted (budget exhausted), will resume next cycle"
           break
+        end
+
+        # ⚠️ ULTRA FIX (Feb 2026): Empty-year early termination
+        # If we get 2 consecutive years with zero emails (in the past, not current year),
+        # stop scanning further back. Handles edge cases where oldest email API might miss
+        # emails in folders the $orderby query doesn't cover.
+        if year_synced == 0 && current_year < Date.current.year
+          @consecutive_empty_years = (@consecutive_empty_years || 0) + 1
+          if @consecutive_empty_years >= 2
+            Rails.logger.info "[SYNC-DEBUG] #{user_email}: #{@consecutive_empty_years} consecutive empty years at #{current_year}, stopping backfill early"
+            current_year = final_target - 1  # Force loop exit
+            break
+          end
+        else
+          @consecutive_empty_years = 0
         end
 
         current_year -= 1

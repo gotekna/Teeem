@@ -162,11 +162,12 @@ module Api
 
       # POST /api/v1/xero_bank_transactions/trigger_sync
       def trigger_sync
-        result = XeroBankTransactionSyncJob.perform_now
+        # perform_later: don't block the web thread waiting for Xero API calls
+        XeroBankTransactionSyncJob.perform_later
 
         render json: {
-          success: result[:errors].empty?,
-          data: result
+          success: true,
+          data: { message: "Bank transaction sync queued" }
         }
       rescue StandardError => e
         Rails.logger.error("Bank transaction sync trigger failed: #{e.message}")

@@ -62,7 +62,7 @@ class MicrosoftEmailService
     else
       error_message = begin
         JSON.parse(response.body).dig("error", "message")
-      rescue
+      rescue StandardError
         response.body
       end
       Rails.logger.error "Failed to send email: #{response.code} - #{error_message}"
@@ -113,7 +113,8 @@ class MicrosoftEmailService
       client = MicrosoftGraphClient.new(@credential)
       me = client.get("/me")
       me["mail"] || me["userPrincipalName"]
-    rescue
+    rescue StandardError => e
+      Rails.logger.warn "[MicrosoftEmailService] Failed to fetch /me email, falling back to TenantSetting: #{e.message}"
       # SSoT: Fallback to company email from TenantSetting
       TenantSetting.instance.email
     end

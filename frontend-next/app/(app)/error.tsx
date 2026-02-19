@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import consoleCapture from "@/utils/consoleCapture";
 
 export default function Error({
   error,
@@ -14,7 +15,14 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log error to console in development, could send to Sentry in production
+    // React internally logs this error using a saved console.error reference
+    // that bypasses our monkey-patch (React saves the reference before our
+    // interceptor runs). Capture it explicitly so the sidebar counter matches DevTools.
+    consoleCapture.captureDirectly(
+      "error",
+      `${error.name}: ${error.message}${error.stack ? "\n" + error.stack : ""}`
+    );
+    // Log through our patched console.error for the error boundary context
     console.error("App error boundary caught:", error);
   }, [error]);
 

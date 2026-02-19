@@ -20,7 +20,12 @@ class SyncTaskAttachmentsJob < ApplicationJob
 
     Tenant.find_each do |tenant|
       ActsAsTenant.with_tenant(tenant) do
-        config = WarehouseProvider.instance rescue nil
+        config = begin
+          WarehouseProvider.instance
+        rescue StandardError => e
+          Rails.logger.warn "[SyncTaskAttachments] WarehouseProvider not available for tenant #{tenant.id}: #{e.message}"
+          nil
+        end
         next unless config
 
         created, skipped, errors = sync_tenant_attachments(tenant, config)

@@ -1002,6 +1002,13 @@ export default function TeeemTableView({
   // FIX: On first render for a new foundation, ALWAYS use initialView filters (even if empty)
   // This prevents stale atom data from filtering incorrectly until atoms are synced
   const safeFilters = useMemo(() => {
+    // FRC (Feb 2026): entries-only tables (no Foundation) must NEVER use atom filters.
+    // Atoms are global Jotai state - stale filters from previously viewed Foundation tables
+    // leak into entries-only tables, causing "0 records" with phantom active filters.
+    // Only use initialFilters if explicitly provided.
+    if (!effectiveFoundationId) {
+      return initialFilters && initialFilters.length > 0 ? initialFilters : [];
+    }
     // If filters haven't been initialized for this foundation, use SSR filters
     if (isFiltersStale) {
       // initialView?.filters?.cascadeFilters takes precedence (SSR source of truth)
@@ -1011,7 +1018,7 @@ export default function TeeemTableView({
     }
     // After initialization, use atom data (which has been synced by useLayoutEffect)
     return Array.isArray(cascadeFilters) ? cascadeFilters : [];
-  }, [cascadeFilters, isFiltersStale, initialView]);
+  }, [cascadeFilters, isFiltersStale, initialView, effectiveFoundationId, initialFilters]);
 
   // Mark filters as initialized after atoms have been synced
   // This runs AFTER the main foundation change useLayoutEffect which clears/sets filters
@@ -5628,7 +5635,10 @@ export default function TeeemTableView({
 
   // Get active view name
   // Use loose comparison to handle string/number ID mismatches from API
-  const activeView = savedViews.find((v) => String(v.id) === String(activeViewId));
+  // FRC (Feb 2026): entries-only tables (no Foundation) must ignore stale saved views from atoms
+  const activeView = effectiveFoundationId
+    ? savedViews.find((v) => String(v.id) === String(activeViewId))
+    : undefined;
 
   // NOTE: onViewChange is called from loadViewState when isUserAction=true
   // This prevents URL auto-updates on initial page load (confusing UX)
@@ -5767,7 +5777,8 @@ export default function TeeemTableView({
       onAddRow: effectiveOnAddRow,
       onViewChange,
     },
-    savedViews,
+    // FRC (Feb 2026): entries-only tables (no Foundation) get empty views to prevent atom leak
+    savedViews: effectiveFoundationId ? savedViews : [],
     activeView: activeView || null,
     // Context loadView is always user-initiated, so pass isUserAction=true
     loadView: (view: SavedView) => loadViewState(view, false, true, false),
@@ -5999,6 +6010,13 @@ export default function TeeemTableView({
             onXeroTransfer={onXeroTransfer}
             onDelete={effectiveBulkDelete}
           />
+
+          {/* Custom bulk actions - rendered when rows are selected */}
+          {customBulkActions && selectedRows.size > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              {customBulkActions(Array.from(selectedRows), () => selection.actions.clear())}
+            </div>
+          )}
 
           {/* Actions - right side with buttons */}
           <div className="toolbar-right flex items-center gap-2 shrink-0">

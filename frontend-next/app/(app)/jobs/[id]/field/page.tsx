@@ -102,7 +102,8 @@ const offlineStorage = {
     try {
       const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return data[key] || [];
-    } catch {
+    } catch (err) {
+      console.error("[Field] offline data get error:", err);
       return [];
     }
   },
@@ -119,7 +120,8 @@ const offlineStorage = {
     try {
       const data = getStorageItem<OfflineData>(STORAGE_KEYS.OFFLINE_DATA, { photos: [], checkins: [], voice_notes: [] });
       return Object.values(data).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-    } catch {
+    } catch (err) {
+      console.error("[Field] offline data getPendingCount error:", err);
       return 0;
     }
   },

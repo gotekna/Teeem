@@ -38,6 +38,24 @@ class TeknaTemplateRenderer
     content
   end
 
+  # Render a template from a string (for custom templates stored in DB)
+  # @param template_string [String] ERB template string
+  # @param layout [String, nil] Path to layout (without .html.erb)
+  # @param locals [Hash] Variables to make available in template
+  # @return [String] Rendered HTML
+  def render_from_string(template_string:, layout: nil, locals: {})
+    context = RenderContext.new(locals, self)
+    content = render_erb(template_string, context)
+
+    if layout
+      layout_content = read_template("#{layout}.html.erb")
+      context.content = content
+      content = render_erb(layout_content, context)
+    end
+
+    content
+  end
+
   # Render a partial (called from within templates)
   # @param partial_name [String] Partial name (e.g., "header" or "partials/header")
   # @param locals [Hash] Variables to pass to partial
@@ -67,9 +85,10 @@ class TeknaTemplateRenderer
   end
 
   def normalize_partial_path(partial_name)
-    # If already includes partials/, just add underscore prefix to filename
+    # If already includes a directory path, add underscore prefix to filename
     if partial_name.include?("/")
-      dir, file = partial_name.rsplit("/", 2)
+      dir = File.dirname(partial_name)
+      file = File.basename(partial_name)
       file = "_#{file}" unless file.start_with?("_")
       "#{dir}/#{file}.html.erb"
     else

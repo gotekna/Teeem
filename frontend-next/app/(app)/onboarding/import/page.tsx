@@ -73,8 +73,8 @@ export default function DataImportPage() {
       if (response?.success) {
         setStatus(response.status);
       }
-    } catch {
-      // Ignore errors
+    } catch (err) {
+      console.error("[OnboardingImport] failed to load status:", err);
     } finally {
       setIsLoading(false);
     }
@@ -97,8 +97,8 @@ export default function DataImportPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      // Handle error
+    } catch (err) {
+      console.error("[OnboardingImport] failed to download templates zip:", err);
     } finally {
       setIsDownloading(false);
     }
@@ -116,8 +116,8 @@ export default function DataImportPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {
-      // Handle error
+    } catch (err) {
+      console.error("[OnboardingImport] failed to download individual template:", err);
     }
   };
 
@@ -198,7 +198,8 @@ export default function DataImportPage() {
           };
         })
       );
-    } catch {
+    } catch (err) {
+      console.error("[OnboardingImport] validation failed:", err);
       setUploadedFiles((prev) =>
         prev.map((f) => ({ ...f, status: "error" as const }))
       );

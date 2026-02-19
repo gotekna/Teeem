@@ -131,6 +131,10 @@ const JobBOQTab = dynamic(() => import("@/components/jobs/JobBOQTab").then(m => 
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobPriceAnalysisTab = dynamic(() => import("@/components/jobs/JobPriceAnalysisTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const JobCommunicationsTab = dynamic(() => import("@/components/jobs/JobCommunicationsTab").then(m => m.default), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -282,6 +286,7 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "estimates": JobEstimatorTab,
   "quote-tracker": JobQuoteTrackerTab,
   "boq": JobBOQTab,
+  "price-analysis": JobPriceAnalysisTab,
   "activity": JobActivityTab,
   "schedule": JobScheduleTab,
   "site-presence": JobSitePresenceTab,
@@ -322,6 +327,7 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
   "JobEstimatorTab": JobEstimatorTab,
   "JobQuoteTrackerTab": JobQuoteTrackerTab,
   "JobBOQTab": JobBOQTab,
+  "JobPriceAnalysisTab": JobPriceAnalysisTab,
   "JobActivityTab": JobActivityTab,
   "JobScheduleTab": JobScheduleTab,
   "JobSitePresenceTab": JobSitePresenceTab,
@@ -1877,7 +1883,7 @@ export default function JobDetailPage() {
               job={job}
               onSave={async (addressData) => {
                 try {
-                  const response = await api.patch<Job>(`/api/v1/jobs/${job.id}`, {
+                  const response = await api.patch<{ success: boolean; data: Job }>(`/api/v1/jobs/${job.id}`, {
                     job: {
                       lot_number: addressData.lot_number,
                       plan_number: addressData.plan_number,
@@ -1891,8 +1897,9 @@ export default function JobDetailPage() {
                     },
                   });
 
-                  // Update job state with new data
-                  setJob((prevJob) => prevJob ? { ...prevJob, ...response } : prevJob);
+                  // Update job state with new data (extract from { success, data } wrapper)
+                  const jobData = response.data || response;
+                  setJob((prevJob) => prevJob ? { ...prevJob, ...jobData } : prevJob);
                 } catch (error) {
                   console.error("Failed to update address:", error);
                   throw error;

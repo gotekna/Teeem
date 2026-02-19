@@ -296,7 +296,8 @@ module Gl
 
     def xero_connected?
       XeroCredential.active_for_company(corporate).present?
-    rescue
+    rescue StandardError => e
+      Rails.logger.warn "[RatesFetchService] Failed to check Xero connection: #{e.message}"
       false
     end
 

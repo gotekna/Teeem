@@ -20,24 +20,20 @@ import {
   ChevronRight,
   Activity,
   Database,
-  Download,
-  Upload,
-  FileText,
   Star,
   Clock,
   Tag,
 } from "lucide-react";
 import { BackButton } from "@/components/ui/back-button";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { XeroFieldMapping, XeroContactSync } from "./components/XeroTabs";
 import { XeroTrackingTab } from "./components/XeroTrackingTab";
-import { XeroPdfSyncStatus } from "./components/XeroPdfSyncStatus";
 import { XeroSyncStats } from "./components/XeroSyncStats";
 import { XeroSyncStatusTab } from "./components/XeroSyncStatusTab";
 import { XeroConnectionsPopup } from "@/components/xero/XeroConnectionsPopup";
 import { XeroCommonContacts } from "./components/XeroCommonContacts";
+import { XeroOverview } from "./components/XeroOverview";
 import { DuplicateContactsTab } from "@/components/settings/xero/DuplicateContactsTab";
 import { useGetDuplicateCount } from "@/lib/hooks/useDuplicateContacts";
 import { useToast } from "@/components/ui/use-toast";
@@ -101,10 +97,12 @@ interface PdfSyncHealth {
 export default function XeroIntegrationPage() {
   // SSoT: URL state managed by useUrlState hook
   const [urlState, setUrlState] = useUrlState({
-    tab: null as string | null,         // null = "connection"
+    tab: null as string | null,         // null = "overview" (default)
     connections: null as string | null, // null = not showing popup
   });
-  const currentTab = urlState.tab || "connection";
+  // Redirect legacy ?tab=health to overview
+  const rawTab = urlState.tab;
+  const currentTab = rawTab === "health" ? "overview" : (rawTab || "overview");
   const showConnectionsParam = urlState.connections;
   const [status, setStatus] = React.useState<XeroStatus | null>(null);
   const [tenants, setTenants] = React.useState<XeroTenant[]>([]);
@@ -112,6 +110,9 @@ export default function XeroIntegrationPage() {
   const [connecting, setConnecting] = React.useState(false);
   const [disconnecting, setDisconnecting] = React.useState(false);
   const [pdfSyncHealth, setPdfSyncHealth] = React.useState<PdfSyncHealth | null>(null);
+  // SSoT: Shared sync stats fetched once by page.tsx, passed as props to children
+  // Eliminates 3x duplicate fetches of /api/v1/xero/sync_stats and /api/v1/xero/pdf_sync_status
+  const [syncStatsData, setSyncStatsData] = React.useState<any>(null);
   // NOTE: useState is CORRECT here - this is a settings page popup,
   // NOT a table modal. activeTableModalAtom is only for table-related modals.
   const [showConnectionsPopup, setShowConnectionsPopup] = React.useState(showConnectionsParam === "true");
@@ -152,14 +153,18 @@ export default function XeroIntegrationPage() {
         // Fetch tenants, PDF sync status, and company connections if connected OR has existing credentials
         const hasCredentials = statusResponse.data?.connected || (statusResponse.data?.total && statusResponse.data.total > 0);
         if (hasCredentials) {
-          const [tenantsResponse, pdfSyncResponse, connectionsResponse] = await Promise.all([
+          const [tenantsResponse, pdfSyncResponse, connectionsResponse, syncStatsResponse] = await Promise.all([
             api.get<{ success: boolean; tenants: XeroTenant[] }>("/api/v1/xero/tenants"),
             api.get<{ success: boolean; data: any }>("/api/v1/xero/pdf_sync_status"),
             api.get<{ success: boolean; companies: CompanyXeroConnection[]; is_master_tenant?: boolean }>("/api/v1/company_xero_connections"),
+            api.get<{ success: boolean; data: any }>("/api/v1/xero/sync_stats"),
           ]);
           setTenants(tenantsResponse.tenants || []);
           setCompanyConnections(connectionsResponse.companies || []);
           setIsMasterTenant(connectionsResponse.is_master_tenant || false);
+          if (syncStatsResponse.success && syncStatsResponse.data) {
+            setSyncStatsData(syncStatsResponse.data);
+          }
 
           // Extract health data from PDF sync response
           if (pdfSyncResponse.success && pdfSyncResponse.data) {
@@ -423,26 +428,26 @@ export default function XeroIntegrationPage() {
       <Tabs
         value={currentTab}
         onValueChange={(value) => {
-          setUrlState({ tab: value === "connection" ? null : value });
+          setUrlState({ tab: value === "overview" ? null : value });
         }}
         className="flex flex-col gap-6"
       >
         <TabsList className="flex w-full flex-wrap">
+          <TabsTrigger value="overview">
+            <Activity className="h-4 w-4 mr-2" />
+            Overview
+          </TabsTrigger>
           <TabsTrigger value="connection">
             <Link2 className="h-4 w-4 mr-2" />
             Connection
           </TabsTrigger>
           <TabsTrigger value="status">
             <Clock className="h-4 w-4 mr-2" />
-            Status
+            Sync Status
           </TabsTrigger>
           <TabsTrigger value="stats">
-            <Activity className="h-4 w-4 mr-2" />
-            Stats
-          </TabsTrigger>
-          <TabsTrigger value="health">
             <Database className="h-4 w-4 mr-2" />
-            Health
+            Stats
           </TabsTrigger>
           <TabsTrigger value="tracking">
             <Tag className="h-4 w-4 mr-2" />
@@ -454,7 +459,7 @@ export default function XeroIntegrationPage() {
           </TabsTrigger>
           <TabsTrigger value="sync">
             <Users className="h-4 w-4 mr-2" />
-            Contact Sync
+            Contacts
           </TabsTrigger>
           <TabsTrigger value="common">
             <Users className="h-4 w-4 mr-2" />
@@ -470,6 +475,26 @@ export default function XeroIntegrationPage() {
             )}
           </TabsTrigger>
         </TabsList>
+
+        {/* Overview Tab (NEW - replaces Health tab) */}
+        <TabsContent value="overview" className="space-y-6">
+          {status?.connected || tenants.length > 0 ? (
+            <XeroOverview
+              tenants={tenants}
+              pdfSyncHealth={pdfSyncHealth}
+              duplicateCount={duplicateCount}
+              syncStatsData={syncStatsData}
+              onNavigateTab={(tab) => setUrlState({ tab: tab === "overview" ? null : tab })}
+            />
+          ) : (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+                <p className="text-muted-foreground">Connect to Xero to view the integration overview</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         {/* Connection Tab */}
         <TabsContent value="connection" className="space-y-6">
@@ -740,18 +765,15 @@ export default function XeroIntegrationPage() {
             </Card>
           )}
 
-          {/* PDF Sync Status - Above Health Check */}
-          {/* SSoT: Show global data (all tenants) to match UnlinkedContactsSheet */}
-          {status?.connected && (
-            <XeroPdfSyncStatus />
-          )}
-
         </TabsContent>
 
         {/* Status Tab - Sync status per Xero organization */}
         <TabsContent value="status" className="space-y-4">
           {status?.connected ? (
-            <XeroSyncStatusTab />
+            <XeroSyncStatusTab
+              sharedSyncStats={syncStatsData}
+              sharedPdfSyncHealth={pdfSyncHealth}
+            />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
@@ -765,7 +787,7 @@ export default function XeroIntegrationPage() {
         {/* Stats Tab - Comprehensive sync statistics */}
         <TabsContent value="stats" className="space-y-4">
           {status?.connected ? (
-            <XeroSyncStats />
+            <XeroSyncStats isActiveTab={currentTab === "stats"} />
           ) : (
             <Card>
               <CardContent className="flex flex-col items-center justify-center h-48 gap-4">
@@ -774,160 +796,6 @@ export default function XeroIntegrationPage() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
-
-        {/* Health Tab - All health indicators in one place */}
-        <TabsContent value="health" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">System Health Overview</CardTitle>
-              <CardDescription>
-                All Xero integration health indicators at a glance
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Document Sync Stages */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium text-muted-foreground">Document Sync Pipeline</h4>
-
-                {/* Stage 1: Xero Data (Bills, Invoices, Quotes) */}
-                <div
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
-                      ? "border-green-500 bg-green-50"
-                      : (pdfSyncHealth?.stage1_percentage ?? 0) >= 50
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-border bg-muted"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${
-                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-                        : "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300"
-                    }`}>
-                      <Database className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">Stage 1: Xero Data</div>
-                      <div className="text-xs text-muted-foreground">
-                        {(pdfSyncHealth?.stage1_data?.linked ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage1_data?.total ?? 0).toLocaleString()} linked
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Progress value={pdfSyncHealth?.stage1_percentage ?? 0} className="w-24 h-2" />
-                    <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage1_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
-                    }`}>
-                      {pdfSyncHealth?.stage1_percentage ?? 0}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stage 2: PDF Download */}
-                <div
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
-                      ? "border-green-500 bg-green-50"
-                      : (pdfSyncHealth?.stage2_percentage ?? 0) >= 50
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-border bg-muted"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${
-                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
-                    }`}>
-                      <Download className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">Stage 2: PDF Download</div>
-                      <div className="text-xs text-muted-foreground">
-                        {(pdfSyncHealth?.stage2_data?.downloaded ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage2_data?.total ?? 0).toLocaleString()} downloaded
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Progress value={pdfSyncHealth?.stage2_percentage ?? 0} className="w-24 h-2" />
-                    <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage2_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
-                    }`}>
-                      {pdfSyncHealth?.stage2_percentage ?? 0}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* Stage 3: SharePoint Upload */}
-                <div
-                  className={`flex items-center justify-between p-3 rounded-lg border ${
-                    (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
-                      ? "border-green-500 bg-green-50"
-                      : (pdfSyncHealth?.stage3_percentage ?? 0) >= 50
-                      ? "border-amber-500 bg-amber-50"
-                      : "border-border bg-muted"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded ${
-                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-                        : "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300"
-                    }`}>
-                      <Upload className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">Stage 3: SharePoint Upload</div>
-                      <div className="text-xs text-muted-foreground">
-                        {(pdfSyncHealth?.stage3_data?.uploaded ?? 0).toLocaleString()} / {(pdfSyncHealth?.stage3_data?.total ?? 0).toLocaleString()} uploaded
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Progress value={pdfSyncHealth?.stage3_percentage ?? 0} className="w-24 h-2" />
-                    <span className={`font-semibold text-sm w-12 text-right ${
-                      (pdfSyncHealth?.stage3_percentage ?? 0) >= 95 ? "text-green-600 dark:text-green-400" : ""
-                    }`}>
-                      {pdfSyncHealth?.stage3_percentage ?? 0}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Overall Status Badge */}
-              <div className="pt-4 border-t">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Overall Status</span>
-                  <Badge className={
-                    pdfSyncHealth?.overall_status === "healthy"
-                      ? "bg-status-success text-status-success-foreground"
-                      : pdfSyncHealth?.overall_status === "in_progress"
-                      ? "bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300"
-                      : pdfSyncHealth?.overall_status === "warning"
-                      ? "bg-status-warning text-status-warning-foreground"
-                      : "bg-muted text-foreground"
-                  }>
-                    {pdfSyncHealth?.overall_status === "healthy" && <CheckCircle2 className="h-3 w-3 mr-1" />}
-                    {pdfSyncHealth?.overall_status === "in_progress" && <RefreshCw className="h-3 w-3 mr-1 animate-spin" />}
-                    {pdfSyncHealth?.overall_status === "warning" && <AlertTriangle className="h-3 w-3 mr-1" />}
-                    {pdfSyncHealth?.overall_status?.replace("_", " ") || "Unknown"}
-                  </Badge>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Link to full Document Sync details */}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setUrlState({ tab: null })}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            View Full Document Sync Details
-          </Button>
         </TabsContent>
 
         {/* Tracking Tab */}
@@ -940,7 +808,7 @@ export default function XeroIntegrationPage() {
           <XeroFieldMapping />
         </TabsContent>
 
-        {/* Contact Sync Tab */}
+        {/* Contacts Tab (renamed from Contact Sync) */}
         <TabsContent value="sync">
           <XeroContactSync />
         </TabsContent>

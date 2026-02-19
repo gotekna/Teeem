@@ -229,6 +229,9 @@ class TeknaDesignTokens
         .logo {
           max-width: 180px;
           max-height: 60px;
+          width: auto;
+          height: auto;
+          object-fit: contain;
         }
 
         .company-info {

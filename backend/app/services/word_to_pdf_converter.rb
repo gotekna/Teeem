@@ -144,7 +144,11 @@ class WordToPdfConverter
     document.pages.each do |page|
       processor = HexaPDF::Content::Processor.new(page)
       processor.on_text_string = ->(str) { text << str << " " }
-      processor.process(page.contents) rescue nil
+      begin
+        processor.process(page.contents)
+      rescue StandardError => e
+        Rails.logger.warn "[WordToPdfConverter] Failed to process page contents: #{e.message}"
+      end
     end
 
     # Check for signature patterns
@@ -221,7 +225,8 @@ class WordToPdfConverter
   def count_pages(pdf_content)
     doc = HexaPDF::Document.new(io: StringIO.new(pdf_content))
     doc.pages.count
-  rescue
+  rescue StandardError => e
+    Rails.logger.warn "[WordToPdfConverter] Failed to count pages: #{e.message}"
     1
   end
 

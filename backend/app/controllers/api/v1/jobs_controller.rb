@@ -4,7 +4,7 @@ module Api
       include DocumentProviderAware
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
+      before_action :set_job, only: [ :show, :update, :destroy, :saved_messages, :emails, :sms_messages, :documentation_tabs, :import_xero_bills, :link_xero_tracking, :xero_tracking_options, :xero_profit_loss, :finance_counts, :activities, :budget_tracking, :boq, :price_analysis, :merge, :update_stage, :mark_lost, :upload_plan_set, :plan_set, :rename_plans, :generate_contract, :save_contract, :send_contract_for_signing, :create_storage_folders ]
 
       # GET /api/v1/jobs/pipeline
       # Returns jobs with Enquiry status grouped by stage for the pipeline view
@@ -545,18 +545,29 @@ module Api
         xero_invoices_fn = -> { invoices.where(invoice_type: "sales_invoice").count }
         xero_bills_fn = -> { invoices.where(invoice_type: "bill").count }
 
+        # Estimating tab counts
+        po_count_fn = -> { @job.purchase_orders.where.not(status: "cancelled").count }
+
         # component_name keys (when set) + tab_key keys (when component_name is nil)
         count_map = {
           "JobClaimStagesTab" => claims_fn, "claims" => claims_fn,
           "JobExpensesTab" => expenses_fn, "expenses" => expenses_fn,
           "XeroInvoicesCard" => xero_invoices_fn, "claims---xero" => xero_invoices_fn, "claims-xero" => xero_invoices_fn,
-          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn
+          "XeroBillsCard" => xero_bills_fn, "bills" => xero_bills_fn, "bills-xero" => xero_bills_fn, "bills---xero" => xero_bills_fn,
+          "JobPurchaseOrdersTab" => po_count_fn, "purchase-orders" => po_count_fn
         }
 
         counts = {}
-        if finance_tab
-          finance_tab.children.where(enabled: true).each do |child|
-            # Try component_name first (explicit), then tab_key (convention)
+
+        # Resolve counts for all parent tabs with children (Finance, Estimating/Jobs, etc.)
+        parent_tabs = WarehouseFolder.where(
+          warehouse_type_id: job_type_ids,
+          parent_id: nil,
+          tenant_id: @job.tenant_id
+        ).includes(:children)
+
+        parent_tabs.each do |parent_tab|
+          parent_tab.children.where(enabled: true).each do |child|
             resolver = count_map[child.component_name] || count_map[child.tab_key]
             counts[child.tab_key] = resolver.call if resolver
           end
@@ -981,6 +992,161 @@ module Api
             po_count: purchase_orders.count,
             category_count: cost_budgets.count
           }
+        }
+      end
+
+      # GET /api/v1/jobs/:id/price_analysis
+      # Compares PO line item prices against latest price_only contact reference prices
+      def price_analysis
+        # Query 1: Load POs with eager-loaded line items + pricebook items
+        purchase_orders = @job.purchase_orders
+                              .where.not(status: "cancelled")
+                              .includes(:supplier, line_items: :pricebook_item)
+
+        # Query 2: Collect all pricebook_item_ids from line items
+        all_line_items = purchase_orders.flat_map(&:line_items)
+        pricebook_item_ids = all_line_items.filter_map(&:pricebook_item_id).uniq
+
+        # Query 3: Get price_only contact IDs
+        price_only_ids = Contact.where(entity_type: "price_only").pluck(:id)
+
+        # Query 4: Bulk lookup latest price per pricebook item from price_only contacts
+        # Uses DISTINCT ON to get the most recent price history per pricebook item
+        reference_prices = {}
+        if pricebook_item_ids.any? && price_only_ids.any?
+          PriceHistory
+            .where(pricebook_item_id: pricebook_item_ids, supplier_id: price_only_ids)
+            .select("DISTINCT ON (pricebook_item_id) pricebook_item_id, new_price, supplier_id, date_effective, created_at")
+            .order("pricebook_item_id, date_effective DESC NULLS LAST, created_at DESC")
+            .each do |ph|
+              supplier = Contact.find_by(id: ph.supplier_id)
+              reference_prices[ph.pricebook_item_id] = {
+                price: ph.new_price,
+                supplier_id: ph.supplier_id,
+                supplier_name: supplier&.display_name || supplier&.company_name_or_trust || "Unknown",
+              }
+            end
+        end
+
+        # Build response
+        missing_count = 0
+        unlinked_count = 0
+        current_total = 0.0
+        ref_total = 0.0
+
+        po_groups = purchase_orders.map do |po|
+          po_current = 0.0
+          po_ref = 0.0
+          po_missing = 0
+
+          items = po.line_items.sort_by(&:line_number).map do |item|
+            subtotal = ((item.quantity || 0) * (item.unit_price || 0)).to_f.round(2)
+            po_current += subtotal
+
+            if item.pricebook_item_id.nil?
+              unlinked_count += 1
+              {
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity.to_f,
+                unit_price: item.unit_price.to_f,
+                current_subtotal: subtotal,
+                pricebook_item_code: nil,
+                price_only_price: nil,
+                price_only_subtotal: nil,
+                price_only_supplier: nil,
+                difference: nil,
+                difference_pct: nil,
+                status: "no_pricebook_link"
+              }
+            elsif reference_prices[item.pricebook_item_id].nil?
+              missing_count += 1
+              po_missing += 1
+              {
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity.to_f,
+                unit_price: item.unit_price.to_f,
+                current_subtotal: subtotal,
+                pricebook_item_code: item.pricebook_item&.item_code,
+                price_only_price: nil,
+                price_only_subtotal: nil,
+                price_only_supplier: nil,
+                difference: nil,
+                difference_pct: nil,
+                status: "missing_price_only"
+              }
+            else
+              ref = reference_prices[item.pricebook_item_id]
+              ref_price = ref[:price].to_f
+
+              # Always compare unit prices: ref_subtotal = qty * ref_price
+              # Both PO line items and reference prices are stored as per-unit values.
+              qty = (item.quantity || 0).to_f
+              ref_subtotal = (qty * ref_price).to_f.round(2)
+
+              po_ref += ref_subtotal
+              diff = (ref_subtotal - subtotal).round(2)
+              diff_pct = subtotal.abs > 0.01 ? ((diff / subtotal) * 100).round(1) : 0.0
+
+              status = if (item.unit_price.to_f - ref_price).abs < 0.01
+                "equal"
+              elsif ref_price < item.unit_price.to_f
+                "cheaper"  # reference is cheaper = we potentially overpaid
+              else
+                "expensive"  # reference is more expensive = we got a good deal
+              end
+
+              {
+                id: item.id,
+                description: item.description,
+                quantity: item.quantity.to_f,
+                unit_price: item.unit_price.to_f,
+                current_subtotal: subtotal,
+                pricebook_item_code: item.pricebook_item&.item_code,
+                price_only_price: ref_price.round(2),
+                price_only_subtotal: ref_subtotal,
+                price_only_supplier: ref[:supplier_name],
+                price_only_supplier_id: ref[:supplier_id],
+                difference: diff,
+                difference_pct: diff_pct,
+                status: status
+              }
+            end
+          end
+
+          current_total += po_current
+          po_diff = po_ref > 0 ? (po_ref - po_current).round(2) : nil
+
+          {
+            id: po.id,
+            po_number: po.purchase_order_number,
+            supplier_id: po.supplier_id,
+            supplier_name: po.supplier&.display_name || po.supplier&.company_name || "Unknown Supplier",
+            status: po.status,
+            current_total: po_current.round(2),
+            price_only_total: po_ref > 0 ? po_ref.round(2) : nil,
+            difference: po_diff,
+            missing_count: po_missing,
+            line_items: items
+          }
+        end
+
+        # Only sum ref_total from POs that have reference pricing
+        ref_total = po_groups.sum { |g| g[:price_only_total] || 0 }
+
+        render json: {
+          success: true,
+          summary: {
+            current_total: current_total.round(2),
+            price_only_total: ref_total.round(2),
+            difference: (ref_total - current_total).round(2),
+            missing_prices: missing_count,
+            unlinked_lines: unlinked_count,
+            total_pos: purchase_orders.size,
+            total_line_items: all_line_items.size
+          },
+          po_groups: po_groups
         }
       end
 

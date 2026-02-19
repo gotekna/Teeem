@@ -16,6 +16,7 @@ export interface ClassificationDocumentType {
   target_folder?: string;
   uiName?: string;
   downloadName?: string;
+  scope?: string;
 }
 
 export interface ClassificationBreakdown {

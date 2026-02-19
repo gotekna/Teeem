@@ -553,7 +553,7 @@ module Engines
         begin
           font_obj = canvas.font("Helvetica")
           text_width = font_obj.wrapped_font.width(text_str) * font_size / 1000.0
-        rescue
+        rescue StandardError
           # Fallback: approximate width (Helvetica avg char width is ~0.5 * font_size)
           text_width = text_str.length * font_size * 0.5
         end

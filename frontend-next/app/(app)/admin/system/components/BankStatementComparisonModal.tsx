@@ -95,7 +95,8 @@ export function BankStatementComparisonModal({
           try {
             const errorData = await refResponse.json();
             setReferenceError(errorData.error || "Failed to load reference image");
-          } catch {
+          } catch (err) {
+            console.error("[BankStatementComparisonModal] Failed to parse reference image error response:", err);
             setReferenceError(`Failed to load reference (${refResponse.status})`);
           }
         }

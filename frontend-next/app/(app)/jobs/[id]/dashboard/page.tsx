@@ -337,7 +337,8 @@ export default function SmDashboardPage() {
           fetchTrends(),
           fetchForecast(),
         ]);
-      } catch {
+      } catch (err) {
+        console.error("[JobDashboard] Failed to load dashboard data:", err);
         setError("Failed to load dashboard data");
       } finally {
         setLoading(false);

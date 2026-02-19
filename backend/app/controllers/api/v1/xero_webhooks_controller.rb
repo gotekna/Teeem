@@ -62,7 +62,11 @@ module Api
         return false if signature.blank?
 
         webhook_key = ENV["XERO_WEBHOOK_KEY"]
-        return true if webhook_key.blank? # Skip verification if no key configured
+        # Fail closed: reject all webhooks if no key is configured
+        if webhook_key.blank?
+          Rails.logger.warn("Xero webhook rejected: XERO_WEBHOOK_KEY not configured")
+          return false
+        end
 
         # Xero uses HMAC-SHA256 for webhook signatures
         expected_signature = Base64.strict_encode64(

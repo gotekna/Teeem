@@ -297,6 +297,11 @@ class TeknaDocumentGenerator
     context[:document_title] = template_config[:title]
     context[:is_qbcc_document] = template_config[:qbcc_required] || false
 
+    # PO template variant (SSoT: TenantSetting)
+    if template_key == :purchase_order
+      context[:po_template_variant] = extra_data[:po_template_variant] || TenantSetting.instance.po_template_variant || "classic"
+    end
+
     context
   end
 
@@ -440,7 +445,8 @@ class TeknaDocumentGenerator
         name: supplier.display_name,
         email: supplier&.email,
         phone: supplier&.office_phone || supplier&.mobile_phone,
-        address: supplier&.address
+        address: supplier&.address,
+        payment_terms_days: supplier&.bill_due_day
       }
     else
       {}
@@ -596,6 +602,20 @@ class TeknaDocumentGenerator
   def render_template(context)
     renderer = TeknaTemplateRenderer.new
     layout = "layouts/#{template_config[:layout]}"
+
+    # Custom PO variant: render from stored HTML instead of file
+    if template_key == :purchase_order && context[:po_template_variant] == "custom"
+      custom_html = TenantSetting.po_custom_template
+      if custom_html.present?
+        return renderer.render_from_string(
+          template_string: custom_html,
+          layout: layout,
+          locals: context
+        )
+      end
+      # Fallback to classic if custom template is empty
+      context[:po_template_variant] = "classic"
+    end
 
     renderer.render(
       template_path: template_config[:path],

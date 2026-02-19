@@ -1293,7 +1293,9 @@ class SyncedEmail < ApplicationRecord
         "blob_error" => e.message.truncate(200),
         "blob_retry_count" => retry_count,
         "last_retry_at" => Time.current.iso8601
-      )) rescue nil
+      ))
+    rescue StandardError => e2
+      Rails.logger.warn "[SyncedEmail] Failed to update blob_status for doc #{doc.id}: #{e2.message}"
       failed_docs << { doc_id: doc.id, error: "#{e.class}: #{e.message.truncate(100)}" }
     end
 

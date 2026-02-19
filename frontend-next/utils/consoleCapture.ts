@@ -209,6 +209,19 @@ class ConsoleCapture {
     this.listeners.forEach((listener) => listener(this.logs));
   }
 
+  // Capture a log entry directly without calling the original console method.
+  // Use this when an error was already logged to DevTools by something that
+  // bypasses our monkey-patch (e.g., React's internal error logging saves a
+  // reference to the original console.error before our interceptor runs).
+  captureDirectly(type: LogEntry["type"], message: string) {
+    const timestamp = new Date().toISOString();
+    this.logs.push({ timestamp, type, message });
+    if (this.logs.length > this.maxLogs) {
+      this.logs.shift();
+    }
+    this.notifyListeners();
+  }
+
   getErrorCount(): number {
     return this.logs.filter((log) => log.type === "error" || log.type === "warn").length;
   }

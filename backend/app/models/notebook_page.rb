@@ -221,7 +221,12 @@ class NotebookPage < ApplicationRecord
   def warehouse_sync_enabled?
     return false unless defined?(WarehouseProvider)
 
-    config = WarehouseProvider.instance rescue nil
+    config = begin
+      WarehouseProvider.instance
+    rescue StandardError => e
+      Rails.logger.warn "[NotebookPage] Failed to load WarehouseProvider.instance: #{e.message}"
+      nil
+    end
     config&.warehouse_sync_enabled? || false
   rescue StandardError => e
     Rails.logger.debug "[NotebookPage] Warehouse sync check failed: #{e.message}"

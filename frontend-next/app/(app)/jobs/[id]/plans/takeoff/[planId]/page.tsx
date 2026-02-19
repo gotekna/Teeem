@@ -715,7 +715,8 @@ export default function TakeoffPage() {
           return { ...prev, page_scales: newScales };
         });
         toast({ title: "Calibration Cleared", description: "You can now recalibrate from scratch." });
-      } catch {
+      } catch (err) {
+        console.error("[Takeoff] clear calibration error:", err);
         toast({ title: "Failed to clear calibration", variant: "destructive" });
       }
     },
@@ -1022,7 +1023,8 @@ export default function TakeoffPage() {
             prev.map((m) => (m.id === id ? response.data : m))
           );
         }
-      } catch {
+      } catch (err) {
+        console.error("[Takeoff] rename measurement error:", err);
         toast({ title: "Error", description: "Failed to rename measurement", variant: "destructive" });
       }
     },

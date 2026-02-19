@@ -497,7 +497,7 @@ function MS365MailboxAccessConfig() {
           setMs365ConsentUrl(null);
           window.location.reload();
         }
-      } catch { /* ignore polling errors */ }
+      } catch (err) { console.error("[EmailAccounts] Polling error:", err); }
     }, 5000);
     return () => clearInterval(interval);
   }, [ms365Waiting, ms365ConsentOrg]);

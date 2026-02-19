@@ -53,6 +53,8 @@ module Api
       end
 
       # POST /api/v1/claim_stage_templates/:id/apply
+      # Accepts optional `stages` param with overridden name/percentage/description per line
+      # This allows users to preview and adjust template values before applying
       def apply
         job = Job.find(params[:job_id])
         clear_existing = ActiveModel::Type::Boolean.new.cast(params[:clear_existing])
@@ -63,21 +65,45 @@ module Api
           deletable.destroy_all
         end
 
+        # If caller provides overridden stages, use those instead of raw template lines
+        overrides = params[:stages]
+        template_lines = @template.lines.ordered.to_a
+
         created_stages = []
         ActiveRecord::Base.transaction do
-          @template.lines.ordered.each do |line|
-            contract_price = job.contract_price.to_d
-            stage = job.job_claim_stages.create!(
-              name: line.name,
-              percentage: line.percentage,
-              expected_amount: (contract_price * line.percentage / 100).round(2),
-              sequence_order: line.sequence_order,
-              description: line.description,
-              is_custom: false,
-              retainage_percentage: line.retainage_percentage || @template.default_retainage_pct || 0,
-              match_keywords: line.match_keywords
-            )
-            created_stages << stage
+          if overrides.present? && overrides.is_a?(Array)
+            # User-adjusted stages (from preview dialog)
+            overrides.each_with_index do |override, idx|
+              contract_price = job.contract_price.to_d
+              pct = override[:percentage].to_d
+              stage = job.job_claim_stages.create!(
+                name: override[:name],
+                percentage: pct,
+                expected_amount: (contract_price * pct / 100).round(2),
+                sequence_order: idx,
+                description: override[:description],
+                is_custom: false,
+                retainage_percentage: override[:retainage_percentage] || @template.default_retainage_pct || 0,
+                match_keywords: override[:match_keywords]
+              )
+              created_stages << stage
+            end
+          else
+            # Direct apply (no overrides) - use template lines as-is
+            template_lines.each do |line|
+              contract_price = job.contract_price.to_d
+              stage = job.job_claim_stages.create!(
+                name: line.name,
+                percentage: line.percentage,
+                expected_amount: (contract_price * line.percentage / 100).round(2),
+                sequence_order: line.sequence_order,
+                description: line.description,
+                is_custom: false,
+                retainage_percentage: line.retainage_percentage || @template.default_retainage_pct || 0,
+                match_keywords: line.match_keywords
+              )
+              created_stages << stage
+            end
           end
         end
 

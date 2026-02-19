@@ -126,8 +126,9 @@ module PresignedUploadHandler
   rescue DocumentProviders::NotFoundError => e
     Rails.logger.error "[PresignedUploadHandler] File not found in storage: #{storage_key}"
     nil
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[PresignedUploadHandler] Failed to download #{storage_key}: #{e.message}"
+    Rails.logger.error e.backtrace.first(3).join("\n")
     nil
   end
 

@@ -35,7 +35,11 @@ class FindMissingAbnsJob < ApplicationJob
 
           # Auto-verify the new ABN
           sleep(ABR_API_SLEEP_SEC)
-          contact.verify_abn! rescue nil
+          begin
+            contact.verify_abn!
+          rescue StandardError => e
+            Rails.logger.warn "ABN verification failed for contact #{contact.id} (#{contact.display_name}): #{e.message}"
+          end
         else
           # Multiple matches - auto-select best match (highest score)
           best_match = results.first
@@ -47,7 +51,11 @@ class FindMissingAbnsJob < ApplicationJob
 
           # Auto-verify the new ABN
           sleep(ABR_API_SLEEP_SEC)
-          contact.verify_abn! rescue nil
+          begin
+            contact.verify_abn!
+          rescue StandardError => e
+            Rails.logger.warn "ABN verification failed for contact #{contact.id} (#{contact.display_name}): #{e.message}"
+          end
         end
       rescue => e
         errors += 1

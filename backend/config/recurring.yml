@@ -76,11 +76,12 @@ refresh_integration_tokens:
 # on :default, all 5 threads would be consumed by email sync, starving health monitors
 # and recurring tasks for 2+ hours. On :email_sync (lower priority than default),
 # health monitors always get a thread first.
-# TEMP (Feb 2026): 5 min while Pilgrim Homes year-by-year backfill completes. Revert to 15 min after.
+# Reverted to 15 min (Feb 2026): Pilgrim Homes backfill complete.
+# With DeduplicatableJob and 14-min time budget, 5 min schedule just created skipped queue entries.
 all_orgs_email_sync:
   class: AllOrgsEmailSyncJob
   queue: email_sync
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # ============================================
 # XERO INTEGRATION
@@ -132,6 +133,15 @@ corporate_xero_data_sync:
   class: CorporateXeroSyncJob
   queue: low
   schedule: at 6am every day
+
+# Auto-match Xero bills to native POs and update Xero Reference field
+# Finds Xero-imported POs, matches to manual POs by supplier+amount,
+# then writes PO number (e.g. PO-002452) to Xero bill's Reference field.
+# Runs daily at 7am Brisbane time (after overnight syncs, before work starts)
+xero_bill_po_match:
+  class: XeroBillPoMatchJob
+  queue: xero_sync
+  schedule: at 7am every day
 
 # GL Backup Sync - catches any webhook failures
 # SSoT: Webhooks are primary for GL sync, this is BACKUP only
@@ -277,13 +287,14 @@ xero_invoice_repair:
   schedule: every 30 minutes
 
 # Sync Xero invoice data from Xero API to database
-# Keeps Stage 1 (Xero Data) up-to-date even if webhooks fail
-# Syncs all connected tenants every 5 minutes
+# Safety net: webhooks handle real-time updates, this catches anything missed
+# Reduced from 5min to 15min (Feb 2026) since webhooks + single-invoice path
+# handle the real-time case. This is backup only.
 xero_invoice_data_sync:
   class: XeroInvoiceSyncJob
   queue: xero_sync
   args: [{}]
-  schedule: every 5 minutes
+  schedule: every 15 minutes
 
 # Sync Xero invoice attachments (PDFs) - runs frequently for backfill
 # Syncs invoices to WarehouseDocument (SSoT for all documents)

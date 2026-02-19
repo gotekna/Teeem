@@ -1945,7 +1945,8 @@ function MessageBubble({
                               await navigator.clipboard.write([
                                 new ClipboardItem({ [blob.type]: blob })
                               ]);
-                            } catch {
+                            } catch (err) {
+                              console.error("[Chat] clipboard write failed, falling back to URL copy:", err);
                               await copyToClipboard(message.file_url!);
                             }
                           }}

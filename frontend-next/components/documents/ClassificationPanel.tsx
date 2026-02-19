@@ -16,6 +16,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Check,
   Sparkles,
   AlertTriangle,
@@ -24,6 +29,11 @@ import {
   Eye,
   ScanSearch,
   Brain,
+  FileText,
+  ChevronDown,
+  Briefcase,
+  Users,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
@@ -248,9 +258,21 @@ export default function ClassificationPanel({
   const [signedStatus, setSignedStatus] = React.useState<"signed" | "unsigned" | null>(null);
   const [actionNotes, setActionNotes] = React.useState("");
 
+  const [docTypeScopeFilter, setDocTypeScopeFilter] = React.useState<string | null>(null);
   const [validating, setValidating] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [applyingSuggestion, setApplyingSuggestion] = React.useState(false);
+
+  // Collapsible column state
+  const [openColumns, setOpenColumns] = React.useState<Set<string>>(
+    new Set(["current", "ocr", "ai", "name"])
+  );
+  const toggleColumn = (col: string) =>
+    setOpenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col); else next.add(col);
+      return next;
+    });
 
   // Re-initialize from document prop when it changes (e.g. AI results arrive)
   React.useEffect(() => {
@@ -278,8 +300,9 @@ export default function ClassificationPanel({
   // ── Computed ──
 
   const isProcessing = aiProcessing || document.ai_verification_status === "processing";
-  const hasAiResults = !!document.ai_suggested_name;
-  const canAiVerify = mode === "review" && !isProcessing;
+  const hasAiResults = !!document.ai_suggested_name || !!classificationData?.ai?.document_type;
+  const hasNameResults = !!classificationData?.name_match?.document_type;
+  const canAiVerify = !isProcessing;
 
   const currentCompanyName =
     document.company?.name ||
@@ -379,11 +402,17 @@ export default function ClassificationPanel({
   return (
     <div className="flex h-full overflow-hidden">
       {/* ═══ COLUMN 1: CURRENT (blue) ═══ */}
-      <div className="w-1/3 overflow-y-auto border-r p-2 flex flex-col">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Eye className="h-3 w-3 text-blue-500 dark:text-blue-400" />
-          <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Current</span>
-          {!isEditing && mode === "review" && (
+      <div className={cn("overflow-y-auto border-r flex flex-col transition-all", openColumns.has("current") ? "flex-1 p-2" : "w-10 p-1")}>
+        <Collapsible open={openColumns.has("current")} onOpenChange={() => toggleColumn("current")}>
+        <CollapsibleTrigger className="flex items-center gap-1.5 mb-2 w-full cursor-pointer">
+          <Eye className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
+          {openColumns.has("current") && <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Current</span>}
+          <ChevronDown className={cn("h-3 w-3 text-muted-foreground ml-auto shrink-0 transition-transform", !openColumns.has("current") && "-rotate-90")} />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+        <div className="flex items-center gap-1.5 -mt-2 mb-2">
+          <div className="flex-1" />
+          {!isEditing && (
             <Button
               variant="ghost"
               size="sm"
@@ -401,30 +430,48 @@ export default function ClassificationPanel({
             <Label className="text-xs text-muted-foreground">Doc Type</Label>
             {isEditing ? (
               <>
-                <Select value={editedDocumentType} onValueChange={setEditedDocumentType}>
-                  <SelectTrigger className="mt-0.5 h-7 text-xs">
-                    <SelectValue placeholder="Select type...">
-                      {editedDocumentType ? (
-                        <span className="flex items-center gap-1">
-                          <Badge variant="outline" className="font-mono text-[10px] px-1">
-                            {localGetDocTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.abbrev || "?"}
-                          </Badge>
-                          <span className="truncate">{localGetDocTypesForFolder(editedFolder).find(t => t.value === editedDocumentType)?.label || editedDocumentType}</span>
-                        </span>
-                      ) : "Select..."}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {localGetDocTypesForFolder(editedFolder).map(type => (
-                      <SelectItem key={type.value} value={type.value}>
-                        <span className="flex items-center gap-1">
-                          <Badge variant="outline" className="font-mono text-[10px] px-1">{type.abbrev}</Badge>
-                          {type.label}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {/* Scope quick-filter buttons */}
+                <div className="flex items-center gap-0.5 mt-0.5 mb-1">
+                  {([
+                    { scope: "job", label: "Job", icon: Briefcase },
+                    { scope: "contacts", label: "Contact", icon: Users },
+                    { scope: "company", label: "Corp", icon: Building2 },
+                  ] as const).map(({ scope, label, icon: Icon }) => (
+                    <Button
+                      key={scope}
+                      type="button"
+                      size="sm"
+                      variant={docTypeScopeFilter === scope ? "default" : "outline"}
+                      onClick={() => setDocTypeScopeFilter(prev => prev === scope ? null : scope)}
+                      className={cn("h-5 px-1.5 text-[9px] gap-0.5", docTypeScopeFilter === scope && "bg-blue-600 hover:bg-blue-700")}
+                    >
+                      <Icon className="h-2.5 w-2.5" />{label}
+                    </Button>
+                  ))}
+                  {docTypeScopeFilter && (
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setDocTypeScopeFilter(null)} className="h-5 px-1 text-[9px] text-muted-foreground">All</Button>
+                  )}
+                </div>
+                {/* Searchable doc type dropdown */}
+                <ComboboxDropdown
+                  items={documentTypes
+                    .filter(dt => !docTypeScopeFilter || dt.scope === docTypeScopeFilter)
+                    .map(dt => ({
+                      id: dt.name.toLowerCase(),
+                      label: `${dt.abbreviation ? `[${dt.abbreviation}] ` : ""}${dt.name}`,
+                    }))}
+                  selectedItem={editedDocumentType ? {
+                    id: editedDocumentType,
+                    label: (() => {
+                      const dt = documentTypes.find(d => d.name.toLowerCase() === editedDocumentType);
+                      return dt ? `${dt.abbreviation ? `[${dt.abbreviation}] ` : ""}${dt.name}` : editedDocumentType;
+                    })()
+                  } : undefined}
+                  onSelect={item => setEditedDocumentType(item.id)}
+                  placeholder="Search doc types..."
+                  searchInTrigger
+                  className="h-7 text-xs"
+                />
                 <div className="flex items-center gap-2 mt-1">
                   {needsSignedToggle && (
                     <div className="flex items-center gap-0.5 bg-muted rounded px-1 py-0.5">
@@ -622,22 +669,27 @@ export default function ClassificationPanel({
             ) : null}
           </div>
         </div>
+        </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* ═══ COLUMN 2: OCR (amber) ═══ */}
-      <div className="w-1/3 overflow-y-auto border-r p-2 flex flex-col bg-amber-50/30 dark:bg-amber-900/5">
-        <div className="flex items-center gap-1.5 mb-2">
-          <ScanSearch className="h-3 w-3 text-amber-500 dark:text-amber-400" />
-          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">OCR</span>
-          {classificationData?.ocr?.confidence != null && classificationData.ocr.confidence > 0 && (
+      <div className={cn("overflow-y-auto border-r flex flex-col bg-amber-50/30 dark:bg-amber-900/5 transition-all", openColumns.has("ocr") ? "flex-1 p-2" : "w-10 p-1")}>
+        <Collapsible open={openColumns.has("ocr")} onOpenChange={() => toggleColumn("ocr")}>
+        <CollapsibleTrigger className="flex items-center gap-1.5 mb-2 w-full cursor-pointer">
+          <ScanSearch className="h-3 w-3 text-amber-500 dark:text-amber-400 shrink-0" />
+          {openColumns.has("ocr") && <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">OCR</span>}
+          {openColumns.has("ocr") && classificationData?.ocr?.confidence != null && classificationData.ocr.confidence > 0 && (
             <Badge variant="outline" className={cn(
               "text-[10px] ml-auto px-1",
               classificationData.ocr.confidence >= 80 ? "border-green-500 text-green-600" :
               classificationData.ocr.confidence >= 60 ? "border-yellow-500 text-yellow-600" : "border-red-500 text-red-600"
             )}>{classificationData.ocr.confidence}%</Badge>
           )}
-        </div>
+          <ChevronDown className={cn("h-3 w-3 text-muted-foreground shrink-0 transition-transform", !openColumns.has("ocr") && "-rotate-90", openColumns.has("ocr") && classificationData?.ocr?.confidence != null && classificationData.ocr.confidence > 0 ? "" : "ml-auto")} />
+        </CollapsibleTrigger>
 
+        <CollapsibleContent>
         {classificationLoading ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <Spinner size={20} className="mb-2 text-amber-500" />
@@ -812,28 +864,37 @@ export default function ClassificationPanel({
             </div>
           </div>
         )}
+        </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* ═══ COLUMN 3: AI (purple) ═══ */}
       <div className={cn(
-        "w-1/3 overflow-y-auto p-2",
+        "overflow-y-auto border-r flex flex-col transition-all",
+        openColumns.has("ai") ? "flex-1 p-2" : "w-10 p-1",
         hasAiResults ? "bg-purple-50/30 dark:bg-purple-900/5" : "bg-muted/20"
       )}>
-        <div className="flex items-center gap-1.5 mb-2">
-          <Brain className={cn("h-3 w-3", hasAiResults ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
-          <span className={cn(
+        <Collapsible open={openColumns.has("ai")} onOpenChange={() => toggleColumn("ai")}>
+        <CollapsibleTrigger className="flex items-center gap-1.5 mb-2 w-full cursor-pointer">
+          <Brain className={cn("h-3 w-3 shrink-0", hasAiResults ? "text-purple-500 dark:text-purple-400" : "text-muted-foreground/50")} />
+          {openColumns.has("ai") && <span className={cn(
             "text-[10px] font-semibold uppercase tracking-wide",
             hasAiResults ? "text-purple-600 dark:text-purple-400" : "text-muted-foreground/50"
-          )}>AI</span>
-          {document.ai_confidence_score != null && document.ai_confidence_score > 0 && (
-            <Badge variant="outline" className={cn(
-              "text-[10px] ml-auto px-1",
-              document.ai_confidence_score >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
-              document.ai_confidence_score >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
-            )}>{document.ai_confidence_score}%</Badge>
-          )}
-        </div>
+          )}>AI</span>}
+          {openColumns.has("ai") && (() => {
+            const aiConf = classificationData?.ai?.confidence ?? document.ai_confidence_score;
+            return aiConf != null && aiConf > 0 ? (
+              <Badge variant="outline" className={cn(
+                "text-[10px] ml-auto px-1",
+                aiConf >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
+                aiConf >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
+              )}>{aiConf}%</Badge>
+            ) : null;
+          })()}
+          <ChevronDown className={cn("h-3 w-3 text-muted-foreground shrink-0 transition-transform", !openColumns.has("ai") && "-rotate-90", !openColumns.has("ai") && "ml-auto")} />
+        </CollapsibleTrigger>
 
+        <CollapsibleContent>
         {isProcessing ? (
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <Spinner size={20} className="mb-2 text-purple-500 dark:text-purple-400" />
@@ -842,28 +903,32 @@ export default function ClassificationPanel({
         ) : (
           <div className={cn("space-y-1.5", !hasAiResults && "opacity-40")}>
             {/* Doc Type */}
-            <div>
-              <Label className="text-xs text-muted-foreground">Doc Type</Label>
-              <div className={cn(
-                "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
-                document.ai_suggested_type
-                  ? (document.ai_suggested_type.toLowerCase().replace(/[_\s]/g, "") === (document.document_type || "").toLowerCase().replace(/[_\s]/g, "")
-                    ? "border-green-500 bg-green-50 dark:bg-green-900/20"
-                    : "border-red-500 bg-red-50 dark:bg-red-900/20")
-                  : ""
-              )}>
-                {(() => {
-                  if (!document.ai_suggested_type) return "-";
-                  const aiDt = localGetDocTypeRecord(document.ai_suggested_type);
-                  return aiDt ? (
-                    <a href={`/admin/system/document-types/${aiDt.id}`} target="_blank" className="flex items-center gap-1 hover:underline cursor-pointer truncate" title={`Open ${aiDt.name} settings`}>
-                      <Badge variant="outline" className="font-mono text-[10px] shrink-0">{aiDt.abbreviation || document.ai_suggested_type?.substring(0, 3).toUpperCase()}</Badge>
-                      <span className="truncate">{aiDt.name}</span>
-                    </a>
-                  ) : <span>{document.ai_suggested_type.replace(/_/g, " ")}</span>;
-                })()}
-              </div>
-            </div>
+            {(() => {
+              const aiType = classificationData?.ai?.document_type || document.ai_suggested_type;
+              const aiDt = aiType ? localGetDocTypeRecord(aiType) : null;
+              return (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Doc Type</Label>
+                  <div className={cn(
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                    aiType
+                      ? (aiType.toLowerCase().replace(/[_\s]/g, "") === (document.document_type || "").toLowerCase().replace(/[_\s]/g, "")
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                      : ""
+                  )}>
+                    {aiDt ? (
+                      <a href={`/admin/system/document-types/${aiDt.id}`} target="_blank" className="flex items-center gap-1 hover:underline cursor-pointer truncate" title={`Open ${aiDt.name} settings`}>
+                        <Badge variant="outline" className="font-mono text-[10px] shrink-0">{aiDt.abbreviation || aiType?.substring(0, 3).toUpperCase()}</Badge>
+                        <span className="truncate">{aiDt.name}</span>
+                      </a>
+                    ) : aiType ? (
+                      <span>{aiType.replace(/_/g, " ")}</span>
+                    ) : "-"}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Company */}
             <div>
@@ -877,8 +942,8 @@ export default function ClassificationPanel({
 
             {/* Folder */}
             {(() => {
-              const aiFolder = document.ai_suggested_folder || classificationData?.ai?.resolved_folder;
-              const auto = localGetAutoFields(document.ai_suggested_type);
+              const aiFolder = classificationData?.ai?.resolved_folder || document.ai_suggested_folder;
+              const auto = localGetAutoFields(classificationData?.ai?.document_type || document.ai_suggested_type);
               return (
                 <div className={cn(auto.folder && "opacity-40")}>
                   <Label className="text-xs text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
@@ -1088,6 +1153,180 @@ export default function ClassificationPanel({
             )}
           </div>
         )}
+        </CollapsibleContent>
+        </Collapsible>
+      </div>
+
+      {/* ═══ COLUMN 4: NAME (teal) ═══ */}
+      <div className={cn(
+        "overflow-y-auto flex flex-col transition-all",
+        openColumns.has("name") ? "flex-1 p-2" : "w-10 p-1",
+        hasNameResults ? "bg-teal-50/30 dark:bg-teal-900/5" : "bg-muted/20"
+      )}>
+        <Collapsible open={openColumns.has("name")} onOpenChange={() => toggleColumn("name")}>
+        <CollapsibleTrigger className="flex items-center gap-1.5 mb-2 w-full cursor-pointer">
+          <FileText className={cn("h-3 w-3 shrink-0", hasNameResults ? "text-teal-500 dark:text-teal-400" : "text-muted-foreground/50")} />
+          {openColumns.has("name") && <span className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide",
+            hasNameResults ? "text-teal-600 dark:text-teal-400" : "text-muted-foreground/50"
+          )}>Name</span>}
+          {openColumns.has("name") && classificationData?.name_match?.confidence != null && classificationData.name_match.confidence > 0 && (
+            <Badge variant="outline" className={cn(
+              "text-[10px] ml-auto px-1",
+              classificationData.name_match.confidence >= 80 ? "border-green-500 text-green-600 dark:text-green-400" :
+              classificationData.name_match.confidence >= 60 ? "border-yellow-500 text-yellow-600 dark:text-yellow-400" : "border-red-500 text-red-600 dark:text-red-400"
+            )}>{classificationData.name_match.confidence}%</Badge>
+          )}
+          <ChevronDown className={cn("h-3 w-3 text-muted-foreground shrink-0 transition-transform", !openColumns.has("name") && "-rotate-90", !openColumns.has("name") && "ml-auto")} />
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+        {classificationLoading ? (
+          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+            <Spinner size={20} className="mb-2 text-teal-500" />
+            <p className="text-[10px]">Loading...</p>
+          </div>
+        ) : (
+          <div className={cn("space-y-1.5 flex flex-col flex-1", !hasNameResults && "opacity-40")}>
+            {/* Doc Type */}
+            {(() => {
+              const nameType = classificationData?.name_match?.document_type;
+              const nameDt = nameType ? localGetDocTypeRecord(nameType) : null;
+              return (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Doc Type</Label>
+                  <div className={cn(
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 truncate",
+                    nameType
+                      ? (nameType === document.document_type
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                      : ""
+                  )}>
+                    {nameDt ? (
+                      <a href={`/admin/system/document-types/${nameDt.id}`} target="_blank" className="flex items-center gap-1 hover:underline cursor-pointer truncate" title={`Open ${nameDt.name} settings`}>
+                        <Badge variant="outline" className="font-mono text-[10px] shrink-0">{nameDt.abbreviation || nameType?.substring(0, 3).toUpperCase()}</Badge>
+                        <span className="truncate">{nameDt.name}</span>
+                      </a>
+                    ) : nameType ? (
+                      <span>{nameType.replace(/_/g, " ")}</span>
+                    ) : "-"}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Company - name match doesn't detect company */}
+            <div>
+              <Label className="text-xs text-muted-foreground">Company</Label>
+              <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+            </div>
+
+            {/* Folder */}
+            {(() => {
+              const nameFolder = classificationData?.name_match?.resolved_folder;
+              const auto = localGetAutoFields(classificationData?.name_match?.document_type);
+              return (
+                <div className={cn(auto.folder && "opacity-40")}>
+                  <Label className="text-xs text-muted-foreground">Folder {auto.folder && <span className="italic">(auto)</span>}</Label>
+                  <div className={cn(
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50",
+                    nameFolder
+                      ? (nameFolder.toUpperCase() === (document.folder || "GENERAL").toUpperCase()
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                      : "text-muted-foreground"
+                  )}>
+                    {nameFolder ? nameFolder.toUpperCase() : "-"}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Description - name match doesn't extract */}
+            <div>
+              <Label className="text-xs text-muted-foreground">Description</Label>
+              <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+            </div>
+
+            {/* FY - name match doesn't detect */}
+            <div>
+              <Label className="text-xs text-muted-foreground">FY</Label>
+              <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50 text-muted-foreground">-</div>
+            </div>
+
+            {/* UI Name */}
+            {(() => {
+              const nameUiName = classificationData?.name_match?.resolved_ui_name;
+              const auto = localGetAutoFields(classificationData?.name_match?.document_type);
+              return (
+                <div className={cn(auto.uiName && "opacity-40")}>
+                  <Label className="text-xs text-muted-foreground">UI Name {auto.uiName && <span className="italic">(auto)</span>}</Label>
+                  <div className={cn(
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
+                    nameUiName
+                      ? (nameUiName === document.display_name
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                      : "bg-muted/50 text-muted-foreground"
+                  )}>
+                    {nameUiName || "-"}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* DL Name */}
+            {(() => {
+              const nameDlName = classificationData?.name_match?.resolved_dl_name;
+              const auto = localGetAutoFields(classificationData?.name_match?.document_type);
+              return (
+                <div className={cn(auto.dlName && "opacity-40")}>
+                  <Label className="text-xs text-muted-foreground">DL Name {auto.dlName && <span className="italic">(auto)</span>}</Label>
+                  <div className={cn(
+                    "mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center truncate",
+                    nameDlName
+                      ? (nameDlName === document.download_name
+                        ? "border-green-500 bg-green-50 dark:bg-green-900/20"
+                        : "border-red-500 bg-red-50 dark:bg-red-900/20")
+                      : "bg-muted/50 text-muted-foreground"
+                  )}>
+                    {nameDlName || "-"}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Name match extras */}
+            <div className="pt-1 border-t border-teal-200 dark:border-teal-800/50">
+              <div>
+                <Label className="text-xs text-muted-foreground">Signals</Label>
+                <div className="mt-0.5 min-h-[28px] text-xs border rounded-md px-2 py-1 bg-muted/50">
+                  {classificationData?.name_match?.signals && classificationData.name_match.signals.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {classificationData.name_match.signals.map((s, i) => (
+                        <span key={i}>{s}{i < classificationData.name_match.signals.length - 1 ? "," : ""}</span>
+                      ))}
+                    </div>
+                  ) : "-"}
+                </div>
+              </div>
+
+              <div className="mt-1.5">
+                <Label className="text-xs text-muted-foreground">Status</Label>
+                <div className="mt-0.5 h-7 text-xs border rounded-md px-2 flex items-center bg-muted/50">
+                  {classificationData?.name_match?.status === "completed" ? (
+                    <Badge variant="outline" className="text-[10px] border-green-500 text-green-600">completed</Badge>
+                  ) : classificationData?.name_match?.status === "not_applicable" ? (
+                    <Badge variant="outline" className="text-[10px] border-gray-400 text-gray-500">n/a</Badge>
+                  ) : classificationData?.name_match?.status || "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        </CollapsibleContent>
+        </Collapsible>
       </div>
     </div>
   );

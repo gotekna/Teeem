@@ -60,6 +60,7 @@ import {
   Send,
   ChevronsUpDown,
   Check,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -91,6 +92,16 @@ interface ProfitCentre {
   name: string;
 }
 
+interface TemplateLine {
+  id: number;
+  name: string;
+  percentage: number;
+  sequenceOrder: number;
+  description: string | null;
+  retainagePercentage: number | null;
+  matchKeywords: string | null;
+}
+
 interface ClaimTemplateOption {
   id: number;
   name: string;
@@ -98,6 +109,16 @@ interface ClaimTemplateOption {
   totalPercentage: number;
   percentagesValid: boolean;
   description: string | null;
+  lines: TemplateLine[];
+}
+
+// Editable stage line for the preview/add dialog
+interface EditableStageLine {
+  name: string;
+  percentage: string;
+  description: string;
+  retainage_percentage: string;
+  match_keywords: string;
 }
 
 interface ClaimStage {
@@ -246,6 +267,18 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
   const [applyingTemplate, setApplyingTemplate] = React.useState(false);
   const [profitCentres, setProfitCentres] = React.useState<ProfitCentre[]>([]);
 
+  // Template preview dialog state
+  const [showTemplatePreview, setShowTemplatePreview] = React.useState(false);
+  const [previewTemplateId, setPreviewTemplateId] = React.useState<number | null>(null);
+  const [previewLines, setPreviewLines] = React.useState<EditableStageLine[]>([]);
+
+  // Add custom claim dialog state
+  const [showAddClaimDialog, setShowAddClaimDialog] = React.useState(false);
+  const [addClaimData, setAddClaimData] = React.useState<EditableStageLine>({
+    name: "", percentage: "", description: "", retainage_percentage: "", match_keywords: "",
+  });
+  const [addingClaim, setAddingClaim] = React.useState(false);
+
   // Detail modal state
   const [detailStage, setDetailStage] = React.useState<ClaimStage | null>(null);
   const [detailLoading, setDetailLoading] = React.useState(false);
@@ -319,29 +352,110 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     }
   }, [stages.length, loading, loadClaimTemplates]);
 
-  const handleApplyTemplate = async (templateId: number) => {
+  // Open template preview dialog - load lines and let user adjust before applying
+  const handleSelectTemplate = (templateId: number) => {
+    const template = claimTemplates.find((t) => t.id === templateId);
+    if (!template) return;
+
+    setPreviewTemplateId(templateId);
+    setPreviewLines(
+      template.lines.map((line) => ({
+        name: line.name,
+        percentage: line.percentage.toString(),
+        description: line.description || "",
+        retainage_percentage: line.retainagePercentage?.toString() || "",
+        match_keywords: line.matchKeywords || "",
+      }))
+    );
+    setShowTemplatePreview(true);
+  };
+
+  // Add a blank line to the template preview
+  const handleAddPreviewLine = () => {
+    setPreviewLines((prev) => [
+      ...prev,
+      { name: "", percentage: "", description: "", retainage_percentage: "", match_keywords: "" },
+    ]);
+  };
+
+  // Remove a line from template preview
+  const handleRemovePreviewLine = (index: number) => {
+    setPreviewLines((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Apply the adjusted template
+  const handleApplyTemplate = async () => {
+    if (!previewTemplateId) return;
+
+    // Validate
+    const activeLines = previewLines.filter((l) => l.name.trim());
+    if (activeLines.length === 0) {
+      toast({ title: "Error", description: "At least one stage is required", variant: "destructive" });
+      return;
+    }
+
     setApplyingTemplate(true);
     try {
       const response = await api.post<{ success: boolean; data: { stages_created: number; template_name: string } }>(
-        `/api/v1/claim_stage_templates/${templateId}/apply`,
-        { job_id: jobId }
+        `/api/v1/claim_stage_templates/${previewTemplateId}/apply`,
+        {
+          job_id: jobId,
+          stages: activeLines.map((line) => ({
+            name: line.name,
+            percentage: parseFloat(line.percentage) || 0,
+            description: line.description || null,
+            retainage_percentage: line.retainage_percentage ? parseFloat(line.retainage_percentage) : null,
+            match_keywords: line.match_keywords || null,
+          })),
+        }
       );
       if (response?.success) {
         toast({
           title: "Template Applied",
           description: `Created ${response.data.stages_created} claim stages from "${response.data.template_name}"`,
         });
+        setShowTemplatePreview(false);
         loadData();
       }
     } catch (error) {
       console.error("Failed to apply template:", error);
-      toast({
-        title: "Error",
-        description: "Failed to apply claim template",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to apply claim template", variant: "destructive" });
     } finally {
       setApplyingTemplate(false);
+    }
+  };
+
+  // Manually add a single custom claim stage
+  const handleAddCustomClaim = async () => {
+    if (!addClaimData.name.trim()) {
+      toast({ title: "Error", description: "Name is required", variant: "destructive" });
+      return;
+    }
+
+    setAddingClaim(true);
+    try {
+      const pct = parseFloat(addClaimData.percentage) || 0;
+      const response = await api.post<{ success: boolean; data: ClaimStage }>(
+        `/api/v1/jobs/${jobId}/claim_stages`,
+        {
+          job_claim_stage: {
+            name: addClaimData.name,
+            percentage: pct,
+            description: addClaimData.description || null,
+          },
+        }
+      );
+      if (response?.success) {
+        toast({ title: "Claim Added", description: `"${addClaimData.name}" added` });
+        setShowAddClaimDialog(false);
+        setAddClaimData({ name: "", percentage: "", description: "", retainage_percentage: "", match_keywords: "" });
+        loadData();
+      }
+    } catch (error) {
+      console.error("Failed to add claim:", error);
+      toast({ title: "Error", description: "Failed to add claim stage", variant: "destructive" });
+    } finally {
+      setAddingClaim(false);
     }
   };
 
@@ -718,40 +832,75 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
     );
   }
 
+  // Computed: total percentage for preview lines
+  const previewTotalPct = previewLines.reduce((sum, l) => sum + (parseFloat(l.percentage) || 0), 0);
+
   if (stages.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center">
-          <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">No Claim Stages</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Apply a claim template to set up progress claim stages for this job.
-          </p>
-          {claimTemplates.length > 0 ? (
+      <>
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Receipt className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">No Claim Stages</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Apply a claim template or manually add claim stages for this job.
+            </p>
             <div className="flex flex-col items-center gap-3">
-              <div className="w-72">
-                <ComboboxDropdown
-                  placeholder="Select a claim template..."
-                  items={claimTemplates.map((t) => ({
-                    id: t.id.toString(),
-                    label: `${t.name} (${t.lineCount} stages, ${t.totalPercentage}%)`,
-                  }))}
-                  onSelect={(item) => handleApplyTemplate(parseInt(item.id, 10))}
-                  disabled={applyingTemplate}
-                  isLoading={applyingTemplate}
-                />
-              </div>
+              {claimTemplates.length > 0 && (
+                <div className="w-72">
+                  <ComboboxDropdown
+                    placeholder="Select a claim template..."
+                    items={claimTemplates.map((t) => ({
+                      id: t.id.toString(),
+                      label: `${t.name} (${t.lineCount} stages, ${t.totalPercentage}%)`,
+                    }))}
+                    onSelect={(item) => handleSelectTemplate(parseInt(item.id, 10))}
+                    disabled={applyingTemplate}
+                    isLoading={applyingTemplate}
+                  />
+                </div>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddClaimDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add Claim Manually
+              </Button>
               <p className="text-xs text-muted-foreground">
-                Manage templates in Settings &rarr; Operations &rarr; Claim Templates
+                Manage templates in Settings &rarr; Company &rarr; Job Setup &rarr; Claims
               </p>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              No templates available. Create them in Settings &rarr; Operations &rarr; Claim Templates.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* Template Preview Dialog */}
+        <TemplatePreviewDialog
+          open={showTemplatePreview}
+          onOpenChange={setShowTemplatePreview}
+          templateName={claimTemplates.find((t) => t.id === previewTemplateId)?.name || ""}
+          lines={previewLines}
+          setLines={setPreviewLines}
+          totalPercentage={previewTotalPct}
+          contractValue={contractValue}
+          onAddLine={handleAddPreviewLine}
+          onRemoveLine={handleRemovePreviewLine}
+          onApply={handleApplyTemplate}
+          applying={applyingTemplate}
+        />
+
+        {/* Add Custom Claim Dialog */}
+        <AddClaimDialog
+          open={showAddClaimDialog}
+          onOpenChange={setShowAddClaimDialog}
+          data={addClaimData}
+          setData={setAddClaimData}
+          contractValue={contractValue}
+          onSave={handleAddCustomClaim}
+          saving={addingClaim}
+        />
+      </>
     );
   }
 
@@ -872,6 +1021,14 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
                 <RefreshCw className="h-4 w-4 mr-2" />
               )}
               Auto-Match Invoices
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAddClaimDialog(true)}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Claim
             </Button>
           </div>
         </CardHeader>
@@ -1707,7 +1864,214 @@ export function JobClaimStagesTab({ jobId, contractValue }: JobClaimStagesTabPro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Custom Claim Dialog */}
+      <AddClaimDialog
+        open={showAddClaimDialog}
+        onOpenChange={setShowAddClaimDialog}
+        data={addClaimData}
+        setData={setAddClaimData}
+        contractValue={contractValue}
+        onSave={handleAddCustomClaim}
+        saving={addingClaim}
+      />
     </div>
+  );
+}
+
+// ─── Template Preview Dialog ───────────────────────────────────────────────
+function TemplatePreviewDialog({
+  open,
+  onOpenChange,
+  templateName,
+  lines,
+  setLines,
+  totalPercentage,
+  contractValue,
+  onAddLine,
+  onRemoveLine,
+  onApply,
+  applying,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  templateName: string;
+  lines: EditableStageLine[];
+  setLines: React.Dispatch<React.SetStateAction<EditableStageLine[]>>;
+  totalPercentage: number;
+  contractValue?: number;
+  onAddLine: () => void;
+  onRemoveLine: (index: number) => void;
+  onApply: () => void;
+  applying: boolean;
+}) {
+  const updateLine = (index: number, field: keyof EditableStageLine, value: string) => {
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Apply Template: {templateName}</DialogTitle>
+          <DialogDescription>
+            Review and adjust the claim stages before applying. You can change names, percentages, and add or remove stages.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          {/* Summary */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">{lines.length} stages</span>
+            <Badge
+              variant={Math.abs(totalPercentage - 100) < 0.01 ? "default" : "outline"}
+              className={cn(
+                "font-mono",
+                Math.abs(totalPercentage - 100) < 0.01
+                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                  : "border-amber-500 text-amber-600 dark:text-amber-400"
+              )}
+            >
+              Total: {totalPercentage.toFixed(1)}%
+            </Badge>
+          </div>
+
+          {/* Stage lines */}
+          <div className="border rounded-md divide-y">
+            {lines.map((line, index) => (
+              <div key={index} className="flex items-center gap-2 p-2">
+                <span className="text-xs text-muted-foreground w-5 shrink-0">{index + 1}</span>
+                <Input
+                  value={line.name}
+                  onChange={(e) => updateLine(index, "name", e.target.value)}
+                  placeholder="Stage name"
+                  className="flex-1 h-8 text-sm"
+                />
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                  value={line.percentage}
+                  onChange={(e) => updateLine(index, "percentage", e.target.value)}
+                  placeholder="%"
+                  className="w-20 h-8 text-sm text-right font-mono"
+                />
+                {contractValue && contractValue > 0 && (
+                  <span className="text-xs text-muted-foreground w-20 text-right font-mono shrink-0">
+                    ${((contractValue * (parseFloat(line.percentage) || 0)) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => onRemoveLine(index)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            <div className="p-2">
+              <Button variant="ghost" size="sm" onClick={onAddLine} className="gap-1 text-xs w-full">
+                <Plus className="h-3.5 w-3.5" />
+                Add Stage
+              </Button>
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={applying}>
+            Cancel
+          </Button>
+          <Button onClick={onApply} disabled={applying || lines.length === 0}>
+            {applying ? <Spinner size={16} className="mr-2" /> : null}
+            Apply {lines.length} Stages
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Add Claim Dialog ──────────────────────────────────────────────────────
+function AddClaimDialog({
+  open,
+  onOpenChange,
+  data,
+  setData,
+  contractValue,
+  onSave,
+  saving,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  data: EditableStageLine;
+  setData: React.Dispatch<React.SetStateAction<EditableStageLine>>;
+  contractValue?: number;
+  onSave: () => void;
+  saving: boolean;
+}) {
+  const pct = parseFloat(data.percentage) || 0;
+  const expectedAmount = contractValue && contractValue > 0 ? (contractValue * pct / 100) : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>Add Claim Stage</DialogTitle>
+          <DialogDescription>
+            Manually add a claim stage to this job.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input
+              value={data.name}
+              onChange={(e) => setData((d) => ({ ...d, name: e.target.value }))}
+              placeholder="e.g. Deposit, Frame Stage"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Percentage</Label>
+              <Input
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={data.percentage}
+                onChange={(e) => setData((d) => ({ ...d, percentage: e.target.value }))}
+                placeholder="e.g. 10"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Expected Amount</Label>
+              <div className="h-9 px-3 flex items-center text-sm font-mono bg-muted rounded-md">
+                {expectedAmount != null ? `$${expectedAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "-"}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Description (optional)</Label>
+            <Input
+              value={data.description}
+              onChange={(e) => setData((d) => ({ ...d, description: e.target.value }))}
+              placeholder="Optional notes"
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={onSave} disabled={saving || !data.name.trim()}>
+            {saving ? <Spinner size={16} className="mr-2" /> : null}
+            Add Claim
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

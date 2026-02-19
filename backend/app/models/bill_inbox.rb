@@ -158,7 +158,12 @@ class BillInbox < ApplicationRecord
   def virtual_folder_path
     return FALLBACK_FOLDER_PATH unless tenant_id
 
-    config = WarehouseProvider.for_tenant(tenant) rescue nil
+    config = begin
+      WarehouseProvider.for_tenant(tenant)
+    rescue StandardError => e
+      Rails.logger.warn "[BillInbox] Failed to load WarehouseProvider for tenant #{tenant_id}: #{e.message}"
+      nil
+    end
     template = config&.path_for(:bill_inbox)
     return FALLBACK_FOLDER_PATH unless template
 

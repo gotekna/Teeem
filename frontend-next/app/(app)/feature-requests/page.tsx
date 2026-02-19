@@ -155,8 +155,8 @@ export default function FeatureRequestsPage() {
           res.data.feature_requests.filter((r) => r.isFollowing).map((r) => r.id)
         ));
       }
-    } catch {
-      // Silently handle - page will show empty state
+    } catch (err) {
+      console.error("[FeatureRequests] failed to fetch requests:", err);
     } finally {
       setLoading(false);
     }
@@ -191,8 +191,8 @@ export default function FeatureRequestsPage() {
       } else {
         await api.post(`/api/v1/feature_requests/${id}/follow`);
       }
-    } catch {
-      // Revert on error
+    } catch (err) {
+      console.error("[FeatureRequests] failed to toggle follow:", err);
       fetchRequests();
     }
   };
@@ -209,8 +209,8 @@ export default function FeatureRequestsPage() {
       });
       setEditingId(null);
       fetchRequests();
-    } catch {
-      // Error handling
+    } catch (err) {
+      console.error("[FeatureRequests] failed to save admin update:", err);
     }
   };
 
@@ -711,7 +711,8 @@ function SubmitDialog({
       } else {
         setError(res?.error || "Failed to submit request");
       }
-    } catch {
+    } catch (err) {
+      console.error("[FeatureRequests] failed to submit new request:", err);
       setError("Failed to submit request. Please try again.");
     } finally {
       setSubmitting(false);

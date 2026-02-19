@@ -6,9 +6,14 @@
 # - 5 concurrent connections per access token
 # - 60 requests per minute per tenant
 # - 5000 requests per day per tenant
+# - 10000 requests per minute per app (across all tenants)
 #
-# This tracker uses Rails cache to store request counts and provides
-# real-time visibility into API usage.
+# SSoT (Feb 2026): Usage data comes from Xero's actual response headers:
+#   X-MinLimit-Remaining  → remaining minute calls
+#   X-DayLimit-Remaining  → remaining daily calls
+#   X-AppMinLimit-Remaining → app-wide minute remaining
+# These headers are synced to cache after every API call via sync_from_headers.
+# This replaced internal increment counters that drifted from reality.
 #
 # Also tracks Xero-enforced rate limits (429 responses with Retry-After header).
 # When Xero returns a 429, we store the lockout time and refuse to make requests
@@ -173,45 +178,82 @@ class XeroRateLimitTracker
       cleared
     end
 
-    # Record an API request
-    def record_request(tenant_id)
+    # Sync rate limit usage from Xero's actual response headers (SSoT)
+    #
+    # ⚠️ FRC (Feb 2026): Previously used internal counters that drifted from reality.
+    # Xero sends real usage in EVERY response via these headers:
+    #   X-MinLimit-Remaining  → remaining minute calls (out of 60)
+    #   X-DayLimit-Remaining  → remaining daily calls (out of 5000)
+    #   X-AppMinLimit-Remaining → app-wide minute remaining (out of 10000)
+    # These are THE SSoT - no more guessing with increment counters.
+    def sync_from_headers(tenant_id, response_headers)
+      return unless tenant_id.present? && response_headers.present?
+
+      # Read raw header values - keep as nil if absent (don't .to_i yet)
+      min_remaining_raw = response_headers["X-MinLimit-Remaining"]
+      day_remaining_raw = response_headers["X-DayLimit-Remaining"]
+      app_min_remaining_raw = response_headers["X-AppMinLimit-Remaining"]
+
+      # Only update if Xero actually sent the headers (absent on some error responses)
+      if min_remaining_raw || day_remaining_raw
+        min_remaining = min_remaining_raw&.to_i
+        day_remaining = day_remaining_raw&.to_i
+        app_min_remaining = app_min_remaining_raw&.to_i
+
+        # Convert "remaining" to "used" for storage
+        minute_used = min_remaining ? (MINUTE_LIMIT - min_remaining) : nil
+        daily_used = day_remaining ? (DAILY_LIMIT - day_remaining) : nil
+
+        if minute_used
+          Rails.cache.write(minute_key_for(tenant_id), minute_used, expires_in: 90.seconds)
+        end
+
+        if daily_used
+          Rails.cache.write(daily_key_for(tenant_id), daily_used, expires_in: CacheConstants::CACHE_TTL_DAILY + 1.hour)
+        end
+
+        if app_min_remaining
+          Rails.cache.write("xero:rate:app_minute_remaining", app_min_remaining, expires_in: 90.seconds)
+        end
+
+        # Increment total counter (all time) - this one we still count ourselves
+        total_key = total_key_for(tenant_id)
+        Rails.cache.increment(total_key, 1, expires_in: CacheConstants::CACHE_TTL_WEEKLY, initial: 0)
+
+        Rails.logger.debug("[XeroRateLimitTracker] Synced from Xero headers: tenant=#{tenant_id} min_remaining=#{min_remaining} day_remaining=#{day_remaining}")
+      end
+    end
+
+    # Legacy method - now delegates to sync_from_headers when headers available,
+    # falls back to increment for callers that don't have headers yet.
+    def record_request(tenant_id, response_headers: nil)
       return unless tenant_id.present?
 
-      # Increment minute counter
-      minute_key = minute_key_for(tenant_id)
-      Rails.cache.increment(minute_key, 1, expires_in: CacheConstants::CACHE_TTL_SHORT, initial: 0)
+      if response_headers.present?
+        sync_from_headers(tenant_id, response_headers)
+      else
+        # Fallback: increment counters (only used if headers not available)
+        minute_key = minute_key_for(tenant_id)
+        Rails.cache.increment(minute_key, 1, expires_in: CacheConstants::CACHE_TTL_SHORT, initial: 0)
 
-      # Increment daily counter
-      daily_key = daily_key_for(tenant_id)
-      Rails.cache.increment(daily_key, 1, expires_in: CacheConstants::CACHE_TTL_DAILY + 1.hour, initial: 0)
+        daily_key = daily_key_for(tenant_id)
+        Rails.cache.increment(daily_key, 1, expires_in: CacheConstants::CACHE_TTL_DAILY + 1.hour, initial: 0)
 
-      # Increment total counter (all time)
-      total_key = total_key_for(tenant_id)
-      Rails.cache.increment(total_key, 1, expires_in: CacheConstants::CACHE_TTL_WEEKLY, initial: 0)
+        total_key = total_key_for(tenant_id)
+        Rails.cache.increment(total_key, 1, expires_in: CacheConstants::CACHE_TTL_WEEKLY, initial: 0)
+      end
     end
 
     # Get current usage for a tenant
+    # SSoT (Feb 2026): Values come from Xero's actual response headers
+    # (X-MinLimit-Remaining, X-DayLimit-Remaining) synced after every API call.
+    # No more internal counters that drift from reality.
     def usage_for(tenant_id)
       return nil unless tenant_id.present?
 
       minute_count = Rails.cache.read(minute_key_for(tenant_id)).to_i
       daily_count = Rails.cache.read(daily_key_for(tenant_id)).to_i
       total_count = Rails.cache.read(total_key_for(tenant_id)).to_i
-
-      # ⚠️ SAFEGUARD: Auto-reset impossibly high counters (Jan 2026)
-      # ════════════════════════════════════════════════════════════════
-      # Why: Counter can drift past limit if jobs increment on retries/429s.
-      #      A daily count > DAILY_LIMIT is IMPOSSIBLE - Xero would have 429'd
-      #      us at exactly 5000. If we see >100%, our tracking drifted.
-      # Fix: Auto-reset to unblock sync instead of staying stuck forever.
-      # ════════════════════════════════════════════════════════════════
-      if daily_count > DAILY_LIMIT
-        Rails.logger.warn("[XeroRateLimitTracker] SAFEGUARD: Daily count #{daily_count} exceeds limit #{DAILY_LIMIT} for tenant #{tenant_id} - auto-resetting (impossible value)")
-        reset_for(tenant_id)
-        minute_count = 0
-        daily_count = 0
-        total_count = 0
-      end
 
       # Check for Xero-enforced lockout (SSoT for "is Xero actually blocking us")
       lockout = current_lockout(tenant_id: tenant_id)
@@ -231,7 +273,7 @@ class XeroRateLimitTracker
           percentage: (daily_count.to_f / DAILY_LIMIT * 100).round(1)
         },
         total_7d: total_count,
-        # SSoT: Check BOTH internal limits AND Xero-enforced lockout
+        # SSoT: Check BOTH Xero-reported limits AND lockout
         can_make_request: !is_locked_out && minute_count < MINUTE_LIMIT && daily_count < DAILY_LIMIT,
         locked_out: is_locked_out,
         lockout: lockout,

@@ -610,6 +610,8 @@ Rails.application.routes.draw do
           post :send_contract_for_signing
           # BOQ (Bill of Quantities) comparison
           get :boq
+          # Price Analysis (PO prices vs price_only reference prices)
+          get :price_analysis
           # Schedule template link detection
           get :linked_schedule_template
           # Storage folder creation
@@ -894,6 +896,9 @@ Rails.application.routes.draw do
           post :bulk_lock_budget
           post :bulk_unlock_budget
           post :toggle_budget_lock
+          post :match_xero_bills
+          get :template_variants
+          get :template_preview
         end
         member do
           post :approve
@@ -1037,9 +1042,11 @@ Rails.application.routes.draw do
         # DELETE /api/v1/contacts/supplier_pricing/:contact_id/column      -> delete_column
         scope "supplier_pricing/:contact_id", controller: "supplier_pricing" do
           get :categories
+          get :prices
           post :copy_history
           delete :categories, action: :remove_categories, as: :remove_categories
           post :bulk_update
+          post :set_default
           delete :column, action: :delete_column
         end
 
@@ -1749,6 +1756,8 @@ Rails.application.routes.draw do
           patch :brand, action: :update_brand
           post "brand/detect", action: :detect_brand
           post "brand/apply", action: :apply_brand
+          get :po_template
+          put :po_template, action: :update_po_template
         end
       end
 

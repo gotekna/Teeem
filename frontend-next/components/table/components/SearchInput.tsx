@@ -111,6 +111,7 @@ export const SearchInput = memo(function SearchInput({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
+        e.preventDefault();
         // Use context actions if available, otherwise fall back to props
         if (table) {
           table.search.actions.setQuery(localValue);

@@ -287,7 +287,7 @@ export default function ESignaturePage() {
                               try {
                                 const blob = await api.getBlob(`/api/v1/e_signature_requests/${request.id}/document`);
                                 window.open(URL.createObjectURL(blob), "_blank");
-                              } catch { /* ignore */ }
+                              } catch (err) { console.error("[ESignature] view document error:", err); }
                             }}
                           >
                             <Eye className="h-4 w-4" />

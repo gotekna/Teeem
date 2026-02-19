@@ -194,8 +194,8 @@ export function WarehouseFoldersTable() {
       if (response.success && response.data) {
         setXeroFeatureTabs(response.data);
       }
-    } catch {
-      // Xero tabs endpoint may not exist - fail silently
+    } catch (err) {
+      console.error("[WarehouseFoldersTable] Xero tabs endpoint unavailable:", err);
     }
   }, []);
 

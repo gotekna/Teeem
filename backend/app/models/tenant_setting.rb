@@ -640,6 +640,22 @@ class TenantSetting < ApplicationRecord
     instance.email_priority_levels.presence || DEFAULT_EMAIL_PRIORITY_LEVELS
   end
 
+  # =============================================================================
+  # PO Template Variant (SSoT for Purchase Order visual design)
+  # =============================================================================
+
+  VALID_PO_TEMPLATE_VARIANTS = %w[classic modern bold compact professional construction custom].freeze
+
+  validates :po_template_variant, inclusion: { in: VALID_PO_TEMPLATE_VARIANTS }, allow_nil: true
+
+  def self.po_template_variant
+    instance.po_template_variant.presence || "classic"
+  end
+
+  def self.po_custom_template
+    instance.po_custom_template
+  end
+
   private
 
   def set_defaults

@@ -132,7 +132,7 @@ class TenantDatabaseBackupJob < ApplicationJob
     return nil unless url_result
 
     JSON.parse(url_result[:body])["url"]
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[TenantDatabaseBackup] Failed to fetch backup URL: #{e.message}"
     nil
   end
@@ -155,7 +155,7 @@ class TenantDatabaseBackupJob < ApplicationJob
     attachments = JSON.parse(response.body)
     pg_attachment = attachments.find { |a| a.dig("addon", "name")&.include?("postgresql") }
     pg_attachment&.dig("addon", "name")
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error "[TenantDatabaseBackup] Failed to fetch attachment: #{e.message}"
     nil
   end

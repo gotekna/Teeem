@@ -305,7 +305,11 @@ class DocumentStorageService
 
           # Mark document as having missing file (for tracking/cleanup) if it supports this
           if record.respond_to?(:update_column) && record.respond_to?(:file_missing)
-            record.update_column(:file_missing, true) rescue nil
+            begin
+              record.update_column(:file_missing, true)
+            rescue StandardError => e
+              Rails.logger.error "[DocumentStorage] Failed to mark #{record.class.name}##{record.id} as file_missing: #{e.message}"
+            end
           end
 
           # For SyncedEmail without storage: queue re-sync via UploadEmailsToStorageJob

@@ -27,6 +27,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { TemplateEditor } from "./TemplateEditor";
+import { PoTemplateSelector } from "./PoTemplateSelector";
+import { ClaimTemplateSelector } from "./ClaimTemplateSelector";
 
 // SSoT Templates from TeknaDocumentGenerator (the source of truth)
 interface SsotTemplate {
@@ -224,6 +226,12 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
 
   return (
     <div className="space-y-6">
+      {/* PO Template Design Section */}
+      <PoTemplateSelector />
+
+      {/* Claim Invoice Template Section */}
+      <ClaimTemplateSelector />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">

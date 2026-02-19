@@ -1736,7 +1736,8 @@ export default function FinancialPage() {
           } else {
             setXeroSyncStatus(null);
           }
-        } catch {
+        } catch (err) {
+          console.error("[Financial] failed to fetch Xero sync status:", err);
           setXeroSyncStatus(null);
         }
       } else {

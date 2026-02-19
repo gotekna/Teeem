@@ -53,8 +53,10 @@ class XeroAdaptiveRateLimiter
 
     result = yield
 
-    # Record the request for tracking
-    XeroRateLimitTracker.record_request(@tenant_id)
+    # SSoT (Feb 2026): Removed redundant record_request call.
+    # XeroApiClient.make_request already syncs real usage from Xero's
+    # response headers (X-DayLimit-Remaining, X-MinLimit-Remaining).
+    # Double-calling would overwrite accurate header data with a counter increment.
 
     result
   end

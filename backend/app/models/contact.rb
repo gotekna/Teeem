@@ -2065,7 +2065,12 @@ class Contact < ApplicationRecord
     corporate_roles = []
     corporate_roles << "director" if directorships.any?
     corporate_roles << "shareholder" if shareholdings.any?
-    corporate_roles << "secretary" if company_secretary_roles.any? rescue nil
+    corporate_roles << "secretary" if begin
+      company_secretary_roles.any?
+    rescue StandardError => e
+      Rails.logger.warn "[Contact] Failed to check company_secretary_roles for contact #{id}: #{e.message}"
+      false
+    end
     if corporate_roles.any?
       result[:warnings] << {
         type: "corporate_roles",

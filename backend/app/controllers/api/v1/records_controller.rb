@@ -1440,7 +1440,12 @@ module Api
           next unless column.lookup_foundation
 
           # Collect all unique IDs for this lookup column across all records
-          lookup_ids = records.map { |r| r.send(column.column_name) rescue nil }.compact.uniq
+          lookup_ids = records.filter_map do |r|
+            r.send(column.column_name)
+          rescue NoMethodError => e
+            Rails.logger.warn "[Records] Column #{column.column_name} not found on #{r.class.name}##{r.id}: #{e.message}"
+            nil
+          end.uniq
           next if lookup_ids.empty?
 
           # Batch load all related records

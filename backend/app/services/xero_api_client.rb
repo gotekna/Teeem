@@ -1083,8 +1083,9 @@ class XeroApiClient
           next  # Retry the loop
         end
 
-        # Track the API request for rate limiting visibility
-        XeroRateLimitTracker.record_request(request_tenant_id)
+        # SSoT (Feb 2026): Sync rate limits from Xero's actual response headers
+        # instead of maintaining internal counters that drift from reality.
+        XeroRateLimitTracker.record_request(request_tenant_id, response_headers: response.headers)
 
         return handle_response(response)
       rescue AuthenticationError => e
@@ -1174,8 +1175,8 @@ class XeroApiClient
         return { success: false, error: "Download timeout (#{XERO_FILE_TIMEOUT}s)" }
       end
 
-      # Track the API request for rate limiting visibility
-      XeroRateLimitTracker.record_request(request_tenant_id)
+      # SSoT (Feb 2026): Sync rate limits from Xero's actual response headers
+      XeroRateLimitTracker.record_request(request_tenant_id, response_headers: response.headers)
 
       case response.code
       when 200..299

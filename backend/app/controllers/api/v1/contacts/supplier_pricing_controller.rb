@@ -64,13 +64,40 @@ module Api
           }, status: :internal_server_error
         end
 
+        # GET /api/v1/contacts/supplier_pricing/:contact_id/prices
+        # Returns latest price per pricebook item for this supplier
+        # Params: pricebook_item_ids[] (optional - filter to specific items)
+        def prices
+          item_ids = params[:pricebook_item_ids]
+
+          query = PriceHistory.where(supplier_id: @contact.id)
+            .select("DISTINCT ON (pricebook_item_id) pricebook_item_id, new_price")
+            .order("pricebook_item_id, date_effective DESC NULLS LAST, created_at DESC")
+
+          if item_ids.present? && item_ids.is_a?(Array) && item_ids.any?
+            query = query.where(pricebook_item_id: item_ids.map(&:to_i))
+          end
+
+          prices_map = {}
+          query.each { |ph| prices_map[ph.pricebook_item_id] = ph.new_price.to_f }
+
+          render json: { success: true, prices: prices_map }
+        rescue => e
+          render json: { success: false, error: "Failed to fetch prices: #{e.message}" }, status: :internal_server_error
+        end
+
         # POST /api/v1/contacts/supplier_pricing/:contact_id/copy_history
         # Copy price history from another supplier
         def copy_history
           source_id = params[:source_id]
           categories_param = params[:categories] # Optional array of categories to filter by
+          pricebook_item_ids_param = params[:pricebook_item_ids] # Optional array of specific item IDs to copy
+          price_adjustment_percent = params[:price_adjustment_percent].present? ? params[:price_adjustment_percent].to_f : 0.0
+          rounding_mode = params[:rounding_mode].presence || "none" # none, smart, 0.50, 1, 5, 10
           set_as_default = params[:set_as_default] != false # Default to true unless explicitly false
           effective_date = params[:effective_date].present? ? Date.parse(params[:effective_date]) : TenantSetting.today
+          # Per-item price overrides: { "pricebook_item_id" => price } — overrides adjustment+rounding
+          price_overrides = params[:price_overrides].present? ? params[:price_overrides].to_unsafe_h.transform_keys(&:to_i).transform_values(&:to_f) : {}
 
           # Which price to copy: 'active' (default), 'latest', or 'oldest'
           copy_mode = params[:copy_mode].presence || "active"
@@ -123,6 +150,11 @@ module Api
               source_price_histories = source_price_histories.where(pricebooks: { category: categories_param })
             end
 
+            # Filter by specific pricebook item IDs if provided
+            if pricebook_item_ids_param.present? && pricebook_item_ids_param.is_a?(Array) && pricebook_item_ids_param.any?
+              source_price_histories = source_price_histories.where(pricebook_item_id: pricebook_item_ids_param.map(&:to_i))
+            end
+
             source_price_histories.each do |selected_price_history|
               item = selected_price_history.pricebook_item
 
@@ -132,24 +164,45 @@ module Api
                 updated_count += 1
               end
 
+              # Use per-item override if provided, otherwise apply adjustment + rounding
+              adjusted_price = if price_overrides.key?(item.id)
+                price_overrides[item.id].round(2)
+              else
+                price = if price_adjustment_percent != 0.0
+                  (selected_price_history.new_price * (1 + price_adjustment_percent / 100.0)).round(2)
+                else
+                  selected_price_history.new_price
+                end
+                apply_price_rounding(price, rounding_mode)
+              end
+
               # Check if target already has a price history with the same price and effective date
               existing_history = PriceHistory.where(
                 pricebook_item_id: item.id,
                 supplier_id: @contact.id,
-                new_price: selected_price_history.new_price,
+                new_price: adjusted_price,
                 date_effective: effective_date
               ).exists?
 
               # Only create if this exact price/date combination doesn't exist
               unless existing_history
+                notes = []
+                if price_overrides.key?(item.id)
+                  notes << "manual price"
+                else
+                  notes << "#{price_adjustment_percent > 0 ? '+' : ''}#{price_adjustment_percent}%" if price_adjustment_percent != 0.0
+                  notes << "rounded #{rounding_mode}" if rounding_mode != "none"
+                end
+                adjustment_note = notes.any? ? " (#{notes.join(', ')})" : ""
                 PriceHistory.create!(
                   pricebook_item_id: item.id,
-                  old_price: selected_price_history.old_price,
-                  new_price: selected_price_history.new_price,
+                  old_price: selected_price_history.new_price,
+                  new_price: adjusted_price,
                   supplier_id: @contact.id,
                   lga: selected_price_history.lga,
                   date_effective: effective_date,
-                  change_reason: "Copied from #{source_contact.display_name}"
+                  change_reason: "Copied from #{source_contact.display_name}#{adjustment_note}",
+                  tenant_id: @contact.tenant_id
                 )
                 copied_count += 1
               end
@@ -337,6 +390,41 @@ module Api
           }, status: :internal_server_error
         end
 
+        # POST /api/v1/contacts/supplier_pricing/:contact_id/set_default
+        # Set this contact as the default supplier for specific pricebook items
+        def set_default
+          pricebook_item_ids = params[:pricebook_item_ids]
+
+          if pricebook_item_ids.blank? || !pricebook_item_ids.is_a?(Array) || pricebook_item_ids.empty?
+            return render json: {
+              success: false,
+              error: "pricebook_item_ids (array) is required"
+            }, status: :bad_request
+          end
+
+          updated_count = 0
+
+          ActiveRecord::Base.transaction do
+            items = PricebookItem.where(id: pricebook_item_ids.map(&:to_i))
+            items.each do |item|
+              next if item.default_supplier_id == @contact.id
+              item.update!(default_supplier_id: @contact.id)
+              updated_count += 1
+            end
+          end
+
+          render json: {
+            success: true,
+            message: "Set #{@contact.display_name} as default supplier for #{updated_count} item#{updated_count == 1 ? '' : 's'}",
+            updated_count: updated_count
+          }
+        rescue => e
+          render json: {
+            success: false,
+            error: "Failed to set default supplier: #{e.message}"
+          }, status: :internal_server_error
+        end
+
         # DELETE /api/v1/contacts/supplier_pricing/:contact_id/column
         # Delete all price histories for a specific effective date
         def delete_column
@@ -382,6 +470,35 @@ module Api
             success: false,
             error: "Contact not found"
           }, status: :not_found
+        end
+
+        # Round price UP to the nearest increment based on mode
+        # "smart" picks increment based on price magnitude so rounding
+        # is proportional (e.g. $1 item rounds to 50c, $4k item rounds to $10)
+        def apply_price_rounding(price, mode)
+          return price if mode == "none" || price.nil?
+
+          increment = case mode
+          when "smart"
+            if price < 10
+              0.1
+            elsif price < 100
+              0.5
+            elsif price < 1000
+              1.0
+            else
+              10.0
+            end
+          when "0.10"  then 0.1
+          when "0.50"  then 0.5
+          when "1"     then 1.0
+          when "5"     then 5.0
+          when "10"    then 10.0
+          else
+            return price
+          end
+
+          (price / increment).ceil * increment
         end
 
         def require_supplier

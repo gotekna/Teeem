@@ -46,7 +46,12 @@ module StorableDocument
     return unless respond_to?(:storage_provider=)
 
     # FRC (Feb 2026): Use actual configured provider, no hardcoded defaults
-    config = WarehouseProvider.instance rescue nil
+    config = begin
+      WarehouseProvider.instance
+    rescue StandardError => e
+      Rails.logger.warn "[StorableDocument] WarehouseProvider not available: #{e.message}"
+      nil
+    end
     self.storage_provider = config&.storage_provider_for_new_documents
   end
 

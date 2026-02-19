@@ -1634,7 +1634,7 @@ module Api
               last_month_closed: begin
                 organisation_info[:locked_date].present? &&
                   Date.parse(organisation_info[:locked_date]) >= last_month.end_of_month
-              rescue
+              rescue StandardError
                 false
               end
             }

@@ -231,7 +231,12 @@ module Api
             wd.ui_name.presence || wd.original_filename.presence || "document-#{wd.id}"
           end
           download_url = if blob&.storage_path.present? && provider
-            provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: safe_filename) rescue nil
+            begin
+              provider.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: safe_filename)
+            rescue StandardError => e
+              Rails.logger.warn "[WarehouseTypes] Failed to generate download URL for doc #{wd.id}: #{e.message}"
+              nil
+            end
           end
 
           {

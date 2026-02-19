@@ -6,7 +6,7 @@ module Api
     #
     # Handles: company info, email config, brand colors, storage config
     class TenantSettingsController < ApplicationController
-      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config]
+      before_action :require_admin, only: %i[update update_sharepoint test_sharepoint update_brand apply_brand update_email_config update_po_template]
 
       # GET /api/v1/tenant_settings
       def show
@@ -180,6 +180,38 @@ module Api
           message: "Applied: #{applied.join(', ')}#{skipped.any? ? ". Skipped: #{skipped.join(', ')}" : ''}",
           data: { colors: TenantSetting.brand_colors, logo_url: settings.logo_url, website_url: settings.website }
         }
+      end
+
+      # GET /api/v1/tenant_settings/po_template
+      def po_template
+        settings = TenantSetting.instance
+        render json: {
+          success: true,
+          data: {
+            variant: settings.po_template_variant || "classic",
+            custom_template: settings.po_custom_template
+          }
+        }
+      end
+
+      # PUT /api/v1/tenant_settings/po_template
+      def update_po_template
+        settings = TenantSetting.instance
+        updates = {}
+        updates[:po_template_variant] = params[:variant] if params[:variant].present?
+        updates[:po_custom_template] = params[:custom_html] if params.key?(:custom_html)
+
+        if settings.update(updates)
+          render json: {
+            success: true,
+            data: {
+              variant: settings.po_template_variant,
+              custom_template: settings.po_custom_template
+            }
+          }
+        else
+          render json: { success: false, errors: settings.errors.full_messages }, status: :unprocessable_entity
+        end
       end
 
       # GET /api/v1/tenant_settings/email_config

@@ -48,7 +48,8 @@ function ResetPasswordForm() {
           setTokenValid(false);
           setTokenError(data?.error || "Invalid or expired reset link");
         }
-      } catch {
+      } catch (err) {
+        console.error("[ResetPassword] Token validation failed:", err);
         setTokenValid(false);
         setTokenError("Unable to connect. Please try again.");
       } finally {
@@ -84,7 +85,8 @@ function ResetPasswordForm() {
       } else {
         setError(data?.error || "Something went wrong");
       }
-    } catch {
+    } catch (err) {
+      console.error("[ResetPassword] Password reset failed:", err);
       setError("Unable to connect. Please try again.");
     } finally {
       setIsLoading(false);

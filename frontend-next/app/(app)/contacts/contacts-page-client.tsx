@@ -91,7 +91,8 @@ export default function ContactsPageClient({
       await api.delete(`/api/v1/foundations/contacts/records/${row.id}`);
       toast({ title: "Contact archived", description: "Contact has been removed" });
       setRefreshKey(k => k + 1);
-    } catch {
+    } catch (err) {
+      console.error("[ContactsPage] Delete contact failed:", err);
       toast({ title: "Delete failed", variant: "destructive" });
     }
   }, [toast]);

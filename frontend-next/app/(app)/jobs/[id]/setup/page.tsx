@@ -125,7 +125,8 @@ function HoldReasonsTab() {
       toast({ title: "Hold reason updated" });
       setEditingId(null);
       loadHoldReasons();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] update hold reason error:", err);
       toast({ title: "Failed to update hold reason", variant: "destructive" });
     }
   };
@@ -147,7 +148,8 @@ function HoldReasonsTab() {
       if (response?.hold_reason) {
         handleEdit(response.hold_reason);
       }
-    } catch {
+    } catch (err) {
+      console.error("[Setup] create hold reason error:", err);
       toast({ title: "Failed to create hold reason", variant: "destructive" });
     }
   };
@@ -158,7 +160,8 @@ function HoldReasonsTab() {
       await api.delete(`/api/v1/sm_hold_reasons/${id}`);
       toast({ title: "Hold reason deleted" });
       loadHoldReasons();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] delete hold reason error:", err);
       toast({ title: "Failed to delete hold reason", variant: "destructive" });
     }
   };
@@ -168,7 +171,8 @@ function HoldReasonsTab() {
       await api.post("/api/v1/sm_hold_reasons/seed_defaults");
       toast({ title: "Default hold reasons seeded" });
       loadHoldReasons();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] seed defaults error:", err);
       toast({ title: "Failed to seed defaults", variant: "destructive" });
     }
   };
@@ -333,7 +337,8 @@ function RolloverSettingsTab() {
     try {
       await api.patch("/api/v1/sm_settings", { sm_setting: settings });
       toast({ title: "Settings saved" });
-    } catch {
+    } catch (err) {
+      console.error("[Setup] save SM settings error:", err);
       toast({ title: "Failed to save settings", variant: "destructive" });
     } finally {
       setSaving(false);
@@ -451,7 +456,8 @@ function TemplatesTab() {
       await api.post(`/api/v1/sm_schedule_master_templates/${templateId}/set_default`);
       toast({ title: "Default template updated" });
       loadTemplates();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] set default template error:", err);
       toast({ title: "Failed to set default template", variant: "destructive" });
     }
   };
@@ -466,7 +472,8 @@ function TemplatesTab() {
       });
       toast({ title: "Template created" });
       loadTemplates();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] create template error:", err);
       toast({ title: "Failed to create template", variant: "destructive" });
     }
   };
@@ -478,7 +485,8 @@ function TemplatesTab() {
       await api.delete(`/api/v1/sm_schedule_master_templates/${templateId}`);
       toast({ title: "Template archived" });
       loadTemplates();
-    } catch {
+    } catch (err) {
+      console.error("[Setup] archive template error:", err);
       toast({ title: "Failed to archive template", variant: "destructive" });
     }
   };
@@ -622,7 +630,8 @@ function WorkingDaysTab() {
         company_setting: { working_days: workingDays },
       });
       toast({ title: "Working days saved" });
-    } catch {
+    } catch (err) {
+      console.error("[Setup] save working days error:", err);
       toast({ title: "Failed to save working days", variant: "destructive" });
     } finally {
       setSaving(false);

@@ -475,6 +475,10 @@ module Api
           @item.current_price = supplier_price_history.new_price
         end
 
+        # Switching default supplier syncs the existing price - not a new price change.
+        # Without this, track_price_change callback creates a spurious PriceHistory record.
+        @item.skip_price_history_callback = true
+
         if @item.save
           # Reload the association to get the updated default_supplier object
           @item.reload
@@ -530,7 +534,7 @@ module Api
         update_params[:new_price] = params[:new_price] if params[:new_price].present?
         update_params[:date_effective] = params[:date_effective] if params[:date_effective].present?
         update_params[:change_reason] = params[:change_reason] if params[:change_reason].present?
-        update_params[:lga] = params[:lga] if params[:lga].present?
+        update_params[:lga] = params[:lga] if params.key?(:lga) # Array: [] clears, [...] sets
         update_params[:supplier_id] = params[:supplier_id] if params[:supplier_id].present?
 
         if price_history.update(update_params)

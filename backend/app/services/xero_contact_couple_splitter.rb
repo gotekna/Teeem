@@ -145,11 +145,15 @@ class XeroContactCoupleSplitter
 
     # Create relationship between the two if both exist
     if contacts.length == 2
-      ContactRelationship.find_or_create_by!(
-        source_contact: contacts[0],
-        related_contact: contacts[1],
-        relationship_type: "co_client"
-      ) rescue nil # Ignore if relationship type not valid
+      begin
+        ContactRelationship.find_or_create_by!(
+          source_contact: contacts[0],
+          related_contact: contacts[1],
+          relationship_type: "co_client"
+        )
+      rescue StandardError => e
+        Rails.logger.warn "[XeroContactCoupleSplitter] Failed to create co_client relationship: #{e.message}"
+      end
     end
 
     contacts

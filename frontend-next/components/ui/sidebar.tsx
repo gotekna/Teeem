@@ -158,12 +158,12 @@ function SidebarContent({
   const handleCopyConsole = async () => {
     try {
       const logs = consoleCapture.getLogs();
-      let formatted = `=== All Console Logs ===\nTotal: ${logs.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
-      logs.forEach((log) => {
+      const header = `=== All Console Logs ===\nTotal: ${logs.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
+      const entries = logs.map((log) => {
         const time = new Date(log.timestamp).toLocaleTimeString();
-        formatted += `[${time}] [${log.type.toUpperCase()}] ${log.message}\n`;
+        return `[${time}] [${log.type.toUpperCase()}] ${log.message}`;
       });
-      await copyToClipboard(formatted);
+      await copyToClipboard(header + entries.join("\n\n"));
       setCopiedConsole(true);
       setTimeout(() => setCopiedConsole(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {
@@ -176,12 +176,12 @@ function SidebarContent({
     try {
       const logs = consoleCapture.getLogs();
       const problems = logs.filter((log) => log.type === "error" || log.type === "warn");
-      let formatted = `=== Problems (Errors & Warnings) ===\nTotal: ${problems.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
-      problems.forEach((log) => {
+      const header = `=== Problems (Errors & Warnings) ===\nTotal: ${problems.length}\nURL: ${window.location.href}\nCaptured: ${new Date().toLocaleString()}\n\n`;
+      const entries = problems.map((log) => {
         const time = new Date(log.timestamp).toLocaleTimeString();
-        formatted += `[${time}] [${log.type.toUpperCase()}] ${log.message}\n`;
+        return `[${time}] [${log.type.toUpperCase()}] ${log.message}`;
       });
-      await copyToClipboard(formatted);
+      await copyToClipboard(header + entries.join("\n\n"));
       setCopiedProblems(true);
       setTimeout(() => setCopiedProblems(false), UI_COPY_FEEDBACK_MS);
     } catch (err) {

@@ -476,6 +476,30 @@ module Api
         render_error("Failed to unlock budgets: #{e.message}", status: :unprocessable_entity)
       end
 
+      # POST /api/v1/purchase_orders/match_xero_bills
+      # Fetch Xero bills for a job, match to native POs, update Xero Reference field
+      # Params: { job_id: required }
+      def match_xero_bills
+        return render json: { success: false, error: "job_id is required" }, status: :bad_request if params[:job_id].blank?
+
+        job = Job.find(params[:job_id])
+        service = XeroBillPoMatcherService.new(job: job)
+        result = service.match_and_update!
+
+        render json: {
+          success: true,
+          data: result,
+          message: "Found #{result[:bills_found]} Xero bills, matched #{result[:matched]}, updated #{result[:updated_xero]} in Xero"
+        }
+      rescue ActiveRecord::RecordNotFound
+        render json: { success: false, error: "Job not found" }, status: :not_found
+      rescue XeroApiClient::AuthenticationError => e
+        render json: { success: false, error: "Xero authentication failed: #{e.message}" }, status: :unauthorized
+      rescue StandardError => e
+        Rails.logger.error("[MatchXeroBills] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+        render json: { success: false, error: e.message }, status: :internal_server_error
+      end
+
       # POST /api/v1/purchase_orders/smart_lookup
       # Smart lookup for PO auto-population
       # Params: { construction_id, task_description, category, quantity, supplier_preference }
@@ -881,10 +905,154 @@ module Api
         render_error("Failed to send email: #{e.message}", status: :internal_server_error)
       end
 
+      # GET /api/v1/purchase_orders/template_variants
+      # List all available PO template variants with names/descriptions
+      def template_variants
+        variants = [
+          { key: "classic", name: "Classic Corporate", description: "Logo left, details right. Black header bar on line items. Traditional layout.", active: TenantSetting.po_template_variant == "classic" },
+          { key: "modern", name: "Modern Minimal", description: "Generous whitespace. Thin hairline dividers. Light gray accents.", active: TenantSetting.po_template_variant == "modern" },
+          { key: "bold", name: "Bold & Branded", description: "Full-width colored header band. Large logo. Strong visual hierarchy.", active: TenantSetting.po_template_variant == "bold" },
+          { key: "compact", name: "Compact Efficient", description: "Small fonts, tight spacing. Fits max line items per page.", active: TenantSetting.po_template_variant == "compact" },
+          { key: "professional", name: "Professional Clean", description: "Two-column header. Subtle color accents. Rounded info boxes.", active: TenantSetting.po_template_variant == "professional" },
+          { key: "construction", name: "Construction Industry", description: "Prominent delivery address & supervisor. Yellow safety accent.", active: TenantSetting.po_template_variant == "construction" },
+          { key: "custom", name: "Custom", description: "Your own HTML template. Full control over layout and styling.", active: TenantSetting.po_template_variant == "custom" }
+        ]
+        render json: { success: true, data: variants, current: TenantSetting.po_template_variant }
+      end
+
+      # GET /api/v1/purchase_orders/template_preview?variant=modern
+      # HTML preview using rich sample data to showcase the template design
+      def template_preview
+        variant = params[:variant] || "classic"
+        valid_variants = %w[classic modern bold compact professional construction]
+        variant = "classic" unless valid_variants.include?(variant)
+
+        render html: build_sample_po_preview(variant).html_safe
+      end
+
       private
 
       # Build filename: {JobName}_{PONumber}_{SmTaskName}.pdf
       # Sanitizes special characters for safe filenames
+      def build_sample_po_preview(variant)
+        settings = TenantSetting.instance
+        sample_context = {
+          purchase_order: {
+            purchase_order_number: "PO-2026-0042",
+            status: "approved",
+            description: "Supply and deliver materials for slab preparation",
+            required_date: (Date.current + 14.days).strftime("%d %B %Y"),
+            required_on_site_date: (Date.current + 12.days).strftime("%d %B %Y"),
+            ordered_date: Date.current.strftime("%d %B %Y"),
+            expected_delivery_date: (Date.current + 10.days).strftime("%d %B %Y"),
+            created_at: Date.current.strftime("%d %B %Y"),
+            delivery_address: "45 Example Avenue, Springfield QLD 4300",
+            special_instructions: "Deliver to rear of site. Contact supervisor on arrival.",
+            subtotal: "$12,450.00",
+            subtotal_raw: 12_450.0,
+            gst: "$1,245.00",
+            gst_raw: 1_245.0,
+            total: "$13,695.00",
+            total_raw: 13_695.0,
+            budget: "$15,000.00",
+            supplier: {
+              name: "Brisbane Building Supplies Pty Ltd",
+              email: "orders@brisbanebuilding.com.au",
+              phone: "07 3555 1234",
+              address: "Unit 4, 120 Industrial Drive, Rocklea QLD 4106",
+              payment_terms_days: 7
+            },
+            site_supervisor: {
+              name: "Mike Johnson",
+              phone: "0412 345 678",
+              email: "mike@example.com"
+            },
+            line_items: [
+              { description: "Concrete 32MPa - Ready Mix", quantity: 18, unit_price: 245.00, total: 4_410.0, total_formatted: "$4,410.00", unit_price_formatted: "$245.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "CON-32MPA" },
+              { description: "Steel Reinforcement N12 Bar 6m", quantity: 45, unit_price: 38.50, total: 1_732.5, total_formatted: "$1,732.50", unit_price_formatted: "$38.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "STL-N12" },
+              { description: "Timber Formwork LVL 200x45", quantity: 24, unit_price: 62.00, total: 1_488.0, total_formatted: "$1,488.00", unit_price_formatted: "$62.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "TIM-LVL200" },
+              { description: "DPC Membrane 0.2mm Polyethylene", quantity: 3, unit_price: 185.00, total: 555.0, total_formatted: "$555.00", unit_price_formatted: "$185.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "DPC-02MM" },
+              { description: "Slab Edge Insulation 50mm EPS", quantity: 36, unit_price: 28.50, total: 1_026.0, total_formatted: "$1,026.00", unit_price_formatted: "$28.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "INS-EPS50" },
+              { description: "Ant Capping Galvanised 150mm", quantity: 48, unit_price: 14.75, total: 708.0, total_formatted: "$708.00", unit_price_formatted: "$14.75", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "AC-GAL150" },
+              { description: "Concrete Pump Hire - Half Day", quantity: 1, unit_price: 1_200.00, total: 1_200.0, total_formatted: "$1,200.00", unit_price_formatted: "$1,200.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "HIRE-PUMP" },
+              { description: "Delivery & Crane Unload", quantity: 1, unit_price: 1_330.50, total: 1_330.5, total_formatted: "$1,330.50", unit_price_formatted: "$1,330.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "DEL-CRANE" },
+            ],
+            line_items_count: 8,
+            ted_task: "Slab Preparation"
+          },
+          job: {
+            name: "Smith Residence - New Home Build",
+            full_address: "45 Example Avenue, Springfield QLD 4300",
+            job_code: "J-2026-015",
+            suburb: "Springfield",
+            state: "QLD",
+            postcode: "4300",
+            contract_value: "$650,000.00",
+            contract_value_raw: 650_000
+          },
+          company: build_sample_company_context(settings),
+          colour_selections: {
+            grouped: {},
+            formatted_string: "",
+            has_selections: false
+          },
+          po_template_variant: variant,
+          generated_date: Date.current.strftime("%d/%m/%Y"),
+          generated_date_long: Date.current.strftime("%d %B %Y"),
+          current_year: Date.current.year.to_s,
+          document_title: "Purchase Order",
+          is_qbcc_document: false
+        }
+
+        renderer = TeknaTemplateRenderer.new
+        renderer.render(
+          template_path: "templates/purchase_order",
+          layout: "layouts/preview",
+          locals: sample_context
+        )
+      end
+
+      def build_sample_company_context(settings)
+        address = settings.address || "123 Builder Street\nBrisbane QLD 4000"
+        lines = address.split(/[\n,]/).map(&:strip).reject(&:blank?)
+        address_line_1 = lines[0] || ""
+        suburb = ""
+        state = ""
+        postcode = ""
+        if lines.length > 1
+          last_line = lines.last
+          if (match = last_line.match(/^(.+?)\s+([A-Z]{2,3})\s+(\d{4})$/))
+            suburb = match[1].strip
+            state = match[2]
+            postcode = match[3]
+          end
+        end
+
+        abn = settings.abn || "12 345 678 901"
+        abn_formatted = abn.to_s.gsub(/\D/, "").then { |d| d.length == 11 ? "#{d[0..1]} #{d[2..4]} #{d[5..7]} #{d[8..10]}" : abn }
+
+        {
+          name: settings.company_name || "ABC Construction Pty Ltd",
+          company_name: settings.company_name || "ABC Construction Pty Ltd",
+          abn: abn,
+          abn_formatted: abn_formatted,
+          qbcc: settings.qbcc_license || "15344273",
+          qbcc_license: settings.qbcc_license || "15344273",
+          email: settings.email || "info@example.com.au",
+          phone: settings.phone || "(07) 3555 0000",
+          phone_formatted: settings.phone || "(07) 3555 0000",
+          address: address,
+          address_line_1: address_line_1,
+          suburb: suburb,
+          state: state,
+          postcode: postcode,
+          full_address: address.gsub("\n", ", "),
+          logo_url: settings.logo_url,
+          header_line: "#{settings.company_name || 'ABC Construction'} | ABN #{abn_formatted} | QBCC #{settings.qbcc_license || '15344273'}",
+          footer_line: "#{settings.phone || '(07) 3555 0000'} | #{settings.email || 'info@example.com.au'}"
+        }
+      end
+
       def build_po_filename(job_name, po_number, task_name)
         safe_job = (job_name || "Job").gsub(/[^a-zA-Z0-9\s\-]/, "").strip[0..40]
         safe_po = (po_number || "PO").gsub(/[^a-zA-Z0-9\-]/, "")

@@ -325,7 +325,8 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
           setLastSyncBy(syncRecord.last_config_sync_by || null);
           onSyncComplete?.(syncRecord.last_config_sync_at || null, syncRecord.last_config_sync_by || null);
         }
-      } catch {
+      } catch (err) {
+        console.error("[TenantSyncPull] sync record timestamp error:", err);
         // Non-critical - timestamp just won't update
       }
 
@@ -347,7 +348,8 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
             setTableCounts(counts);
           }
         }
-      } catch {
+      } catch (err) {
+        console.error("[TenantSyncPull] table counts refresh error:", err);
         // Non-critical - counts just won't refresh
       }
 

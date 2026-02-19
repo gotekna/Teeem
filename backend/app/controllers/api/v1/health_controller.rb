@@ -415,7 +415,8 @@ module Api
         else
           0
         end
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[Health] Failed to get record count: #{e.message}"
         0
       end
 

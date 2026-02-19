@@ -131,7 +131,8 @@ export function ContactOverviewTab({
             name: r.display_name || r.name
           }));
         setAvailableRoles(roles);
-      } catch {
+      } catch (err) {
+        console.error("[ContactOverviewTab] Failed to load contact roles:", err);
         // Fallback to empty - will just show employee link without role selection
         setAvailableRoles([]);
       }
@@ -160,7 +161,8 @@ export function ContactOverviewTab({
         const otherRels = [...outgoing, ...incoming].filter(r => !companyRelTypes.includes(r.relationship_type));
         setRelatedEntities(otherRels);
       }
-    } catch {
+    } catch (err) {
+      console.error("[ContactOverviewTab] Failed to load related entities:", err);
       // Silent fail - relationships are optional
     } finally {
       setLoadingRelated(false);
@@ -193,7 +195,8 @@ export function ContactOverviewTab({
           entity_type: c.entity_type,
         }));
       setCompanySearchResults(companies);
-    } catch {
+    } catch (err) {
+      console.error("[ContactOverviewTab] Company search failed:", err);
       setCompanySearchResults([]);
     } finally {
       setSearchingCompany(false);
@@ -351,7 +354,8 @@ export function ContactOverviewTab({
           entity_type: c.entity_type,
         }));
       setPersonSearchResults(people);
-    } catch {
+    } catch (err) {
+      console.error("[ContactOverviewTab] Person search failed:", err);
       setPersonSearchResults([]);
     } finally {
       setSearchingPerson(false);

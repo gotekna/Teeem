@@ -1254,7 +1254,11 @@ module Api
           blob.increment_reference!
 
           # Delete the temp file (StorageBlob now has it in Blobs/ folder)
-          provider.delete_file(key) rescue nil
+          begin
+            provider.delete_file(key)
+          rescue StandardError => e
+            Rails.logger.warn "[SmTasks] Failed to delete temp file #{key}: #{e.message}"
+          end
 
           # SSoT: WarehouseDocumentCreator handles metadata + callbacks
           doc = WarehouseDocumentCreator.create!(

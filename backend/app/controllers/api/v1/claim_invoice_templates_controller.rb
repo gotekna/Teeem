@@ -163,6 +163,10 @@ module Api
           render_bold_template(template, data)
         when "minimal"
           render_minimal_template(template, data)
+        when "compact"
+          render_compact_template(template, data)
+        when "construction"
+          render_construction_template(template, data)
         else
           render_classic_template(template, data)
         end
@@ -374,6 +378,156 @@ module Api
 
             <!-- Bank Details -->
             #{bank_details_html(template, data, minimal: true) if template.show_bank_details}
+          </div>
+        HTML
+      end
+
+      def render_compact_template(template, data)
+        <<~HTML
+          <div style="font-family: #{template.font_family}, sans-serif; max-width: 800px; margin: 0 auto; padding: 25px 30px; background: white; font-size: 11px; line-height: 1.3;">
+            <!-- Compact Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #{template.primary_color};">
+              #{logo_html(template, data)}
+              <div style="text-align: right;">
+                <span style="font-size: 16px; font-weight: bold; color: #{template.primary_color};">PROGRESS CLAIM</span><br>
+                <span style="color: #{template.secondary_color}; font-size: 10px;">#{data[:invoice_number]} · #{data[:invoice_date]}</span>
+              </div>
+            </div>
+
+            <!-- Two Column Info -->
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+              <div style="flex: 1;">
+                #{company_details_html(template, data) if template.show_company_details}
+              </div>
+              <div style="flex: 1; text-align: right;">
+                <p style="margin: 0; color: #{template.secondary_color}; font-size: 9px; text-transform: uppercase;">Bill To</p>
+                <p style="margin: 2px 0; font-weight: bold; font-size: 11px;">#{data[:client_name]}</p>
+                <p style="margin: 0; color: #{template.secondary_color}; font-size: 10px;">#{data[:client_address]}</p>
+              </div>
+            </div>
+
+            <!-- Job + Dates Row -->
+            <div style="display: flex; gap: 15px; margin-bottom: 12px; background: #f8fafc; padding: 8px 12px; border-radius: 4px; font-size: 10px;">
+              <div style="flex: 2;">
+                <span style="color: #{template.secondary_color};">Project:</span>
+                <strong>#{data[:job_name]}</strong>
+              </div>
+              <div>
+                <span style="color: #{template.secondary_color};">Due:</span>
+                <strong>#{data[:due_date]}</strong>
+              </div>
+            </div>
+
+            <!-- Compact Table -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 10px;">
+              <thead>
+                <tr style="background: #{template.primary_color}; color: white;">
+                  <th style="padding: 6px 8px; text-align: left; font-size: 9px;">Description</th>
+                  <th style="padding: 6px 8px; text-align: right; font-size: 9px; width: 100px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 6px 8px;">#{data[:claim_stage]} Claim — #{data[:claim_percentage]}% of $#{number_with_delimiter(data[:contract_price])}</td>
+                  <td style="padding: 6px 8px; text-align: right;">$#{number_with_delimiter(data[:claim_amount])}</td>
+                </tr>
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 6px 8px; color: #{template.secondary_color};">GST (10%)</td>
+                  <td style="padding: 6px 8px; text-align: right;">$#{number_with_delimiter(data[:gst_amount])}</td>
+                </tr>
+                <tr style="background: #f8fafc; font-weight: bold;">
+                  <td style="padding: 8px;">TOTAL DUE</td>
+                  <td style="padding: 8px; text-align: right; color: #{template.primary_color}; font-size: 14px;">$#{number_with_delimiter(data[:total_amount])}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <!-- Compact Summary Row -->
+            <div style="display: flex; gap: 15px; margin-bottom: 12px; font-size: 10px; color: #{template.secondary_color};">
+              <span>Contract: $#{number_with_delimiter(data[:contract_price])}</span>
+              <span>·</span>
+              <span>Previous: $#{number_with_delimiter(data[:previous_claims])}</span>
+              <span>·</span>
+              <span>Remaining: $#{number_with_delimiter(data[:balance_remaining])}</span>
+            </div>
+
+            #{bank_details_html(template, data, minimal: true) if template.show_bank_details}
+            #{footer_html(template)}
+          </div>
+        HTML
+      end
+
+      def render_construction_template(template, data)
+        <<~HTML
+          <div style="font-family: #{template.font_family}, sans-serif; max-width: 800px; margin: 0 auto; background: white;">
+            <!-- Yellow Safety Banner -->
+            <div style="background: #f59e0b; padding: 4px 40px; display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: #78350f; font-size: 10px; font-weight: bold; letter-spacing: 2px;">PROGRESS CLAIM</span>
+              <span style="color: #78350f; font-size: 10px;">#{data[:invoice_number]}</span>
+            </div>
+
+            <!-- Header -->
+            <div style="padding: 25px 40px 15px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #{template.primary_color};">
+              #{logo_html(template, data)}
+              <div style="text-align: right;">
+                <p style="margin: 0; font-weight: bold; font-size: 20px; color: #{template.primary_color};">PROGRESS CLAIM</p>
+                <p style="margin: 5px 0 0; color: #{template.secondary_color};">#{data[:invoice_number]}</p>
+                <p style="margin: 2px 0 0; color: #{template.secondary_color}; font-size: 13px;">Date: #{data[:invoice_date]}</p>
+              </div>
+            </div>
+
+            <div style="padding: 20px 40px 40px;">
+              <!-- Project Hero Section -->
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px 20px; margin-bottom: 25px; border-radius: 0 6px 6px 0;">
+                <p style="margin: 0; color: #92400e; font-size: 11px; text-transform: uppercase; font-weight: bold; letter-spacing: 1px;">Project / Site</p>
+                <p style="margin: 5px 0 0; font-size: 18px; font-weight: bold;">#{data[:job_name]}</p>
+                <p style="margin: 3px 0 0; color: #{template.secondary_color};">#{data[:job_address]}</p>
+              </div>
+
+              <!-- Client & Dates -->
+              <div style="display: flex; gap: 20px; margin-bottom: 25px;">
+                <div style="flex: 1; background: #f8fafc; padding: 15px; border-radius: 6px;">
+                  <p style="margin: 0; color: #{template.secondary_color}; font-size: 11px; text-transform: uppercase;">Client</p>
+                  <p style="margin: 5px 0 0; font-weight: bold;">#{data[:client_name]}</p>
+                  <p style="margin: 2px 0 0; color: #{template.secondary_color}; font-size: 13px;">#{data[:client_address]}</p>
+                </div>
+                <div style="background: #f8fafc; padding: 15px; border-radius: 6px;">
+                  <p style="margin: 0; color: #{template.secondary_color}; font-size: 11px; text-transform: uppercase;">Due Date</p>
+                  <p style="margin: 5px 0 0; font-weight: bold; font-size: 16px; color: #dc2626;">#{data[:due_date]}</p>
+                </div>
+              </div>
+
+              #{company_details_html(template, data) if template.show_company_details}
+
+              <!-- Claim Stage Highlight -->
+              <div style="background: #{template.primary_color}; color: white; padding: 20px; border-radius: 6px; margin: 25px 0; text-align: center;">
+                <p style="margin: 0; opacity: 0.8; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">#{data[:claim_stage]} Stage Claim</p>
+                <p style="margin: 8px 0 0; font-size: 36px; font-weight: bold;">$#{number_with_delimiter(data[:total_amount])}</p>
+                <p style="margin: 8px 0 0; opacity: 0.8; font-size: 13px;">#{data[:claim_percentage]}% of contract ($#{number_with_delimiter(data[:contract_price])}) · Inc. GST $#{number_with_delimiter(data[:gst_amount])}</p>
+              </div>
+
+              <!-- Contract Progress -->
+              <div style="margin-bottom: 25px;">
+                <p style="margin: 0 0 8px; font-weight: bold; color: #{template.primary_color}; font-size: 13px;">Contract Progress</p>
+                <div style="display: flex; gap: 15px;">
+                  <div style="flex: 1; text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                    <p style="margin: 0; font-size: 11px; color: #{template.secondary_color};">Contract</p>
+                    <p style="margin: 3px 0 0; font-weight: bold;">$#{number_with_delimiter(data[:contract_price])}</p>
+                  </div>
+                  <div style="flex: 1; text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                    <p style="margin: 0; font-size: 11px; color: #{template.secondary_color};">This Claim</p>
+                    <p style="margin: 3px 0 0; font-weight: bold; color: #{template.primary_color};">$#{number_with_delimiter(data[:claim_amount])}</p>
+                  </div>
+                  <div style="flex: 1; text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px;">
+                    <p style="margin: 0; font-size: 11px; color: #{template.secondary_color};">Remaining</p>
+                    <p style="margin: 3px 0 0; font-weight: bold;">$#{number_with_delimiter(data[:balance_remaining])}</p>
+                  </div>
+                </div>
+              </div>
+
+              #{bank_details_html(template, data) if template.show_bank_details}
+              #{footer_html(template)}
+            </div>
           </div>
         HTML
       end

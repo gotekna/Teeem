@@ -532,7 +532,8 @@ export default function CostsMap() {
       if (response?.data) {
         setBreakdown(response.data);
       }
-    } catch {
+    } catch (err) {
+      console.error("[CostsMap] Failed to load Vercel breakdown:", err);
       setBreakdown({ success: false, error: "Failed to load breakdown" });
     } finally {
       setBreakdownLoading(false);
@@ -588,7 +589,8 @@ export default function CostsMap() {
           });
         }
       }
-    } catch {
+    } catch (err) {
+      console.error("[CostsMap] Failed to load storage billing:", err);
       setStorageBilling({ success: false, error: "Failed to load storage billing" });
     } finally {
       setStorageBillingLoading(false);

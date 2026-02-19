@@ -17,8 +17,10 @@ class EmailHealthMonitorJob < ApplicationJob
   queue_as :default
 
   # Expected sync intervals (if no sync in this time, it's stale)
+  # ms365: AllOrgsEmailSyncJob runs every 15 min with up to 14-min execution time.
+  # Stale detection = 30 min expected + 10 min SELF_HEAL_GRACE_PERIOD = 40 min total.
   EXPECTED_INTERVALS = {
-    "ms365" => 20.minutes,  # Office 365 syncs every 15 min, grace period 5 min
+    "ms365" => 30.minutes,  # Office 365 syncs every 15 min, up to 14 min execution time
     "imap" => 5.minutes     # IMAP syncs every 2 min, grace period 3 min
   }.freeze
 

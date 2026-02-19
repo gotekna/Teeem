@@ -107,8 +107,8 @@ export function WorkflowsTab() {
       // Handle both { workflow_definitions: [...] } and direct array responses
       const data = Array.isArray(response) ? response : (response?.workflow_definitions || []);
       setWorkflows(data);
-    } catch {
-      // API not implemented yet - use mock data silently
+    } catch (err) {
+      console.error("[WorkflowsTab] API not implemented yet, using mock data:", err);
       setWorkflows([
         {
           id: 1,

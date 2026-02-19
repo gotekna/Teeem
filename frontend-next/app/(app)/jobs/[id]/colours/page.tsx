@@ -288,8 +288,8 @@ export default function ColourSelectionBuilderPage() {
               setExpandedCategories(new Set(defaultTemplate.categories.map(c => c.key)));
             }
           }
-        } catch {
-          console.error("Failed to load default template");
+        } catch (err) {
+          console.error("[Colours] failed to load default template:", err);
         }
       }
     };

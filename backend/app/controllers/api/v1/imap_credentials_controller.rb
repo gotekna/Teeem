@@ -1270,7 +1270,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
       begin
         service = ImapEmailService.new(credential)
         json[:folders] = service.list_folders
-      rescue
+      rescue StandardError => e
+        Rails.logger.warn "[ImapCredentials] Failed to list folders for credential #{credential.id}: #{e.message}"
         json[:folders] = []
       end
     end

@@ -26,7 +26,12 @@ class SystemSetting < ApplicationRecord
     when "boolean"
       setting.setting_value == "true"
     when "json"
-      JSON.parse(setting.setting_value) rescue nil
+      begin
+        JSON.parse(setting.setting_value)
+      rescue StandardError => e
+        Rails.logger.warn "[SystemSetting] Failed to parse JSON for setting '#{key}': #{e.message}"
+        nil
+      end
     else
       setting.setting_value
     end

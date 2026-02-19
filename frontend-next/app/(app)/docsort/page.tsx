@@ -17,7 +17,7 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentListIcon,
 } from "@heroicons/react/24/outline";
-import { ArrowLeft, Ruler } from "lucide-react";
+import { ArrowLeft, Ruler, MoreVertical, Settings } from "lucide-react";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { api, getApiBaseUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -244,7 +250,7 @@ export default function DocsortPage() {
       try {
         const response = await api.get<{ success: boolean; data: ClassificationDocumentType[] }>("/api/v1/document_types");
         if (response?.success && response.data) setPanelDocTypes(response.data);
-      } catch { /* non-critical */ }
+      } catch (err) { console.error("[DocSort] Failed to load document types:", err); }
     };
     fetchPanelDocTypes();
   }, []);
@@ -255,7 +261,7 @@ export default function DocsortPage() {
       try {
         const response = await api.get<{ success: boolean; companies: ClassificationCompany[] }>("/api/v1/companies?include_unlinked=true");
         if (response?.companies) setPanelCompanies(response.companies);
-      } catch { /* non-critical */ }
+      } catch (err) { console.error("[DocSort] Failed to load companies:", err); }
     };
     fetchPanelCompanies();
   }, []);
@@ -273,7 +279,8 @@ export default function DocsortPage() {
           `/api/v1/document_inboxes/${selectedItem.id}/classification`
         );
         if (response?.success) setClassificationData(response);
-      } catch {
+      } catch (err) {
+        console.error("[DocSort] Failed to fetch classification data:", err);
         setClassificationData(null);
       } finally {
         setClassificationLoading(false);
@@ -435,7 +442,8 @@ export default function DocsortPage() {
       try {
         await api.post(`/api/v1/document_inboxes/${item.id}/classify`);
         success++;
-      } catch {
+      } catch (err) {
+        console.error("[DocSort] Re-classify failed for item", item.id, ":", err);
         failed++;
       }
     }
@@ -567,6 +575,19 @@ export default function DocsortPage() {
             <ArrowPathIcon className={cn("h-4 w-4 mr-2", loading && "animate-spin")} />
             Refresh
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push("/settings/company/documents/types")}>
+                <Settings className="h-4 w-4 mr-2" />
+                Document Types
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -607,8 +628,34 @@ export default function DocsortPage() {
                   documentTypes={panelDocTypes}
                   companies={panelCompanies}
                   mode="validate"
+                  onSave={async (data) => {
+                    await api.patch(`/api/v1/document_inboxes/${selectedItem.id}/override`, {
+                      document_type: data.documentType,
+                      folder: data.folder,
+                      company_id: data.companyId,
+                      financial_years: data.financialYears,
+                      auto_route: false,
+                    });
+                    toast({ title: "Classification updated" });
+                    loadData();
+                    try {
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification:", err); }
+                  }}
                   onRoute={async (companyId) => {
                     await handleRoute(selectedItem, undefined, companyId);
+                  }}
+                  onRerunAI={async () => {
+                    try {
+                      await api.post(`/api/v1/document_inboxes/${selectedItem.id}/classify`, { methods: ['ai_match'] });
+                      const response = await api.get<ClassificationData>(
+                        `/api/v1/document_inboxes/${selectedItem.id}/classification`
+                      );
+                      if (response?.success) setClassificationData(response);
+                    } catch (err) { console.error("[DocSort] Failed to re-run AI:", err); }
                   }}
                   onReclassify={async () => {
                     await handleClassify(selectedItem);
@@ -617,7 +664,7 @@ export default function DocsortPage() {
                         `/api/v1/document_inboxes/${selectedItem.id}/classification`
                       );
                       if (response?.success) setClassificationData(response);
-                    } catch { /* ignore */ }
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification:", err); }
                   }}
                   onRerunOCR={async () => {
                     await handleClassify(selectedItem);
@@ -626,7 +673,7 @@ export default function DocsortPage() {
                         `/api/v1/document_inboxes/${selectedItem.id}/classification`
                       );
                       if (response?.success) setClassificationData(response);
-                    } catch { /* ignore */ }
+                    } catch (err) { console.error("[DocSort] Failed to refresh classification after OCR:", err); }
                   }}
                 />
               </div>
@@ -670,7 +717,8 @@ export default function DocsortPage() {
                         } else {
                           toast({ title: "Download failed", description: "No download URL returned", variant: "destructive" });
                         }
-                      } catch {
+                      } catch (err) {
+                        console.error("[DocSort] Download failed:", err);
                         toast({ title: "Download failed", variant: "destructive" });
                       }
                     }}
@@ -739,7 +787,8 @@ export default function DocsortPage() {
                           `/api/v1/document_inboxes/${selectedItem.id}/download?url_only=true`
                         );
                         if (response?.url) window.open(response.url, "_blank");
-                      } catch {
+                      } catch (err) {
+                        console.error("[DocSort] Download to view failed:", err);
                         toast({ title: "Download failed", variant: "destructive" });
                       }
                     }}

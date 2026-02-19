@@ -186,6 +186,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "workflows": "Workflows",
   "connections": "Connections",
   "job-setup": "Job Setup",
+  "design": "Design",
   "workflow-config": "Workflow Config",
   "warehouse-config": "Warehouse Config",
   "data-health": "Data Health",
@@ -455,7 +456,7 @@ export function isSameRoute(path1: string, path2: string): boolean {
 const SETTINGS_NESTED_TABS: Record<string, string[]> = {
   "warehouse-config": ["warehouse_folders", "warehouse_tables", "document_types", "corporate", "job", "contact", "email_config", "sync"],
   "documents": ["types", "document-templates", "bank-statements", "invoice-templates", "email-signatures", "pdf-fields"],
-  "job-setup": ["lists", "workflow"],
+  "job-setup": ["lists", "design", "claims", "workflow"],
   "data-health": ["overview", "contacts"],
   "email-accounts": ["configuration", "sync-dashboard", "email-setup"],
   "corporate": ["groups", "companies", "company-tabs"],
