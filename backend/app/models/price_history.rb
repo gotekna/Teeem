@@ -20,6 +20,7 @@ class PriceHistory < ApplicationRecord
   validates :pricebook_item_id, presence: true
   validates :new_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :old_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
+  validate :supplier_belongs_to_same_tenant
   VALID_LGAS = [
     "Brisbane City Council",
     "City of Gold Coast",
@@ -44,6 +45,16 @@ class PriceHistory < ApplicationRecord
   validate :prevent_duplicate_price_history, on: :create
 
   private
+
+  # Tenant isolation: supplier must belong to the same tenant as the price history.
+  # Uses unscoped lookup because acts_as_tenant would hide the cross-tenant contact.
+  def supplier_belongs_to_same_tenant
+    return if supplier_id.blank? || tenant_id.blank?
+    supplier_tenant = ActsAsTenant.without_tenant { Contact.where(id: supplier_id).pick(:tenant_id) }
+    if supplier_tenant && supplier_tenant != tenant_id
+      errors.add(:supplier_id, "must belong to the same tenant (supplier tenant: #{supplier_tenant}, history tenant: #{tenant_id})")
+    end
+  end
 
   def prevent_duplicate_price_history
     # The unique database constraint will prevent duplicates

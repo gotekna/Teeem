@@ -25,6 +25,8 @@ class PricebookItem < ApplicationRecord
   validates :item_name, presence: true
   validates :current_price, numericality: { allow_nil: true }  # Allow negative prices for rebates/credits
   validates :unit_of_measure, presence: true
+  validate :supplier_belongs_to_same_tenant
+  validate :default_supplier_belongs_to_same_tenant
 
   # Callbacks
   before_save :check_pricing_review_status
@@ -352,6 +354,25 @@ class PricebookItem < ApplicationRecord
   end
 
   private
+
+  # Tenant isolation: suppliers must belong to the same tenant as the pricebook item.
+  # Uses unscoped lookup because acts_as_tenant would hide the cross-tenant contact,
+  # making the validation silently pass instead of catching the violation.
+  def supplier_belongs_to_same_tenant
+    return if supplier_id.blank? || tenant_id.blank?
+    supplier_tenant = ActsAsTenant.without_tenant { Contact.where(id: supplier_id).pick(:tenant_id) }
+    if supplier_tenant && supplier_tenant != tenant_id
+      errors.add(:supplier_id, "must belong to the same tenant (supplier tenant: #{supplier_tenant}, item tenant: #{tenant_id})")
+    end
+  end
+
+  def default_supplier_belongs_to_same_tenant
+    return if default_supplier_id.blank? || tenant_id.blank?
+    supplier_tenant = ActsAsTenant.without_tenant { Contact.where(id: default_supplier_id).pick(:tenant_id) }
+    if supplier_tenant && supplier_tenant != tenant_id
+      errors.add(:default_supplier_id, "must belong to the same tenant (supplier tenant: #{supplier_tenant}, item tenant: #{tenant_id})")
+    end
+  end
 
   def check_pricing_review_status
     # Flag items without prices for review

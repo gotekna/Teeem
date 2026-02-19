@@ -1,11 +1,8 @@
 class SetTlElectricalAsDefaultSupplierForElectricalItems < ActiveRecord::Migration[7.2]
   def up
-    # TL Electrical Pty Ltd = Contact ID 2289 (oldest, has 33 price histories + 10 pricebook items)
-    # 4 electrical pricebook items are missing default_supplier_id
-    # 3 price histories on those items are missing supplier_id
-    #
-    # Raw SQL to bypass acts_as_tenant scoping and model callbacks
-    # (PriceHistory has after_commit :sync_current_price_to_item which could change prices)
+    # ⚠️ TENANT LEAKAGE BUG - This migration applied tenant-2 contact ID to ALL tenants.
+    # Fixed by migration 20260219200004_fix_cross_tenant_supplier_leakage.rb
+    # NEVER use raw SQL to set foreign keys without tenant_id matching.
     #
     # FRC (Feb 2026): Guard against missing contact — this ID only exists in production-like
     # databases. Skip silently on local/fresh databases where the contact doesn't exist.
