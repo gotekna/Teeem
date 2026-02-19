@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Package, Copy, TrendingUp, Star, Trash2 } from "lucide-react";
+import { Package, Copy, TrendingUp, Star, Trash2, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -18,6 +18,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -48,6 +53,16 @@ interface PricebookResponse {
     limit: number;
     total_pages: number;
   };
+}
+
+interface PriceHistoryEntry {
+  id: number;
+  pricebook_item_id: number;
+  old_price: number | null;
+  new_price: number | null;
+  change_reason: string | null;
+  date_effective: string | null;
+  created_at: string;
 }
 
 interface ContactPriceBookTabProps {
@@ -117,6 +132,9 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const [loadingTargetPrices, setLoadingTargetPrices] = useState(false);
   const [priceOverrides, setPriceOverrides] = useState<Record<number, number>>({});
 
+  // Price history map: pricebook_item_id -> recent entries (most recent first)
+  const [priceHistoryMap, setPriceHistoryMap] = useState<Map<number, PriceHistoryEntry[]>>(new Map());
+
   const { toast } = useToast();
 
   // Inline edit handler - saves single field updates to the pricebook API
@@ -173,15 +191,33 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get<PricebookResponse>(
-        `/api/v1/pricebook?supplier_id=${contactId}&limit=0&include_risk=false`
-      );
+      const [itemsResponse, historiesResponse] = await Promise.all([
+        api.get<PricebookResponse>(
+          `/api/v1/pricebook?supplier_id=${contactId}&limit=0&include_risk=false`
+        ),
+        api.get<{ success: boolean; data: PriceHistoryEntry[] }>(
+          `/api/v1/pricebook/all_price_histories?supplier_id=${contactId}&limit=5000`
+        ),
+      ]);
 
-      if (response?.items) {
-        setItems(response.items);
-        setTotal(response.pagination?.total_count || response.items.length);
+      if (itemsResponse?.items) {
+        setItems(itemsResponse.items);
+        setTotal(itemsResponse.pagination?.total_count || itemsResponse.items.length);
       } else {
         setError("Failed to load price book items");
+      }
+
+      // Group histories by pricebook_item_id, keep max 5 per item
+      if (historiesResponse?.success && historiesResponse.data) {
+        const map = new Map<number, PriceHistoryEntry[]>();
+        for (const entry of historiesResponse.data) {
+          const existing = map.get(entry.pricebook_item_id) || [];
+          if (existing.length < 5) {
+            existing.push(entry);
+          }
+          map.set(entry.pricebook_item_id, existing);
+        }
+        setPriceHistoryMap(map);
       }
     } catch (err) {
       console.error("Failed to load price book:", err);
@@ -214,12 +250,12 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
   const columns: TableColumn[] = useMemo(() => [
     { key: "item_code", label: "Code", width: 120, sortable: true, column_type: "single_line_text" },
     { key: "item_name", label: "Item Name", width: 300, sortable: true, column_type: "single_line_text" },
+    { key: "supplier_price", label: "Supplier Price", width: 130, sortable: true, column_type: "currency" },
+    { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
+    { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
     { key: "category", label: "Category", width: 150, sortable: true, column_type: "single_line_text" },
     { key: "brand", label: "Brand", width: 120, sortable: true, column_type: "single_line_text" },
     { key: "unit_of_measure", label: "UOM", width: 80, sortable: true, column_type: "single_line_text" },
-    { key: "current_price", label: "Current Price", width: 120, sortable: true, column_type: "currency" },
-    { key: "supplier_price", label: "Supplier Price", width: 120, sortable: true, column_type: "currency" },
-    { key: "price_last_updated_at", label: "Price Updated", width: 120, sortable: true, column_type: "date" },
     { key: "needs_pricing_review", label: "Review", width: 80, sortable: true, column_type: "boolean" },
   ], []);
 
@@ -456,6 +492,80 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
     }
   }, [removeSelectedIds, contactId, toast, removeClearSelection]);
 
+  // Custom cell renderer for supplier_price with price history popover
+  const priceCellRenderer = useCallback((entry: TableRow, columnKey: string): React.ReactNode | null => {
+    if (columnKey !== "supplier_price") return null;
+
+    const price = entry.supplier_price as number | null;
+    const histories = priceHistoryMap.get(Number(entry.id)) || [];
+    const itemCode = entry.item_code as string;
+
+    if (histories.length === 0) {
+      // No history - render price normally (fall through to default)
+      return null;
+    }
+
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            className="flex items-center gap-1 text-right w-full hover:text-primary transition-colors group"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="flex-1 text-right tabular-nums">{formatCurrency(price)}</span>
+            <ChevronDown className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-80 p-0" align="start" side="bottom">
+          <div className="px-3 py-2 border-b">
+            <p className="text-sm font-medium">Price History</p>
+            <p className="text-xs text-muted-foreground">{entry.item_name as string}</p>
+          </div>
+          <div className="max-h-[200px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50 sticky top-0">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-medium">Date</th>
+                  <th className="text-right px-3 py-1.5 font-medium">Old</th>
+                  <th className="text-right px-3 py-1.5 font-medium">New</th>
+                  <th className="text-left px-3 py-1.5 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {histories.map((h) => (
+                  <tr key={h.id} className="hover:bg-muted/30">
+                    <td className="px-3 py-1.5 whitespace-nowrap">
+                      {h.date_effective
+                        ? new Date(h.date_effective).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })
+                        : new Date(h.created_at).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "2-digit" })}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">
+                      {formatCurrency(h.old_price)}
+                    </td>
+                    <td className="px-3 py-1.5 text-right tabular-nums font-medium">
+                      {formatCurrency(h.new_price)}
+                    </td>
+                    <td className="px-3 py-1.5 truncate max-w-[80px]" title={h.change_reason || ""}>
+                      {h.change_reason || "\u2014"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-3 py-2 border-t">
+            <button
+              className="text-xs text-primary hover:underline"
+              onClick={() => router.push(`/pricebook/${itemCode}`)}
+            >
+              View full history
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  }, [priceHistoryMap, router]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -496,6 +606,7 @@ export function ContactPriceBookTab({ contactId, contactName }: ContactPriceBook
           onRowUpdate={handleRowUpdate}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
+          customCellRenderer={priceCellRenderer}
           onRowDoubleClick={(row) => {
             if (row.item_code) router.push(`/pricebook/${row.item_code}`);
           }}

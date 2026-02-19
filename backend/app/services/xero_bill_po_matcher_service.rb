@@ -194,34 +194,42 @@ class XeroBillPoMatcherService
     bill_supplier = bill.dig("Contact", "Name").to_s
     xero_contact_id = bill.dig("Contact", "ContactID")
 
-    # Find all POs from this supplier (not yet matched)
-    supplier_candidates = native_pos.select do |po|
-      next false if @matched_po_ids.include?(po.id)
+    # Find all POs from this supplier
+    all_supplier_pos = native_pos.select do |po|
       supplier_matches?(po, xero_contact_id, bill_supplier)
     end
 
-    if supplier_candidates.empty?
+    if all_supplier_pos.empty?
       @stats[:skipped] += 1
       Rails.logger.debug("[XeroBillPoMatcher] No supplier match for Xero bill #{invoice_number} ($#{bill_total}, #{bill_supplier})")
       return
     end
 
+    # Prefer unmatched POs, but allow reuse if only 1 PO exists for this supplier
+    unmatched = all_supplier_pos.reject { |po| @matched_po_ids.include?(po.id) }
+    candidates = unmatched.any? ? unmatched : all_supplier_pos
+
     # Prefer amount match (within tolerance), fall back to supplier-only
     lower = bill_total * (1 - AMOUNT_TOLERANCE)
     upper = bill_total * (1 + AMOUNT_TOLERANCE)
-    amount_matches = supplier_candidates.select { |po| po.total&.to_f&.between?(lower, upper) }
+    amount_matches = candidates.select { |po| po.total&.to_f&.between?(lower, upper) }
 
     best = if amount_matches.any?
       amount_matches.min_by { |po| (po.total.to_f - bill_total).abs }
     else
       # No amount match - link by supplier, pick closest amount
-      supplier_candidates.min_by { |po| ((po.total || 0).to_f - bill_total).abs }
+      candidates.min_by { |po| ((po.total || 0).to_f - bill_total).abs }
     end
 
     match_type = amount_matches.any? ? "amount+supplier" : "supplier-only"
 
-    # Always save the local link (PO → Xero bill) regardless of whether Xero accepts the update
-    best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
+    # Save local link - append invoice ID if PO already linked (multiple bills → 1 PO)
+    if @matched_po_ids.include?(best.id) && best.xero_invoice_id.present?
+      existing_ids = best.xero_invoice_id.to_s
+      best.update_columns(xero_invoice_id: "#{existing_ids},#{invoice_id}")
+    else
+      best.update_columns(xero_invoice_id: invoice_id, xero_invoice_number: invoice_number)
+    end
     @matched_po_ids.add(best.id)
     @stats[:matched] += 1
 

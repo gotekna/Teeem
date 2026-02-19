@@ -550,6 +550,62 @@ module Api
         end
       end
 
+      # POST /api/v1/pricebook/refresh_from_defaults
+      # Refreshes current_price from default supplier's latest price history for selected items
+      def refresh_from_defaults
+        item_ids = params[:pricebook_item_ids]
+        unless item_ids.is_a?(Array) && item_ids.any?
+          return render json: { success: false, error: "pricebook_item_ids required" }, status: :unprocessable_entity
+        end
+
+        items = PricebookItem.includes(:price_histories).where(id: item_ids)
+        today = TenantSetting.today
+        updated = []
+        skipped = 0
+        unchanged = 0
+
+        items.find_each do |item|
+          unless item.default_supplier_id
+            skipped += 1
+            next
+          end
+
+          active_history = item.price_histories
+            .select { |ph| ph.supplier_id == item.default_supplier_id }
+            .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+            .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
+          unless active_history
+            skipped += 1
+            next
+          end
+
+          if active_history.new_price == item.current_price
+            unchanged += 1
+            next
+          end
+
+          old_price = item.current_price
+          item.skip_price_history_callback = true
+          item.update!(current_price: active_history.new_price)
+          updated << {
+            id: item.id,
+            item_code: item.item_code,
+            item_name: item.item_name,
+            old_price: old_price,
+            new_price: active_history.new_price
+          }
+        end
+
+        render json: {
+          success: true,
+          updated_count: updated.length,
+          skipped_count: skipped,
+          unchanged_count: unchanged,
+          updated: updated
+        }
+      end
+
       def recalculate_current_price(item)
         # Find the active price history (most recent price from default supplier that's effective today or earlier)
         if item.default_supplier_id

@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ComboboxDropdown, type ComboboxItem } from '@/components/ui/combobox-dropdown';
 import { ResizableColumnHeader } from '../../components/ResizableColumnHeader';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Spinner } from "@/components/ui/spinner";
@@ -419,54 +420,60 @@ export function TableHeaderSection({
                 }
 
                 if (options.length > 0) {
+                  const lookupItems: ComboboxItem[] = [
+                    { id: 'all', label: 'All' },
+                    { id: FILTER_EMPTY, label: 'Empty' },
+                    { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
+                    ...options
+                      .filter(opt => opt.display != null && String(opt.display) !== '')
+                      .map((opt) => ({ id: String(opt.display), label: String(opt.display) })),
+                  ];
+                  const selectedLookup = lookupItems.find(item => item.id === (filterValue || 'all'));
+
                   return (
-                    <Select
-                      value={filterValue || 'all'}
-                      onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
-                    >
-                      <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
-                        <SelectValue placeholder="All" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[300px]">
-                        <SelectItem value="all">All</SelectItem>
-                        <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
-                        <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
-                        <SelectSeparator />
-                        {/* Filter out options with empty display values - use display for filtering since data contains display values */}
-                        {options.filter(opt => opt.display != null && String(opt.display) !== '').map((opt) => (
-                          <SelectItem key={opt.id} value={String(opt.display)}>
-                            {opt.display}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className={cn(
+                      "[&>div]:h-7 [&_input]:h-7 [&_input]:text-xs [&_input]:py-0 [&_input]:px-2 [&_input]:pr-6",
+                      "[&_button]:h-7 [&_button]:text-xs [&_button]:px-2",
+                      hasFilter && "[&_input]:border-primary [&_button]:border-primary"
+                    )}>
+                      <ComboboxDropdown
+                        items={lookupItems}
+                        selectedItem={selectedLookup}
+                        onSelect={(item) => handleDropdownFilterChange(column.key, item.id, '=')}
+                        placeholder="All"
+                        searchPlaceholder="Search..."
+                      />
+                    </div>
                   );
                 }
               }
 
-              // Choice column - dropdown with choices
+              // Choice column - searchable dropdown with choices
               if ((isChoice || hasChoices) && colMeta.choices && colMeta.choices.length > 0) {
+                const choiceItems: ComboboxItem[] = [
+                  { id: 'all', label: 'All' },
+                  { id: FILTER_EMPTY, label: 'Empty' },
+                  { id: FILTER_NOT_EMPTY, label: 'Not Empty' },
+                  ...colMeta.choices
+                    .filter(c => c && c !== '')
+                    .map((choice) => ({ id: choice, label: choice })),
+                ];
+                const selectedChoice = choiceItems.find(item => item.id === (filterValue || 'all'));
+
                 return (
-                  <Select
-                    value={filterValue || 'all'}
-                    onValueChange={(value) => handleDropdownFilterChange(column.key, value, '=')}
-                  >
-                    <SelectTrigger className={cn("h-7 text-xs", hasFilter && "border-primary")}>
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value={FILTER_EMPTY} className="text-muted-foreground italic">Empty</SelectItem>
-                      <SelectItem value={FILTER_NOT_EMPTY} className="text-muted-foreground italic">Not Empty</SelectItem>
-                      <SelectSeparator />
-                      {/* Filter out empty strings - Select.Item cannot have empty string value */}
-                      {colMeta.choices.filter(c => c && c !== '').map((choice) => (
-                        <SelectItem key={choice} value={choice}>
-                          {choice}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className={cn(
+                    "[&>div]:h-7 [&_input]:h-7 [&_input]:text-xs [&_input]:py-0 [&_input]:px-2 [&_input]:pr-6",
+                    "[&_button]:h-7 [&_button]:text-xs [&_button]:px-2",
+                    hasFilter && "[&_input]:border-primary [&_button]:border-primary"
+                  )}>
+                    <ComboboxDropdown
+                      items={choiceItems}
+                      selectedItem={selectedChoice}
+                      onSelect={(item) => handleDropdownFilterChange(column.key, item.id, '=')}
+                      placeholder="All"
+                      searchPlaceholder="Search..."
+                    />
+                  </div>
                 );
               }
 

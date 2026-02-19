@@ -2533,14 +2533,25 @@ module Api
                         australia australian qld nsw vic sa wa nt act tas
                         services solutions consulting enterprises industries]
 
+          # FRC (Feb 2026): Pre-collect Xero contact IDs that are known stale (merged/deleted in Xero).
+          # These show xero_contact_status='not_found' in ContactExternalLink.
+          # Without this filter, merged Xero contacts create false positive "duplicates"
+          # (e.g., "Harvey Norman Commercial" appears twice but one ID no longer exists in Xero).
+          stale_xero_contact_ids = ContactExternalLink
+            .where(source: 'xero', xero_contact_status: 'not_found')
+            .pluck(:external_contact_id)
+            .compact
+
           # Get all unique Xero contacts per Xero org
           # FRC (Feb 2026): Must group by xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer).
           # tenant_id is the TEEEM tenant FK - grouping by it lumps ALL Xero orgs together,
           # causing false positives (same supplier across different Xero orgs is NOT a duplicate).
-          org_contacts = ExternalInvoice
+          query = ExternalInvoice
             .where.not(contact_name: [ nil, "", "No Contact" ])
             .where.not(external_contact_id: nil)
             .where.not(xero_org_id: [nil, ""])
+          query = query.where.not(external_contact_id: stale_xero_contact_ids) if stale_xero_contact_ids.any?
+          org_contacts = query
             .select("DISTINCT xero_org_id, contact_name, external_contact_id")
             .to_a
 
@@ -2559,11 +2570,29 @@ module Api
 
             names = contacts.map { |c| { name: c.contact_name, xero_id: c.external_contact_id } }.uniq { |c| c[:xero_id] }
 
-            # Pre-compute TEEEM links for all Xero contacts in this tenant
+            # FRC (Feb 2026): Pre-compute TEEEM links for this SPECIFIC Xero org.
+            # A link to a DIFFERENT org doesn't prove the contact exists in THIS org.
+            # Example: "Harvey Norman Commercial" (xero_id=X) has a link for org A (115 invoices)
+            # but also has 1 invoice in org B where the contact was merged/deleted.
+            # Without org-scoped lookup, the detection wrongly treats X as "active" in org B.
             teeem_links = {}
+            active_in_org = Set.new
             names.each do |contact|
-              link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id])
-              teeem_links[contact[:xero_id]] = link&.contact_id
+              # Check for link in THIS specific org
+              link = ContactExternalLink.find_by(
+                external_contact_id: contact[:xero_id],
+                xero_org_id: xero_org_id,
+                source: 'xero'
+              )
+              if link
+                teeem_links[contact[:xero_id]] = link.contact_id
+                active_in_org.add(contact[:xero_id]) if link.xero_contact_status == 'active'
+              else
+                # Fallback: check ANY org (for unlinked contacts)
+                any_link = ContactExternalLink.find_by(external_contact_id: contact[:xero_id], source: 'xero')
+                teeem_links[contact[:xero_id]] = any_link&.contact_id
+                # Don't mark as active_in_org - no link for THIS org
+              end
             end
 
             # Compare each pair of names to find real duplicates
@@ -2575,6 +2604,15 @@ module Api
                 pair_key = [ a[:xero_id], b[:xero_id] ].sort.join("-")
                 next if checked_pairs.include?(pair_key)
                 checked_pairs.add(pair_key)
+
+                # FRC (Feb 2026): Skip pairs where one contact has no active link for THIS org.
+                # If one is confirmed active and the other isn't linked to this org at all,
+                # the unlinked one was likely merged/deleted in Xero (ghost duplicate).
+                a_active = active_in_org.include?(a[:xero_id])
+                b_active = active_in_org.include?(b[:xero_id])
+                if (a_active && !b_active) || (b_active && !a_active)
+                  next
+                end
 
                 # Skip if both contacts are linked to DIFFERENT TEEEM contacts
                 # (user has already determined these are separate people)

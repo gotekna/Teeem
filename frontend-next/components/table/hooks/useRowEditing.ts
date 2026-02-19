@@ -61,6 +61,8 @@ export interface UseRowEditingOptions {
   onRowUpdate?: (rowId: string | number, field: string, value: unknown) => void | Promise<void>;
   /** Whether in auto-fetch mode */
   isAutoFetch?: boolean;
+  /** Whether edit mode is active (accumulate rows instead of replacing) */
+  isEditMode?: boolean;
   /** Setter for auto-fetched records (for optimistic updates) */
   setRecords?: React.Dispatch<React.SetStateAction<TableRow[]>>;
   /** Callback to pre-fetch lookup options */
@@ -80,6 +82,8 @@ export interface RowEditingState {
   editingRowCount: number;
   /** Total validation error count */
   validationErrorCount: number;
+  /** IDs of rows that have been modified (have actual changes vs original) */
+  dirtyRowIds: Set<string | number>;
 }
 
 export interface RowEditingActions {
@@ -115,6 +119,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     onRefresh,
     onRowUpdate,
     isAutoFetch = false,
+    isEditMode = false,
     setRecords,
     fetchLookupOptions,
   } = options;
@@ -134,6 +139,22 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       0
     );
 
+    // Compute dirty rows: rows where editingData differs from original row data
+    const dirty = new Set<string | number>();
+    for (const rowId of editingRowIds) {
+      const originalRow = rows.find(r => r.id === rowId);
+      const rowData = editingData[rowId];
+      if (!originalRow || !rowData) continue;
+
+      for (const [key, value] of Object.entries(rowData)) {
+        if (key === 'id') continue;
+        if (JSON.stringify(originalRow[key]) !== JSON.stringify(value)) {
+          dirty.add(rowId);
+          break;
+        }
+      }
+    }
+
     return {
       editingRowIds,
       editingData,
@@ -141,16 +162,32 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       isEditing: editingRowIds.size > 0,
       editingRowCount: editingRowIds.size,
       validationErrorCount: errorCount,
+      dirtyRowIds: dirty,
     };
-  }, [editingRowIds, editingData, validationErrors]);
+  }, [editingRowIds, editingData, validationErrors, rows]);
 
   // ============================================================================
   // ACTIONS
   // ============================================================================
 
   const startEditing = useCallback((row: TableRow) => {
-    setEditingRowIds(new Set([row.id]));
-    setEditingData({ [row.id]: { ...row } });
+    if (isEditMode) {
+      // In edit mode: accumulate rows - add to existing set, preserve pending edits
+      setEditingRowIds(prev => {
+        if (prev.has(row.id)) return prev; // Already editing this row
+        const next = new Set(prev);
+        next.add(row.id);
+        return next;
+      });
+      setEditingData(prev => {
+        if (prev[row.id]) return prev; // Already have data for this row
+        return { ...prev, [row.id]: { ...row } };
+      });
+    } else {
+      // Single-row mode: replace (legacy behavior for double-click editing)
+      setEditingRowIds(new Set([row.id]));
+      setEditingData({ [row.id]: { ...row } });
+    }
 
     // Pre-fetch lookup options for lookup columns
     if (fetchLookupOptions) {
@@ -160,7 +197,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         }
       });
     }
-  }, [columns, fetchLookupOptions, setEditingRowIds, setEditingData]);
+  }, [columns, fetchLookupOptions, isEditMode, setEditingRowIds, setEditingData]);
 
   const startMultiEditing = useCallback((rowIds: (string | number)[]) => {
     const newEditingData: Record<string | number, Record<string, unknown>> = {};

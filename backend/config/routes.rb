@@ -978,6 +978,7 @@ Rails.application.routes.draw do
           get :export_price_history
           post :import_price_history
           get :all_price_histories
+          post :refresh_from_defaults
         end
       end
 
