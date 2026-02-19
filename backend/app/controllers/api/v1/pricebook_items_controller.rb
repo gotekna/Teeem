@@ -380,6 +380,9 @@ module Api
             photo_attached: true
           )
 
+          # Async: download URL and create blob for fast serving via presigned URL
+          CreatePricebookImageBlobJob.perform_later(@item.id, params[:image_url])
+
           render json: {
             success: true,
             message: "Image updated",

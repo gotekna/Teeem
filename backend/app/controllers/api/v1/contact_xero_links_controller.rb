@@ -305,6 +305,8 @@ module Api
           conflict_count: link.conflict_fields.keys.count,
           badge_color: config&.badge_color || "blue",
           accounting_system: config&.accounting_system || link.source,
+          # Name in Xero (may differ from TEEEM name)
+          external_name: link.external_name,
           # Invoice count from this tenant
           invoice_count: inv_count,
           # Review fields

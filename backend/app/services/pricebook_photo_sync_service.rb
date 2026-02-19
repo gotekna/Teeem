@@ -11,6 +11,7 @@ class PricebookPhotoSyncService
 
   def initialize
     @client = MicrosoftAppGraphClient.new
+    @drive_id = nil # Set during sync for blob downloads
     @stats = {
       total_files: 0,
       total_photos: 0,
@@ -18,6 +19,8 @@ class PricebookPhotoSyncService
       photos_matched: 0,
       photos_unmatched: 0,
       photos_updated: 0,
+      blobs_created: 0,
+      blob_errors: 0,
       qr_matched: 0,
       qr_unmatched: 0,
       qr_updated: 0,
@@ -38,6 +41,8 @@ class PricebookPhotoSyncService
     drives = @client.get_site_drives(teeem_site[:id])
     main_drive = drives.first
     raise SyncError, "No drive found in TEEEM site" unless main_drive
+
+    @drive_id = main_drive[:id]
 
     # Get warehousing folder
     root_items = @client.list_drive_items(main_drive[:id])
@@ -86,13 +91,23 @@ class PricebookPhotoSyncService
 
           unless dry_run
             item = match_result[:item]
-            item.update!(
+            update_attrs = {
               image_url: photo[:web_url],
               image_file_id: photo[:id],
               image_source: "sharepoint",
               image_fetched_at: Time.current,
               image_fetch_status: "success"
-            )
+            }
+
+            # Also create blob from SharePoint content for fast presigned URL serving
+            blob = download_and_create_blob(photo)
+            if blob
+              update_attrs[:image_storage_blob_id] = blob.id
+              update_attrs[:image_source] = "blob"
+              @stats[:blobs_created] += 1
+            end
+
+            item.update!(update_attrs)
             @stats[:photos_updated] += 1
           end
         else
@@ -278,6 +293,34 @@ class PricebookPhotoSyncService
 
   private
 
+  # Download file content from SharePoint and create a StorageBlob
+  # Returns the blob on success, nil on failure (non-fatal)
+  def download_and_create_blob(photo)
+    return nil unless @drive_id && photo[:id]
+
+    content = @client.get_drive_item_content(drive_id: @drive_id, item_id: photo[:id])
+    return nil unless content.present?
+
+    ext = File.extname(photo[:name].to_s).downcase
+    content_type = case ext
+    when ".jpg", ".jpeg" then "image/jpeg"
+    when ".png" then "image/png"
+    when ".gif" then "image/gif"
+    when ".webp" then "image/webp"
+    else "image/jpeg"
+    end
+
+    StorageBlob.find_or_create_for_content!(
+      content.force_encoding(Encoding::ASCII_8BIT),
+      filename: photo[:name],
+      content_type: content_type
+    )
+  rescue => e
+    @stats[:blob_errors] += 1
+    Rails.logger.warn "[PricebookPhotoSync] Blob creation failed for #{photo[:name]}: #{e.message}"
+    nil
+  end
+
   # Detect if a file is a QR code based on filename
   # Patterns: "qrcode_supplier.com.png", "ITEMCODE QR.png", "QR_ITEMCODE.png", etc.
   def qr_code_file?(filename)
@@ -322,6 +365,8 @@ class PricebookPhotoSyncService
     Rails.logger.info "[PricebookPhotoSync]   Matched: #{@stats[:photos_matched]}"
     Rails.logger.info "[PricebookPhotoSync]   Unmatched: #{@stats[:photos_unmatched]}"
     Rails.logger.info "[PricebookPhotoSync]   Updated: #{@stats[:photos_updated]}" unless dry_run
+    Rails.logger.info "[PricebookPhotoSync]   Blobs created: #{@stats[:blobs_created]}" unless dry_run
+    Rails.logger.info "[PricebookPhotoSync]   Blob errors: #{@stats[:blob_errors]}" if @stats[:blob_errors] > 0
     Rails.logger.info "[PricebookPhotoSync]   Match rate: #{(@stats[:photos_matched].to_f / @stats[:total_photos] * 100).round(1)}%" if @stats[:total_photos] > 0
     Rails.logger.info "[PricebookPhotoSync]"
     Rails.logger.info "[PricebookPhotoSync] QR CODES:"

@@ -919,6 +919,13 @@ export default function TeeemTableView({
       hasCacheRestoredRef.current = true;
       return;
     }
+    // Skip cache restoration when URL has a search param - cached records are unfiltered
+    // and would flash before server search results arrive (causes wrong count/records briefly)
+    const urlSearchParam = persistSearchToUrl ? searchParams.get('search') : null;
+    if (urlSearchParam) {
+      hasCacheRestoredRef.current = true;
+      return;
+    }
 
     // Async IIFE to await IndexedDB cache lookup
     (async () => {
@@ -2481,27 +2488,19 @@ export default function TeeemTableView({
         searchHook.actions.setMode(mode);
       }
 
-      // FRC FIX: When CLEARING search (empty value), ALWAYS refresh to get all records
-      // The previous "ULTRA FIX" assumed hasMore=false means all records loaded, but after
-      // a search that returned few results, hasMore=false just means search results are complete
-      // We need to distinguish between "all records loaded" vs "search results loaded"
       const isClearing = !value && previousSearch; // Clearing if value is empty but we had a search
-      const hadPreviousSearch = !!previousSearch; // Had a search active before this change
 
-      // If all records loaded AND not clearing a search AND no previous search, search client-side only
-      // But if clearing search OR changing search term, always use server-side search
-      // IMPORTANT: When autoFetchLimit is set, we intentionally don't have all records
-      // so always use server-side search (server searches the full database)
-      // FRC FIX 2: If we had a previous search, hasMore=false means "search results complete" not "all records loaded"
-      // So we MUST do server search when changing from one search term to another
-      const hasLimitedRecords = autoFetchLimit !== undefined;
-      // SSoT: Force server search for contacts in Company/Role view
-      // Backend has bidirectional search logic (search company → include employees, search employee → include company)
-      // Client-side search can't replicate this without duplicating logic - backend is THE source
-      const needsBidirectionalSearch = foundationSlug === 'contacts' && groupByColumns.includes('primary_company_id');
-      if (!isClearing && !hadPreviousSearch && !hasMore && autoFetchedRecords.length > 0 && !hasLimitedRecords && !needsBidirectionalSearch) {
-        return; // Skip API call - safe because we truly have all records
-      }
+      // ⚠️ DO NOT SIMPLIFY - Always use server search (2026-02-19)
+      // ════════════════════════════════════════════════════════════════════════
+      // Previously we skipped server search when all records were loaded (!hasMore)
+      // and used client-side search instead. This caused a RESULT MISMATCH:
+      // - Client-side search matches across ALL columns (including hidden fields)
+      // - Server-side search matches specific searchable columns
+      // Example: searching "draft" on contacts → client finds 203, server finds 16
+      // Users see non-matching records because matches are in hidden columns.
+      // ❌ WRONG: Skip server, use client-side → inconsistent results
+      // ✅ CORRECT: Always use server search → consistent, expected results
+      // ════════════════════════════════════════════════════════════════════════
 
       if (effectiveOnServerSearch) {
         // When clearing search, restore from cache first (avoids refetch if data was loaded)
@@ -2521,7 +2520,7 @@ export default function TeeemTableView({
         }
       }
     },
-    [effectiveOnServerSearch, hasMore, autoFetchedRecords.length, autoFetchLimit, searchHook.actions, effectiveFoundationId, foundationSlug, groupByColumns, search]
+    [effectiveOnServerSearch, searchHook.actions, effectiveFoundationId, search]
   );
 
   const handleSearchAllChange = useCallback(
@@ -3542,12 +3541,12 @@ export default function TeeemTableView({
     }
 
     // Apply search filter (client-side)
-    // Filter client-side when:
-    // 1. No server search handler exists, OR
-    // 2. All records are loaded (so we skip server call and filter locally)
+    // Only filter client-side when NO server search handler exists.
+    // When server search exists, it's SSoT for search results (prevents result mismatch).
+    // ⚠️ DO NOT add back "allRecordsLoaded" fallback - client-side search matches across
+    // ALL columns (including hidden), giving different results than server (2026-02-19 fix).
     const hasServerSearch = !!effectiveOnServerSearch;
-    const allRecordsLoaded = !hasMore && effectiveEntries.length > 0;
-    const shouldApplyClientSearch = !hasServerSearch || allRecordsLoaded;
+    const shouldApplyClientSearch = !hasServerSearch;
 
     if (search && shouldApplyClientSearch) {
       // Use extracted utility function for client-side search
@@ -3590,7 +3589,6 @@ export default function TeeemTableView({
     interGroupLogic,
     sortColumns,
     pendingDeleteIds,
-    hasMore,  // ULTRA FIX: Needed to detect when all records loaded for client-side search
   ]);
 
   // Keep ref in sync with filteredAndSortedEntries for use in callbacks

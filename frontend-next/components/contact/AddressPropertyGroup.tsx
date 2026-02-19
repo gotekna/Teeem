@@ -322,7 +322,7 @@ export function AddressPropertyGroup({
             className="h-9"
           />
           {searchingSuburbs && (
-            <Spinner className="h-4 w-4 absolute right-3 top-1/2 -translate-y-1/2" />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2"><Spinner size={16} /></span>
           )}
         </div>
 

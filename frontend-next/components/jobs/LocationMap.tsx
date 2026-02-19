@@ -838,7 +838,7 @@ export function LocationMap({
                       className="mt-1"
                     />
                     {searching && (
-                      <Spinner size={16} className="absolute right-3 top-9 text-muted-foreground" />
+                      <span className="absolute right-3 top-9 text-muted-foreground"><Spinner size={16} /></span>
                     )}
 
                     {showSuggestions && addressSuggestions.length > 0 && (

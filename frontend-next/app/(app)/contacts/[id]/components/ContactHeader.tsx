@@ -9,7 +9,14 @@ import {
   Globe,
   Trash2,
   ShieldCheck,
+  ChevronDown,
+  AlertTriangle,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { api } from "@/lib/api";
 
 // Exported for use in other components (ContactFinancialTab)
@@ -25,6 +32,7 @@ export interface XeroLink {
   created_at: string;
   updated_at: string;
   invoice_count?: number;
+  external_name?: string | null;
 }
 
 interface XeroTenant {
@@ -147,12 +155,54 @@ export function ContactHeader({
                 Family
               </Badge>
             )}
-            {/* SSoT: Simple badge showing linked org count. Org management is in Financial tab. */}
+            {/* Xero links popover - shows which orgs and name in each */}
             {allTenants.length > 0 && (
-              <Badge variant="outline" className="gap-1">
-                <ShieldCheck className="h-3 w-3" />
-                {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
-              </Badge>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button className="inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors hover:bg-accent cursor-pointer">
+                    <ShieldCheck className="h-3 w-3" />
+                    {new Set(xeroLinks.map(l => l.xero_tenant_id)).size}/{allTenants.length} Xero
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-80 p-0">
+                  <div className="px-3 py-2 border-b">
+                    <p className="text-sm font-medium">Xero Connections</p>
+                  </div>
+                  <div className="py-1">
+                    {allTenants.map((tenant) => {
+                      const link = xeroLinks.find(l => l.xero_tenant_id === tenant.tenant_id);
+                      const isLinked = !!link;
+                      const nameMismatch = isLinked && link.external_name && link.external_name !== contact.display_name;
+                      return (
+                        <div
+                          key={tenant.tenant_id}
+                          className="px-3 py-2 flex items-start gap-2"
+                        >
+                          <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${isLinked ? "bg-green-500" : "bg-muted-foreground/30"}`} />
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-sm ${isLinked ? "font-medium" : "text-muted-foreground"}`}>
+                              {tenant.tenant_name}
+                            </p>
+                            {isLinked && link.external_name && (
+                              <p className={`text-xs truncate ${nameMismatch ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                                {nameMismatch && <AlertTriangle className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                                {link.external_name}
+                              </p>
+                            )}
+                            {isLinked && !link.external_name && (
+                              <p className="text-xs text-muted-foreground italic">No name stored</p>
+                            )}
+                            {!isLinked && (
+                              <p className="text-xs text-muted-foreground">Not linked</p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </div>
           {contact.company_name && (

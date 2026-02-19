@@ -85,25 +85,6 @@ export default function ContactsPageClient({
     setRefreshKey(k => k + 1);
   }, []);
 
-  // Delete handler
-  const handleDelete = useCallback(async (row: TableRow) => {
-    try {
-      await api.delete(`/api/v1/foundations/contacts/records/${row.id}`);
-      toast({ title: "Contact archived", description: "Contact has been removed" });
-      setRefreshKey(k => k + 1);
-    } catch (err) {
-      console.error("[ContactsPage] Delete contact failed:", err);
-      toast({ title: "Delete failed", variant: "destructive" });
-    }
-  }, [toast]);
-
-  // Bulk delete handler
-  const handleBulkDelete = useCallback(async (ids: (number | string)[]) => {
-    await Promise.allSettled(ids.map(id => api.delete(`/api/v1/foundations/contacts/records/${id}`)));
-    toast({ title: "Contacts archived", description: `${ids.length} contacts removed` });
-    setRefreshKey(k => k + 1);
-  }, [toast]);
-
   // Xero transfer handler
   const handleXeroTransfer = useCallback((ids: (number | string)[]) => {
     if (ids.length === 2) {
@@ -156,8 +137,6 @@ export default function ContactsPageClient({
         onRowClick={handleRowDoubleClick}
         onRowDoubleClick={handleRowDoubleClick}
         onRowUpdate={handleRowUpdate}
-        onDelete={handleDelete}
-        onBulkDelete={handleBulkDelete}
         onXeroTransfer={handleXeroTransfer}
         leftActions={leftActions}
         hideFooter

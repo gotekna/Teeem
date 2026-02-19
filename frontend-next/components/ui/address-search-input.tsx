@@ -143,7 +143,7 @@ export function AddressSearchInput({
         }}
       />
       {searching && (
-        <Spinner size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"><Spinner size={14} /></span>
       )}
       {showDropdown && suggestions.length > 0 && (
         <div className="absolute z-[9999] w-full mt-1 bg-background border rounded-lg shadow-lg max-h-48 overflow-y-auto">
