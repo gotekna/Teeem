@@ -1,0 +1,448 @@
+<%# Tender Document - Multi-page professional tender PDF %>
+<%# Uses page-break-before for section pages. The layout provides header/footer for page 1. %>
+<%# Subsequent pages use CSS page breaks for clean separation. %>
+
+<style>
+  .tender-cover {
+    text-align: center;
+    padding-top: 80px;
+  }
+  .tender-cover h1 {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--color-primary, #1a365d);
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .tender-cover .subtitle {
+    font-size: 16px;
+    color: var(--color-text-secondary, #666);
+    margin-bottom: 60px;
+  }
+  .tender-cover .client-block {
+    margin: 40px auto;
+    max-width: 400px;
+    text-align: left;
+    border-left: 4px solid var(--color-primary, #1a365d);
+    padding-left: 20px;
+  }
+  .tender-cover .client-block h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    color: var(--color-text-secondary, #666);
+    margin-bottom: 4px;
+  }
+  .tender-cover .client-block p {
+    font-size: 16px;
+    margin: 2px 0;
+  }
+  .tender-cover .doc-info {
+    margin-top: 60px;
+    font-size: 12px;
+    color: var(--color-text-secondary, #666);
+  }
+
+  .tender-section-page {
+    page-break-before: always;
+  }
+  .section-header {
+    background: var(--color-primary, #1a365d);
+    color: white;
+    padding: 10px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 16px;
+    border-radius: 4px;
+  }
+  .section-header .section-code {
+    font-weight: 400;
+    opacity: 0.8;
+    font-size: 12px;
+    margin-left: 8px;
+  }
+
+  .tender-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-bottom: 20px;
+  }
+  .tender-table th {
+    background: #f5f7fa;
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 600;
+    border-bottom: 2px solid #e2e8f0;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .tender-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid #edf2f7;
+    vertical-align: top;
+  }
+  .tender-table .number-col {
+    text-align: right;
+    white-space: nowrap;
+  }
+  .tender-table .line-num {
+    width: 30px;
+    text-align: center;
+    color: #999;
+  }
+  .tender-table .section-subtotal {
+    font-weight: 700;
+    border-top: 2px solid #1a365d;
+    background: #f5f7fa;
+  }
+  .tender-table tr.note-row td {
+    color: #666;
+    font-style: italic;
+  }
+
+  .tender-summary-page {
+    page-break-before: always;
+  }
+  .summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 30px 0;
+  }
+  .summary-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #edf2f7;
+  }
+  .summary-table .section-name {
+    font-weight: 500;
+  }
+  .summary-table .amount {
+    text-align: right;
+    font-family: 'Courier New', monospace;
+    font-weight: 600;
+  }
+  .summary-table .grand-total {
+    font-size: 18px;
+    font-weight: 700;
+    border-top: 3px solid var(--color-primary, #1a365d);
+    background: #f5f7fa;
+  }
+  .summary-table .subtotal-row {
+    border-top: 2px solid #e2e8f0;
+    font-weight: 600;
+  }
+
+  .tender-notes-page {
+    page-break-before: always;
+  }
+  .tender-notes-page h2 {
+    margin-bottom: 16px;
+    color: var(--color-primary, #1a365d);
+  }
+  .tender-notes-content {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .acceptance-page {
+    page-break-before: always;
+  }
+  .acceptance-page h2 {
+    text-align: center;
+    color: var(--color-primary, #1a365d);
+    margin-bottom: 30px;
+  }
+  .signature-block {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 60px;
+  }
+  .signature-line {
+    width: 45%;
+  }
+  .signature-line .line {
+    border-bottom: 1px solid #333;
+    height: 40px;
+    margin-bottom: 4px;
+  }
+  .signature-line .label {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .details-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+  .details-table td {
+    padding: 6px 12px;
+    vertical-align: top;
+  }
+  .details-table .label {
+    width: 35%;
+    font-weight: 600;
+    color: #555;
+    background: #f5f7fa;
+    border-bottom: 1px solid #edf2f7;
+  }
+  .details-table .value {
+    border-bottom: 1px solid #edf2f7;
+  }
+</style>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# PAGE 1: Cover Page %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<div class="tender-cover">
+  <h1>Tender</h1>
+  <p class="subtitle"><%= @job_name %></p>
+
+  <div class="client-block">
+    <h3>Prepared For</h3>
+    <p><strong><%= @client_name %></strong></p>
+    <% if @client_address.present? %><p><%= @client_address %></p><% end %>
+    <% if @client_email.present? %><p><%= @client_email %></p><% end %>
+    <% if @client_phone.present? %><p><%= @client_phone %></p><% end %>
+  </div>
+
+  <div class="client-block">
+    <h3>Property</h3>
+    <p><strong><%= @job_address %></strong></p>
+    <p>Job Reference: <%= @job_code %></p>
+  </div>
+
+  <div class="doc-info">
+    <p>Document: <%= @document_number %> | Version <%= @version %></p>
+    <p>Prepared: <%= @date_prepared %> | Valid Until: <%= @valid_until %></p>
+    <% if @salesperson_name.present? %><p>Your Contact: <%= @salesperson_name %></p><% end %>
+  </div>
+</div>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# PAGE 2: Details Page %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<div class="tender-section-page">
+  <h2 style="color: var(--color-primary, #1a365d); margin-bottom: 20px;">Tender Details</h2>
+
+  <table class="details-table">
+    <tr><td class="label">Tender Number</td><td class="value"><%= @document_number %></td></tr>
+    <tr><td class="label">Version</td><td class="value"><%= @version %></td></tr>
+    <tr><td class="label">Date Prepared</td><td class="value"><%= @date_prepared %></td></tr>
+    <tr><td class="label">Valid Until</td><td class="value"><%= @valid_until %></td></tr>
+    <tr><td class="label">Job Reference</td><td class="value"><%= @job_code %></td></tr>
+    <tr><td class="label">Job Name</td><td class="value"><%= @job_name %></td></tr>
+    <tr><td class="label">Site Address</td><td class="value"><%= @job_address %></td></tr>
+  </table>
+
+  <h3 style="margin-top: 30px; color: var(--color-primary, #1a365d);">Client</h3>
+  <table class="details-table">
+    <tr><td class="label">Name</td><td class="value"><%= @client_name %></td></tr>
+    <% if @client_address.present? %><tr><td class="label">Address</td><td class="value"><%= @client_address %></td></tr><% end %>
+    <% if @client_email.present? %><tr><td class="label">Email</td><td class="value"><%= @client_email %></td></tr><% end %>
+    <% if @client_phone.present? %><tr><td class="label">Phone</td><td class="value"><%= @client_phone %></td></tr><% end %>
+  </table>
+
+  <% if @salesperson_name.present? %>
+    <h3 style="margin-top: 30px; color: var(--color-primary, #1a365d);">Your Contact</h3>
+    <table class="details-table">
+      <tr><td class="label">Name</td><td class="value"><%= @salesperson_name %></td></tr>
+      <tr><td class="label">Company</td><td class="value"><%= @company[:name] %></td></tr>
+      <% if @company[:phone].present? %><tr><td class="label">Phone</td><td class="value"><%= @company[:phone] %></td></tr><% end %>
+      <% if @company[:email].present? %><tr><td class="label">Email</td><td class="value"><%= @company[:email] %></td></tr><% end %>
+    </table>
+  <% end %>
+</div>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# PAGES 3+: Priced Sections (one per section) %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<% @sections.each do |section_name, items| %>
+  <div class="tender-section-page">
+    <div class="section-header">
+      <%= section_name %>
+      <% section_code = items.first&.tender_section_code %>
+      <% if section_code.present? %><span class="section-code">(<%= section_code %>)</span><% end %>
+    </div>
+
+    <% section_type = items.first&.section_type || "priced" %>
+
+    <% if section_type == "note" %>
+      <%# Note sections: text only, no pricing %>
+      <div class="tender-notes-content">
+        <% items.each do |item| %>
+          <p><%= item.description %></p>
+          <% if item.notes.present? %><p style="color: #666; font-style: italic;"><%= item.notes %></p><% end %>
+        <% end %>
+      </div>
+    <% else %>
+      <%# Priced / Included / Provisional sections: table with pricing %>
+      <table class="tender-table">
+        <thead>
+          <tr>
+            <th class="line-num">#</th>
+            <th style="width: 50%;">Description</th>
+            <th class="number-col">Qty</th>
+            <th class="number-col">Unit Price</th>
+            <th class="number-col">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% items.each do |item| %>
+            <tr class="<%= item.item_type == 'note' ? 'note-row' : '' %>">
+              <td class="line-num"><%= item.line_number %></td>
+              <td>
+                <%= item.description %>
+                <% if item.notes.present? %>
+                  <br><span style="color: #888; font-size: 10px;"><%= item.notes %></span>
+                <% end %>
+              </td>
+              <% if item.item_type == "priced" || item.item_type == "provisional" %>
+                <td class="number-col"><%= number_with_precision(item.quantity, precision: 2) rescue item.quantity %></td>
+                <td class="number-col"><%= number_to_currency(item.unit_price) rescue "$#{'%.2f' % (item.unit_price || 0)}" %></td>
+                <td class="number-col"><%= number_to_currency(item.total_amount) rescue "$#{'%.2f' % (item.total_amount || 0)}" %></td>
+              <% elsif item.item_type == "included" %>
+                <td class="number-col" colspan="3" style="text-align: center; color: #666;">Included</td>
+              <% else %>
+                <td class="number-col" colspan="3"></td>
+              <% end %>
+            </tr>
+          <% end %>
+
+          <%# Section subtotal %>
+          <% section_total = @section_subtotals[section_name] || 0 %>
+          <% if section_total > 0 %>
+            <tr class="section-subtotal">
+              <td colspan="4" style="text-align: right;"><strong><%= section_name %> Subtotal</strong></td>
+              <td class="number-col"><strong><%= "$#{'%.2f' % section_total}" %></strong></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+
+      <% if section_type == "provisional" %>
+        <p style="font-size: 10px; color: #888; font-style: italic;">
+          * Provisional sums are estimates only. Final amounts will be based on actual costs incurred.
+        </p>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# SUMMARY PAGE %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<div class="tender-summary-page">
+  <h2 style="color: var(--color-primary, #1a365d); margin-bottom: 20px; text-align: center;">Tender Summary</h2>
+
+  <table class="summary-table">
+    <% @sections.each do |section_name, items| %>
+      <% section_total = @section_subtotals[section_name] || 0 %>
+      <tr>
+        <td class="section-name"><%= section_name %></td>
+        <td class="amount"><%= "$#{'%,.2f' % section_total}" %></td>
+      </tr>
+    <% end %>
+
+    <tr class="subtotal-row">
+      <td>Subtotal (excl. GST)</td>
+      <td class="amount"><%= "$#{'%,.2f' % (@subtotal || 0)}" %></td>
+    </tr>
+    <tr>
+      <td>GST</td>
+      <td class="amount"><%= "$#{'%,.2f' % (@gst || 0)}" %></td>
+    </tr>
+    <tr class="grand-total">
+      <td><strong>Total Tender Price (incl. GST)</strong></td>
+      <td class="amount"><strong><%= "$#{'%,.2f' % (@total || 0)}" %></strong></td>
+    </tr>
+  </table>
+
+  <p style="font-size: 11px; color: #888; margin-top: 30px;">
+    This tender is valid until <%= @valid_until %>.<br>
+    All prices include materials, labour, and supervision unless otherwise stated.<br>
+    Provisional sums are estimated and subject to adjustment based on actual costs.
+  </p>
+</div>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# NOTES & T&Cs PAGE (if content exists) %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<% if @notes_html.present? || @terms_and_conditions_html.present? || @base_specification_html.present? %>
+  <div class="tender-notes-page">
+    <% if @notes_html.present? %>
+      <h2>Notes</h2>
+      <div class="tender-notes-content"><%= @notes_html.html_safe %></div>
+    <% end %>
+
+    <% if @terms_and_conditions_html.present? %>
+      <h2>Terms & Conditions</h2>
+      <div class="tender-notes-content"><%= @terms_and_conditions_html.html_safe %></div>
+    <% end %>
+
+    <% if @base_specification_html.present? %>
+      <h2>Base Specification</h2>
+      <div class="tender-notes-content"><%= @base_specification_html.html_safe %></div>
+    <% end %>
+  </div>
+<% end %>
+
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+<%# ACCEPTANCE PAGE %>
+<%# ════════════════════════════════════════════════════════════════════════════ %>
+
+<div class="acceptance-page">
+  <h2>Acceptance</h2>
+
+  <p style="font-size: 12px; line-height: 1.8;">
+    I/We, the undersigned, accept the above tender for the construction of a new dwelling
+    at <strong><%= @job_address %></strong> for the total price of
+    <strong><%= "$#{'%,.2f' % (@total || 0)}" %> (incl. GST)</strong>
+    as detailed in this tender document (<%= @document_number %>, Version <%= @version %>).
+  </p>
+
+  <p style="font-size: 12px; line-height: 1.8;">
+    I/We understand that:
+  </p>
+  <ul style="font-size: 12px; line-height: 1.8;">
+    <li>This tender is valid until <%= @valid_until %></li>
+    <li>Provisional sums are estimates subject to actual costs</li>
+    <li>Any variations to the scope of works will be subject to a separate variation order</li>
+  </ul>
+
+  <% if @acceptance_page_html.present? %>
+    <div class="tender-notes-content" style="margin: 20px 0;"><%= @acceptance_page_html.html_safe %></div>
+  <% end %>
+
+  <div class="signature-block">
+    <div class="signature-line">
+      <div class="line"></div>
+      <div class="label">Client Signature</div>
+      <div class="line" style="margin-top: 20px;"></div>
+      <div class="label">Print Name</div>
+      <div class="line" style="margin-top: 20px;"></div>
+      <div class="label">Date</div>
+    </div>
+    <div class="signature-line">
+      <div class="line"></div>
+      <div class="label">Builder Signature (<%= @company[:name] %>)</div>
+      <div class="line" style="margin-top: 20px;"></div>
+      <div class="label">Print Name</div>
+      <div class="line" style="margin-top: 20px;"></div>
+      <div class="label">Date</div>
+    </div>
+  </div>
+
+  <p style="font-size: 10px; color: #999; margin-top: 40px; text-align: center;">
+    <%= @company[:name] %><% if @company[:abn].present? %> | ABN: <%= @company[:abn] %><% end %><% if @company[:qbcc_licence].present? %> | QBCC Licence: <%= @company[:qbcc_licence] %><% end %>
+    <br>
+    <% if @company[:address].present? %><%= @company[:address] %> | <% end %><% if @company[:phone].present? %><%= @company[:phone] %> | <% end %><% if @company[:email].present? %><%= @company[:email] %><% end %>
+  </p>
+</div>

@@ -1,0 +1,116 @@
+# frozen_string_literal: true
+
+# TenderDocument - A versioned tender for a job, created from POs grouped by tender sections.
+#
+# Version control flow:
+#   draft → locked (POs locked) → sent → accepted | declined | revision_requested
+#   When revision_requested: current becomes "superseded", POs unlocked, new version created
+#
+# Snapshotted data: job info, client info, line items, and totals are frozen at creation.
+# This ensures the tender document is a point-in-time record that doesn't change
+# when underlying POs are modified.
+#
+class TenderDocument < ApplicationRecord
+  acts_as_tenant :tenant
+
+  # Associations
+  belongs_to :job
+  belongs_to :created_by, class_name: "User"
+  belongs_to :locked_by, class_name: "User", optional: true
+  belongs_to :previous_version, class_name: "TenderDocument", optional: true
+  belongs_to :pdf_generation, optional: true
+  belongs_to :storage_blob, optional: true
+
+  has_many :tender_document_items, dependent: :destroy
+  has_one :next_version, class_name: "TenderDocument", foreign_key: :previous_version_id
+
+  # Statuses
+  STATUSES = %w[draft locked sent revision_requested accepted declined superseded].freeze
+
+  # Validations
+  validates :document_number, presence: true, uniqueness: { scope: :tenant_id }
+  validates :version, presence: true, numericality: { greater_than: 0 }
+  validates :status, inclusion: { in: STATUSES }
+  validates :date_prepared, presence: true
+
+  # Scopes
+  scope :for_job, ->(job_id) { where(job_id: job_id) }
+  scope :current_versions, -> { where.not(status: "superseded") }
+  scope :latest_first, -> { order(version: :desc) }
+
+  # Callbacks
+  after_create :assign_document_number
+
+  # === VERSION CONTROL ===
+
+  def lock_pos!(user)
+    transaction do
+      job.purchase_orders.each { |po| po.lock_budget!(user) unless po.budget_locked? }
+      update!(locked_at: Time.current, locked_by: user, status: "locked")
+    end
+  end
+
+  def mark_sent!(user = nil)
+    update!(status: "sent", sent_at: Time.current)
+  end
+
+  def mark_accepted!
+    update!(status: "accepted", accepted_at: Time.current)
+  end
+
+  def mark_declined!
+    update!(status: "declined", declined_at: Time.current)
+  end
+
+  def request_revision!(user, reason:)
+    transaction do
+      update!(status: "superseded", revision_notes: reason)
+      # Unlock POs so they can be modified
+      job.purchase_orders.budget_locked.each do |po|
+        po.unlock_budget!(user, reason: "Tender revision: #{reason}")
+      end
+    end
+  end
+
+  # === QUERY HELPERS ===
+
+  def sections_grouped
+    tender_document_items
+      .order(:section_sort_order, :line_number)
+      .group_by(&:tender_section_name)
+  end
+
+  def section_subtotals
+    tender_document_items
+      .where(item_type: "priced")
+      .group(:tender_section_name)
+      .sum(:total_amount)
+  end
+
+  def current?
+    status != "superseded"
+  end
+
+  def editable?
+    status == "draft"
+  end
+
+  def as_json(options = {})
+    super(options).merge(
+      "items" => tender_document_items.order(:section_sort_order, :line_number).as_json,
+      "sections_grouped" => sections_grouped.transform_values { |items| items.map(&:as_json) },
+      "section_subtotals" => section_subtotals.transform_keys(&:to_s),
+      "created_by_name" => created_by&.name,
+      "locked_by_name" => locked_by&.name,
+      "pdf_download_url" => pdf_generation&.download_url
+    )
+  end
+
+  private
+
+  def assign_document_number
+    return unless document_number&.start_with?("TD-TEMP")
+
+    update_column(:document_number, "TD-#{id.to_s.rjust(6, '0')}")
+  end
+end

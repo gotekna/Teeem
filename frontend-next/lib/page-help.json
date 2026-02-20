@@ -156,6 +156,12 @@
       "tips": ["View all POs for this job", "Track delivery status", "Create new POs directly"],
       "tasks": ["View purchase orders", "Create new PO", "Track deliveries", "Export PO list"]
     },
+    "/jobs/[id]/tender": {
+      "title": "Job Tender",
+      "description": "Create and manage professional tender documents for this job. Snapshots purchase order data into versioned tenders with PDF generation.",
+      "tips": ["Each tender version freezes current PO data - changes won't affect existing versions", "POs are locked when a tender is created and unlocked when a revision is requested", "Compare versions to see what changed between tenders"],
+      "tasks": ["Create a new tender document", "Generate a tender PDF", "Send tender to client", "Request a revision to unlock POs", "Compare two versions"]
+    },
     "/jobs/[id]/colours": {
       "title": "Job Colours",
       "description": "Colour selections and finishes for the job.",

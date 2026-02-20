@@ -81,6 +81,13 @@ class PurchaseOrder < ApplicationRecord
     cc ? "#{cc.code} - #{cc.name}" : nil
   end
 
+  def tender_from_task
+    # Try SmTask's sm_schedule_master.tender_id (tender_id lives on SM template)
+    tender_id = sm_task&.sm_schedule_master&.tender_id
+    return nil unless tender_id
+    Tender.find_by(id: tender_id)&.name
+  end
+
   def profit_centre_from_line_items
     # Derive PO-level profit centre from line items
     # If all line items share the same profit centre, use that; otherwise first non-nil
@@ -529,6 +536,7 @@ class PurchaseOrder < ApplicationRecord
       'stage_from_task' => stage_from_task,
       'trade_from_task' => trade_from_task,
       'cost_centre_from_task' => cost_centre_from_task,
+      'tender_from_task' => tender_from_task,
       'profit_centre_from_line_items' => profit_centre_from_line_items,
       # Budget lockdown info
       'budget_locked' => budget_locked?,

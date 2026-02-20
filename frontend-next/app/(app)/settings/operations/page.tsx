@@ -15,6 +15,7 @@ import { CostTab } from "@/app/(app)/admin/system/components/CostTab";
 import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesTab";
 import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
+import { TenderSectionsTab } from "./components/TenderSectionsTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -39,6 +40,7 @@ const OPERATIONS_TABS = [
   { id: "po-templates", label: "PO Templates" },
   { id: "claim-templates", label: "Claim Templates" },
   { id: "profit-centres", label: "Profit Centres" },
+  { id: "tender-sections", label: "Tender Sections" },
 ];
 
 // Schedule Master has its own full-page route, so default to SM Tasks
@@ -113,6 +115,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="profit-centres" className="absolute inset-0 h-full">
             <ProfitCentresTab />
+          </TabsContent>
+          <TabsContent value="tender-sections" className="absolute inset-0 h-full">
+            <TenderSectionsTab />
           </TabsContent>
         </div>
       </Tabs>

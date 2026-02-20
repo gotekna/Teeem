@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_21_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7115,8 +7115,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_requests", force: :cascade do |t|
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7194,8 +7193,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", id: false, force: :cascade do |t|
-    t.bigserial "id", null: false
+  create_table "performance_vitals", force: :cascade do |t|
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -8645,6 +8643,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
     t.bigint "tenant_id"
     t.string "sync_key"
     t.string "task_code", limit: 50
+    t.integer "tender_id"
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8668,6 +8667,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
     t.index ["task_number"], name: "index_sm_schedule_masters_on_task_number"
     t.index ["tenant_id", "sync_key"], name: "idx_sm_schedule_masters_on_tenant_sync_key", where: "(sync_key IS NOT NULL)"
     t.index ["tenant_id"], name: "index_sm_schedule_masters_on_tenant_id"
+    t.index ["tender_id"], name: "index_sm_schedule_masters_on_tender_id"
     t.index ["trade"], name: "index_sm_schedule_masters_on_trade"
     t.index ["updated_by_id"], name: "index_sm_schedule_masters_on_updated_by_id"
   end
@@ -10059,6 +10059,101 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
     t.index ["tier"], name: "index_tenants_on_tier"
     t.index ["trial_ends_at"], name: "index_tenants_on_trial_ends_at"
     t.index ["trial_status"], name: "index_tenants_on_trial_status"
+  end
+
+  create_table "tender_document_items", force: :cascade do |t|
+    t.bigint "tender_document_id", null: false
+    t.string "tender_section_name", null: false
+    t.string "tender_section_code"
+    t.integer "section_sort_order"
+    t.string "section_type", default: "priced"
+    t.integer "line_number", null: false
+    t.text "description", null: false
+    t.decimal "quantity", precision: 15, scale: 3
+    t.string "unit"
+    t.decimal "unit_price", precision: 15, scale: 2
+    t.decimal "total_amount", precision: 15, scale: 2
+    t.string "gst_code", default: "GST"
+    t.string "item_type", default: "priced"
+    t.text "notes"
+    t.bigint "source_purchase_order_id"
+    t.string "source_po_number"
+    t.bigint "source_line_item_id"
+    t.string "cost_centre_name"
+    t.string "trade_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["source_purchase_order_id"], name: "index_tender_document_items_on_source_purchase_order_id"
+    t.index ["tender_document_id", "tender_section_name", "line_number"], name: "idx_tender_doc_items_section_line"
+    t.index ["tender_document_id"], name: "index_tender_document_items_on_tender_document_id"
+  end
+
+  create_table "tender_documents", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "created_by_id"
+    t.string "document_number", null: false
+    t.integer "version", default: 1, null: false
+    t.string "status", default: "draft", null: false
+    t.date "date_prepared", null: false
+    t.date "valid_until"
+    t.integer "validity_days", default: 30
+    t.decimal "subtotal", precision: 15, scale: 2, default: "0.0"
+    t.decimal "gst", precision: 15, scale: 2, default: "0.0"
+    t.decimal "total", precision: 15, scale: 2, default: "0.0"
+    t.string "job_name"
+    t.string "job_address"
+    t.string "job_code"
+    t.string "client_name"
+    t.string "client_address"
+    t.string "client_email"
+    t.string "client_phone"
+    t.string "salesperson_name"
+    t.text "cover_letter_html"
+    t.text "terms_and_conditions_html"
+    t.text "base_specification_html"
+    t.text "acceptance_page_html"
+    t.text "notes_html"
+    t.bigint "pdf_generation_id"
+    t.bigint "storage_blob_id"
+    t.bigint "previous_version_id"
+    t.datetime "locked_at"
+    t.bigint "locked_by_id"
+    t.datetime "sent_at"
+    t.datetime "accepted_at"
+    t.datetime "declined_at"
+    t.text "revision_notes"
+    t.jsonb "settings", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_tender_documents_on_created_by_id"
+    t.index ["job_id", "version"], name: "index_tender_documents_on_job_id_and_version"
+    t.index ["job_id"], name: "index_tender_documents_on_job_id"
+    t.index ["locked_by_id"], name: "index_tender_documents_on_locked_by_id"
+    t.index ["pdf_generation_id"], name: "index_tender_documents_on_pdf_generation_id"
+    t.index ["status"], name: "index_tender_documents_on_status"
+    t.index ["storage_blob_id"], name: "index_tender_documents_on_storage_blob_id"
+    t.index ["tenant_id", "document_number"], name: "index_tender_documents_on_tenant_id_and_document_number", unique: true
+  end
+
+  create_table "tenders", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.string "section_type", limit: 30, default: "priced"
+    t.integer "sort_order"
+    t.boolean "show_line_items", default: true
+    t.text "section_notes"
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_tenders_on_active"
+    t.index ["sort_order"], name: "index_tenders_on_sort_order"
+    t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id"], name: "index_tenders_on_tenant_id"
   end
 
   create_table "trial_invitations", force: :cascade do |t|
@@ -12105,6 +12200,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
   add_foreign_key "tenant_sync_preferences", "tenants"
   add_foreign_key "tenants", "corporates", column: "billing_company_id"
   add_foreign_key "tenants", "jobs", column: "onboarding_job_id", on_delete: :nullify
+  add_foreign_key "tender_document_items", "tender_documents"
+  add_foreign_key "tender_documents", "jobs"
+  add_foreign_key "tender_documents", "pdf_generations"
+  add_foreign_key "tender_documents", "storage_blobs"
+  add_foreign_key "tender_documents", "tenants", on_delete: :cascade
+  add_foreign_key "tender_documents", "tender_documents", column: "previous_version_id", on_delete: :nullify
+  add_foreign_key "tender_documents", "users", column: "created_by_id"
+  add_foreign_key "tender_documents", "users", column: "locked_by_id"
+  add_foreign_key "tenders", "tenants", on_delete: :cascade
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify

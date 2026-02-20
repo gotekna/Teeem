@@ -20,6 +20,7 @@ class PdfGeneration < ApplicationRecord
     director_change
     financial_report
     form43_certificate
+    tender_document
   ].freeze
 
   validates :generator_type, presence: true

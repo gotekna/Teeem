@@ -163,6 +163,10 @@ const RevitTab = dynamic(() => import("@/components/jobs/RevitTab").then(m => m.
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
 });
+const JobTenderTab = dynamic(() => import("@/components/jobs/JobTenderTab").then(m => m.default), {
+  ssr: false,
+  loading: () => <TabLoadingSkeleton />,
+});
 const ColourSelectionBuilder = dynamic(() => import("@/components/colours/ColourSelectionBuilder").then(m => m.ColourSelectionBuilder), {
   ssr: false,
   loading: () => <TabLoadingSkeleton />,
@@ -293,6 +297,8 @@ const JOB_TAB_COMPONENTS: Record<string, React.ComponentType<any>> = {
   "rain-log": RainLogTab,
   "documents": JobDocumentsTab,
   "coms": JobCommunicationsTab,
+  "tender": JobTenderTab,
+  "tenders": JobTenderTab,
   "revit": RevitTab,
   "revit-dwg": RevitTab,
   "warehouse": JobWarehouseTab,
@@ -334,6 +340,7 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
   "RainLogTab": RainLogTab,
   "JobDocumentsTab": JobDocumentsTab,
   "JobCommunicationsTab": JobCommunicationsTab,
+  "JobTenderTab": JobTenderTab,
   "RevitTab": RevitTab,
   "JobWarehouseTab": JobWarehouseTab,
   "XeroBillsCard": XeroBillsCard,

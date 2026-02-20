@@ -161,19 +161,43 @@ class Api::V1::CostCentresController < ApplicationController
 
   # POST /api/v1/cost_centres/:id/assign_po_tasks
   # Accepts { po_task_ids: [1, 2, 3] } and updates SmScheduleMaster.cost_centre
+  #
+  # Propagates cost_centre to ALL SmScheduleMaster records with matching names
+  # (same tenant, po_required: true). This ensures job tasks created from older
+  # template versions are also found when querying by cost centre.
   def assign_po_tasks
     po_task_ids = params[:po_task_ids] || []
 
     ActiveRecord::Base.transaction do
-      # Clear tasks previously assigned to this cost centre but no longer in the list
+      # Get names of tasks being unassigned from this cost centre
+      removed_names = SmScheduleMaster.where(cost_centre: @cost_centre.id)
+                                      .where.not(id: po_task_ids)
+                                      .pluck(:name).uniq
+
+      # Clear cost_centre from unassigned tasks
       SmScheduleMaster.where(cost_centre: @cost_centre.id)
                       .where.not(id: po_task_ids)
                       .update_all(cost_centre: nil)
 
+      # Also clear name-matched siblings (other template versions with same name)
+      if removed_names.any?
+        SmScheduleMaster.where(name: removed_names, cost_centre: @cost_centre.id)
+                        .update_all(cost_centre: nil)
+      end
+
       # Assign the specified tasks to this cost centre
       if po_task_ids.present?
-        SmScheduleMaster.where(id: po_task_ids)
-                        .update_all(cost_centre: @cost_centre.id)
+        assigned = SmScheduleMaster.where(id: po_task_ids)
+        assigned.update_all(cost_centre: @cost_centre.id)
+
+        # Propagate to all SmScheduleMaster records with matching names
+        # (same tenant via acts_as_tenant, po_required only)
+        assigned_names = assigned.pluck(:name).uniq
+        if assigned_names.any?
+          SmScheduleMaster.where(name: assigned_names, po_required: true)
+                          .where.not(cost_centre: @cost_centre.id)
+                          .update_all(cost_centre: @cost_centre.id)
+        end
       end
     end
 

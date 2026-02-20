@@ -68,6 +68,8 @@ class GeneratePdfJob < ApplicationJob
       generate_financial_report(params)
     when "form43_certificate"
       generate_form43_certificate(params)
+    when "tender_document"
+      generate_tender_document(params)
     else
       raise "Unknown generator_type: #{type}"
     end
@@ -265,6 +267,12 @@ class GeneratePdfJob < ApplicationJob
     )
 
     { pdf_content: result[:pdf_content], filename: result[:filename] }
+  end
+
+  def generate_tender_document(params)
+    tender_doc = TenderDocument.find(params[:tender_document_id])
+    generator = TenderDocumentPdfGenerator.new(tender_doc)
+    generator.generate
   end
 
   def extract_pdf_content(result, generator_type)

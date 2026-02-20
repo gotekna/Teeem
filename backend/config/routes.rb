@@ -729,6 +729,9 @@ Rails.application.routes.draw do
         # Job claims (nested under jobs)
         resources :job_claims, only: [ :index, :create ]
 
+        # Tender documents (nested under jobs for listing + creation)
+        resources :tender_documents, only: [ :index, :create ]
+
         # Job claim stages (progress claims tracking)
         resources :claim_stages, controller: "job_claim_stages", only: [ :index, :show, :create, :update, :destroy ] do
           collection do
@@ -746,6 +749,18 @@ Rails.application.routes.draw do
             post :generate_pdf
             post :release_retainage
           end
+        end
+      end
+
+      # Tender documents (non-nested routes for show, update, destroy + actions)
+      resources :tender_documents, only: [ :show, :update, :destroy ] do
+        member do
+          post :generate_pdf
+          post :send_to_client
+          post :request_revision
+          post :accept
+          post :decline
+          get "diff/:other_id", action: :diff, as: :diff
         end
       end
 

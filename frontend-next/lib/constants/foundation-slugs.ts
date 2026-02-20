@@ -43,6 +43,7 @@ export const FOUNDATION_SLUGS = {
   ACCOUNTING_INTEGRATIONS: 'accounting_integrations',
   COST_CENTRES: 'cost_centres',
   PROFIT_CENTRES: 'profit_centres',
+  TENDERS: 'tenders',
   GL_RECURRING_INVOICES: 'gl_recurring_invoices',
   PAY_NOW_REQUESTS: 'pay_now_requests',
   PAY_NOW_WEEKLY_LIMITS: 'pay_now_weekly_limits',
