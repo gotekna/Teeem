@@ -599,6 +599,29 @@ class TenantConfigSyncService
     "plans" => "Plans"
   }.freeze
 
+  # Derive table dependencies from remap_fks configuration.
+  # Returns { "po_template_line_items" => ["po_template_items", "pricebook_items"], ... }
+  # This tells the UI which tables must be synced BEFORE a given table.
+  def self.table_dependencies
+    # Build model → table_key lookup (e.g. "PricebookItem" => "pricebook_items")
+    model_to_table = {}
+    CONFIG_TABLES.each { |key, config| model_to_table[config[:model]] = key.to_s }
+
+    deps = {}
+    CONFIG_TABLES.each do |key, config|
+      next unless config[:remap_fks].present?
+
+      table_deps = config[:remap_fks].values.filter_map do |fk_config|
+        dep_table = model_to_table[fk_config[:model]]
+        # Skip self-referential dependencies (e.g. cost_centres parent_id → CostCentre)
+        dep_table if dep_table && dep_table != key.to_s
+      end.uniq
+
+      deps[key.to_s] = table_deps if table_deps.any?
+    end
+    deps
+  end
+
   # List all available config tables with counts
   def available_tables
     CONFIG_TABLES.map do |key, config|

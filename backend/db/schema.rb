@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_20_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_20_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7654,8 +7654,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_110000) do
     t.jsonb "metadata", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "is_default", default: false, null: false
     t.index ["active"], name: "index_profit_centres_on_active"
     t.index ["centre_type"], name: "index_profit_centres_on_centre_type"
+    t.index ["is_default"], name: "index_profit_centres_on_is_default", where: "(is_default = true)"
     t.index ["is_template"], name: "index_profit_centres_on_is_template"
     t.index ["job_id"], name: "index_profit_centres_on_job_id"
     t.index ["tenant_id", "code"], name: "idx_profit_centres_global_unique_code", unique: true, where: "(job_id IS NULL)"

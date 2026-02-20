@@ -262,6 +262,12 @@ export default function PurchaseOrderDetailPage() {
   // Profit centres for the job
   const [profitCentres, setProfitCentres] = useState<ProfitCentre[]>([]);
 
+  // Default profit centre for new lines (BASE if available, else first)
+  const defaultProfitCentre = useMemo(() => {
+    if (profitCentres.length === 0) return null;
+    return profitCentres.find((pc) => pc.code.toUpperCase().startsWith("BASE")) ?? profitCentres[0] ?? null;
+  }, [profitCentres]);
+
   // Price comparison sheet (for unsupplied items)
   const [priceComparisonOpen, setPriceComparisonOpen] = useState(false);
   const [priceComparisonItemIds, setPriceComparisonItemIds] = useState<number[]>([]);
@@ -977,7 +983,11 @@ export default function PurchaseOrderDetailPage() {
     const activeItems = updated.filter((item) => !item._destroy);
     const isLastItem = activeItems[activeItems.length - 1] === updated[index];
     if (isLastItem && !isBlankLineItem(updated[index])) {
-      updated.push({ description: "", quantity: 0, unit_price: 0 });
+      updated.push({
+        description: "", quantity: 0, unit_price: 0,
+        profit_centre_id: defaultProfitCentre?.id ?? null,
+        profit_centre: defaultProfitCentre,
+      });
     }
     setLineItems(updated);
   };
@@ -1008,7 +1018,11 @@ export default function PurchaseOrderDetailPage() {
     const activeItems = updated.filter((i) => !i._destroy);
     const isLastItem = activeItems[activeItems.length - 1] === updated[index];
     if (isLastItem) {
-      updated.push({ description: "", quantity: 0, unit_price: 0 });
+      updated.push({
+        description: "", quantity: 0, unit_price: 0,
+        profit_centre_id: defaultProfitCentre?.id ?? null,
+        profit_centre: defaultProfitCentre,
+      });
     }
     setLineItems(updated);
   };

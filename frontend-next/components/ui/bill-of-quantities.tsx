@@ -49,6 +49,7 @@ export interface BOQGroup {
   supplierId?: number | null;
   supplierName?: string | null;
   taskName?: string | null;
+  taskPosition?: number | null;
   tradeName?: string | null;
   stageName?: string | null;
   stagePosition?: number | null;
@@ -75,9 +76,13 @@ export interface BOQNewLine {
 /** Map of "groupId:lineItemId" → new profitCentreId (null to clear) */
 export type BOQProfitCentreChanges = Map<string, number | null>;
 
+/** Map of "groupId:lineItemId" → new pricebook item selection */
+export type BOQPricebookChanges = Map<string, { pricebookItemId: number; pricebookItemCode: string }>;
+
 export interface BOQSavePayload {
   quantityChanges: BOQChanges;
   profitCentreChanges: BOQProfitCentreChanges;
+  pricebookChanges: BOQPricebookChanges;
   newLines: BOQNewLine[];
 }
 
@@ -118,15 +123,10 @@ function changeKey(groupId: number | string, lineId: number | string): string {
 }
 
 // Subtle alternating group colors (light / dark)
+// Zebra stripe: alternating white / light grey like Excel
 const GROUP_COLORS = [
-  { bg: "bg-slate-50/60 dark:bg-slate-800/20" },
-  { bg: "bg-sky-50/60 dark:bg-sky-900/20" },
-  { bg: "bg-amber-50/50 dark:bg-amber-900/15" },
-  { bg: "bg-emerald-50/50 dark:bg-emerald-900/15" },
-  { bg: "bg-rose-50/50 dark:bg-rose-900/15" },
-  { bg: "bg-violet-50/50 dark:bg-violet-900/15" },
-  { bg: "bg-cyan-50/50 dark:bg-cyan-900/15" },
-  { bg: "bg-orange-50/50 dark:bg-orange-900/15" },
+  { bg: "" },
+  { bg: "[background-color:hsl(40,11%,95.5%)] dark:[background-color:hsl(0,0%,13%)]" },
 ];
 
 let tempIdCounter = 0;
@@ -155,6 +155,7 @@ export function BillOfQuantities({
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
   const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
+  const [pbChanges, setPbChanges] = useState<BOQPricebookChanges>(new Map());
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -164,7 +165,7 @@ export function BillOfQuantities({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
-  const hasChanges = changes.size > 0 || pcChanges.size > 0 || newLines.length > 0;
+  const hasChanges = changes.size > 0 || pcChanges.size > 0 || pbChanges.size > 0 || newLines.length > 0;
 
   // Stable color assignment: each group keeps its original color regardless of sort/filter
   const groupColorIndex = useMemo(() => {
@@ -172,7 +173,7 @@ export function BillOfQuantities({
     groups.forEach((g, i) => map.set(g.id, i));
     return map;
   }, [groups]);
-  const changeCount = changes.size + pcChanges.size + newLines.length;
+  const changeCount = changes.size + pcChanges.size + pbChanges.size + newLines.length;
 
   // Extract unique values for multi-select filters
   const uniqueSuppliers = useMemo(() =>
@@ -269,8 +270,20 @@ export function BillOfQuantities({
   }, []);
 
   // Sort PO groups by selected dimension (groups always stay as POs)
+  // Default (null): sort by task name → PO name for estimator workflow
   const displayGroups = useMemo(() => {
-    if (!groupSortBy) return groups;
+    if (!groupSortBy) {
+      return [...groups].sort((a, b) => {
+        // Sort by schedule master order: stage position → task position → PO name
+        const aStage = a.stagePosition ?? Infinity;
+        const bStage = b.stagePosition ?? Infinity;
+        if (aStage !== bStage) return aStage - bStage;
+        const aTask = a.taskPosition ?? Infinity;
+        const bTask = b.taskPosition ?? Infinity;
+        if (aTask !== bTask) return aTask - bTask;
+        return a.name.localeCompare(b.name);
+      });
+    }
     return [...groups].sort((a, b) => {
       // Stage: sort by schedule master sequence order
       if (groupSortBy === "stage") {
@@ -337,7 +350,34 @@ export function BillOfQuantities({
     []
   );
 
+  // Handle pricebook item change for an existing line item
+  const handlePricebookChange = useCallback(
+    (groupId: number | string, lineId: number | string, item: {
+      pricebookItemId: number;
+      pricebookItemCode: string;
+    }) => {
+      const key = changeKey(groupId, lineId);
+      setPbChanges((prev) => {
+        const next = new Map(prev);
+        next.set(key, item);
+        return next;
+      });
+    },
+    []
+  );
+
   // Add a new empty line to a group
+  // Default profit centre for new lines (user can change via toolbar dropdown)
+  const [defaultPcId, setDefaultPcId] = useState<number | null>(null);
+
+  // Initialize default to BASE on first load
+  React.useEffect(() => {
+    if (profitCentres.length > 0 && defaultPcId === null) {
+      const base = profitCentres.find((pc) => pc.label.toUpperCase().startsWith("BASE"));
+      setDefaultPcId(base?.id ?? profitCentres[0]?.id ?? null);
+    }
+  }, [profitCentres, defaultPcId]);
+
   const handleAddLine = useCallback((groupId: number | string) => {
     setNewLines((prev) => [
       ...prev,
@@ -348,9 +388,10 @@ export function BillOfQuantities({
         quantity: 1,
         unitPrice: 0,
         gstCode: "GST",
+        profitCentreId: defaultPcId,
       },
     ]);
-  }, []);
+  }, [defaultPcId]);
 
   // Update a pending new line field
   const handleNewLineChange = useCallback(
@@ -404,9 +445,10 @@ export function BillOfQuantities({
     }
     try {
       setSaving(true);
-      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, newLines: validNewLines });
+      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, pricebookChanges: pbChanges, newLines: validNewLines });
       setChanges(new Map());
       setPcChanges(new Map());
+      setPbChanges(new Map());
       setNewLines([]);
     } finally {
       setSaving(false);
@@ -417,6 +459,7 @@ export function BillOfQuantities({
   const handleDiscard = useCallback(() => {
     setChanges(new Map());
     setPcChanges(new Map());
+    setPbChanges(new Map());
     setNewLines([]);
   }, []);
 
@@ -735,6 +778,22 @@ export function BillOfQuantities({
           )}
         </div>
 
+        {canEdit && profitCentres.length > 0 && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground whitespace-nowrap">Default PC:</label>
+            <select
+              value={defaultPcId ?? ""}
+              onChange={(e) => setDefaultPcId(e.target.value ? Number(e.target.value) : null)}
+              className="h-7 text-xs rounded border bg-background px-1.5 max-w-[160px]"
+            >
+              <option value="">None</option>
+              {profitCentres.map((pc) => (
+                <option key={pc.id} value={pc.id}>{pc.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {canEdit && hasChanges && (
           <div className="flex items-center gap-2">
             <Badge variant="default" className="text-xs">
@@ -881,11 +940,11 @@ export function BillOfQuantities({
                         {formatCurrency(section.total)}
                       </TableCell>
                     </TableRow>
-                    {isExpanded && section.groups.map((group) => (
+                    {isExpanded && section.groups.map((group, sectionIdx) => (
                       <BOQGroupRows
                         key={group.id}
                         group={group}
-                        groupIndex={groupColorIndex.get(group.id) ?? 0}
+                        groupIndex={sectionIdx}
                         canEdit={canEdit}
                         changes={changes}
                         pcChanges={pcChanges}
@@ -894,6 +953,8 @@ export function BillOfQuantities({
                         getQty={getQty}
                         onQtyChange={handleQtyChange}
                         onPcChange={handlePcChange}
+                        pbChanges={pbChanges}
+                        onPricebookChange={handlePricebookChange}
                         onAddLine={handleAddLine}
                         onNewLineChange={handleNewLineChange}
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
@@ -906,11 +967,11 @@ export function BillOfQuantities({
               })
             ) : (
               // Flat view: PO groups only
-              filteredGroups.map((group) => (
+              filteredGroups.map((group, displayIdx) => (
                 <BOQGroupRows
                   key={group.id}
                   group={group}
-                  groupIndex={groupColorIndex.get(group.id) ?? 0}
+                  groupIndex={displayIdx}
                   canEdit={canEdit}
                   changes={changes}
                   pcChanges={pcChanges}
@@ -919,6 +980,8 @@ export function BillOfQuantities({
                   getQty={getQty}
                   onQtyChange={handleQtyChange}
                   onPcChange={handlePcChange}
+                  pbChanges={pbChanges}
+                  onPricebookChange={handlePricebookChange}
                   onAddLine={handleAddLine}
                   onNewLineChange={handleNewLineChange}
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
@@ -941,11 +1004,13 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   canEdit,
   changes,
   pcChanges,
+  pbChanges,
   profitCentres,
   newLines,
   getQty,
   onQtyChange,
   onPcChange,
+  onPricebookChange,
   onAddLine,
   onNewLineChange,
   onNewLinePricebookSelect,
@@ -957,6 +1022,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   canEdit: boolean;
   changes: BOQChanges;
   pcChanges: BOQProfitCentreChanges;
+  pbChanges: BOQPricebookChanges;
   profitCentres: ProfitCentreOption[];
   newLines: BOQNewLine[];
   getQty: (groupId: number | string, item: BOQLineItem) => number;
@@ -971,6 +1037,11 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     lineId: number | string,
     originalPcId: number | null | undefined,
     newPcId: number | null
+  ) => void;
+  onPricebookChange: (
+    groupId: number | string,
+    lineId: number | string,
+    item: { pricebookItemId: number; pricebookItemCode: string }
   ) => void;
   onAddLine: (groupId: number | string) => void;
   onNewLineChange: (tempId: string, field: keyof BOQNewLine, value: string | number) => void;
@@ -1024,6 +1095,11 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 className={cn("align-top font-medium text-sm border-r", color.bg)}
               >
                 <div className="sticky top-10">
+                  {group.taskName && group.taskName !== group.name && (
+                    <div className="font-semibold text-xs text-foreground uppercase tracking-wide">
+                      {group.taskName}
+                    </div>
+                  )}
                   {onGroupClick ? (
                     <button
                       onClick={() => onGroupClick(group.id)}
@@ -1033,11 +1109,6 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                     </button>
                   ) : (
                     group.name
-                  )}
-                  {group.taskName && group.taskName !== group.name && (
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      {group.taskName}
-                    </div>
                   )}
                   {(group.stageName || group.tradeName) && (
                     <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
@@ -1061,7 +1132,23 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
               </TableCell>
             )}
             <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
-              {item.pricebookItemCode || "—"}
+              {canEdit ? (
+                <PricebookCodeEditor
+                  currentCode={pbChanges.has(changeKey(group.id, item.id))
+                    ? pbChanges.get(changeKey(group.id, item.id))!.pricebookItemCode
+                    : (item.pricebookItemCode || "")}
+                  supplierId={group.supplierId}
+                  isDirty={pbChanges.has(changeKey(group.id, item.id))}
+                  onSelect={(selected) =>
+                    onPricebookChange(group.id, item.id, {
+                      pricebookItemId: selected.pricebookItemId,
+                      pricebookItemCode: selected.pricebookItemCode,
+                    })
+                  }
+                />
+              ) : (
+                item.pricebookItemCode || "—"
+              )}
             </TableCell>
             <TableCell className="text-sm py-1.5">{item.description}</TableCell>
             <TableCell className="text-right py-1">
@@ -1127,7 +1214,20 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
           {/* PO/Supplier cells covered by rowSpan */}
           <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
-            {nl.pricebookItemCode || "—"}
+            <PricebookCodeEditor
+              currentCode={nl.pricebookItemCode || ""}
+              supplierId={group.supplierId}
+              isDirty={!!nl.pricebookItemCode}
+              onSelect={(selected) =>
+                onNewLinePricebookSelect(nl.tempId, {
+                  description: selected.description,
+                  unitPrice: selected.unitPrice,
+                  gstCode: selected.gstCode,
+                  pricebookItemId: selected.pricebookItemId,
+                  pricebookItemCode: selected.pricebookItemCode,
+                })
+              }
+            />
           </TableCell>
           <TableCell className="py-1">
             <PricebookLineSearch
@@ -1504,9 +1604,9 @@ function PricebookLineSearch({
                   <span className="truncate">{item.item_name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  {item.current_price != null && (
+                  {item.current_price != null && !isNaN(Number(item.current_price)) && (
                     <span className="font-mono text-green-600 dark:text-green-400">
-                      ${item.current_price.toFixed(2)}
+                      ${Number(item.current_price).toFixed(2)}
                     </span>
                   )}
                   {item.default_supplier && (
@@ -1525,3 +1625,174 @@ function PricebookLineSearch({
   );
 }
 
+// Wrapper for editing pricebook item code on existing line items.
+// Manages local search text state while delegating selection to parent.
+function PricebookCodeEditor({
+  currentCode,
+  supplierId,
+  isDirty,
+  onSelect,
+}: {
+  currentCode: string;
+  supplierId?: number | null;
+  isDirty: boolean;
+  onSelect: (item: {
+    pricebookItemId: number;
+    pricebookItemCode: string;
+    description: string;
+    unitPrice: number;
+    gstCode: string;
+  }) => void;
+}) {
+  const [searchText, setSearchText] = useState(currentCode);
+  const [editing, setEditing] = useState(false);
+  const [showAll, setShowAll] = useState(!supplierId);
+  const [results, setResults] = useState<PricebookSearchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Sync display when parent code changes (e.g., after save)
+  React.useEffect(() => {
+    if (!editing) setSearchText(currentCode);
+  }, [currentCode, editing]);
+
+  const searchPricebook = useCallback(
+    async (query: string, allSuppliers: boolean) => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({ per_page: "15", include_risk: "false" });
+        if (query.trim()) params.set("search", query);
+        if (supplierId && !allSuppliers) params.set("supplier_id", String(supplierId));
+        const response = await api.get<{ items?: PricebookSearchResult[] }>(
+          `/api/v1/pricebook?${params.toString()}`
+        );
+        setResults(response?.items || []);
+        setIsOpen(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [supplierId]
+  );
+
+  const handleFocus = useCallback(() => {
+    setEditing(true);
+    searchPricebook(searchText, showAll);
+  }, [searchPricebook, searchText, showAll]);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setSearchText(val);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => searchPricebook(val, showAll), 300);
+    },
+    [searchPricebook, showAll]
+  );
+
+  const toggleShowAll = useCallback(() => {
+    const newVal = !showAll;
+    setShowAll(newVal);
+    searchPricebook(searchText, newVal);
+  }, [showAll, searchText, searchPricebook]);
+
+  const handleSelect = useCallback(
+    (item: PricebookSearchResult) => {
+      onSelect({
+        pricebookItemId: item.id,
+        pricebookItemCode: item.item_code,
+        description: item.item_name,
+        unitPrice: item.current_price || 0,
+        gstCode: item.gst_code || "GST",
+      });
+      setSearchText(item.item_code);
+      setIsOpen(false);
+      setEditing(false);
+    },
+    [onSelect]
+  );
+
+  // Close on outside click
+  React.useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setEditing(false);
+        setSearchText(currentCode); // revert search text
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [currentCode]);
+
+  React.useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef} className="relative">
+      <div className="flex gap-1">
+        <Input
+          value={searchText}
+          onChange={handleChange}
+          onFocus={handleFocus}
+          placeholder="Code..."
+          className={cn(
+            "h-7 w-24 text-xs font-mono",
+            isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
+          )}
+        />
+        {supplierId && (
+          <button
+            type="button"
+            onClick={toggleShowAll}
+            className={cn(
+              "shrink-0 text-[10px] px-1.5 h-7 rounded border transition-colors whitespace-nowrap",
+              showAll
+                ? "bg-blue-50 dark:bg-blue-950/30 border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400"
+                : "bg-muted border-input text-muted-foreground hover:text-foreground"
+            )}
+            title={showAll ? "Showing all suppliers" : "Showing this supplier only"}
+          >
+            {showAll ? "All" : "Sup"}
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <div className="absolute z-50 mt-1 left-0 w-[320px] bg-popover border rounded-md shadow-lg max-h-[200px] overflow-auto">
+          {loading ? (
+            <div className="flex items-center justify-center p-2">
+              <Spinner size={14} />
+              <span className="ml-2 text-xs text-muted-foreground">Searching...</span>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="p-2 text-xs text-muted-foreground text-center">No items found</div>
+          ) : (
+            results.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleSelect(item)}
+                className="w-full text-left px-2 py-1 text-xs hover:bg-accent transition-colors border-b last:border-b-0 flex items-center gap-2"
+              >
+                <span className="font-mono text-muted-foreground shrink-0">{item.item_code}</span>
+                <span className="truncate">{item.item_name}</span>
+                {item.current_price != null && !isNaN(Number(item.current_price)) && (
+                  <span className="ml-auto font-mono text-green-600 dark:text-green-400 shrink-0">
+                    ${Number(item.current_price).toFixed(2)}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

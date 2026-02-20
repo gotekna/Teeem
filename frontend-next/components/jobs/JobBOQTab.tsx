@@ -30,6 +30,7 @@ interface BOQApiGroup {
   supplierId: number | null;
   supplierName: string | null;
   taskName: string | null;
+  taskPosition: number | null;
   tradeName: string | null;
   stageName: string | null;
   stagePosition: number | null;
@@ -119,6 +120,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       supplierId: g.supplierId,
       supplierName: g.supplierName,
       taskName: g.taskName,
+      taskPosition: g.taskPosition,
       tradeName: g.tradeName,
       stageName: g.stageName,
       stagePosition: g.stagePosition,
@@ -149,11 +151,11 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
   }, [router]);
 
   const handleSave = useCallback(async (payload: BOQSavePayload) => {
-    const { quantityChanges, profitCentreChanges, newLines } = payload;
+    const { quantityChanges, profitCentreChanges, pricebookChanges, newLines } = payload;
 
     // Group all changes by PO id
     const poUpdates = new Map<string, {
-      existing: Array<{ id: string; quantity?: number; profit_centre_id?: number | null }>;
+      existing: Array<{ id: string; quantity?: number; profit_centre_id?: number | null; pricebook_item_id?: number }>;
       newItems: Array<{ description: string; quantity: number; unit_price: number; gst_code: string; pricebook_item_id?: number | null; profit_centre_id?: number | null }>;
     }>();
 
@@ -175,12 +177,25 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       for (const [key, pcId] of profitCentreChanges) {
         const [groupId, lineItemId] = key.split(":");
         const po = ensurePo(groupId);
-        // Check if this line already has a quantity change
         const existingEntry = po.existing.find((e) => e.id === lineItemId);
         if (existingEntry) {
           existingEntry.profit_centre_id = pcId;
         } else {
           po.existing.push({ id: lineItemId, profit_centre_id: pcId });
+        }
+      }
+    }
+
+    // Parse pricebook changes: key format is "groupId:lineItemId"
+    if (pricebookChanges) {
+      for (const [key, pb] of pricebookChanges) {
+        const [groupId, lineItemId] = key.split(":");
+        const po = ensurePo(groupId);
+        const existingEntry = po.existing.find((e) => e.id === lineItemId);
+        if (existingEntry) {
+          existingEntry.pricebook_item_id = pb.pricebookItemId;
+        } else {
+          po.existing.push({ id: lineItemId, pricebook_item_id: pb.pricebookItemId });
         }
       }
     }
@@ -206,6 +221,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           const attrs: Record<string, unknown> = { id: Number(e.id) };
           if (e.quantity !== undefined) attrs.quantity = e.quantity;
           if (e.profit_centre_id !== undefined) attrs.profit_centre_id = e.profit_centre_id;
+          if (e.pricebook_item_id !== undefined) attrs.pricebook_item_id = e.pricebook_item_id;
           return attrs;
         }),
         ...updates.newItems.map((n) => ({

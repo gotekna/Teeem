@@ -24,6 +24,7 @@ class JobClaim < ApplicationRecord
   validates :xero_invoice_id, uniqueness: true, allow_nil: true
 
   # Callbacks
+  before_validation :set_default_profit_centre, if: :new_record?
   before_save :calculate_amount_due
 
   # Scopes
@@ -50,6 +51,11 @@ class JobClaim < ApplicationRecord
   end
 
   private
+
+  def set_default_profit_centre
+    return if profit_centre_id.present?
+    self.profit_centre_id = ProfitCentre.default_for_tenant&.id
+  end
 
   def calculate_amount_due
     self.amount_due = outstanding_amount

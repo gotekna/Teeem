@@ -36,7 +36,7 @@ class CostCentre < ApplicationRecord
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }
   validates :name, presence: true, length: { maximum: 100 }
-  validates :centre_type, inclusion: { in: CENTRE_TYPES }, allow_nil: true
+  validates :centre_type, inclusion: { in: CENTRE_TYPES }, allow_blank: true
   validates :overhead_allocation_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
             allow_nil: true
