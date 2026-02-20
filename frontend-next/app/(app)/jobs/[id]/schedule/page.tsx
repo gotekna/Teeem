@@ -427,7 +427,7 @@ export default function SchedulePage() {
     const loadReferenceData = async () => {
       // Load trades
       try {
-        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+        const tradesData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=1000");
         if (tradesData?.records) setAvailableTrades(tradesData.records);
       } catch (e) { console.error("Failed to load trades:", e); }
 
@@ -445,7 +445,7 @@ export default function SchedulePage() {
 
       // Load cost centres
       try {
-        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+        const costCentresData = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=1000");
         if (costCentresData?.records) setAvailableCostCentres(costCentresData.records);
       } catch (e) { console.error("Failed to load cost centres:", e); }
 
@@ -457,7 +457,7 @@ export default function SchedulePage() {
 
       // Load document types (SSoT: document_types foundation with scope=job)
       try {
-        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=100&filter[scope]=job");
+        const docTypesData = await api.get<{ success: boolean; records: { id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[] }>("/api/v1/foundations/document_types/records?per_page=1000&filter[scope]=job");
         if (docTypesData?.records) setAvailableDocumentTypes(docTypesData.records);
       } catch (e) { console.error("Failed to load document types:", e); }
 

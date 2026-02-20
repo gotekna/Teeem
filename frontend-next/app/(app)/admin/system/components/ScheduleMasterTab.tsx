@@ -1044,7 +1044,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Load trades from Foundation SM Trades (slug: sm_trades)
   const loadTrades = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/sm_trades/records?per_page=1000");
       if (data?.records) {
         setAvailableTrades(data.records);
       }
@@ -1085,7 +1085,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Load cost centres from Foundation Cost Centres (slug: cost_centres)
   const loadCostCentres = async () => {
     try {
-      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=100");
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>("/api/v1/foundations/cost_centres/records?per_page=1000");
       if (data?.records) {
         setAvailableCostCentres(data.records);
       }
