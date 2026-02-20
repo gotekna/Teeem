@@ -204,11 +204,13 @@ class TenantConfigSyncService
       model: "SmScheduleMaster",
       name_field: :name,
       match_fields: [:task_number],
+      # NOTE: hold, confirm, supplier_confirm EXCLUDED - job-reality flags that
+      # should never be true on templates (they represent actual job commitments)
       sync_fields: [:task_number, :name, :description, :sequence_order, :duration_days,
                     :trade, :stage, :pass_fail_enabled, :order_time_days, :call_time_days,
-                    :require_photo, :confirm, :po_required, :critical_po, :has_subtasks,
+                    :require_photo, :po_required, :critical_po, :has_subtasks,
                     :subtask_count, :subtask_names, :tags, :color, :is_active, :cost_centre,
-                    :supplier_confirm, :header_gantt, :hold, :assigned_role, :is_claim_task,
+                    :header_gantt, :assigned_role, :is_claim_task,
                     :claim_percentage, :is_variation, :sm_template_ids, :predecessor_ids],
       description: "Schedule Master task templates",
       group: "schedule",
