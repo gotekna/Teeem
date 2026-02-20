@@ -112,8 +112,8 @@ class SmScheduleMaster < ApplicationRecord
 
   validates :subtask_count, numericality: { only_integer: true, greater_than_or_equal_to: 1 }, if: :has_subtasks?
   validate :subtask_names_match_count
-  validate :predecessor_ids_valid
-  validate :no_circular_dependencies
+  validate :predecessor_ids_valid, if: :predecessor_ids_changed?
+  validate :no_circular_dependencies, if: :predecessor_ids_changed?
   validate :completion_linked_task_ids_valid
 
   # Claim task validations
