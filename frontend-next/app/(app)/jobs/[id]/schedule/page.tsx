@@ -1184,7 +1184,7 @@ export default function SchedulePage() {
           </div>
         </div>
         {/* Table skeleton - TeeemTableView will show its own loading but we show structure */}
-        <div className="flex-1 -mx-4">
+        <div className="flex-1 min-h-0 -mx-4">
           <div className="h-full flex flex-col">
             {/* Toolbar skeleton */}
             <div className="flex items-center justify-between p-2 border-b">
@@ -1329,7 +1329,7 @@ export default function SchedulePage() {
       </div>
 
       {/* Table View - fills remaining space */}
-      <div className="flex-1 -mx-4">
+      <div className="flex-1 min-h-0 -mx-4">
         <TeeemTableView
           key={refreshKey}
           foundationId={FOUNDATION_SLUGS.SM_TASKS}

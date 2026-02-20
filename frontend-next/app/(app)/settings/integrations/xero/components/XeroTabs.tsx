@@ -774,7 +774,7 @@ export function XeroContactSync() {
   return (
     <div className="flex flex-col h-full">
       {/* Gold Standard Table - Foundation backed */}
-      <div className="flex-1 -mx-4">
+      <div className="flex-1 min-h-0 -mx-4">
         <TeeemTableView
           refreshTrigger={refreshKey}
           foundationId={FOUNDATION_SLUGS.XERO_SYNC_CONTACTS}

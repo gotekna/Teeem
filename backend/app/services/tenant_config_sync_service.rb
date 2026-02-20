@@ -213,7 +213,9 @@ class TenantConfigSyncService
       description: "Schedule Master task templates",
       group: "schedule",
       remap_fks: {
-        sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true }
+        sm_template_ids: { model: "SmScheduleMasterTemplate", match_field: :name, array: true },
+        trade: { model: "SmTrade", match_field: :name },
+        stage: { model: "SmStage", match_field: :name }
       }
     },
     sm_trades: {
@@ -247,7 +249,10 @@ class TenantConfigSyncService
       sync_fields: [:resource_type, :name, :code, :description, :trade, :hourly_rate,
                     :daily_rate, :unit, :unit_cost, :is_active, :availability_hours_per_day],
       description: "Schedule Master resources",
-      group: "schedule"
+      group: "schedule",
+      remap_fks: {
+        trade: { model: "SmTrade", match_field: :name }
+      }
     },
     sm_schedule_master_document_types: {
       model: "SmScheduleMasterDocumentType",

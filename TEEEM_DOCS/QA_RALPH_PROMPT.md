@@ -109,6 +109,19 @@ evaluate_script(async () => {
   const bcNav = document.querySelector('.backdrop-blur-sm nav');
   const main = document.querySelector('main');
   const stillLoading = isStillLoading();
+  // Table scroll check: detect tables where virtual scroll container can't scroll
+  // TeeemTableView renders [role="region"][aria-label*="table"] as scroll container
+  const tableRegion = document.querySelector('[role="region"][aria-label*="table"]');
+  let tableScrollBroken = null;
+  if (tableRegion) {
+    const rowCount = tableRegion.querySelectorAll('tr').length;
+    const canScroll = tableRegion.scrollHeight > tableRegion.clientHeight + 10;
+    // If table has 20+ rows but container can't scroll, it's broken
+    // (virtual scroll means not all rows are rendered, so check clientHeight > 0 too)
+    tableScrollBroken = (rowCount >= 20 && !canScroll && tableRegion.clientHeight > 0)
+      ? { rowCount, scrollHeight: tableRegion.scrollHeight, clientHeight: tableRegion.clientHeight }
+      : false;
+  }
   return ({
     hasContent: main?.children.length > 0 && !stillLoading,
     isStillLoading: stillLoading,
@@ -117,7 +130,8 @@ evaluate_script(async () => {
     title: document.title,
     consoleErrors: window.__qaErrors?.length || 0,
     errorMessages: (window.__qaErrors || []).slice(0, 3),
-    bodyBg: getComputedStyle(document.body).backgroundColor
+    bodyBg: getComputedStyle(document.body).backgroundColor,
+    tableScrollBroken: tableScrollBroken
   });
 })
 ```
@@ -140,10 +154,13 @@ evaluate_script(async () => {
 | URL correct | `url` doesn't contain `/undefined` or unexpected hash |
 | Page loaded | `title` is not empty or generic "Teeem" only |
 | Breadcrumb visible | `breadcrumb` is not null and not empty |
+| Table scroll works | `tableScrollBroken` is `null` (no table) or `false` (table scrolls fine) |
 
 **CRITICAL:** If `isStillLoading === true` after 15 seconds, the page is STUCK. This is a `major` finding with category `render-error`. The page has a loading spinner but never finished loading — likely an API failure or component crash.
 
 **Breadcrumbs:** Every page MUST have a visible breadcrumb trail. The selector `.backdrop-blur-sm nav` targets TEEEM's `BreadcrumbTrail.tsx` component. If `breadcrumb` is null/empty, create a `minor` finding with category `breadcrumb-missing`.
+
+**Table Scroll:** If `tableScrollBroken` is an object (not `null` or `false`), the table has rows but the scroll container can't scroll. This is a `major` finding with category `scroll-blocked`. Root cause is usually missing `min-h-0` on the table's flex parent — the CSS default `min-height: auto` on flex items prevents the container from being bounded, so virtual scroll has no scrollable area. The finding should include the `rowCount`, `scrollHeight`, and `clientHeight` values from the check.
 
 If ALL pass → record as "passed" with the `js_check` data in `page_results`.
 
@@ -331,8 +348,8 @@ For each page in US-RESPONSIVE manifest:
 | Severity | When |
 |----------|------|
 | `critical` | Page won't load at all (white screen), data loss risk |
-| `major` | Console errors, broken functionality, missing content |
-| `minor` | Missing breadcrumbs, scroll problems, dark mode glitches, minor UI issues |
+| `major` | Console errors, broken functionality, missing content, **table scroll broken** (users can't access data) |
+| `minor` | Missing breadcrumbs, dark mode glitches, minor UI issues |
 | `info` | Performance observations, suggestions |
 
 ### Probable File Mapping

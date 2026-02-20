@@ -264,6 +264,7 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
       setError(null);
       setPullAllResult(null);
       setTableSyncErrors({});
+      setTableDependencyWarnings({});
 
       // Initialize all tables as pending (or pre-skipped)
       const initialStatus: Record<string, TableSyncStatus> = {};
@@ -542,6 +543,24 @@ export function TenantSyncPullTab({ onSyncComplete }: TenantSyncPullTabProps) {
                     <TableCell className="font-medium py-1.5 text-sm">
                       <div className="flex items-center gap-2">
                         <span>{table.model.replace(/([A-Z])/g, " $1").trim()}</span>
+                        {/* Pre-sync: warn if required deps are skipped */}
+                        {skippedDeps.length > 0 && (
+                          <span
+                            className="inline-flex items-center"
+                            title={`Requires: ${skippedDeps.map((d) => tables.find((t) => t.key === d)?.model.replace(/([A-Z])/g, " $1").trim() || d).join(", ")}`}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                        )}
+                        {/* Post-sync: show backend dependency warnings */}
+                        {depWarnings && depWarnings.length > 0 && (
+                          <span
+                            className="inline-flex items-center"
+                            title={depWarnings.join("\n")}
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                          </span>
+                        )}
                         {/* Price only checkbox for contacts */}
                         {isContacts && !pullAllResult && (
                           <label className="inline-flex items-center gap-1 text-xs text-muted-foreground cursor-pointer ml-1">
