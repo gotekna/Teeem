@@ -606,10 +606,6 @@ export function BillOfQuantities({
                 PO / Task
               </button>
               {(["supplier", "stage", "trade", "costCentre", "profitCentre"] as GroupSortBy[]).map((dim) => {
-                if (dim === "stage" && !hasStages) return null;
-                if (dim === "trade" && !hasTrades) return null;
-                if (dim === "supplier" && !hasSuppliers) return null;
-                if (dim === "profitCentre" && !hasProfitCentres) return null;
                 return (
                   <button
                     key={dim}
@@ -743,11 +739,11 @@ export function BillOfQuantities({
               <SortableHead column="profitCentre" sort={sortState} onSort={toggleSort} className="w-[120px]">
                 Profit Centre
               </SortableHead>
-              <SortableHead column="description" sort={sortState} onSort={toggleSort}>
-                Description
-              </SortableHead>
               <SortableHead column="code" sort={sortState} onSort={toggleSort} className="w-[90px]">
                 Code
+              </SortableHead>
+              <SortableHead column="description" sort={sortState} onSort={toggleSort}>
+                Description
               </SortableHead>
               <SortableHead column="qty" sort={sortState} onSort={toggleSort} className="w-[100px]" align="right">
                 Qty
@@ -790,16 +786,16 @@ export function BillOfQuantities({
               </TableHead>
               <TableHead className="py-1 px-2">
                 <Input
-                  value={columnFilters.description}
-                  onChange={(e) => updateFilter("description", e.target.value)}
+                  value={columnFilters.code}
+                  onChange={(e) => updateFilter("code", e.target.value)}
                   placeholder="Filter..."
                   className="h-6 text-xs px-1.5 font-normal"
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
                 <Input
-                  value={columnFilters.code}
-                  onChange={(e) => updateFilter("code", e.target.value)}
+                  value={columnFilters.description}
+                  onChange={(e) => updateFilter("description", e.target.value)}
                   placeholder="Filter..."
                   className="h-6 text-xs px-1.5 font-normal"
                 />
@@ -1006,10 +1002,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 </div>
               </TableCell>
             )}
-            <TableCell className="text-sm py-1.5">{item.description}</TableCell>
             <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
               {item.pricebookItemCode || "—"}
             </TableCell>
+            <TableCell className="text-sm py-1.5">{item.description}</TableCell>
             <TableCell className="text-right py-1">
               {canEdit ? (
                 <QtyInput
