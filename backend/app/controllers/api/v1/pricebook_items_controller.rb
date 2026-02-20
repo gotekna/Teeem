@@ -613,6 +613,7 @@ module Api
         end
 
         today = TenantSetting.today
+        requested_ids = item_ids.map(&:to_i).to_set
         items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: item_ids)
 
         # Get all price_only contacts for the dropdown
@@ -696,15 +697,104 @@ module Api
             highestSupplierId: highest_supplier_id&.to_i,
             priceOnlySupplierId: price_only_supplier_id,
             priceOnlySupplierName: price_only_supplier_name,
-            lga: latest_with_lga&.lga || []
+            lga: latest_with_lga&.lga || [],
+            onPo: requested_ids.include?(item.id)
           }
         end
+
+        # Expand to include ALL pricebook items that have prices from the price-only contacts
+        # found in the initial items (not all suppliers - just the price list contacts)
+        if ActiveModel::Type::Boolean.new.cast(params[:expand_to_supplier_items])
+          # Collect price-only supplier IDs discovered from the initial PO items
+          po_price_only_ids = items_data.filter_map { |d| d[:priceOnlySupplierId] }.uniq
+          # Also include any explicitly requested supplier IDs that are price-only
+          include_supplier_ids.each { |sid| po_price_only_ids << sid if price_only_contact_ids.include?(sid) }
+          po_price_only_ids.uniq!
+
+          # Find pricebook items NOT in the original set that have price histories from these price-only contacts
+          extra_item_ids = po_price_only_ids.any? ? PriceHistory
+            .where(supplier_id: po_price_only_ids)
+            .where.not(pricebook_item_id: requested_ids.to_a)
+            .distinct
+            .pluck(:pricebook_item_id) : []
+
+          if extra_item_ids.any?
+            extra_items = PricebookItem.includes(:default_supplier, price_histories: :supplier).where(id: extra_item_ids)
+            extra_items.each do |item|
+              prices = {}
+              price_only_supplier_id = nil
+
+              item.price_histories
+                .select { |ph| ph.supplier_id.present? }
+                .select { |ph| ph.date_effective.nil? || ph.date_effective <= today }
+                .group_by(&:supplier_id)
+                .each do |supplier_id, histories|
+                  latest = histories.max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+                  next unless latest&.new_price
+
+                  supplier = latest.supplier
+                  is_price_only = price_only_contact_ids.include?(supplier_id)
+                  suppliers_hash[supplier_id] ||= { id: supplier_id, name: supplier&.display_name || "Supplier #{supplier_id}", priceOnly: is_price_only }
+
+                  if is_price_only
+                    price_only_supplier_id = supplier_id
+                  end
+
+                  prices[supplier_id.to_s] = {
+                    price: latest.new_price.to_f,
+                    dateEffective: latest.date_effective&.iso8601
+                  }
+                end
+
+              price_only_supplier_name = nil
+              if price_only_supplier_id.nil?
+                all_po_history = item.price_histories
+                  .select { |ph| ph.supplier_id.present? && price_only_contact_ids.include?(ph.supplier_id) }
+                  .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+                price_only_supplier_id = all_po_history&.supplier_id
+                price_only_supplier_name = all_po_history&.supplier&.display_name
+              end
+              price_only_supplier_name ||= suppliers_hash.dig(price_only_supplier_id, :name) if price_only_supplier_id
+
+              highest_entry = prices.values.max_by { |p| p[:price] }
+              highest_supplier_id = highest_entry ? prices.find { |_k, v| v[:price] == highest_entry[:price] }&.first : nil
+
+              latest_with_lga = item.price_histories
+                .select { |ph| ph.lga.present? }
+                .max_by { |ph| [ ph.date_effective || Date.new(1900), ph.created_at ] }
+
+              items_data << {
+                id: item.id,
+                itemCode: item.item_code,
+                itemName: item.item_name,
+                currentPrice: item.current_price&.to_f,
+                defaultSupplierId: item.default_supplier_id,
+                defaultSupplierName: item.default_supplier&.display_name,
+                prices: prices,
+                highestPrice: highest_entry ? highest_entry[:price] : nil,
+                highestSupplierId: highest_supplier_id&.to_i,
+                priceOnlySupplierId: price_only_supplier_id,
+                priceOnlySupplierName: price_only_supplier_name,
+                lga: latest_with_lga&.lga || [],
+                onPo: false
+              }
+            end
+          end
+        end
+
+        # Full list of all active contacts for the "Record For" dropdown (exclude employees of companies)
+        all_supplier_contacts = Contact.where(is_active: true)
+          .where.not(entity_type: "person")
+          .order(:display_name)
+          .pluck(:id, :display_name)
+          .map { |id, name| { id: id, name: name } }
 
         render json: {
           success: true,
           suppliers: suppliers_hash.values.sort_by { |s| s[:name].to_s },
           items: items_data,
-          priceOnlyContacts: price_only_contacts
+          priceOnlyContacts: price_only_contacts,
+          allSupplierContacts: all_supplier_contacts
         }
       end
 
@@ -800,6 +890,28 @@ module Api
         end
 
         render json: { success: true, updated_count: updated }
+      end
+
+      # POST /api/v1/pricebook/bulk_delete_price_histories
+      # Delete all price history records for a supplier across specified items
+      def bulk_delete_price_histories
+        item_ids = Array(params[:pricebook_item_ids]).map(&:to_i)
+        supplier_id = params[:supplier_id].to_i
+
+        unless item_ids.any? && supplier_id > 0
+          return render json: { success: false, error: "pricebook_item_ids and supplier_id required" }, status: :unprocessable_entity
+        end
+
+        histories = PriceHistory.where(pricebook_item_id: item_ids, supplier_id: supplier_id)
+        deleted_count = histories.count
+        histories.destroy_all
+
+        # Recalculate current_price for affected items (in case the deleted supplier was the default)
+        PricebookItem.where(id: item_ids).find_each do |item|
+          recalculate_current_price(item)
+        end
+
+        render json: { success: true, deleted_count: deleted_count }
       end
 
       def recalculate_current_price(item)

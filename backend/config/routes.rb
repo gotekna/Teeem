@@ -984,6 +984,7 @@ Rails.application.routes.draw do
           post :compare_all_prices
           post :apply_selected_prices
           post :bulk_set_default_supplier
+          post :bulk_delete_price_histories
         end
       end
 

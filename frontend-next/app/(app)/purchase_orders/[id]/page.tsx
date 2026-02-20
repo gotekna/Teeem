@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { TASK_STATUS } from "@/lib/constants/task-status";
 import { Button } from "@/components/ui/button";
@@ -821,6 +821,21 @@ export default function PurchaseOrderDetailPage() {
 
   // PDF action handlers
   const hasLineItems = lineItems.filter((item) => !item._destroy && (item.description || item.pricebook_item_id)).length > 0;
+
+  // Count line items needing price attention (unsupplied or price changed)
+  const priceIssueCount = useMemo(() => {
+    let count = 0;
+    for (const item of lineItems) {
+      if (item._destroy || isBlankLineItem(item)) continue;
+      const isNotSupplied = selectedSupplier && item.pricebook_item_id &&
+        selectedSupplier.supplied_pricebook_item_ids &&
+        !selectedSupplier.supplied_pricebook_item_ids.includes(item.pricebook_item_id);
+      const hasPriceChanged = item.pricebook_item?.active_price != null &&
+        Number(item.unit_price) !== Number(item.pricebook_item.active_price);
+      if (isNotSupplied || hasPriceChanged) count++;
+    }
+    return count;
+  }, [lineItems, selectedSupplier]);
   const canSendEmail = hasLineItems && selectedSupplier?.email;
 
   const [printingPdf, setPrintingPdf] = useState(false);
@@ -1226,6 +1241,30 @@ export default function PurchaseOrderDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          {/* Compare Prices */}
+          <Button
+            onClick={() => {
+              const allPbIds = lineItems
+                .filter((li) => !li._destroy && li.pricebook_item_id)
+                .map((li) => li.pricebook_item_id!);
+              const uniqueIds = [...new Set(allPbIds)];
+              setPriceComparisonItemIds(uniqueIds);
+              setPriceComparisonOpen(true);
+            }}
+            variant={priceIssueCount > 0 ? "default" : "outline"}
+            size="sm"
+            disabled={!hasLineItems || saving}
+            className={priceIssueCount > 0 ? "bg-amber-500 hover:bg-amber-600 text-white" : ""}
+            title={priceIssueCount > 0 ? `${priceIssueCount} item${priceIssueCount !== 1 ? "s" : ""} need attention` : "Compare prices from all suppliers"}
+          >
+            <BarChart3 className="h-4 w-4 mr-1.5" />
+            Compare Prices
+            {priceIssueCount > 0 && (
+              <span className="ml-1.5 bg-white/20 rounded-full px-1.5 py-0.5 text-xs font-semibold leading-none">
+                {priceIssueCount}
+              </span>
+            )}
+          </Button>
           {/* PDF Actions */}
           <Button
             onClick={handlePrint}
@@ -2302,14 +2341,23 @@ export default function PurchaseOrderDetailPage() {
         selectedIds={priceComparisonItemIds}
         includeSupplierIds={selectedSupplier ? [selectedSupplier.id] : undefined}
         currentSupplierLabel="PO supplier"
+        expandToSupplierItems
         clearSelection={() => setPriceComparisonItemIds([])}
         onRefresh={() => {}}
-        onUpdateSupplier={(supplierId, supplierName) => {
+        onUpdateSupplier={async (supplierId, supplierName) => {
+          // Update local state immediately
           setSelectedSupplier({
             id: supplierId,
             display_name: supplierName,
           });
-          setPriceComparisonOpen(false);
+          // Save the supplier change to the PO
+          try {
+            await api.patch(`/api/v1/purchase_orders/${recordId}`, {
+              purchase_order: { supplier_id: supplierId },
+            });
+          } catch (err) {
+            console.error("Failed to update PO supplier:", err);
+          }
         }}
       />
     </div>

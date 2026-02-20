@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Check, X, ChevronDown } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,7 @@ interface ComparisonItem {
   priceOnlySupplierId: number | null;
   priceOnlySupplierName: string | null;
   lga: string[];
+  onPo?: boolean;
 }
 
 interface CompareResponse {
@@ -60,6 +61,7 @@ interface CompareResponse {
   suppliers: Supplier[];
   items: ComparisonItem[];
   priceOnlyContacts: PriceOnlyContact[];
+  allSupplierContacts?: PriceOnlyContact[];
 }
 
 interface PriceComparisonSheetProps {
@@ -74,6 +76,8 @@ interface PriceComparisonSheetProps {
   onUpdateSupplier?: (supplierId: number, supplierName: string) => void;
   /** Label for the current PO supplier column (shows which supplier is currently selected) */
   currentSupplierLabel?: string;
+  /** When true, fetch ALL pricebook items that have prices from discovered suppliers (not just selected IDs) */
+  expandToSupplierItems?: boolean;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -160,6 +164,7 @@ export default function PriceComparisonSheet({
   includeSupplierIds,
   onUpdateSupplier,
   currentSupplierLabel,
+  expandToSupplierItems,
 }: PriceComparisonSheetProps) {
   const { toast } = useToast();
 
@@ -168,6 +173,7 @@ export default function PriceComparisonSheet({
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [items, setItems] = useState<ComparisonItem[]>([]);
   const [priceOnlyContacts, setPriceOnlyContacts] = useState<PriceOnlyContact[]>([]);
+  const [allSupplierContacts, setAllSupplierContacts] = useState<PriceOnlyContact[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
   const [selectedPriceSource, setSelectedPriceSource] = useState<Record<number, number>>({});
@@ -199,6 +205,7 @@ export default function PriceComparisonSheet({
           {
             pricebook_item_ids: selectedIdsRef.current.map(Number),
             ...(includeSupplierIds?.length ? { include_supplier_ids: includeSupplierIds } : {}),
+            ...(expandToSupplierItems ? { expand_to_supplier_items: true } : {}),
           }
         );
 
@@ -208,8 +215,9 @@ export default function PriceComparisonSheet({
           setSuppliers(response.suppliers);
           setItems(response.items);
           setPriceOnlyContacts(response.priceOnlyContacts || []);
+          setAllSupplierContacts(response.allSupplierContacts || []);
 
-          // Auto-select all rows and pre-fill:
+          // Auto-select PO rows (or all if no PO context) and pre-fill:
           // 1. Price: default supplier's price > highest price > empty
           // 2. Checkbox: ticked on whichever supplier the price came from
           // 3. Record For: PO supplier (if from PO) > default supplier > price_only contact
@@ -221,6 +229,8 @@ export default function PriceComparisonSheet({
           const poSupplierId = includeSupplierIds?.[0]; // PO supplier if from PO context
 
           for (const item of response.items) {
+            // Only auto-select PO items; additional items start unselected
+            if (expandToSupplierItems && item.onPo === false) continue;
             rows.add(item.id);
 
             // Pick price: prefer default supplier's price, fall back to highest
@@ -278,6 +288,7 @@ export default function PriceComparisonSheet({
       setSuppliers([]);
       setItems([]);
       setPriceOnlyContacts([]);
+      setAllSupplierContacts([]);
       setSelectedRows(new Set());
       setSelectedPrices({});
       setSelectedPriceSource({});
@@ -312,7 +323,7 @@ export default function PriceComparisonSheet({
   const selectSupplierPrice = useCallback((itemId: number, price: number, supplierId: number) => {
     setSelectedPrices(prev => ({ ...prev, [itemId]: price.toFixed(2) }));
     setSelectedPriceSource(prev => ({ ...prev, [itemId]: supplierId }));
-    // Record For stays independent - user controls it via the dropdown
+    setSelectedPriceOnlyContact(prev => ({ ...prev, [itemId]: String(supplierId) }));
     setSelectedRows(prev => {
       const next = new Set(prev);
       next.add(itemId);
@@ -378,10 +389,11 @@ export default function PriceComparisonSheet({
     });
   }, [adjustmentPercent, roundingMode, selectedRows]);
 
-  // "Use All Prices" from a single supplier - selects prices + ticks checkboxes, Record For stays unchanged
+  // "Use All Prices" from a single supplier - fills prices, checkboxes, AND Record For
   const useAllPricesFromSupplier = useCallback((supplierId: number, supplierName: string) => {
     const newPrices = { ...selectedPrices };
     const newSources = { ...selectedPriceSource };
+    const newContacts = { ...selectedPriceOnlyContact };
     const newRows = new Set(selectedRows);
 
     for (const item of items) {
@@ -389,15 +401,29 @@ export default function PriceComparisonSheet({
       if (sp) {
         newPrices[item.id] = sp.price.toFixed(2);
         newSources[item.id] = supplierId;
+        newContacts[item.id] = String(supplierId);
         newRows.add(item.id);
       }
     }
 
     setSelectedPrices(newPrices);
     setSelectedPriceSource(newSources);
+    setSelectedPriceOnlyContact(newContacts);
     setSelectedRows(newRows);
     toast({ title: `Selected all prices from ${supplierName}` });
-  }, [items, selectedPrices, selectedPriceSource, selectedRows, toast]);
+  }, [items, selectedPrices, selectedPriceSource, selectedPriceOnlyContact, selectedRows, toast]);
+
+  // "Record For All" - sets Record For to this supplier for all selected rows (doesn't change prices)
+  const recordForAllSupplier = useCallback((supplierId: number, supplierName: string) => {
+    setSelectedPriceOnlyContact(prev => {
+      const next = { ...prev };
+      for (const id of selectedRows) {
+        next[id] = String(supplierId);
+      }
+      return next;
+    });
+    toast({ title: `Recording all prices for ${supplierName}` });
+  }, [selectedRows, toast]);
 
   // Bulk set default supplier for all selected items
   const [settingDefault, setSettingDefault] = useState(false);
@@ -413,6 +439,29 @@ export default function PriceComparisonSheet({
       );
       if (response?.success) {
         toast({ title: `Set ${supplierName} as default supplier for ${response.updated_count} items` });
+        // Update local items to reflect the new default supplier
+        setItems(prev => prev.map(item =>
+          itemIds.includes(item.id)
+            ? { ...item, defaultSupplierId: supplierId, defaultSupplierName: supplierName }
+            : item
+        ));
+        // Reset checkboxes, prices, and Record For to the new default supplier
+        const newPrices: Record<number, string> = { ...selectedPrices };
+        const newSources: Record<number, number> = { ...selectedPriceSource };
+        const newContacts: Record<number, string> = { ...selectedPriceOnlyContact };
+        for (const item of items) {
+          if (!itemIds.includes(item.id)) continue;
+          const sp = item.prices[String(supplierId)];
+          if (sp) {
+            newPrices[item.id] = sp.price.toFixed(2);
+            newSources[item.id] = supplierId;
+          }
+          newContacts[item.id] = String(supplierId);
+        }
+        setSelectedPrices(newPrices);
+        setSelectedPriceSource(newSources);
+        setSelectedPriceOnlyContact(newContacts);
+        onRefresh();
       }
     } catch (err) {
       console.error("Failed to set default supplier:", err);
@@ -424,22 +473,109 @@ export default function PriceComparisonSheet({
     } finally {
       setSettingDefault(false);
     }
-  }, [selectedRows, toast]);
+  }, [selectedRows, items, selectedPrices, selectedPriceSource, selectedPriceOnlyContact, toast, onRefresh]);
 
-  // ComboboxDropdown items: merge comparison suppliers + price_only contacts (deduped)
+  // Delete all price histories for a supplier across selected items
+  const [deletingPrices, setDeletingPrices] = useState(false);
+  const bulkDeletePriceHistories = useCallback(async (supplierId: number, supplierName: string) => {
+    const itemIds = Array.from(selectedRows);
+    if (itemIds.length === 0) return;
+
+    if (!window.confirm(`Delete all price history from ${supplierName} for ${itemIds.length} selected item(s)?`)) return;
+
+    setDeletingPrices(true);
+    try {
+      const response = await api.post<{ success: boolean; deleted_count: number }>(
+        "/api/v1/pricebook/bulk_delete_price_histories",
+        { pricebook_item_ids: itemIds, supplier_id: supplierId }
+      );
+      if (response?.success) {
+        toast({ title: `Deleted ${response.deleted_count} price history record(s) from ${supplierName}` });
+        // Remove this supplier's prices from local state
+        const updatedItems = items.map(item => {
+          if (!itemIds.includes(item.id)) return item;
+          const newPrices = { ...item.prices };
+          delete newPrices[String(supplierId)];
+          // Recalculate highest
+          const entries = Object.entries(newPrices);
+          const highest = entries.length > 0 ? entries.reduce((max, [, v]) => v.price > max.price ? v : max, entries[0][1]) : null;
+          const highestSid = highest ? entries.find(([, v]) => v.price === highest.price)?.[0] : null;
+          return {
+            ...item,
+            prices: newPrices,
+            highestPrice: highest?.price ?? null,
+            highestSupplierId: highestSid ? parseInt(highestSid) : null,
+            priceOnlySupplierId: item.priceOnlySupplierId === supplierId ? null : item.priceOnlySupplierId,
+            priceOnlySupplierName: item.priceOnlySupplierId === supplierId ? null : item.priceOnlySupplierName,
+          };
+        });
+        setItems(updatedItems);
+        // Remove supplier column if no items have prices from them anymore
+        const supplierStillHasPrices = updatedItems.some(item => item.prices[String(supplierId)]);
+        if (!supplierStillHasPrices) {
+          setSuppliers(prev => prev.filter(s => s.id !== supplierId));
+        }
+        // Clear selected price/source if it came from this supplier
+        setSelectedPrices(prev => {
+          const next = { ...prev };
+          for (const id of itemIds) {
+            if (selectedPriceSource[id] === supplierId) next[id] = "";
+          }
+          return next;
+        });
+        setSelectedPriceSource(prev => {
+          const next = { ...prev };
+          for (const id of itemIds) {
+            if (next[id] === supplierId) delete next[id];
+          }
+          return next;
+        });
+        onRefresh();
+      }
+    } catch (err) {
+      console.error("Failed to delete price histories:", err);
+      toast({
+        title: "Failed to Delete Prices",
+        description: err instanceof Error ? err.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingPrices(false);
+    }
+  }, [selectedRows, selectedPriceSource, toast, onRefresh]);
+
+  // ComboboxDropdown items for "Record For": all supplier contacts (full list), with comparison suppliers first
   const supplierComboItems = useMemo<ComboboxItem[]>(() => {
     const seen = new Set<string>();
     const items: ComboboxItem[] = [];
+    // Comparison suppliers first (they're most relevant)
     for (const s of suppliers) {
       const key = String(s.id);
       if (!seen.has(key)) { seen.add(key); items.push({ id: key, label: s.name }); }
     }
+    // Then all other supplier contacts from the full list
+    for (const c of allSupplierContacts) {
+      const key = String(c.id);
+      if (!seen.has(key)) { seen.add(key); items.push({ id: key, label: c.name }); }
+    }
+    // Finally any price-only contacts not already included
     for (const poc of priceOnlyContacts) {
       const key = String(poc.id);
       if (!seen.has(key)) { seen.add(key); items.push({ id: key, label: poc.name }); }
     }
     return items;
-  }, [suppliers, priceOnlyContacts]);
+  }, [suppliers, allSupplierContacts, priceOnlyContacts]);
+
+  // Sort items: PO items first, then additional supplier items
+  const sortedItems = useMemo(() => {
+    if (!expandToSupplierItems) return items;
+    const poItems = items.filter(i => i.onPo !== false);
+    const extraItems = items.filter(i => i.onPo === false);
+    return [...poItems, ...extraItems];
+  }, [items, expandToSupplierItems]);
+
+  const poItemCount = useMemo(() => items.filter(i => i.onPo !== false).length, [items]);
+  const extraItemCount = useMemo(() => items.filter(i => i.onPo === false).length, [items]);
 
   // Count of rows with valid selected prices
   const applyCount = useMemo(() => {
@@ -451,7 +587,7 @@ export default function PriceComparisonSheet({
     return count;
   }, [selectedRows, selectedPrices]);
 
-  const handleApply = useCallback(async () => {
+  const handleApply = useCallback(async (keepOpen = false) => {
     const updates: { item_id: number; new_price: number; price_only_contact_id?: number; lga?: string[] }[] = [];
     for (const id of selectedRows) {
       const val = selectedPrices[id];
@@ -491,9 +627,34 @@ export default function PriceComparisonSheet({
           title: "Prices Applied",
           description: parts.join(", ") || "No changes needed",
         });
-        onOpenChange(false);
-        clearSelection();
         onRefresh();
+
+        if (keepOpen) {
+          // Re-fetch comparison data to show updated prices
+          try {
+            const refreshed = await api.post<CompareResponse>(
+              "/api/v1/pricebook/compare_all_prices",
+              {
+                pricebook_item_ids: selectedIdsRef.current.map(Number),
+                ...(includeSupplierIds?.length ? { include_supplier_ids: includeSupplierIds } : {}),
+                ...(expandToSupplierItems ? { expand_to_supplier_items: true } : {}),
+              }
+            );
+            if (refreshed?.success) {
+              setSuppliers(refreshed.suppliers);
+              setItems(refreshed.items);
+              setPriceOnlyContacts(refreshed.priceOnlyContacts || []);
+              setAllSupplierContacts(refreshed.allSupplierContacts || []);
+              // Reset source tracking since prices have been saved
+              setSelectedPriceSource({});
+            }
+          } catch {
+            // Ignore refresh errors - data was already saved
+          }
+        } else {
+          onOpenChange(false);
+          clearSelection();
+        }
       }
     } catch (err) {
       console.error("Failed to apply prices:", err);
@@ -505,7 +666,7 @@ export default function PriceComparisonSheet({
     } finally {
       setApplying(false);
     }
-  }, [selectedRows, selectedPrices, selectedPriceOnlyContact, selectedLga, effectiveDate, toast, onOpenChange, clearSelection, onRefresh]);
+  }, [selectedRows, selectedPrices, selectedPriceOnlyContact, selectedLga, effectiveDate, toast, onOpenChange, clearSelection, onRefresh, includeSupplierIds]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -520,20 +681,40 @@ export default function PriceComparisonSheet({
             <div>
               <h2 className="text-lg font-semibold">Compare All Supplier Prices</h2>
               <SheetDescription>
-                {items.length} item{items.length !== 1 ? "s" : ""} &middot; {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""}
+                {expandToSupplierItems && extraItemCount > 0
+                  ? `${poItemCount} PO item${poItemCount !== 1 ? "s" : ""} + ${extraItemCount} additional`
+                  : `${items.length} item${items.length !== 1 ? "s" : ""}`
+                }
+                {" "}&middot; {suppliers.length} supplier{suppliers.length !== 1 ? "s" : ""}
+                {" "}&middot; {selectedRows.size} selected
               </SheetDescription>
             </div>
-            {items.length > 0 && (
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Effective Date</label>
-                <Input
-                  type="date"
-                  value={effectiveDate}
-                  onChange={e => setEffectiveDate(e.target.value)}
-                  className="w-40 h-8 text-sm"
-                />
-              </div>
-            )}
+            <div className="flex items-center gap-4">
+              {onUpdateSupplier && items.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">PO Supplier</label>
+                  <ComboboxDropdown
+                    items={supplierComboItems}
+                    placeholder="Select supplier..."
+                    searchPlaceholder="Search all suppliers..."
+                    selectedItem={supplierComboItems.find(i => i.id === String(includeSupplierIds?.[0]))}
+                    onSelect={(selected) => onUpdateSupplier(Number(selected.id), selected.label)}
+                    className="w-56 h-8 text-sm"
+                  />
+                </div>
+              )}
+              {items.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Effective Date</label>
+                  <Input
+                    type="date"
+                    value={effectiveDate}
+                    onChange={e => setEffectiveDate(e.target.value)}
+                    className="w-40 h-8 text-sm"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Price Adjustment & Rounding - compact row */}
@@ -653,23 +834,33 @@ export default function PriceComparisonSheet({
                     {suppliers.map(s => {
                       const isCurrentPOSupplier = includeSupplierIds?.includes(s.id);
                       return (
-                        <th key={s.id} className={`text-right p-2 min-w-[120px] font-medium ${isCurrentPOSupplier ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
-                          <div className="flex flex-col items-end gap-0.5">
-                            <span>{s.name}</span>
-                            {s.priceOnly && (
-                              <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
-                            )}
-                            {isCurrentPOSupplier && (
-                              <span className="text-[10px] font-normal text-blue-600 dark:text-blue-400">
-                                {currentSupplierLabel || "PO supplier"}
-                              </span>
-                            )}
-                            <div className="flex flex-col items-end gap-px mt-0.5">
+                        <th key={s.id} className={`text-right p-2 min-w-[120px] font-medium align-bottom ${isCurrentPOSupplier ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
+                          <div className="flex flex-col items-end gap-0.5 h-full">
+                            {/* Name + tags - grows to push buttons to bottom */}
+                            <div className="flex-1 flex flex-col items-end justify-end gap-0.5">
+                              <span>{s.name}</span>
+                              {s.priceOnly && (
+                                <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
+                              )}
+                              {isCurrentPOSupplier && (
+                                <span className="text-[10px] font-normal text-blue-600 dark:text-blue-400">
+                                  {currentSupplierLabel || "PO supplier"}
+                                </span>
+                              )}
+                            </div>
+                            {/* Action buttons - always aligned at bottom across all columns */}
+                            <div className="flex flex-col items-end gap-px mt-1 shrink-0">
                               <button
                                 className="text-[10px] font-normal text-primary hover:underline cursor-pointer"
                                 onClick={() => useAllPricesFromSupplier(s.id, s.name)}
                               >
                                 Use All Prices
+                              </button>
+                              <button
+                                className="text-[10px] font-normal text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+                                onClick={() => recordForAllSupplier(s.id, s.name)}
+                              >
+                                Record For All
                               </button>
                               <button
                                 className="text-[10px] font-normal text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
@@ -678,14 +869,22 @@ export default function PriceComparisonSheet({
                               >
                                 Set as Default
                               </button>
-                              {onUpdateSupplier && !isCurrentPOSupplier && !s.priceOnly && (
+                              {onUpdateSupplier && (
                                 <button
-                                  className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                                  className={`text-[10px] font-normal hover:underline cursor-pointer ${isCurrentPOSupplier ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400"}`}
+                                  disabled={!!isCurrentPOSupplier}
                                   onClick={() => onUpdateSupplier(s.id, s.name)}
                                 >
-                                  Set as PO Supplier
+                                  {isCurrentPOSupplier ? "PO Supplier ✓" : "Set as PO Supplier"}
                                 </button>
                               )}
+                              <button
+                                className="text-[10px] font-normal text-red-500 dark:text-red-400 hover:underline cursor-pointer"
+                                disabled={deletingPrices}
+                                onClick={() => bulkDeletePriceHistories(s.id, s.name)}
+                              >
+                                Delete Prices
+                              </button>
                             </div>
                           </div>
                         </th>
@@ -731,15 +930,25 @@ export default function PriceComparisonSheet({
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map(item => {
+                  {sortedItems.map((item, idx) => {
                     const isSelected = selectedRows.has(item.id);
                     const selectedVal = selectedPrices[item.id] ?? "";
                     const selectedPoContact = selectedPriceOnlyContact[item.id] ?? "";
                     const itemLga = selectedLga[item.id] ?? [];
+                    // Show separator between PO items and additional items
+                    const showSeparator = expandToSupplierItems && extraItemCount > 0 &&
+                      item.onPo === false && (idx === 0 || sortedItems[idx - 1]?.onPo !== false);
 
                     return (
+                      <React.Fragment key={item.id}>
+                      {showSeparator && (
+                        <tr className="bg-muted/30">
+                          <td colSpan={5 + suppliers.length + 3} className="px-2 py-1 text-xs font-medium text-muted-foreground">
+                            Additional price list items (not on PO)
+                          </td>
+                        </tr>
+                      )}
                       <tr
-                        key={item.id}
                         className={`border-b hover:bg-muted/50 ${!isSelected ? "opacity-50" : ""}`}
                       >
                         <td className="p-2 sticky left-0 bg-background">
@@ -858,6 +1067,7 @@ export default function PriceComparisonSheet({
                           )}
                         </td>
                       </tr>
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
@@ -870,7 +1080,7 @@ export default function PriceComparisonSheet({
         <SheetFooter className="px-6 py-4 border-t shrink-0">
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-muted-foreground">
-              {applyCount} of {items.length} item{items.length !== 1 ? "s" : ""} will be updated
+              {applyCount} of {selectedRows.size} selected will be updated{selectedRows.size > applyCount && ` (${selectedRows.size - applyCount} have no price)`}
               {suppliers.length > 0 && (
                 <span className="ml-2">&middot; <span className="text-green-600 dark:text-green-400 font-medium">Green</span> = highest price</span>
               )}
@@ -883,7 +1093,7 @@ export default function PriceComparisonSheet({
                 <X className="h-4 w-4 mr-1" />
                 Cancel
               </Button>
-              <Button onClick={handleApply} disabled={applyCount === 0 || applying}>
+              <Button variant="outline" onClick={() => handleApply(true)} disabled={applyCount === 0 || applying}>
                 {applying ? (
                   <>
                     <Spinner size={16} className="mr-1" />
@@ -892,7 +1102,20 @@ export default function PriceComparisonSheet({
                 ) : (
                   <>
                     <Check className="h-4 w-4 mr-1" />
-                    Apply {applyCount} Price{applyCount !== 1 ? "s" : ""}
+                    Apply &amp; Keep Open
+                  </>
+                )}
+              </Button>
+              <Button onClick={() => handleApply(false)} disabled={applyCount === 0 || applying}>
+                {applying ? (
+                  <>
+                    <Spinner size={16} className="mr-1" />
+                    Applying...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-1" />
+                    Apply {applyCount} Price{applyCount !== 1 ? "s" : ""} &amp; Close
                   </>
                 )}
               </Button>

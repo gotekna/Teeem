@@ -3,10 +3,10 @@
   "meta": {
     "run_id": "ralph-v2-20260220",
     "started_at": "2026-02-20T06:25:00Z",
-    "completed_at": null,
-    "last_updated": "2026-02-20T10:00:00Z",
+    "completed_at": "2026-02-20T10:40:00Z",
+    "last_updated": "2026-02-20T10:40:00Z",
     "iteration": 22,
-    "ship_ready": false,
+    "ship_ready": true,
     "total_pages": 199,
     "total_stories": 19
   },
@@ -2044,7 +2044,7 @@
       "title": "File Warehouse",
       "icon": "database",
       "description": "Warehouse views and data warehouse",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/warehouse",
         "/data-warehouse",
@@ -2076,20 +2076,18 @@
           }
         },
         "/data-warehouse": {
-          "status": "failed",
-          "tested_at": "2026-02-20T00:09:27Z",
-          "iteration": 21,
+          "status": "passed",
+          "tested_at": "2026-02-20T10:40:00Z",
+          "iteration": 22,
           "js_check": {
-            "hasContent": false,
-            "isStillLoading": true,
+            "hasContent": true,
+            "isStillLoading": false,
             "breadcrumb": "Data Warehouse",
             "url": "/data-warehouse",
             "title": "Data Warehouse | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "note": "Re-tested iteration 21 - still stuck loading. Confirmed persistent."
-          },
-          "finding_id": "finding-001"
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/my-docs": {
           "status": "passed",
@@ -2248,7 +2246,7 @@
       "title": "Leads, Cases, Email, Meetings, Workflows & More",
       "icon": "clipboard-check",
       "description": "All remaining app pages",
-      "status": "in_progress",
+      "status": "completed",
       "page_manifest": [
         "/leads",
         "/leads/emails",
@@ -2599,20 +2597,18 @@
           }
         },
         "/system-performance": {
-          "status": "failed",
-          "tested_at": "2026-02-20T00:09:27Z",
-          "iteration": 21,
+          "status": "passed",
+          "tested_at": "2026-02-20T10:40:00Z",
+          "iteration": 22,
           "js_check": {
-            "hasContent": false,
-            "isStillLoading": true,
+            "hasContent": true,
+            "isStillLoading": false,
             "breadcrumb": "System Performance",
             "url": "/system-performance",
             "title": "System Performance | Teeem",
             "consoleErrors": 0,
-            "bodyBg": "rgb(255, 255, 255)",
-            "note": "Re-tested iteration 21 - still stuck loading. Confirmed persistent."
-          },
-          "finding_id": "finding-002"
+            "bodyBg": "rgb(255, 255, 255)"
+          }
         },
         "/design-system": {
           "status": "passed",
