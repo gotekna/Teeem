@@ -2930,6 +2930,7 @@ Rails.application.routes.draw do
           post :fix_health  # POST /api/v1/foundations/:id/fix_health - Auto-fix health issues
           get :schema  # GET /api/v1/foundations/:id/schema - Column schema for this table
           get :groups  # GET /api/v1/foundations/:id/groups - Server-side group counts by column
+          patch :update_edit_modal_config  # PATCH /api/v1/foundations/:id/update_edit_modal_config - Save edit modal field config
         end
 
         # Column management

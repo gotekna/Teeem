@@ -110,12 +110,15 @@ class XeroContactBatchFetchJob < ApplicationJob
     credential = XeroCredential.find_by(tenant_id: tenant_id)
     Rails.logger.warn("[XeroContactBatchFetch] Auth failed for #{tenant_name}, marking disconnected")
     credential&.mark_disconnected!
-    session.fail!("Auth failed for #{tenant_name} - credential disconnected")
+    # FRC (Feb 2026): Use safe navigation — if ntuples/PG error occurs during
+    # find_by on line 36, session is nil when we reach rescue. Without &., this
+    # raises a second NoMethodError that masks the real error.
+    session&.fail!("Auth failed for #{tenant_name} - credential disconnected")
   rescue StandardError => e
     # FAIL FAST - any unexpected error stops the sync
     Rails.logger.error("[XeroContactBatchFetch] Unexpected error: #{e.class.name}: #{e.message}")
     Rails.logger.error(e.backtrace.first(10).join("\n"))
-    session.fail!("Page #{page} failed: #{e.class.name}: #{e.message}")
+    session&.fail!("Page #{page} failed: #{e.class.name}: #{e.message}")
     raise  # Re-raise for Sentry/error tracking
   end
 

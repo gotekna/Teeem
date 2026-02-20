@@ -219,8 +219,7 @@ function SidebarContent({
           !key.includes("session") &&
           !key.includes("sidebar") &&
           !key.includes("api_url") &&
-          !key.includes("api_environment") &&
-          !key.includes("modal-fields")
+          !key.includes("api_environment")
         ) {
           keysToRemove.push(key);
         }

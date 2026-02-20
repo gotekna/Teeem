@@ -11,7 +11,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -49,7 +49,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { RecordFormField, type ColumnDefinition } from './RecordFormRenderer';
 import type { TableColumn, TableRow } from '../types';
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { updateCachedEditModalConfig } from '../utils/columns-cache';
 
 // Alias for consistency
 type TableRowType = TableRow;
@@ -151,6 +151,9 @@ export interface EditRecordModalProps {
   /** Record being edited */
   record: TableRowType | null;
 
+  /** Edit modal field config from server (tenant-wide, saved on foundations table) */
+  editModalConfig?: { visible_fields?: string[]; field_order?: Record<string, number> };
+
   /** Callback after successful save */
   onSuccess?: () => void;
 
@@ -171,6 +174,7 @@ export function EditRecordModal({
   tableName,
   columns,
   record,
+  editModalConfig,
   onSuccess,
   renderExtraContent,
   onAfterSave,
@@ -187,8 +191,10 @@ export function EditRecordModal({
   const [visibleFields, setVisibleFields] = useState<Set<string>>(new Set());
   const [fieldOrder, setFieldOrder] = useState<Record<string, number>>({});
 
-  // SSoT: localStorage key for persisting field preferences per foundation
-  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
+  // Debounce timer for saving config to server
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether user has made changes (skip save on initial load)
+  const hasUserChangedConfig = useRef(false);
 
   // Filter columns to show in form
   const editableColumns = useMemo(() => {
@@ -204,6 +210,9 @@ export function EditRecordModal({
   // Initialize form data and visibility when record changes
   useEffect(() => {
     if (record && open) {
+      // Reset user-changed flag on open
+      hasUserChangedConfig.current = false;
+
       // Initialize form data from record
       const initialData: Record<string, unknown> = {};
       editableColumns.forEach((col) => {
@@ -211,14 +220,14 @@ export function EditRecordModal({
       });
       setFormData(initialData);
 
-      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
-      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
-      if (saved) {
-        const { visible, order } = saved;
+      // Try to load saved field preferences from server (tenant-wide)
+      const saved = editModalConfig;
+      if (saved && saved.visible_fields && saved.visible_fields.length > 0) {
+        const { visible_fields, field_order } = saved;
         // Validate that saved fields still exist in current columns
         const validVisible = new Set<string>();
         const columnKeys = new Set(editableColumns.map(c => c.key));
-        (visible || []).forEach((key: string) => {
+        visible_fields.forEach((key: string) => {
           if (columnKeys.has(key)) validVisible.add(key);
         });
         // Only use saved if we have valid visible fields
@@ -227,7 +236,7 @@ export function EditRecordModal({
           // Merge saved order with current columns (new columns get high order)
           const mergedOrder: Record<string, number> = {};
           editableColumns.forEach((col, idx) => {
-            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+            mergedOrder[col.key] = field_order?.[col.key] ?? (idx + 100);
           });
           setFieldOrder(mergedOrder);
           return; // Skip default initialization
@@ -252,18 +261,35 @@ export function EditRecordModal({
       });
       setFieldOrder(initialOrder);
     }
-  }, [record, open, editableColumns, storageKey]);
+  }, [record, open, editableColumns, editModalConfig]);
 
-  // Save field preferences to localStorage when they change (SSoT: storage-utils)
+  // Save field preferences to server (debounced) when user changes config
   useEffect(() => {
-    if (open && visibleFields.size > 0) {
-      const data = {
-        visible: Array.from(visibleFields),
-        order: fieldOrder,
+    if (!open || visibleFields.size === 0 || !hasUserChangedConfig.current) return;
+
+    // Clear previous timer
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    // Debounce: save 800ms after last change (avoids rapid API calls during field toggling)
+    saveTimerRef.current = setTimeout(() => {
+      const config = {
+        visible_fields: Array.from(visibleFields),
+        field_order: fieldOrder,
       };
-      setStorageItem(storageKey, data);
-    }
-  }, [visibleFields, fieldOrder, storageKey, open]);
+      // Update local cache immediately so next modal open uses new config
+      updateCachedEditModalConfig(foundationId, config);
+      // Persist to server (tenant-wide)
+      api.patch(`/api/v1/foundations/${foundationId}/update_edit_modal_config`, {
+        edit_modal_config: config,
+      }).catch((err: unknown) => {
+        console.error('[EditRecordModal] Failed to save field config:', err);
+      });
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [visibleFields, fieldOrder, foundationId, open]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -289,6 +315,7 @@ export function EditRecordModal({
       reorderedColumns.forEach((col, idx) => {
         newOrder[col.key] = idx + 1;
       });
+      hasUserChangedConfig.current = true;
       setFieldOrder(newOrder);
     }
   }, [editableColumns]);
@@ -304,6 +331,7 @@ export function EditRecordModal({
 
   // Toggle field visibility
   const toggleFieldVisibility = useCallback((columnKey: string) => {
+    hasUserChangedConfig.current = true;
     setVisibleFields((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(columnKey)) {
@@ -317,16 +345,19 @@ export function EditRecordModal({
 
   // Update field order
   const updateFieldOrder = useCallback((columnKey: string, order: number) => {
+    hasUserChangedConfig.current = true;
     setFieldOrder((prev) => ({ ...prev, [columnKey]: order }));
   }, []);
 
   // Show all fields
   const showAllFields = useCallback(() => {
+    hasUserChangedConfig.current = true;
     setVisibleFields(new Set(editableColumns.map((c) => c.key)));
   }, [editableColumns]);
 
   // Hide all fields
   const hideAllFields = useCallback(() => {
+    hasUserChangedConfig.current = true;
     setVisibleFields(new Set());
   }, []);
 
@@ -361,7 +392,7 @@ export function EditRecordModal({
       console.error("Failed to update record:", error);
       toast({
         title: "Error",
-        description: "Failed to update record. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to update record. Please try again.",
         variant: "destructive",
       });
     } finally {

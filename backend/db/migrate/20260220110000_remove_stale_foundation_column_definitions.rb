@@ -5,19 +5,37 @@
 # errors in RecordsController when users filtered or sorted on those columns.
 #
 # Stale columns identified via Sentry (all reported as PG::UndefinedColumn):
-#   external_invoices.xero_tenant_id    → was renamed to xero_org_id
-#   synced_emails.mailbox_email         → was renamed to mailbox_owner_email
-#   xero_sync_sessions.xero_tenant_id  → column never existed in this table
-#   purchase_orders.position            → column was removed
-#   pricebooks.supplier_contact_id      → was renamed to supplier_id
+#   external_invoices.xero_tenant_id         → was renamed to xero_org_id
+#   external_invoices.xero_contact_id        → column is external_contact_id or contact_id
+#   synced_emails.mailbox_email              → was renamed to mailbox_owner_email
+#   xero_sync_sessions.xero_tenant_id       → column never existed in this table
+#   purchase_orders.position                 → column was removed
+#   purchase_orders.xero_id                  → was renamed to xero_invoice_id
+#   pricebooks.supplier_contact_id           → was renamed to supplier_id
+#   pricebooks.category                      → was renamed to category_id (FK)
+#   contact_relationships.from_contact_id    → was renamed to source_contact_id
+#   warehouse_folders.scope                  → column never existed
+#   imap_credentials.organization_id         → column never existed (uses user_id)
+#   column_type_definitions.column_type      → was renamed to type_key
+#   columns.key                              → was renamed to column_name
+#   contacts.status                          → column never existed (use is_active or state)
 class RemoveStaleFoundationColumnDefinitions < ActiveRecord::Migration[7.2]
   # Pairs of [foundation_database_table_name, stale_column_name]
   STALE_COLUMNS = [
-    ["external_invoices",  "xero_tenant_id"],
-    ["synced_emails",      "mailbox_email"],
-    ["xero_sync_sessions", "xero_tenant_id"],
-    ["purchase_orders",    "position"],
-    ["pricebooks",         "supplier_contact_id"]
+    ["external_invoices",         "xero_tenant_id"],
+    ["external_invoices",         "xero_contact_id"],
+    ["synced_emails",             "mailbox_email"],
+    ["xero_sync_sessions",        "xero_tenant_id"],
+    ["purchase_orders",           "position"],
+    ["purchase_orders",           "xero_id"],
+    ["pricebooks",                "supplier_contact_id"],
+    ["pricebooks",                "category"],
+    ["contact_relationships",     "from_contact_id"],
+    ["warehouse_folders",         "scope"],
+    ["imap_credentials",          "organization_id"],
+    ["column_type_definitions",   "column_type"],
+    ["columns",                   "key"],
+    ["contacts",                  "status"]
   ].freeze
 
   def up

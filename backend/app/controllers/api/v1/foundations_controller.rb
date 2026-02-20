@@ -4,7 +4,7 @@ module Api
       include CacheConstants
 
       skip_before_action :authorize_request, only: [ :table_ids ]
-      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups ]
+      before_action :set_foundation, only: [ :show, :update, :destroy, :health, :fix_health, :schema, :groups, :update_edit_modal_config ]
 
       # GET /api/v1/foundations
       # Performance: Use include_counts=true to include record counts (adds 141 COUNT queries)
@@ -646,6 +646,28 @@ module Api
         end
       end
 
+      # PATCH /api/v1/foundations/:id/update_edit_modal_config
+      # Saves edit modal field config (visible fields + order) tenant-wide
+      def update_edit_modal_config
+        config = params[:edit_modal_config]
+        unless config.is_a?(ActionController::Parameters) || config.is_a?(Hash)
+          return render json: { success: false, error: "edit_modal_config is required" }, status: :bad_request
+        end
+
+        # Build sanitized config - visible_fields is an array, field_order is a dynamic key hash
+        sanitized = {}
+        if config[:visible_fields].is_a?(Array)
+          sanitized["visible_fields"] = config[:visible_fields].map(&:to_s)
+        end
+        if config[:field_order].is_a?(ActionController::Parameters) || config[:field_order].is_a?(Hash)
+          sanitized["field_order"] = config[:field_order].to_unsafe_h.transform_values(&:to_i)
+        end
+
+        @foundation.update!(edit_modal_config: sanitized)
+
+        render json: { success: true, edit_modal_config: @foundation.edit_modal_config }
+      end
+
       # GET /api/v1/foundations/table_ids
       # Returns a mapping of slug -> id for key tables
       # Used by frontend to avoid hardcoding table IDs
@@ -913,7 +935,8 @@ module Api
           feature: foundation.feature,
           api_endpoint: foundation.api_endpoint,
           created_at: foundation.created_at,
-          updated_at: foundation.updated_at
+          updated_at: foundation.updated_at,
+          edit_modal_config: foundation.edit_modal_config
         }
 
         if include_columns

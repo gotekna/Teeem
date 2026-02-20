@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_20_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_20_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -3329,6 +3329,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_130000) do
     t.decimal "compliance_score", precision: 5, scale: 2
     t.datetime "compliance_checked_at"
     t.jsonb "non_compliant_columns", default: []
+    t.jsonb "edit_modal_config", default: {}
     t.index ["compliance_score"], name: "index_foundations_on_compliance_score"
     t.index ["database_table_name"], name: "index_foundations_on_database_table_name", unique: true
     t.index ["model_class"], name: "index_foundations_on_model_class"

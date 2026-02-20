@@ -27,6 +27,11 @@ export interface ApiColumn {
  * Foundation metadata
  * Represents a table/entity in the system
  */
+export interface EditModalConfig {
+  visible_fields?: string[];
+  field_order?: Record<string, number>;
+}
+
 export interface Foundation {
   id: number;
   name: string;
@@ -36,4 +41,5 @@ export interface Foundation {
   database_table_name?: string;
   api_endpoint?: string;
   columns: ApiColumn[];
+  edit_modal_config?: EditModalConfig;
 }

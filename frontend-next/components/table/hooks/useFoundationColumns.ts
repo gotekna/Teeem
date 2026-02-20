@@ -16,6 +16,7 @@ import {
   fetchColumnsForFoundation,
 } from '../utils/columns-cache';
 import type { TableColumn } from '../types';
+import type { EditModalConfig } from '@/lib/types/foundation';
 import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 
 export interface FoundationInfo {
@@ -39,6 +40,8 @@ export interface UseFoundationColumnsReturn {
   isLoading: boolean;
   /** Resolved foundation info (id and slug) */
   foundationInfo: FoundationInfo | null;
+  /** Edit modal field config (saved server-side, tenant-wide) */
+  editModalConfig?: EditModalConfig;
 }
 
 export function useFoundationColumns(
@@ -52,6 +55,7 @@ export function useFoundationColumns(
   );
   const [isLoading, setIsLoading] = useState(false);
   const [foundationInfo, setFoundationInfo] = useState<FoundationInfo | null>(null);
+  const [editModalConfig, setEditModalConfig] = useState<EditModalConfig | undefined>(undefined);
 
   useEffect(() => {
     // SSR: Skip client fetch if server provided columns
@@ -72,6 +76,7 @@ export function useFoundationColumns(
     if (cached) {
       setColumns(cached.columns);
       setFoundationInfo(cached.foundationInfo);
+      setEditModalConfig(cached.editModalConfig);
       setIsLoading(false);
       return;
     }
@@ -84,6 +89,7 @@ export function useFoundationColumns(
         if (result) {
           setColumns(result.columns);
           setFoundationInfo(result.foundationInfo);
+          setEditModalConfig(result.editModalConfig);
 
           // SSoT VIOLATION: Alert if parent passed hardcoded columns when Foundation exists
           if (propColumns && propColumns.length > 0 && result.columns.length > 0) {
@@ -159,5 +165,6 @@ export function useFoundationColumns(
     columns,
     isLoading,
     foundationInfo,
+    editModalConfig,
   };
 }

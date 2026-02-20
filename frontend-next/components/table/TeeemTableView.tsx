@@ -854,6 +854,7 @@ export default function TeeemTableView({
     columns: foundationColumns,
     isLoading: columnsLoading,
     foundationInfo: resolvedFoundation,
+    editModalConfig,
   } = useFoundationColumns({
     foundationId: effectiveFoundationId,
     initialColumns,
@@ -2300,7 +2301,7 @@ export default function TeeemTableView({
       console.error("Failed to delete record:", err);
       toast({
         title: "Error",
-        description: "Failed to delete record. Please try again.",
+        description: err instanceof Error ? err.message : "Failed to delete record. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -6567,6 +6568,7 @@ export default function TeeemTableView({
             foundationId={effectiveFoundationId}
             tableName={tableName}
             columns={COLUMNS}
+            editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowAddRecordModal(false);
               // Refresh data - both internal (autoFetch) and external (parent callback)
@@ -6585,6 +6587,7 @@ export default function TeeemTableView({
             tableName={tableName}
             columns={COLUMNS}
             record={selectedRecordForModal}
+            editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowEditRecordModal(false);
               setSelectedRecordForModal(null);

@@ -55,7 +55,7 @@ import {
 import type { TableColumn } from "./types";
 import { isSystemGeneratedType, SYSTEM_VISIBLE_COLUMNS } from "@/lib/constants/system-columns";
 import { isLookupColumn } from "@/lib/constants/column-types";
-import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { updateCachedEditModalConfig } from './utils/columns-cache';
 import type { LookupOption } from "./utils/lookup-cache";
 import { DocumentTypeLinker, type LinkedDocumentType, type DocumentType } from "@/components/schedule-master/DocumentTypeLinker";
 
@@ -65,6 +65,7 @@ interface CreateRecordDialogProps {
   foundationId: number | string;
   tableName: string;
   columns: TableColumn[];
+  editModalConfig?: { visible_fields?: string[]; field_order?: Record<string, number> };
   onSuccess?: () => void;
   renderExtraContent?: () => React.ReactNode;
   onAfterSave?: (record: Record<string, unknown>) => Promise<void>;
@@ -187,6 +188,7 @@ export function CreateRecordDialog({
   foundationId,
   tableName,
   columns,
+  editModalConfig,
   onSuccess,
   renderExtraContent,
   onAfterSave,
@@ -203,8 +205,10 @@ export function CreateRecordDialog({
   const [linkedDocumentTypes, setLinkedDocumentTypes] = useState<LinkedDocumentType[]>([]);
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentType[]>([]);
 
-  // SSoT: localStorage key for persisting field preferences per foundation
-  const storageKey = `${STORAGE_KEYS.MODAL_FIELDS_PREFIX}${foundationId}`;
+  // Debounce timer for saving config to server
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track whether user has made changes (skip save on initial load)
+  const hasUserChangedConfig = React.useRef(false);
 
   // Detect if this is a Schedule Master foundation (supports document type linking)
   const isScheduleMaster = useMemo(() => {
@@ -267,14 +271,17 @@ export function CreateRecordDialog({
   // Initialize visible fields and order on first render or when columns change
   React.useEffect(() => {
     if (filteredColumns.length > 0 && visibleFields.size === 0) {
-      // Try to load saved field preferences from localStorage (SSoT: storage-utils)
-      const saved = getStorageItem<{ visible?: string[]; order?: Record<string, number> } | null>(storageKey, null);
-      if (saved) {
-        const { visible, order } = saved;
+      // Reset user-changed flag on init
+      hasUserChangedConfig.current = false;
+
+      // Try to load saved field preferences from server (tenant-wide)
+      const saved = editModalConfig;
+      if (saved && saved.visible_fields && saved.visible_fields.length > 0) {
+        const { visible_fields, field_order } = saved;
         // Validate that saved fields still exist in current columns
         const validVisible = new Set<string>();
         const columnKeys = new Set(filteredColumns.map(c => c.key));
-        (visible || []).forEach((key: string) => {
+        visible_fields.forEach((key: string) => {
           if (columnKeys.has(key)) validVisible.add(key);
         });
         // Also add any required fields that might be missing from saved preferences
@@ -286,7 +293,7 @@ export function CreateRecordDialog({
           // Merge saved order with current columns (new columns get high order)
           const mergedOrder: Record<string, number> = {};
           filteredColumns.forEach((col, idx) => {
-            mergedOrder[col.key] = order?.[col.key] ?? (idx + 100);
+            mergedOrder[col.key] = field_order?.[col.key] ?? (idx + 100);
           });
           setFieldOrder(mergedOrder);
           return; // Skip default initialization
@@ -318,18 +325,33 @@ export function CreateRecordDialog({
       });
       setFieldOrder(initialOrder);
     }
-  }, [filteredColumns, visibleFields.size, storageKey]);
+  }, [filteredColumns, visibleFields.size, editModalConfig]);
 
-  // Save field preferences to localStorage when they change (SSoT: storage-utils)
+  // Save field preferences to server (debounced) when user changes config
   useEffect(() => {
-    if (visibleFields.size > 0) {
-      const data = {
-        visible: Array.from(visibleFields),
-        order: fieldOrder,
+    if (visibleFields.size === 0 || !hasUserChangedConfig.current) return;
+
+    // Clear previous timer
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    // Debounce: save 800ms after last change
+    saveTimerRef.current = setTimeout(() => {
+      const config = {
+        visible_fields: Array.from(visibleFields),
+        field_order: fieldOrder,
       };
-      setStorageItem(storageKey, data);
-    }
-  }, [visibleFields, fieldOrder, storageKey]);
+      updateCachedEditModalConfig(foundationId, config);
+      api.patch(`/api/v1/foundations/${foundationId}/update_edit_modal_config`, {
+        edit_modal_config: config,
+      }).catch((err: unknown) => {
+        console.error('[CreateRecordDialog] Failed to save field config:', err);
+      });
+    }, 800);
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [visibleFields, fieldOrder, foundationId]);
 
   // Update visible fields when entity_type changes (Contacts only)
   React.useEffect(() => {
@@ -437,6 +459,7 @@ export function CreateRecordDialog({
 
   // Toggle field visibility and auto-reorder so visible fields are at the top
   const toggleFieldVisibility = (columnKey: string) => {
+    hasUserChangedConfig.current = true;
     const newVisible = new Set(visibleFields);
     const wasVisible = newVisible.has(columnKey);
 
@@ -462,16 +485,19 @@ export function CreateRecordDialog({
 
   // Update field order
   const updateFieldOrder = (columnKey: string, order: number) => {
+    hasUserChangedConfig.current = true;
     setFieldOrder((prev) => ({ ...prev, [columnKey]: order }));
   };
 
   // Show all fields (keeps current order since all are visible)
   const showAllFields = () => {
+    hasUserChangedConfig.current = true;
     setVisibleFields(new Set(filteredColumns.map((col) => col.key)));
   };
 
   // Hide all fields (keeps current order)
   const hideAllFields = () => {
+    hasUserChangedConfig.current = true;
     setVisibleFields(new Set());
   };
 
@@ -480,6 +506,7 @@ export function CreateRecordDialog({
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
+      hasUserChangedConfig.current = true;
       const sortedCols = getSortedColumns();
       const oldIndex = sortedCols.findIndex((c) => c.key === active.id);
       const newIndex = sortedCols.findIndex((c) => c.key === over.id);
@@ -898,7 +925,7 @@ export function CreateRecordDialog({
       console.error("Failed to create record:", error);
       toast({
         title: "Error",
-        description: "Failed to create record. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to create record. Please try again.",
         variant: "destructive",
       });
     } finally {
