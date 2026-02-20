@@ -334,10 +334,13 @@ module Api
           return { status: "not_configured", message: "ANTHROPIC_API_KEY not set" }
         end
 
-        # Quick connectivity test
+        # Quick connectivity test with 5s timeout to prevent blocking the health endpoint
         begin
           require "anthropic"
-          client = Anthropic::Client.new(access_token: api_key)
+          client = Anthropic::Client.new(
+            access_token: api_key,
+            request_timeout: 5
+          )
           # Make a minimal test call
           response = client.messages(
             parameters: {

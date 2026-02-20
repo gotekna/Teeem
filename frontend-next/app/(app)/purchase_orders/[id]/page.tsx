@@ -1701,10 +1701,15 @@ export default function PurchaseOrderDetailPage() {
                           <button
                             className="inline-flex items-center gap-1 text-xs mx-3 mb-1 px-1.5 py-0.5 rounded bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-700 transition-colors cursor-pointer"
                             onClick={() => {
-                              setPriceComparisonItemIds([item.pricebook_item_id!]);
+                              // Load ALL PO line items so user can compare full supplier coverage
+                              const allPbIds = lineItems
+                                .filter((li) => !li._destroy && li.pricebook_item_id)
+                                .map((li) => li.pricebook_item_id!);
+                              const uniqueIds = [...new Set(allPbIds)];
+                              setPriceComparisonItemIds(uniqueIds);
                               setPriceComparisonOpen(true);
                             }}
-                            title="Compare prices from other suppliers for this item"
+                            title="Compare prices from all suppliers for all PO items"
                           >
                             <BarChart3 className="h-3 w-3" />
                             Compare Prices
@@ -2296,8 +2301,16 @@ export default function PurchaseOrderDetailPage() {
         onOpenChange={setPriceComparisonOpen}
         selectedIds={priceComparisonItemIds}
         includeSupplierIds={selectedSupplier ? [selectedSupplier.id] : undefined}
+        currentSupplierLabel="PO supplier"
         clearSelection={() => setPriceComparisonItemIds([])}
         onRefresh={() => {}}
+        onUpdateSupplier={(supplierId, supplierName) => {
+          setSelectedSupplier({
+            id: supplierId,
+            display_name: supplierName,
+          });
+          setPriceComparisonOpen(false);
+        }}
       />
     </div>
   );

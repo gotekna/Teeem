@@ -21,7 +21,7 @@
 #
 class TenantConfigSyncService
   # SSoT: Configuration tables available for sync
-  # Groups for UI organization: jobs, documents, contacts, schedule, pricebook, operations
+  # Groups for UI organization: jobs, documents, contacts, schedule, pricebook, operations, po_templates
   CONFIG_TABLES = {
     # ============================================================================
     # Jobs Group
@@ -33,7 +33,10 @@ class TenantConfigSyncService
       sync_fields: [:name, :color, :icon, :description, :is_active, :position,
                     :sm_schedule_master_template_id],
       description: "Job type classifications",
-      group: "jobs"
+      group: "jobs",
+      remap_fks: {
+        sm_schedule_master_template_id: { model: "SmScheduleMasterTemplate", match_field: :name }
+      }
     },
     job_statuses: {
       model: "JobStatus",
@@ -376,21 +379,25 @@ class TenantConfigSyncService
       model: "PoTemplatePack",
       name_field: :name,
       match_fields: [:name],
-      sync_fields: [:name, :description, :is_active, :position],
+      sync_fields: [:name, :description, :is_active, :position, :sm_schedule_master_template_id],
       description: "PO template pack definitions",
-      group: "operations"
+      group: "po_templates",
+      remap_fks: {
+        sm_schedule_master_template_id: { model: "SmScheduleMasterTemplate", match_field: :name }
+      }
     },
     po_template_items: {
       model: "PoTemplateItem",
       name_field: :name,
       match_fields: [:po_template_pack_id, :name],
       sync_fields: [:po_template_pack_id, :name, :sm_schedule_master_id, :supplier_sync_key,
-                    :position, :budget, :notes, :status_on_create],
+                    :position, :budget, :notes, :status_on_create, :profit_centre_id],
       description: "PO template pack items (individual PO definitions)",
-      group: "operations",
+      group: "po_templates",
       remap_fks: {
         po_template_pack_id: { model: "PoTemplatePack", match_field: :name },
-        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key }
+        sm_schedule_master_id: { model: "SmScheduleMaster", match_field: :sync_key },
+        profit_centre_id: { model: "ProfitCentre", match_field: :code }
       }
     },
     po_template_line_items: {
@@ -400,7 +407,7 @@ class TenantConfigSyncService
       sync_fields: [:po_template_item_id, :pricebook_item_code, :description, :quantity,
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
-      group: "operations",
+      group: "po_templates",
       remap_fks: {
         po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
       }
@@ -582,6 +589,7 @@ class TenantConfigSyncService
     "schedule" => "Schedule Master",
     "pricebook" => "Pricebook",
     "operations" => "Operations",
+    "po_templates" => "PO Templates",
     "estimating" => "Estimating",
     "finance" => "Finance",
     "warehouse" => "Warehouse",

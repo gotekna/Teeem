@@ -70,6 +70,10 @@ interface PriceComparisonSheetProps {
   onRefresh: () => void;
   /** Optional supplier IDs to always include as columns (even if they have no prices for the items) */
   includeSupplierIds?: number[];
+  /** Callback to update the PO supplier from comparison view. Supplier id + name passed. */
+  onUpdateSupplier?: (supplierId: number, supplierName: string) => void;
+  /** Label for the current PO supplier column (shows which supplier is currently selected) */
+  currentSupplierLabel?: string;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -154,6 +158,8 @@ export default function PriceComparisonSheet({
   clearSelection,
   onRefresh,
   includeSupplierIds,
+  onUpdateSupplier,
+  currentSupplierLabel,
 }: PriceComparisonSheetProps) {
   const { toast } = useToast();
 
@@ -164,6 +170,7 @@ export default function PriceComparisonSheet({
   const [priceOnlyContacts, setPriceOnlyContacts] = useState<PriceOnlyContact[]>([]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [selectedPrices, setSelectedPrices] = useState<Record<number, string>>({});
+  const [selectedPriceSource, setSelectedPriceSource] = useState<Record<number, number>>({});
   const [selectedPriceOnlyContact, setSelectedPriceOnlyContact] = useState<Record<number, string>>({});
   const [selectedLga, setSelectedLga] = useState<Record<number, string[]>>({});
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -250,6 +257,7 @@ export default function PriceComparisonSheet({
       setPriceOnlyContacts([]);
       setSelectedRows(new Set());
       setSelectedPrices({});
+      setSelectedPriceSource({});
       setSelectedPriceOnlyContact({});
       setSelectedLga({});
       setEffectiveDate(new Date().toISOString().split("T")[0]);
@@ -278,8 +286,11 @@ export default function PriceComparisonSheet({
     setSelectedPrices(prev => ({ ...prev, [itemId]: value }));
   }, []);
 
-  const selectSupplierPrice = useCallback((itemId: number, price: number) => {
+  const selectSupplierPrice = useCallback((itemId: number, price: number, supplierId: number) => {
     setSelectedPrices(prev => ({ ...prev, [itemId]: price.toFixed(2) }));
+    setSelectedPriceSource(prev => ({ ...prev, [itemId]: supplierId }));
+    // Auto-fill "Record For" with the clicked supplier
+    setSelectedPriceOnlyContact(prev => ({ ...prev, [itemId]: String(supplierId) }));
     // Also make sure the row is selected
     setSelectedRows(prev => {
       const next = new Set(prev);
@@ -346,11 +357,71 @@ export default function PriceComparisonSheet({
     });
   }, [adjustmentPercent, roundingMode, selectedRows]);
 
-  // ComboboxDropdown items for price_only contacts
-  const poComboItems = useMemo<ComboboxItem[]>(
-    () => priceOnlyContacts.map(poc => ({ id: String(poc.id), label: poc.name })),
-    [priceOnlyContacts]
-  );
+  // "Use All Prices" from a single supplier - selects that supplier's price + sets Record For for every row
+  const useAllPricesFromSupplier = useCallback((supplierId: number, supplierName: string) => {
+    const newPrices = { ...selectedPrices };
+    const newSources = { ...selectedPriceSource };
+    const newContacts = { ...selectedPriceOnlyContact };
+    const newRows = new Set(selectedRows);
+
+    for (const item of items) {
+      const sp = item.prices[String(supplierId)];
+      if (sp) {
+        newPrices[item.id] = sp.price.toFixed(2);
+        newSources[item.id] = supplierId;
+        newContacts[item.id] = String(supplierId);
+        newRows.add(item.id);
+      }
+    }
+
+    setSelectedPrices(newPrices);
+    setSelectedPriceSource(newSources);
+    setSelectedPriceOnlyContact(newContacts);
+    setSelectedRows(newRows);
+    toast({ title: `Selected all prices from ${supplierName}` });
+  }, [items, selectedPrices, selectedPriceSource, selectedPriceOnlyContact, selectedRows, toast]);
+
+  // Bulk set default supplier for all selected items
+  const [settingDefault, setSettingDefault] = useState(false);
+  const bulkSetDefault = useCallback(async (supplierId: number, supplierName: string) => {
+    const itemIds = Array.from(selectedRows);
+    if (itemIds.length === 0) return;
+
+    setSettingDefault(true);
+    try {
+      const response = await api.post<{ success: boolean; updated_count: number }>(
+        "/api/v1/pricebook/bulk_set_default_supplier",
+        { pricebook_item_ids: itemIds, supplier_id: supplierId }
+      );
+      if (response?.success) {
+        toast({ title: `Set ${supplierName} as default supplier for ${response.updated_count} items` });
+      }
+    } catch (err) {
+      console.error("Failed to set default supplier:", err);
+      toast({
+        title: "Failed to Set Default Supplier",
+        description: err instanceof Error ? err.message : "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setSettingDefault(false);
+    }
+  }, [selectedRows, toast]);
+
+  // ComboboxDropdown items: merge comparison suppliers + price_only contacts (deduped)
+  const supplierComboItems = useMemo<ComboboxItem[]>(() => {
+    const seen = new Set<string>();
+    const items: ComboboxItem[] = [];
+    for (const s of suppliers) {
+      const key = String(s.id);
+      if (!seen.has(key)) { seen.add(key); items.push({ id: key, label: s.name }); }
+    }
+    for (const poc of priceOnlyContacts) {
+      const key = String(poc.id);
+      if (!seen.has(key)) { seen.add(key); items.push({ id: key, label: poc.name }); }
+    }
+    return items;
+  }, [suppliers, priceOnlyContacts]);
 
   // Count of rows with valid selected prices
   const applyCount = useMemo(() => {
@@ -561,16 +632,47 @@ export default function PriceComparisonSheet({
                     <th className="text-left p-2 min-w-[140px] font-medium">
                       Default Supplier
                     </th>
-                    {suppliers.map(s => (
-                      <th key={s.id} className="text-right p-2 min-w-[120px] font-medium">
-                        <div className="flex flex-col items-end">
-                          <span>{s.name}</span>
-                          {s.priceOnly && (
-                            <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
-                          )}
-                        </div>
-                      </th>
-                    ))}
+                    {suppliers.map(s => {
+                      const isCurrentPOSupplier = includeSupplierIds?.includes(s.id);
+                      return (
+                        <th key={s.id} className={`text-right p-2 min-w-[120px] font-medium ${isCurrentPOSupplier ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}>
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span>{s.name}</span>
+                            {s.priceOnly && (
+                              <span className="text-[10px] font-normal text-orange-500 dark:text-orange-400">price only</span>
+                            )}
+                            {isCurrentPOSupplier && (
+                              <span className="text-[10px] font-normal text-blue-600 dark:text-blue-400">
+                                {currentSupplierLabel || "PO supplier"}
+                              </span>
+                            )}
+                            <div className="flex flex-col items-end gap-px mt-0.5">
+                              <button
+                                className="text-[10px] font-normal text-primary hover:underline cursor-pointer"
+                                onClick={() => useAllPricesFromSupplier(s.id, s.name)}
+                              >
+                                Use All Prices
+                              </button>
+                              <button
+                                className="text-[10px] font-normal text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                                disabled={settingDefault}
+                                onClick={() => bulkSetDefault(s.id, s.name)}
+                              >
+                                Set as Default
+                              </button>
+                              {onUpdateSupplier && !isCurrentPOSupplier && !s.priceOnly && (
+                                <button
+                                  className="text-[10px] font-normal text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                                  onClick={() => onUpdateSupplier(s.id, s.name)}
+                                >
+                                  Set as PO Supplier
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </th>
+                      );
+                    })}
                     <th className="text-right p-2 min-w-[130px] font-medium border-l">
                       Selected Price
                     </th>
@@ -590,13 +692,13 @@ export default function PriceComparisonSheet({
                     </th>
                     <th className="text-left p-2 min-w-[200px] sticky right-0 bg-background z-20 font-medium border-l">
                       <div className="flex flex-col gap-1">
-                        <span>Price Only Contact</span>
-                        {priceOnlyContacts.length > 0 && selectedRows.size > 0 ? (
+                        <span>Record For</span>
+                        {supplierComboItems.length > 0 && selectedRows.size > 0 ? (
                           <div className="font-normal">
                             <ComboboxDropdown
-                              items={poComboItems}
+                              items={supplierComboItems}
                               placeholder={`Set all ${selectedRows.size} selected...`}
-                              searchPlaceholder="Search contacts..."
+                              searchPlaceholder="Search suppliers..."
                               onSelect={(item) => massSetPriceOnly(item.id)}
                               clearable
                               onClear={() => massSetPriceOnly("__clear__")}
@@ -645,14 +747,15 @@ export default function PriceComparisonSheet({
                           const isHighest = item.highestSupplierId === s.id && supplierPrice;
                           const isDefault = item.defaultSupplierId === s.id;
                           const isPriceOnly = item.priceOnlySupplierId === s.id;
+                          const isCurrentPOSupplier = includeSupplierIds?.includes(s.id);
 
                           return (
                             <td
                               key={s.id}
                               className={`p-2 text-right cursor-pointer hover:bg-primary/10 transition-colors ${
                                 isHighest ? "font-semibold text-green-600 dark:text-green-400" : ""
-                              } ${isPriceOnly ? "bg-orange-50 dark:bg-orange-950/30" : ""}`}
-                              onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price)}
+                              } ${isPriceOnly ? "bg-orange-50 dark:bg-orange-950/30" : ""} ${isCurrentPOSupplier ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
+                              onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price, s.id)}
                               title={
                                 supplierPrice
                                   ? `Click to select ${formatCurrency(supplierPrice.price)}${supplierPrice.dateEffective ? ` (effective ${supplierPrice.dateEffective})` : ""}${isDefault ? " (default supplier)" : ""}${isPriceOnly ? " (current price only)" : ""}`
@@ -704,19 +807,19 @@ export default function PriceComparisonSheet({
                           />
                         </td>
                         <td className="p-2 sticky right-0 bg-background border-l">
-                          {priceOnlyContacts.length > 0 ? (
+                          {supplierComboItems.length > 0 ? (
                             <ComboboxDropdown
-                              items={poComboItems}
-                              placeholder="No price only"
-                              searchPlaceholder="Search contacts..."
-                              selectedItem={poComboItems.find(i => i.id === selectedPoContact)}
+                              items={supplierComboItems}
+                              placeholder="Select supplier..."
+                              searchPlaceholder="Search suppliers..."
+                              selectedItem={supplierComboItems.find(i => i.id === selectedPoContact)}
                               onSelect={(selected) => setPriceOnlyForItem(item.id, selected.id)}
                               clearable
                               onClear={() => setPriceOnlyForItem(item.id, "")}
                               className="h-8 text-xs"
                             />
                           ) : (
-                            <span className="text-xs text-muted-foreground/40">No price only contacts</span>
+                            <span className="text-xs text-muted-foreground/40">No suppliers available</span>
                           )}
                         </td>
                       </tr>
