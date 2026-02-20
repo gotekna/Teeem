@@ -67,6 +67,8 @@ export interface UseRowEditingOptions {
   setRecords?: React.Dispatch<React.SetStateAction<TableRow[]>>;
   /** Callback to pre-fetch lookup options */
   fetchLookupOptions?: (column: TableColumn) => void;
+  /** Current lookup options (for resolving display values in optimistic updates) */
+  lookupOptions?: Record<string, Array<{ id: number | string; display: string }>>;
 }
 
 export interface RowEditingState {
@@ -122,6 +124,7 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
     isEditMode = false,
     setRecords,
     fetchLookupOptions,
+    lookupOptions,
   } = options;
 
   // State from atoms
@@ -387,7 +390,20 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
           setRecords(prev => prev.map(record => {
             const update = rowsToUpdate.find(r => r.rowId === record.id);
             if (update) {
-              return { ...record, ...update.changes };
+              // Resolve lookup column values to {id, display} format for display
+              // Without this, optimistic update overwrites {id, display} with raw ID
+              const resolvedChanges = { ...update.changes };
+              for (const [key, value] of Object.entries(resolvedChanges)) {
+                const col = columns.find(c => c.key === key);
+                if (col && isLookupColumn(col.column_type) && value != null && typeof value !== 'object') {
+                  const opts = lookupOptions?.[key];
+                  const match = opts?.find(o => String(o.id) === String(value));
+                  if (match) {
+                    resolvedChanges[key] = { id: Number(value), display: match.display };
+                  }
+                }
+              }
+              return { ...record, ...resolvedChanges };
             }
             return record;
           }));
@@ -410,7 +426,19 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
           setRecords(prev => prev.map(record => {
             const update = rowsToUpdate.find(r => r.rowId === record.id);
             if (update) {
-              return { ...record, ...update.changes };
+              // Resolve lookup values (same as primary path above)
+              const resolvedChanges = { ...update.changes };
+              for (const [key, value] of Object.entries(resolvedChanges)) {
+                const col = columns.find(c => c.key === key);
+                if (col && isLookupColumn(col.column_type) && value != null && typeof value !== 'object') {
+                  const opts = lookupOptions?.[key];
+                  const match = opts?.find(o => String(o.id) === String(value));
+                  if (match) {
+                    resolvedChanges[key] = { id: Number(value), display: match.display };
+                  }
+                }
+              }
+              return { ...record, ...resolvedChanges };
             }
             return record;
           }));

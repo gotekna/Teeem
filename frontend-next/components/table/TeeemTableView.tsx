@@ -3139,6 +3139,7 @@ export default function TeeemTableView({
     isEditMode,
     setRecords: setAutoFetchedRecords,
     fetchLookupOptions,
+    lookupOptions,
   });
 
   // Aliases for backward compatibility - point to hook actions
