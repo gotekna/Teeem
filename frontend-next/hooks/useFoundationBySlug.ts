@@ -234,6 +234,7 @@ export function useFoundationBySlug(
         width: getDefaultWidth(col.column_name, col.column_type),
         choices: col.available_choices?.map(c => typeof c === 'string' ? c : c.value),
         lookup_foundation_id: col.lookup_foundation_id,
+        lookup_foundation_slug: col.lookup_foundation_slug,
         lookup_display_column: col.lookup_display_column,
         searchable: col.searchable ?? false,
       });

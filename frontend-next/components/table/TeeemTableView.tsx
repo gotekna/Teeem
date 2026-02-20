@@ -3084,7 +3084,8 @@ export default function TeeemTableView({
       }
 
       // Fallback: fetch all records from target foundation (no filtering)
-      const response = await api.get(`/api/v1/foundations/${targetFoundation}/records`);
+      // per_page=1000 to match lookup_options endpoint limit (default is only 50)
+      const response = await api.get(`/api/v1/foundations/${targetFoundation}/records?per_page=1000`);
 
       // Handle various response structures
       let records: Record<string, unknown>[] = [];

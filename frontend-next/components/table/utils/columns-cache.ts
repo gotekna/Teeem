@@ -172,7 +172,7 @@ export async function fetchColumnsForFoundation(
 
       const columns = convertColumnsToTEEEMFormat(
         response.foundation.columns || [],
-        foundationId
+        response.foundation.id
       );
 
       const result: CachedColumns = {
