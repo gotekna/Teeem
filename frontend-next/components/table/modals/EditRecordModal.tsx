@@ -396,7 +396,7 @@ export function EditRecordModal({
         setShowFieldConfig(false);
       }
     }}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto p-6">
+      <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-6">
         <DialogHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div>

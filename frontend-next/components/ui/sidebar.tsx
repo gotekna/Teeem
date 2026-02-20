@@ -208,7 +208,7 @@ function SidebarContent({
         new Promise(resolve => setTimeout(resolve, 3000)),
       ]);
 
-      // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
+      // 3. Clear app localStorage (but not auth, API config, sidebar, or user preferences)
       const keysToRemove: string[] = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -219,7 +219,8 @@ function SidebarContent({
           !key.includes("session") &&
           !key.includes("sidebar") &&
           !key.includes("api_url") &&
-          !key.includes("api_environment")
+          !key.includes("api_environment") &&
+          !key.includes("modal-fields")
         ) {
           keysToRemove.push(key);
         }

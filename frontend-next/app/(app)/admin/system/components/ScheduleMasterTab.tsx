@@ -391,7 +391,7 @@ function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, 
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
         </div>
-        <div className="max-h-48 overflow-y-auto p-1">
+        <div className="max-h-64 overflow-y-auto p-1">
           {filteredTasks.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>
           )}

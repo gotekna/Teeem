@@ -1083,23 +1083,19 @@ module Api
       end
 
       # Translate a virtual column filter that goes through sm_tasks
-      # into a subquery: purchase_orders.sm_task_id IN (SELECT id FROM sm_tasks WHERE column = value)
+      # Uses SQL subquery (not array binding) to avoid flat_map breaking bind variables
+      # when the records controller combines filter conditions via string join.
       def resolve_sm_task_join_filter(sm_task_column, operator, value)
+        conn = ActiveRecord::Base.connection
+        quoted_col = conn.quote_column_name(sm_task_column)
+        subquery = "SELECT id FROM sm_tasks WHERE #{quoted_col} = ?"
+
         case operator
         when "=", "equals"
-          task_ids = SmTask.where(sm_task_column => value).pluck(:id)
-          if task_ids.empty?
-            ["1=0"] # No matching tasks
-          else
-            ["purchase_orders.sm_task_id IN (?)", task_ids]
-          end
+          ["purchase_orders.sm_task_id IN (#{subquery})", value]
         when "is_null"
-          task_ids_with_value = SmTask.where.not(sm_task_column => nil).pluck(:id)
-          if task_ids_with_value.empty?
-            ["1=1"] # All tasks lack this value
-          else
-            ["purchase_orders.sm_task_id IS NULL OR purchase_orders.sm_task_id NOT IN (?)", task_ids_with_value]
-          end
+          not_null_subquery = "SELECT id FROM sm_tasks WHERE #{quoted_col} IS NOT NULL"
+          ["purchase_orders.sm_task_id IS NULL OR purchase_orders.sm_task_id NOT IN (#{not_null_subquery})"]
         end
       end
 
