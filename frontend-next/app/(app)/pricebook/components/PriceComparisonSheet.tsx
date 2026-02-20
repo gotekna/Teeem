@@ -828,8 +828,8 @@ export default function PriceComparisonSheet({
                               />
                             </div>
                             {selectedPriceSource[item.id] != null && (
-                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium truncate max-w-[140px]">
-                                {suppliers.find(s => s.id === selectedPriceSource[item.id])?.name}
+                              <span className="text-[11px] text-muted-foreground truncate max-w-[140px]">
+                                from {suppliers.find(s => s.id === selectedPriceSource[item.id])?.name}
                               </span>
                             )}
                           </div>
