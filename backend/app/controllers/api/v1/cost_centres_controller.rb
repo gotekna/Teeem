@@ -138,7 +138,6 @@ class Api::V1::CostCentresController < ApplicationController
   # Optional param: template_id - filter to tasks belonging to a specific schedule template
   def po_tasks
     tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
-    tasks = tasks.for_template(params[:template_id]) if params[:template_id].present?
 
     # Build a lookup of cost centre names for display
     cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
@@ -152,7 +151,8 @@ class Api::V1::CostCentresController < ApplicationController
           name: t.name,
           taskNumber: t.task_number,
           costCentreId: t.cost_centre,
-          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil
+          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
+          templateIds: t.sm_template_ids || []
         }
       }
     }

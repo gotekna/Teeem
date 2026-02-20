@@ -613,6 +613,53 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Task Groups from Foundation SM Task Groups - for grouping PO and non-PO tasks
   const [availableTaskGroups, setAvailableTaskGroups] = React.useState<{ id: number; name: string }[]>([]);
 
+  // Inline checkbox list for PO tasks (no portals — safe inside Sheet)
+  const PoTaskCheckboxList = React.memo(({ availableOptions, effectiveSelectedIds, onToggle }: {
+    availableOptions: { id: string; label: string }[];
+    effectiveSelectedIds: number[];
+    onToggle: (taskId: number) => void;
+  }) => {
+    const [search, setSearch] = React.useState("");
+    const filtered = search
+      ? availableOptions.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+      : availableOptions;
+    return (
+      <div className="border rounded-md">
+        <div className="p-2 border-b">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search PO tasks..."
+            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          />
+        </div>
+        <div className="max-h-48 overflow-y-auto p-1">
+          {filtered.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>
+          )}
+          {filtered.map((option) => {
+            const isSelected = effectiveSelectedIds.includes(Number(option.id));
+            return (
+              <label
+                key={option.id}
+                className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent ${isSelected ? "bg-accent/50" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => onToggle(Number(option.id))}
+                  className="rounded border-input"
+                />
+                <span className="truncate">{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    );
+  });
+
   // PO Task assignment state for Cost Centres table
   interface POTask {
     id: number;
@@ -620,20 +667,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     taskNumber: number;
     costCentreId: number | null;
     costCentreName: string | null;
+    templateIds: number[];
   }
   const [poTasks, setPoTasks] = React.useState<POTask[]>([]);
   const [poTasksLoaded, setPoTasksLoaded] = React.useState(false);
   const [selectedPoTaskIds, setSelectedPoTaskIds] = React.useState<number[]>([]);
-  const [poTaskTemplateFilter, setPoTaskTemplateFilter] = React.useState<string>("all");
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
+  // Template filter stored in ref (not state) to avoid recreating callbacks and freezing Sheet
+  const poTaskTemplateFilterRef = React.useRef<string>("all");
 
-  // Fetch PO tasks for Cost Centre assignment, optionally filtered by template
-  const fetchPoTasks = React.useCallback(async (templateId?: string) => {
+  // Fetch ALL PO tasks once for Cost Centre assignment (filtered client-side by template)
+  const fetchPoTasks = React.useCallback(async () => {
     try {
-      const url = templateId && templateId !== "all"
-        ? `/api/v1/cost_centres/po_tasks?template_id=${templateId}`
-        : "/api/v1/cost_centres/po_tasks";
-      const data = await api.get<{ success: boolean; data: POTask[] }>(url);
+      const data = await api.get<{ success: boolean; data: POTask[] }>("/api/v1/cost_centres/po_tasks");
       if (data?.data) {
         setPoTasks(data.data);
         setPoTasksLoaded(true);
@@ -643,10 +689,19 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   }, []);
 
-  // Render PO Task picker for Cost Centre create dialog
-  const renderPoTaskPickerForCreate = React.useCallback(() => {
+  // Helper: filter PO tasks by template (client-side, no API call)
+  const filterPoTasksByTemplate = (tasks: POTask[], templateFilter: string): POTask[] => {
+    if (templateFilter === "all") return tasks;
+    const tid = Number(templateFilter);
+    return tasks.filter((t) => t.templateIds.includes(tid));
+  };
+
+  // Shared PO Task picker component rendered inside Sheet dialogs.
+  // Uses a ref for template filter to avoid state changes that recreate the callback and freeze the Sheet.
+  // The native <select> onChange updates the ref and calls setSelectedPoTaskIds to trigger a re-render.
+  const renderPoTaskPicker = React.useCallback((mode: "create" | "edit", recordId?: string | number) => {
     if (!poTasksLoaded) {
-      fetchPoTasks(poTaskTemplateFilter);
+      fetchPoTasks();
       return (
         <div className="py-4 border-t">
           <Label className="text-sm font-medium">PO Tasks</Label>
@@ -655,16 +710,29 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       );
     }
 
-    // FRC (Feb 2026): Detect stale state from cancelled edit session.
-    // If poTasksEditRecordIdRef still holds an edit record ID (not null, not 'create'),
-    // the user edited a Cost Centre then cancelled → selectedPoTaskIds has stale data.
-    // Reset immediately and use empty array for this render to avoid flash of stale tasks.
-    let effectiveSelectedIds = selectedPoTaskIds;
-    if (poTasksEditRecordIdRef.current !== null && poTasksEditRecordIdRef.current !== "create") {
-      poTasksEditRecordIdRef.current = "create";
-      effectiveSelectedIds = [];
-      queueMicrotask(() => setSelectedPoTaskIds([]));
+    if (mode === "create") {
+      // FRC (Feb 2026): Detect stale state from cancelled edit session.
+      if (poTasksEditRecordIdRef.current !== null && poTasksEditRecordIdRef.current !== "create") {
+        poTasksEditRecordIdRef.current = "create";
+        poTaskTemplateFilterRef.current = "all";
+        queueMicrotask(() => setSelectedPoTaskIds([]));
+      }
+    } else if (mode === "edit" && recordId != null) {
+      if (poTasksEditRecordIdRef.current !== recordId) {
+        poTasksEditRecordIdRef.current = recordId;
+        poTaskTemplateFilterRef.current = "all";
+        const assignedIds = poTasks
+          .filter((t) => t.costCentreId === Number(recordId))
+          .map((t) => t.id);
+        setTimeout(() => setSelectedPoTaskIds(assignedIds), 0);
+      }
     }
+
+    const effectiveSelectedIds = (mode === "create" && poTasksEditRecordIdRef.current !== "create")
+      ? [] : selectedPoTaskIds;
+
+    // Filter available tasks by selected template (client-side)
+    const filteredTasks = filterPoTasksByTemplate(poTasks, poTaskTemplateFilterRef.current);
 
     const selectedOptions: ComboboxItem[] = effectiveSelectedIds
       .map((id) => {
@@ -674,9 +742,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       })
       .filter((o): o is ComboboxItem => !!o);
 
-    // Build options: show which cost centre tasks are already assigned to (but allow reassignment)
-    const availableOptions: ComboboxItem[] = poTasks.map((task) => {
-      const isAssignedElsewhere = task.costCentreId != null && !effectiveSelectedIds.includes(task.id);
+    const availableOptions: ComboboxItem[] = filteredTasks.map((task) => {
+      const isAssignedElsewhere = mode === "edit"
+        ? task.costCentreId != null && task.costCentreId !== Number(recordId) && !effectiveSelectedIds.includes(task.id)
+        : task.costCentreId != null && !effectiveSelectedIds.includes(task.id);
       return {
         id: String(task.id),
         label: isAssignedElsewhere
@@ -691,116 +760,60 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         <p className="text-xs text-muted-foreground mt-1 mb-2">
           Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
         </p>
-        <Select
-          value={poTaskTemplateFilter}
-          onValueChange={(value) => {
-            setPoTaskTemplateFilter(value);
-            fetchPoTasks(value);
-          }}
-        >
-          <SelectTrigger className="mb-2">
-            <SelectValue placeholder="Filter by template..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Templates</SelectItem>
-            {templates.map((t) => (
-              <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <ComboboxDropdownMulti
-          selectedItems={selectedOptions}
-          items={availableOptions}
-          placeholder="Search PO tasks..."
-          emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onSelectionChange={(items) => {
-            setSelectedPoTaskIds(items.map((o) => Number(o.id)));
-          }}
-        />
-      </div>
-    );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks, poTaskTemplateFilter, templates]);
-
-  // Render PO Task picker for editing (pre-selects existing tasks)
-  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
-    const recordId = record.id;
-
-    // Fetch PO tasks if not loaded yet
-    if (!poTasksLoaded) {
-      fetchPoTasks(poTaskTemplateFilter);
-      return (
-        <div className="py-4 border-t">
-          <Label className="text-sm font-medium">PO Tasks</Label>
-          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
+        <div className="flex flex-wrap gap-1 mb-2">
+          <button
+            type="button"
+            onClick={() => {
+              poTaskTemplateFilterRef.current = "all";
+              setSelectedPoTaskIds((prev) => [...prev]);
+            }}
+            className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+              poTaskTemplateFilterRef.current === "all"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background text-foreground border-input hover:bg-accent"
+            }`}
+          >
+            All Templates
+          </button>
+          {templates.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
+                poTaskTemplateFilterRef.current = String(t.id);
+                setSelectedPoTaskIds((prev) => [...prev]);
+              }}
+              className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                poTaskTemplateFilterRef.current === String(t.id)
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background text-foreground border-input hover:bg-accent"
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
         </div>
-      );
-    }
-
-    // Initialize selectedPoTaskIds when editing a different record
-    if (poTasksEditRecordIdRef.current !== recordId) {
-      poTasksEditRecordIdRef.current = recordId;
-      const assignedIds = poTasks
-        .filter((t) => t.costCentreId === Number(recordId))
-        .map((t) => t.id);
-      // Use setTimeout to avoid setState during render
-      setTimeout(() => setSelectedPoTaskIds(assignedIds), 0);
-    }
-
-    const selectedOptions: ComboboxItem[] = selectedPoTaskIds
-      .map((id) => {
-        const task = poTasks.find((t) => t.id === id);
-        if (!task) return null;
-        return { id: String(task.id), label: `${task.taskNumber} - ${task.name}` };
-      })
-      .filter((o): o is ComboboxItem => !!o);
-
-    const availableOptions: ComboboxItem[] = poTasks.map((task) => {
-      const isAssignedElsewhere = task.costCentreId != null
-        && task.costCentreId !== Number(recordId)
-        && !selectedPoTaskIds.includes(task.id);
-      return {
-        id: String(task.id),
-        label: isAssignedElsewhere
-          ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
-          : `${task.taskNumber} - ${task.name}`,
-      };
-    });
-
-    return (
-      <div className="py-4 border-t">
-        <Label className="text-sm font-medium">PO Tasks</Label>
-        <p className="text-xs text-muted-foreground mt-1 mb-2">
-          Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
-        </p>
-        <Select
-          value={poTaskTemplateFilter}
-          onValueChange={(value) => {
-            setPoTaskTemplateFilter(value);
-            fetchPoTasks(value);
-          }}
-        >
-          <SelectTrigger className="mb-2">
-            <SelectValue placeholder="Filter by template..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Templates</SelectItem>
-            {templates.map((t) => (
-              <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <ComboboxDropdownMulti
-          selectedItems={selectedOptions}
-          items={availableOptions}
-          placeholder="Search PO tasks..."
-          emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onSelectionChange={(items) => {
-            setSelectedPoTaskIds(items.map((o) => Number(o.id)));
+        <PoTaskCheckboxList
+          availableOptions={availableOptions}
+          effectiveSelectedIds={effectiveSelectedIds}
+          onToggle={(taskId) => {
+            setSelectedPoTaskIds((prev) =>
+              prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+            );
           }}
         />
       </div>
     );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks, poTaskTemplateFilter, templates]);
+  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+
+  // Wrappers for TeeemTableView's create/edit dialog render extra props
+  const renderPoTaskPickerForCreate = React.useCallback(() => {
+    return renderPoTaskPicker("create");
+  }, [renderPoTaskPicker]);
+
+  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
+    return renderPoTaskPicker("edit", record.id);
+  }, [renderPoTaskPicker]);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -811,9 +824,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       await api.post(`/api/v1/cost_centres/${costCentreId}/assign_po_tasks`, {
         po_task_ids: selectedPoTaskIds,
       });
-      // Refresh PO tasks (unfiltered) to reflect new assignments
-      setPoTaskTemplateFilter("all");
-      await fetchPoTasks("all");
+      // Refresh PO tasks to reflect new assignments
+      await fetchPoTasks();
       // Reset state for next modal open
       setSelectedPoTaskIds([]);
       poTasksEditRecordIdRef.current = null;

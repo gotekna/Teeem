@@ -6,6 +6,65 @@ import { api } from "@/lib/api";
 import { Tag, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Module-level cache - shared across ALL PricebookCodePicker instances on the page.
+// ~5,400 items ≈ 1MB. One fetch on first open, then instant client-side filtering.
+let _cachedItems: PricebookItem[] | null = null;
+let _cacheTimestamp = 0;
+let _loadPromise: Promise<PricebookItem[]> | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min TTL
+
+function isCacheValid(): boolean {
+  return _cachedItems !== null && Date.now() - _cacheTimestamp < CACHE_TTL_MS;
+}
+
+async function loadAllPricebookItems(): Promise<PricebookItem[]> {
+  if (isCacheValid()) return _cachedItems!;
+  // Deduplicate concurrent fetches (multiple pickers opening at once)
+  if (_loadPromise) return _loadPromise;
+
+  _loadPromise = (async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data?: PricebookItem[];
+        items?: PricebookItem[];
+        pricebook_items?: PricebookItem[];
+      }>("/api/v1/pricebook?per_page=10000");
+      const items = response?.data || response?.items || response?.pricebook_items || [];
+      _cachedItems = Array.isArray(items) ? items : [];
+      _cacheTimestamp = Date.now();
+    } catch (err) {
+      console.error("[PricebookCodePicker] Cache load failed:", err);
+      _cachedItems = [];
+    } finally {
+      _loadPromise = null;
+    }
+    return _cachedItems!;
+  })();
+
+  return _loadPromise;
+}
+
+function filterPricebookItems(allItems: PricebookItem[], query: string): PricebookItem[] {
+  if (!query) return allItems.slice(0, 100);
+  const q = query.toLowerCase();
+  return allItems
+    .filter(
+      (item) =>
+        item.item_code?.toLowerCase().includes(q) ||
+        item.item_name?.toLowerCase().includes(q) ||
+        item.default_supplier?.display_name?.toLowerCase().includes(q) ||
+        item.default_supplier?.name?.toLowerCase().includes(q)
+    )
+    .slice(0, 100);
+}
+
+/** Invalidate the pricebook cache (call after price refresh or pricebook edits) */
+export function invalidatePricebookCache() {
+  _cachedItems = null;
+  _cacheTimestamp = 0;
+}
+
 export interface PricebookItem {
   id: number;
   item_code: string;
@@ -79,62 +138,21 @@ export function PricebookCodePicker({
 }: PricebookCodePickerProps) {
   const [items, setItems] = React.useState<PricebookItem[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
-  const [hasLoaded, setHasLoaded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const searchTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Load pricebook items
-  const loadItems = React.useCallback(async (search?: string) => {
-    try {
-      setIsLoading(true);
-      const params = new URLSearchParams({ per_page: "100" });
-      if (search) {
-        params.set("search", search);
-      }
-
-      const response = await api.get<{
-        success: boolean;
-        data?: PricebookItem[];
-        items?: PricebookItem[];
-        pricebook_items?: PricebookItem[];
-      }>(
-        `/api/v1/pricebook?${params.toString()}`
-      );
-
-      // Handle different API response formats
-      const responseItems = response?.data || response?.items || response?.pricebook_items || [];
-      if (Array.isArray(responseItems)) {
-        setItems(responseItems);
-      } else {
-        setItems([]);
-      }
-    } catch (err) {
-      console.error("[PricebookCodePicker] Failed to load items:", err);
-      setItems([]);
-    } finally {
-      setIsLoading(false);
-      setHasLoaded(true);
-    }
-  }, []);
-
-  // Handle search with debounce
-  const handleInputChange = React.useCallback((query: string) => {
+  // Handle search: load cache on first open, then filter client-side (instant)
+  const handleInputChange = React.useCallback(async (query: string) => {
     setSearchQuery(query);
 
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // If no items loaded yet, load immediately (first interaction)
-    // Otherwise debounce the search
-    if (!hasLoaded) {
-      loadItems(query);
+    if (!isCacheValid()) {
+      setIsLoading(true);
+      const allItems = await loadAllPricebookItems();
+      setItems(filterPricebookItems(allItems, query));
+      setIsLoading(false);
     } else {
-      searchTimeoutRef.current = setTimeout(() => {
-        loadItems(query);
-      }, 300);
+      setItems(filterPricebookItems(_cachedItems!, query));
     }
-  }, [loadItems, hasLoaded]);
+  }, []);
 
   // Load items when dropdown opens (triggered by onInputChange with empty string)
   // This is now handled by the ComboboxDropdown's focus mechanism
