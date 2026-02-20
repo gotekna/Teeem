@@ -282,14 +282,29 @@ function toTitleCase(str: string): string {
 /**
  * Display choice as badge
  * Converts snake_case slugs to Title Case for display
+ * Supports colored choices via column.settings.choice_colors mapping:
+ *   { "draft": "bg-muted text-foreground", "approved": "bg-blue-100 text-blue-800 ..." }
+ * Also supports column.settings.choice_labels for display names:
+ *   { "draft": "Draft", "approved": "Approved" }
  */
-export function displayChoice(value: unknown): React.ReactNode {
+export function displayChoice(value: unknown, column?: { settings?: { choice_colors?: Record<string, string>; choice_labels?: Record<string, string>; [key: string]: unknown } }): React.ReactNode {
   if (value === null || value === undefined || value === "") return formatEmpty();
-  let displayText = String(value);
+  const rawValue = String(value);
+
+  // Check for custom label and color from column settings
+  const choiceColors = column?.settings?.choice_colors;
+  const choiceLabels = column?.settings?.choice_labels;
+  const color = choiceColors?.[rawValue];
+  let displayText = choiceLabels?.[rawValue] || rawValue;
 
   // If value looks like a slug, convert to Title Case
-  if (displayText.includes('_') || (displayText.includes('-') && !displayText.includes(' '))) {
+  if (displayText === rawValue && (displayText.includes('_') || (displayText.includes('-') && !displayText.includes(' ')))) {
     displayText = toTitleCase(displayText);
+  }
+
+  // If color looks like Tailwind classes (contains spaces or bg-), use className
+  if (color) {
+    return <Badge variant="outline" className={`text-[10px] px-1.5 py-0 border ${color}`}>{displayText}</Badge>;
   }
 
   return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{displayText}</Badge>;

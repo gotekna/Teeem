@@ -104,18 +104,16 @@ class SmScheduleMasterTemplateCopyService
   end
 
   def create_tasks
-    sequence = 0
-
     @row_map.values.sort_by(&:sequence_order).each do |row|
-      sequence += 1
-
       task = SmTask.new(
         job_id: job.id,
         sm_schedule_master_id: row.id,  # Link to SSoT SmScheduleMaster
         name: row.name,
         description: row.description,
         task_number: row.task_number,   # Use template's task_number (SSoT: equals template id)
-        sequence_order: sequence,
+        sequence_order: row.sequence_order,  # Use template's sequence_order (not sequential counter)
+        sync_key: row.sync_key,
+        critical_po: row.critical_po,
         duration_days: row.duration_days,
         trade: row.trade,
         stage: row.stage,
@@ -174,7 +172,7 @@ class SmScheduleMasterTemplateCopyService
         # Create JobClaimStage for CLAIM tasks (SSoT: Schedule Master defines claims)
         # Skip variations - they get claim stages when manually added to a job, not during initial sync
         if row.is_claim_task && row.claim_percentage.present? && !row.is_variation
-          claim_stage = create_claim_stage_for_task(task, row, sequence)
+          claim_stage = create_claim_stage_for_task(task, row, row.sequence_order)
           if claim_stage
             @created_claim_stages << claim_stage
           end

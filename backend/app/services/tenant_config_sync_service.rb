@@ -404,12 +404,13 @@ class TenantConfigSyncService
       model: "PoTemplateLineItem",
       name_field: :description,
       match_fields: [:po_template_item_id, :line_number],
-      sync_fields: [:po_template_item_id, :pricebook_item_code, :description, :quantity,
+      sync_fields: [:po_template_item_id, :pricebook_item_id, :pricebook_item_code, :description, :quantity,
                     :unit_price, :gst_code, :line_number],
       description: "PO template line item details",
       group: "po_templates",
       remap_fks: {
-        po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key }
+        po_template_item_id: { model: "PoTemplateItem", match_field: :sync_key },
+        pricebook_item_id: { model: "PricebookItem", match_field: :item_code }
       }
     },
 

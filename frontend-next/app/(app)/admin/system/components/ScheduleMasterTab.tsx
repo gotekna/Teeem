@@ -47,7 +47,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
-import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
+import { ComboboxDropdownMulti } from "@/components/ui/combobox-dropdown-multi";
+import type { ComboboxItem } from "@/components/ui/combobox-dropdown";
 import {
   Plus,
   Pencil,
@@ -651,23 +652,23 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
 
     // For create: no tasks pre-selected, reset on mount
-    const selectedOptions: Option[] = selectedPoTaskIds
+    const selectedOptions: ComboboxItem[] = selectedPoTaskIds
       .map((id) => {
         const task = poTasks.find((t) => t.id === id);
         if (!task) return null;
-        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
+        return { id: String(task.id), label: `${task.taskNumber} - ${task.name}` };
       })
-      .filter((o): o is Option => !!o);
+      .filter((o): o is ComboboxItem => !!o);
 
     // Build options: disable tasks assigned to other cost centres
-    const availableOptions: Option[] = poTasks.map((task) => {
+    const availableOptions: ComboboxItem[] = poTasks.map((task) => {
       const isAssignedElsewhere = task.costCentreId != null && !selectedPoTaskIds.includes(task.id);
       return {
-        value: String(task.id),
+        id: String(task.id),
         label: isAssignedElsewhere
           ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
           : `${task.taskNumber} - ${task.name}`,
-        disable: isAssignedElsewhere,
+        disabled: isAssignedElsewhere,
       };
     });
 
@@ -677,13 +678,13 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         <p className="text-xs text-muted-foreground mt-1 mb-2">
           Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
         </p>
-        <MultipleSelector
-          value={selectedOptions}
-          options={availableOptions}
+        <ComboboxDropdownMulti
+          selectedItems={selectedOptions}
+          items={availableOptions}
           placeholder="Search PO tasks..."
-          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onChange={(options) => {
-            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
+          emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
+          onSelectionChange={(items) => {
+            setSelectedPoTaskIds(items.map((o) => Number(o.id)));
           }}
         />
       </div>
@@ -715,24 +716,24 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       setTimeout(() => setSelectedPoTaskIds(assignedIds), 0);
     }
 
-    const selectedOptions: Option[] = selectedPoTaskIds
+    const selectedOptions: ComboboxItem[] = selectedPoTaskIds
       .map((id) => {
         const task = poTasks.find((t) => t.id === id);
         if (!task) return null;
-        return { value: String(task.id), label: `${task.taskNumber} - ${task.name}` };
+        return { id: String(task.id), label: `${task.taskNumber} - ${task.name}` };
       })
-      .filter((o): o is Option => !!o);
+      .filter((o): o is ComboboxItem => !!o);
 
-    const availableOptions: Option[] = poTasks.map((task) => {
+    const availableOptions: ComboboxItem[] = poTasks.map((task) => {
       const isAssignedElsewhere = task.costCentreId != null
         && task.costCentreId !== Number(recordId)
         && !selectedPoTaskIds.includes(task.id);
       return {
-        value: String(task.id),
+        id: String(task.id),
         label: isAssignedElsewhere
           ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
           : `${task.taskNumber} - ${task.name}`,
-        disable: isAssignedElsewhere,
+        disabled: isAssignedElsewhere,
       };
     });
 
@@ -742,13 +743,13 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         <p className="text-xs text-muted-foreground mt-1 mb-2">
           Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
         </p>
-        <MultipleSelector
-          value={selectedOptions}
-          options={availableOptions}
+        <ComboboxDropdownMulti
+          selectedItems={selectedOptions}
+          items={availableOptions}
           placeholder="Search PO tasks..."
-          emptyIndicator={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
-          onChange={(options) => {
-            setSelectedPoTaskIds(options.map((o) => Number(o.value)));
+          emptyResults={<p className="text-center text-sm text-muted-foreground py-2">No PO tasks found</p>}
+          onSelectionChange={(items) => {
+            setSelectedPoTaskIds(items.map((o) => Number(o.id)));
           }}
         />
       </div>

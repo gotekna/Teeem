@@ -204,14 +204,15 @@ class PoTemplateApplyService
 
   def preview_line_items(template_item)
     template_item.po_template_line_items.map do |tli|
-      price = resolve_price(tli)
+      pb_item_id = resolve_pricebook_item_id(tli)
+      price = resolve_price(tli, pb_item_id)
       {
         description: tli.description,
         quantity: tli.quantity,
         unit_price: price,
         gst_code: tli.gst_code,
         subtotal: (tli.quantity || 0) * (price || 0),
-        price_source: tli.pricebook_item_id ? "pricebook" : "template"
+        price_source: pb_item_id ? "pricebook" : "template"
       }
     end
   end
@@ -235,13 +236,14 @@ class PoTemplateApplyService
 
     # Build line items (profit_centre from template item applies to all lines)
     template_item.po_template_line_items.each do |tli|
-      price = resolve_price(tli)
+      pb_item_id = resolve_pricebook_item_id(tli)
+      price = resolve_price(tli, pb_item_id)
       po.line_items.build(
         description: tli.description,
         quantity: tli.quantity,
         unit_price: price,
         gst_code: tli.gst_code || "GST",
-        pricebook_item_id: tli.pricebook_item_id,
+        pricebook_item_id: pb_item_id,
         line_number: tli.line_number,
         profit_centre_id: template_item.profit_centre_id
       )
@@ -277,13 +279,14 @@ class PoTemplateApplyService
 
     start_date = Date.current
     duration = sm.duration_days || 0
-    next_seq = (SmTask.where(job_id: job.id).maximum(:sequence_order) || 0) + 1
 
     task = SmTask.new(
       job_id: job.id,
       sm_schedule_master_id: sm.id,
       task_number: sm.task_number || sm.id,
-      sequence_order: next_seq,
+      sequence_order: sm.sequence_order,
+      sync_key: sm.sync_key,
+      critical_po: sm.critical_po,
       name: sm.name,
       description: sm.description,
       duration_days: duration,
@@ -335,10 +338,21 @@ class PoTemplateApplyService
     )
   end
 
+  # Resolve pricebook_item_id: use direct ID if present, fall back to lookup by item_code
+  # (handles cross-tenant Config Sync where pricebook_item_code is synced but ID wasn't remapped)
+  def resolve_pricebook_item_id(template_line_item)
+    return template_line_item.pricebook_item_id if template_line_item.pricebook_item_id.present?
+
+    if template_line_item.pricebook_item_code.present?
+      PricebookItem.find_by(item_code: template_line_item.pricebook_item_code)&.id
+    end
+  end
+
   # Resolve price: use current pricebook price if available, fall back to template price
-  def resolve_price(template_line_item)
-    if template_line_item.pricebook_item_id.present?
-      pricebook_item = PricebookItem.find_by(id: template_line_item.pricebook_item_id)
+  def resolve_price(template_line_item, resolved_pb_item_id = nil)
+    pb_item_id = resolved_pb_item_id || template_line_item.pricebook_item_id
+    if pb_item_id.present?
+      pricebook_item = PricebookItem.find_by(id: pb_item_id)
       if pricebook_item&.current_price.present? && pricebook_item.current_price > 0
         return pricebook_item.current_price
       end
