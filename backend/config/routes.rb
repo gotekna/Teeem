@@ -983,6 +983,7 @@ Rails.application.routes.draw do
           post :refresh_from_defaults
           post :compare_all_prices
           post :apply_selected_prices
+          post :bulk_set_default_supplier
         end
       end
 

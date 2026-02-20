@@ -209,27 +209,50 @@ export default function PriceComparisonSheet({
           setItems(response.items);
           setPriceOnlyContacts(response.priceOnlyContacts || []);
 
-          // Auto-select all rows and pre-fill with highest price + existing price_only contact + LGA
+          // Auto-select all rows and pre-fill:
+          // 1. Price: default supplier's price > highest price > empty
+          // 2. Checkbox: ticked on whichever supplier the price came from
+          // 3. Record For: PO supplier (if from PO) > default supplier > price_only contact
           const rows = new Set<number>();
           const prices: Record<number, string> = {};
+          const sources: Record<number, number> = {};
           const poContacts: Record<number, string> = {};
           const lgas: Record<number, string[]> = {};
+          const poSupplierId = includeSupplierIds?.[0]; // PO supplier if from PO context
+
           for (const item of response.items) {
             rows.add(item.id);
-            if (item.highestPrice != null) {
+
+            // Pick price: prefer default supplier's price, fall back to highest
+            const defaultSupplierPrice = item.defaultSupplierId
+              ? item.prices[String(item.defaultSupplierId)]
+              : null;
+
+            if (defaultSupplierPrice) {
+              prices[item.id] = defaultSupplierPrice.price.toFixed(2);
+              sources[item.id] = item.defaultSupplierId!;
+            } else if (item.highestPrice != null && item.highestSupplierId != null) {
               prices[item.id] = item.highestPrice.toFixed(2);
+              sources[item.id] = item.highestSupplierId;
             } else {
               prices[item.id] = "";
             }
-            // Pre-select the existing price_only contact if one exists
-            if (item.priceOnlySupplierId != null) {
+
+            // Record For: PO supplier > default supplier > price_only contact
+            if (poSupplierId) {
+              poContacts[item.id] = String(poSupplierId);
+            } else if (item.defaultSupplierId != null) {
+              poContacts[item.id] = String(item.defaultSupplierId);
+            } else if (item.priceOnlySupplierId != null) {
               poContacts[item.id] = String(item.priceOnlySupplierId);
             }
+
             // Pre-fill LGA from existing price history (default to all if has values, empty if not)
             lgas[item.id] = item.lga?.length > 0 ? item.lga : QLD_COUNCILS.slice();
           }
           setSelectedRows(rows);
           setSelectedPrices(prices);
+          setSelectedPriceSource(sources);
           setSelectedPriceOnlyContact(poContacts);
           setSelectedLga(lgas);
         }
@@ -289,9 +312,7 @@ export default function PriceComparisonSheet({
   const selectSupplierPrice = useCallback((itemId: number, price: number, supplierId: number) => {
     setSelectedPrices(prev => ({ ...prev, [itemId]: price.toFixed(2) }));
     setSelectedPriceSource(prev => ({ ...prev, [itemId]: supplierId }));
-    // Auto-fill "Record For" with the clicked supplier
-    setSelectedPriceOnlyContact(prev => ({ ...prev, [itemId]: String(supplierId) }));
-    // Also make sure the row is selected
+    // Record For stays independent - user controls it via the dropdown
     setSelectedRows(prev => {
       const next = new Set(prev);
       next.add(itemId);
@@ -357,11 +378,10 @@ export default function PriceComparisonSheet({
     });
   }, [adjustmentPercent, roundingMode, selectedRows]);
 
-  // "Use All Prices" from a single supplier - selects that supplier's price + sets Record For for every row
+  // "Use All Prices" from a single supplier - selects prices + ticks checkboxes, Record For stays unchanged
   const useAllPricesFromSupplier = useCallback((supplierId: number, supplierName: string) => {
     const newPrices = { ...selectedPrices };
     const newSources = { ...selectedPriceSource };
-    const newContacts = { ...selectedPriceOnlyContact };
     const newRows = new Set(selectedRows);
 
     for (const item of items) {
@@ -369,17 +389,15 @@ export default function PriceComparisonSheet({
       if (sp) {
         newPrices[item.id] = sp.price.toFixed(2);
         newSources[item.id] = supplierId;
-        newContacts[item.id] = String(supplierId);
         newRows.add(item.id);
       }
     }
 
     setSelectedPrices(newPrices);
     setSelectedPriceSource(newSources);
-    setSelectedPriceOnlyContact(newContacts);
     setSelectedRows(newRows);
     toast({ title: `Selected all prices from ${supplierName}` });
-  }, [items, selectedPrices, selectedPriceSource, selectedPriceOnlyContact, selectedRows, toast]);
+  }, [items, selectedPrices, selectedPriceSource, selectedRows, toast]);
 
   // Bulk set default supplier for all selected items
   const [settingDefault, setSettingDefault] = useState(false);
@@ -748,13 +766,16 @@ export default function PriceComparisonSheet({
                           const isDefault = item.defaultSupplierId === s.id;
                           const isPriceOnly = item.priceOnlySupplierId === s.id;
                           const isCurrentPOSupplier = includeSupplierIds?.includes(s.id);
+                          const isSelectedSource = selectedPriceSource[item.id] === s.id;
 
                           return (
                             <td
                               key={s.id}
                               className={`p-2 text-right cursor-pointer hover:bg-primary/10 transition-colors ${
-                                isHighest ? "font-semibold text-green-600 dark:text-green-400" : ""
-                              } ${isPriceOnly ? "bg-orange-50 dark:bg-orange-950/30" : ""} ${isCurrentPOSupplier ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
+                                isSelectedSource
+                                  ? "bg-emerald-100 dark:bg-emerald-900/40"
+                                  : isHighest ? "font-semibold text-green-600 dark:text-green-400" : ""
+                              } ${isPriceOnly && !isSelectedSource ? "bg-orange-50 dark:bg-orange-950/30" : ""} ${isCurrentPOSupplier && !isSelectedSource ? "bg-blue-50 dark:bg-blue-950/30" : ""}`}
                               onClick={() => supplierPrice && selectSupplierPrice(item.id, supplierPrice.price, s.id)}
                               title={
                                 supplierPrice
@@ -764,8 +785,15 @@ export default function PriceComparisonSheet({
                             >
                               {supplierPrice ? (
                                 <div className="flex flex-col items-end">
-                                  <span className="inline-flex items-center gap-1">
-                                    {formatCurrency(supplierPrice.price)}
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <Checkbox
+                                      checked={isSelectedSource}
+                                      className="h-4 w-4 shrink-0"
+                                      tabIndex={-1}
+                                    />
+                                    <span className={isSelectedSource ? "font-semibold" : ""}>
+                                      {formatCurrency(supplierPrice.price)}
+                                    </span>
                                     {isDefault && (
                                       <span className="text-[10px] text-blue-500 dark:text-blue-400" title="Default supplier">*</span>
                                     )}
@@ -786,17 +814,24 @@ export default function PriceComparisonSheet({
                           );
                         })}
                         <td className="p-2 border-l">
-                          <div className="flex items-center justify-end">
-                            <span className="text-muted-foreground mr-1">$</span>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={selectedVal}
-                              onChange={e => setPrice(item.id, e.target.value)}
-                              className="w-24 h-8 text-right text-sm"
-                              placeholder="0.00"
-                            />
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center justify-end">
+                              <span className="text-muted-foreground mr-1">$</span>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={selectedVal}
+                                onChange={e => setPrice(item.id, e.target.value)}
+                                className="w-24 h-8 text-right text-sm"
+                                placeholder="0.00"
+                              />
+                            </div>
+                            {selectedPriceSource[item.id] != null && (
+                              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium truncate max-w-[140px]">
+                                {suppliers.find(s => s.id === selectedPriceSource[item.id])?.name}
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="p-2 border-l">

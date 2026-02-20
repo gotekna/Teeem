@@ -782,6 +782,26 @@ module Api
         }
       end
 
+      # POST /api/v1/pricebook/bulk_set_default_supplier
+      def bulk_set_default_supplier
+        item_ids = Array(params[:pricebook_item_ids]).map(&:to_i)
+        supplier_id = params[:supplier_id].to_i
+
+        unless item_ids.any? && supplier_id > 0
+          return render json: { success: false, error: "pricebook_item_ids and supplier_id required" }, status: :unprocessable_entity
+        end
+
+        items = PricebookItem.where(id: item_ids)
+        updated = 0
+
+        items.find_each do |item|
+          item.update!(default_supplier_id: supplier_id)
+          updated += 1
+        end
+
+        render json: { success: true, updated_count: updated }
+      end
+
       def recalculate_current_price(item)
         # Find the active price history (most recent price from default supplier that's effective today or earlier)
         if item.default_supplier_id

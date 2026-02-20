@@ -446,7 +446,9 @@ export function DataWarehouseTab() {
         : "/api/v1/organization/data_stats";
       // Add refresh=true to skip server cache when user clicks Refresh button
       const endpoint = forceRefresh ? `${baseEndpoint}?refresh=true` : baseEndpoint;
-      const response = await api.get<{ success: boolean; data: OrgDataStats }>(endpoint);
+      // retries: 0 — data_stats runs expensive aggregate queries; retrying on timeout
+      // would block the page for 120s+ (30s x 4). Fail fast, catch block handles it.
+      const response = await api.get<{ success: boolean; data: OrgDataStats }>(endpoint, { retries: 0 });
       if (response?.success) {
         setStats(response.data);
       }
@@ -527,7 +529,7 @@ export function DataWarehouseTab() {
 
   const loadWarehouseStatus = async () => {
     try {
-      const response = await api.get<WarehouseStatus>("/api/v1/warehouse/status");
+      const response = await api.get<WarehouseStatus>("/api/v1/warehouse/status", { retries: 0 });
       if (response?.success) {
         setWarehouseStatus(response);
       }
@@ -538,7 +540,7 @@ export function DataWarehouseTab() {
 
   const loadWarehouseMetadata = async () => {
     try {
-      const response = await api.get<WarehouseMetadata>("/api/v1/warehouse/metadata");
+      const response = await api.get<WarehouseMetadata>("/api/v1/warehouse/metadata", { retries: 0 });
       if (response?.success) {
         setWarehouseMetadata(response);
       }
@@ -549,7 +551,7 @@ export function DataWarehouseTab() {
 
   const loadMicrosoftOrgStats = async () => {
     try {
-      const response = await api.get<MicrosoftOrgStatsResponse>("/api/v1/organization/microsoft_org_stats");
+      const response = await api.get<MicrosoftOrgStatsResponse>("/api/v1/organization/microsoft_org_stats", { retries: 0 });
       if (response?.success) {
         setMicrosoftOrgStats(response);
       }

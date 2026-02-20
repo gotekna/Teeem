@@ -72,15 +72,24 @@ export default function SystemPerformancePage() {
 
   const loadAllData = async () => {
     try {
-      const [healthRes, perfRes, metricsRes] = await Promise.all([
-        api.get<{ data: Health }>("/api/v1/system/health"),
-        api.get<{ data: Performance }>("/api/v1/system/performance"),
-        api.get<{ data: Metrics }>("/api/v1/system/metrics"),
+      const results = await Promise.allSettled([
+        api.get<{ data: Health }>("/api/v1/system/health", { retries: 0 }),
+        api.get<{ data: Performance }>("/api/v1/system/performance", { retries: 0 }),
+        api.get<{ data: Metrics }>("/api/v1/system/metrics", { retries: 0 }),
       ]);
 
-      setHealth(healthRes?.data || healthRes);
-      setPerformance(perfRes?.data || perfRes);
-      setMetrics(metricsRes?.data || metricsRes);
+      if (results[0].status === "fulfilled") {
+        const healthRes = results[0].value;
+        setHealth(healthRes?.data || healthRes);
+      }
+      if (results[1].status === "fulfilled") {
+        const perfRes = results[1].value;
+        setPerformance(perfRes?.data || perfRes);
+      }
+      if (results[2].status === "fulfilled") {
+        const metricsRes = results[2].value;
+        setMetrics(metricsRes?.data || metricsRes);
+      }
     } catch (err) {
       console.error("Failed to load system data:", err);
     } finally {
