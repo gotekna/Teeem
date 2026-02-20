@@ -193,13 +193,18 @@ function SidebarContent({
   // Awaits IndexedDB deletion before reload to guarantee clean slate
   const handleClearCache = async () => {
     setClearing(true);
+    // Safety: reset after 5s if reload doesn't happen (prevents stuck green button)
+    const safetyTimeout = setTimeout(() => setClearing(false), 5000);
     try {
       // 1. Clear React Query cache (sync, instant)
       queryClient.clear();
 
       // 2. Clear records cache L1 (memory) + L2 (IndexedDB) + delete database
-      // MUST await - previous bug: fire-and-forget meant page reloaded before IDB was cleared
-      await clearAllCachedRecordsAsync();
+      // Race with timeout to prevent hanging on broken IndexedDB
+      await Promise.race([
+        clearAllCachedRecordsAsync(),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]);
 
       // 3. Clear app localStorage (but not auth, API config, or sidebar preferences)
       const keysToRemove: string[] = [];
@@ -223,9 +228,11 @@ function SidebarContent({
       sessionStorage.clear();
 
       // Reload after caches confirmed cleared
+      clearTimeout(safetyTimeout);
       window.location.reload();
     } catch (err) {
       console.error("[ClearCache] Error:", err);
+      clearTimeout(safetyTimeout);
       // Even on error, force reload to get fresh state
       window.location.reload();
     }

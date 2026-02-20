@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,13 +15,14 @@ import {
   Settings,
   Upload,
 } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 import { JobQuantityVariablesForm } from "./JobQuantityVariablesForm";
 import { JobRecipesPanel } from "./JobRecipesPanel";
 import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
-import { BillOfQuantities, type BOQGroup } from "@/components/ui/bill-of-quantities";
+import { BillOfQuantities, type BOQGroup, type BOQSavePayload } from "@/components/ui/bill-of-quantities";
 
 interface BOQApiGroup {
   id: number | string;
@@ -70,6 +72,7 @@ interface JobBOQTabProps {
 }
 
 export function JobBOQTab({ jobId }: JobBOQTabProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [boqData, setBOQData] = useState<BOQData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,6 +131,80 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
     if (variance > 0) return "text-red-600 dark:text-red-400";
     return "text-green-600 dark:text-green-400";
   };
+
+  const handleGroupClick = useCallback((groupId: number | string) => {
+    router.push(`/purchase_orders/${groupId}`);
+  }, [router]);
+
+  const handleSave = useCallback(async (payload: BOQSavePayload) => {
+    const { quantityChanges, newLines } = payload;
+
+    // Group all changes by PO id
+    const poUpdates = new Map<string, {
+      existing: Array<{ id: string; quantity: number }>;
+      newItems: Array<{ description: string; quantity: number; unit_price: number; gst_code: string; pricebook_item_id?: number | null }>;
+    }>();
+
+    // Parse quantity changes: key format is "groupId:lineItemId"
+    for (const [key, qty] of quantityChanges) {
+      const [groupId, lineItemId] = key.split(":");
+      if (!poUpdates.has(groupId)) {
+        poUpdates.set(groupId, { existing: [], newItems: [] });
+      }
+      poUpdates.get(groupId)!.existing.push({ id: lineItemId, quantity: qty });
+    }
+
+    // Group new lines by PO
+    for (const nl of newLines) {
+      const gid = String(nl.groupId);
+      if (!poUpdates.has(gid)) {
+        poUpdates.set(gid, { existing: [], newItems: [] });
+      }
+      poUpdates.get(gid)!.newItems.push({
+        description: nl.description,
+        quantity: nl.quantity,
+        unit_price: nl.unitPrice,
+        gst_code: nl.gstCode,
+        pricebook_item_id: nl.pricebookItemId,
+      });
+    }
+
+    // Patch each PO with its line item changes
+    const errors: string[] = [];
+    for (const [poId, updates] of poUpdates) {
+      const lineItemsAttributes = [
+        ...updates.existing.map((e) => ({
+          id: Number(e.id),
+          quantity: e.quantity,
+        })),
+        ...updates.newItems.map((n) => ({
+          description: n.description,
+          quantity: n.quantity,
+          unit_price: n.unit_price,
+          gst_code: n.gst_code,
+          pricebook_item_id: n.pricebook_item_id,
+        })),
+      ];
+
+      try {
+        await api.patch(`/api/v1/purchase_orders/${poId}`, {
+          purchase_order: { line_items_attributes: lineItemsAttributes },
+        });
+      } catch (err) {
+        console.error(`Failed to update PO ${poId}:`, err);
+        errors.push(`PO ${poId}`);
+      }
+    }
+
+    if (errors.length > 0) {
+      toast.error(`Failed to update: ${errors.join(", ")}`);
+    } else {
+      toast.success(`Updated ${poUpdates.size} purchase order${poUpdates.size !== 1 ? "s" : ""}`);
+    }
+
+    // Reload BOQ data to reflect saved changes
+    await loadBOQData();
+  }, []);
 
   if (loading) {
     return (
@@ -241,7 +318,8 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       <TabsContent value="boq" className="flex-1 min-h-0 mt-0">
         <BillOfQuantities
           groups={boqGroups}
-          readOnly={true}
+          onSave={handleSave}
+          onGroupClick={handleGroupClick}
           loading={loading}
         />
       </TabsContent>

@@ -81,6 +81,8 @@ export interface BillOfQuantitiesProps {
   groups: BOQGroup[];
   /** Called with all pending changes when user clicks Save */
   onSave?: (payload: BOQSavePayload) => Promise<void>;
+  /** Called when user clicks a group name (e.g., to open a PO) */
+  onGroupClick?: (groupId: number | string) => void;
   /** Disables editing */
   readOnly?: boolean;
   /** Loading state */
@@ -131,6 +133,7 @@ const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
 export function BillOfQuantities({
   groups,
   onSave,
+  onGroupClick,
   readOnly = false,
   loading = false,
   className,
@@ -855,6 +858,7 @@ export function BillOfQuantities({
                         onNewLineChange={handleNewLineChange}
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
                         onRemoveNewLine={handleRemoveNewLine}
+                        onGroupClick={onGroupClick}
                       />
                     ))}
                   </React.Fragment>
@@ -876,6 +880,7 @@ export function BillOfQuantities({
                   onNewLineChange={handleNewLineChange}
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
                   onRemoveNewLine={handleRemoveNewLine}
+                  onGroupClick={onGroupClick}
                 />
               ))
             )}
@@ -899,6 +904,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   onNewLineChange,
   onNewLinePricebookSelect,
   onRemoveNewLine,
+  onGroupClick,
 }: {
   group: BOQGroup;
   groupIndex: number;
@@ -922,6 +928,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     pricebookItemCode: string;
   }) => void;
   onRemoveNewLine: (tempId: string) => void;
+  onGroupClick?: (groupId: number | string) => void;
 }) {
   // Total rows that share the PO name/supplier cells (existing + new lines)
   const totalDataRows = group.items.length + newLines.length;
@@ -963,7 +970,16 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 className={cn("align-top font-medium text-sm border-r", color.bg)}
               >
                 <div className="sticky top-10">
-                  {group.name}
+                  {onGroupClick ? (
+                    <button
+                      onClick={() => onGroupClick(group.id)}
+                      className="text-left text-primary hover:underline font-medium"
+                    >
+                      {group.name}
+                    </button>
+                  ) : (
+                    group.name
+                  )}
                   {group.taskName && group.taskName !== group.name && (
                     <div className="text-xs text-muted-foreground mt-0.5">
                       {group.taskName}
