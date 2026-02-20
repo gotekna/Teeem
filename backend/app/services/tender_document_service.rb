@@ -69,7 +69,7 @@ class TenderDocumentService
           line_number: line_counter_by_section[section_name],
           description: item.description,
           quantity: item.quantity,
-          unit: item.pricebook_item&.unit,
+          unit: item.pricebook_item&.unit_of_measure,
           unit_price: item.unit_price,
           total_amount: item.total_amount,
           gst_code: item.gst_code || "GST",
