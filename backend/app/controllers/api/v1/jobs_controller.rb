@@ -952,15 +952,14 @@ module Api
           end
         end
 
-        # Add unmatched POs as a separate group (when cost budgets exist)
+        # Add unmatched POs as individual groups with "X - No Task" (sorts to bottom)
         if cost_budgets.any? && unmatched_pos.any?
-          unmatched_items = []
           unmatched_pos.each do |po|
-            po.line_items.sort_by(&:line_number).each do |item|
+            items = po.line_items.sort_by(&:line_number).map do |item|
               pc = item.profit_centre
-              unmatched_items << {
+              {
                 id: item.id,
-                description: "#{po.purchase_order_number}: #{item.description}",
+                description: item.description,
                 quantity: item.quantity.to_f,
                 unitPrice: item.unit_price.to_f,
                 gstCode: item.gst_code || "GST",
@@ -970,22 +969,22 @@ module Api
                 profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
               }
             end
-          end
 
-          if unmatched_items.any?
+            next if items.empty?
+
             boq_groups << {
-              id: "unallocated",
-              name: "Unallocated POs",
-              supplierId: nil,
-              supplierName: nil,
-              taskName: nil,
+              id: "po-#{po.id}",
+              name: po.purchase_order_number || "PO-#{po.id}",
+              supplierId: po.supplier_id,
+              supplierName: po.supplier&.display_name,
+              taskName: "X - No Task",
               taskPosition: nil,
               tradeName: nil,
               stageName: nil,
               stagePosition: nil,
-              costCentreName: nil,
-              profitCentreName: nil,
-              items: unmatched_items
+              costCentreName: "X - No Task",
+              profitCentreName: po.profit_centre_from_line_items,
+              items: items
             }
           end
         end

@@ -1941,7 +1941,11 @@ export default function JobDetailPage() {
             || (tab.component_name ? COMPONENT_BY_NAME[tab.component_name] : undefined)
             || (tab.component_name ? getTabComponent(tab.component_name) : undefined);
           if (Component) {
-            const className = tab.tab_key === "schedule" ? "mt-4 h-[calc(100vh-300px)]" : "mt-4";
+            const className = tab.tab_key === "schedule"
+              ? "mt-4 h-[calc(100vh-300px)]"
+              : tab.tab_key === "boq"
+                ? "mt-0"  // BOQ has inner tabs - no extra gap so they feel connected to parent sub-tabs
+                : "mt-4";
             return (
               <TabsContent key={tabValue} value={tabValue} className={className}>
                 <React.Suspense fallback={<TabLoadingSkeleton />}>

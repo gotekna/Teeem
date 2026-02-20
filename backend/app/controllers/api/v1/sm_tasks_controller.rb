@@ -208,10 +208,57 @@ module Api
         # Used by: PO detail page task dropdown
         # Handle early to avoid heavy includes/ordered scope
         if params[:for] == "select"
-          tasks_data = @job.sm_tasks
-            .order(:sequence_order, :id)
-            .pluck(:id, :name, :task_number, :start_date, :po_required)
-            .map { |id, name, task_number, start_date, po_required| { id: id, name: name, task_number: task_number, start_date: start_date, po_required: po_required } }
+          tasks = @job.sm_tasks.order(:sequence_order, :id)
+
+          # Filter by cost centre code (for BOQ "Add PO" per cost centre section)
+          # Uses same fallback chain as PurchaseOrder#cost_centre_from_task:
+          # sm_tasks.cost_centre → sm_schedule_masters.cost_centre
+          # Two-step: get IDs with DISTINCT (avoids duplicates from LEFT JOIN),
+          # then reload for clean includes(:purchase_order).
+          # .reorder(nil) clears ORDER BY before DISTINCT (PostgreSQL requires
+          # ORDER BY columns in SELECT list for DISTINCT).
+          if params[:cost_centre_code].present?
+            cc = CostCentre.find_by(code: params[:cost_centre_code])
+            if cc
+              task_ids = tasks
+                .left_joins(:sm_schedule_master)
+                .where("sm_tasks.cost_centre = :cc_id OR sm_schedule_masters.cost_centre = :cc_id", cc_id: cc.id)
+                .reorder(nil)
+                .distinct
+                .pluck("sm_tasks.id")
+              tasks = @job.sm_tasks.where(id: task_ids).order(:sequence_order, :id)
+            end
+          end
+
+          # Filter by stage name (for BOQ "Add PO" per stage section)
+          # Same fallback: sm_tasks.stage → sm_schedule_masters.stage
+          if params[:stage_name].present?
+            stage = SmStage.find_by(name: params[:stage_name])
+            if stage
+              task_ids = tasks
+                .left_joins(:sm_schedule_master)
+                .where("sm_tasks.stage = :stage_id OR sm_schedule_masters.stage = :stage_id", stage_id: stage.id)
+                .reorder(nil)
+                .distinct
+                .pluck("sm_tasks.id")
+              tasks = @job.sm_tasks.where(id: task_ids).order(:sequence_order, :id)
+            end
+          end
+
+          # Load with purchase_order to show existing PO status in the BOQ "Add PO" dialog
+          tasks_loaded = tasks.includes(:purchase_order).to_a
+          tasks_data = tasks_loaded.map do |task|
+            {
+              id: task.id,
+              name: task.name,
+              task_number: task.task_number,
+              start_date: task.start_date,
+              po_required: task.po_required,
+              cost_centre: task.cost_centre,
+              has_existing_po: task.purchase_order.present?,
+              existing_po_id: task.purchase_order&.id
+            }
+          end
           return render json: { success: true, sm_tasks: tasks_data }
         end
 

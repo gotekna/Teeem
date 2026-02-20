@@ -100,6 +100,8 @@ export interface BillOfQuantitiesProps {
   onSave?: (payload: BOQSavePayload) => Promise<void>;
   /** Called when user clicks a group name (e.g., to open a PO) */
   onGroupClick?: (groupId: number | string) => void;
+  /** Called when user clicks Add PO on a cascade section header (passes label + grouping dimension) */
+  onAddPO?: (sectionLabel: string, groupBy: "costCentre" | "stage" | "supplier" | "trade" | "profitCentre") => void;
   /** Available profit centres for the dropdown */
   profitCentres?: ProfitCentreOption[];
   /** Disables editing */
@@ -148,6 +150,7 @@ export function BillOfQuantities({
   groups,
   onSave,
   onGroupClick,
+  onAddPO,
   profitCentres = [],
   readOnly = false,
   loading = false,
@@ -189,11 +192,20 @@ export function BillOfQuantities({
     [groups]
   );
   const uniqueCostCentres = useMemo(() =>
-    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort(),
+    [...new Set(groups.map((g) => g.costCentreName).filter(Boolean) as string[])].sort((a, b) => {
+      const aNum = parseInt(a, 10);
+      const bNum = parseInt(b, 10);
+      if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.localeCompare(b);
+    }),
     [groups]
   );
   const uniqueProfitCentres = useMemo(() =>
     [...new Set(groups.flatMap((g) => g.items.map((i) => i.profitCentreName)).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
+  const uniqueGstCodes = useMemo(() =>
+    [...new Set(groups.flatMap((g) => g.items.map((i) => i.gstCode)).filter(Boolean) as string[])].sort(),
     [groups]
   );
   const hasStages = uniqueStages.length > 0;
@@ -204,13 +216,14 @@ export function BillOfQuantities({
 
   // Sort + column filter state
   const [sortState, setSortState] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
-  const [columnFilters, setColumnFilters] = useState({ group: "", description: "", code: "", gst: "" });
+  const [columnFilters, setColumnFilters] = useState({ group: "", description: "", code: "" });
   // Multi-select set filters for supplier, stage, trade
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
   const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
   const [selectedProfitCentres, setSelectedProfitCentres] = useState<Set<string>>(new Set());
+  const [selectedGstCodes, setSelectedGstCodes] = useState<Set<string>>(new Set());
 
   const toggleSort = useCallback((column: SortColumn) => {
     setSortState((prev) => {
@@ -240,17 +253,19 @@ export function BillOfQuantities({
       selectedStages.size > 0 ||
       selectedTrades.size > 0 ||
       selectedCostCentres.size > 0 ||
-      selectedProfitCentres.size > 0,
-    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres]
+      selectedProfitCentres.size > 0 ||
+      selectedGstCodes.size > 0,
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, selectedGstCodes]
   );
 
   const clearAllFilters = useCallback(() => {
-    setColumnFilters({ group: "", description: "", code: "", gst: "" });
+    setColumnFilters({ group: "", description: "", code: "" });
     setSelectedSuppliers(new Set());
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
     setSelectedCostCentres(new Set());
     setSelectedProfitCentres(new Set());
+    setSelectedGstCodes(new Set());
     setSortState(null);
   }, []);
 
@@ -272,6 +287,15 @@ export function BillOfQuantities({
   // Sort PO groups by selected dimension (groups always stay as POs)
   // Default (null): sort by task name → PO name for estimator workflow
   const displayGroups = useMemo(() => {
+    // Numeric-aware comparison: extracts leading number from strings like "100 - Surveyor"
+    // so that "102" sorts before "1000" (numeric order, not alphabetical)
+    const numericCompare = (a: string, b: string): number => {
+      const aNum = parseInt(a, 10);
+      const bNum = parseInt(b, 10);
+      if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.localeCompare(b);
+    };
+
     if (!groupSortBy) {
       return [...groups].sort((a, b) => {
         // Sort by schedule master order: stage position → task position → PO name
@@ -281,7 +305,7 @@ export function BillOfQuantities({
         const aTask = a.taskPosition ?? Infinity;
         const bTask = b.taskPosition ?? Infinity;
         if (aTask !== bTask) return aTask - bTask;
-        return a.name.localeCompare(b.name);
+        return numericCompare(a.name, b.name);
       });
     }
     return [...groups].sort((a, b) => {
@@ -290,7 +314,7 @@ export function BillOfQuantities({
         const aPos = a.stagePosition ?? Infinity;
         const bPos = b.stagePosition ?? Infinity;
         if (aPos !== bPos) return aPos - bPos;
-        return (a.stageName || "").localeCompare(b.stageName || "");
+        return numericCompare(a.stageName || "", b.stageName || "");
       }
       const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
         : groupSortBy === "costCentre" ? (a.costCentreName || "")
@@ -300,7 +324,7 @@ export function BillOfQuantities({
         : groupSortBy === "costCentre" ? (b.costCentreName || "")
         : groupSortBy === "profitCentre" ? (b.profitCentreName || "")
         : (b.tradeName || "");
-      return aVal.localeCompare(bVal);
+      return numericCompare(aVal, bVal);
     });
   }, [groups, groupSortBy]);
 
@@ -493,7 +517,30 @@ export function BillOfQuantities({
     // 2. Column-level filters
     if (columnFilters.group.trim()) {
       const term = columnFilters.group.toLowerCase();
-      result = result.filter((g) => g.name.toLowerCase().includes(term));
+      if (groupSortBy) {
+        // When grouped by a dimension, filter by the section label (cost centre, supplier, etc.)
+        // so typing "5" matches sections like "555 - Overheads", "150 - Plumbing"
+        result = result.filter((g) => {
+          const sectionLabel =
+            groupSortBy === "costCentre" ? g.costCentreName :
+            groupSortBy === "supplier" ? g.supplierName :
+            groupSortBy === "stage" ? g.stageName :
+            groupSortBy === "trade" ? g.tradeName :
+            groupSortBy === "profitCentre" ? g.profitCentreName :
+            g.name;
+          return (sectionLabel || "").toLowerCase().includes(term) || g.name.toLowerCase().includes(term);
+        });
+      } else {
+        // PO/Task mode: search all text shown in the PO/Task column
+        // (task name, PO name, stage, trade)
+        result = result.filter((g) =>
+          g.name.toLowerCase().includes(term) ||
+          (g.taskName || "").toLowerCase().includes(term) ||
+          (g.stageName || "").toLowerCase().includes(term) ||
+          (g.tradeName || "").toLowerCase().includes(term) ||
+          (g.costCentreName || "").toLowerCase().includes(term)
+        );
+      }
     }
     // Multi-select set filters (supplier, stage, trade)
     if (selectedSuppliers.size > 0) {
@@ -512,7 +559,7 @@ export function BillOfQuantities({
       result = result.filter((g) => g.items.some((i) => i.profitCentreName && selectedProfitCentres.has(i.profitCentreName)));
     }
     const hasItemFilters =
-      columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
+      columnFilters.description.trim() || columnFilters.code.trim() || selectedGstCodes.size > 0;
     if (hasItemFilters) {
       result = result
         .map((group) => ({
@@ -528,10 +575,7 @@ export function BillOfQuantities({
               !(item.pricebookItemCode || "").toLowerCase().includes(columnFilters.code.toLowerCase())
             )
               return false;
-            if (
-              columnFilters.gst.trim() &&
-              !(item.gstCode || "").toLowerCase().includes(columnFilters.gst.toLowerCase())
-            )
+            if (selectedGstCodes.size > 0 && !selectedGstCodes.has(item.gstCode || ""))
               return false;
             return true;
           }),
@@ -583,7 +627,7 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, selectedGstCodes, sortState, getQty]);
 
   // Cascade sections: group POs under Stage/Supplier/Trade headers
   const cascadeSections = useMemo(() => {
@@ -609,10 +653,13 @@ export function BillOfQuantities({
     }
     return [...buckets.entries()]
       .sort((a, b) => {
-        // Stage: sort by schedule master sequence order; others: alphabetical
+        // Stage: sort by schedule master sequence order; others: numeric-aware
         if (groupSortBy === "stage") {
           return a[1].sortOrder - b[1].sortOrder;
         }
+        const aNum = parseInt(a[0], 10);
+        const bNum = parseInt(b[0], 10);
+        if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
         return a[0].localeCompare(b[0]);
       })
       .map(([label, { groups: g, total }]) => ({ label, groups: g, total }));
@@ -668,12 +715,9 @@ export function BillOfQuantities({
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {totals.totalLines} lines
           </Badge>
-          <Badge variant="outline" className="text-xs font-mono whitespace-nowrap">
-            {formatCurrency(totals.grandTotal)}
-          </Badge>
-          <div className="flex items-center gap-1.5 ml-2">
+          <div className="flex items-center gap-1.5 ml-2 shrink-0">
             <span className="text-xs text-muted-foreground whitespace-nowrap">Sort by:</span>
-            <div className="flex items-center rounded-md border border-input bg-background">
+            <div className="flex items-center rounded-md border border-input bg-background whitespace-nowrap shrink-0">
               <button
                 onClick={() => {
                   setGroupSortBy(null);
@@ -727,72 +771,65 @@ export function BillOfQuantities({
                 )}
               </Button>
             )}
+            {/* Filter for the active sort dimension only */}
+            {groupSortBy === "supplier" && hasSuppliers && (
+              <MultiSelectFilter
+                values={uniqueSuppliers}
+                selected={selectedSuppliers}
+                onToggle={(v) => toggleSetFilter(selectedSuppliers, v, setSelectedSuppliers)}
+                placeholder="Supplier..."
+                label="Supplier"
+              />
+            )}
+            {groupSortBy === "stage" && hasStages && (
+              <MultiSelectFilter
+                values={uniqueStages}
+                selected={selectedStages}
+                onToggle={(v) => toggleSetFilter(selectedStages, v, setSelectedStages)}
+                placeholder="Stage..."
+                label="Stage"
+              />
+            )}
+            {groupSortBy === "trade" && hasTrades && (
+              <MultiSelectFilter
+                values={uniqueTrades}
+                selected={selectedTrades}
+                onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
+                placeholder="Trade..."
+                label="Trade"
+              />
+            )}
+            {groupSortBy === "costCentre" && hasCostCentres && (
+              <MultiSelectFilter
+                values={uniqueCostCentres}
+                selected={selectedCostCentres}
+                onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
+                placeholder="Cost Centre..."
+                label="Cost Centre"
+              />
+            )}
+            {groupSortBy === "profitCentre" && hasProfitCentres && (
+              <MultiSelectFilter
+                values={uniqueProfitCentres}
+                selected={selectedProfitCentres}
+                onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+                placeholder="Profit Centre..."
+                label="Profit Centre"
+              />
+            )}
+            {(hasActiveFilters || sortState) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllFilters}
+                className="gap-1 h-7 text-xs text-muted-foreground"
+              >
+                <X className="h-3 w-3" />
+                Clear
+              </Button>
+            )}
           </div>
-          {/* Multi-select dimension filters */}
-          {hasStages && (
-            <MultiSelectFilter
-              values={uniqueStages}
-              selected={selectedStages}
-              onToggle={(v) => toggleSetFilter(selectedStages, v, setSelectedStages)}
-              placeholder="Stage..."
-              label="Stage"
-            />
-          )}
-          {hasTrades && (
-            <MultiSelectFilter
-              values={uniqueTrades}
-              selected={selectedTrades}
-              onToggle={(v) => toggleSetFilter(selectedTrades, v, setSelectedTrades)}
-              placeholder="Trade..."
-              label="Trade"
-            />
-          )}
-          {hasCostCentres && (
-            <MultiSelectFilter
-              values={uniqueCostCentres}
-              selected={selectedCostCentres}
-              onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
-              placeholder="Cost Centre..."
-              label="Cost Centre"
-            />
-          )}
-          {hasProfitCentres && (
-            <MultiSelectFilter
-              values={uniqueProfitCentres}
-              selected={selectedProfitCentres}
-              onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
-              placeholder="Profit Centre..."
-              label="Profit Centre"
-            />
-          )}
-          {(hasActiveFilters || sortState) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clearAllFilters}
-              className="gap-1 h-7 text-xs text-muted-foreground"
-            >
-              <X className="h-3 w-3" />
-              Clear
-            </Button>
-          )}
         </div>
-
-        {canEdit && profitCentres.length > 0 && (
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground whitespace-nowrap">Default PC:</label>
-            <select
-              value={defaultPcId ?? ""}
-              onChange={(e) => setDefaultPcId(e.target.value ? Number(e.target.value) : null)}
-              className="h-7 text-xs rounded border bg-background px-1.5 max-w-[160px]"
-            >
-              <option value="">None</option>
-              {profitCentres.map((pc) => (
-                <option key={pc.id} value={pc.id}>{pc.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {canEdit && hasChanges && (
           <div className="flex items-center gap-2">
@@ -864,7 +901,7 @@ export function BillOfQuantities({
                   value={columnFilters.group}
                   onChange={(e) => updateFilter("group", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -880,7 +917,7 @@ export function BillOfQuantities({
                   value={columnFilters.code}
                   onChange={(e) => updateFilter("code", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -888,17 +925,17 @@ export function BillOfQuantities({
                   value={columnFilters.description}
                   onChange={(e) => updateFilter("description", e.target.value)}
                   placeholder="Filter..."
-                  className="h-6 text-xs px-1.5 font-normal"
+                  className="h-6 text-xs px-1.5 font-normal bg-background"
                 />
               </TableHead>
               <TableHead className="py-1" />
               <TableHead className="py-1" />
               <TableHead className="py-1 px-1">
-                <Input
-                  value={columnFilters.gst}
-                  onChange={(e) => updateFilter("gst", e.target.value)}
-                  placeholder="..."
-                  className="h-6 text-xs px-1 font-normal"
+                <MultiSelectFilter
+                  values={uniqueGstCodes}
+                  selected={selectedGstCodes}
+                  onToggle={(v) => toggleSetFilter(selectedGstCodes, v, setSelectedGstCodes)}
+                  placeholder="GST..."
                 />
               </TableHead>
               <TableHead className="py-1" />
@@ -935,6 +972,18 @@ export function BillOfQuantities({
                         <Badge variant="secondary" className="ml-2 text-xs font-normal">
                           {section.groups.length} PO{section.groups.length !== 1 ? "s" : ""}
                         </Badge>
+                        {onAddPO && groupSortBy && (groupSortBy === "costCentre" || groupSortBy === "stage") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-5 ml-2 px-1.5 text-[10px] font-medium gap-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                            title={`Add PO to ${section.label}`}
+                            onClick={(e) => { e.stopPropagation(); onAddPO(section.label, groupSortBy); }}
+                          >
+                            <Plus className="h-3 w-3" />
+                            PO
+                          </Button>
+                        )}
                       </TableCell>
                       <TableCell colSpan={2} className="py-2 px-4 text-right text-sm font-mono font-semibold">
                         {formatCurrency(section.total)}
@@ -1073,6 +1122,46 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
   return (
     <>
+      {/* Empty group: show PO header row when there are no line items */}
+      {group.items.length === 0 && (
+        <TableRow className={color.bg}>
+          <TableCell className={cn("align-top font-medium text-sm border-r", color.bg)}>
+            <div className="sticky top-10">
+              {group.taskName && group.taskName !== group.name && (
+                <div className="font-semibold text-xs text-foreground uppercase tracking-wide">
+                  {group.taskName}
+                </div>
+              )}
+              {onGroupClick ? (
+                <button
+                  onClick={() => onGroupClick(group.id)}
+                  className="text-left text-primary hover:underline font-medium"
+                >
+                  {group.name}
+                </button>
+              ) : (
+                group.name
+              )}
+              {(group.stageName || group.tradeName) && (
+                <div className="text-xs text-muted-foreground mt-0.5 flex gap-2">
+                  {group.stageName && <span>{group.stageName}</span>}
+                  {group.tradeName && <span>{group.tradeName}</span>}
+                </div>
+              )}
+            </div>
+          </TableCell>
+          <TableCell className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}>
+            <div className="sticky top-10">
+              {group.supplierName || (
+                <span className="italic text-xs">No supplier</span>
+              )}
+            </div>
+          </TableCell>
+          <TableCell colSpan={7} className="text-xs text-muted-foreground italic py-2">
+            No line items
+          </TableCell>
+        </TableRow>
+      )}
       {/* Existing line items */}
       {group.items.map((item, idx) => {
         const key = changeKey(group.id, item.id);
@@ -1133,8 +1222,9 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             )}
             <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
               {canEdit ? (
-                <PricebookCodeEditor
-                  currentCode={pbChanges.has(changeKey(group.id, item.id))
+                <PricebookItemEditor
+                  mode="code"
+                  currentValue={pbChanges.has(changeKey(group.id, item.id))
                     ? pbChanges.get(changeKey(group.id, item.id))!.pricebookItemCode
                     : (item.pricebookItemCode || "")}
                   supplierId={group.supplierId}
@@ -1150,7 +1240,24 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 item.pricebookItemCode || "—"
               )}
             </TableCell>
-            <TableCell className="text-sm py-1.5">{item.description}</TableCell>
+            <TableCell className="text-sm py-1.5">
+              {canEdit ? (
+                <PricebookItemEditor
+                  mode="description"
+                  currentValue={item.description}
+                  supplierId={group.supplierId}
+                  isDirty={pbChanges.has(changeKey(group.id, item.id))}
+                  onSelect={(selected) =>
+                    onPricebookChange(group.id, item.id, {
+                      pricebookItemId: selected.pricebookItemId,
+                      pricebookItemCode: selected.pricebookItemCode,
+                    })
+                  }
+                />
+              ) : (
+                item.description
+              )}
+            </TableCell>
             <TableCell className="text-right py-1">
               {canEdit ? (
                 <QtyInput
@@ -1214,8 +1321,9 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
           {/* PO/Supplier cells covered by rowSpan */}
           <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
-            <PricebookCodeEditor
-              currentCode={nl.pricebookItemCode || ""}
+            <PricebookItemEditor
+              mode="code"
+              currentValue={nl.pricebookItemCode || ""}
               supplierId={group.supplierId}
               isDirty={!!nl.pricebookItemCode}
               onSelect={(selected) =>
@@ -1625,15 +1733,18 @@ function PricebookLineSearch({
   );
 }
 
-// Wrapper for editing pricebook item code on existing line items.
-// Manages local search text state while delegating selection to parent.
-function PricebookCodeEditor({
-  currentCode,
+// THE ONE pricebook editor for existing line items (both code and description).
+// mode="code": shows code input (w-24, mono), reverts to code on blur
+// mode="description": shows description input (full width), reverts to description on blur
+function PricebookItemEditor({
+  currentValue,
+  mode,
   supplierId,
   isDirty,
   onSelect,
 }: {
-  currentCode: string;
+  currentValue: string;
+  mode: "code" | "description";
   supplierId?: number | null;
   isDirty: boolean;
   onSelect: (item: {
@@ -1644,7 +1755,7 @@ function PricebookCodeEditor({
     gstCode: string;
   }) => void;
 }) {
-  const [searchText, setSearchText] = useState(currentCode);
+  const [searchText, setSearchText] = useState(currentValue);
   const [editing, setEditing] = useState(false);
   const [showAll, setShowAll] = useState(!supplierId);
   const [results, setResults] = useState<PricebookSearchResult[]>([]);
@@ -1653,16 +1764,15 @@ function PricebookCodeEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync display when parent code changes (e.g., after save)
   React.useEffect(() => {
-    if (!editing) setSearchText(currentCode);
-  }, [currentCode, editing]);
+    if (!editing) setSearchText(currentValue);
+  }, [currentValue, editing]);
 
   const searchPricebook = useCallback(
     async (query: string, allSuppliers: boolean) => {
       try {
         setLoading(true);
-        const params = new URLSearchParams({ per_page: "15", include_risk: "false" });
+        const params = new URLSearchParams({ per_page: "50", include_risk: "false" });
         if (query.trim()) params.set("search", query);
         if (supplierId && !allSuppliers) params.set("supplier_id", String(supplierId));
         const response = await api.get<{ items?: PricebookSearchResult[] }>(
@@ -1681,8 +1791,11 @@ function PricebookCodeEditor({
 
   const handleFocus = useCallback(() => {
     setEditing(true);
-    searchPricebook(searchText, showAll);
-  }, [searchPricebook, searchText, showAll]);
+    // Always search with empty string on focus to show all items for this supplier
+    // User can then type to narrow down
+    setSearchText("");
+    searchPricebook("", showAll);
+  }, [searchPricebook, showAll]);
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1709,25 +1822,24 @@ function PricebookCodeEditor({
         unitPrice: item.current_price || 0,
         gstCode: item.gst_code || "GST",
       });
-      setSearchText(item.item_code);
+      setSearchText(mode === "code" ? item.item_code : item.item_name);
       setIsOpen(false);
       setEditing(false);
     },
-    [onSelect]
+    [onSelect, mode]
   );
 
-  // Close on outside click
   React.useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setEditing(false);
-        setSearchText(currentCode); // revert search text
+        setSearchText(currentValue);
       }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [currentCode]);
+  }, [currentValue]);
 
   React.useEffect(() => {
     return () => {
@@ -1742,9 +1854,10 @@ function PricebookCodeEditor({
           value={searchText}
           onChange={handleChange}
           onFocus={handleFocus}
-          placeholder="Code..."
+          placeholder={mode === "code" ? "Code..." : "Search description..."}
           className={cn(
-            "h-7 w-24 text-xs font-mono",
+            "h-7",
+            mode === "code" ? "w-24 text-xs font-mono" : "text-sm",
             isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
           )}
         />

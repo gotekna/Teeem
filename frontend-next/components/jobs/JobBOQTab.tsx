@@ -8,12 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw,
-  FileText,
-  DollarSign,
   BarChart3,
   Package,
   Settings,
   Upload,
+  ExternalLink,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -23,6 +23,9 @@ import { JobQuantityVariablesForm } from "./JobQuantityVariablesForm";
 import { JobRecipesPanel } from "./JobRecipesPanel";
 import { DatabuildImportModal } from "@/components/xero/DatabuildImportModal";
 import { BillOfQuantities, type BOQGroup, type BOQSavePayload } from "@/components/ui/bill-of-quantities";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
+import { Label } from "@/components/ui/label";
 
 interface BOQApiGroup {
   id: number | string;
@@ -59,6 +62,8 @@ interface ProfitCentreOption {
 interface BOQSummary {
   boq_total: number;
   po_total: number;
+  po_subtotal: number;
+  po_gst: number;
   variance: number;
   variance_percent: number;
   contract_value: number;
@@ -78,6 +83,17 @@ interface BOQData {
   summary: BOQSummary;
 }
 
+interface SmTaskOption {
+  id: number;
+  name: string;
+  task_number: string | null;
+  start_date: string | null;
+  po_required: boolean;
+  cost_centre: number | null;
+  has_existing_po: boolean;
+  existing_po_id: number | null;
+}
+
 interface JobBOQTabProps {
   jobId: string | number;
 }
@@ -88,6 +104,16 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
   const [boqData, setBOQData] = useState<BOQData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
+
+  // Add PO modal state (from Cost Centre or Stage section headers)
+  const [showAddPOModal, setShowAddPOModal] = useState(false);
+  const [addPOSectionLabel, setAddPOSectionLabel] = useState("");
+  const [addPOGroupBy, setAddPOGroupBy] = useState<"costCentre" | "stage">("costCentre");
+  const [sectionTasks, setSectionTasks] = useState<SmTaskOption[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [creatingPO, setCreatingPO] = useState(false);
 
   useEffect(() => {
     loadBOQData();
@@ -145,6 +171,75 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
     if (variance > 0) return "text-red-600 dark:text-red-400";
     return "text-green-600 dark:text-green-400";
   };
+
+  const handleAddPO = useCallback(async (sectionLabel: string, groupBy: "costCentre" | "stage" | "supplier" | "trade" | "profitCentre") => {
+    setAddPOSectionLabel(sectionLabel);
+    setAddPOGroupBy(groupBy as "costCentre" | "stage");
+    setSelectedTaskId(null);
+    setSelectedSupplier(null);
+    setSectionTasks([]);
+    setShowAddPOModal(true);
+
+    // Build filter param based on grouping dimension
+    let filterParam = "";
+    if (groupBy === "costCentre") {
+      // Parse cost centre code from label (e.g., "140" from "140 - Retaining Walls")
+      const ccCode = sectionLabel.split(" - ")[0]?.trim();
+      if (!ccCode) return;
+      filterParam = `cost_centre_code=${encodeURIComponent(ccCode)}`;
+    } else if (groupBy === "stage") {
+      filterParam = `stage_name=${encodeURIComponent(sectionLabel)}`;
+    }
+
+    try {
+      setLoadingTasks(true);
+      const res = await api.get<{ success: boolean; sm_tasks: SmTaskOption[] }>(
+        `/api/v1/jobs/${jobId}/sm_tasks?for=select&${filterParam}`
+      );
+      const tasks = (res?.sm_tasks || []).filter((t) => t.po_required);
+      setSectionTasks(tasks);
+    } catch (err) {
+      console.error("Failed to load tasks for section:", err);
+    } finally {
+      setLoadingTasks(false);
+    }
+  }, [jobId]);
+
+  const handleCreatePO = useCallback(async (andOpen: boolean) => {
+    if (!selectedTaskId || !selectedSupplier) return;
+
+    try {
+      setCreatingPO(true);
+      const res = await api.post<{ success: boolean; purchase_order: { id: number } }>(
+        `/api/v1/purchase_orders`,
+        {
+          purchase_order: {
+            job_id: jobId,
+            supplier_id: selectedSupplier.id,
+            schedule_task_id: selectedTaskId,
+            status: "draft",
+          },
+        }
+      );
+
+      if (res?.success) {
+        toast.success("Purchase order created");
+        setShowAddPOModal(false);
+        if (andOpen && res.purchase_order?.id) {
+          router.push(`/purchase_orders/${res.purchase_order.id}`);
+        } else {
+          await loadBOQData();
+        }
+      } else {
+        toast.error("Failed to create purchase order");
+      }
+    } catch (err) {
+      console.error("Failed to create PO:", err);
+      toast.error("Failed to create purchase order");
+    } finally {
+      setCreatingPO(false);
+    }
+  }, [selectedTaskId, selectedSupplier, jobId, router]);
 
   const handleGroupClick = useCallback((groupId: number | string) => {
     router.push(`/purchase_orders/${groupId}`);
@@ -282,7 +377,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
 
   return (
     <Tabs defaultValue="boq" className="flex flex-col h-full">
-      <div className="flex items-center justify-between shrink-0 mb-4">
+      <div className="flex items-center justify-between shrink-0 mb-2">
         <TabsList>
           <TabsTrigger value="boq" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -310,52 +405,42 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 shrink-0 mb-4">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <FileText className="h-3.5 w-3.5" />
-              BOQ Budget
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 shrink-0 mb-2">
+        <Card className="shadow-none">
+          <CardContent className="pt-2 pb-2 px-3">
+            <div className="text-[10px] text-muted-foreground">Ex GST</div>
+            <div className="text-lg font-bold">{formatCurrency(summary.po_subtotal)}</div>
+            <div className="text-[10px] text-muted-foreground">{summary.po_count} purchase orders</div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-none">
+          <CardContent className="pt-2 pb-2 px-3">
+            <div className="text-[10px] text-muted-foreground">GST Amount</div>
+            <div className="text-lg font-bold">{formatCurrency(summary.po_gst)}</div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-none">
+          <CardContent className="pt-2 pb-2 px-3">
+            <div className="text-[10px] text-muted-foreground">Inc GST</div>
+            <div className="text-lg font-bold">{formatCurrency(summary.po_total)}</div>
+          </CardContent>
+        </Card>
+        <Card className="shadow-none">
+          <CardContent className="pt-2 pb-2 px-3">
+            <div className="text-[10px] text-muted-foreground">Variance</div>
+            <div className={cn("text-lg font-bold", getVarianceColor(summary.variance))}>
+              {summary.variance >= 0 ? "+" : ""}{formatCurrency(summary.variance)}
             </div>
-            <div className="text-xl font-bold">{formatCurrency(summary.boq_total)}</div>
-            <div className="text-xs text-muted-foreground">
-              {summary.category_count} cost centres
+            <div className={cn("text-[10px]", getVarianceColor(summary.variance))}>
+              {summary.variance_percent >= 0 ? "+" : ""}{summary.variance_percent}%
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <DollarSign className="h-3.5 w-3.5" />
-              PO Total
-            </div>
-            <div className="text-xl font-bold">{formatCurrency(summary.po_total)}</div>
-            <div className="text-xs text-muted-foreground">
-              {summary.po_count} purchase orders
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Variance
-            </div>
-            <div className={cn("text-xl font-bold", getVarianceColor(summary.variance))}>
-              {summary.variance >= 0 ? "+" : ""}
-              {formatCurrency(summary.variance)}
-            </div>
-            <div className={cn("text-xs", getVarianceColor(summary.variance))}>
-              {summary.variance_percent >= 0 ? "+" : ""}
-              {summary.variance_percent}%
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <div className="text-xs text-muted-foreground mb-1">Contract Value</div>
-            <div className="text-xl font-bold">{formatCurrency(summary.contract_value)}</div>
-            <div className="text-xs text-muted-foreground">
+        <Card className="shadow-none">
+          <CardContent className="pt-2 pb-2 px-3">
+            <div className="text-[10px] text-muted-foreground">Contract Value</div>
+            <div className="text-lg font-bold">{formatCurrency(summary.contract_value)}</div>
+            <div className="text-[10px] text-muted-foreground">
               Margin: {formatCurrency(summary.contract_value - summary.po_total)}
             </div>
           </CardContent>
@@ -368,6 +453,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           groups={boqGroups}
           onSave={handleSave}
           onGroupClick={handleGroupClick}
+          onAddPO={handleAddPO}
           profitCentres={boqData.profitCentres?.map((pc) => ({ id: pc.id, label: pc.label })) ?? []}
           loading={loading}
         />
@@ -389,6 +475,139 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
         onImportComplete={loadBOQData}
         preSelectedJobId={jobId}
       />
+
+      {/* Add PO Dialog (from Cost Centre or Stage section) */}
+      <Dialog open={showAddPOModal} onOpenChange={setShowAddPOModal}>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="text-base">
+              New Purchase Order
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">{addPOSectionLabel}</p>
+          </DialogHeader>
+
+          <div className="px-5 pb-5 space-y-4">
+            {/* Task selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Task</Label>
+              {loadingTasks ? (
+                <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
+                  <Spinner size={16} />
+                  <span className="text-sm">Loading tasks...</span>
+                </div>
+              ) : sectionTasks.length === 0 ? (
+                <div className="rounded-lg border border-dashed py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No tasks with PO Required found
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check that tasks are assigned to this {addPOGroupBy === "costCentre" ? "cost centre" : "stage"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-[280px] overflow-y-auto rounded-lg border p-1">
+                  {sectionTasks.map((task) => {
+                    const hasPO = task.has_existing_po;
+                    const isSelected = selectedTaskId === task.id;
+                    return (
+                      <button
+                        key={task.id}
+                        type="button"
+                        disabled={hasPO}
+                        className={cn(
+                          "w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all",
+                          hasPO
+                            ? "opacity-40 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-primary/10 ring-1 ring-primary/40"
+                              : "hover:bg-muted/60 cursor-pointer"
+                        )}
+                        onClick={() => !hasPO && setSelectedTaskId(task.id)}
+                      >
+                        {/* Selection indicator */}
+                        <div className={cn(
+                          "h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                          hasPO
+                            ? "border-muted-foreground/30"
+                            : isSelected
+                              ? "border-primary bg-primary"
+                              : "border-muted-foreground/40"
+                        )}>
+                          {isSelected && !hasPO && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+
+                        {/* Task info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-sm font-medium truncate", hasPO && "line-through")}>
+                              {task.name}
+                            </span>
+                            {task.task_number && (
+                              <span className="text-xs text-muted-foreground shrink-0">#{task.task_number}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* PO status */}
+                        {hasPO && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
+                            <Check className="h-2.5 w-2.5" />
+                            Has PO
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Supplier selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Supplier</Label>
+              <SupplierPicker
+                value={selectedSupplier}
+                onSelect={setSelectedSupplier}
+                placeholder="Search suppliers..."
+                clearable
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddPOModal(false)}
+                disabled={creatingPO}
+                className="text-muted-foreground"
+              >
+                Cancel
+              </Button>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                onClick={() => handleCreatePO(false)}
+                disabled={!selectedTaskId || !selectedSupplier || creatingPO}
+              >
+                {creatingPO ? <Spinner size={14} className="mr-2" /> : null}
+                Create PO
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCreatePO(true)}
+                disabled={!selectedTaskId || !selectedSupplier || creatingPO}
+              >
+                <ExternalLink className="h-3 w-3 mr-1.5" />
+                Create & Open
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
