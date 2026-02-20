@@ -2958,6 +2958,7 @@ Rails.application.routes.draw do
           collection do
             post :bulk_delete
             post :bulk_update
+            post :batch_update
             post :bulk_create
             get :export
           end

@@ -373,9 +373,18 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
 
       // Save via API
       if (foundationId && rowsToUpdate.length > 0) {
-        for (const { rowId, changes } of rowsToUpdate) {
-          await api.patch(`/api/v1/foundations/${foundationId}/records/${rowId}`, {
-            record: changes,
+        if (rowsToUpdate.length === 1) {
+          // Single row: use direct PATCH
+          await api.patch(`/api/v1/foundations/${foundationId}/records/${rowsToUpdate[0].rowId}`, {
+            record: rowsToUpdate[0].changes,
+          });
+        } else {
+          // Multiple rows: batch into single request to avoid rate limiting
+          await api.post(`/api/v1/foundations/${foundationId}/records/batch_update`, {
+            updates: rowsToUpdate.map(({ rowId, changes }) => ({
+              id: rowId,
+              changes,
+            })),
           });
         }
 

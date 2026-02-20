@@ -899,6 +899,79 @@ module Api
         render_error(e.message, status: :internal_server_error)
       end
 
+      # POST /api/v1/foundations/:foundation_id/records/batch_update
+      # Update multiple records with per-record changes in a single request.
+      # Used by inline editing to avoid N individual PATCH requests.
+      # Params:
+      #   - updates: Array of { id: <record_id>, changes: { column: value, ... } }
+      def batch_update
+        model = @foundation.dynamic_model
+        batch = params[:updates]
+
+        if batch.blank? || !batch.is_a?(Array)
+          return render_error("Expected 'updates' array of {id, changes}")
+        end
+
+        # Get valid column names for this foundation
+        foundation_columns = if @foundation.table_type == "system"
+          model.column_names
+        else
+          @foundation.columns.pluck(:column_name)
+        end
+        model_column_names = model.column_names.to_set
+        valid_columns = foundation_columns.select { |col|
+          model_column_names.include?(col.to_s) || model.method_defined?("#{col}=")
+        }.to_set
+
+        updated_count = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          batch.each do |entry|
+            id = entry[:id] || entry["id"]
+            changes = (entry[:changes] || entry["changes"])&.to_unsafe_h || {}
+            next if id.blank? || changes.blank?
+
+            # Filter to valid columns
+            filtered = changes.select { |k, _| valid_columns.include?(k.to_s) }
+            next if filtered.blank?
+
+            # Auto-convert lookup IDs to string values where needed
+            filtered = convert_lookup_ids_to_strings(model, filtered)
+
+            record = model.find_by(id: id)
+            if record
+              # Handle belongs_to lookup columns
+              filtered.each do |col_name, val|
+                if model.reflect_on_association(col_name.to_sym)&.macro == :belongs_to
+                  record.write_attribute(col_name, val)
+                  filtered = filtered.except(col_name)
+                end
+              end
+
+              record.assign_attributes(filtered) if filtered.any?
+
+              if record.save
+                updated_count += 1
+              else
+                errors << { id: id, errors: record.errors.full_messages }
+              end
+            else
+              errors << { id: id, errors: ["Record not found"] }
+            end
+          end
+        end
+
+        render json: {
+          success: errors.empty?,
+          updated_count: updated_count,
+          total_requested: batch.size,
+          errors: errors
+        }
+      rescue => e
+        render_error(e.message, status: :internal_server_error)
+      end
+
       # POST /api/v1/foundations/:foundation_id/records/:id/merge
       # Merge multiple records into one primary record
       # Params:
