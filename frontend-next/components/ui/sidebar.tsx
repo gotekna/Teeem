@@ -193,6 +193,8 @@ function SidebarContent({
   // Awaits IndexedDB deletion before reload to guarantee clean slate
   const handleClearCache = async () => {
     setClearing(true);
+    // Save current URL so we stay on the same page after clearing
+    const returnUrl = window.location.pathname + window.location.search;
     // Safety: reset after 5s if reload doesn't happen (prevents stuck green button)
     const safetyTimeout = setTimeout(() => setClearing(false), 5000);
     try {
@@ -224,17 +226,13 @@ function SidebarContent({
       }
       keysToRemove.forEach((key) => localStorage.removeItem(key));
 
-      // 4. Clear all sessionStorage
-      sessionStorage.clear();
-
-      // Reload after caches confirmed cleared
+      // Navigate back to the same page (forces full reload with fresh state)
       clearTimeout(safetyTimeout);
-      window.location.reload();
+      window.location.href = returnUrl;
     } catch (err) {
       console.error("[ClearCache] Error:", err);
       clearTimeout(safetyTimeout);
-      // Even on error, force reload to get fresh state
-      window.location.reload();
+      window.location.href = returnUrl;
     }
   };
 
