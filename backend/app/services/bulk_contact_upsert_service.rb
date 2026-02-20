@@ -114,49 +114,85 @@ class BulkContactUpsertService
   end
 
   # Bulk update contacts
-  # FRC (Feb 2026): Use update_all per contact instead of upsert_all.
-  # upsert_all generates INSERT...ON CONFLICT which requires ALL NOT NULL
-  # columns (including contact_code) even when the ON CONFLICT path is taken.
-  # Since we KNOW these records exist (IDs from ContactMatcher), plain UPDATE
-  # is correct, simpler, and avoids NOT NULL issues entirely.
+  # FRC (Feb 2026): Batch UPDATE via CASE/WHEN SQL instead of N individual queries.
+  # Root cause: Sentry N+1 (11 issues, 500+ events) — XeroContactBatchProcessJob
+  # was issuing 10-97 individual UPDATE queries per 100-contact batch.
+  # Fix: Group contacts by attribute key set, build one UPDATE per group using
+  # PostgreSQL CASE expressions. Typically collapses 100 queries → 1-3.
+  # Falls back to individual updates only on unique constraint violations.
   def bulk_update(operations)
     return 0 if operations.empty?
 
-    updated = 0
-    contact_ids = []
-
-    operations.each do |op|
-      # FRC (Feb 2026): Do NOT include updated_at in attrs hash.
-      # update_all with explicit updated_at causes PG::SyntaxError
-      # "multiple assignments to same column" — Rails auto-appends it.
-      # Touch separately via touch_all after all updates complete.
+    # Normalize attrs upfront and group by attribute key set
+    prepared = operations.filter_map do |op|
       attrs = op[:attrs].compact
       attrs.delete(:updated_at)
       attrs.delete("updated_at")
       next if attrs.empty?
 
+      { contact_id: op[:contact_id].to_i, attrs: attrs }
+    end
+
+    return 0 if prepared.empty?
+
+    grouped = prepared.group_by { |op| op[:attrs].keys.sort }
+    conn = ActiveRecord::Base.connection
+    updated = 0
+    fallback_ids = []
+
+    grouped.each do |attr_keys, group_ops|
+      ids = group_ops.map { |op| op[:contact_id] }
+
+      # Build single UPDATE with CASE expressions per column
+      set_parts = attr_keys.map do |col|
+        cases = group_ops.map { |op|
+          "WHEN #{op[:contact_id]} THEN #{conn.quote(op[:attrs][col])}"
+        }.join(" ")
+        "\"#{col}\" = CASE \"id\" #{cases} END"
+      end
+      set_parts << "\"updated_at\" = NOW()"
+
+      sql = "UPDATE \"contacts\" SET #{set_parts.join(', ')} WHERE \"id\" IN (#{ids.join(', ')})"
+
       begin
-        updated += Contact.where(id: op[:contact_id]).update_all(attrs)
-        contact_ids << op[:contact_id]
+        result = conn.execute(sql)
+        updated += result.cmd_tuples
       rescue ActiveRecord::RecordNotUnique => e
-        # FRC (Feb 2026): Xero sends display_name that may collide with another contact.
-        # Skip display_name update and retry with remaining attrs.
-        Rails.logger.warn("[BulkContactUpsertService] UniqueViolation on update for contact #{op[:contact_id]}: #{e.message.truncate(100)}")
-        begin
-          attrs_without_name = attrs.except(:display_name)
-          if attrs_without_name.any?
-            updated += Contact.where(id: op[:contact_id]).update_all(attrs_without_name)
-            contact_ids << op[:contact_id]
-          end
-        rescue ActiveRecord::RecordNotUnique => retry_error
-          Rails.logger.warn("[BulkContactUpsertService] UniqueViolation persists after removing display_name for contact #{op[:contact_id]}: #{retry_error.message.truncate(100)}")
+        # Batch had a unique constraint violation — fall back to individual updates
+        Rails.logger.warn("[BulkContactUpsertService] UniqueViolation in batch update, falling back: #{e.message.truncate(200)}")
+        group_ops.each do |op|
+          count = individual_update(op[:contact_id], op[:attrs])
+          updated += count
+          fallback_ids << op[:contact_id] if count > 0
         end
       end
     end
 
-    Contact.where(id: contact_ids).touch_all if contact_ids.any?
+    # Touch individually-updated contacts (batch SQL already sets updated_at via NOW())
+    Contact.where(id: fallback_ids).touch_all if fallback_ids.any?
 
     updated
+  end
+
+  # Individual update fallback (preserves retry-without-display_name logic)
+  # FRC (Feb 2026): Do NOT include updated_at — Rails auto-appends it to update_all,
+  # causing PG::SyntaxError "multiple assignments to same column".
+  def individual_update(contact_id, attrs)
+    Contact.where(id: contact_id).update_all(attrs)
+    1
+  rescue ActiveRecord::RecordNotUnique => e
+    Rails.logger.warn("[BulkContactUpsertService] UniqueViolation on contact #{contact_id}: #{e.message.truncate(100)}")
+    begin
+      attrs_without_name = attrs.except(:display_name)
+      if attrs_without_name.any?
+        Contact.where(id: contact_id).update_all(attrs_without_name)
+        1
+      else
+        0
+      end
+    rescue ActiveRecord::RecordNotUnique
+      0
+    end
   end
 
   # Bulk create/update contact external links

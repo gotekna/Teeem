@@ -35,6 +35,8 @@ module Performance
       end
 
       # Detect endpoints with abnormally high P95 latency
+      # FRC (Feb 2026): Batch baseline query for all endpoints in one query.
+      # Old code called baseline_stats_for_endpoint per endpoint → N+1 (Sentry TEEEM-BACKEND-5E).
       def detect_latency_spikes
         anomalies = []
 
@@ -46,9 +48,11 @@ module Performance
         current_metrics = query_mv_hourly(current_hour)
         return anomalies if current_metrics.empty?
 
+        # Batch: Get baseline stats for ALL endpoints in one query
+        baselines = batch_baseline_stats(current_metrics.keys, baseline_start, current_hour)
+
         current_metrics.each do |endpoint, current|
-          # Get baseline stats for this endpoint (excluding current hour)
-          baseline = baseline_stats_for_endpoint(endpoint, baseline_start, current_hour)
+          baseline = baselines[endpoint] || { count: 0, mean: 0, stddev: 0 }
           next unless baseline[:count] >= MIN_BASELINE_POINTS
 
           # Calculate z-score for P95 latency
@@ -344,25 +348,35 @@ module Performance
         result
       end
 
-      def baseline_stats_for_endpoint(endpoint, start_time, end_time)
-        result = PerformanceRequest
+      # Batch baseline stats for ALL endpoints in a single query.
+      # Returns Hash<endpoint => { count:, mean:, stddev: }>
+      # FRC (Feb 2026): Replaces per-endpoint baseline_stats_for_endpoint (N+1).
+      def batch_baseline_stats(endpoints, start_time, end_time)
+        return {} if endpoints.empty?
+
+        # Single query: P95 per (endpoint, hour) for all endpoints
+        rows = PerformanceRequest
           .where("created_at > ? AND created_at < ?", start_time, end_time)
-          .where(endpoint: endpoint)
-          .group(Arel.sql("date_trunc('hour', created_at)"))
+          .where(endpoint: endpoints)
+          .group(:endpoint, Arel.sql("date_trunc('hour', created_at)"))
           .select(
+            "endpoint",
             "PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95"
           )
           .to_a
 
-        return { count: 0, mean: 0, stddev: 0 } if result.empty?
+        # Group by endpoint and compute mean/stddev in Ruby
+        grouped = rows.group_by(&:endpoint)
 
-        p95_values = result.map { |r| r.p95.to_f }
-        count = p95_values.size
-        mean = p95_values.sum / count
-        variance = p95_values.map { |v| (v - mean) ** 2 }.sum / count
-        stddev = Math.sqrt(variance)
+        grouped.transform_values do |hourly_rows|
+          p95_values = hourly_rows.map { |r| r.p95.to_f }
+          count = p95_values.size
+          mean = p95_values.sum / count
+          variance = p95_values.map { |v| (v - mean) ** 2 }.sum / count
+          stddev = Math.sqrt(variance)
 
-        { count: count, mean: mean, stddev: stddev }
+          { count: count, mean: mean, stddev: stddev }
+        end
       end
 
       def calculate_z_score(observed, mean, stddev)

@@ -92,12 +92,15 @@ module Api
             if @foundation.table_type == "system"
               model.columns.select { |c| [ :string, :text ].include?(c.type) && !c.array }.map(&:name)
             else
+              # FRC (Feb 2026): Use Ruby select on eager-loaded columns to avoid N+1.
+              # @foundation.columns is already includes()-loaded in set_foundation.
               text_types = %w[single_line_text multiple_lines_text email phone url]
-              @foundation.columns.where(column_type: text_types).pluck(:column_name)
+              @foundation.columns.select { |c| text_types.include?(c.column_type) }.map(&:column_name)
             end
           else
             # SSoT: Use foundation's searchable column definitions (works for ALL tables)
-            foundation_searchable = @foundation.columns.where(searchable: true).pluck(:column_name)
+            # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+            foundation_searchable = @foundation.columns.select(&:searchable).map(&:column_name)
 
             if foundation_searchable.any?
               # Filter out columns that can't be searched with ILIKE:
@@ -108,7 +111,8 @@ module Api
               real_db_columns = model.column_names
               array_columns = model.columns.select(&:array).map(&:name)
               tsvector_columns = model.columns.select { |c| c.type == :tsvector }.map(&:name)
-              lookup_columns = @foundation.columns.where(column_type: Column::LOOKUP_COLUMN_TYPES).pluck(:column_name)
+              # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+              lookup_columns = @foundation.columns.select { |c| Column::LOOKUP_COLUMN_TYPES.include?(c.column_type) }.map(&:column_name)
               excluded_columns = array_columns + tsvector_columns + lookup_columns
               foundation_searchable
                 .select { |col| real_db_columns.include?(col) }
@@ -124,10 +128,12 @@ module Api
           # Generic: Include lookup column display values in search (Feb 2026)
           # For each single-lookup column, LEFT JOIN the target table and search its display column.
           # This allows searching by contact name, supplier name, etc. on ANY foundation.
-          lookup_cols_for_search = @foundation.columns
-            .where(column_type: "lookup") # Only single lookups (not multiple_lookups - array FK)
-            .where.not(lookup_foundation_id: nil)
-            .where.not(lookup_display_column: [nil, ""])
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL queries)
+          lookup_cols_for_search = @foundation.columns.select { |c|
+            c.column_type == "lookup" &&
+            c.lookup_foundation_id.present? &&
+            c.lookup_display_column.present?
+          }
 
           if lookup_cols_for_search.any?
             main_table = model.table_name
@@ -1020,12 +1026,13 @@ module Api
         records = query.limit(50_000).to_a
 
         # Get column definitions for headers
+        # FRC (Feb 2026): Ruby select/sort on eager-loaded columns (avoids N+1)
         columns = if @foundation.table_type == "system"
-          @foundation.columns.where(visible: true).order(:position).map do |col|
+          @foundation.columns.select(&:visible).sort_by(&:position).map do |col|
             { name: col.column_name, label: col.display_name || col.column_name.titleize }
           end
         else
-          @foundation.columns.order(:position).map do |col|
+          @foundation.columns.sort_by(&:position).map do |col|
             { name: col.column_name, label: col.display_name || col.column_name.titleize }
           end
         end
@@ -1132,8 +1139,8 @@ module Api
 
         result = updates.dup
 
-        # Get lookup columns for this foundation
-        lookup_columns = @foundation.columns.where(column_type: "lookup")
+        # Get lookup columns for this foundation (Ruby select on eager-loaded columns)
+        lookup_columns = @foundation.columns.select { |c| c.column_type == "lookup" }
 
         lookup_columns.each do |col|
           col_name = col.column_name
@@ -1229,7 +1236,10 @@ module Api
           # e.g., job_type_id => { id: 1, display: "Residential" }
           # IMPORTANT: Only expand _id columns that were actually loaded
           # Build column config lookup for _id columns that have lookup_display_column configured
-          foundation_columns_by_name = @foundation.columns.where(column_type: %w[lookup multiple_lookups]).index_by(&:column_name)
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+          foundation_columns_by_name = @foundation.columns
+            .select { |c| %w[lookup multiple_lookups].include?(c.column_type) }
+            .index_by(&:column_name)
           loaded_id_columns = loaded_columns.select { |k| k.to_s.end_with?("_id") && k != "id" }
           loaded_id_columns.each do |id_column|
             # Skip if the _id column wasn't loaded or has no value
@@ -1277,7 +1287,8 @@ module Api
           end
 
           # Expand multiple_lookups columns for system tables (e.g., roles)
-          @foundation.columns.where(column_type: "multiple_lookups").each do |column|
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1)
+          @foundation.columns.select { |c| c.column_type == "multiple_lookups" }.each do |column|
             value = json[column.column_name]
             next if value.blank?
 
@@ -1317,7 +1328,8 @@ module Api
 
           # Expand lookup columns for system tables (e.g., header in sm_schedule_master)
           # This handles lookup columns that don't follow the _id naming convention
-          @foundation.columns.where(column_type: "lookup").each do |column|
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1)
+          @foundation.columns.select { |c| c.column_type == "lookup" }.each do |column|
             value = json[column.column_name]
             next if value.blank?
             # Skip if already expanded (e.g., _id columns handled by association lookup above)
@@ -1503,7 +1515,11 @@ module Api
 
       def build_lookup_cache(records)
         # Preload all lookup data to prevent N+1 queries
-        lookup_columns = @foundation.columns.where(column_type: "lookup").includes(:lookup_foundation)
+        # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1).
+        # Note: lookup_foundation is accessed below but not eager-loaded via includes(:columns)
+        # in set_foundation. The .includes(:lookup_foundation) would fire a query anyway,
+        # so we pre-filter in Ruby and let Rails lazy-load only the lookup_foundation association.
+        lookup_columns = @foundation.columns.select { |c| c.column_type == "lookup" }
         lookup_cache = {}
 
         lookup_columns.each do |column|
@@ -1660,7 +1676,8 @@ module Api
         # Apply search
         search = params[:search]
         if search.present?
-          searchable_columns = @foundation.columns.where(searchable: true).pluck(:column_name)
+          # FRC (Feb 2026): Ruby select on eager-loaded columns (avoids N+1 SQL query)
+          searchable_columns = @foundation.columns.select(&:searchable).map(&:column_name)
           searchable_columns = model.column_names.select { |c| [:string, :text].include?(model.columns_hash[c]&.type) } if searchable_columns.empty?
 
           if searchable_columns.any?

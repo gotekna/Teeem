@@ -261,17 +261,25 @@ module Api
 
       # GET /api/v1/warehouse_folders/tree
       # Returns full folder tree for File Warehouse page
+      # FRC (Feb 2026): Pre-load ALL folders in one query and build tree in Ruby.
+      # Old code used folder.children.where(...) recursively → N+1 queries (Sentry TEEEM-BACKEND-4M).
       def tree
         counts = fetch_warehouse_counts
 
+        # Single query: load ALL warehouse-enabled folders with their warehouse_type
         all_folders = WarehouseFolder
-          .where(parent_id: nil, warehouse_enabled: true, enabled: true)
+          .where(warehouse_enabled: true, enabled: true)
           .where.not(folder_segment: [nil, ''])
-          .includes(:children, :warehouse_type)
+          .includes(:warehouse_type)
           .order(:order_position, :name)
+          .to_a
 
-        # Group folders by warehouse_type (FK-driven, not display name strings)
-        grouped = all_folders.group_by { |folder| folder.warehouse_type }
+        # Build lookup: parent_id → children (in-memory, zero DB queries for tree building)
+        @tree_children_by_parent = all_folders.group_by(&:parent_id)
+        root_folders = @tree_children_by_parent[nil] || []
+
+        # Group roots by warehouse_type
+        grouped = root_folders.group_by(&:warehouse_type)
 
         tree = grouped.map do |wt, folders|
           next nil if wt.blank?
@@ -306,9 +314,9 @@ module Api
       private
 
       def build_tree_node(folder, depth = 0)
-        children = folder.children
-          .where(warehouse_enabled: true, enabled: true)
-          .order(:order_position, :name)
+        # Use pre-loaded children from @tree_children_by_parent (zero DB queries)
+        children = (@tree_children_by_parent[folder.id] || [])
+          .sort_by(&:order_position)
 
         {
           id: "wf-#{folder.id}",
