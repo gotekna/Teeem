@@ -322,12 +322,38 @@ function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, 
     );
   };
 
+  // Selected task objects for badge display - filtered by current template
+  const selectedTasks = React.useMemo(() => {
+    let tasks = allTasks.filter((t) => selectedIds.includes(t.id));
+    if (templateFilter !== "all") {
+      const tid = Number(templateFilter);
+      tasks = tasks.filter((t) => t.templateIds.includes(tid));
+    }
+    return tasks;
+  }, [allTasks, selectedIds, templateFilter]);
+
   return (
     <div className="py-4 border-t">
       <label className="text-sm font-medium">PO Tasks</label>
       <p className="text-xs text-muted-foreground mt-1 mb-2">
         Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
       </p>
+      {/* Badges showing currently assigned tasks */}
+      {selectedTasks.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {selectedTasks.map((task) => (
+            <button
+              key={task.id}
+              type="button"
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleTask(task.id); }}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800/40 cursor-pointer"
+            >
+              {task.taskCode ? `${task.taskCode} - ${task.name}` : task.name}
+              <span className="ml-0.5 text-blue-500 dark:text-blue-300 font-bold">×</span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap gap-1 mb-2">
         <button
           type="button"
@@ -846,7 +872,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       selectedPoTaskIdsRef.current = [];
       poTasksEditRecordIdRef.current = null;
     } catch (error) {
-      console.error("Failed to assign PO tasks:", error);
+      console.error("[PO Tasks] Failed to assign PO tasks:", error);
     }
   }, [fetchPoTasks]);
 
