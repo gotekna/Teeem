@@ -38,6 +38,9 @@ class FoundationViewSyncService
     # @param column_name [String, nil] Optional specific column to add/remove
     # @return [Hash] Summary of changes
     def sync_view(view, all_columns, column_name: nil)
+      # Guard: columns must be a Hash with "visible" key (some views have nil or non-hash columns)
+      return { changed: false, added: 0, removed: 0 } unless view.columns.is_a?(Hash)
+
       view_columns = view.columns["visible"]&.keys || []
 
       # If a specific column is provided, only add/remove that one

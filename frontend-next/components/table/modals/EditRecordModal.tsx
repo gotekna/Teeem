@@ -39,6 +39,7 @@ import {
   GripVertical,
   ChevronDown,
   ChevronUp,
+  Check,
 } from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
@@ -405,13 +406,22 @@ export function EditRecordModal({
               </DialogDescription>
             </div>
             <Button
-              variant="ghost"
+              variant={showFieldConfig ? "default" : "ghost"}
               size="sm"
               onClick={() => setShowFieldConfig(!showFieldConfig)}
-              className="text-muted-foreground"
+              className={showFieldConfig ? "" : "text-muted-foreground"}
             >
-              <Settings className="h-4 w-4 mr-1" />
-              Fields
+              {showFieldConfig ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" />
+                  Save &amp; Close
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4 mr-1" />
+                  Fields
+                </>
+              )}
             </Button>
           </div>
         </DialogHeader>

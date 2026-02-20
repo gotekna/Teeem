@@ -847,7 +847,7 @@ function displayCellLegacy(
     case "boolean":
       return displayBoolean(value);
     case "choice":
-      return displayChoice(value);
+      return displayChoice(value, column);
     case "lookup":
     case "user":
       return displayLookup(value);

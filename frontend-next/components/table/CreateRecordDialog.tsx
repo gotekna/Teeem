@@ -40,6 +40,7 @@ import {
   Eye,
   EyeOff,
   GripVertical,
+  Check,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -923,13 +924,22 @@ export function CreateRecordDialog({
               </DialogDescription>
             </div>
             <Button
-              variant="ghost"
+              variant={showFieldConfig ? "default" : "ghost"}
               size="sm"
               onClick={() => setShowFieldConfig(!showFieldConfig)}
-              className="text-muted-foreground"
+              className={showFieldConfig ? "" : "text-muted-foreground"}
             >
-              <Settings className="h-4 w-4 mr-1" />
-              Fields
+              {showFieldConfig ? (
+                <>
+                  <Check className="h-4 w-4 mr-1" />
+                  Save &amp; Close
+                </>
+              ) : (
+                <>
+                  <Settings className="h-4 w-4 mr-1" />
+                  Fields
+                </>
+              )}
             </Button>
           </div>
         </DialogHeader>

@@ -216,7 +216,8 @@ module Api
               formula: nil,  # Not implemented yet
               formula_output_type: nil,  # Not implemented yet
               choices: col.available_choices,  # Database column is available_choices
-              validation_regex: col.effective_validation_regex
+              validation_regex: col.effective_validation_regex,
+              settings: col.settings
             }
 
             # Add format config for Australian identifier types (ABN, ACN, BSB, etc.)
