@@ -884,6 +884,7 @@ module Api
             matched_pos.each do |po|
               sm = po.sm_task&.sm_schedule_master
               items = po.line_items.sort_by(&:line_number).map do |item|
+                pc = item.profit_centre
                 {
                   id: item.id,
                   description: item.description,
@@ -891,7 +892,9 @@ module Api
                   unitPrice: item.unit_price.to_f,
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
-                  pricebookItemCode: item.pricebook_item&.item_code
+                  pricebookItemCode: item.pricebook_item&.item_code,
+                  profitCentreId: item.profit_centre_id,
+                  profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
               end
 
@@ -928,6 +931,7 @@ module Api
               costCentreName: po.cost_centre_from_task,
               profitCentreName: po.profit_centre_from_line_items,
               items: po.line_items.sort_by(&:line_number).map do |item|
+                pc = item.profit_centre
                 {
                   id: item.id,
                   description: item.description,
@@ -935,7 +939,9 @@ module Api
                   unitPrice: item.unit_price.to_f,
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
-                  pricebookItemCode: item.pricebook_item&.item_code
+                  pricebookItemCode: item.pricebook_item&.item_code,
+                  profitCentreId: item.profit_centre_id,
+                  profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
               end
             }
@@ -947,6 +953,7 @@ module Api
           unmatched_items = []
           unmatched_pos.each do |po|
             po.line_items.sort_by(&:line_number).each do |item|
+              pc = item.profit_centre
               unmatched_items << {
                 id: item.id,
                 description: "#{po.purchase_order_number}: #{item.description}",
@@ -954,7 +961,9 @@ module Api
                 unitPrice: item.unit_price.to_f,
                 gstCode: item.gst_code || "GST",
                 subtotal: item.total_amount.to_f,
-                pricebookItemCode: item.pricebook_item&.item_code
+                pricebookItemCode: item.pricebook_item&.item_code,
+                profitCentreId: item.profit_centre_id,
+                profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
               }
             end
           end
@@ -983,6 +992,11 @@ module Api
         total_po_gst = purchase_orders.sum { |po| (po.tax || 0).to_f }
         total_variance = total_po - total_boq
 
+        # Profit centres available for this tenant (templates + job-specific)
+        available_profit_centres = ProfitCentre.where(job_id: [nil, @job.id])
+                                               .order(:code)
+                                               .map { |pc| { id: pc.id, code: pc.code, name: pc.name, label: "#{pc.code} - #{pc.name}" } }
+
         render json: {
           success: true,
           job: {
@@ -991,6 +1005,7 @@ module Api
             contract_value: @job.contract_value.to_f
           },
           groups: boq_groups,
+          profitCentres: available_profit_centres,
           summary: {
             boq_total: total_boq.round(2),
             po_total: total_po.round(2),

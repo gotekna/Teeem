@@ -43,7 +43,16 @@ interface BOQApiGroup {
     gstCode: string;
     subtotal: number;
     pricebookItemCode: string | null;
+    profitCentreId: number | null;
+    profitCentreName: string | null;
   }>;
+}
+
+interface ProfitCentreOption {
+  id: number;
+  code: string;
+  name: string;
+  label: string;
 }
 
 interface BOQSummary {
@@ -64,6 +73,7 @@ interface BOQData {
     contract_value: number;
   };
   groups: BOQApiGroup[];
+  profitCentres: ProfitCentreOption[];
   summary: BOQSummary;
 }
 
@@ -122,6 +132,8 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
         gstCode: item.gstCode,
         subtotal: item.subtotal,
         pricebookItemCode: item.pricebookItemCode,
+        profitCentreId: item.profitCentreId,
+        profitCentreName: item.profitCentreName,
       })),
     }));
   }, [boqData]);
@@ -137,35 +149,52 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
   }, [router]);
 
   const handleSave = useCallback(async (payload: BOQSavePayload) => {
-    const { quantityChanges, newLines } = payload;
+    const { quantityChanges, profitCentreChanges, newLines } = payload;
 
     // Group all changes by PO id
     const poUpdates = new Map<string, {
-      existing: Array<{ id: string; quantity: number }>;
-      newItems: Array<{ description: string; quantity: number; unit_price: number; gst_code: string; pricebook_item_id?: number | null }>;
+      existing: Array<{ id: string; quantity?: number; profit_centre_id?: number | null }>;
+      newItems: Array<{ description: string; quantity: number; unit_price: number; gst_code: string; pricebook_item_id?: number | null; profit_centre_id?: number | null }>;
     }>();
+
+    const ensurePo = (groupId: string) => {
+      if (!poUpdates.has(groupId)) {
+        poUpdates.set(groupId, { existing: [], newItems: [] });
+      }
+      return poUpdates.get(groupId)!;
+    };
 
     // Parse quantity changes: key format is "groupId:lineItemId"
     for (const [key, qty] of quantityChanges) {
       const [groupId, lineItemId] = key.split(":");
-      if (!poUpdates.has(groupId)) {
-        poUpdates.set(groupId, { existing: [], newItems: [] });
+      ensurePo(groupId).existing.push({ id: lineItemId, quantity: qty });
+    }
+
+    // Parse profit centre changes: key format is "groupId:lineItemId"
+    if (profitCentreChanges) {
+      for (const [key, pcId] of profitCentreChanges) {
+        const [groupId, lineItemId] = key.split(":");
+        const po = ensurePo(groupId);
+        // Check if this line already has a quantity change
+        const existingEntry = po.existing.find((e) => e.id === lineItemId);
+        if (existingEntry) {
+          existingEntry.profit_centre_id = pcId;
+        } else {
+          po.existing.push({ id: lineItemId, profit_centre_id: pcId });
+        }
       }
-      poUpdates.get(groupId)!.existing.push({ id: lineItemId, quantity: qty });
     }
 
     // Group new lines by PO
     for (const nl of newLines) {
       const gid = String(nl.groupId);
-      if (!poUpdates.has(gid)) {
-        poUpdates.set(gid, { existing: [], newItems: [] });
-      }
-      poUpdates.get(gid)!.newItems.push({
+      ensurePo(gid).newItems.push({
         description: nl.description,
         quantity: nl.quantity,
         unit_price: nl.unitPrice,
         gst_code: nl.gstCode,
         pricebook_item_id: nl.pricebookItemId,
+        profit_centre_id: nl.profitCentreId,
       });
     }
 
@@ -173,16 +202,19 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
     const errors: string[] = [];
     for (const [poId, updates] of poUpdates) {
       const lineItemsAttributes = [
-        ...updates.existing.map((e) => ({
-          id: Number(e.id),
-          quantity: e.quantity,
-        })),
+        ...updates.existing.map((e) => {
+          const attrs: Record<string, unknown> = { id: Number(e.id) };
+          if (e.quantity !== undefined) attrs.quantity = e.quantity;
+          if (e.profit_centre_id !== undefined) attrs.profit_centre_id = e.profit_centre_id;
+          return attrs;
+        }),
         ...updates.newItems.map((n) => ({
           description: n.description,
           quantity: n.quantity,
           unit_price: n.unit_price,
           gst_code: n.gst_code,
           pricebook_item_id: n.pricebook_item_id,
+          profit_centre_id: n.profit_centre_id,
         })),
       ];
 
@@ -320,6 +352,7 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
           groups={boqGroups}
           onSave={handleSave}
           onGroupClick={handleGroupClick}
+          profitCentres={boqData.profitCentres?.map((pc) => ({ id: pc.id, label: pc.label })) ?? []}
           loading={loading}
         />
       </TabsContent>

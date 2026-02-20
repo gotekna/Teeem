@@ -399,7 +399,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <RefreshCw className="h-3 w-3" />
+                  <RefreshCw className={cn("h-3 w-3", clearing && "animate-spin")} />
                 </button>
               </div>
             )}
@@ -449,7 +449,7 @@ function SidebarContent({
                   )}
                   title="Clear cache + hard refresh"
                 >
-                  <RefreshCw className="h-3.5 w-3.5" />
+                  <RefreshCw className={cn("h-3.5 w-3.5", clearing && "animate-spin")} />
                 </button>
               </div>
             )}

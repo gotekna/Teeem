@@ -39,6 +39,8 @@ export interface BOQLineItem {
   gstCode: string;
   subtotal: number;
   pricebookItemCode?: string | null;
+  profitCentreId?: number | null;
+  profitCentreName?: string | null;
 }
 
 export interface BOQGroup {
@@ -67,15 +69,25 @@ export interface BOQNewLine {
   gstCode: string;
   pricebookItemId?: number | null;
   pricebookItemCode?: string | null;
+  profitCentreId?: number | null;
 }
+
+/** Map of "groupId:lineItemId" → new profitCentreId (null to clear) */
+export type BOQProfitCentreChanges = Map<string, number | null>;
 
 export interface BOQSavePayload {
   quantityChanges: BOQChanges;
+  profitCentreChanges: BOQProfitCentreChanges;
   newLines: BOQNewLine[];
 }
 
 type SortColumn = "group" | "supplier" | "profitCentre" | "description" | "code" | "qty" | "unitPrice" | "gst" | "subtotal";
 type SortDirection = "asc" | "desc";
+
+export interface ProfitCentreOption {
+  id: number;
+  label: string;
+}
 
 export interface BillOfQuantitiesProps {
   groups: BOQGroup[];
@@ -83,6 +95,8 @@ export interface BillOfQuantitiesProps {
   onSave?: (payload: BOQSavePayload) => Promise<void>;
   /** Called when user clicks a group name (e.g., to open a PO) */
   onGroupClick?: (groupId: number | string) => void;
+  /** Available profit centres for the dropdown */
+  profitCentres?: ProfitCentreOption[];
   /** Disables editing */
   readOnly?: boolean;
   /** Loading state */
@@ -134,11 +148,13 @@ export function BillOfQuantities({
   groups,
   onSave,
   onGroupClick,
+  profitCentres = [],
   readOnly = false,
   loading = false,
   className,
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
+  const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
   const [newLines, setNewLines] = useState<BOQNewLine[]>([]);
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -148,7 +164,7 @@ export function BillOfQuantities({
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
-  const hasChanges = changes.size > 0 || newLines.length > 0;
+  const hasChanges = changes.size > 0 || pcChanges.size > 0 || newLines.length > 0;
 
   // Stable color assignment: each group keeps its original color regardless of sort/filter
   const groupColorIndex = useMemo(() => {
@@ -156,7 +172,7 @@ export function BillOfQuantities({
     groups.forEach((g, i) => map.set(g.id, i));
     return map;
   }, [groups]);
-  const changeCount = changes.size + newLines.length;
+  const changeCount = changes.size + pcChanges.size + newLines.length;
 
   // Extract unique values for multi-select filters
   const uniqueSuppliers = useMemo(() =>
@@ -176,7 +192,7 @@ export function BillOfQuantities({
     [groups]
   );
   const uniqueProfitCentres = useMemo(() =>
-    [...new Set(groups.map((g) => g.profitCentreName).filter(Boolean) as string[])].sort(),
+    [...new Set(groups.flatMap((g) => g.items.map((i) => i.profitCentreName)).filter(Boolean) as string[])].sort(),
     [groups]
   );
   const hasStages = uniqueStages.length > 0;
@@ -304,6 +320,23 @@ export function BillOfQuantities({
     []
   );
 
+  // Handle profit centre change for an existing line item
+  const handlePcChange = useCallback(
+    (groupId: number | string, lineId: number | string, originalPcId: number | null | undefined, newPcId: number | null) => {
+      const key = changeKey(groupId, lineId);
+      setPcChanges((prev) => {
+        const next = new Map(prev);
+        if (newPcId === (originalPcId ?? null)) {
+          next.delete(key);
+        } else {
+          next.set(key, newPcId);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
   // Add a new empty line to a group
   const handleAddLine = useCallback((groupId: number | string) => {
     setNewLines((prev) => [
@@ -371,17 +404,19 @@ export function BillOfQuantities({
     }
     try {
       setSaving(true);
-      await onSave({ quantityChanges: changes, newLines: validNewLines });
+      await onSave({ quantityChanges: changes, profitCentreChanges: pcChanges, newLines: validNewLines });
       setChanges(new Map());
+      setPcChanges(new Map());
       setNewLines([]);
     } finally {
       setSaving(false);
     }
-  }, [onSave, changes, newLines, hasChanges]);
+  }, [onSave, changes, pcChanges, newLines, hasChanges]);
 
   // Discard all changes
   const handleDiscard = useCallback(() => {
     setChanges(new Map());
+    setPcChanges(new Map());
     setNewLines([]);
   }, []);
 
@@ -431,7 +466,7 @@ export function BillOfQuantities({
       result = result.filter((g) => g.costCentreName && selectedCostCentres.has(g.costCentreName));
     }
     if (selectedProfitCentres.size > 0) {
-      result = result.filter((g) => g.profitCentreName && selectedProfitCentres.has(g.profitCentreName));
+      result = result.filter((g) => g.items.some((i) => i.profitCentreName && selectedProfitCentres.has(i.profitCentreName)));
     }
     const hasItemFilters =
       columnFilters.description.trim() || columnFilters.code.trim() || columnFilters.gst.trim();
@@ -466,11 +501,11 @@ export function BillOfQuantities({
       const { column, direction } = sortState;
       const dir = direction === "asc" ? 1 : -1;
 
-      if (column === "group" || column === "supplier" || column === "profitCentre") {
+      if (column === "group" || column === "supplier") {
         // Sort groups themselves
         result = [...result].sort((a, b) => {
-          const aVal = column === "group" ? a.name : column === "profitCentre" ? (a.profitCentreName || "") : (a.supplierName || "");
-          const bVal = column === "group" ? b.name : column === "profitCentre" ? (b.profitCentreName || "") : (b.supplierName || "");
+          const aVal = column === "group" ? a.name : (a.supplierName || "");
+          const bVal = column === "group" ? b.name : (b.supplierName || "");
           return aVal.localeCompare(bVal) * dir;
         });
       } else {
@@ -494,6 +529,8 @@ export function BillOfQuantities({
                 const bT = getQty(group.id, b) * b.unitPrice;
                 return (aT - bT) * dir;
               }
+              case "profitCentre":
+                return (a.profitCentreName || "").localeCompare(b.profitCentreName || "") * dir;
               default:
                 return 0;
             }
@@ -851,9 +888,12 @@ export function BillOfQuantities({
                         groupIndex={groupColorIndex.get(group.id) ?? 0}
                         canEdit={canEdit}
                         changes={changes}
+                        pcChanges={pcChanges}
+                        profitCentres={profitCentres}
                         newLines={getNewLinesForGroup(group.id)}
                         getQty={getQty}
                         onQtyChange={handleQtyChange}
+                        onPcChange={handlePcChange}
                         onAddLine={handleAddLine}
                         onNewLineChange={handleNewLineChange}
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
@@ -873,9 +913,12 @@ export function BillOfQuantities({
                   groupIndex={groupColorIndex.get(group.id) ?? 0}
                   canEdit={canEdit}
                   changes={changes}
+                  pcChanges={pcChanges}
+                  profitCentres={profitCentres}
                   newLines={getNewLinesForGroup(group.id)}
                   getQty={getQty}
                   onQtyChange={handleQtyChange}
+                  onPcChange={handlePcChange}
                   onAddLine={handleAddLine}
                   onNewLineChange={handleNewLineChange}
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
@@ -897,9 +940,12 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   groupIndex,
   canEdit,
   changes,
+  pcChanges,
+  profitCentres,
   newLines,
   getQty,
   onQtyChange,
+  onPcChange,
   onAddLine,
   onNewLineChange,
   onNewLinePricebookSelect,
@@ -910,6 +956,8 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   groupIndex: number;
   canEdit: boolean;
   changes: BOQChanges;
+  pcChanges: BOQProfitCentreChanges;
+  profitCentres: ProfitCentreOption[];
   newLines: BOQNewLine[];
   getQty: (groupId: number | string, item: BOQLineItem) => number;
   onQtyChange: (
@@ -917,6 +965,12 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
     lineId: number | string,
     originalQty: number,
     value: string
+  ) => void;
+  onPcChange: (
+    groupId: number | string,
+    lineId: number | string,
+    originalPcId: number | null | undefined,
+    newPcId: number | null
   ) => void;
   onAddLine: (groupId: number | string) => void;
   onNewLineChange: (tempId: string, field: keyof BOQNewLine, value: string | number) => void;
@@ -1038,18 +1092,32 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             >
               {formatCurrency(subtotal)}
             </TableCell>
-            {idx === 0 && (
-              <TableCell
-                rowSpan={totalDataRows}
-                className={cn("align-top text-sm text-muted-foreground border-l", color.bg)}
-              >
-                <div className="sticky top-10">
-                  {group.profitCentreName || (
-                    <span className="italic text-xs">—</span>
+            <TableCell className="text-sm py-1 border-l">
+              {canEdit && profitCentres.length > 0 ? (
+                <select
+                  value={pcChanges.has(changeKey(group.id, item.id))
+                    ? (pcChanges.get(changeKey(group.id, item.id)) ?? "")
+                    : (item.profitCentreId ?? "")}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    onPcChange(group.id, item.id, item.profitCentreId, val);
+                  }}
+                  className={cn(
+                    "h-7 w-full text-xs rounded border bg-background px-1.5",
+                    pcChanges.has(changeKey(group.id, item.id)) && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
                   )}
-                </div>
-              </TableCell>
-            )}
+                >
+                  <option value="">—</option>
+                  {profitCentres.map((pc) => (
+                    <option key={pc.id} value={pc.id}>{pc.label}</option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {item.profitCentreName || "—"}
+                </span>
+              )}
+            </TableCell>
           </TableRow>
         );
       })}
@@ -1057,7 +1125,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
       {/* Pending new line items */}
       {newLines.map((nl) => (
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
-          {/* PO/Supplier/Profit Centre cells covered by rowSpan */}
+          {/* PO/Supplier cells covered by rowSpan */}
           <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
             {nl.pricebookItemCode || "—"}
           </TableCell>
@@ -1123,6 +1191,25 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
+          </TableCell>
+          <TableCell className="py-1 border-l">
+            {profitCentres.length > 0 ? (
+              <select
+                value={nl.profitCentreId ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : 0;
+                  onNewLineChange(nl.tempId, "profitCentreId", val);
+                }}
+                className="h-7 w-full text-xs rounded border bg-background px-1.5 border-green-500"
+              >
+                <option value="">—</option>
+                {profitCentres.map((pc) => (
+                  <option key={pc.id} value={pc.id}>{pc.label}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs text-muted-foreground">—</span>
+            )}
           </TableCell>
         </TableRow>
       ))}
