@@ -19,6 +19,7 @@
 #   column_type_definitions.column_type      → was renamed to type_key
 #   columns.key                              → was renamed to column_name
 #   contacts.status                          → column never existed (use is_active or state)
+#   purchase_orders.po_number               → alias_attribute only, not a real column (use purchase_order_number)
 class RemoveStaleFoundationColumnDefinitions < ActiveRecord::Migration[7.2]
   # Pairs of [foundation_database_table_name, stale_column_name]
   STALE_COLUMNS = [
@@ -35,7 +36,8 @@ class RemoveStaleFoundationColumnDefinitions < ActiveRecord::Migration[7.2]
     ["imap_credentials",          "organization_id"],
     ["column_type_definitions",   "column_type"],
     ["columns",                   "key"],
-    ["contacts",                  "status"]
+    ["contacts",                  "status"],
+    ["purchase_orders",           "po_number"]
   ].freeze
 
   def up

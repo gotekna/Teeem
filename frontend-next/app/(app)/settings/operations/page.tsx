@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
 
 // Import operations-related tab components from admin
-import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
 import { ContactTypesTab } from "@/app/(app)/admin/system/components/ContactTypesTab";
 import { MeetingTypesTab } from "@/app/(app)/admin/system/components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/SupervisorChecklistTab";
@@ -24,6 +24,9 @@ import { ProfitCentresTab } from "./components/ProfitCentresTab";
  * Admin role required (enforced by layout).
  *
  * URL is SSoT for tab state: /settings/operations/[tab]
+ *
+ * Schedule Master and PO Templates open as full-page routes
+ * (handled by fullPageRoutes in settings/layout.tsx).
  */
 
 const OPERATIONS_TABS = [
@@ -38,9 +41,18 @@ const OPERATIONS_TABS = [
   { id: "profit-centres", label: "Profit Centres" },
 ];
 
-const DEFAULT_TAB = "schedule-master";
+// Schedule Master has its own full-page route, so default to SM Tasks
+const DEFAULT_TAB = "sm-tasks";
+
+// Tabs that navigate to their own full-page route instead of rendering inline
+const FULL_PAGE_TABS: Record<string, string> = {
+  "schedule-master": "/settings/operations/schedule-master",
+  "po-templates": "/settings/operations/po-templates",
+};
 
 export default function OperationsSettingsPage() {
+  const router = useRouter();
+
   // Tab panels use absolute inset-0 positioning, which requires full-height layout
   useSetLayoutMode("full-height");
 
@@ -53,9 +65,18 @@ export default function OperationsSettingsPage() {
     { redirectToDefault: true }
   );
 
+  const handleTabChange = React.useCallback((value: string) => {
+    const fullPageRoute = FULL_PAGE_TABS[value];
+    if (fullPageRoute) {
+      router.push(fullPageRoute);
+    } else {
+      setActiveTab(value);
+    }
+  }, [router, setActiveTab]);
+
   return (
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex flex-col h-full">
         <TabsList className="flex-wrap h-auto gap-1 shrink-0">
           {OPERATIONS_TABS.map((tab) => (
             <TabsTrigger
@@ -69,9 +90,6 @@ export default function OperationsSettingsPage() {
         </TabsList>
 
         <div className="flex-1 min-h-0 mt-4 relative">
-          <TabsContent value="schedule-master" className="absolute inset-0 h-full">
-            <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
-          </TabsContent>
           <TabsContent value="sm-tasks" className="absolute inset-0 overflow-auto">
             <SMTasksTab />
           </TabsContent>

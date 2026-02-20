@@ -74,7 +74,7 @@ export default function SettingsLayout({
 
   // Full-page routes that skip ALL settings chrome (including ScrollablePage wrapper)
   // These pages handle their own layout completely
-  const fullPageRoutes = ["operations/po-templates"];
+  const fullPageRoutes = ["operations/po-templates", "operations/schedule-master"];
   const pathKey = pathParts.slice(0, 2).join("/");
   const isFullPage = fullPageRoutes.includes(pathKey);
 
