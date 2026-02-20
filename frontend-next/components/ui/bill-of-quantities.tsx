@@ -657,8 +657,8 @@ export function BillOfQuantities({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-3 px-2 pb-3 shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3">
           <SearchInput
             placeholder="Search items..."
             value={searchTerm}

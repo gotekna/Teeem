@@ -402,7 +402,17 @@ module Api
                 # Also validate against actual DB columns to prevent PG::UndefinedColumn
                 # when Foundation column config diverges from the real DB schema
                 # (e.g., after a column rename/removal without updating Foundation config)
-                next nil unless model.column_names.include?(column)
+                #
+                # FRC (Feb 2026): Virtual column filter handling for purchase_orders
+                # When grouping by virtual columns (stage_from_task, etc.), the frontend
+                # sends filters on these virtual column names. Translate to real DB queries.
+                unless model.column_names.include?(column)
+                  if model.table_name == "purchase_orders"
+                    virtual_condition = resolve_po_virtual_filter(column, operator, value)
+                    next virtual_condition if virtual_condition
+                  end
+                  next nil
+                end
 
                 # Build SQL condition based on operator
                 # Table-qualify to avoid PG::AmbiguousColumn when search JOINs lookup tables
@@ -1050,6 +1060,48 @@ module Api
       end
 
       private
+
+      # FRC (Feb 2026): Resolve virtual column filters for purchase_orders
+      # Virtual columns (stage_from_task, etc.) are Ruby methods, not DB columns.
+      # Translate filters on these to subqueries on sm_task_id.
+      def resolve_po_virtual_filter(column, operator, value)
+        case column
+        when "po_task_name"
+          # FK substitution: filter on sm_task_id directly
+          quoted = "purchase_orders.sm_task_id"
+          case operator
+          when "=", "equals" then ["#{quoted} = ?", value]
+          when "is_null" then ["#{quoted} IS NULL"]
+          end
+        when "stage_from_task"
+          resolve_sm_task_join_filter("stage", operator, value)
+        when "trade_from_task"
+          resolve_sm_task_join_filter("trade", operator, value)
+        when "cost_centre_from_task"
+          resolve_sm_task_join_filter("cost_centre", operator, value)
+        end
+      end
+
+      # Translate a virtual column filter that goes through sm_tasks
+      # into a subquery: purchase_orders.sm_task_id IN (SELECT id FROM sm_tasks WHERE column = value)
+      def resolve_sm_task_join_filter(sm_task_column, operator, value)
+        case operator
+        when "=", "equals"
+          task_ids = SmTask.where(sm_task_column => value).pluck(:id)
+          if task_ids.empty?
+            ["1=0"] # No matching tasks
+          else
+            ["purchase_orders.sm_task_id IN (?)", task_ids]
+          end
+        when "is_null"
+          task_ids_with_value = SmTask.where.not(sm_task_column => nil).pluck(:id)
+          if task_ids_with_value.empty?
+            ["1=1"] # All tasks lack this value
+          else
+            ["purchase_orders.sm_task_id IS NULL OR purchase_orders.sm_task_id NOT IN (?)", task_ids_with_value]
+          end
+        end
+      end
 
       # Check if a contact has any related records that would require soft delete
       def contact_has_records?(contact)

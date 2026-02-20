@@ -451,12 +451,64 @@ module Api
 
           # Get group counts via SQL aggregation
           # Handle NULL values by coalescing to a display-friendly string
-          quoted_column = conn.quote_column_name(group_by_column)
+          #
+          # FRC (Feb 2026): Some Foundation columns are virtual Ruby methods, not DB columns.
+          # GROUP BY on them causes PG::UndefinedColumn. Two strategies:
+          # 1. Map to the real FK column (e.g., po_task_name → sm_task_id)
+          # 2. Use JOIN to resolve through relationships (e.g., cost_centre_from_task → sm_tasks.cost_centre)
+          actual_db_columns = model.column_names
 
-          groups_result = query
-            .group(group_by_column)
-            .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
-            .order(Arel.sql("COUNT(*) DESC"))
+          # Virtual column mapping for purchase_orders Foundation
+          # Maps virtual method names → { real_column:, join:, display_model:, display_method: }
+          virtual_column_map = {}
+          if model.table_name == "purchase_orders"
+            virtual_column_map = {
+              "po_task_name"              => { real_column: "sm_task_id", display_model: "SmTask", display_method: :name },
+              "stage_from_task"           => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "stage", display_model: "SmStage" },
+              "trade_from_task"           => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "trade", display_model: "SmTrade" },
+              "cost_centre_from_task"     => { join_table: "sm_tasks", join_fk: "sm_task_id", join_column: "cost_centre", display_model: "CostCentre" },
+              "profit_centre_from_line_items" => nil, # Too complex (aggregation over line_items) - skip
+            }
+          end
+
+          virtual_config = virtual_column_map[group_by_column]
+
+          if !actual_db_columns.include?(group_by_column) && virtual_config.nil?
+            # Unknown virtual column with no mapping
+            return render json: {
+              success: false,
+              error: "Column '#{group_by_column}' is a virtual column and cannot be used for grouping."
+            }, status: :bad_request
+          end
+
+          if virtual_config && virtual_config[:join_table]
+            # Strategy 2: JOIN through related table
+            jt = virtual_config[:join_table]
+            jfk = virtual_config[:join_fk]
+            jcol = virtual_config[:join_column]
+            groups_result = query
+              .joins("LEFT JOIN #{conn.quote_table_name(jt)} ON #{conn.quote_table_name(jt)}.id = #{conn.quote_table_name(model.table_name)}.#{conn.quote_column_name(jfk)}")
+              .group("#{conn.quote_table_name(jt)}.#{conn.quote_column_name(jcol)}")
+              .select(Arel.sql("#{conn.quote_table_name(jt)}.#{conn.quote_column_name(jcol)} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+          elsif virtual_config && virtual_config[:real_column]
+            # Strategy 1: Simple FK substitution
+            real_col = virtual_config[:real_column]
+            quoted_column = conn.quote_column_name(real_col)
+            groups_result = query
+              .group(real_col)
+              .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+            # Override group_by_column for display value resolution below
+            group_by_column = real_col
+          else
+            # Normal DB column
+            quoted_column = conn.quote_column_name(group_by_column)
+            groups_result = query
+              .group(group_by_column)
+              .select(Arel.sql("#{quoted_column} as group_key, COUNT(*) as count"))
+              .order(Arel.sql("COUNT(*) DESC"))
+          end
 
           # SSoT: Build display_values_map for ALL grouping columns using DisplayValueResolver
           # This provides display values for nested group levels (not just the primary)
@@ -480,6 +532,25 @@ module Api
             lookup_model = col_def.lookup_foundation.dynamic_model
             records = lookup_model.where(id: lookup_ids)
             display_values_map[col_name] = DisplayValueResolver.resolve_lookup_batch(records, col_def)
+          end
+
+          # Display value resolution for JOIN-based virtual columns
+          # These don't have Foundation lookup column definitions, so resolve manually
+          if virtual_config && virtual_config[:join_table] && virtual_config[:display_model]
+            lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
+            if lookup_ids.any?
+              display_model_class = virtual_config[:display_model].constantize
+              display_records = display_model_class.where(id: lookup_ids)
+              virtual_display_map = {}
+              display_records.each do |rec|
+                virtual_display_map[rec.id] = if rec.respond_to?(:code) && rec.respond_to?(:name)
+                  "#{rec.code} - #{rec.name}"
+                else
+                  rec.name
+                end
+              end
+              display_values_map[group_by_column] = virtual_display_map
+            end
           end
 
           # Transform results (resolve lookup display values for primary column)

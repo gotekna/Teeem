@@ -96,7 +96,7 @@ status_views = [
 
 # Group-by views (replaces the toolbar group-by buttons)
 group_views = [
-  { name: "By PO/Task",       group_by: "po_task_name" },
+  { name: "By PO/Task",       group_by: "sm_task_id" },
   { name: "By Supplier",      group_by: "supplier_id" },
   { name: "By Stage",         group_by: "stage_from_task" },
   { name: "By Trade",         group_by: "trade_from_task" },
