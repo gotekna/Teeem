@@ -163,6 +163,7 @@ class SmScheduleMasterTemplateCopyService
         name: row.name,
         description: row.description,
         task_number: row.task_number,   # Use template's task_number (SSoT: equals template id)
+        task_code: row.task_code,
         sequence_order: row.sequence_order,  # Use template's sequence_order (not sequential counter)
         sync_key: row.sync_key,
         critical_po: row.critical_po,

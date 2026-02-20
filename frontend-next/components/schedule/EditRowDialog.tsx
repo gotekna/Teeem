@@ -22,6 +22,7 @@ import { UI_AUTOSAVE_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS } from "@/lib/constants/
 export interface EditRowData {
   id: number;
   task_number: number;
+  task_code?: string | null;
   name: string;
   description?: string;
   duration_days: number;
@@ -374,7 +375,11 @@ export function EditRowDialog({
               Edit Row
               <span className="text-muted-foreground font-normal">•</span>
               <span className="font-normal">{row.name}</span>
-              <span className="text-muted-foreground text-sm font-normal">(#{row.task_number})</span>
+              {row.task_code ? (
+                <span className="text-muted-foreground text-sm font-normal">({row.task_code})</span>
+              ) : (
+                <span className="text-muted-foreground text-sm font-normal">(#{row.task_number})</span>
+              )}
               {/* Show parent header badge if this task is part of one */}
               {row.header_gantt && (() => {
                 const parentTaskNumber = extractLookupId(row.header_gantt);
@@ -433,8 +438,19 @@ export function EditRowDialog({
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto px-6 py-3 space-y-3">
-            {/* Row 1: Name + Duration + Sequence - full width */}
-            <div className="grid grid-cols-[1fr_80px_80px] gap-3">
+            {/* Row 1: Code + Name + Duration + Sequence - full width */}
+            <div className="grid grid-cols-[100px_1fr_80px_80px] gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="row-task-code" className="text-xs">Code</Label>
+                <Input
+                  id="row-task-code"
+                  value={editRowForm.task_code || ""}
+                  onChange={(e) => setEditRowForm({ ...editRowForm, task_code: e.target.value })}
+                  className="h-8"
+                  placeholder="Optional"
+                  maxLength={50}
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="row-name" className="text-xs">Name</Label>
                 <Input

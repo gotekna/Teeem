@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_20_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_20_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7193,7 +7193,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_120000) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -8642,6 +8643,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_120000) do
     t.bigint "dependency_broken_by_id"
     t.bigint "tenant_id"
     t.string "sync_key"
+    t.string "task_code", limit: 50
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"
@@ -8938,6 +8940,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_20_120000) do
     t.datetime "response_zip_created_at"
     t.boolean "auto_attach_email_files", default: true, null: false
     t.string "sync_key"
+    t.string "task_code", limit: 50
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"

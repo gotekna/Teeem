@@ -1139,6 +1139,7 @@ class SmScheduleMasterSyncService
       job_id: job.id,
       sm_schedule_master_id: template_row.id,
       task_number: template_task_number,
+      task_code: template_row.task_code,
       sequence_order: next_sequence,
 
       # Core task info (from template)

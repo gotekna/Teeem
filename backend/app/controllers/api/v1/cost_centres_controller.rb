@@ -149,6 +149,7 @@ class Api::V1::CostCentresController < ApplicationController
         {
           id: t.id,
           name: t.name,
+          taskCode: t.task_code,
           taskNumber: t.task_number,
           costCentreId: t.cost_centre,
           costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
