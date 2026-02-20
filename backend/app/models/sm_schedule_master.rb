@@ -143,6 +143,8 @@ class SmScheduleMaster < ApplicationRecord
   before_validation :default_claim_percentage
   before_save :clear_spawn_tasks_if_not_po
   after_save :clean_orphaned_predecessor_references, if: :saved_change_to_is_active?
+  after_save :propagate_cost_centre_to_tasks, if: :saved_change_to_cost_centre?
+  after_save :propagate_po_required_to_tasks, if: :saved_change_to_po_required?
 
   # Helper methods
   def predecessor_task_ids
@@ -291,6 +293,16 @@ class SmScheduleMaster < ApplicationRecord
       self.order_time_days = nil
       self.call_time_days = nil
     end
+  end
+
+  # When cost_centre changes on the template, push to all child SmTask records
+  def propagate_cost_centre_to_tasks
+    sm_tasks.update_all(cost_centre: cost_centre)
+  end
+
+  # When po_required changes on the template, push to all child SmTask records
+  def propagate_po_required_to_tasks
+    sm_tasks.update_all(po_required: po_required)
   end
 
   def subtask_names_match_count

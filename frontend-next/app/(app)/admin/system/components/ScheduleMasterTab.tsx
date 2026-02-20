@@ -279,17 +279,21 @@ interface POTaskItem {
   name: string;
   taskCode: string | null;
   taskNumber: number;
-  costCentreId: number | null;
-  costCentreName: string | null;
+  costCentreId?: number | null;
+  costCentreName?: string | null;
+  tenderId?: number | null;
+  tenderName?: string | null;
   templateIds: number[];
 }
 
-function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, selectedIdsRef }: {
+function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, selectedIdsRef, assignmentField = "costCentre", entityLabel = "Cost Centre" }: {
   allTasks: POTaskItem[];
   initialSelectedIds: number[];
   recordId?: string | number;
   templates: SmScheduleMasterTemplate[];
   selectedIdsRef: React.MutableRefObject<number[]>;
+  assignmentField?: "costCentre" | "tender";
+  entityLabel?: string;
 }) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
   const [templateFilter, setTemplateFilter] = React.useState("all");
@@ -336,7 +340,7 @@ function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, 
     <div className="py-4 border-t">
       <label className="text-sm font-medium">PO Tasks</label>
       <p className="text-xs text-muted-foreground mt-1 mb-2">
-        Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
+        Assign SM PO Tasks to this {entityLabel}. Tasks showing a name in brackets will be reassigned.
       </p>
       {/* Badges showing currently assigned tasks */}
       {selectedTasks.length > 0 && (
@@ -397,12 +401,14 @@ function PoTaskPickerInner({ allTasks, initialSelectedIds, recordId, templates, 
           )}
           {filteredTasks.map((task) => {
             const isSelected = selectedIds.includes(task.id);
+            const assignedId = assignmentField === "tender" ? task.tenderId : task.costCentreId;
+            const assignedName = assignmentField === "tender" ? task.tenderName : task.costCentreName;
             const isAssignedElsewhere = recordId != null
-              ? task.costCentreId != null && task.costCentreId !== Number(recordId) && !selectedIds.includes(task.id)
-              : task.costCentreId != null && !selectedIds.includes(task.id);
+              ? assignedId != null && assignedId !== Number(recordId) && !selectedIds.includes(task.id)
+              : assignedId != null && !selectedIds.includes(task.id);
             const taskDisplay = task.taskCode ? `${task.taskCode} - ${task.name}` : task.name;
             const label = isAssignedElsewhere
-              ? `${taskDisplay} (${task.costCentreName || "CC #" + task.costCentreId})`
+              ? `${taskDisplay} (${assignedName || `${entityLabel} #${assignedId}`})`
               : taskDisplay;
             return (
               <label
@@ -713,6 +719,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
     { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
     { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
+    { id: "tenders", name: "Tender Sections", description: "Tender sections for grouping PO items in tender documents" },
     { id: "sm_task_groups", name: "Task Groups", description: "Group PO and non-PO tasks together - when any PO from group is on job, all linked tasks appear" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
@@ -875,6 +882,104 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       console.error("[PO Tasks] Failed to assign PO tasks:", error);
     }
   }, [fetchPoTasks]);
+
+  // Tender PO Task picker — same pattern as Cost Centres but uses tender_id
+  const tenderPoTasksRef = React.useRef<POTaskItem[]>([]);
+  const tenderPoTasksLoadedRef = React.useRef(false);
+  const selectedTenderPoTaskIdsRef = React.useRef<number[]>([]);
+  const tenderPoTasksEditRecordIdRef = React.useRef<number | string | null>(null);
+
+  const fetchTenderPoTasks = React.useCallback(async () => {
+    try {
+      const data = await api.get<{ success: boolean; data: POTaskItem[] }>("/api/v1/tenders/po_tasks");
+      if (data?.data) {
+        tenderPoTasksRef.current = data.data;
+        tenderPoTasksLoadedRef.current = true;
+      }
+    } catch (error) {
+      console.error("Failed to fetch tender PO tasks:", error);
+    }
+  }, []);
+
+  const renderTenderPoTaskPickerForCreate = React.useCallback(() => {
+    if (!tenderPoTasksLoadedRef.current) {
+      fetchTenderPoTasks();
+      return (
+        <div className="py-4 border-t">
+          <Label className="text-sm font-medium">PO Tasks</Label>
+          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
+        </div>
+      );
+    }
+    if (tenderPoTasksEditRecordIdRef.current !== null && tenderPoTasksEditRecordIdRef.current !== "create") {
+      tenderPoTasksEditRecordIdRef.current = "create";
+      selectedTenderPoTaskIdsRef.current = [];
+    }
+    return (
+      <PoTaskPickerInner
+        key="tender-create"
+        allTasks={tenderPoTasksRef.current}
+        initialSelectedIds={[]}
+        recordId={undefined}
+        templates={templatesRef.current}
+        selectedIdsRef={selectedTenderPoTaskIdsRef}
+        assignmentField="tender"
+        entityLabel="Tender Section"
+      />
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const renderTenderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
+    if (!tenderPoTasksLoadedRef.current) {
+      fetchTenderPoTasks();
+      return (
+        <div className="py-4 border-t">
+          <Label className="text-sm font-medium">PO Tasks</Label>
+          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
+        </div>
+      );
+    }
+    const recordId = record.id;
+    let initialIds: number[];
+    if (tenderPoTasksEditRecordIdRef.current !== recordId) {
+      tenderPoTasksEditRecordIdRef.current = recordId;
+      initialIds = tenderPoTasksRef.current
+        .filter((t) => t.tenderId === Number(recordId))
+        .map((t) => t.id);
+      selectedTenderPoTaskIdsRef.current = initialIds;
+    } else {
+      initialIds = selectedTenderPoTaskIdsRef.current;
+    }
+    return (
+      <PoTaskPickerInner
+        key={String(recordId)}
+        allTasks={tenderPoTasksRef.current}
+        initialSelectedIds={initialIds}
+        recordId={recordId}
+        templates={templatesRef.current}
+        selectedIdsRef={selectedTenderPoTaskIdsRef}
+        assignmentField="tender"
+        entityLabel="Tender Section"
+      />
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleTenderAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
+    const tenderId = record.id;
+    if (!tenderId) return;
+    try {
+      await api.post(`/api/v1/tenders/${tenderId}/assign_po_tasks`, {
+        po_task_ids: selectedTenderPoTaskIdsRef.current,
+      });
+      await fetchTenderPoTasks();
+      selectedTenderPoTaskIdsRef.current = [];
+      tenderPoTasksEditRecordIdRef.current = null;
+    } catch (error) {
+      console.error("[PO Tasks] Failed to assign tender PO tasks:", error);
+    }
+  }, [fetchTenderPoTasks]);
 
   // FRC (Feb 2026): Edit dialog data loaded lazily on first edit sheet open.
   // These 5 endpoints took ~19 seconds combined and were only used in EditRowDialog.
@@ -4120,6 +4225,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                       createDialogOnAfterSave: handleCostCentreAfterSave,
                       editDialogRenderExtra: renderPoTaskPickerForEdit,
                       editDialogOnAfterSave: handleCostCentreAfterSave,
+                    } : table.id === "tenders" ? {
+                      createDialogRenderExtra: renderTenderPoTaskPickerForCreate,
+                      createDialogOnAfterSave: handleTenderAfterSave,
+                      editDialogRenderExtra: renderTenderPoTaskPickerForEdit,
+                      editDialogOnAfterSave: handleTenderAfterSave,
                     } : {})}
                   />
                 </div>

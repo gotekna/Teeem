@@ -162,42 +162,50 @@ class Api::V1::CostCentresController < ApplicationController
   # POST /api/v1/cost_centres/:id/assign_po_tasks
   # Accepts { po_task_ids: [1, 2, 3] } and updates SmScheduleMaster.cost_centre
   #
-  # Propagates cost_centre to ALL SmScheduleMaster records with matching names
-  # (same tenant, po_required: true). This ensures job tasks created from older
-  # template versions are also found when querying by cost centre.
+  # Also propagates to SmScheduleMaster records with matching names across
+  # template versions (same tenant, po_required: true).
+  # Uses update_all (bypasses callbacks), so propagates to SmTask explicitly.
   def assign_po_tasks
     po_task_ids = params[:po_task_ids] || []
 
     ActiveRecord::Base.transaction do
-      # Get names of tasks being unassigned from this cost centre
-      removed_names = SmScheduleMaster.where(cost_centre: @cost_centre.id)
-                                      .where.not(id: po_task_ids)
-                                      .pluck(:name).uniq
+      # Collect all template IDs being unassigned
+      removed_ids = SmScheduleMaster.where(cost_centre: @cost_centre.id)
+                                    .where.not(id: po_task_ids)
+                                    .pluck(:id)
+      removed_names = SmScheduleMaster.where(id: removed_ids).pluck(:name).uniq
 
-      # Clear cost_centre from unassigned tasks
-      SmScheduleMaster.where(cost_centre: @cost_centre.id)
-                      .where.not(id: po_task_ids)
-                      .update_all(cost_centre: nil)
+      # Clear cost_centre from unassigned templates
+      SmScheduleMaster.where(id: removed_ids).update_all(cost_centre: nil)
 
-      # Also clear name-matched siblings (other template versions with same name)
+      # Clear name-matched siblings (other template versions)
       if removed_names.any?
-        SmScheduleMaster.where(name: removed_names, cost_centre: @cost_centre.id)
-                        .update_all(cost_centre: nil)
+        sibling_ids = SmScheduleMaster.where(name: removed_names, cost_centre: @cost_centre.id).pluck(:id)
+        SmScheduleMaster.where(id: sibling_ids).update_all(cost_centre: nil)
+        removed_ids += sibling_ids
       end
 
-      # Assign the specified tasks to this cost centre
+      # Push to child SmTask records
+      SmTask.where(sm_schedule_master_id: removed_ids.uniq).update_all(cost_centre: nil) if removed_ids.any?
+
+      # Assign the specified templates
       if po_task_ids.present?
         assigned = SmScheduleMaster.where(id: po_task_ids)
         assigned.update_all(cost_centre: @cost_centre.id)
+        all_assigned_ids = po_task_ids.map(&:to_i)
 
-        # Propagate to all SmScheduleMaster records with matching names
-        # (same tenant via acts_as_tenant, po_required only)
+        # Propagate to matching names across template versions
         assigned_names = assigned.pluck(:name).uniq
         if assigned_names.any?
-          SmScheduleMaster.where(name: assigned_names, po_required: true)
-                          .where.not(cost_centre: @cost_centre.id)
-                          .update_all(cost_centre: @cost_centre.id)
+          sibling_ids = SmScheduleMaster.where(name: assigned_names, po_required: true)
+                                        .where.not(cost_centre: @cost_centre.id)
+                                        .pluck(:id)
+          SmScheduleMaster.where(id: sibling_ids).update_all(cost_centre: @cost_centre.id)
+          all_assigned_ids += sibling_ids
         end
+
+        # Push to child SmTask records
+        SmTask.where(sm_schedule_master_id: all_assigned_ids.uniq).update_all(cost_centre: @cost_centre.id)
       end
     end
 

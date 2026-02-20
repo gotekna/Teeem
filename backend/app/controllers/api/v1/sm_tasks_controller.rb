@@ -210,64 +210,26 @@ module Api
         if params[:for] == "select"
           tasks = @job.sm_tasks.order(:sequence_order, :id)
 
-          # Filter by cost centre code (for BOQ "Add PO" per cost centre section)
-          # Uses fallback chain: sm_tasks.cost_centre → sm_schedule_masters.cost_centre
-          # → name match (for tasks from older template versions)
-          # Two-step: get IDs with DISTINCT (avoids duplicates from LEFT JOIN),
-          # then reload for clean includes(:purchase_order).
-          # .reorder(nil) clears ORDER BY before DISTINCT (PostgreSQL requires
-          # ORDER BY columns in SELECT list for DISTINCT).
+          # Filter by cost centre code - SmTask.cost_centre is SSoT
+          # (kept in sync via SmScheduleMaster after_save callback)
           if params[:cost_centre_code].present?
             cc = CostCentre.find_by(code: params[:cost_centre_code])
-            if cc
-              # Name-based fallback: find tasks whose template name matches any
-              # SmScheduleMaster assigned to this cost centre. This catches tasks
-              # created from older template versions where cost_centre wasn't set.
-              assigned_names = SmScheduleMaster.where(cost_centre: cc.id, po_required: true).pluck(:name).uniq
-
-              conditions = "sm_tasks.cost_centre = :cc_id OR sm_schedule_masters.cost_centre = :cc_id"
-              bind_params = { cc_id: cc.id }
-
-              if assigned_names.any?
-                conditions += " OR sm_schedule_masters.name IN (:names)"
-                bind_params[:names] = assigned_names
-              end
-
-              task_ids = tasks
-                .left_joins(:sm_schedule_master)
-                .where(conditions, **bind_params)
-                .reorder(nil)
-                .distinct
-                .pluck("sm_tasks.id")
-              tasks = @job.sm_tasks.where(id: task_ids).order(:sequence_order, :id)
-            end
+            tasks = tasks.where(cost_centre: cc.id) if cc
           end
 
-          # Filter by stage name (for BOQ "Add PO" per stage section)
-          # Same fallback: sm_tasks.stage → sm_schedule_masters.stage
+          # Filter by stage
           if params[:stage_name].present?
             stage = SmStage.find_by(name: params[:stage_name])
-            if stage
-              task_ids = tasks
-                .left_joins(:sm_schedule_master)
-                .where("sm_tasks.stage = :stage_id OR sm_schedule_masters.stage = :stage_id", stage_id: stage.id)
-                .reorder(nil)
-                .distinct
-                .pluck("sm_tasks.id")
-              tasks = @job.sm_tasks.where(id: task_ids).order(:sequence_order, :id)
-            end
+            tasks = tasks.where(stage: stage.id) if stage
           end
 
-          # Load with purchase_order + template to show existing PO status in the BOQ "Add PO" dialog
-          # Use template's po_required as fallback (SSoT) since task's flag may be stale
-          tasks_loaded = tasks.includes(:purchase_order, :sm_schedule_master).to_a
-          tasks_data = tasks_loaded.map do |task|
+          tasks_data = tasks.includes(:purchase_order).map do |task|
             {
               id: task.id,
               name: task.name,
               task_number: task.task_number,
               start_date: task.start_date,
-              po_required: task.po_required || task.sm_schedule_master&.po_required || task.purchase_order.present?,
+              po_required: task.po_required,
               cost_centre: task.cost_centre,
               has_existing_po: task.purchase_order.present?,
               existing_po_id: task.purchase_order&.id

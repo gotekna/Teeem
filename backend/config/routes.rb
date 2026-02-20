@@ -2255,6 +2255,15 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :tenders, only: [] do
+        collection do
+          get :po_tasks
+        end
+        member do
+          post :assign_po_tasks
+        end
+      end
+
       resources :profit_centres, only: [ :index, :show, :create, :update, :destroy ] do
         collection do
           post :create_variation
