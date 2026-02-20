@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -167,6 +167,9 @@ import { QLD_COUNCILS } from "@/lib/constants/lga-constants";
 
 const QLD_COUNCIL_ITEMS = QLD_COUNCILS.map(c => ({ id: c, label: c }));
 
+// Module-level cache: suppliers fetched once, reused across all pricebook detail pages
+const _suppliersCache: { data: Supplier[] | null } = { data: null };
+
 export default function PriceBookItemDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -212,9 +215,11 @@ export default function PriceBookItemDetailPage() {
     supplier_id: null,
   });
 
-  // Suppliers list for dropdown
+  // Suppliers list for dropdown (cached across pricebook detail pages)
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+  // Module-level cache: fetched once, reused across all pricebook detail page instances
+  const suppliersCacheRef = React.useRef<{ data: Supplier[] | null }>(_suppliersCache);
 
   // Units of measure for dropdown
   const [unitsOfMeasure, setUnitsOfMeasure] = useState<UnitOfMeasure[]>([]);
@@ -270,12 +275,18 @@ export default function PriceBookItemDetailPage() {
   };
 
   const loadSuppliers = async () => {
+    // Use module-level cache: suppliers fetched once, instant on subsequent opens
+    if (suppliersCacheRef.current.data) {
+      setSuppliers(suppliersCacheRef.current.data);
+      return;
+    }
     try {
       setLoadingSuppliers(true);
-      // include_employees=false skips the expensive employee name prefetch (not needed in this picker).
-      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers&include_employees=false');
+      // slim=true: returns only id + display_name (skips eager loading, as_json, flags etc.)
+      const response = await api.get<{ success: boolean; contacts: Supplier[] }>('/api/v1/contacts?type=suppliers&slim=true');
 
       if (response?.success && Array.isArray(response.contacts)) {
+        suppliersCacheRef.current.data = response.contacts;
         setSuppliers(response.contacts);
       } else {
         console.error('[loadSuppliers] Invalid response structure:', response);

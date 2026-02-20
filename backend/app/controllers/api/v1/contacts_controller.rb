@@ -373,6 +373,14 @@ module Api
           @contacts = @contacts.order(:display_name)
         end
 
+        # Fast path: slim=true returns only id + display_name (for dropdowns/pickers)
+        # Skips eager loading, as_json, precompute_contact_flags, employee names, etc.
+        if params[:slim] == "true"
+          slim_contacts = @contacts.pluck(:id, :display_name).map { |id, name| { id: id, display_name: name } }
+          render json: { success: true, contacts: slim_contacts }
+          return
+        end
+
         # Optionally include companies and jobs data
         include_companies = params[:include_companies] == "true"
         include_jobs = params[:include_jobs] == "true"

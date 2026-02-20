@@ -736,9 +736,6 @@ export function BillOfQuantities({
               <SortableHead column="supplier" sort={sortState} onSort={toggleSort} className="w-[160px]">
                 Supplier
               </SortableHead>
-              <SortableHead column="profitCentre" sort={sortState} onSort={toggleSort} className="w-[120px]">
-                Profit Centre
-              </SortableHead>
               <SortableHead column="code" sort={sortState} onSort={toggleSort} className="w-[90px]">
                 Code
               </SortableHead>
@@ -757,6 +754,9 @@ export function BillOfQuantities({
               <SortableHead column="subtotal" sort={sortState} onSort={toggleSort} className="w-[110px]" align="right">
                 Subtotal
               </SortableHead>
+              <SortableHead column="profitCentre" sort={sortState} onSort={toggleSort} className="w-[120px]">
+                Profit Centre
+              </SortableHead>
             </TableRow>
             {/* Filter row */}
             <TableRow className="bg-muted/30 border-b">
@@ -774,14 +774,6 @@ export function BillOfQuantities({
                   selected={selectedSuppliers}
                   onToggle={(v) => toggleSetFilter(selectedSuppliers, v, setSelectedSuppliers)}
                   placeholder="Supplier..."
-                />
-              </TableHead>
-              <TableHead className="py-1 px-2">
-                <MultiSelectFilter
-                  values={uniqueProfitCentres}
-                  selected={selectedProfitCentres}
-                  onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
-                  placeholder="Profit Centre..."
                 />
               </TableHead>
               <TableHead className="py-1 px-2">
@@ -811,6 +803,14 @@ export function BillOfQuantities({
                 />
               </TableHead>
               <TableHead className="py-1" />
+              <TableHead className="py-1 px-2">
+                <MultiSelectFilter
+                  values={uniqueProfitCentres}
+                  selected={selectedProfitCentres}
+                  onToggle={(v) => toggleSetFilter(selectedProfitCentres, v, setSelectedProfitCentres)}
+                  placeholder="Profit Centre..."
+                />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -990,18 +990,6 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
                 </div>
               </TableCell>
             )}
-            {idx === 0 && (
-              <TableCell
-                rowSpan={totalDataRows}
-                className={cn("align-top text-sm text-muted-foreground border-r", color.bg)}
-              >
-                <div className="sticky top-10">
-                  {group.profitCentreName || (
-                    <span className="italic text-xs">—</span>
-                  )}
-                </div>
-              </TableCell>
-            )}
             <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
               {item.pricebookItemCode || "—"}
             </TableCell>
@@ -1034,6 +1022,18 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
             >
               {formatCurrency(subtotal)}
             </TableCell>
+            {idx === 0 && (
+              <TableCell
+                rowSpan={totalDataRows}
+                className={cn("align-top text-sm text-muted-foreground border-l", color.bg)}
+              >
+                <div className="sticky top-10">
+                  {group.profitCentreName || (
+                    <span className="italic text-xs">—</span>
+                  )}
+                </div>
+              </TableCell>
+            )}
           </TableRow>
         );
       })}
@@ -1041,7 +1041,10 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
       {/* Pending new line items */}
       {newLines.map((nl) => (
         <TableRow key={nl.tempId} className="!bg-green-50 dark:!bg-green-950/30">
-          {/* PO/Supplier cells already covered by rowSpan */}
+          {/* PO/Supplier/Profit Centre cells covered by rowSpan */}
+          <TableCell className="text-xs text-muted-foreground font-mono py-1.5">
+            {nl.pricebookItemCode || "—"}
+          </TableCell>
           <TableCell className="py-1">
             <PricebookLineSearch
               value={nl.description}
@@ -1052,16 +1055,6 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
               onSelect={(item) =>
                 onNewLinePricebookSelect(nl.tempId, item)
               }
-            />
-          </TableCell>
-          <TableCell className="py-1">
-            <Input
-              value={nl.gstCode === "GST" ? "" : nl.gstCode}
-              onChange={(e) =>
-                onNewLineChange(nl.tempId, "gstCode", e.target.value || "GST")
-              }
-              placeholder="—"
-              className="h-7 text-xs font-mono w-full"
             />
           </TableCell>
           <TableCell className="text-right py-1">
@@ -1120,7 +1113,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
       {/* Group total row with Add Line button */}
       <TableRow className={cn(color.bg, "border-b-2 border-border")}>
-        <TableCell colSpan={3} className={cn("border-r py-1", color.bg)}>
+        <TableCell colSpan={2} className={cn("border-r py-1", color.bg)}>
           {canEdit && (
             <Button
               variant="ghost"
@@ -1142,6 +1135,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         <TableCell className="text-right text-sm font-mono font-semibold py-1">
           {formatCurrency(groupTotal)}
         </TableCell>
+        <TableCell className={cn("py-1", color.bg)} />
       </TableRow>
     </>
   );
