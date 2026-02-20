@@ -43,11 +43,11 @@ export default function JobTenderTab({ jobId }: JobTenderTabProps) {
   // Fetch all tender documents for this job
   const fetchDocuments = React.useCallback(async () => {
     try {
-      const response = await api.get<{ success: boolean; data: TenderDocumentSummary[] }>(
+      const response = await api.get<{ success: boolean; data: { tender_documents: TenderDocumentSummary[]; total_count: number } }>(
         `/api/v1/jobs/${jobId}/tender_documents`
       );
       if (response?.success) {
-        setDocuments(response.data);
+        setDocuments(response.data.tender_documents || []);
       }
     } catch {
       // Silently fail - empty state will show
