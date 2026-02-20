@@ -20,9 +20,10 @@ class Foundation < ApplicationRecord
 
     foundation_columns = columns.includes(:lookup_foundation) # Eager load for performance
 
-    # For system foundations with a model_class defined, use the existing Rails model
+    # For foundations with a model_class defined, use the existing Rails model
+    # This ensures acts_as_tenant, validations, and other model-level concerns are applied
     # SSoT: Fail loudly if model_class is invalid - never silently fall through
-    if table_type == "system" && model_class.present?
+    if model_class.present?
       begin
         @dynamic_model = model_class.constantize
         return @dynamic_model
@@ -64,6 +65,15 @@ class Foundation < ApplicationRecord
       @dynamic_model = Class.new(ApplicationRecord) do
         self.table_name = table_name
       end
+    end
+
+    # ⚠️ Safety net: If the table has tenant_id, add acts_as_tenant to prevent data leakage
+    # This catches cases where model_class is missing but the table is tenant-scoped
+    if @dynamic_model.column_names.include?("tenant_id") && !@dynamic_model.respond_to?(:scoped_by_tenant?)
+      @dynamic_model.acts_as_tenant :tenant
+      Rails.logger.warn "Foundation #{id} (#{slug}): Dynamic model for '#{database_table_name}' " \
+        "has tenant_id but no model_class set. Added acts_as_tenant as safety net. " \
+        "Set model_class to fix permanently."
     end
 
     # Add belongs_to associations for lookup columns

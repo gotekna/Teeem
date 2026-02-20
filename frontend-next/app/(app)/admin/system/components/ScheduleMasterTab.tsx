@@ -624,12 +624,16 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [poTasks, setPoTasks] = React.useState<POTask[]>([]);
   const [poTasksLoaded, setPoTasksLoaded] = React.useState(false);
   const [selectedPoTaskIds, setSelectedPoTaskIds] = React.useState<number[]>([]);
+  const [poTaskTemplateFilter, setPoTaskTemplateFilter] = React.useState<string>("all");
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
 
-  // Fetch PO tasks for Cost Centre assignment
-  const fetchPoTasks = React.useCallback(async () => {
+  // Fetch PO tasks for Cost Centre assignment, optionally filtered by template
+  const fetchPoTasks = React.useCallback(async (templateId?: string) => {
     try {
-      const data = await api.get<{ success: boolean; data: POTask[] }>("/api/v1/cost_centres/po_tasks");
+      const url = templateId && templateId !== "all"
+        ? `/api/v1/cost_centres/po_tasks?template_id=${templateId}`
+        : "/api/v1/cost_centres/po_tasks";
+      const data = await api.get<{ success: boolean; data: POTask[] }>(url);
       if (data?.data) {
         setPoTasks(data.data);
         setPoTasksLoaded(true);
@@ -642,7 +646,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Render PO Task picker for Cost Centre create dialog
   const renderPoTaskPickerForCreate = React.useCallback(() => {
     if (!poTasksLoaded) {
-      fetchPoTasks();
+      fetchPoTasks(poTaskTemplateFilter);
       return (
         <div className="py-4 border-t">
           <Label className="text-sm font-medium">PO Tasks</Label>
@@ -651,8 +655,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       );
     }
 
-    // For create: no tasks pre-selected, reset on mount
-    const selectedOptions: ComboboxItem[] = selectedPoTaskIds
+    // FRC (Feb 2026): Detect stale state from cancelled edit session.
+    // If poTasksEditRecordIdRef still holds an edit record ID (not null, not 'create'),
+    // the user edited a Cost Centre then cancelled → selectedPoTaskIds has stale data.
+    // Reset immediately and use empty array for this render to avoid flash of stale tasks.
+    let effectiveSelectedIds = selectedPoTaskIds;
+    if (poTasksEditRecordIdRef.current !== null && poTasksEditRecordIdRef.current !== "create") {
+      poTasksEditRecordIdRef.current = "create";
+      effectiveSelectedIds = [];
+      queueMicrotask(() => setSelectedPoTaskIds([]));
+    }
+
+    const selectedOptions: ComboboxItem[] = effectiveSelectedIds
       .map((id) => {
         const task = poTasks.find((t) => t.id === id);
         if (!task) return null;
@@ -660,15 +674,14 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       })
       .filter((o): o is ComboboxItem => !!o);
 
-    // Build options: disable tasks assigned to other cost centres
+    // Build options: show which cost centre tasks are already assigned to (but allow reassignment)
     const availableOptions: ComboboxItem[] = poTasks.map((task) => {
-      const isAssignedElsewhere = task.costCentreId != null && !selectedPoTaskIds.includes(task.id);
+      const isAssignedElsewhere = task.costCentreId != null && !effectiveSelectedIds.includes(task.id);
       return {
         id: String(task.id),
         label: isAssignedElsewhere
           ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
           : `${task.taskNumber} - ${task.name}`,
-        disabled: isAssignedElsewhere,
       };
     });
 
@@ -676,8 +689,25 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       <div className="py-4 border-t">
         <Label className="text-sm font-medium">PO Tasks</Label>
         <p className="text-xs text-muted-foreground mt-1 mb-2">
-          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
+          Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
         </p>
+        <Select
+          value={poTaskTemplateFilter}
+          onValueChange={(value) => {
+            setPoTaskTemplateFilter(value);
+            fetchPoTasks(value);
+          }}
+        >
+          <SelectTrigger className="mb-2">
+            <SelectValue placeholder="Filter by template..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Templates</SelectItem>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <ComboboxDropdownMulti
           selectedItems={selectedOptions}
           items={availableOptions}
@@ -689,7 +719,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         />
       </div>
     );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks, poTaskTemplateFilter, templates]);
 
   // Render PO Task picker for editing (pre-selects existing tasks)
   const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
@@ -697,7 +727,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
 
     // Fetch PO tasks if not loaded yet
     if (!poTasksLoaded) {
-      fetchPoTasks();
+      fetchPoTasks(poTaskTemplateFilter);
       return (
         <div className="py-4 border-t">
           <Label className="text-sm font-medium">PO Tasks</Label>
@@ -733,7 +763,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         label: isAssignedElsewhere
           ? `${task.taskNumber} - ${task.name} (${task.costCentreName || "CC #" + task.costCentreId})`
           : `${task.taskNumber} - ${task.name}`,
-        disabled: isAssignedElsewhere,
       };
     });
 
@@ -741,8 +770,25 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       <div className="py-4 border-t">
         <Label className="text-sm font-medium">PO Tasks</Label>
         <p className="text-xs text-muted-foreground mt-1 mb-2">
-          Assign SM PO Tasks to this Cost Centre. Greyed-out tasks are already assigned to another Cost Centre.
+          Assign SM PO Tasks to this Cost Centre. Tasks showing a cost centre name in brackets will be reassigned.
         </p>
+        <Select
+          value={poTaskTemplateFilter}
+          onValueChange={(value) => {
+            setPoTaskTemplateFilter(value);
+            fetchPoTasks(value);
+          }}
+        >
+          <SelectTrigger className="mb-2">
+            <SelectValue placeholder="Filter by template..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Templates</SelectItem>
+            {templates.map((t) => (
+              <SelectItem key={t.id} value={String(t.id)}>{t.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <ComboboxDropdownMulti
           selectedItems={selectedOptions}
           items={availableOptions}
@@ -754,7 +800,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         />
       </div>
     );
-  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks]);
+  }, [poTasksLoaded, poTasks, selectedPoTaskIds, fetchPoTasks, poTaskTemplateFilter, templates]);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -765,8 +811,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       await api.post(`/api/v1/cost_centres/${costCentreId}/assign_po_tasks`, {
         po_task_ids: selectedPoTaskIds,
       });
-      // Refresh PO tasks to reflect new assignments
-      await fetchPoTasks();
+      // Refresh PO tasks (unfiltered) to reflect new assignments
+      setPoTaskTemplateFilter("all");
+      await fetchPoTasks("all");
       // Reset state for next modal open
       setSelectedPoTaskIds([]);
       poTasksEditRecordIdRef.current = null;

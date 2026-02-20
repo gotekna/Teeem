@@ -135,8 +135,10 @@ class Api::V1::CostCentresController < ApplicationController
 
   # GET /api/v1/cost_centres/po_tasks
   # Returns all SmScheduleMaster records where po_required=true, with current cost centre assignment
+  # Optional param: template_id - filter to tasks belonging to a specific schedule template
   def po_tasks
     tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
+    tasks = tasks.for_template(params[:template_id]) if params[:template_id].present?
 
     # Build a lookup of cost centre names for display
     cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
