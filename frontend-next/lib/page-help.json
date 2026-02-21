@@ -1010,9 +1010,9 @@
     },
     "/settings/operations": {
       "title": "Operations Settings",
-      "description": "Configure operational settings like schedule master, contact types, PO templates, and claim stage templates.",
-      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click", "Claim Templates define progress claim stages with percentage splits"],
-      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs", "Create claim stage templates"]
+      "description": "Configure operational settings like schedule master, contact types, PO templates, tender sections, and claim stage templates.",
+      "tips": ["Schedule Master settings affect task scheduling", "Contact types help organize contacts", "Meeting types standardize meeting records", "PO Templates let you stamp all POs onto a new job in one click", "Claim Templates define progress claim stages with percentage splits", "Tender Headers group tender sections into a two-level hierarchy (e.g., Site Costs > Site Preparation)", "Tender Sections with a default note show that text when no PO items are assigned"],
+      "tasks": ["Configure Schedule Master", "Manage contact types", "Set up meeting types", "Configure checklist templates", "Create PO template packs", "Create claim stage templates", "Manage tender headers and sections"]
     },
     "/settings/operations/po-templates": {
       "title": "PO Template Packs",

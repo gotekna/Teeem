@@ -2258,6 +2258,8 @@ Rails.application.routes.draw do
       resources :tenders, only: [] do
         collection do
           get :po_tasks
+          get :tree
+          get :headers
         end
         member do
           post :assign_po_tasks

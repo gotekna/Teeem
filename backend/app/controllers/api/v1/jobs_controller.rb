@@ -774,6 +774,10 @@ module Api
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
 
+        # Pre-load tenders for efficient lookup (avoids N+1 from tender_from_task)
+        tender_ids = purchase_orders.filter_map { |po| po.sm_task&.sm_schedule_master&.tender_id }.uniq
+        tenders_by_id = tender_ids.any? ? Tender.where(id: tender_ids).index_by(&:id) : {}
+
         # Pre-load Databuild BOQ line items (SmScheduleMaster records linked to cost centres)
         cc_ids = cost_budgets.filter_map { |b| b.cost_centre&.id }
         sm_by_cc = if cc_ids.any?
@@ -852,6 +856,7 @@ module Api
                   stageName: nil,
                   stagePosition: nil,
                   costCentreName: cc_name,
+                  tenderName: nil,
                   profitCentreName: nil,
                   items: items
                 }
@@ -869,6 +874,7 @@ module Api
                 stageName: nil,
                 stagePosition: nil,
                 costCentreName: cc_name,
+                tenderName: nil,
                 profitCentreName: nil,
                 items: [{
                   id: "budget-#{budget.id}",
@@ -911,6 +917,7 @@ module Api
                 stageName: po.stage_from_task,
                 stagePosition: sm&.sequence_order,
                 costCentreName: po.cost_centre_from_task,
+                tenderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.name),
                 profitCentreName: po.profit_centre_from_line_items,
                 items: items
               }
@@ -933,6 +940,7 @@ module Api
               stageName: po.stage_from_task,
               stagePosition: sm&.sequence_order,
               costCentreName: po.cost_centre_from_task,
+              tenderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.name),
               profitCentreName: po.profit_centre_from_line_items,
               items: po.line_items.sort_by(&:line_number).map do |item|
                 pc = item.profit_centre
@@ -983,6 +991,7 @@ module Api
               stageName: nil,
               stagePosition: nil,
               costCentreName: "X - No Task",
+              tenderName: nil,
               profitCentreName: po.profit_centre_from_line_items,
               items: items
             }

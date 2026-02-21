@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_21_100003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_21_110003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10083,6 +10083,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_100003) do
     t.string "trade_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "tender_header_name"
+    t.string "tender_header_code"
+    t.integer "header_sort_order"
+    t.text "default_note"
     t.index ["source_purchase_order_id"], name: "index_tender_document_items_on_source_purchase_order_id"
     t.index ["tender_document_id", "tender_section_name", "line_number"], name: "idx_tender_doc_items_section_line"
     t.index ["tender_document_id"], name: "index_tender_document_items_on_tender_document_id"
@@ -10150,7 +10154,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_100003) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "parent_id"
+    t.text "default_note"
     t.index ["active"], name: "index_tenders_on_active"
+    t.index ["parent_id"], name: "index_tenders_on_parent_id"
     t.index ["sort_order"], name: "index_tenders_on_sort_order"
     t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true
     t.index ["tenant_id"], name: "index_tenders_on_tenant_id"
@@ -12209,6 +12216,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_100003) do
   add_foreign_key "tender_documents", "users", column: "created_by_id"
   add_foreign_key "tender_documents", "users", column: "locked_by_id"
   add_foreign_key "tenders", "tenants", on_delete: :cascade
+  add_foreign_key "tenders", "tenders", column: "parent_id"
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify

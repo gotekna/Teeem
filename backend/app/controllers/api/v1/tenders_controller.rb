@@ -1,7 +1,8 @@
 # frozen_string_literal: true
 
-# TendersController - Manages tender sections and their PO task assignments.
+# TendersController - Manages tender sections/headers and their PO task assignments.
 #
+# Two-level hierarchy: headers (parent_id = nil) group sections (parent_id set).
 # Tender sections group PO line items into sections for tender documents
 # (e.g., "Base Price & Essential Inclusions", "Site Costs").
 #
@@ -10,6 +11,22 @@
 #
 class Api::V1::TendersController < ApplicationController
   before_action :set_tender, only: [:assign_po_tasks]
+
+  # GET /api/v1/tenders/tree
+  # Returns hierarchical header > sections structure for the tender document system
+  def tree
+    render json: { success: true, data: Tender.tree }
+  end
+
+  # GET /api/v1/tenders/headers
+  # Returns headers-only (parent_id = nil) for dropdown selection in sections tab
+  def headers
+    headers_list = Tender.headers.active.ordered.select(:id, :code, :name, :sort_order)
+    render json: {
+      success: true,
+      data: headers_list.map { |h| { id: h.id, code: h.code, name: h.name, sortOrder: h.sort_order } }
+    }
+  end
 
   # GET /api/v1/tenders/po_tasks
   # Returns all SmScheduleMaster records where po_required=true, with current tender assignment

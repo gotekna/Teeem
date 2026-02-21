@@ -53,19 +53,25 @@ class TenderDocumentService
 
   def snapshot_po_items!(doc)
     line_counter_by_section = Hash.new(0)
+    sections_with_items = Set.new
 
     @job.purchase_orders.includes(:line_items, sm_task: :sm_schedule_master).find_each do |po|
       tender_section = resolve_tender_section(po)
+      tender_header = tender_section&.parent
 
       po.line_items.ordered.each do |item|
         section_name = tender_section&.name || "Unallocated"
         line_counter_by_section[section_name] += 1
+        sections_with_items << tender_section&.id if tender_section
 
         doc.tender_document_items.create!(
           tender_section_name: section_name,
           tender_section_code: tender_section&.code,
           section_sort_order: tender_section&.sort_order || 999,
           section_type: tender_section&.section_type || "priced",
+          tender_header_name: tender_header&.name,
+          tender_header_code: tender_header&.code,
+          header_sort_order: tender_header&.sort_order || 999,
           line_number: line_counter_by_section[section_name],
           description: item.description,
           quantity: item.quantity,
@@ -81,6 +87,32 @@ class TenderDocumentService
           trade_name: po.trade_from_task
         )
       end
+    end
+
+    # Insert default note items for sections that have no PO items
+    insert_default_note_items!(doc, sections_with_items)
+  end
+
+  # For sections with a default_note and no PO items, insert a placeholder item
+  # so the tender document shows "No allowance has been made for..." text.
+  def insert_default_note_items!(doc, sections_with_items)
+    Tender.sections.active.where.not(default_note: [nil, ""]).find_each do |section|
+      next if sections_with_items.include?(section.id)
+
+      header = section.parent
+      doc.tender_document_items.create!(
+        tender_section_name: section.name,
+        tender_section_code: section.code,
+        section_sort_order: section.sort_order || 999,
+        section_type: "note",
+        tender_header_name: header&.name,
+        tender_header_code: header&.code,
+        header_sort_order: header&.sort_order || 999,
+        line_number: 1,
+        description: section.default_note,
+        item_type: "note",
+        default_note: section.default_note
+      )
     end
   end
 

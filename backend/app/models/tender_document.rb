@@ -80,10 +80,36 @@ class TenderDocument < ApplicationRecord
       .group_by(&:tender_section_name)
   end
 
+  # Two-level grouping: header → section → items
+  # Returns: { "Site Costs" => { "Site Preparation" => [items], "Flood" => [note_item] } }
+  def sections_grouped_by_header
+    items = tender_document_items.order(:header_sort_order, :section_sort_order, :line_number)
+    result = {}
+
+    items.each do |item|
+      header_name = item.tender_header_name || "Other"
+      section_name = item.tender_section_name
+
+      result[header_name] ||= {}
+      result[header_name][section_name] ||= []
+      result[header_name][section_name] << item
+    end
+
+    result
+  end
+
   def section_subtotals
     tender_document_items
       .where(item_type: "priced")
       .group(:tender_section_name)
+      .sum(:total_amount)
+  end
+
+  # Header-level subtotals (sum of all priced items under each header)
+  def header_subtotals
+    tender_document_items
+      .where(item_type: "priced")
+      .group(:tender_header_name)
       .sum(:total_amount)
   end
 
@@ -97,9 +123,13 @@ class TenderDocument < ApplicationRecord
 
   def as_json(options = {})
     super(options).merge(
-      "items" => tender_document_items.order(:section_sort_order, :line_number).as_json,
+      "items" => tender_document_items.order(:header_sort_order, :section_sort_order, :line_number).as_json,
       "sections_grouped" => sections_grouped.transform_values { |items| items.map(&:as_json) },
+      "sections_grouped_by_header" => sections_grouped_by_header.transform_values { |sections|
+        sections.transform_values { |items| items.map(&:as_json) }
+      },
       "section_subtotals" => section_subtotals.transform_keys(&:to_s),
+      "header_subtotals" => header_subtotals.transform_keys(&:to_s),
       "created_by_name" => created_by&.name,
       "locked_by_name" => locked_by&.name,
       "pdf_download_url" => pdf_generation&.download_url

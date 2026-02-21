@@ -11,9 +11,10 @@ import type { TableRow } from "@/components/table/types";
  * TenderSectionsTab - Manage tender sections for grouping PO items in tender documents.
  *
  * SSoT: This is THE ONE location for managing tender section definitions.
- * Sections like "Base Price & Essential Inclusions", "Site Costs", etc.
- * are linked to SM Schedule Masters via sm_schedule_masters.tender_id.
+ * Sections (records with parent_id set) are children of Tender Headers.
+ * They are linked to SM Schedule Masters via sm_schedule_masters.tender_id.
  *
+ * Headers are managed separately in TenderHeadersTab.
  * Part of Settings > Operations.
  */
 
@@ -241,6 +242,15 @@ export function TenderSectionsTab() {
       <TeeemTableView
         foundationId={FOUNDATION_SLUGS.TENDERS}
         autoFetchRecords={true}
+        initialFilters={[
+          {
+            id: "section-filter",
+            column: "parent_id",
+            operator: "is_not_empty",
+            value: null,
+            locked: true,
+          },
+        ]}
         createDialogRenderExtra={renderPickerForCreate}
         createDialogOnAfterSave={handleAfterSave}
         editDialogRenderExtra={renderPickerForEdit}

@@ -54,6 +54,7 @@ export interface BOQGroup {
   stageName?: string | null;
   stagePosition?: number | null;
   costCentreName?: string | null;
+  tenderName?: string | null;
   profitCentreName?: string | null;
   items: BOQLineItem[];
 }
@@ -136,13 +137,14 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "profitCentre";
+type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
   stage: "Stage",
   trade: "Trade",
   costCentre: "Cost Centre",
+  tender: "Tender",
   profitCentre: "Profit Centre",
 };
 
@@ -200,6 +202,10 @@ export function BillOfQuantities({
     }),
     [groups]
   );
+  const uniqueTenders = useMemo(() =>
+    [...new Set(groups.map((g) => g.tenderName).filter(Boolean) as string[])].sort(),
+    [groups]
+  );
   const uniqueProfitCentres = useMemo(() =>
     [...new Set(groups.flatMap((g) => g.items.map((i) => i.profitCentreName)).filter(Boolean) as string[])].sort(),
     [groups]
@@ -212,6 +218,7 @@ export function BillOfQuantities({
   const hasTrades = uniqueTrades.length > 0;
   const hasSuppliers = uniqueSuppliers.length > 0;
   const hasCostCentres = uniqueCostCentres.length > 0;
+  const hasTenders = uniqueTenders.length > 0;
   const hasProfitCentres = uniqueProfitCentres.length > 0;
 
   // Sort + column filter state
@@ -222,6 +229,7 @@ export function BillOfQuantities({
   const [selectedStages, setSelectedStages] = useState<Set<string>>(new Set());
   const [selectedTrades, setSelectedTrades] = useState<Set<string>>(new Set());
   const [selectedCostCentres, setSelectedCostCentres] = useState<Set<string>>(new Set());
+  const [selectedTenders, setSelectedTenders] = useState<Set<string>>(new Set());
   const [selectedProfitCentres, setSelectedProfitCentres] = useState<Set<string>>(new Set());
   const [selectedGstCodes, setSelectedGstCodes] = useState<Set<string>>(new Set());
 
@@ -253,9 +261,10 @@ export function BillOfQuantities({
       selectedStages.size > 0 ||
       selectedTrades.size > 0 ||
       selectedCostCentres.size > 0 ||
+      selectedTenders.size > 0 ||
       selectedProfitCentres.size > 0 ||
       selectedGstCodes.size > 0,
-    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, selectedGstCodes]
+    [columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedTenders, selectedProfitCentres, selectedGstCodes]
   );
 
   const clearAllFilters = useCallback(() => {
@@ -264,6 +273,7 @@ export function BillOfQuantities({
     setSelectedStages(new Set());
     setSelectedTrades(new Set());
     setSelectedCostCentres(new Set());
+    setSelectedTenders(new Set());
     setSelectedProfitCentres(new Set());
     setSelectedGstCodes(new Set());
     setSortState(null);
@@ -318,10 +328,12 @@ export function BillOfQuantities({
       }
       const aVal = groupSortBy === "supplier" ? (a.supplierName || "")
         : groupSortBy === "costCentre" ? (a.costCentreName || "")
+        : groupSortBy === "tender" ? (a.tenderName || "")
         : groupSortBy === "profitCentre" ? (a.profitCentreName || "")
         : (a.tradeName || "");
       const bVal = groupSortBy === "supplier" ? (b.supplierName || "")
         : groupSortBy === "costCentre" ? (b.costCentreName || "")
+        : groupSortBy === "tender" ? (b.tenderName || "")
         : groupSortBy === "profitCentre" ? (b.profitCentreName || "")
         : (b.tradeName || "");
       return numericCompare(aVal, bVal);
@@ -526,6 +538,7 @@ export function BillOfQuantities({
             groupSortBy === "supplier" ? g.supplierName :
             groupSortBy === "stage" ? g.stageName :
             groupSortBy === "trade" ? g.tradeName :
+            groupSortBy === "tender" ? g.tenderName :
             groupSortBy === "profitCentre" ? g.profitCentreName :
             g.name;
           return (sectionLabel || "").toLowerCase().includes(term) || g.name.toLowerCase().includes(term);
@@ -554,6 +567,9 @@ export function BillOfQuantities({
     }
     if (selectedCostCentres.size > 0) {
       result = result.filter((g) => g.costCentreName && selectedCostCentres.has(g.costCentreName));
+    }
+    if (selectedTenders.size > 0) {
+      result = result.filter((g) => g.tenderName && selectedTenders.has(g.tenderName));
     }
     if (selectedProfitCentres.size > 0) {
       result = result.filter((g) => g.items.some((i) => i.profitCentreName && selectedProfitCentres.has(i.profitCentreName)));
@@ -627,7 +643,7 @@ export function BillOfQuantities({
     }
 
     return result;
-  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedProfitCentres, selectedGstCodes, sortState, getQty]);
+  }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedTenders, selectedProfitCentres, selectedGstCodes, sortState, getQty]);
 
   // Cascade sections: group POs under Stage/Supplier/Trade headers
   const cascadeSections = useMemo(() => {
@@ -638,8 +654,9 @@ export function BillOfQuantities({
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
             : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
-              : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
-                : (group.tradeName || "No Trade");
+              : groupSortBy === "tender" ? (group.tenderName || "No Tender Section")
+                : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
+                  : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
@@ -732,7 +749,7 @@ export function BillOfQuantities({
               >
                 PO / Task
               </button>
-              {(["supplier", "stage", "trade", "costCentre", "profitCentre"] as GroupSortBy[]).map((dim) => {
+              {(["supplier", "stage", "trade", "costCentre", "tender", "profitCentre"] as GroupSortBy[]).map((dim) => {
                 return (
                   <button
                     key={dim}
@@ -806,6 +823,15 @@ export function BillOfQuantities({
                 onToggle={(v) => toggleSetFilter(selectedCostCentres, v, setSelectedCostCentres)}
                 placeholder="Cost Centre..."
                 label="Cost Centre"
+              />
+            )}
+            {groupSortBy === "tender" && hasTenders && (
+              <MultiSelectFilter
+                values={uniqueTenders}
+                selected={selectedTenders}
+                onToggle={(v) => toggleSetFilter(selectedTenders, v, setSelectedTenders)}
+                placeholder="Tender..."
+                label="Tender"
               />
             )}
             {groupSortBy === "profitCentre" && hasProfitCentres && (

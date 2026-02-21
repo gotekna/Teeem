@@ -11,6 +11,10 @@ interface TenderDocumentItem {
   tender_section_code: string | null;
   section_sort_order: number;
   section_type: string;
+  tender_header_name: string | null;
+  tender_header_code: string | null;
+  header_sort_order: number | null;
+  default_note: string | null;
   line_number: number;
   description: string;
   quantity: number | null;
@@ -50,7 +54,9 @@ interface TenderDocumentData {
   declined_at: string | null;
   revision_notes: string | null;
   sections_grouped: Record<string, TenderDocumentItem[]>;
+  sections_grouped_by_header?: Record<string, Record<string, TenderDocumentItem[]>>;
   section_subtotals: Record<string, number>;
+  header_subtotals?: Record<string, number>;
 }
 
 interface TenderDocumentViewProps {
@@ -67,8 +73,84 @@ const STATUS_COLORS: Record<string, string> = {
   superseded: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
 };
 
+function SectionItemsTable({
+  items,
+  sectionSubtotal,
+}: {
+  items: TenderDocumentItem[];
+  sectionSubtotal: number;
+}) {
+  // If all items are default notes (no actual PO items), show the note text
+  const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
+
+  if (allNotes && items.length > 0) {
+    return (
+      <p className="text-sm italic text-muted-foreground py-2">
+        {items[0].default_note}
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b text-left text-muted-foreground">
+            <th className="py-2 w-10">#</th>
+            <th className="py-2">Description</th>
+            <th className="py-2 text-right w-20">Qty</th>
+            <th className="py-2 text-right w-28">Unit Price</th>
+            <th className="py-2 text-right w-28">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border-b border-border/50">
+              <td className="py-2 text-muted-foreground">{item.line_number}</td>
+              <td className="py-2">
+                {item.description}
+                {item.notes && (
+                  <span className="block text-xs text-muted-foreground">{item.notes}</span>
+                )}
+                {item.source_po_number && (
+                  <span className="block text-xs text-muted-foreground">
+                    PO: {item.source_po_number}
+                  </span>
+                )}
+              </td>
+              {item.item_type === "priced" || item.item_type === "provisional" ? (
+                <>
+                  <td className="py-2 text-right">{item.quantity}</td>
+                  <td className="py-2 text-right">{formatCurrency(item.unit_price || 0)}</td>
+                  <td className="py-2 text-right font-medium">{formatCurrency(item.total_amount || 0)}</td>
+                </>
+              ) : (
+                <td colSpan={3} className="py-2 text-right text-muted-foreground italic">
+                  {item.item_type === "included" ? "Included" : "—"}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+        {sectionSubtotal > 0 && (
+          <tfoot>
+            <tr>
+              <td colSpan={4} className="py-2 text-right text-muted-foreground text-xs">Section subtotal</td>
+              <td className="py-2 text-right font-medium text-xs">{formatCurrency(sectionSubtotal)}</td>
+            </tr>
+          </tfoot>
+        )}
+      </table>
+    </div>
+  );
+}
+
 export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
-  const sections = Object.entries(doc.sections_grouped || {});
+  const headerGroups = doc.sections_grouped_by_header;
+  const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
+
+  // Fall back to flat sections_grouped if no two-level data
+  const flatSections = Object.entries(doc.sections_grouped || {});
 
   return (
     <div className="space-y-6">
@@ -115,63 +197,57 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
         </Card>
       </div>
 
-      {/* Sections */}
-      {sections.map(([sectionName, items]) => (
-        <Card key={sectionName}>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">{sectionName}</CardTitle>
-              <span className="text-sm font-semibold">
-                {formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
-              </span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="py-2 w-10">#</th>
-                    <th className="py-2">Description</th>
-                    <th className="py-2 text-right w-20">Qty</th>
-                    <th className="py-2 text-right w-28">Unit Price</th>
-                    <th className="py-2 text-right w-28">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(items || []).map((item) => (
-                    <tr key={item.id} className="border-b border-border/50">
-                      <td className="py-2 text-muted-foreground">{item.line_number}</td>
-                      <td className="py-2">
-                        {item.description}
-                        {item.notes && (
-                          <span className="block text-xs text-muted-foreground">{item.notes}</span>
-                        )}
-                        {item.source_po_number && (
-                          <span className="block text-xs text-muted-foreground">
-                            PO: {item.source_po_number}
-                          </span>
-                        )}
-                      </td>
-                      {item.item_type === "priced" || item.item_type === "provisional" ? (
-                        <>
-                          <td className="py-2 text-right">{item.quantity}</td>
-                          <td className="py-2 text-right">{formatCurrency(item.unit_price || 0)}</td>
-                          <td className="py-2 text-right font-medium">{formatCurrency(item.total_amount || 0)}</td>
-                        </>
-                      ) : (
-                        <td colSpan={3} className="py-2 text-right text-muted-foreground italic">
-                          {item.item_type === "included" ? "Included" : "—"}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Two-Level Sections (Header > Section > Items) */}
+      {hasTwoLevelData ? (
+        Object.entries(headerGroups).map(([headerName, sections]) => (
+          <Card key={headerName}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">{headerName}</CardTitle>
+                <span className="text-sm font-semibold">
+                  {formatCurrency(doc.header_subtotals?.[headerName] || 0)}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {Object.entries(sections).map(([sectionName, items]) => (
+                <div key={sectionName}>
+                  <div className="flex items-center justify-between mb-1">
+                    <h4 className="text-sm font-medium text-foreground/80">{sectionName}</h4>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
+                    </span>
+                  </div>
+                  <SectionItemsTable
+                    items={items}
+                    sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ))
+      ) : (
+        /* Flat sections fallback (legacy documents without header data) */
+        flatSections.map(([sectionName, items]) => (
+          <Card key={sectionName}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm">{sectionName}</CardTitle>
+                <span className="text-sm font-semibold">
+                  {formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <SectionItemsTable
+                items={items}
+                sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
+              />
+            </CardContent>
+          </Card>
+        ))
+      )}
 
       {/* Totals */}
       <Card>
