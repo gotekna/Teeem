@@ -323,6 +323,9 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       return;
     }
 
+    // Declared outside try so catch block can reference for field-level errors
+    const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
+
     try {
       // Build set of editable column keys - ONLY these get sent to the API
       // This prevents sending expanded lookup objects, display values, and computed fields
@@ -337,9 +340,6 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
           })
           .map(c => c.key)
       );
-
-      // Collect changes - ONLY send fields the user explicitly modified
-      const rowsToUpdate: Array<{ rowId: string | number; changes: Record<string, unknown> }> = [];
 
       for (const rowId of editingRowIds) {
         const originalRow = rows.find(r => r.id === rowId);
@@ -466,9 +466,29 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
       });
     } catch (error) {
       console.error("Failed to save:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+      // Parse server validation errors (e.g., "Code has already been taken")
+      // and attach them to the relevant field so they show inline
+      if (rowsToUpdate.length === 1) {
+        const rowId = rowsToUpdate[0].rowId;
+        const fieldErrors: Record<string, string> = {};
+        // Match "FieldName error message" pattern from Rails full_messages
+        const changedKeys = Object.keys(rowsToUpdate[0].changes);
+        for (const key of changedKeys) {
+          const fieldLabel = key.replace(/_/g, ' ');
+          if (errorMessage.toLowerCase().includes(fieldLabel.toLowerCase())) {
+            fieldErrors[key] = errorMessage;
+          }
+        }
+        if (Object.keys(fieldErrors).length > 0) {
+          setValidationErrors(prev => ({ ...prev, [rowId]: { ...prev[rowId], ...fieldErrors } }));
+        }
+      }
+
       toast?.({
         title: "Save failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
         variant: "destructive",
       });
     }

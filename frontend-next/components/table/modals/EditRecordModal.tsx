@@ -40,6 +40,7 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
@@ -181,6 +182,7 @@ export function EditRecordModal({
 }: EditRecordModalProps) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [showFieldConfig, setShowFieldConfig] = useState(false);
   const [showMoreFields, setShowMoreFields] = useState(false);
 
@@ -364,6 +366,7 @@ export function EditRecordModal({
   // Handle form field change
   const handleFieldChange = useCallback((columnName: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [columnName]: value }));
+    setSaveError(null);
   }, []);
 
   // Handle form submission
@@ -371,6 +374,7 @@ export function EditRecordModal({
     if (!record) return;
 
     setSaving(true);
+    setSaveError(null);
     try {
       await api.patch(`/api/v1/foundations/${foundationId}/records/${record.id}`, {
         record: formData,
@@ -390,11 +394,8 @@ export function EditRecordModal({
       onSuccess?.();
     } catch (error) {
       console.error("Failed to update record:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to update record. Please try again.",
-        variant: "destructive",
-      });
+      const errorMessage = error instanceof Error ? error.message : "Failed to update record. Please try again.";
+      setSaveError(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -550,6 +551,13 @@ export function EditRecordModal({
 
         {/* Extra content from parent (e.g., PO Task picker for Cost Centres) */}
         {record && renderExtraContent?.(record)}
+
+        {saveError && (
+          <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
