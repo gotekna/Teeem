@@ -667,27 +667,44 @@ module Api
           @cost_centres_cache = CostCentre.all.index_by(&:id)
         end
 
-        # Pre-fetch PO counts per cost centre (for Cost Centres table)
-        # Chain: PO → SmTask.cost_centre → CostCentre.id
+        # Pre-fetch PO counts per cost centre per template (for Cost Centres table)
+        # Chain: PO → SmTask → SmScheduleMaster → sm_template_ids → SmScheduleMasterTemplate
+        # Result: { cc_id => { "House Schedule Master" => 5, "Databuild Schedule" => 3 } }
         if @foundation.slug == "cost_centres"
-          # Count POs where SmTask has a direct cost_centre assignment
-          direct_counts = PurchaseOrder
-            .joins(:sm_task)
-            .where.not(sm_tasks: { cost_centre: nil })
-            .group("sm_tasks.cost_centre")
-            .count
+          @po_counts_by_template_cache = {}
 
-          # Count POs where SmTask inherits cost_centre from SmScheduleMaster
-          inherited_counts = PurchaseOrder
+          # Build template name lookup for current tenant
+          template_names = SmScheduleMasterTemplate.active.pluck(:id, :name).to_h
+
+          # Direct: SmTask has cost_centre set directly
+          direct_rows = PurchaseOrder
+            .joins(sm_task: :sm_schedule_master)
+            .where.not(sm_tasks: { cost_centre: nil })
+            .pluck("sm_tasks.cost_centre", "sm_schedule_masters.sm_template_ids")
+
+          # Inherited: SmTask inherits cost_centre from SmScheduleMaster
+          inherited_rows = PurchaseOrder
             .joins(sm_task: :sm_schedule_master)
             .where(sm_tasks: { cost_centre: nil })
             .where.not(sm_schedule_masters: { cost_centre: nil })
-            .group("sm_schedule_masters.cost_centre")
-            .count
+            .pluck("sm_schedule_masters.cost_centre", "sm_schedule_masters.sm_template_ids")
 
-          @po_counts_cache = {}
-          direct_counts.each { |cc_id, count| @po_counts_cache[cc_id] = (@po_counts_cache[cc_id] || 0) + count }
-          inherited_counts.each { |cc_id, count| @po_counts_cache[cc_id] = (@po_counts_cache[cc_id] || 0) + count }
+          (direct_rows + inherited_rows).each do |cc_id, template_ids_raw|
+            tids = if template_ids_raw.is_a?(String)
+              begin; JSON.parse(template_ids_raw); rescue; []; end
+            else
+              template_ids_raw || []
+            end
+            tids.each do |tid|
+              tname = template_names[tid.to_i]
+              next unless tname
+              @po_counts_by_template_cache[cc_id] ||= {}
+              @po_counts_by_template_cache[cc_id][tname] = (@po_counts_by_template_cache[cc_id][tname] || 0) + 1
+            end
+          end
+
+          # Also keep template names list for column keys
+          @po_template_names = template_names.values.uniq.sort
         end
 
         # Serialize records to JSON
@@ -1584,9 +1601,13 @@ module Api
             end
           end
 
-          # SSoT: CostCentre PO count from pre-fetched cache
+          # SSoT: CostCentre PO counts per template from pre-fetched cache
           if record.class.name == "CostCentre"
-            json[:purchase_orders_count] = @po_counts_cache&.dig(record.id) || 0
+            template_counts = @po_counts_by_template_cache&.dig(record.id) || {}
+            (@po_template_names || []).each do |tname|
+              col_key = "po_count_#{tname.parameterize(separator: '_')}"
+              json[col_key.to_sym] = template_counts[tname] || 0
+            end
           end
 
           # SSoT: Job client_name comes from job_contacts where role='client'
