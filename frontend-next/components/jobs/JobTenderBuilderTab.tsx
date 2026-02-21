@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
   Plus, Undo2, X, Camera, ImagePlus, Loader2, ChevronsDownUp, ChevronsUpDown,
-  ExternalLink,
+  ExternalLink, Save, Search,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
@@ -20,6 +20,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
 import type { BOQGroup } from "@/components/ui/bill-of-quantities";
+import { PricebookItemEditor, PricebookLineSearch } from "@/components/ui/bill-of-quantities";
 import { lineItemKey } from "@/lib/boq-to-tender";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -100,14 +101,30 @@ function cleanTaskName(taskName: string | null | undefined): string {
     .trim();
 }
 
+/** SmTask option for the "Add PO" modal task picker */
+interface SmTaskOption {
+  id: number;
+  name: string;
+  task_number: string | null;
+  start_date: string | null;
+  po_required: boolean;
+  cost_centre: number | null;
+  has_existing_po: boolean;
+  existing_po_id: number | null;
+}
+
 /** A custom line item added by the user (not from a PO) */
 interface NewTenderLine {
   tempId: string;
+  poId: string | number;
   sectionName: string;
   headerName: string;
   description: string;
   quantity: number;
   unitPrice: number;
+  pricebookItemId?: number | null;
+  pricebookItemCode?: string | null;
+  costCentreName?: string | null;
 }
 
 /** Tender tree section from /api/v1/tenders/tree */
@@ -140,6 +157,7 @@ type UnifiedRow =
       type: "po";
       poId: string | number;
       poName: string;
+      supplierId: number | null | undefined;
       supplierName: string | null | undefined;
       taskName: string | null | undefined;
       tradeName: string | null | undefined;
@@ -177,9 +195,8 @@ type UnifiedRow =
       sectionName: string;
     };
 
-let _tempIdCounter = 0;
 function nextTempId(): string {
-  return `new_${++_tempIdCounter}`;
+  return `new_${crypto.randomUUID()}`;
 }
 
 /** Serialize builder state (Maps/Sets → plain objects/arrays) for sending to backend */
@@ -271,6 +288,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set());
   const [creatingTender, setCreatingTender] = useState(false);
+  const [savingBuilder, setSavingBuilder] = useState(false);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<string>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [collapsedCostCentres, setCollapsedCostCentres] = useState<Set<string>>(new Set());
@@ -284,6 +302,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
   const [newLines, setNewLines] = useState<NewTenderLine[]>([]);
+  const [searchingDescriptionKey, setSearchingDescriptionKey] = useState<string | null>(null);
   const [itemClassifications, setItemClassifications] = useState<Map<string, TenderClassification>>(new Map());
   const [poClassifications, setPOClassifications] = useState<Map<string | number, POClassification>>(new Map());
 
@@ -294,6 +313,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // Image upload
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [uploadingImageForId, setUploadingImageForId] = useState<number | null>(null);
+
+  // Add PO modal
+  const [showAddPOModal, setShowAddPOModal] = useState(false);
+  const [addPOContext, setAddPOContext] = useState<{ costCentreName: string; sectionName: string; tenderId: number | null }>({ costCentreName: "", sectionName: "", tenderId: null });
+  const [sectionTasks, setSectionTasks] = useState<SmTaskOption[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [creatingPO, setCreatingPO] = useState(false);
 
   const hasEdits = editOverrides.size > 0 || newLines.length > 0;
   const editCount = editOverrides.size + newLines.length;
@@ -363,6 +391,89 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     }
   };
 
+  /** Look up tender tree section data by section name */
+  const tenderTreeSectionMap = useMemo(() => {
+    const map = new Map<string, TenderTreeSection>();
+    for (const header of tenderTree) {
+      for (const section of header.children) {
+        map.set(section.name, section);
+      }
+    }
+    return map;
+  }, [tenderTree]);
+
+  // ─── Add PO handlers ──────────────────────────────────────────────
+
+  const handleAddPO = useCallback(async (costCentreName: string, sectionName: string) => {
+    setSelectedTaskId(null);
+    setSelectedSupplier(null);
+    setSectionTasks([]);
+
+    // Parse cost centre code from label (e.g., "100" from "100 - SURVEYOR")
+    const ccCode = costCentreName.split(/\s*[-–—]\s*/)[0]?.trim();
+
+    // Look up tender section ID from the tender tree
+    const tenderSection = tenderTreeSectionMap.get(sectionName);
+    const tenderId = tenderSection?.id ?? null;
+
+    setAddPOContext({ costCentreName, sectionName, tenderId });
+    setShowAddPOModal(true);
+
+    // Build filter params
+    const params = new URLSearchParams({ for: "select" });
+    if (ccCode) params.set("cost_centre_code", ccCode);
+    if (tenderId) params.set("tender_id", String(tenderId));
+
+    try {
+      setLoadingTasks(true);
+      const res = await api.get<{ success: boolean; sm_tasks: SmTaskOption[] }>(
+        `/api/v1/jobs/${jobId}/sm_tasks?${params.toString()}`
+      );
+      const tasks = (res?.sm_tasks || []).filter((t) => t.po_required);
+      setSectionTasks(tasks);
+    } catch (err) {
+      console.error("Failed to load tasks for section:", err);
+    } finally {
+      setLoadingTasks(false);
+    }
+  }, [jobId, tenderTreeSectionMap]);
+
+  const handleCreatePO = useCallback(async (andOpen: boolean) => {
+    if (!selectedTaskId || !selectedSupplier) return;
+
+    try {
+      setCreatingPO(true);
+      const res = await api.post<{ success: boolean; purchase_order: { id: number } }>(
+        `/api/v1/purchase_orders`,
+        {
+          purchase_order: {
+            job_id: jobId,
+            supplier_id: selectedSupplier.id,
+            schedule_task_id: selectedTaskId,
+            status: "draft",
+          },
+        }
+      );
+
+      if (res?.success) {
+        toast.success("Purchase order created");
+        setShowAddPOModal(false);
+        if (andOpen && res.purchase_order?.id) {
+          router.push(`/purchase_orders/${res.purchase_order.id}`);
+        } else {
+          await loadBOQData();
+        }
+      } else {
+        toast.error("Failed to create purchase order");
+      }
+    } catch (err) {
+      console.error("Failed to create PO:", err);
+      toast.error("Failed to create purchase order");
+    } finally {
+      setCreatingPO(false);
+    }
+  }, [selectedTaskId, selectedSupplier, jobId, router]);
+
   const boqGroups: BOQGroup[] = useMemo(() => {
     if (!boqData?.groups) return [];
     return boqData.groups.map((g) => ({
@@ -413,12 +524,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     );
   }, []);
 
-  /** Add a new custom line to a section */
-  const addNewLine = useCallback((headerName: string, sectionName: string) => {
+  /** Add a new custom line to a specific PO */
+  const addNewLine = useCallback((poId: string | number, headerName: string, sectionName: string, costCentreName?: string | null) => {
     const tempId = nextTempId();
     setNewLines((prev) => [
       ...prev,
-      { tempId, sectionName, headerName, description: "", quantity: 1, unitPrice: 0 },
+      { tempId, poId, sectionName, headerName, description: "", quantity: 1, unitPrice: 0, costCentreName: costCentreName || null },
     ]);
   }, []);
 
@@ -537,8 +648,9 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           const poIdx = rows.length;
           rows.push({
             type: "po", poId, poName: group.name,
-            supplierName: group.supplierName, taskName: group.taskName,
-            tradeName: group.tradeName, costCentreName: group.costCentreName,
+            supplierId: group.supplierId, supplierName: group.supplierName,
+            taskName: group.taskName, tradeName: group.tradeName,
+            costCentreName: group.costCentreName,
             itemCount: items.length, subtotal: 0,
             headerName, sectionName,
           });
@@ -564,22 +676,20 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             });
           }
 
-          // New lines for this section go after the last PO's items
-          const sectionNewLines = newLines.filter(
-            (nl) => nl.headerName === headerName && nl.sectionName === sectionName
-          );
-          for (const nl of sectionNewLines) {
+          // New lines for this specific PO
+          const poNewLines = newLines.filter((nl) => nl.poId === poId);
+          for (const nl of poNewLines) {
             lineNum++;
             const amount = nl.quantity * nl.unitPrice;
             poTotal += amount;
             rows.push({
               type: "item",
               key: nl.tempId,
-              lineNum, poId: "custom", poName: "Custom",
-              taskName: null,
-              pricebookCode: null,
+              lineNum, poId, poName: group.name,
+              taskName: group.taskName,
+              pricebookCode: nl.pricebookItemCode || null,
               hasPricebookImage: false,
-              pricebookItemId: null,
+              pricebookItemId: nl.pricebookItemId || null,
               description: nl.description,
               quantity: nl.quantity, unitPrice: nl.unitPrice, gstCode: "GST",
               amount, headerName, sectionName,
@@ -588,6 +698,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           }
 
           (rows[poIdx] as Extract<UnifiedRow, { type: "po" }>).subtotal = poTotal;
+          (rows[poIdx] as Extract<UnifiedRow, { type: "po" }>).itemCount = items.length + poNewLines.length;
 
           // PO footer row (+ Add Line & total)
           rows.push({
@@ -596,7 +707,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           });
 
           sectionTotal += poTotal;
-          sectionItemCount += items.length + sectionNewLines.length;
+          sectionItemCount += items.length + poNewLines.length;
         }
 
         (rows[sIdx] as Extract<UnifiedRow, { type: "section" }>).subtotal = sectionTotal;
@@ -871,17 +982,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     return groups;
   }, [unifiedRows, tenderTree]);
 
-  /** Look up tender tree section data by section name */
-  const tenderTreeSectionMap = useMemo(() => {
-    const map = new Map<string, TenderTreeSection>();
-    for (const header of tenderTree) {
-      for (const section of header.children) {
-        map.set(section.name, section);
-      }
-    }
-    return map;
-  }, [tenderTree]);
-
   /** Get the note text for a section (user-edited or default) */
   const getSectionNote = useCallback((sectionName: string): string => {
     // User-edited note takes priority
@@ -903,6 +1003,61 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       return next;
     });
   }, []);
+
+  const handleSaveBuilderState = useCallback(async () => {
+    try {
+      setSavingBuilder(true);
+      const builderState = serializeBuilderState({
+        itemClassifications,
+        poClassifications,
+        editOverrides,
+        newLines,
+        sectionNotes,
+        ccSubtotalEnabled,
+        groupByCostCentre,
+        excludedIds,
+      });
+      const response = await api.post<{
+        success: boolean;
+        data?: { created_count: number; updated_count: number; deleted_count: number };
+      }>(
+        `/api/v1/jobs/${jobId}/tender_documents/save_builder_state`,
+        { builder_state: builderState }
+      );
+
+      const { created_count = 0, updated_count = 0, deleted_count = 0 } = response?.data || {};
+      const hasChanges = created_count > 0 || updated_count > 0 || deleted_count > 0;
+
+      if (hasChanges) {
+        // PO is SSoT — clear synced state and reload live data
+        setNewLines([]);
+        setEditOverrides(new Map());
+        setExcludedIds(new Set());
+        setSearchingDescriptionKey(null);
+        // Clear excluded classifications (items are deleted from PO)
+        setItemClassifications((prev) => {
+          const next = new Map(prev);
+          for (const [key, cls] of next) {
+            if (cls === "excluded") next.delete(key);
+          }
+          return next;
+        });
+        await loadBOQData();
+
+        const parts: string[] = [];
+        if (created_count > 0) parts.push(`${created_count} added`);
+        if (updated_count > 0) parts.push(`${updated_count} updated`);
+        if (deleted_count > 0) parts.push(`${deleted_count} deleted`);
+        toast.success(`Saved to POs — ${parts.join(", ")}`);
+      } else {
+        toast.success("Builder state saved");
+      }
+    } catch (err) {
+      toast.error("Failed to save");
+    } finally {
+      setSavingBuilder(false);
+    }
+  }, [jobId, itemClassifications, poClassifications, editOverrides, newLines, sectionNotes, ccSubtotalEnabled, groupByCostCentre, excludedIds]);
 
   const handleCreateTender = useCallback(async () => {
     try {
@@ -949,6 +1104,9 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           description: nl.description,
           quantity: nl.quantity,
           unit_price: nl.unitPrice,
+          pricebook_item_code: nl.pricebookItemCode || null,
+          cost_centre_name: nl.costCentreName || null,
+          source_purchase_order_id: typeof nl.poId === "number" ? nl.poId : null,
         }));
 
       // Build section notes map: { sectionName: userEditedNote }
@@ -1041,7 +1199,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     );
   }
 
-  // Column layout: ☑ | Code | Sup | Description | Qty | Price | GST | Amount
+  // Column layout: Code | Description | Qty | Price | GST | Amount | Type
   return (
     <div className="flex flex-col h-full">
       {/* Hidden file input for pricebook image uploads */}
@@ -1122,8 +1280,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           <div className="flex">
             {/* Left column headers */}
             <div className="w-3/5 min-w-0">
-              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "36px 10% 1fr 7% 9% 4% 9% 72px" }}>
-                <div className="px-1" />
+              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "14% 1fr 7% 9% 4% 9% 72px" }}>
                 <div className="px-2 text-left">Code</div>
                 <div className="px-2 text-left">Description</div>
                 <div className="px-2 text-right">Qty</div>
@@ -1362,6 +1519,17 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                     >
                                       Subtotal
                                     </button>
+                                    {/* Add PO to this cost centre */}
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-5 ml-1 px-1.5 text-[10px] font-medium gap-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                                      title={`Add PO to ${block.name}`}
+                                      onClick={(e) => { e.stopPropagation(); handleAddPO(block.name, sectionRow.name); }}
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                      PO
+                                    </Button>
                                   </div>
                                   {/* Right: preview heading when subtotal is enabled */}
                                   <div className="w-2/5 min-w-0 border-l border-b border-border/50">
@@ -1408,8 +1576,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                             const previewPad = isInCCWithSubtotal ? "pl-8 pr-4" : "px-4";
 
                             return (
-                              <>
-                              <div key={poKey}>
+                              <Fragment key={poKey}>
+                              <div>
                                 {/* PO header row — spans both panels */}
                                 <div className="flex bg-gray-100 dark:bg-zinc-800/60">
                                   <div
@@ -1551,11 +1719,11 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                   }
 
                                   return (
-                                    <div key={row.key} className="flex">
+                                    <div key={row.key} className="flex relative z-10">
                                       {/* Left: builder item */}
                                       <div
                                         className={cn(
-                                          "w-3/5 min-w-0 grid items-center border-b border-border/30 hover:bg-muted/20 transition-colors text-sm",
+                                          "w-3/5 grid items-center border-b border-border/30 hover:bg-muted/20 transition-colors text-sm overflow-visible",
                                           (isExcluded || cls === "excluded") && "opacity-40",
                                           isNewLine && "!bg-green-50 dark:!bg-green-950/30",
                                           cls === "excluded" && "!bg-orange-50/50 dark:!bg-orange-950/20",
@@ -1563,86 +1731,97 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           cls === "pc" && "!bg-blue-50/50 dark:!bg-blue-950/20",
                                           cls === "ps" && "!bg-violet-50/50 dark:!bg-violet-950/20",
                                         )}
-                                        style={{ gridTemplateColumns: "36px 10% 1fr 7% 9% 4% 9% 72px" }}
+                                        style={{ gridTemplateColumns: "14% 1fr 7% 9% 4% 9% 72px" }}
                                       >
-                                        {/* Checkbox */}
-                                        <div className="pl-3 py-1 flex justify-center">
-                                          {isNewLine ? (
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-5 w-5 text-destructive hover:text-destructive"
-                                              onClick={() => removeNewLine(row.key)}
-                                              title="Remove line"
-                                            >
-                                              <X className="h-3.5 w-3.5" />
-                                            </Button>
+                                        {/* Code */}
+                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40 overflow-visible", isExcluded && "line-through")}>
+                                          {isExcluded ? (
+                                            <span className="truncate">{row.pricebookCode || "—"}</span>
                                           ) : (
-                                            <div
-                                              className={cn(
-                                                "w-4 h-4 rounded border inline-flex items-center justify-center cursor-pointer",
-                                                isExcluded
-                                                  ? "bg-orange-500 border-orange-500"
-                                                  : "border-primary bg-primary/10"
-                                              )}
-                                              onClick={() => handleToggleExclude(row.key)}
-                                            >
-                                              {!isExcluded && <Check className="h-3 w-3 text-primary" />}
-                                            </div>
+                                            <PricebookItemEditor
+                                              mode="code"
+                                              currentValue={row.pricebookCode || ""}
+                                              supplierId={pg.poRow.supplierId}
+                                              isDirty={isNewLine ? !!row.pricebookCode : isDirty}
+                                              onSelect={(selected) => {
+                                                if (isNewLine) {
+                                                  setNewLines((prev) =>
+                                                    prev.map((nl) =>
+                                                      nl.tempId === row.key
+                                                        ? {
+                                                            ...nl,
+                                                            description: selected.description,
+                                                            unitPrice: selected.unitPrice,
+                                                            pricebookItemId: selected.pricebookItemId,
+                                                            pricebookItemCode: selected.pricebookItemCode,
+                                                          }
+                                                        : nl
+                                                    )
+                                                  );
+                                                } else {
+                                                  updateOverride(row.key, "description", selected.description);
+                                                  updateOverride(row.key, "unitPrice", selected.unitPrice);
+                                                }
+                                              }}
+                                            />
                                           )}
                                         </div>
 
-                                        {/* Code */}
-                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40", isExcluded && "line-through")}>
-                                          {isNewLine
-                                            ? <span className="italic text-green-600 dark:text-green-400">NEW</span>
-                                            : (
-                                              <>
-                                                {showImages && (row.hasPricebookImage ? (
-                                                  <span title="Has pricebook image">
-                                                    <Camera className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
-                                                  </span>
-                                                ) : row.pricebookItemId ? (
-                                                  uploadingImageForId === row.pricebookItemId ? (
-                                                    <Loader2 className="h-3 w-3 text-muted-foreground animate-spin shrink-0" />
-                                                  ) : (
-                                                    <button
-                                                      title="Upload pricebook image"
-                                                      className="hover:text-blue-500 transition-colors"
-                                                      onClick={() => triggerImageUpload(row.pricebookItemId!)}
-                                                    >
-                                                      <ImagePlus className="h-3 w-3 shrink-0" />
-                                                    </button>
-                                                  )
-                                                ) : null)}
-                                                <span className="truncate">{row.pricebookCode || "—"}</span>
-                                              </>
-                                            )
-                                          }
-                                        </div>
-
                                         {/* Description */}
-                                        <div className="px-1 py-1">
+                                        <div className={cn("px-1 py-1", !isExcluded && "overflow-visible")}>
                                           {isExcluded ? (
                                             <span className="text-sm line-through">{row.description}</span>
+                                          ) : isNewLine ? (
+                                            searchingDescriptionKey === row.key ? (
+                                              <PricebookLineSearch
+                                                value={row.description}
+                                                supplierId={pg.poRow.supplierId}
+                                                onChange={(val) => updateNewLine(row.key, "description", val)}
+                                                onSelect={(item) => {
+                                                  setNewLines((prev) =>
+                                                    prev.map((nl) =>
+                                                      nl.tempId === row.key
+                                                        ? {
+                                                            ...nl,
+                                                            description: item.description,
+                                                            unitPrice: item.unitPrice,
+                                                            pricebookItemId: item.pricebookItemId,
+                                                            pricebookItemCode: item.pricebookItemCode,
+                                                          }
+                                                        : nl
+                                                    )
+                                                  );
+                                                  setSearchingDescriptionKey(null);
+                                                }}
+                                              />
+                                            ) : (
+                                              <div className="flex gap-1">
+                                                <Input
+                                                  value={row.description}
+                                                  onChange={(e) => updateNewLine(row.key, "description", e.target.value)}
+                                                  placeholder="Type description..."
+                                                  className="h-7 text-sm border-green-500"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setSearchingDescriptionKey(row.key)}
+                                                  className="shrink-0 h-7 w-7 inline-flex items-center justify-center rounded border border-input bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                                  title="Search pricebook by description"
+                                                >
+                                                  <Search className="h-3.5 w-3.5" />
+                                                </button>
+                                              </div>
+                                            )
                                           ) : (
-                                            <input
-                                              type="text"
-                                              value={row.description}
-                                              onChange={(e) => {
-                                                if (isNewLine) {
-                                                  updateNewLine(row.key, "description", e.target.value);
-                                                } else {
-                                                  updateOverride(row.key, "description", e.target.value);
-                                                }
+                                            <PricebookItemEditor
+                                              mode="description"
+                                              currentValue={row.description}
+                                              supplierId={pg.poRow.supplierId}
+                                              isDirty={isDirty}
+                                              onSelect={(selected) => {
+                                                updateOverride(row.key, "description", selected.description);
+                                                updateOverride(row.key, "unitPrice", selected.unitPrice);
                                               }}
-                                              className={cn(
-                                                "w-full bg-transparent text-sm px-1.5 py-0.5 rounded border border-transparent",
-                                                "hover:border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20",
-                                                isDirty && "border-amber-300 dark:border-amber-700",
-                                                isNewLine && "border-green-300 dark:border-green-700",
-                                              )}
-                                              placeholder="Enter description..."
                                             />
                                           )}
                                         </div>
@@ -1706,12 +1885,27 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
                                         {/* Amount */}
                                         <div className={cn(
-                                          "text-right px-2 py-1 text-sm font-mono tabular-nums",
+                                          "text-right px-2 py-1 text-sm font-mono tabular-nums flex items-center justify-end gap-1",
                                           isExcluded && "line-through",
                                           isDirty && "font-semibold text-amber-700 dark:text-amber-400",
                                           isNewLine && "font-semibold text-green-700 dark:text-green-400",
                                         )}>
-                                          {formatCurrency(row.amount)}
+                                          <span>{formatCurrency(row.amount)}</span>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-destructive/60 hover:text-destructive"
+                                            onClick={() => {
+                                              if (isNewLine) {
+                                                removeNewLine(row.key);
+                                              } else {
+                                                setClassification(row.key, isExcluded || cls === "excluded" ? "included" : "excluded");
+                                              }
+                                            }}
+                                            title={isNewLine ? "Remove line" : (isExcluded || cls === "excluded" ? "Include line" : "Exclude line")}
+                                          >
+                                            <X className="h-3.5 w-3.5" />
+                                          </Button>
                                         </div>
 
                                         {/* Classification dropdown — disabled when PO-level is set */}
@@ -1757,17 +1951,25 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           variant="ghost"
                                           size="sm"
                                           className="gap-1 h-6 text-xs text-muted-foreground hover:text-foreground"
-                                          onClick={() => addNewLine(pg.footer!.headerName, pg.footer!.sectionName)}
+                                          onClick={() => addNewLine(pg.poRow.poId, pg.footer!.headerName, pg.footer!.sectionName, pg.poRow.costCentreName)}
                                         >
                                           <Plus className="h-3 w-3" />
                                           Add Line
                                         </Button>
                                       </div>
-                                      <div className="flex-1 text-right text-xs font-medium text-muted-foreground pr-2">
-                                        {pg.footer.poName} total:
-                                      </div>
-                                      <div className="text-right px-2 text-sm font-mono font-semibold tabular-nums w-[10%] shrink-0">
-                                        {formatCurrency(pg.footer.subtotal)}
+                                      <div className="flex-1 flex items-center justify-end gap-4 pr-2">
+                                        <span className="text-xs font-medium text-muted-foreground">
+                                          {pg.footer.poName} total:
+                                        </span>
+                                        <span className="text-sm font-mono font-semibold tabular-nums">
+                                          {formatCurrency(pg.footer.subtotal)}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground tabular-nums">
+                                          GST {formatCurrency(pg.footer.subtotal * 0.1)}
+                                        </span>
+                                        <span className="text-sm font-mono font-bold tabular-nums">
+                                          {formatCurrency(pg.footer.subtotal * 1.1)}
+                                        </span>
                                       </div>
                                     </div>
                                     <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border" />
@@ -1790,7 +1992,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                   </div>
                                 </div>
                               )}
-                            </>
+                            </Fragment>
                             );
                           })}
 
@@ -1942,15 +2144,158 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </>
           )}
         </div>
-        <Button
-          onClick={handleCreateTender}
-          disabled={creatingTender}
-          className="gap-2"
-        >
-          {creatingTender ? <Spinner size={16} /> : <FileSignature className="h-4 w-4" />}
-          Create Tender Document
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleSaveBuilderState}
+            disabled={savingBuilder}
+            className="gap-2"
+          >
+            {savingBuilder ? <Spinner size={16} /> : <Save className="h-4 w-4" />}
+            Save
+          </Button>
+          <Button
+            onClick={handleCreateTender}
+            disabled={creatingTender}
+            className="gap-2"
+          >
+            {creatingTender ? <Spinner size={16} /> : <FileSignature className="h-4 w-4" />}
+            Create Tender Document
+          </Button>
+        </div>
       </div>
+
+      {/* Add PO Dialog */}
+      <Dialog open={showAddPOModal} onOpenChange={setShowAddPOModal}>
+        <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="text-base">
+              New Purchase Order
+            </DialogTitle>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {addPOContext.costCentreName}
+              <span className="mx-1.5 text-muted-foreground/40">&rarr;</span>
+              {addPOContext.sectionName}
+            </p>
+          </DialogHeader>
+
+          <div className="px-5 pb-5 space-y-4">
+            {/* Task selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Task</Label>
+              {loadingTasks ? (
+                <div className="flex items-center gap-2 py-8 justify-center text-muted-foreground">
+                  <Spinner size={16} />
+                  <span className="text-sm">Loading tasks...</span>
+                </div>
+              ) : sectionTasks.length === 0 ? (
+                <div className="rounded-lg border border-dashed py-8 text-center">
+                  <p className="text-sm text-muted-foreground">
+                    No tasks with PO Required found
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check that tasks are assigned to this cost centre and tender section
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1 max-h-[280px] overflow-y-auto rounded-lg border p-1">
+                  {sectionTasks.map((task) => {
+                    const hasPO = task.has_existing_po;
+                    const isSelected = selectedTaskId === task.id;
+                    return (
+                      <button
+                        key={task.id}
+                        type="button"
+                        disabled={hasPO}
+                        className={cn(
+                          "w-full flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all",
+                          hasPO
+                            ? "opacity-40 cursor-not-allowed"
+                            : isSelected
+                              ? "bg-primary/10 ring-1 ring-primary/40"
+                              : "hover:bg-muted/60 cursor-pointer"
+                        )}
+                        onClick={() => !hasPO && setSelectedTaskId(task.id)}
+                      >
+                        <div className={cn(
+                          "h-4 w-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors",
+                          hasPO
+                            ? "border-muted-foreground/30"
+                            : isSelected
+                              ? "border-primary bg-primary"
+                              : "border-muted-foreground/40"
+                        )}>
+                          {isSelected && !hasPO && (
+                            <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-sm font-medium truncate", hasPO && "line-through")}>
+                              {task.name}
+                            </span>
+                            {task.task_number && (
+                              <span className="text-xs text-muted-foreground shrink-0">#{task.task_number}</span>
+                            )}
+                          </div>
+                        </div>
+                        {hasPO && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 shrink-0">
+                            <Check className="h-2.5 w-2.5" />
+                            Has PO
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Supplier selection */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Supplier</Label>
+              <SupplierPicker
+                value={selectedSupplier}
+                onSelect={setSelectedSupplier}
+                placeholder="Search suppliers..."
+                clearable
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 pt-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddPOModal(false)}
+                disabled={creatingPO}
+                className="text-muted-foreground"
+              >
+                Cancel
+              </Button>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                onClick={() => handleCreatePO(false)}
+                disabled={!selectedTaskId || !selectedSupplier || creatingPO}
+              >
+                {creatingPO ? <Spinner size={14} className="mr-2" /> : null}
+                Create PO
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleCreatePO(true)}
+                disabled={!selectedTaskId || !selectedSupplier || creatingPO}
+              >
+                <ExternalLink className="h-3 w-3 mr-1.5" />
+                Create & Open
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

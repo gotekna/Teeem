@@ -733,6 +733,7 @@ Rails.application.routes.draw do
         resources :tender_documents, only: [ :index, :create ] do
           collection do
             get :latest_builder_state
+            post :save_builder_state
           end
         end
 

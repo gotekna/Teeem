@@ -5,7 +5,7 @@ module Api
     class TenderDocumentsController < ApplicationController
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [:index, :create, :latest_builder_state]
+      before_action :set_job, only: [:index, :create, :latest_builder_state, :save_builder_state]
       before_action :set_tender_document, only: [
         :show, :update, :destroy,
         :generate_pdf, :send_to_client,
@@ -73,6 +73,131 @@ module Api
         else
           render json: { success: true, data: nil }
         end
+      end
+
+      # POST /api/v1/jobs/:job_id/tender_documents/save_builder_state
+      # PO is SSoT — saves edits, new lines, and deletions back to actual PO line items
+      def save_builder_state
+        builder_state = params[:builder_state]&.to_unsafe_h || {}
+        created_count = 0
+        updated_count = 0
+        deleted_count = 0
+
+        ActiveRecord::Base.transaction do
+          po_ids = @job.purchase_orders.pluck(:id)
+
+          # 1. Apply edit overrides back to PO line items (description, quantity, unit_price)
+          overrides = builder_state.dig("editOverrides") || {}
+          overrides.each do |key, override|
+            override = override.to_unsafe_h if override.respond_to?(:to_unsafe_h)
+            line_item_id = key.to_s.split(":")[1]
+            next unless line_item_id.present?
+
+            line_item = PurchaseOrderLineItem.find_by(id: line_item_id, purchase_order_id: po_ids)
+            next unless line_item
+
+            attrs = {}
+            attrs[:description] = override["description"] if override["description"].present?
+            attrs[:quantity] = override["quantity"].to_d if override["quantity"].present?
+            attrs[:unit_price] = override["unitPrice"].to_d if override["unitPrice"].present?
+            if attrs.any?
+              line_item.update!(attrs)
+              updated_count += 1
+            end
+          end
+          builder_state["editOverrides"] = {}
+
+          # 2. Delete PO line items marked as excluded (X button)
+          item_classifications = builder_state.dig("itemClassifications") || {}
+          excluded_ids = builder_state.dig("excludedIds") || []
+
+          # Collect all excluded line item IDs from both sources
+          excluded_line_item_ids = Set.new
+          item_classifications.each do |key, cls|
+            next unless cls.to_s == "excluded"
+            line_item_id = key.to_s.split(":")[1]
+            excluded_line_item_ids << line_item_id.to_i if line_item_id.present?
+          end
+          excluded_ids.each do |key|
+            line_item_id = key.to_s.split(":")[1]
+            excluded_line_item_ids << line_item_id.to_i if line_item_id.present?
+          end
+
+          if excluded_line_item_ids.any?
+            deleted_count = PurchaseOrderLineItem
+              .where(id: excluded_line_item_ids.to_a, purchase_order_id: po_ids)
+              .destroy_all
+              .count
+          end
+
+          # Clear excluded classifications from builder state (items are gone from PO)
+          item_classifications.reject! { |_k, v| v.to_s == "excluded" }
+          builder_state["itemClassifications"] = item_classifications
+          builder_state["excludedIds"] = []
+
+          # 3. Persist new lines as real PurchaseOrderLineItem records on their POs
+          new_lines = builder_state.dig("newLines") || []
+          surviving_new_lines = []
+
+          new_lines.each do |nl|
+            nl = nl.to_unsafe_h if nl.respond_to?(:to_unsafe_h)
+            po_id = nl["poId"]
+            description = nl["description"].to_s.strip
+            next if description.blank?
+
+            po = po_id.present? ? @job.purchase_orders.find_by(id: po_id) : nil
+            unless po
+              surviving_new_lines << nl
+              next
+            end
+
+            pricebook_item = nil
+            if nl["pricebookItemId"].present?
+              pricebook_item = PricebookItem.find_by(id: nl["pricebookItemId"])
+            end
+
+            po.line_items.create!(
+              tenant: current_tenant,
+              description: description,
+              quantity: (nl["quantity"] || 1).to_d,
+              unit_price: (nl["unitPrice"] || 0).to_d,
+              gst_code: "GST",
+              pricebook_item: pricebook_item
+            )
+            created_count += 1
+          end
+
+          builder_state["newLines"] = surviving_new_lines
+
+          # 4. Save remaining builder state (classifications, notes, settings)
+          latest = @job.tender_documents
+                       .where.not(status: "superseded")
+                       .order(version: :desc)
+                       .first
+
+          if latest
+            latest.settings ||= {}
+            latest.settings["builder_state"] = builder_state
+            latest.save!
+          else
+            @job.tender_documents.create!(
+              tenant: current_tenant,
+              created_by: current_user,
+              document_number: "TD-#{@job.job_code || @job.id}-DRAFT",
+              version: 0,
+              status: "draft",
+              date_prepared: Date.current,
+              settings: { "builder_state" => builder_state }
+            )
+          end
+        end
+
+        render json: {
+          success: true,
+          data: { created_count: created_count, updated_count: updated_count, deleted_count: deleted_count }
+        }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # GET /api/v1/tender_documents/:id

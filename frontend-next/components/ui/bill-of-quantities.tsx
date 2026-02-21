@@ -1699,7 +1699,7 @@ function SortableHead({
 }
 
 // Pricebook item search result from API
-interface PricebookSearchResult {
+export interface PricebookSearchResult {
   id: number;
   item_code: string;
   item_name: string;
@@ -1715,7 +1715,7 @@ interface PricebookSearchResult {
 
 // Inline pricebook search for new line items
 // Shows autocomplete dropdown of pricebook items filtered by supplier
-function PricebookLineSearch({
+export function PricebookLineSearch({
   value,
   supplierId,
   onSelect,
@@ -1775,15 +1775,24 @@ function PricebookLineSearch({
       onChange(val);
 
       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-      searchTimeoutRef.current = setTimeout(() => {
-        searchPricebook(val, showAll);
-      }, 300);
+      // Only search pricebook after 2+ characters — allows manual typing without triggering search
+      if (val.trim().length >= 2) {
+        searchTimeoutRef.current = setTimeout(() => {
+          searchPricebook(val, showAll);
+        }, 300);
+      } else {
+        setIsOpen(false);
+        setResults([]);
+      }
     },
     [onChange, searchPricebook, showAll]
   );
 
   const handleFocus = useCallback(() => {
-    searchPricebook(value, showAll);
+    // Only show dropdown if there's already a search query with 2+ chars
+    if (value.trim().length >= 2) {
+      searchPricebook(value, showAll);
+    }
   }, [searchPricebook, value, showAll]);
 
   const handleSelectItem = useCallback(
@@ -1852,7 +1861,7 @@ function PricebookLineSearch({
                 : "Showing this supplier only - click to show all"
             }
           >
-            {showAll ? "All" : "Supplier"}
+            {showAll ? "All" : "Sup"}
           </button>
         )}
       </div>
@@ -1909,7 +1918,7 @@ function PricebookLineSearch({
 // THE ONE pricebook editor for existing line items (both code and description).
 // mode="code": shows code input (w-24, mono), reverts to code on blur
 // mode="description": shows description input (full width), reverts to description on blur
-function PricebookItemEditor({
+export function PricebookItemEditor({
   currentValue,
   mode,
   supplierId,

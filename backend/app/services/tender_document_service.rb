@@ -80,10 +80,10 @@ class TenderDocumentService
         sections_with_items << tender_section&.id if tender_section
 
         po_total = po.line_items.sum { |li| (li.quantity || 0).to_d * (li.unit_price || 0).to_d }
+        # All PO-level summaries are priced (contribute to total)
         summary_type = case po_cls
-                       when "per_po_incl" then "included"
-                       when "per_po_pc" then "priced"
                        when "per_po_ps" then "provisional"
+                       else "priced" # per_po_incl, per_po_pc — all priced with amount
                        end
 
         task_name = po.sm_task&.name || po.description || "Purchase Order"
@@ -98,10 +98,10 @@ class TenderDocumentService
           header_sort_order: tender_header&.sort_order || 999,
           line_number: line_counter_by_section[section_name],
           description: clean_task_name(task_name),
-          quantity: summary_type == "included" ? nil : 1,
+          quantity: 1,
           unit: nil,
-          unit_price: summary_type == "included" ? nil : po_total,
-          total_amount: summary_type == "included" ? BigDecimal("0") : po_total,
+          unit_price: po_total,
+          total_amount: po_total,
           gst_code: "GST",
           item_type: summary_type,
           source_purchase_order_id: po.id,
@@ -124,10 +124,12 @@ class TenderDocumentService
         sections_with_items << tender_section&.id if tender_section
 
         # Map classification to item_type
+        # "included" = standard inclusion (priced, contributes to total)
+        # "pc" = prime cost allowance (priced, shown as PC)
+        # "ps" = provisional sum (shown as PS)
         mapped_type = case item_cls
-                      when "included" then "included"
                       when "ps" then "provisional"
-                      else "priced" # "pc" or default
+                      else "priced" # "included", "pc", or default — all priced with amount
                       end
 
         # Apply user overrides from the Tender Builder (description, quantity, unit_price)
@@ -135,7 +137,7 @@ class TenderDocumentService
         eff_description = override[:description] || override["description"] || item.description
         eff_quantity = (override[:quantity] || override["quantity"] || item.quantity).to_d
         eff_unit_price = (override[:unit_price] || override["unit_price"] || item.unit_price).to_d
-        eff_total = mapped_type == "included" ? BigDecimal("0") : eff_quantity * eff_unit_price
+        eff_total = eff_quantity * eff_unit_price
 
         doc.tender_document_items.create!(
           tender_section_name: section_name,
@@ -147,9 +149,9 @@ class TenderDocumentService
           header_sort_order: tender_header&.sort_order || 999,
           line_number: line_counter_by_section[section_name],
           description: eff_description,
-          quantity: mapped_type == "included" ? nil : eff_quantity,
-          unit: mapped_type == "included" ? nil : item.pricebook_item&.unit_of_measure,
-          unit_price: mapped_type == "included" ? nil : eff_unit_price,
+          quantity: eff_quantity,
+          unit: item.pricebook_item&.unit_of_measure,
+          unit_price: eff_unit_price,
           total_amount: eff_total,
           gst_code: item.gst_code || "GST",
           item_type: mapped_type,
@@ -239,7 +241,9 @@ class TenderDocumentService
         unit_price: price,
         total_amount: qty * price,
         gst_code: "GST",
-        item_type: tender_section&.section_type || "priced"
+        item_type: tender_section&.section_type || "priced",
+        cost_centre_name: ai[:cost_centre_name],
+        source_purchase_order_id: ai[:source_purchase_order_id]
       )
     end
   end
