@@ -2039,7 +2039,7 @@ export function PricebookItemEditor({
           placeholder={mode === "code" ? "Code..." : "Search description..."}
           className={cn(
             "h-7",
-            mode === "code" ? "w-24 text-xs font-mono" : "text-sm",
+            mode === "code" ? "min-w-0 flex-1 text-xs font-mono" : "text-sm",
             isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30"
           )}
         />

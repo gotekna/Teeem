@@ -1735,7 +1735,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         style={{ gridTemplateColumns: "12% 1fr 6% 8% 5% 9% 60px" }}
                                       >
                                         {/* Code */}
-                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40 overflow-visible", isExcluded && "line-through")}>
+                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40 min-w-0 overflow-hidden", isExcluded && "line-through")}>
                                           {isExcluded ? (
                                             <span className="truncate">{row.pricebookCode || "—"}</span>
                                           ) : (
