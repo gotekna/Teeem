@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_21_110003) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10088,6 +10088,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_110003) do
     t.string "tender_header_code"
     t.integer "header_sort_order"
     t.text "default_note"
+    t.boolean "excluded", default: false, null: false
     t.index ["source_purchase_order_id"], name: "index_tender_document_items_on_source_purchase_order_id"
     t.index ["tender_document_id", "tender_section_name", "line_number"], name: "idx_tender_doc_items_section_line"
     t.index ["tender_document_id"], name: "index_tender_document_items_on_tender_document_id"

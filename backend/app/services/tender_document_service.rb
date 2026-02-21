@@ -16,9 +16,12 @@
 class TenderDocumentService
   class CreationError < StandardError; end
 
-  def initialize(job:, user:)
+  def initialize(job:, user:, excluded_line_item_ids: [], item_overrides: {}, additional_items: [])
     @job = job
     @user = user
+    @excluded_line_item_ids = excluded_line_item_ids.map(&:to_i).to_set
+    @item_overrides = item_overrides.transform_keys(&:to_i)
+    @additional_items = additional_items
   end
 
   def create!
@@ -64,6 +67,15 @@ class TenderDocumentService
         line_counter_by_section[section_name] += 1
         sections_with_items << tender_section&.id if tender_section
 
+        is_excluded = @excluded_line_item_ids.include?(item.id)
+
+        # Apply user overrides from the Tender Builder (description, quantity, unit_price)
+        override = @item_overrides[item.id] || {}
+        eff_description = override[:description] || override["description"] || item.description
+        eff_quantity = (override[:quantity] || override["quantity"] || item.quantity).to_d
+        eff_unit_price = (override[:unit_price] || override["unit_price"] || item.unit_price).to_d
+        eff_total = eff_quantity * eff_unit_price
+
         doc.tender_document_items.create!(
           tender_section_name: section_name,
           tender_section_code: tender_section&.code,
@@ -73,24 +85,28 @@ class TenderDocumentService
           tender_header_code: tender_header&.code,
           header_sort_order: tender_header&.sort_order || 999,
           line_number: line_counter_by_section[section_name],
-          description: item.description,
-          quantity: item.quantity,
+          description: eff_description,
+          quantity: eff_quantity,
           unit: item.pricebook_item&.unit_of_measure,
-          unit_price: item.unit_price,
-          total_amount: item.total_amount,
+          unit_price: eff_unit_price,
+          total_amount: eff_total,
           gst_code: item.gst_code || "GST",
           item_type: tender_section&.section_type || "priced",
           source_purchase_order_id: po.id,
           source_po_number: po.purchase_order_number,
           source_line_item_id: item.id,
           cost_centre_name: po.cost_centre_from_task,
-          trade_name: po.trade_from_task
+          trade_name: po.trade_from_task,
+          excluded: is_excluded
         )
       end
     end
 
     # Insert default note items for sections that have no PO items
     insert_default_note_items!(doc, sections_with_items)
+
+    # Insert custom lines added by the user in the Tender Builder
+    insert_additional_items!(doc, line_counter_by_section)
   end
 
   # For sections with a default_note and no PO items, insert a placeholder item
@@ -116,6 +132,41 @@ class TenderDocumentService
     end
   end
 
+  # Insert custom lines added by the user in the Tender Builder UI.
+  # These are not linked to any PO - they're user-created tender items.
+  def insert_additional_items!(doc, line_counter_by_section)
+    @additional_items.each do |ai|
+      ai = ai.symbolize_keys if ai.respond_to?(:symbolize_keys)
+      section_name = ai[:section_name] || "Unallocated"
+      header_name = ai[:header_name]
+      line_counter_by_section[section_name] += 1
+
+      # Resolve tender section from name for sort_order / code
+      tender_section = Tender.sections.active.find_by(name: section_name)
+      tender_header = tender_section&.parent || Tender.headers.active.find_by(name: header_name)
+
+      qty = (ai[:quantity] || 1).to_d
+      price = (ai[:unit_price] || 0).to_d
+
+      doc.tender_document_items.create!(
+        tender_section_name: section_name,
+        tender_section_code: tender_section&.code,
+        section_sort_order: tender_section&.sort_order || 999,
+        section_type: tender_section&.section_type || "priced",
+        tender_header_name: tender_header&.name || header_name,
+        tender_header_code: tender_header&.code,
+        header_sort_order: tender_header&.sort_order || 999,
+        line_number: line_counter_by_section[section_name],
+        description: ai[:description] || "",
+        quantity: qty,
+        unit_price: price,
+        total_amount: qty * price,
+        gst_code: "GST",
+        item_type: tender_section&.section_type || "priced"
+      )
+    end
+  end
+
   def resolve_tender_section(po)
     tender_id = po.sm_task&.sm_schedule_master&.tender_id
     return nil unless tender_id
@@ -124,7 +175,7 @@ class TenderDocumentService
   end
 
   def calculate_totals!(doc)
-    priced_items = doc.tender_document_items.where(item_type: "priced")
+    priced_items = doc.tender_document_items.where(item_type: "priced", excluded: false)
     subtotal = priced_items.sum(:total_amount)
 
     # Calculate GST per item using GstCode rates

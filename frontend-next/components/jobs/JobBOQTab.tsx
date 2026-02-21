@@ -38,6 +38,8 @@ interface BOQApiGroup {
   stageName: string | null;
   stagePosition: number | null;
   costCentreName: string | null;
+  tenderName: string | null;
+  tenderHeaderName: string | null;
   profitCentreName: string | null;
   items: Array<{
     id: number | string;
@@ -151,6 +153,8 @@ export function JobBOQTab({ jobId }: JobBOQTabProps) {
       stageName: g.stageName,
       stagePosition: g.stagePosition,
       costCentreName: g.costCentreName,
+      tenderName: g.tenderName,
+      tenderHeaderName: g.tenderHeaderName,
       profitCentreName: g.profitCentreName,
       items: g.items.map((item) => ({
         id: item.id,

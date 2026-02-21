@@ -496,6 +496,7 @@ module Api
           elsif virtual_config && virtual_config[:real_column]
             # Strategy 1: Simple FK substitution
             real_col = virtual_config[:real_column]
+            original_virtual_column = group_by_column # Save for display_values_map key
             quoted_column = conn.quote_column_name(real_col)
             groups_result = query
               .group(real_col)
@@ -536,9 +537,9 @@ module Api
             display_values_map[col_name] = DisplayValueResolver.resolve_lookup_batch(records, col_def)
           end
 
-          # Display value resolution for JOIN-based virtual columns
+          # Display value resolution for virtual columns
           # These don't have Foundation lookup column definitions, so resolve manually
-          if virtual_config && virtual_config[:join_table] && virtual_config[:display_model]
+          if virtual_config && virtual_config[:display_model]
             lookup_ids = groups_result.map(&:group_key).compact.map(&:to_i).uniq
             if lookup_ids.any?
               display_model_class = virtual_config[:display_model].constantize
@@ -551,7 +552,13 @@ module Api
                   rec.name
                 end
               end
+              # Store under overridden column name for display_value resolution below
               display_values_map[group_by_column] = virtual_display_map
+              # Also store under original virtual column name so frontend can look up
+              # display values by the column name it knows (e.g., "po_task_name" not "sm_task_id")
+              if defined?(original_virtual_column) && original_virtual_column != group_by_column
+                display_values_map[original_virtual_column] = virtual_display_map
+              end
             end
           end
 

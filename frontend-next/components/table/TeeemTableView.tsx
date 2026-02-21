@@ -4458,7 +4458,11 @@ export default function TeeemTableView({
 
       // Apply search highlighting for text-based columns
       if (shouldHighlight(column)) {
-        const textValue = value == null ? "" : String(value);
+        // Handle lookup-like objects { id, display } - extract display text
+        const textValue = value == null ? "" :
+          (typeof value === "object" && !Array.isArray(value))
+            ? String((value as Record<string, unknown>).display || (value as Record<string, unknown>).display_value || (value as Record<string, unknown>).name || "")
+            : String(value);
         if (textValue) {
           return (
             <HighlightedText

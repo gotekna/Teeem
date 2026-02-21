@@ -55,6 +55,7 @@ export interface BOQGroup {
   stagePosition?: number | null;
   costCentreName?: string | null;
   tenderName?: string | null;
+  tenderHeaderName?: string | null;
   profitCentreName?: string | null;
   items: BOQLineItem[];
 }
@@ -110,6 +111,14 @@ export interface BillOfQuantitiesProps {
   /** Loading state */
   loading?: boolean;
   className?: string;
+  /** Locks the initial sort-by dimension on mount (e.g., "tender" for Tender Builder) */
+  defaultSortBy?: GroupSortBy;
+  /** Shows checkbox column for excluding line items from tender */
+  excludeMode?: boolean;
+  /** Set of "groupId:itemId" keys that are currently excluded */
+  excludedIds?: Set<string>;
+  /** Called when user toggles a line item's exclude checkbox */
+  onToggleExclude?: (lineKey: string, excluded: boolean) => void;
 }
 
 function formatCurrency(value: number | null | undefined): string {
@@ -137,7 +146,7 @@ function nextTempId(): string {
   return `new_${++tempIdCounter}`;
 }
 
-type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre";
+export type GroupSortBy = "supplier" | "stage" | "trade" | "costCentre" | "tender" | "profitCentre";
 
 const GROUP_SORT_LABELS: Record<GroupSortBy, string> = {
   supplier: "Supplier",
@@ -157,6 +166,10 @@ export function BillOfQuantities({
   readOnly = false,
   loading = false,
   className,
+  defaultSortBy,
+  excludeMode = false,
+  excludedIds,
+  onToggleExclude,
 }: BillOfQuantitiesProps) {
   const [changes, setChanges] = useState<BOQChanges>(new Map());
   const [pcChanges, setPcChanges] = useState<BOQProfitCentreChanges>(new Map());
@@ -165,9 +178,11 @@ export function BillOfQuantities({
   const [saving, setSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   // PO/Task is always the primary grouping; optionally sort groups by a secondary dimension
-  const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(null);
+  const [groupSortBy, setGroupSortBy] = useState<GroupSortBy | null>(defaultSortBy ?? null);
   // Expanded cascade sections (by label) - empty = all collapsed by default
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  // Expanded PO groups within cascade sections (by group ID) - double cascade
+  const [expandedPOs, setExpandedPOs] = useState<Set<string | number>>(new Set());
 
   const canEdit = !readOnly && !!onSave;
   const hasChanges = changes.size > 0 || pcChanges.size > 0 || pbChanges.size > 0 || newLines.length > 0;
@@ -283,6 +298,7 @@ export function BillOfQuantities({
   const handleSortToggle = useCallback((dim: GroupSortBy) => {
     setGroupSortBy((prev) => (prev === dim ? null : dim));
     setExpandedSections(new Set()); // Reset to all-collapsed when switching dimension
+    setExpandedPOs(new Set());
   }, []);
 
   const toggleSection = useCallback((label: string) => {
@@ -290,6 +306,15 @@ export function BillOfQuantities({
       const next = new Set(prev);
       if (next.has(label)) next.delete(label);
       else next.add(label);
+      return next;
+    });
+  }, []);
+
+  const togglePO = useCallback((groupId: string | number) => {
+    setExpandedPOs((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
       return next;
     });
   }, []);
@@ -645,22 +670,56 @@ export function BillOfQuantities({
     return result;
   }, [displayGroups, searchTerm, columnFilters, selectedSuppliers, selectedStages, selectedTrades, selectedCostCentres, selectedTenders, selectedProfitCentres, selectedGstCodes, sortState, getQty]);
 
-  // Cascade sections: group POs under Stage/Supplier/Trade headers
+  // Cascade sections: group POs under Stage/Supplier/Trade/Tender headers
+  // For Tender: double cascade — Level 1 = Tender Header, Level 2 = Tender Section
   const cascadeSections = useMemo(() => {
     if (!groupSortBy) return null;
+
+    type SubSection = { label: string; groups: BOQGroup[]; total: number };
+    type Section = { label: string; groups: BOQGroup[]; total: number; sortOrder: number; subSections?: SubSection[] };
+
+    // Tender uses double cascade: Header → Section → POs
+    if (groupSortBy === "tender") {
+      const headerBuckets = new Map<string, { sections: Map<string, { groups: BOQGroup[]; total: number }>; total: number }>();
+      for (const group of filteredGroups) {
+        const headerKey = group.tenderHeaderName || "No Tender Header";
+        const sectionKey = group.tenderName || "No Tender Section";
+        if (!headerBuckets.has(headerKey)) headerBuckets.set(headerKey, { sections: new Map(), total: 0 });
+        const header = headerBuckets.get(headerKey)!;
+        if (!header.sections.has(sectionKey)) header.sections.set(sectionKey, { groups: [], total: 0 });
+        const section = header.sections.get(sectionKey)!;
+        section.groups.push(group);
+        for (const item of group.items) {
+          const t = getQty(group.id, item) * item.unitPrice;
+          section.total += t;
+          header.total += t;
+        }
+      }
+      return [...headerBuckets.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([label, { sections, total }]): Section => ({
+          label,
+          groups: [...sections.values()].flatMap((s) => s.groups),
+          total,
+          sortOrder: 0,
+          subSections: [...sections.entries()]
+            .sort((a, b) => a[0].localeCompare(b[0]))
+            .map(([sLabel, { groups: g, total: t }]) => ({ label: sLabel, groups: g, total: t })),
+        }));
+    }
+
+    // Single-level cascade for all other dimensions
     const buckets = new Map<string, { groups: BOQGroup[]; total: number; sortOrder: number }>();
     for (const group of filteredGroups) {
       const key =
         groupSortBy === "supplier" ? (group.supplierName || "No Supplier")
           : groupSortBy === "stage" ? (group.stageName || "No Stage")
             : groupSortBy === "costCentre" ? (group.costCentreName || "Unallocated")
-              : groupSortBy === "tender" ? (group.tenderName || "No Tender Section")
-                : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
-                  : (group.tradeName || "No Trade");
+              : groupSortBy === "profitCentre" ? (group.profitCentreName || "Unallocated")
+                : (group.tradeName || "No Trade");
       if (!buckets.has(key)) buckets.set(key, { groups: [], total: 0, sortOrder: Infinity });
       const bucket = buckets.get(key)!;
       bucket.groups.push(group);
-      // For stages, use stagePosition (min sequence_order from schedule master)
       if (groupSortBy === "stage" && group.stagePosition != null) {
         bucket.sortOrder = Math.min(bucket.sortOrder, group.stagePosition);
       }
@@ -670,16 +729,13 @@ export function BillOfQuantities({
     }
     return [...buckets.entries()]
       .sort((a, b) => {
-        // Stage: sort by schedule master sequence order; others: numeric-aware
-        if (groupSortBy === "stage") {
-          return a[1].sortOrder - b[1].sortOrder;
-        }
+        if (groupSortBy === "stage") return a[1].sortOrder - b[1].sortOrder;
         const aNum = parseInt(a[0], 10);
         const bNum = parseInt(b[0], 10);
         if (!isNaN(aNum) && !isNaN(bNum) && aNum !== bNum) return aNum - bNum;
         return a[0].localeCompare(b[0]);
       })
-      .map(([label, { groups: g, total }]) => ({ label, groups: g, total }));
+      .map(([label, { groups: g, total }]): Section => ({ label, groups: g, total, sortOrder: 0 }));
   }, [filteredGroups, groupSortBy, getQty]);
 
   // Totals (includes new lines)
@@ -776,6 +832,7 @@ export function BillOfQuantities({
                 onClick={() => {
                   if (expandedSections.size === cascadeSections.length) {
                     setExpandedSections(new Set());
+                    setExpandedPOs(new Set());
                   } else {
                     setExpandedSections(new Set(cascadeSections.map((s) => s.label)));
                   }
@@ -892,6 +949,11 @@ export function BillOfQuantities({
         <Table>
           <TableHeader className="sticky top-0 bg-background z-10">
             <TableRow>
+              {excludeMode && (
+                <TableHead className="w-8 px-2">
+                  <span className="sr-only">Include</span>
+                </TableHead>
+              )}
               <SortableHead column="group" sort={sortState} onSort={toggleSort} className="w-[220px]">
                 PO / Task
               </SortableHead>
@@ -922,6 +984,7 @@ export function BillOfQuantities({
             </TableRow>
             {/* Filter row */}
             <TableRow className="bg-muted/30 border-b">
+              {excludeMode && <TableHead className="py-1 w-8" />}
               <TableHead className="py-1 px-2">
                 <Input
                   value={columnFilters.group}
@@ -986,7 +1049,7 @@ export function BillOfQuantities({
                       className="bg-muted border-y-2 border-primary/20 cursor-pointer select-none hover:bg-muted/80 transition-colors"
                       onClick={() => toggleSection(section.label)}
                     >
-                      <TableCell colSpan={7} className="py-2 px-4 font-semibold text-sm">
+                      <TableCell colSpan={excludeMode ? 8 : 7} className="py-2 px-4 font-semibold text-sm">
                         <span className="inline-flex items-center gap-1.5">
                           {isExpanded ? (
                             <ChevronDown className="h-4 w-4 shrink-0" />
@@ -1015,7 +1078,64 @@ export function BillOfQuantities({
                         {formatCurrency(section.total)}
                       </TableCell>
                     </TableRow>
-                    {isExpanded && section.groups.map((group, sectionIdx) => (
+                    {isExpanded && section.subSections ? (
+                      // Double cascade (Tender): Header → Section → POs
+                      section.subSections.map((sub) => {
+                        const isSubExpanded = expandedPOs.has(`sub:${sub.label}`);
+                        return (
+                          <React.Fragment key={sub.label}>
+                            {/* Tender Section sub-header */}
+                            <TableRow
+                              className="bg-muted/50 border-y cursor-pointer select-none hover:bg-muted/60 transition-colors"
+                              onClick={() => togglePO(`sub:${sub.label}`)}
+                            >
+                              <TableCell colSpan={excludeMode ? 8 : 7} className="py-1.5 pl-8 pr-4 text-sm">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {isSubExpanded ? (
+                                    <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                  )}
+                                  <span className="font-medium">{sub.label}</span>
+                                </span>
+                                <Badge variant="outline" className="ml-2 text-[10px] font-normal">
+                                  {sub.groups.length} PO{sub.groups.length !== 1 ? "s" : ""}
+                                </Badge>
+                              </TableCell>
+                              <TableCell colSpan={2} className="py-1.5 px-4 text-right text-sm font-mono">
+                                {formatCurrency(sub.total)}
+                              </TableCell>
+                            </TableRow>
+                            {isSubExpanded && sub.groups.map((group, sectionIdx) => (
+                              <BOQGroupRows
+                                key={group.id}
+                                group={group}
+                                groupIndex={sectionIdx}
+                                canEdit={canEdit}
+                                changes={changes}
+                                pcChanges={pcChanges}
+                                profitCentres={profitCentres}
+                                newLines={getNewLinesForGroup(group.id)}
+                                getQty={getQty}
+                                onQtyChange={handleQtyChange}
+                                onPcChange={handlePcChange}
+                                pbChanges={pbChanges}
+                                onPricebookChange={handlePricebookChange}
+                                onAddLine={handleAddLine}
+                                onNewLineChange={handleNewLineChange}
+                                onNewLinePricebookSelect={handleNewLinePricebookSelect}
+                                onRemoveNewLine={handleRemoveNewLine}
+                                onGroupClick={onGroupClick}
+                                excludeMode={excludeMode}
+                                excludedIds={excludedIds}
+                                onToggleExclude={onToggleExclude}
+                              />
+                            ))}
+                          </React.Fragment>
+                        );
+                      })
+                    ) : isExpanded && section.groups.map((group, sectionIdx) => (
+                      // Single cascade: Section → POs directly
                       <BOQGroupRows
                         key={group.id}
                         group={group}
@@ -1035,6 +1155,9 @@ export function BillOfQuantities({
                         onNewLinePricebookSelect={handleNewLinePricebookSelect}
                         onRemoveNewLine={handleRemoveNewLine}
                         onGroupClick={onGroupClick}
+                        excludeMode={excludeMode}
+                        excludedIds={excludedIds}
+                        onToggleExclude={onToggleExclude}
                       />
                     ))}
                   </React.Fragment>
@@ -1062,6 +1185,9 @@ export function BillOfQuantities({
                   onNewLinePricebookSelect={handleNewLinePricebookSelect}
                   onRemoveNewLine={handleRemoveNewLine}
                   onGroupClick={onGroupClick}
+                  excludeMode={excludeMode}
+                  excludedIds={excludedIds}
+                  onToggleExclude={onToggleExclude}
                 />
               ))
             )}
@@ -1091,6 +1217,9 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   onNewLinePricebookSelect,
   onRemoveNewLine,
   onGroupClick,
+  excludeMode,
+  excludedIds,
+  onToggleExclude,
 }: {
   group: BOQGroup;
   groupIndex: number;
@@ -1129,6 +1258,9 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
   }) => void;
   onRemoveNewLine: (tempId: string) => void;
   onGroupClick?: (groupId: number | string) => void;
+  excludeMode?: boolean;
+  excludedIds?: Set<string>;
+  onToggleExclude?: (lineKey: string, excluded: boolean) => void;
 }) {
   // Total rows that share the PO name/supplier cells (existing + new lines)
   const totalDataRows = group.items.length + newLines.length;
@@ -1194,16 +1326,29 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
         const isDirty = changes.has(key);
         const qty = getQty(group.id, item);
         const subtotal = qty * item.unitPrice;
+        const isExcluded = excludeMode && excludedIds?.has(key);
 
         return (
           <TableRow
             key={item.id}
             className={cn(
               color.bg,
-              isDirty && "!bg-amber-50 dark:!bg-amber-950/30"
+              isDirty && "!bg-amber-50 dark:!bg-amber-950/30",
+              isExcluded && "opacity-40 line-through decoration-muted-foreground"
             )}
             style={idx === 0 ? { scrollSnapAlign: "start" } : undefined}
           >
+            {excludeMode && (
+              <TableCell className="w-8 px-2 py-1 text-center">
+                <input
+                  type="checkbox"
+                  checked={!isExcluded}
+                  onChange={() => onToggleExclude?.(key, !isExcluded)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 cursor-pointer accent-primary"
+                  title={isExcluded ? "Include in tender" : "Exclude from tender"}
+                />
+              </TableCell>
+            )}
             {idx === 0 && (
               <TableCell
                 rowSpan={totalDataRows}
@@ -1450,7 +1595,7 @@ const BOQGroupRows = React.memo(function BOQGroupRows({
 
       {/* Group total row with Add Line button */}
       <TableRow className={cn(color.bg, "border-b-2 border-border")}>
-        <TableCell colSpan={2} className={cn("border-r py-1", color.bg)}>
+        <TableCell colSpan={excludeMode ? 3 : 2} className={cn("border-r py-1", color.bg)}>
           {canEdit && (
             <Button
               variant="ghost"

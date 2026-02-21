@@ -650,6 +650,14 @@ module Api
           {}
         end
 
+        # Pre-fetch PO virtual column lookup tables to avoid N+1
+        # These are small reference tables (typically <100 records each)
+        if @foundation.slug == "purchase-orders"
+          @sm_stages_cache = SmStage.all.index_by(&:id)
+          @sm_trades_cache = SmTrade.all.index_by(&:id)
+          @cost_centres_cache = CostCentre.all.index_by(&:id)
+        end
+
         # Serialize records to JSON
         serialized_records = records.map { |r| record_to_json(r, lookup_cache, employer_ids_cache) }
 
@@ -1523,11 +1531,25 @@ module Api
           # - po_task_name: task name (PurchaseOrder.sm_task_id is THE link)
           # - stage_from_task: stage name from task->schedule_master->sm_stages
           # - trade_from_task: trade name from task->schedule_master->sm_trades
+          # SSoT: PurchaseOrder virtual columns returned as lookup-like objects { id:, display: }
+          # This ensures client-side grouping uses FK IDs as keys (matching server group keys)
+          # Without this, server groups by FK ID but client groups by text → key mismatch → duplicate groups
           if record.class.name == "PurchaseOrder"
             json[:required_date] = record.effective_required_date
-            json[:po_task_name] = record.po_task_name
-            json[:stage_from_task] = record.stage_from_task
-            json[:trade_from_task] = record.trade_from_task
+            task = record.sm_task
+            json[:po_task_name] = task ? { id: task.id, display: task.name } : nil
+            if task
+              stage_id = task.stage
+              trade_id = task.trade
+              cc_id = task.cost_centre
+              # Use pre-fetched caches to avoid N+1 (set in index action)
+              stage = stage_id ? @sm_stages_cache&.dig(stage_id) : nil
+              trade = trade_id ? @sm_trades_cache&.dig(trade_id) : nil
+              cc = cc_id ? @cost_centres_cache&.dig(cc_id) : nil
+              json[:stage_from_task] = stage ? { id: stage.id, display: stage.name } : nil
+              json[:trade_from_task] = trade ? { id: trade.id, display: trade.name } : nil
+              json[:cost_centre_from_task] = cc ? { id: cc.id, display: "#{cc.code} - #{cc.name}" } : nil
+            end
           end
 
           # SSoT: Job client_name comes from job_contacts where role='client'

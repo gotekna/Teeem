@@ -25,6 +25,7 @@ interface TenderDocumentItem {
   gst_code: string;
   item_type: string;
   notes: string | null;
+  source_purchase_order_id: number | null;
   source_po_number: string | null;
   cost_centre_name: string | null;
   trade_name: string | null;
@@ -32,6 +33,7 @@ interface TenderDocumentItem {
 
 interface TenderDocumentData {
   id: number;
+  job_id: number;
   document_number: string;
   version: number;
   status: string;
@@ -65,6 +67,8 @@ interface TenderDocumentData {
 
 interface TenderDocumentViewProps {
   document: TenderDocumentData;
+  /** In preview mode: hides cover page, status badges, details page - shows only pricing schedule + totals */
+  previewMode?: boolean;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -92,9 +96,11 @@ function formatTenderDate(dateStr: string): string {
 function SectionItemsTable({
   items,
   sectionSubtotal,
+  jobId,
 }: {
   items: TenderDocumentItem[];
   sectionSubtotal: number;
+  jobId: number;
 }) {
   const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
 
@@ -129,7 +135,20 @@ function SectionItemsTable({
                 )}
                 {item.source_po_number && (
                   <span className="block text-xs text-muted-foreground">
-                    PO: {item.source_po_number}
+                    PO:{" "}
+                    {item.source_purchase_order_id ? (
+                      <a
+                        href={`/purchase_orders/${item.source_purchase_order_id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.source_po_number}
+                      </a>
+                    ) : (
+                      item.source_po_number
+                    )}
                   </span>
                 )}
               </td>
@@ -236,47 +255,51 @@ function CollapsibleCard({
   );
 }
 
-export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
+export function TenderDocumentView({ document: doc, previewMode = false }: TenderDocumentViewProps) {
   const headerGroups = doc.sections_grouped_by_header;
   const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
   const flatSections = Object.entries(doc.sections_grouped || {});
 
   return (
-    <div className="space-y-6">
-      {/* ═══════ COVER PAGE ═══════ */}
-      <Card>
-        <CardContent className="py-16 flex flex-col items-center text-center space-y-6">
-          {doc.company_name && (
-            <h2 className="text-2xl font-bold tracking-widest uppercase">
-              {doc.company_name}
-            </h2>
-          )}
+    <div className={previewMode ? "space-y-3" : "space-y-6"}>
+      {!previewMode && (
+        <>
+          {/* ═══════ COVER PAGE ═══════ */}
+          <Card>
+            <CardContent className="py-16 flex flex-col items-center text-center space-y-6">
+              {doc.company_name && (
+                <h2 className="text-2xl font-bold tracking-widest uppercase">
+                  {doc.company_name}
+                </h2>
+              )}
 
-          <h1 className="text-5xl font-bold tracking-[0.15em]">TENDER</h1>
+              <h1 className="text-5xl font-bold tracking-[0.15em]">TENDER</h1>
 
-          <div className="space-y-1">
-            <p className="text-lg text-muted-foreground">Presented to</p>
-            <p className="text-2xl font-bold">{doc.client_name || "\u2014"}</p>
-          </div>
+              <div className="space-y-1">
+                <p className="text-lg text-muted-foreground">Presented to</p>
+                <p className="text-2xl font-bold">{doc.client_name || "\u2014"}</p>
+              </div>
 
-          <p className="text-lg text-muted-foreground">
-            For the construction of your new home
-          </p>
+              <p className="text-lg text-muted-foreground">
+                For the construction of your new home
+              </p>
 
-          <div className="space-y-1">
-            {doc.plan_name && (
-              <p className="text-2xl font-bold">{doc.plan_name}</p>
-            )}
-            <p className="text-lg text-muted-foreground">at</p>
-            <p className="text-2xl font-bold uppercase">
-              {doc.job_address || doc.job_name || "\u2014"}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+              <div className="space-y-1">
+                {doc.plan_name && (
+                  <p className="text-2xl font-bold">{doc.plan_name}</p>
+                )}
+                <p className="text-lg text-muted-foreground">at</p>
+                <p className="text-2xl font-bold uppercase">
+                  {doc.job_address || doc.job_name || "\u2014"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-      {/* ═══════ DETAILS PAGE ═══════ */}
-      <Card>
+      {!previewMode && (
+        <Card>
         <CardHeader className="pb-0">
           <CardTitle className="text-xl font-bold tracking-wide">
             <span className="underline underline-offset-8 decoration-2 decoration-primary">
@@ -369,15 +392,18 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* ═══════ PRICING SCHEDULE ═══════ */}
-      <div className="pt-2">
-        <h3 className="text-xl font-bold tracking-wide">
-          <span className="underline underline-offset-8 decoration-2 decoration-primary">
-            PRICING SCHEDULE
-          </span>
-        </h3>
-      </div>
+      {!previewMode && (
+        <div className="pt-2">
+          <h3 className="text-xl font-bold tracking-wide">
+            <span className="underline underline-offset-8 decoration-2 decoration-primary">
+              PRICING SCHEDULE
+            </span>
+          </h3>
+        </div>
+      )}
 
       {/* Two-Level Sections (Header > Collapsible Section > Items) */}
       {hasTwoLevelData ? (
@@ -409,6 +435,7 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
                     <SectionItemsTable
                       items={items}
                       sectionSubtotal={sectionTotal}
+                      jobId={doc.job_id}
                     />
                   </CollapsibleSection>
                 );
@@ -427,6 +454,7 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
             <SectionItemsTable
               items={items}
               sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
+              jobId={doc.job_id}
             />
           </CollapsibleCard>
         ))
@@ -453,7 +481,7 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
       </Card>
 
       {/* Revision Notes */}
-      {doc.revision_notes && (
+      {!previewMode && doc.revision_notes && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm text-orange-600 dark:text-orange-400">Revision Notes</CardTitle>
