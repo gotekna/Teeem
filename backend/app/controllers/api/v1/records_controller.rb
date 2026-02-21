@@ -667,33 +667,20 @@ module Api
           @cost_centres_cache = CostCentre.all.index_by(&:id)
         end
 
-        # Pre-fetch PO counts per cost centre per template (for Cost Centres table)
-        # Chain: PO → SmTask → SmScheduleMaster → sm_template_ids → SmScheduleMasterTemplate
-        # Result: { cc_id => { "House Schedule Master" => 5, "Databuild Schedule" => 3 } }
+        # Pre-fetch SM task template counts per cost centre per schedule template
+        # Shows how many PO task templates are assigned to each cost centre, per template
+        # Chain: SmScheduleMaster (po_required + cost_centre) → sm_template_ids → template name
         if @foundation.slug == "cost_centres"
           @po_counts_by_template_cache = {}
 
-          # Build template name lookup for current tenant
           template_names = SmScheduleMasterTemplate.active.pluck(:id, :name).to_h
 
-          # Direct: SmTask has cost_centre set directly
-          direct_rows = PurchaseOrder
-            .joins(sm_task: :sm_schedule_master)
-            .where.not(sm_tasks: { cost_centre: nil })
-            .pluck("sm_tasks.cost_centre", "sm_schedule_masters.sm_template_ids")
-
-          # Inherited: SmTask inherits cost_centre from SmScheduleMaster
-          inherited_rows = PurchaseOrder
-            .joins(sm_task: :sm_schedule_master)
-            .where(sm_tasks: { cost_centre: nil })
-            .where.not(sm_schedule_masters: { cost_centre: nil })
-            .pluck("sm_schedule_masters.cost_centre", "sm_schedule_masters.sm_template_ids")
-
-          (direct_rows + inherited_rows).each do |cc_id, template_ids_raw|
-            tids = if template_ids_raw.is_a?(String)
-              begin; JSON.parse(template_ids_raw); rescue; []; end
+          SmScheduleMaster.where(po_required: true).where.not(cost_centre: nil)
+            .pluck(:cost_centre, :sm_template_ids).each do |cc_id, tids_raw|
+            tids = if tids_raw.is_a?(String)
+              begin; JSON.parse(tids_raw); rescue; []; end
             else
-              template_ids_raw || []
+              tids_raw || []
             end
             tids.each do |tid|
               tname = template_names[tid.to_i]
@@ -703,7 +690,6 @@ module Api
             end
           end
 
-          # Also keep template names list for column keys
           @po_template_names = template_names.values.uniq.sort
         end
 
