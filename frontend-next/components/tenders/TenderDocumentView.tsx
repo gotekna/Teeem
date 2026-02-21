@@ -55,6 +55,8 @@ interface TenderDocumentData {
   accepted_at: string | null;
   declined_at: string | null;
   revision_notes: string | null;
+  company_name?: string | null;
+  plan_name?: string | null;
   sections_grouped: Record<string, TenderDocumentItem[]>;
   sections_grouped_by_header?: Record<string, Record<string, TenderDocumentItem[]>>;
   section_subtotals: Record<string, number>;
@@ -74,6 +76,18 @@ const STATUS_COLORS: Record<string, string> = {
   declined: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
   superseded: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500",
 };
+
+function formatTenderDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr + "T00:00:00");
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    const year = date.getFullYear().toString().slice(-2);
+    return `${day}/${month}/${year}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 function SectionItemsTable({
   items,
@@ -127,7 +141,7 @@ function SectionItemsTable({
                 </>
               ) : (
                 <td colSpan={3} className="py-2 text-right text-muted-foreground italic">
-                  {item.item_type === "included" ? "Included" : "—"}
+                  {item.item_type === "included" ? "Included" : "\u2014"}
                 </td>
               )}
             </tr>
@@ -181,6 +195,47 @@ function CollapsibleSection({
   );
 }
 
+function CollapsibleCard({
+  title,
+  subtitle,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between hover:opacity-80 transition-opacity"
+        >
+          <div className="flex items-center gap-2">
+            {isOpen ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            )}
+            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          </div>
+          <span className="text-sm font-semibold">{subtitle}</span>
+        </button>
+      </CardHeader>
+      {isOpen && (
+        <CardContent className="space-y-1">
+          {children}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
   const headerGroups = doc.sections_grouped_by_header;
   const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
@@ -188,47 +243,140 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Document Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">
-            {doc.document_number} - Version {doc.version}
-          </h3>
-          <p className="text-sm text-muted-foreground">
-            Prepared {doc.date_prepared}
-            {doc.valid_until && ` · Valid until ${doc.valid_until}`}
-          </p>
-        </div>
-        <Badge className={STATUS_COLORS[doc.status] || ""}>
-          {doc.status.replace(/_/g, " ")}
-        </Badge>
-      </div>
+      {/* ═══════ COVER PAGE ═══════ */}
+      <Card>
+        <CardContent className="py-16 flex flex-col items-center text-center space-y-6">
+          {doc.company_name && (
+            <h2 className="text-2xl font-bold tracking-widest uppercase">
+              {doc.company_name}
+            </h2>
+          )}
 
-      {/* Client & Job Info - Enhanced Rawson-style */}
-      <div className="grid grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Client</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1">
-            <p className="font-medium">{doc.client_name || "—"}</p>
-            {doc.client_address && <p className="text-muted-foreground">{doc.client_address}</p>}
-            {doc.client_email && <p className="text-muted-foreground">{doc.client_email}</p>}
-            {doc.client_phone && <p className="text-muted-foreground">{doc.client_phone}</p>}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold">Job</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm space-y-1">
-            <p className="font-medium">{doc.job_address || doc.job_name || "—"}</p>
-            <p className="text-muted-foreground">{doc.job_code}</p>
-            {doc.salesperson_name && (
-              <p className="text-muted-foreground">Sales: {doc.salesperson_name}</p>
+          <h1 className="text-5xl font-bold tracking-[0.15em]">TENDER</h1>
+
+          <div className="space-y-1">
+            <p className="text-lg text-muted-foreground">Presented to</p>
+            <p className="text-2xl font-bold">{doc.client_name || "\u2014"}</p>
+          </div>
+
+          <p className="text-lg text-muted-foreground">
+            For the construction of your new home
+          </p>
+
+          <div className="space-y-1">
+            {doc.plan_name && (
+              <p className="text-2xl font-bold">{doc.plan_name}</p>
             )}
-          </CardContent>
-        </Card>
+            <p className="text-lg text-muted-foreground">at</p>
+            <p className="text-2xl font-bold uppercase">
+              {doc.job_address || doc.job_name || "\u2014"}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ═══════ DETAILS PAGE ═══════ */}
+      <Card>
+        <CardHeader className="pb-0">
+          <CardTitle className="text-xl font-bold tracking-wide">
+            <span className="underline underline-offset-8 decoration-2 decoration-primary">
+              DETAILS
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <dl className="grid grid-cols-[200px_1fr] gap-x-6 gap-y-3">
+            <dt className="font-bold text-sm">TENDER ISSUE:</dt>
+            <dd className="text-sm flex items-center gap-2">
+              {doc.version}
+              <Badge className={STATUS_COLORS[doc.status] || ""}>
+                {doc.status.replace(/_/g, " ")}
+              </Badge>
+            </dd>
+
+            <dt className="font-bold text-sm">TENDER PREPARED:</dt>
+            <dd className="text-sm">{formatTenderDate(doc.date_prepared)}</dd>
+
+            {doc.valid_until && (
+              <>
+                <dt className="font-bold text-sm">TENDER VALID UNTIL:</dt>
+                <dd className="text-sm">{formatTenderDate(doc.valid_until)}</dd>
+              </>
+            )}
+
+            <dt className="font-bold text-sm">JOB NUMBER:</dt>
+            <dd className="text-sm">{doc.job_code || "\u2014"}</dd>
+
+            {doc.salesperson_name && (
+              <>
+                <dt className="font-bold text-sm">SALES PERSON:</dt>
+                <dd className="text-sm">{doc.salesperson_name}</dd>
+              </>
+            )}
+
+            {doc.created_by_name && (
+              <>
+                <dt className="font-bold text-sm">PREPARED BY:</dt>
+                <dd className="text-sm">{doc.created_by_name}</dd>
+              </>
+            )}
+          </dl>
+
+          {/* FOR: Client Info */}
+          {doc.client_name && (
+            <dl className="grid grid-cols-[200px_1fr] gap-x-6 mt-6 pt-4 border-t">
+              <dt className="font-bold text-sm">FOR:</dt>
+              <dd className="text-sm space-y-0.5">
+                <p className="font-medium">{doc.client_name}</p>
+                {doc.client_address && (
+                  <p className="text-muted-foreground">{doc.client_address}</p>
+                )}
+              </dd>
+            </dl>
+          )}
+
+          {/* PRIMARY CONTACT */}
+          {(doc.client_email || doc.client_phone) && (
+            <dl className="grid grid-cols-[200px_1fr] gap-x-6 mt-6 pt-4 border-t">
+              <dt className="font-bold text-sm">PRIMARY CONTACT:</dt>
+              <dd className="text-sm">
+                <dl className="grid grid-cols-[80px_1fr] gap-x-4 gap-y-1.5">
+                  {doc.client_name && (
+                    <>
+                      <dt className="font-bold">Name:</dt>
+                      <dd>
+                        {doc.client_name.includes(" & ")
+                          ? doc.client_name.split(" & ")[0]
+                          : doc.client_name}
+                      </dd>
+                    </>
+                  )}
+                  {doc.client_phone && (
+                    <>
+                      <dt className="font-bold">Mobile:</dt>
+                      <dd>{doc.client_phone}</dd>
+                    </>
+                  )}
+                  {doc.client_email && (
+                    <>
+                      <dt className="font-bold">Email:</dt>
+                      <dd>{doc.client_email}</dd>
+                    </>
+                  )}
+                </dl>
+              </dd>
+            </dl>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ═══════ PRICING SCHEDULE ═══════ */}
+      <div className="pt-2">
+        <h3 className="text-xl font-bold tracking-wide">
+          <span className="underline underline-offset-8 decoration-2 decoration-primary">
+            PRICING SCHEDULE
+          </span>
+        </h3>
       </div>
 
       {/* Two-Level Sections (Header > Collapsible Section > Items) */}
@@ -236,77 +384,55 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
         Object.entries(headerGroups).map(([headerName, sections]) => {
           const headerTotal = doc.header_subtotals?.[headerName] || 0;
           const sectionEntries = Object.entries(sections);
-          const hasSingleSection = sectionEntries.length === 1 && sectionEntries[0][0] === headerName;
 
           return (
-            <Card key={headerName}>
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold">{headerName}</CardTitle>
-                  <span className="text-sm font-semibold">
-                    {formatCurrency(headerTotal)}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {hasSingleSection ? (
-                  // Single section matching header name - show items directly (no collapsible)
-                  <SectionItemsTable
-                    items={sectionEntries[0][1]}
-                    sectionSubtotal={doc.section_subtotals?.[sectionEntries[0][0]] || 0}
-                  />
-                ) : (
-                  // Multiple sub-sections - each collapsible
-                  sectionEntries.map(([sectionName, items]) => {
-                    const sectionTotal = doc.section_subtotals?.[sectionName] || 0;
-                    const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
+            <CollapsibleCard
+              key={headerName}
+              title={headerName}
+              subtitle={formatCurrency(headerTotal)}
+            >
+              {sectionEntries.map(([sectionName, items]) => {
+                const sectionTotal = doc.section_subtotals?.[sectionName] || 0;
+                const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
 
-                    return (
-                      <CollapsibleSection
-                        key={sectionName}
-                        title={sectionName}
-                        subtitle={
-                          <span className="text-xs font-medium text-muted-foreground mr-1">
-                            {allNotes ? "—" : formatCurrency(sectionTotal)}
-                          </span>
-                        }
-                        defaultOpen={!allNotes}
-                      >
-                        <SectionItemsTable
-                          items={items}
-                          sectionSubtotal={sectionTotal}
-                        />
-                      </CollapsibleSection>
-                    );
-                  })
-                )}
-              </CardContent>
-            </Card>
+                return (
+                  <CollapsibleSection
+                    key={sectionName}
+                    title={sectionName}
+                    subtitle={
+                      <span className="text-xs font-medium text-muted-foreground mr-1">
+                        {allNotes ? "\u2014" : formatCurrency(sectionTotal)}
+                      </span>
+                    }
+                    defaultOpen={!allNotes}
+                  >
+                    <SectionItemsTable
+                      items={items}
+                      sectionSubtotal={sectionTotal}
+                    />
+                  </CollapsibleSection>
+                );
+              })}
+            </CollapsibleCard>
           );
         })
       ) : (
         /* Flat sections fallback (legacy documents without header data) */
         flatSections.map(([sectionName, items]) => (
-          <Card key={sectionName}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm">{sectionName}</CardTitle>
-                <span className="text-sm font-semibold">
-                  {formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <SectionItemsTable
-                items={items}
-                sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
-              />
-            </CardContent>
-          </Card>
+          <CollapsibleCard
+            key={sectionName}
+            title={sectionName}
+            subtitle={formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
+          >
+            <SectionItemsTable
+              items={items}
+              sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
+            />
+          </CollapsibleCard>
         ))
       )}
 
-      {/* Totals */}
+      {/* ═══════ TOTALS ═══════ */}
       <Card>
         <CardContent className="pt-6">
           <div className="space-y-2 text-right">

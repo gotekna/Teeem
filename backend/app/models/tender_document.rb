@@ -132,6 +132,7 @@ class TenderDocument < ApplicationRecord
       "header_subtotals" => header_subtotals.transform_keys(&:to_s),
       "created_by_name" => created_by&.name,
       "locked_by_name" => locked_by&.name,
+      "company_name" => tenant&.name,
       "pdf_download_url" => pdf_generation&.download_url
     )
   end
