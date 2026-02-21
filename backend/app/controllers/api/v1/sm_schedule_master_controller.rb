@@ -253,7 +253,7 @@ module Api
         params.require(:row).permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header_gantt, :assigned_role, :cost_centre,
+          :trade, :stage, :header_gantt, :assigned_role, :cost_centre, :tender_id,
           :checklist_id,
           :require_photo, :confirm,
           :po_required, :critical_po, :create_po_on_job_start, :po_supplier_id,
@@ -298,7 +298,7 @@ module Api
         data.permit(
           :name, :description, :task_number, :sequence_order,
           :duration_days,
-          :trade, :stage, :header_gantt, :assigned_role,
+          :trade, :stage, :header_gantt, :assigned_role, :tender_id,
           :require_photo, :confirm,
           :po_required, :critical_po,
           :has_subtasks, :subtask_count,
@@ -343,6 +343,7 @@ module Api
           header_gantt: header_value,
           allow_header: row.allow_header,  # SSoT: Needed for Gantt V2 header bar rendering
           cost_centre: cost_centre_value,
+          tender_id: row.tender_id,
           assigned_role: role_value,
           checklist_id: row.checklist_id,
           require_photo: row.require_photo,

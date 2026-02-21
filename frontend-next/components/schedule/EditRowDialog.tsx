@@ -34,6 +34,7 @@ export interface EditRowData {
   stage_name?: string;
   assigned_role?: string | null;
   cost_centre?: string;
+  tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;
   allow_header?: boolean;
   is_active?: boolean;
@@ -147,6 +148,7 @@ export interface EditRowDialogProps {
   roles: Array<{ id: number; name: string; display_name: string }>;
   stages: Array<{ id: number; name: string }>;
   costCentres: Array<{ id: number; name: string }>;
+  tenderSections?: Array<{ id: number; name: string }>;
   checklists: Array<{ id: number; name: string }>;
   documentTypes: Array<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }>;
   tradingNames: Array<{ id: number; name: string }>;
@@ -181,6 +183,7 @@ export function EditRowDialog({
   roles,
   stages,
   costCentres,
+  tenderSections = [],
   checklists,
   documentTypes,
   tradingNames,
@@ -223,6 +226,7 @@ export function EditRowDialog({
         stage: row.stage,
         assigned_role: row.assigned_role,
         cost_centre: row.cost_centre,
+        tender_id: row.tender_id,
         header_gantt: row.header_gantt as string | null,
         po_required: row.po_required,
         critical_po: row.critical_po,
@@ -877,6 +881,20 @@ export function EditRowDialog({
                     onClear={() => setEditRowForm({ ...editRowForm, cost_centre: "" })}
                   />
                 </div>
+                {tenderSections.length > 0 && (
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tender Section</Label>
+                    <ComboboxDropdown
+                      items={tenderSections.map(t => ({ id: String(t.id), label: t.name }))}
+                      selectedItem={editRowForm.tender_id ? { id: editRowForm.tender_id, label: tenderSections.find(t => String(t.id) === editRowForm.tender_id)?.name || editRowForm.tender_id } : undefined}
+                      onSelect={(item) => setEditRowForm({ ...editRowForm, tender_id: item.id })}
+                      placeholder="Tender section..."
+                      emptyResults="No tender sections found"
+                      clearable
+                      onClear={() => setEditRowForm({ ...editRowForm, tender_id: "" })}
+                    />
+                  </div>
+                )}
 
                 {/* Invoice Template Preview - shown when claim task has template selected */}
                 {editRowForm.is_claim_task && editRowForm.claim_invoice_template_id ? (

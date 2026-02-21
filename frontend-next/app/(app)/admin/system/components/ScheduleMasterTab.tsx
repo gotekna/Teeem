@@ -173,6 +173,7 @@ interface SmScheduleMaster {
   stage_name?: string;  // SSoT: Resolved from Foundation SM Stages by backend
   assigned_role?: string | null;
   cost_centre?: string;
+  tender_id?: string;
   header_gantt?: string | { id: number; display: string } | null;  // "Header" = this IS a header, {id,display} = parent lookup
   allow_header?: boolean;  // If true, this row can be selected as a header for other tasks
   is_active?: boolean;
@@ -457,7 +458,7 @@ const ALL_COLUMNS = [
   "supplier_confirm", "supplier_confirmed_at",
   "completed", "completed_at",
   // Assignment & Supplier
-  "trade", "stage", "assigned_role", "cost_centre",
+  "trade", "stage", "assigned_role", "cost_centre", "tender_id",
   // PO Settings
   "po_required", "critical_po",
   // Auto-PO (create_po_on_job_start + po_line_items work together)
@@ -759,6 +760,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const [availableRoles, setAvailableRoles] = React.useState<{ id: number; name: string; display_name: string }[]>([]);
   // SSoT: Cost Centres come from Foundation Cost Centres (ID 533)
   const [availableCostCentres, setAvailableCostCentres] = React.useState<{ id: number; name: string }[]>([]);
+  // SSoT: Tender Sections come from Foundation Tenders (sections only, parent_id not empty)
+  const [availableTenderSections, setAvailableTenderSections] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Header rows are rows with header=NULL (they ARE headers, no parent)
   // SSoT: header_gantt uses task_number (not id) - include both for proper lookups
   const [availableHeaderRows, setAvailableHeaderRows] = React.useState<{ id: number; task_number: number; name: string }[]>([]);
@@ -1042,6 +1045,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     loadStages();
     loadRoles();
     loadCostCentres();
+    loadTenderSections();
     loadHeaderRows();
     loadChecklists();
   }, [showInactive]);
@@ -1196,6 +1200,22 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       }
     } catch (error) {
       console.error("Failed to load cost centres:", error);
+    }
+  };
+
+  // SSoT: Load tender sections from Foundation Tenders (sections only - parent_id not empty)
+  const loadTenderSections = async () => {
+    try {
+      const data = await api.get<{ success: boolean; records: { id: number; name: string }[] }>(
+        "/api/v1/foundations/tenders/records?per_page=1000&filters=" + encodeURIComponent(JSON.stringify([
+          { column: "parent_id", operator: "is_not_empty", value: null }
+        ]))
+      );
+      if (data?.records) {
+        setAvailableTenderSections(data.records);
+      }
+    } catch (error) {
+      console.error("Failed to load tender sections:", error);
     }
   };
 
@@ -1623,6 +1643,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       stage_name: row.stage_name || extractLookupDisplay(row.stage) || undefined,
       assigned_role: extractLookupId(row.assigned_role) || null,
       cost_centre: extractLookupId(row.cost_centre) || undefined,
+      tender_id: extractLookupId(row.tender_id) || undefined,
       header_gantt: extractLookupId(row.header_gantt) || undefined,
       allow_header: row.allow_header || false,
       is_active: row.is_active !== false,
@@ -1692,6 +1713,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       stage: data.stage,
       assigned_role: data.assigned_role,
       cost_centre: data.cost_centre,
+      tender_id: data.tender_id,
       header_gantt: data.header_gantt,
       allow_header: data.allow_header,
       is_active: data.is_active,
@@ -3475,7 +3497,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
             )}
 
             {/* Assignment & Supplier */}
-            {sectionHasMatches(["trade", "stage", "assigned_role", "cost_centre"]) && (
+            {sectionHasMatches(["trade", "stage", "assigned_role", "cost_centre", "tender_id"]) && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Assignment & Supplier</CardTitle>
@@ -3519,6 +3541,14 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     <CopyableCode>cost_centre</CopyableCode>
                     <Badge variant="outline" className="text-xs w-fit">string</Badge>
                     <span className="text-muted-foreground">Accounting code for tracking costs. Links this task&apos;s expenses to the correct budget category in your financial reports.</span>
+                  </div>
+                  )}
+                  {columnMatchesSearch("tender_id") && (
+                  <div className="grid grid-cols-[24px_auto_70px_1fr] gap-2 items-center">
+                    <Checkbox checked={columnStatus.complete["tender_id"] || false} onCheckedChange={(v) => updateColumnStatus("tender_id", !!v)} />
+                    <CopyableCode>tender_id</CopyableCode>
+                    <Badge variant="outline" className="text-xs w-fit">lookup</Badge>
+                    <span className="text-muted-foreground">Tender section for grouping PO items in tender documents. Links this task to a section like Site Preparation, Piering, or Client Variations.</span>
                   </div>
                   )}
                 </div>
@@ -4304,6 +4334,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         roles={availableRoles}
         stages={availableStages}
         costCentres={availableCostCentres}
+        tenderSections={availableTenderSections}
         checklists={availableChecklists}
         documentTypes={availableDocumentTypes}
         tradingNames={tradingNames}
