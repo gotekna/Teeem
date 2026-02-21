@@ -17,6 +17,7 @@
 #
 class TenderDocumentItem < ApplicationRecord
   belongs_to :tender_document
+  belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
 
   # Item types match tender section types
   ITEM_TYPES = %w[priced note included provisional].freeze

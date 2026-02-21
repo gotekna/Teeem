@@ -63,7 +63,7 @@ class TenderDocumentService
     line_counter_by_section = Hash.new(0)
     sections_with_items = Set.new
 
-    @job.purchase_orders.includes(:line_items, sm_task: :sm_schedule_master).find_each do |po|
+    @job.purchase_orders.includes(line_items: { pricebook_item: :image_storage_blob }, sm_task: :sm_schedule_master).find_each do |po|
       tender_section = resolve_tender_section(po)
       tender_header = tender_section&.parent
 
@@ -158,6 +158,7 @@ class TenderDocumentService
           source_purchase_order_id: po.id,
           source_po_number: po.purchase_order_number,
           source_line_item_id: item.id,
+          pricebook_item_id: item.pricebook_item_id,
           cost_centre_name: po.cost_centre_from_task,
           trade_name: po.trade_from_task
         )
@@ -242,6 +243,7 @@ class TenderDocumentService
         total_amount: qty * price,
         gst_code: "GST",
         item_type: tender_section&.section_type || "priced",
+        pricebook_item_id: ai[:pricebook_item_id],
         cost_centre_name: ai[:cost_centre_name],
         source_purchase_order_id: ai[:source_purchase_order_id]
       )

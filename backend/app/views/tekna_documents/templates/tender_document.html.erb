@@ -92,6 +92,22 @@
     text-align: center;
     color: #999;
   }
+  .tender-table .image-col {
+    width: 52px;
+    text-align: center;
+    padding: 3px 4px;
+  }
+  .tender-table .image-col img {
+    width: 44px;
+    height: 44px;
+    object-fit: cover;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+  }
+  .tender-table .image-col a {
+    display: inline-block;
+    line-height: 0;
+  }
   .tender-table .section-subtotal {
     font-weight: 700;
     border-top: 2px solid #1a365d;
@@ -271,6 +287,7 @@
     </div>
 
     <% section_type = items.first&.section_type || "priced" %>
+    <% section_has_images = items.any? { |i| @image_urls[i.id].present? } %>
 
     <% if section_type == "note" %>
       <%# Note sections: text only, no pricing %>
@@ -282,11 +299,13 @@
       </div>
     <% else %>
       <%# Priced / Included / Provisional sections: table with pricing %>
+      <% col_count = section_has_images ? 6 : 5 %>
       <table class="tender-table">
         <thead>
           <tr>
             <th class="line-num">#</th>
-            <th style="width: 50%;">Description</th>
+            <% if section_has_images %><th class="image-col"></th><% end %>
+            <th style="width: <%= section_has_images ? '44%' : '50%' %>;">Description</th>
             <th class="number-col">Qty</th>
             <th class="number-col">Unit Price</th>
             <th class="number-col">Amount</th>
@@ -294,8 +313,18 @@
         </thead>
         <tbody>
           <% items.each do |item| %>
+            <% img = @image_urls[item.id] %>
             <tr class="<%= item.item_type == 'note' ? 'note-row' : '' %>">
               <td class="line-num"><%= item.line_number %></td>
+              <% if section_has_images %>
+                <td class="image-col">
+                  <% if img %>
+                    <a href="<%= img[:full_url] %>" target="_blank" title="View full image">
+                      <img src="<%= img[:thumbnail_url] %>" alt="" />
+                    </a>
+                  <% end %>
+                </td>
+              <% end %>
               <td>
                 <%= item.description %>
                 <% if item.notes.present? %>
@@ -318,7 +347,7 @@
           <% section_total = @section_subtotals[section_name] || 0 %>
           <% if section_total > 0 %>
             <tr class="section-subtotal">
-              <td colspan="4" style="text-align: right;"><strong><%= section_name %> Subtotal</strong></td>
+              <td colspan="<%= col_count - 1 %>" style="text-align: right;"><strong><%= section_name %> Subtotal</strong></td>
               <td class="number-col"><strong><%= "$#{'%.2f' % section_total}" %></strong></td>
             </tr>
           <% end %>

@@ -1104,6 +1104,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           description: nl.description,
           quantity: nl.quantity,
           unit_price: nl.unitPrice,
+          pricebook_item_id: nl.pricebookItemId || null,
           pricebook_item_code: nl.pricebookItemCode || null,
           cost_centre_name: nl.costCentreName || null,
           source_purchase_order_id: typeof nl.poId === "number" ? nl.poId : null,

@@ -49,6 +49,7 @@ class TenderDocumentPdfGenerator
   def build_context
     sections = @doc.sections_grouped
     section_subtotals = @doc.section_subtotals
+    image_urls = build_image_urls(sections)
 
     {
       # Document info
@@ -75,6 +76,9 @@ class TenderDocumentPdfGenerator
       section_subtotals: section_subtotals,
       section_names: sections.keys,
 
+      # Pricebook item images: { item_id => { thumbnail_url:, full_url: } }
+      image_urls: image_urls,
+
       # Totals
       subtotal: @doc.subtotal,
       gst: @doc.gst,
@@ -97,6 +101,42 @@ class TenderDocumentPdfGenerator
       # Template info
       document_title: "Tender"
     }
+  end
+
+  # Resolve presigned image URLs for pricebook items that have images.
+  # Returns: { tender_document_item_id => { thumbnail_url: "...", full_url: "..." } }
+  # Uses long-lived presigned URLs (7 days) since PDFs are generated asynchronously.
+  def build_image_urls(sections)
+    # Collect all items with pricebook_item_id
+    all_items = sections.values.flatten
+    items_with_pricebook = all_items.select { |item| item.pricebook_item_id.present? }
+    return {} if items_with_pricebook.empty?
+
+    # Batch load pricebook items with their image blobs
+    pricebook_ids = items_with_pricebook.map(&:pricebook_item_id).uniq
+    pricebook_items = PricebookItem.where(id: pricebook_ids)
+                                   .includes(:image_storage_blob)
+                                   .index_by(&:id)
+
+    urls = {}
+    items_with_pricebook.each do |item|
+      pb = pricebook_items[item.pricebook_item_id]
+      next unless pb&.image_storage_blob
+
+      blob = pb.image_storage_blob
+      # Generate presigned URL valid for 7 days (PDF generation + viewing)
+      full_url = blob.presigned_url(expires_in: 7.days.to_i, disposition: :inline)
+
+      urls[item.id] = {
+        thumbnail_url: full_url,
+        full_url: full_url
+      }
+    rescue StandardError => e
+      Rails.logger.warn "[TenderDocumentPdfGenerator] Failed to get image URL for item #{item.id}: #{e.message}"
+      next
+    end
+
+    urls
   end
 
   def build_company_context
