@@ -1887,7 +1887,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           isDirty && "font-semibold text-amber-700 dark:text-amber-400",
                                           isNewLine && "font-semibold text-green-700 dark:text-green-400",
                                         )}>
-                                          <span className="text-[10px] text-muted-foreground font-sans">{row.gstCode}</span>
                                           <span>{formatCurrency(row.amount)}</span>
                                           <Button
                                             variant="ghost"
