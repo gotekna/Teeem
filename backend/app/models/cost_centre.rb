@@ -123,6 +123,14 @@ class CostCentre < ApplicationRecord
     }
   end
 
+  # Virtual attribute: count of POs linked via SmTask/SmScheduleMaster
+  def purchase_orders_count
+    task_ids = SmTask.where(cost_centre: id).pluck(:id)
+    sm_ids = sm_schedule_masters.pluck(:id)
+    inherited_task_ids = SmTask.where(sm_schedule_master_id: sm_ids, cost_centre: nil).pluck(:id)
+    PurchaseOrder.where(sm_task_id: (task_ids + inherited_task_ids).uniq).count
+  end
+
   # Class methods
 
   # Build tree structure for API response

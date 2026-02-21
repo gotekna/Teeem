@@ -583,8 +583,17 @@ module Api
           # Also validate against actual DB columns to prevent PG::UndefinedColumn
           # when Foundation column config diverges from the real DB schema
           if valid_columns.include?(sort_by) && model.column_names.include?(sort_by)
-            # Use Arel to safely build the order clause
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
+            quoted_col = ActiveRecord::Base.connection.quote_column_name(sort_by)
+            col_type = model.columns_hash[sort_by]&.type
+            if col_type == :string || col_type == :text
+              # Natural sort for text columns: numeric prefix sorted numerically, then alphabetically
+              # e.g. "100", "101", "1000" instead of "100", "1000", "101"
+              query = query.order(
+                Arel.sql("(CASE WHEN #{quoted_col} ~ '^[0-9]+' THEN LPAD(regexp_replace(#{quoted_col}, '[^0-9].*', '', 'g'), 20, '0') ELSE #{quoted_col} END) #{sort_direction}, #{quoted_col} #{sort_direction}")
+              )
+            else
+              query = query.order(Arel.sql("#{quoted_col} #{sort_direction}"))
+            end
           else
             query = query.order(created_at: :desc)
           end
@@ -656,6 +665,29 @@ module Api
           @sm_stages_cache = SmStage.all.index_by(&:id)
           @sm_trades_cache = SmTrade.all.index_by(&:id)
           @cost_centres_cache = CostCentre.all.index_by(&:id)
+        end
+
+        # Pre-fetch PO counts per cost centre (for Cost Centres table)
+        # Chain: PO → SmTask.cost_centre → CostCentre.id
+        if @foundation.slug == "cost_centres"
+          # Count POs where SmTask has a direct cost_centre assignment
+          direct_counts = PurchaseOrder
+            .joins(:sm_task)
+            .where.not(sm_tasks: { cost_centre: nil })
+            .group("sm_tasks.cost_centre")
+            .count
+
+          # Count POs where SmTask inherits cost_centre from SmScheduleMaster
+          inherited_counts = PurchaseOrder
+            .joins(sm_task: :sm_schedule_master)
+            .where(sm_tasks: { cost_centre: nil })
+            .where.not(sm_schedule_masters: { cost_centre: nil })
+            .group("sm_schedule_masters.cost_centre")
+            .count
+
+          @po_counts_cache = {}
+          direct_counts.each { |cc_id, count| @po_counts_cache[cc_id] = (@po_counts_cache[cc_id] || 0) + count }
+          inherited_counts.each { |cc_id, count| @po_counts_cache[cc_id] = (@po_counts_cache[cc_id] || 0) + count }
         end
 
         # Serialize records to JSON
@@ -1552,6 +1584,11 @@ module Api
             end
           end
 
+          # SSoT: CostCentre PO count from pre-fetched cache
+          if record.class.name == "CostCentre"
+            json[:purchase_orders_count] = @po_counts_cache&.dig(record.id) || 0
+          end
+
           # SSoT: Job client_name comes from job_contacts where role='client'
           # This enables searching and displaying client name without denormalization
           if record.class.name == "Job"
@@ -1917,8 +1954,16 @@ module Api
           else
             @foundation.columns.pluck(:column_name)
           end
-          if valid_columns.include?(sort_by)
-            query = query.order(Arel.sql("#{ActiveRecord::Base.connection.quote_column_name(sort_by)} #{sort_direction}"))
+          if valid_columns.include?(sort_by) && model.column_names.include?(sort_by)
+            quoted_col = ActiveRecord::Base.connection.quote_column_name(sort_by)
+            col_type = model.columns_hash[sort_by]&.type
+            if col_type == :string || col_type == :text
+              query = query.order(
+                Arel.sql("(CASE WHEN #{quoted_col} ~ '^[0-9]+' THEN LPAD(regexp_replace(#{quoted_col}, '[^0-9].*', '', 'g'), 20, '0') ELSE #{quoted_col} END) #{sort_direction}, #{quoted_col} #{sort_direction}")
+              )
+            else
+              query = query.order(Arel.sql("#{quoted_col} #{sort_direction}"))
+            end
           else
             query = query.order(created_at: :desc)
           end

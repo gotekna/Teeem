@@ -86,7 +86,22 @@ export function sortRows<TRow extends TableRow>(
         } else if (typeof aVal === "number" && typeof bVal === "number") {
           comparison = aVal - bVal;
         } else {
-          comparison = aDisplay.localeCompare(bDisplay);
+          // Natural/Human sort: "100" < "101" < "1000", "2 Code" < "12 Tulum"
+          const aChunks = aDisplay.match(/\d+|\D+/g) || [];
+          const bChunks = bDisplay.match(/\d+|\D+/g) || [];
+          const maxLen = Math.max(aChunks.length, bChunks.length);
+          for (let i = 0; i < maxLen; i++) {
+            const aChunk = aChunks[i] || "";
+            const bChunk = bChunks[i] || "";
+            const aIsNum = /^\d+$/.test(aChunk);
+            const bIsNum = /^\d+$/.test(bChunk);
+            if (aIsNum && bIsNum) {
+              comparison = parseInt(aChunk, 10) - parseInt(bChunk, 10);
+            } else {
+              comparison = aChunk.toLowerCase().localeCompare(bChunk.toLowerCase());
+            }
+            if (comparison !== 0) break;
+          }
         }
       }
 

@@ -631,6 +631,11 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           poEntries.sort((a, b) => {
             const ccA = a[1].group.costCentreName || "";
             const ccB = b[1].group.costCentreName || "";
+            const numA = parseInt(ccA, 10);
+            const numB = parseInt(ccB, 10);
+            if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+            if (!isNaN(numA)) return -1;
+            if (!isNaN(numB)) return 1;
             return ccA.localeCompare(ccB);
           });
         }
