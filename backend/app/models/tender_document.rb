@@ -76,14 +76,14 @@ class TenderDocument < ApplicationRecord
 
   def sections_grouped
     tender_document_items
-      .order(:section_sort_order, :line_number)
+      .order(:section_sort_order, Arel.sql("COALESCE(cost_centre_name, '')"), :line_number)
       .group_by(&:tender_section_name)
   end
 
-  # Two-level grouping: header → section → items
+  # Two-level grouping: header → section → items (ordered by cost centre then line number)
   # Returns: { "Site Costs" => { "Site Preparation" => [items], "Flood" => [note_item] } }
   def sections_grouped_by_header
-    items = tender_document_items.order(:header_sort_order, :section_sort_order, :line_number)
+    items = tender_document_items.order(:header_sort_order, :section_sort_order, Arel.sql("COALESCE(cost_centre_name, '')"), :line_number)
     result = {}
 
     items.each do |item|
@@ -135,7 +135,7 @@ class TenderDocument < ApplicationRecord
 
   def as_json(options = {})
     super(options).merge(
-      "items" => tender_document_items.order(:header_sort_order, :section_sort_order, :line_number).as_json,
+      "items" => tender_document_items.order(:header_sort_order, :section_sort_order, Arel.sql("COALESCE(cost_centre_name, '')"), :line_number).as_json,
       "sections_grouped" => sections_grouped.transform_values { |items| items.map(&:as_json) },
       "sections_grouped_by_header" => sections_grouped_by_header.transform_values { |sections|
         sections.transform_values { |items| items.map(&:as_json) }

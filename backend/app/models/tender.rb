@@ -46,7 +46,12 @@ class Tender < ApplicationRecord
 
   # Scopes
   scope :active, -> { where(active: true) }
-  scope :ordered, -> { order(:sort_order, :name) }
+  scope :ordered, -> {
+    order(
+      Arel.sql("COALESCE(sort_order, (regexp_match(name, '^(\\d+)'))[1]::int, 999999)"),
+      :name
+    )
+  }
   scope :headers, -> { where(parent_id: nil) }
   scope :sections, -> { where.not(parent_id: nil) }
 

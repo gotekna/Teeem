@@ -10,7 +10,11 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
   Plus, Undo2, X, Camera, ImagePlus, Loader2, ChevronsDownUp, ChevronsUpDown,
+  ExternalLink,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -275,6 +279,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
   // Grouping options
   const [groupByCostCentre, setGroupByCostCentre] = useState(true);
+  const [showImages, setShowImages] = useState(true);
 
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
@@ -1094,6 +1099,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             />
             Cost Centre
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showImages}
+              onChange={(e) => setShowImages(e.target.checked)}
+              className="rounded border-border"
+            />
+            Images
+          </label>
           <Button variant="outline" size="sm" onClick={loadBOQData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -1584,7 +1598,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                             ? <span className="italic text-green-600 dark:text-green-400">NEW</span>
                                             : (
                                               <>
-                                                {row.hasPricebookImage ? (
+                                                {showImages && (row.hasPricebookImage ? (
                                                   <span title="Has pricebook image">
                                                     <Camera className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
                                                   </span>
@@ -1600,7 +1614,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                                       <ImagePlus className="h-3 w-3 shrink-0" />
                                                     </button>
                                                   )
-                                                ) : null}
+                                                ) : null)}
                                                 <span className="truncate">{row.pricebookCode || "—"}</span>
                                               </>
                                             )

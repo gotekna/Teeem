@@ -6,6 +6,21 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/utils/formatters";
 
+/** Strip leading numeric code prefix from section/cost centre names (e.g. "100 - SURVEYOR" → "Surveyor") */
+function stripCodePrefix(name: string): string {
+  return name.replace(/^\d+\s*[-–—]\s*/, "").trim();
+}
+
+/** Title-case a string (e.g. "SURVEYOR" → "Surveyor", "FRAMES & TRUSSES" → "Frames & Trusses") */
+function titleCase(str: string): string {
+  return str.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase());
+}
+
+/** Clean a section name for display in the tender document */
+function cleanSectionName(name: string): string {
+  return titleCase(stripCodePrefix(name));
+}
+
 interface TenderDocumentItem {
   id: number;
   tender_section_name: string;
@@ -136,15 +151,16 @@ function ItemTypeLabel({ item }: { item: TenderDocumentItem }) {
   switch (item.item_type) {
     case "priced":
       return (
-        <span className="font-medium text-right">
-          {formatCurrency(item.total_amount || 0)}
+        <span className="text-right">
+          <span className="font-medium block">{formatCurrency(item.total_amount || 0)}</span>
+          <span className="text-xs text-muted-foreground italic">Prime Cost</span>
         </span>
       );
     case "provisional":
       return (
         <span className="text-right">
           <span className="font-medium block">{formatCurrency(item.total_amount || 0)}</span>
-          <span className="text-xs text-muted-foreground italic">Provisional</span>
+          <span className="text-xs text-muted-foreground italic">Provisional Sum</span>
         </span>
       );
     case "included":
@@ -158,7 +174,7 @@ function ItemTypeLabel({ item }: { item: TenderDocumentItem }) {
   }
 }
 
-/** Renders items for a section in clean list format (no table headers) matching Rawson PDF */
+/** Renders items for a section, grouped by cost centre, matching Rawson PDF format */
 function SectionItems({
   items,
   sectionNumber,
@@ -170,52 +186,90 @@ function SectionItems({
   sectionSubtotal: number;
   sectionName: string;
 }) {
+  // Group items by cost centre (preserving original order)
+  const costCentreGroups = React.useMemo(() => {
+    const groups: { name: string; items: TenderDocumentItem[] }[] = [];
+    const groupMap = new Map<string, TenderDocumentItem[]>();
+
+    for (const item of items) {
+      const ccName = item.cost_centre_name || "";
+      if (!groupMap.has(ccName)) {
+        const arr: TenderDocumentItem[] = [];
+        groupMap.set(ccName, arr);
+        groups.push({ name: ccName, items: arr });
+      }
+      groupMap.get(ccName)!.push(item);
+    }
+    return groups;
+  }, [items]);
+
+  const hasCostCentres = costCentreGroups.length > 1 || (costCentreGroups.length === 1 && costCentreGroups[0].name !== "");
+  let lineNum = 0;
+
   return (
     <div className="space-y-0">
-      {items.map((item) => (
-        <div key={item.id} className="flex gap-4 py-3 border-b border-border/30">
-          {/* Line number: sectionNumber - lineNumber */}
-          <div className="w-14 shrink-0 text-sm text-muted-foreground">
-            {sectionNumber} - {item.line_number}
-          </div>
+      {costCentreGroups.map((group) => {
+        // Cost centre subtotal (priced + provisional items only)
+        const ccSubtotal = group.items
+          .filter((i) => i.item_type === "priced" || i.item_type === "provisional")
+          .reduce((sum, i) => sum + (i.total_amount || 0), 0);
 
-          {/* Description */}
-          <div className="flex-1 text-sm min-w-0">
-            <p className="whitespace-pre-wrap">{item.description}</p>
-            {item.notes && (
-              <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
+        return (
+          <div key={group.name || "_none"}>
+            {/* Cost centre header */}
+            {hasCostCentres && group.name && (
+              <div className="pt-3 pb-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {stripCodePrefix(group.name)}
+                </span>
+              </div>
             )}
-            {item.source_po_number && (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                PO:{" "}
-                {item.source_purchase_order_id ? (
-                  <a
-                    href={`/purchase_orders/${item.source_purchase_order_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {item.source_po_number}
-                  </a>
-                ) : (
-                  item.source_po_number
-                )}
-              </p>
-            )}
-          </div>
 
-          {/* Price / Type label */}
-          <div className="w-28 shrink-0 text-sm text-right flex items-start justify-end">
-            <ItemTypeLabel item={item} />
+            {/* Items in this cost centre */}
+            {group.items.map((item) => {
+              lineNum++;
+              return (
+                <div key={item.id} className="flex gap-4 py-3 border-b border-border/30">
+                  {/* Line number: sectionNumber - sequential */}
+                  <div className="w-14 shrink-0 text-sm text-muted-foreground">
+                    {sectionNumber} - {lineNum}
+                  </div>
+
+                  {/* Description */}
+                  <div className="flex-1 text-sm min-w-0">
+                    <p className="whitespace-pre-wrap">{item.description}</p>
+                    {item.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
+                    )}
+                  </div>
+
+                  {/* Price / Type label */}
+                  <div className="w-28 shrink-0 text-sm text-right flex items-start justify-end">
+                    <ItemTypeLabel item={item} />
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Cost centre subtotal */}
+            {hasCostCentres && group.name && ccSubtotal > 0 && (
+              <div className="flex justify-end gap-4 py-2 border-b border-dashed border-border/50">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {group.name.replace(/^\d+\s*[-–—]\s*/, "").trim()} subtotal
+                </span>
+                <span className="w-28 text-xs font-medium text-right tabular-nums">
+                  {formatCurrency(ccSubtotal)}
+                </span>
+              </div>
+            )}
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {/* Section subtotal */}
       {sectionSubtotal > 0 && (
         <div className="flex justify-end gap-4 py-2">
-          <span className="text-sm font-bold">Total {sectionName}</span>
+          <span className="text-sm font-bold">Total {cleanSectionName(sectionName)}</span>
           <span className="w-28 text-sm font-bold text-right">{formatCurrency(sectionSubtotal)}</span>
         </div>
       )}
@@ -679,7 +733,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           return (
             <TenderHeaderGroup
               key={headerName}
-              title={headerName}
+              title={cleanSectionName(headerName)}
               subtitle={formatCurrency(headerTotal)}
             >
               {sectionEntries.map(([sectionName, items]) => {
@@ -690,14 +744,14 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
                 return (
                   <TenderSection
                     key={sectionName}
-                    title={sectionName}
+                    title={cleanSectionName(sectionName)}
                     defaultOpen={!allNotes || items.length <= 2}
                   >
                     <SectionItems
                       items={items}
                       sectionNumber={secNum}
                       sectionSubtotal={sectionTotal}
-                      sectionName={sectionName}
+                      sectionName={cleanSectionName(sectionName)}
                     />
                   </TenderSection>
                 );
@@ -712,14 +766,14 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           return (
             <Card key={sectionName}>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base font-bold">{sectionName}</CardTitle>
+                <CardTitle className="text-base font-bold">{cleanSectionName(sectionName)}</CardTitle>
               </CardHeader>
               <CardContent>
                 <SectionItems
                   items={items}
                   sectionNumber={idx + 1}
                   sectionSubtotal={sectionTotal}
-                  sectionName={sectionName}
+                  sectionName={cleanSectionName(sectionName)}
                 />
               </CardContent>
             </Card>
@@ -736,7 +790,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
               const headerTotal = doc.header_subtotals?.[headerName] || 0;
               return (
                 <div key={headerName} className="flex justify-between">
-                  <span className="font-bold text-sm">{headerName}</span>
+                  <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
                   <span className="font-medium text-sm w-32 text-right">{formatCurrency(headerTotal)}</span>
                 </div>
               );

@@ -223,6 +223,12 @@ module Api
             tasks = tasks.where(stage: stage.id) if stage
           end
 
+          # Filter by tender section - tasks whose SmScheduleMaster links to this tender
+          if params[:tender_id].present?
+            master_ids = SmScheduleMaster.where(tender_id: params[:tender_id]).pluck(:id)
+            tasks = tasks.where(sm_schedule_master_id: master_ids)
+          end
+
           tasks_data = tasks.includes(:purchase_order).map do |task|
             {
               id: task.id,
