@@ -123,6 +123,17 @@ function nextTempId(): string {
   return `new_${++_tempIdCounter}`;
 }
 
+// ─── Grouped structure for two-panel rendering ─────────────────────
+
+type SectionGroup = {
+  sectionRow: Extract<UnifiedRow, { type: "section" }>;
+  contentRows: UnifiedRow[]; // po, item, po-footer rows
+};
+type HeaderGroup = {
+  headerRow: Extract<UnifiedRow, { type: "header" }>;
+  sections: SectionGroup[];
+};
+
 // ─── Component ──────────────────────────────────────────────────────
 
 interface JobTenderBuilderTabProps {
@@ -401,6 +412,28 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     return { includedTotal: included, excludedTotal: excluded, includedCount, excludedCount };
   }, [unifiedRows, excludedIds]);
 
+  /** Group unified rows into header → section → content for two-panel rendering */
+  const groupedRows = useMemo((): HeaderGroup[] => {
+    const groups: HeaderGroup[] = [];
+    let currentHeader: HeaderGroup | null = null;
+    let currentSection: SectionGroup | null = null;
+
+    for (const row of unifiedRows) {
+      if (row.type === "header") {
+        currentHeader = { headerRow: row, sections: [] };
+        groups.push(currentHeader);
+        currentSection = null;
+      } else if (row.type === "section" && currentHeader) {
+        currentSection = { sectionRow: row, contentRows: [] };
+        currentHeader.sections.push(currentSection);
+      } else if (currentSection) {
+        currentSection.contentRows.push(row);
+      }
+    }
+
+    return groups;
+  }, [unifiedRows]);
+
   const handleCreateTender = useCallback(async () => {
     try {
       setCreatingTender(true);
@@ -534,344 +567,419 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         </div>
       </div>
 
-      {/* Unified scrolling table */}
+      {/* Scrollable content area */}
       <div className="flex-1 min-h-0 overflow-auto border rounded-md">
-        <table className="w-full text-sm table-fixed border-collapse">
-          <colgroup>
-            <col className="w-9" />            {/* checkbox */}
-            <col style={{ width: "12%" }} />   {/* Code */}
-            <col style={{ width: "5%" }} />    {/* Sup badge */}
-            <col />                             {/* Description (flex) */}
-            <col style={{ width: "8%" }} />    {/* Qty */}
-            <col style={{ width: "10%" }} />   {/* Unit Price */}
-            <col style={{ width: "5%" }} />    {/* GST */}
-            <col style={{ width: "10%" }} />   {/* Amount */}
-          </colgroup>
-          <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-            <tr className="border-b">
-              <th className="px-1 py-2"></th>
-              <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Code</th>
-              <th className="text-center px-1 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Sup</th>
-              <th className="text-left px-2 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Description</th>
-              <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Qty</th>
-              <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Price</th>
-              <th className="text-center px-1 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">GST</th>
-              <th className="text-right px-2 py-2 font-medium text-muted-foreground text-xs uppercase tracking-wider">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {unifiedRows.map((row, i) => {
-              // ── Header row (full width) ──
-              if (row.type === "header") {
-                const isCollapsed = collapsedHeaders.has(row.name);
-                return (
-                  <tr
-                    key={`h-${i}`}
-                    className="bg-primary/8 dark:bg-primary/15 border-b cursor-pointer hover:bg-primary/12 dark:hover:bg-primary/20"
-                    onClick={() => toggleHeader(row.name)}
-                  >
-                    <td className="px-2 py-2">
-                      {isCollapsed
-                        ? <ChevronRight className="h-4 w-4 text-primary" />
-                        : <ChevronDown className="h-4 w-4 text-primary" />
-                      }
-                    </td>
-                    <td colSpan={6} className="px-2 py-2 font-semibold text-primary">
-                      {row.name}
-                      <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{row.itemCount} items</Badge>
-                    </td>
-                    <td className="text-right px-2 py-2 font-semibold text-primary tabular-nums">
-                      {formatCurrency(row.subtotal)}
-                    </td>
-                  </tr>
+        {/* Column headers row */}
+        <div className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm border-b">
+          <div className="flex">
+            {/* Left column headers */}
+            <div className="w-3/5 min-w-0">
+              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "36px 12% 5% 1fr 8% 10% 5% 10%" }}>
+                <div className="px-1" />
+                <div className="px-2 text-left">Code</div>
+                <div className="px-1 text-center">Sup</div>
+                <div className="px-2 text-left">Description</div>
+                <div className="px-2 text-right">Qty</div>
+                <div className="px-2 text-right">Price</div>
+                <div className="px-1 text-center">GST</div>
+                <div className="px-2 text-right">Amount</div>
+              </div>
+            </div>
+            {/* Right column header */}
+            <div className="w-2/5 min-w-0 border-l bg-stone-50/50 dark:bg-zinc-900/50">
+              <div className="px-4 py-2 text-xs uppercase tracking-wider font-medium text-muted-foreground">
+                Tender Preview
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Grouped rows: headers and sections span full width, items split */}
+        {groupedRows.map((headerGroup) => {
+          const { headerRow } = headerGroup;
+          const isHeaderCollapsed = collapsedHeaders.has(headerRow.name);
+
+          // Compute included subtotal for the header
+          const headerIncludedItems = headerGroup.sections.flatMap((s) =>
+            s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> =>
+              r.type === "item" && !excludedIds.has(r.key)
+            )
+          );
+          const headerIncludedTotal = headerIncludedItems.reduce((sum, r) => sum + r.amount, 0);
+
+          return (
+            <div key={`h-${headerRow.name}`}>
+              {/* ── Header row (full width) ── */}
+              <div
+                className="flex items-center bg-primary/8 dark:bg-primary/15 border-b cursor-pointer hover:bg-primary/12 dark:hover:bg-primary/20 px-2 py-2"
+                onClick={() => toggleHeader(headerRow.name)}
+              >
+                <div className="shrink-0 w-5">
+                  {isHeaderCollapsed
+                    ? <ChevronRight className="h-4 w-4 text-primary" />
+                    : <ChevronDown className="h-4 w-4 text-primary" />
+                  }
+                </div>
+                <div className="flex-1 font-semibold text-primary text-sm">
+                  {headerRow.name}
+                  <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{headerRow.itemCount} items</Badge>
+                </div>
+                <div className="text-right font-semibold text-primary tabular-nums text-sm">
+                  {formatCurrency(headerIncludedTotal)}
+                </div>
+              </div>
+
+              {/* Sections under this header */}
+              {!isHeaderCollapsed && headerGroup.sections.map((sectionGroup) => {
+                const { sectionRow, contentRows } = sectionGroup;
+                const sKey = `${sectionRow.headerName}::${sectionRow.name}`;
+                const isSectionCollapsed = collapsedSections.has(sKey);
+
+                const sectionItems = contentRows.filter(
+                  (r): r is Extract<UnifiedRow, { type: "item" }> => r.type === "item"
                 );
-              }
-
-              // ── Section row (full width) ──
-              if (row.type === "section") {
-                if (collapsedHeaders.has(row.headerName)) return null;
-                const sKey = `${row.headerName}::${row.name}`;
-                const isCollapsed = collapsedSections.has(sKey);
-
-                const sectionItems = unifiedRows.filter(
-                  (r): r is Extract<UnifiedRow, { type: "item" }> =>
-                    r.type === "item" && r.headerName === row.headerName && r.sectionName === row.name
-                );
-                const includedSubtotal = sectionItems
-                  .filter((r) => !excludedIds.has(r.key))
-                  .reduce((sum, r) => sum + r.amount, 0);
-
-                return (
-                  <tr
-                    key={`s-${i}`}
-                    className="bg-muted/50 border-b cursor-pointer hover:bg-muted/70"
-                    onClick={() => toggleSection(sKey)}
-                  >
-                    <td className="pl-6 py-1.5">
-                      {isCollapsed
-                        ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                        : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      }
-                    </td>
-                    <td colSpan={6} className="px-2 py-1.5 font-medium text-foreground/80">
-                      {row.name}
-                      <Badge variant="outline" className="ml-2 text-[10px] font-normal">{row.poCount} POs</Badge>
-                    </td>
-                    <td className="text-right px-2 py-1.5 font-medium text-foreground/80 tabular-nums">
-                      {formatCurrency(includedSubtotal)}
-                    </td>
-                  </tr>
-                );
-              }
-
-              // ── PO row (collapsible header with PO details) ──
-              if (row.type === "po") {
-                if (collapsedHeaders.has(row.headerName)) return null;
-                const sKey = `${row.headerName}::${row.sectionName}`;
-                if (collapsedSections.has(sKey)) return null;
-                const poKey = `${sKey}::${row.poId}`;
-                const isCollapsed = collapsedPOs.has(poKey);
+                const includedSectionItems = sectionItems.filter((r) => !excludedIds.has(r.key));
+                const includedSubtotal = includedSectionItems.reduce((sum, r) => sum + r.amount, 0);
 
                 return (
-                  <tr
-                    key={`po-${i}`}
-                    className="border-b border-border/60 cursor-pointer hover:bg-muted/30 bg-muted/20"
-                    onClick={() => togglePO(poKey)}
-                  >
-                    <td className="pl-10 py-1.5">
-                      {isCollapsed
-                        ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        : <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                      }
-                    </td>
-                    <td colSpan={6} className="px-2 py-1.5">
-                      <span className="font-semibold text-xs">{row.poName}</span>
-                      {row.supplierName && (
-                        <span className="ml-2 text-xs text-muted-foreground">{row.supplierName.toUpperCase()}</span>
-                      )}
-                      {row.tradeName && (
-                        <span className="ml-2 text-[10px] text-muted-foreground">{row.tradeName}</span>
-                      )}
-                      {row.costCentreName && (
-                        <span className="ml-2 text-[10px] text-muted-foreground">{row.costCentreName}</span>
-                      )}
-                      <span className="ml-2 text-[10px] text-muted-foreground">{row.itemCount} Items</span>
-                    </td>
-                    <td className="text-right px-2 py-1.5 text-xs text-muted-foreground tabular-nums">
-                      {/* Amount shown in footer */}
-                    </td>
-                  </tr>
-                );
-              }
-
-              // ── PO Footer row (Add Line + PO total) ──
-              if (row.type === "po-footer") {
-                if (collapsedHeaders.has(row.headerName)) return null;
-                const sKey = `${row.headerName}::${row.sectionName}`;
-                if (collapsedSections.has(sKey)) return null;
-                const poKey = `${sKey}::${row.poId}`;
-                if (collapsedPOs.has(poKey)) return null;
-
-                return (
-                  <tr key={`pof-${i}`} className="border-b-2 border-border bg-muted/10">
-                    <td colSpan={2} className="pl-14 py-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1 h-6 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => addNewLine(row.headerName, row.sectionName)}
-                      >
-                        <Plus className="h-3 w-3" />
-                        Add Line
-                      </Button>
-                    </td>
-                    <td colSpan={5} className="text-right text-xs font-medium text-muted-foreground py-1 pr-2">
-                      {row.poName} total:
-                    </td>
-                    <td className="text-right px-2 py-1 text-sm font-mono font-semibold tabular-nums">
-                      {formatCurrency(row.subtotal)}
-                    </td>
-                  </tr>
-                );
-              }
-
-              // ── Item row: always-visible inputs like the BOQ ──
-              if (collapsedHeaders.has(row.headerName)) return null;
-              const sKey = `${row.headerName}::${row.sectionName}`;
-              if (collapsedSections.has(sKey)) return null;
-              const poKey = `${sKey}::${row.poId}`;
-              if (collapsedPOs.has(poKey)) return null;
-
-              const isExcluded = excludedIds.has(row.key);
-              const isNewLine = row.isNewLine || false;
-              const isDirty = !isNewLine && editOverrides.has(row.key);
-
-              return (
-                <tr
-                  key={row.key}
-                  className={cn(
-                    "border-b border-border/30 hover:bg-muted/20 transition-colors",
-                    isExcluded && "opacity-40",
-                    isNewLine && "!bg-green-50 dark:!bg-green-950/30",
-                  )}
-                >
-                  {/* Checkbox */}
-                  <td className="pl-14 py-1 text-center">
-                    {isNewLine ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 text-destructive hover:text-destructive"
-                        onClick={() => removeNewLine(row.key)}
-                        title="Remove line"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    ) : (
-                      <div
-                        className={cn(
-                          "w-4 h-4 rounded border inline-flex items-center justify-center cursor-pointer",
-                          isExcluded
-                            ? "bg-orange-500 border-orange-500"
-                            : "border-primary bg-primary/10"
-                        )}
-                        onClick={() => handleToggleExclude(row.key)}
-                      >
-                        {!isExcluded && <Check className="h-3 w-3 text-primary" />}
+                  <div key={sKey}>
+                    {/* ── Section row (full width) ── */}
+                    <div
+                      className="flex items-center bg-muted/50 border-b cursor-pointer hover:bg-muted/70 pl-6 pr-2 py-1.5"
+                      onClick={() => toggleSection(sKey)}
+                    >
+                      <div className="shrink-0 w-5">
+                        {isSectionCollapsed
+                          ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                          : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                        }
                       </div>
-                    )}
-                  </td>
+                      <div className="flex-1 font-medium text-foreground/80 text-sm">
+                        {sectionRow.name}
+                        <Badge variant="outline" className="ml-2 text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
+                      </div>
+                      <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
+                        {formatCurrency(includedSubtotal)}
+                      </div>
+                    </div>
 
-                  {/* Code */}
-                  <td className={cn("px-2 py-1 text-xs font-mono text-muted-foreground", isExcluded && "line-through")}>
-                    {isNewLine
-                      ? <span className="italic text-green-600 dark:text-green-400">NEW</span>
-                      : (row.pricebookCode || "—")
-                    }
-                  </td>
+                    {/* ── Two-panel content (builder left, preview right) ── */}
+                    {!isSectionCollapsed && (() => {
+                      // Group content rows by PO for row-aligned preview
+                      const poGroups: Array<{
+                        poRow: Extract<UnifiedRow, { type: "po" }>;
+                        items: Extract<UnifiedRow, { type: "item" }>[];
+                        footer: Extract<UnifiedRow, { type: "po-footer" }> | null;
+                      }> = [];
+                      let currentPOGroup: (typeof poGroups)[number] | null = null;
 
-                  {/* Sup badge */}
-                  <td className="text-center px-1 py-1">
-                    <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">Sup</Badge>
-                  </td>
+                      for (const row of contentRows) {
+                        if (row.type === "po") {
+                          currentPOGroup = { poRow: row, items: [], footer: null };
+                          poGroups.push(currentPOGroup);
+                        } else if (row.type === "item" && currentPOGroup) {
+                          currentPOGroup.items.push(row);
+                        } else if (row.type === "po-footer" && currentPOGroup) {
+                          currentPOGroup.footer = row;
+                        }
+                      }
 
-                  {/* Description (always-visible input) */}
-                  <td className="px-1 py-1">
-                    {isExcluded ? (
-                      <span className="text-sm line-through">{row.description}</span>
-                    ) : (
-                      <input
-                        type="text"
-                        value={row.description}
-                        onChange={(e) => {
-                          if (isNewLine) {
-                            updateNewLine(row.key, "description", e.target.value);
-                          } else {
-                            updateOverride(row.key, "description", e.target.value);
-                          }
-                        }}
-                        className={cn(
-                          "w-full bg-transparent text-sm px-1.5 py-0.5 rounded border border-transparent",
-                          "hover:border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20",
-                          isDirty && "border-amber-300 dark:border-amber-700",
-                          isNewLine && "border-green-300 dark:border-green-700",
-                        )}
-                        placeholder="Enter description..."
-                      />
-                    )}
-                  </td>
+                      let previewLineNum = 0;
 
-                  {/* Qty (always-visible input) */}
-                  <td className="px-1 py-1">
-                    {isExcluded ? (
-                      <span className="text-sm text-right block tabular-nums line-through">{row.quantity}</span>
-                    ) : (
-                      <Input
-                        type="number"
-                        min={0}
-                        step="any"
-                        value={row.quantity}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          if (isNewLine) {
-                            updateNewLine(row.key, "quantity", val);
-                          } else {
-                            updateOverride(row.key, "quantity", val);
-                          }
-                        }}
-                        className={cn(
-                          "h-7 w-full text-right text-sm font-mono",
-                          isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30",
-                          isNewLine && "border-green-500",
-                        )}
-                      />
-                    )}
-                  </td>
+                      return (
+                        <div className="border-b">
+                          {poGroups.map((pg) => {
+                            const poKey = `${sKey}::${pg.poRow.poId}`;
+                            const isPOCollapsed = collapsedPOs.has(poKey);
+                            const includedItems = pg.items.filter((r) => !excludedIds.has(r.key));
 
-                  {/* Unit Price (always-visible input) */}
-                  <td className="px-1 py-1">
-                    {isExcluded ? (
-                      <span className="text-sm text-right block tabular-nums line-through">{formatCurrency(row.unitPrice)}</span>
-                    ) : (
-                      <Input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={row.unitPrice}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value) || 0;
-                          if (isNewLine) {
-                            updateNewLine(row.key, "unitPrice", val);
-                          } else {
-                            updateOverride(row.key, "unitPrice", val);
-                          }
-                        }}
-                        className={cn(
-                          "h-7 w-full text-right text-sm font-mono",
-                          isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30",
-                          isNewLine && "border-green-500",
-                        )}
-                      />
-                    )}
-                  </td>
+                            return (
+                              <div key={poKey} className="flex">
+                                {/* Left: Builder PO group */}
+                                <div className="w-3/5 min-w-0">
+                                  {/* PO header */}
+                                  <div
+                                    className="grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/30 bg-muted/20 py-1.5"
+                                    style={{ gridTemplateColumns: "36px 1fr auto" }}
+                                    onClick={() => togglePO(poKey)}
+                                  >
+                                    <div className="pl-4">
+                                      {isPOCollapsed
+                                        ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                        : <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                      }
+                                    </div>
+                                    <div className="px-2">
+                                      <span className="font-semibold text-xs">{pg.poRow.poName}</span>
+                                      {pg.poRow.taskName && (
+                                        <span className="ml-2 text-xs text-muted-foreground">{pg.poRow.taskName}</span>
+                                      )}
+                                      {pg.poRow.supplierName && (
+                                        <span className="ml-2 text-xs text-muted-foreground">{pg.poRow.supplierName.toUpperCase()}</span>
+                                      )}
+                                      {pg.poRow.tradeName && (
+                                        <span className="ml-2 text-[10px] text-muted-foreground">{pg.poRow.tradeName}</span>
+                                      )}
+                                      {pg.poRow.costCentreName && (
+                                        <span className="ml-2 text-[10px] text-muted-foreground">{pg.poRow.costCentreName}</span>
+                                      )}
+                                      <span className="ml-2 text-[10px] text-muted-foreground">{pg.poRow.itemCount} Items</span>
+                                    </div>
+                                    <div />
+                                  </div>
 
-                  {/* GST */}
-                  <td className="text-center px-1 py-1 text-xs">{row.gstCode}</td>
+                                  {/* PO items */}
+                                  {!isPOCollapsed && pg.items.map((row) => {
+                                    const isExcluded = excludedIds.has(row.key);
+                                    const isNewLine = row.isNewLine || false;
+                                    const isDirty = !isNewLine && editOverrides.has(row.key);
 
-                  {/* Amount (auto-calculated) */}
-                  <td className={cn(
-                    "text-right px-2 py-1 text-sm font-mono tabular-nums",
-                    isExcluded && "line-through",
-                    isDirty && "font-semibold text-amber-700 dark:text-amber-400",
-                    isNewLine && "font-semibold text-green-700 dark:text-green-400",
-                  )}>
-                    {formatCurrency(row.amount)}
-                  </td>
-                </tr>
-              );
-            })}
+                                    return (
+                                      <div
+                                        key={row.key}
+                                        className={cn(
+                                          "grid items-center border-b border-border/30 hover:bg-muted/20 transition-colors text-sm",
+                                          isExcluded && "opacity-40",
+                                          isNewLine && "!bg-green-50 dark:!bg-green-950/30",
+                                        )}
+                                        style={{ gridTemplateColumns: "36px 12% 5% 1fr 8% 10% 5% 10%" }}
+                                      >
+                                        {/* Checkbox */}
+                                        <div className="pl-3 py-1 flex justify-center">
+                                          {isNewLine ? (
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5 text-destructive hover:text-destructive"
+                                              onClick={() => removeNewLine(row.key)}
+                                              title="Remove line"
+                                            >
+                                              <X className="h-3.5 w-3.5" />
+                                            </Button>
+                                          ) : (
+                                            <div
+                                              className={cn(
+                                                "w-4 h-4 rounded border inline-flex items-center justify-center cursor-pointer",
+                                                isExcluded
+                                                  ? "bg-orange-500 border-orange-500"
+                                                  : "border-primary bg-primary/10"
+                                              )}
+                                              onClick={() => handleToggleExclude(row.key)}
+                                            >
+                                              {!isExcluded && <Check className="h-3 w-3 text-primary" />}
+                                            </div>
+                                          )}
+                                        </div>
 
-            {/* Grand totals */}
-            <tr className="border-t-2 border-primary/30 bg-muted/30">
-              <td colSpan={7} className="px-2 py-2 text-right font-semibold">Subtotal (ex GST)</td>
-              <td className="text-right px-2 py-2 font-semibold tabular-nums">
-                {formatCurrency(totals.includedTotal)}
-              </td>
-            </tr>
-            <tr className="bg-muted/30">
-              <td colSpan={7} className="px-2 py-1 text-right text-muted-foreground">GST (10%)</td>
-              <td className="text-right px-2 py-1 text-muted-foreground tabular-nums">
-                {formatCurrency(totals.includedTotal * 0.1)}
-              </td>
-            </tr>
-            <tr className="bg-muted/30 border-b">
-              <td colSpan={7} className="px-2 py-2 text-right font-bold text-base">Total (inc GST)</td>
-              <td className="text-right px-2 py-2 font-bold text-base tabular-nums">
-                {formatCurrency(totals.includedTotal * 1.1)}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                                        {/* Code */}
+                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground", isExcluded && "line-through")}>
+                                          {isNewLine
+                                            ? <span className="italic text-green-600 dark:text-green-400">NEW</span>
+                                            : (row.pricebookCode || "—")
+                                          }
+                                        </div>
+
+                                        {/* Sup badge */}
+                                        <div className="text-center px-1 py-1">
+                                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">Sup</Badge>
+                                        </div>
+
+                                        {/* Description */}
+                                        <div className="px-1 py-1">
+                                          {isExcluded ? (
+                                            <span className="text-sm line-through">{row.description}</span>
+                                          ) : (
+                                            <input
+                                              type="text"
+                                              value={row.description}
+                                              onChange={(e) => {
+                                                if (isNewLine) {
+                                                  updateNewLine(row.key, "description", e.target.value);
+                                                } else {
+                                                  updateOverride(row.key, "description", e.target.value);
+                                                }
+                                              }}
+                                              className={cn(
+                                                "w-full bg-transparent text-sm px-1.5 py-0.5 rounded border border-transparent",
+                                                "hover:border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20",
+                                                isDirty && "border-amber-300 dark:border-amber-700",
+                                                isNewLine && "border-green-300 dark:border-green-700",
+                                              )}
+                                              placeholder="Enter description..."
+                                            />
+                                          )}
+                                        </div>
+
+                                        {/* Qty */}
+                                        <div className="px-1 py-1">
+                                          {isExcluded ? (
+                                            <span className="text-sm text-right block tabular-nums line-through">{row.quantity}</span>
+                                          ) : (
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              step="any"
+                                              value={row.quantity}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                if (isNewLine) {
+                                                  updateNewLine(row.key, "quantity", val);
+                                                } else {
+                                                  updateOverride(row.key, "quantity", val);
+                                                }
+                                              }}
+                                              className={cn(
+                                                "h-7 w-full text-right text-sm font-mono",
+                                                isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30",
+                                                isNewLine && "border-green-500",
+                                              )}
+                                            />
+                                          )}
+                                        </div>
+
+                                        {/* Unit Price */}
+                                        <div className="px-1 py-1">
+                                          {isExcluded ? (
+                                            <span className="text-sm text-right block tabular-nums line-through">{formatCurrency(row.unitPrice)}</span>
+                                          ) : (
+                                            <Input
+                                              type="number"
+                                              min={0}
+                                              step="0.01"
+                                              value={row.unitPrice}
+                                              onChange={(e) => {
+                                                const val = parseFloat(e.target.value) || 0;
+                                                if (isNewLine) {
+                                                  updateNewLine(row.key, "unitPrice", val);
+                                                } else {
+                                                  updateOverride(row.key, "unitPrice", val);
+                                                }
+                                              }}
+                                              className={cn(
+                                                "h-7 w-full text-right text-sm font-mono",
+                                                isDirty && "border-amber-500 bg-amber-50 dark:bg-amber-950/30",
+                                                isNewLine && "border-green-500",
+                                              )}
+                                            />
+                                          )}
+                                        </div>
+
+                                        {/* GST */}
+                                        <div className="text-center px-1 py-1 text-xs">{row.gstCode}</div>
+
+                                        {/* Amount */}
+                                        <div className={cn(
+                                          "text-right px-2 py-1 text-sm font-mono tabular-nums",
+                                          isExcluded && "line-through",
+                                          isDirty && "font-semibold text-amber-700 dark:text-amber-400",
+                                          isNewLine && "font-semibold text-green-700 dark:text-green-400",
+                                        )}>
+                                          {formatCurrency(row.amount)}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+
+                                  {/* PO footer */}
+                                  {!isPOCollapsed && pg.footer && (
+                                    <div className="flex items-center border-b-2 border-border bg-muted/10 py-1">
+                                      <div className="pl-10">
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="gap-1 h-6 text-xs text-muted-foreground hover:text-foreground"
+                                          onClick={() => addNewLine(pg.footer!.headerName, pg.footer!.sectionName)}
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                          Add Line
+                                        </Button>
+                                      </div>
+                                      <div className="flex-1 text-right text-xs font-medium text-muted-foreground pr-2">
+                                        {pg.footer.poName} total:
+                                      </div>
+                                      <div className="text-right px-2 text-sm font-mono font-semibold tabular-nums w-[10%] shrink-0">
+                                        {formatCurrency(pg.footer.subtotal)}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Right: Preview for this PO group */}
+                                <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30">
+                                  {/* Spacer matching PO header height */}
+                                  <div className="h-[33px]" />
+
+                                  {/* Preview items aligned with left rows */}
+                                  {!isPOCollapsed && (
+                                    <div className="px-4">
+                                      {pg.items.map((item) => {
+                                        const isExcluded = excludedIds.has(item.key);
+                                        if (isExcluded) {
+                                          return <div key={item.key} className="h-[33px]" />;
+                                        }
+                                        previewLineNum++;
+                                        return (
+                                          <div
+                                            key={item.key}
+                                            className="flex items-center gap-2 h-[33px]"
+                                          >
+                                            <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">
+                                              {previewLineNum}.
+                                            </span>
+                                            <span className="flex-1 truncate text-[13px]">{item.description || "—"}</span>
+                                            <span className="text-right tabular-nums font-mono text-[13px] shrink-0 ml-2">
+                                              {formatCurrency(item.amount)}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+
+                                      {/* Spacer matching PO footer height */}
+                                      {pg.footer && <div className="h-[29px]" />}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Section subtotal in preview */}
+                          <div className="flex">
+                            <div className="w-3/5 min-w-0" />
+                            <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 px-4">
+                              <div className="flex items-baseline justify-end gap-3 py-2 border-t border-muted-foreground/15">
+                                <span className="text-xs text-muted-foreground">{sectionRow.name}</span>
+                                <span className="text-[13px] font-semibold tabular-nums font-mono">
+                                  {formatCurrency(includedSubtotal)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+
+        {/* Grand totals (full width) */}
+        <div className="border-t-2 border-primary/30 bg-muted/30">
+          <div className="flex justify-end items-baseline px-4 py-2 gap-4">
+            <span className="font-semibold text-sm">Subtotal (ex GST)</span>
+            <span className="font-semibold tabular-nums text-sm w-28 text-right">{formatCurrency(totals.includedTotal)}</span>
+          </div>
+          <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+            <span className="text-muted-foreground text-sm">GST (10%)</span>
+            <span className="text-muted-foreground tabular-nums text-sm w-28 text-right">{formatCurrency(totals.includedTotal * 0.1)}</span>
+          </div>
+          <div className="flex justify-end items-baseline px-4 py-2 gap-4 border-t">
+            <span className="font-bold text-base">Total (inc GST)</span>
+            <span className="font-bold text-base tabular-nums w-28 text-right">{formatCurrency(totals.includedTotal * 1.1)}</span>
+          </div>
+        </div>
       </div>
 
       {/* Bottom bar */}

@@ -59,6 +59,22 @@ interface TenderDocumentData {
   revision_notes: string | null;
   company_name?: string | null;
   plan_name?: string | null;
+  // Tender detail snapshots
+  council?: string | null;
+  estate?: string | null;
+  facade?: string | null;
+  design_name?: string | null;
+  specification?: string | null;
+  developer_approval?: boolean | null;
+  developer_contact?: string | null;
+  land_registration?: string | null;
+  building_contract_type?: string | null;
+  development_application?: string | null;
+  sales_centre?: string | null;
+  wind_classification?: string | null;
+  soil_classification?: string | null;
+  lot_address?: string | null;
+  plan_number?: string | null;
   sections_grouped: Record<string, TenderDocumentItem[]>;
   sections_grouped_by_header?: Record<string, Record<string, TenderDocumentItem[]>>;
   section_subtotals: Record<string, number>;
@@ -285,12 +301,15 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
               </p>
 
               <div className="space-y-1">
-                {doc.plan_name && (
-                  <p className="text-2xl font-bold">{doc.plan_name}</p>
+                {(doc.plan_name || doc.design_name) && (
+                  <p className="text-2xl font-bold">{doc.plan_name || doc.design_name}</p>
+                )}
+                {doc.facade && (
+                  <p className="text-lg font-medium">{doc.facade} Facade</p>
                 )}
                 <p className="text-lg text-muted-foreground">at</p>
                 <p className="text-2xl font-bold uppercase">
-                  {doc.job_address || doc.job_name || "\u2014"}
+                  {doc.lot_address || doc.job_address || doc.job_name || "\u2014"}
                 </p>
               </div>
             </CardContent>
@@ -308,6 +327,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
+          {/* Tender Identity */}
           <dl className="grid grid-cols-[200px_1fr] gap-x-6 gap-y-3">
             <dt className="font-bold text-sm">TENDER ISSUE:</dt>
             <dd className="text-sm flex items-center gap-2">
@@ -337,13 +357,88 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
               </>
             )}
 
+            {doc.sales_centre && (
+              <>
+                <dt className="font-bold text-sm">SALES CENTRE:</dt>
+                <dd className="text-sm">{doc.sales_centre}</dd>
+              </>
+            )}
+
             {doc.created_by_name && (
               <>
                 <dt className="font-bold text-sm">PREPARED BY:</dt>
                 <dd className="text-sm">{doc.created_by_name}</dd>
               </>
             )}
+
+            {doc.council && (
+              <>
+                <dt className="font-bold text-sm">COUNCIL:</dt>
+                <dd className="text-sm">{doc.council}</dd>
+              </>
+            )}
           </dl>
+
+          {/* Site Details */}
+          {(doc.estate || doc.developer_approval || doc.developer_contact || doc.land_registration || doc.building_contract_type || doc.development_application) && (
+            <dl className="grid grid-cols-[200px_1fr] gap-x-6 gap-y-3 mt-6 pt-4 border-t">
+              {doc.estate && (
+                <>
+                  <dt className="font-bold text-sm">ESTATE:</dt>
+                  <dd className="text-sm">{doc.estate}</dd>
+                </>
+              )}
+
+              {doc.developer_approval !== null && doc.developer_approval !== undefined && (
+                <>
+                  <dt className="font-bold text-sm">DEVELOPER APPROVAL:</dt>
+                  <dd className="text-sm">{doc.developer_approval ? "Yes" : "No"}</dd>
+                </>
+              )}
+
+              {doc.developer_contact && (
+                <>
+                  <dt className="font-bold text-sm">DEVELOPER CONTACT:</dt>
+                  <dd className="text-sm">{doc.developer_contact}</dd>
+                </>
+              )}
+
+              {doc.land_registration && (
+                <>
+                  <dt className="font-bold text-sm">LAND REGISTRATION:</dt>
+                  <dd className="text-sm">{doc.land_registration}</dd>
+                </>
+              )}
+
+              {doc.building_contract_type && (
+                <>
+                  <dt className="font-bold text-sm">BUILDING CONTRACT:</dt>
+                  <dd className="text-sm">{doc.building_contract_type}</dd>
+                </>
+              )}
+
+              {doc.development_application && (
+                <>
+                  <dt className="font-bold text-sm">DEVELOPMENT APPLICATION:</dt>
+                  <dd className="text-sm">{doc.development_application}</dd>
+                </>
+              )}
+
+              {doc.wind_classification && (
+                <>
+                  <dt className="font-bold text-sm">WIND CLASSIFICATION:</dt>
+                  <dd className="text-sm">{doc.wind_classification}</dd>
+                </>
+              )}
+
+              {doc.soil_classification && (
+                <>
+                  <dt className="font-bold text-sm">SOIL CLASSIFICATION:</dt>
+                  <dd className="text-sm">{doc.soil_classification}</dd>
+                </>
+              )}
+            </dl>
+          )}
 
           {/* FOR: Client Info */}
           {doc.client_name && (
@@ -388,6 +483,26 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
                   )}
                 </dl>
               </dd>
+            </dl>
+          )}
+
+          {/* TO CONSTRUCT */}
+          {(doc.design_name || doc.facade || doc.specification) && (
+            <dl className="grid grid-cols-[200px_1fr] gap-x-6 mt-6 pt-4 border-t">
+              <dt className="font-bold text-sm">TO CONSTRUCT:</dt>
+              <dd className="text-sm space-y-0.5">
+                {doc.design_name && <p className="font-medium">{doc.design_name}</p>}
+                {doc.facade && <p>{doc.facade} Facade</p>}
+                {doc.specification && <p>{doc.specification}</p>}
+              </dd>
+            </dl>
+          )}
+
+          {/* AT: Lot Address */}
+          {doc.lot_address && (
+            <dl className="grid grid-cols-[200px_1fr] gap-x-6 mt-4">
+              <dt className="font-bold text-sm">AT:</dt>
+              <dd className="text-sm font-medium uppercase">{doc.lot_address}</dd>
             </dl>
           )}
         </CardContent>

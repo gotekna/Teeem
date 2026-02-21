@@ -290,17 +290,30 @@ module Api
         # Use already-eager-loaded job_contacts from set_job
         # Sort in Ruby since we already have the data loaded
         job_json[:contacts] = @job.job_contacts
-                                                     .select { |jc| jc.contact_id.present? && jc.contact }
+                                                     .select { |jc| jc.contact_id.present? || jc.user_id.present? }
                                                      .sort_by { |jc| [jc.primary ? 0 : 1, jc.created_at] }
                                                      .map do |cc|
+          contact_json = if cc.contact.present?
+            cj = cc.contact.as_json
+            # Include computed fields for frontend display (not in as_json by default)
+            cj["full_address"] = cc.contact.full_address
+            cj["primary_email"] = cc.contact.primary_email
+            cj["primary_mobile"] = cc.contact.primary_mobile
+            cj
+          end
+
           {
             id: cc.id,
             contact_id: cc.contact_id,
+            user_id: cc.user_id,
             primary: cc.primary,
             role: cc.role,
-            contact: cc.contact.as_json,
+            contact: contact_json,
+            # Include user info for internal roles (supervisor, internal_sales, etc.)
+            user: cc.user.present? ? { id: cc.user.id, name: cc.user.name, email: cc.user.email } : nil,
+            display_name: cc.person_name,
             # Use .size to use the already-loaded collection (not .count which triggers a query)
-            relationships_count: cc.contact.outgoing_relationships.size
+            relationships_count: cc.contact.present? ? cc.contact.outgoing_relationships.size : 0
           }
         end
 
@@ -1795,6 +1808,18 @@ module Api
           :spec_date,
           :practical_completion_date,
           :warranty_end_date,
+          # Tender details
+          :estate,
+          :facade,
+          :developer_approval,
+          :developer_contact,
+          :land_registration,
+          :building_contract_type,
+          :development_application,
+          :sales_centre,
+          :wind_classification,
+          :soil_classification,
+          :specification,
           # Profit centre
           :default_profit_centre_id
         )

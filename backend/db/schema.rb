@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_21_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_21_130002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -6361,6 +6361,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_120000) do
     t.string "design_name"
     t.bigint "job_design_id"
     t.bigint "default_profit_centre_id"
+    t.string "estate"
+    t.string "facade"
+    t.boolean "developer_approval", default: false
+    t.string "developer_contact"
+    t.string "land_registration"
+    t.string "building_contract_type"
+    t.string "development_application"
+    t.string "sales_centre"
+    t.string "wind_classification"
+    t.string "soil_classification"
+    t.string "specification"
     t.index ["archived_at", "job_status_id"], name: "idx_jobs_archived_status"
     t.index ["archived_at"], name: "index_jobs_on_archived_at"
     t.index ["archived_by_id"], name: "index_jobs_on_archived_by_id"
@@ -10132,6 +10143,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_21_120000) do
     t.jsonb "settings", default: {}
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "council"
+    t.string "estate"
+    t.string "facade"
+    t.string "design_name"
+    t.string "specification"
+    t.boolean "developer_approval"
+    t.string "developer_contact"
+    t.string "land_registration"
+    t.string "building_contract_type"
+    t.string "development_application"
+    t.string "sales_centre"
+    t.string "wind_classification"
+    t.string "soil_classification"
+    t.string "lot_address"
+    t.string "plan_number"
     t.index ["created_by_id"], name: "index_tender_documents_on_created_by_id"
     t.index ["job_id", "version"], name: "index_tender_documents_on_job_id_and_version"
     t.index ["job_id"], name: "index_tender_documents_on_job_id"

@@ -39,7 +39,8 @@ class TenderDocumentService
         previous_version_id: current_version&.id,
         status: "draft",
         **snapshot_job_data,
-        **snapshot_client_data
+        **snapshot_client_data,
+        **snapshot_tender_details
       )
 
       snapshot_po_items!(doc)
@@ -223,6 +224,36 @@ class TenderDocumentService
       job_address: full_address,
       job_code: @job.job_code
     }
+  end
+
+  def snapshot_tender_details
+    {
+      council: @job.council,
+      estate: @job.estate,
+      facade: @job.facade,
+      design_name: @job.design_name,
+      specification: @job.specification,
+      developer_approval: @job.developer_approval,
+      developer_contact: @job.developer_contact,
+      land_registration: @job.land_registration,
+      building_contract_type: @job.building_contract_type,
+      development_application: @job.development_application,
+      sales_centre: @job.sales_centre,
+      wind_classification: @job.wind_classification,
+      soil_classification: @job.soil_classification,
+      lot_address: format_lot_address(@job),
+      plan_number: @job.plan_number
+    }
+  end
+
+  def format_lot_address(job)
+    parts = []
+    parts << "Lot #{job.lot_number}" if job.lot_number.present?
+    street = [job.street_number, job.street_name, job.street_type].compact.reject(&:blank?).join(" ")
+    parts << street if street.present?
+    location = [job.suburb, job.state, job.postcode].compact.reject(&:blank?).join(" ")
+    parts << location if location.present?
+    parts.join(", ")
   end
 
   def snapshot_client_data

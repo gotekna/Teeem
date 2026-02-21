@@ -133,7 +133,23 @@ class TenderDocument < ApplicationRecord
       "created_by_name" => created_by&.name,
       "locked_by_name" => locked_by&.name,
       "company_name" => tenant&.name,
-      "pdf_download_url" => pdf_generation&.download_url
+      "pdf_download_url" => pdf_generation&.download_url,
+      # Tender detail snapshots
+      "council" => council,
+      "estate" => estate,
+      "facade" => facade,
+      "design_name" => design_name,
+      "specification" => specification,
+      "developer_approval" => developer_approval,
+      "developer_contact" => developer_contact,
+      "land_registration" => land_registration,
+      "building_contract_type" => building_contract_type,
+      "development_application" => development_application,
+      "sales_centre" => sales_centre,
+      "wind_classification" => wind_classification,
+      "soil_classification" => soil_classification,
+      "lot_address" => lot_address,
+      "plan_number" => plan_number
     )
   end
 
