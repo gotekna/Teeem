@@ -4382,9 +4382,11 @@ export default function TeeemTableView({
 
       // Show editor for this cell (either active cell in edit mode, or all cells via pencil)
       if (isEditing && isColumnEditable && showEditor) {
+        const cellValidationError = validationErrors[entry.id]?.[column.key];
         return (
           <div className={cn(
-            isCellDirty && "bg-orange-50 dark:bg-orange-950/20"
+            isCellDirty && "bg-orange-50 dark:bg-orange-950/20",
+            cellValidationError && "bg-red-50 dark:bg-red-950/20"
           )}>
             <RowEditingCell
               entry={entry}
@@ -4392,11 +4394,16 @@ export default function TeeemTableView({
               rowEditingData={rowEditingData}
               setEditingData={setEditingData}
               onCellChange={updateCell}
-              validationError={validationErrors[entry.id]?.[column.key]}
+              validationError={cellValidationError}
               handleCellBlur={handleCellBlur}
               lookupOptions={lookupOptions}
               lookupLoading={lookupLoading}
             />
+            {cellValidationError && (
+              <div className="px-1 pb-0.5 text-[10px] text-red-600 dark:text-red-400 truncate" title={cellValidationError}>
+                {cellValidationError}
+              </div>
+            )}
           </div>
         );
       }

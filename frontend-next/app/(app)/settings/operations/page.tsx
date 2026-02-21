@@ -45,8 +45,7 @@ const OPERATIONS_TABS = [
   { id: "tender-sections", label: "Tender Sections" },
 ];
 
-// Schedule Master has its own full-page route, so default to SM Tasks
-const DEFAULT_TAB = "sm-tasks";
+const DEFAULT_TAB = "schedule-master";
 
 // Tabs that navigate to their own full-page route instead of rendering inline
 const FULL_PAGE_TABS: Record<string, string> = {

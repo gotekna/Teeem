@@ -51,6 +51,7 @@ export function PoTaskPicker({
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
   const [templateFilter, setTemplateFilter] = React.useState("all");
   const [search, setSearch] = React.useState("");
+  const [hideSelected, setHideSelected] = React.useState(false);
 
   // Sync ref whenever local selection changes so parent can read it on save
   React.useEffect(() => {
@@ -71,8 +72,16 @@ export function PoTaskPicker({
           (t.taskCode && t.taskCode.toLowerCase().includes(lower))
       );
     }
+    if (hideSelected) {
+      const recId = recordId != null ? Number(recordId) : null;
+      tasks = tasks.filter((t) => {
+        const aId = assignmentField === "tender" ? t.tenderId : t.costCentreId;
+        // Keep: unassigned, assigned to THIS record, or currently selected
+        return aId == null || aId === recId || selectedIds.includes(t.id);
+      });
+    }
     return tasks;
-  }, [allTasks, templateFilter, search]);
+  }, [allTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
 
   const toggleTask = (taskId: number) => {
     setSelectedIds((prev) =>
@@ -149,14 +158,23 @@ export function PoTaskPicker({
         </div>
       )}
       <div className="border rounded-md">
-        <div className="p-2 border-b">
+        <div className="p-2 border-b flex items-center gap-2">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search PO tasks..."
-            className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hideSelected}
+              onChange={(e) => setHideSelected(e.target.checked)}
+              className="rounded border-input"
+            />
+            Hide assigned
+          </label>
         </div>
         <div className="max-h-64 overflow-y-auto p-1">
           {filteredTasks.length === 0 && (
@@ -171,17 +189,11 @@ export function PoTaskPicker({
             const assignedName =
               assignmentField === "tender" ? task.tenderName : task.costCentreName;
             const isAssignedElsewhere =
-              recordId != null
-                ? assignedId != null &&
-                  assignedId !== Number(recordId) &&
-                  !selectedIds.includes(task.id)
-                : assignedId != null && !selectedIds.includes(task.id);
+              assignedId != null &&
+              (recordId != null ? assignedId !== Number(recordId) : true);
             const taskDisplay = task.taskCode
               ? `${task.taskCode} - ${task.name}`
               : task.name;
-            const label = isAssignedElsewhere
-              ? `${taskDisplay} (${assignedName || `${entityLabel} #${assignedId}`})`
-              : taskDisplay;
             return (
               <label
                 key={task.id}
@@ -195,7 +207,14 @@ export function PoTaskPicker({
                   onChange={() => toggleTask(task.id)}
                   className="rounded border-input"
                 />
-                <span className="truncate">{label}</span>
+                <span className="truncate">
+                  {taskDisplay}
+                  {isAssignedElsewhere && (
+                    <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      ({assignedName || `${entityLabel} #${assignedId}`})
+                    </span>
+                  )}
+                </span>
               </label>
             );
           })}

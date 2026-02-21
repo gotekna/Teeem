@@ -367,7 +367,7 @@ export function RowEditingCell({
 
   // Default - Text input for all other types (single_line_text, email, phone, url, number, etc.)
   return (
-    <div className="relative" onClick={handleClick}>
+    <div onClick={handleClick}>
       <Input
         className={cn(
           "h-7 text-sm",
@@ -391,11 +391,6 @@ export function RowEditingCell({
         onChange={(e) => handleChange(e.target.value)}
         onBlur={() => handleCellBlur(entry.id, column.key, rowEditingData[column.key], columnType)}
       />
-      {hasError && (
-        <span className="absolute -bottom-4 left-0 text-[10px] text-red-500 dark:text-red-400 whitespace-nowrap">
-          {hasError}
-        </span>
-      )}
     </div>
   );
 }
