@@ -48,6 +48,7 @@ class TenderDocumentService
 
       snapshot_po_items!(doc)
       calculate_totals!(doc)
+      save_builder_state_and_changelog!(doc)
       doc.lock_pos!(@user)
 
       doc
@@ -168,29 +169,39 @@ class TenderDocumentService
     insert_additional_items!(doc, line_counter_by_section)
   end
 
-  # Insert placeholder items for ALL sections that have no PO items.
-  # Uses default_note → description → section name as fallback text.
-  # This ensures EVERY tender section/header appears in the document even when empty.
+  # Insert note items for tender sections.
+  # - Empty sections (no PO items): always get a note item (default_note → description → name)
+  # - Populated sections: get a note item only if the user has written one in @section_notes
+  # This ensures every section appears in the document, and user notes show alongside PO items.
   def insert_default_note_items!(doc, sections_with_items)
     Tender.sections.active.ordered.includes(:parent).find_each do |section|
-      next if sections_with_items.include?(section.id)
+      has_items = sections_with_items.include?(section.id)
+      user_note = @section_notes[section.name].presence
 
-      # User-edited note takes priority, then default_note, then description, then section name
-      note_text = @section_notes[section.name].presence ||
-                  section.default_note.presence ||
-                  section.description.presence ||
-                  section.name
+      # Populated sections only get a note if the user explicitly wrote one
+      next if has_items && !user_note
+
+      # For empty sections: user note → default_note → description → section name
+      # For populated sections: use the user note directly
+      note_text = if has_items
+                    user_note
+                  else
+                    user_note ||
+                      section.default_note.presence ||
+                      section.description.presence ||
+                      section.name
+                  end
 
       header = section.parent
       doc.tender_document_items.create!(
         tender_section_name: section.name,
         tender_section_code: section.code,
         section_sort_order: section.sort_order || 999,
-        section_type: "note",
+        section_type: has_items ? section.section_type || "priced" : "note",
         tender_header_name: header&.name,
         tender_header_code: header&.code,
         header_sort_order: header&.sort_order || 999,
-        line_number: 1,
+        line_number: 0,
         description: note_text,
         item_type: "note",
         default_note: note_text
@@ -347,5 +358,117 @@ class TenderDocumentService
       client_phone: primary_client&.primary_mobile,
       salesperson_name: salesperson&.person_name
     }
+  end
+
+  # Save builder state into settings JSONB and compute changelog vs previous version
+  def save_builder_state_and_changelog!(doc)
+    state = @builder_state.presence || build_default_state
+    changelog = compute_changelog(doc)
+
+    settings = doc.settings || {}
+    settings["builder_state"] = state
+    settings["changelog"] = changelog if changelog.present?
+
+    doc.update!(settings: settings)
+  end
+
+  # Reconstruct builder state from service params as a fallback
+  def build_default_state
+    {
+      "itemClassifications" => @item_classifications,
+      "poClassifications" => @po_classifications,
+      "itemOverrides" => @item_overrides.transform_keys(&:to_s),
+      "additionalItems" => @additional_items,
+      "sectionNotes" => @section_notes,
+      "ccSubtotalEnabled" => [],
+      "groupByCostCentre" => true
+    }
+  end
+
+  # Compare new doc items vs previous version items to generate a changelog
+  def compute_changelog(doc)
+    prev = doc.previous_version
+    return nil unless prev
+
+    prev_items = prev.tender_document_items.index_by { |i| changelog_key(i) }
+    new_items = doc.tender_document_items.index_by { |i| changelog_key(i) }
+
+    changes = []
+
+    # Detect added items (in new but not in previous)
+    (new_items.keys - prev_items.keys).each do |key|
+      item = new_items[key]
+      changes << {
+        "type" => "added",
+        "section" => item.tender_section_name,
+        "description" => item.description,
+        "item_type" => item.item_type,
+        "amount" => item.total_amount&.to_f
+      }
+    end
+
+    # Detect removed items (in previous but not in new)
+    (prev_items.keys - new_items.keys).each do |key|
+      item = prev_items[key]
+      changes << {
+        "type" => "removed",
+        "section" => item.tender_section_name,
+        "description" => item.description,
+        "item_type" => item.item_type,
+        "amount" => item.total_amount&.to_f
+      }
+    end
+
+    # Detect changed items (same key, different values)
+    (new_items.keys & prev_items.keys).each do |key|
+      new_item = new_items[key]
+      prev_item = prev_items[key]
+
+      # Price change
+      new_total = new_item.total_amount&.to_f || 0
+      prev_total = prev_item.total_amount&.to_f || 0
+      if (new_total - prev_total).abs > 0.01
+        changes << {
+          "type" => "price_changed",
+          "section" => new_item.tender_section_name,
+          "description" => new_item.description,
+          "item_type" => new_item.item_type,
+          "previous_amount" => prev_total,
+          "amount" => new_total
+        }
+      end
+
+      # Classification change (item_type)
+      if new_item.item_type != prev_item.item_type
+        changes << {
+          "type" => "type_changed",
+          "section" => new_item.tender_section_name,
+          "description" => new_item.description,
+          "previous_type" => prev_item.item_type,
+          "item_type" => new_item.item_type,
+          "amount" => new_total
+        }
+      end
+    end
+
+    return nil if changes.empty?
+
+    {
+      "previous_version" => prev.version,
+      "previous_total" => prev.total&.to_f,
+      "current_total" => doc.total&.to_f,
+      "changes" => changes
+    }
+  end
+
+  # Stable key for matching items across versions
+  def changelog_key(item)
+    if item.source_line_item_id.present?
+      "li:#{item.source_line_item_id}"
+    elsif item.source_purchase_order_id.present? && item.item_type != "note"
+      "po:#{item.source_purchase_order_id}"
+    else
+      "section:#{item.tender_section_name}:#{item.description&.first(80)}"
+    end
   end
 end

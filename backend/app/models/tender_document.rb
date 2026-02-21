@@ -121,6 +121,18 @@ class TenderDocument < ApplicationRecord
     status == "draft"
   end
 
+  def builder_state
+    settings&.dig("builder_state")
+  end
+
+  def changelog
+    settings&.dig("changelog")
+  end
+
+  def has_changelog?
+    changelog.present?
+  end
+
   def as_json(options = {})
     super(options).merge(
       "items" => tender_document_items.order(:header_sort_order, :section_sort_order, :line_number).as_json,
@@ -152,7 +164,9 @@ class TenderDocument < ApplicationRecord
       "wind_classification" => wind_classification,
       "soil_classification" => soil_classification,
       "lot_address" => lot_address,
-      "plan_number" => plan_number
+      "plan_number" => plan_number,
+      "changelog" => changelog,
+      "has_changelog" => has_changelog?
     )
   end
 

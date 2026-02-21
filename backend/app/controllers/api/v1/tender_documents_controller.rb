@@ -5,7 +5,7 @@ module Api
     class TenderDocumentsController < ApplicationController
       include AsyncPdfGeneration
 
-      before_action :set_job, only: [:index, :create]
+      before_action :set_job, only: [:index, :create, :latest_builder_state]
       before_action :set_tender_document, only: [
         :show, :update, :destroy,
         :generate_pdf, :send_to_client,
@@ -35,6 +35,7 @@ module Api
         item_overrides = params[:item_overrides]&.to_unsafe_h || {}
         additional_items = params[:additional_items]&.map { |ai| ai.to_unsafe_h } || []
         section_notes = params[:section_notes]&.to_unsafe_h || {}
+        builder_state = params[:builder_state]&.to_unsafe_h || {}
 
         service = TenderDocumentService.new(
           job: @job,
@@ -43,13 +44,35 @@ module Api
           po_classifications: po_classifications,
           item_overrides: item_overrides,
           additional_items: additional_items,
-          section_notes: section_notes
+          section_notes: section_notes,
+          builder_state: builder_state
         )
         doc = service.create!
 
         render json: { success: true, data: doc.as_json }, status: :created
       rescue TenderDocumentService::CreationError => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/jobs/:job_id/tender_documents/latest_builder_state
+      def latest_builder_state
+        latest = @job.tender_documents
+                     .where.not(status: "superseded")
+                     .order(version: :desc)
+                     .first
+
+        if latest&.settings&.dig("builder_state").present?
+          render json: {
+            success: true,
+            data: {
+              builder_state: latest.settings["builder_state"],
+              version: latest.version,
+              created_at: latest.created_at.iso8601
+            }
+          }
+        else
+          render json: { success: true, data: nil }
+        end
       end
 
       # GET /api/v1/tender_documents/:id

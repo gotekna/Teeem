@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
-  Plus, Undo2, X, Camera, ImagePlus, Loader2,
+  Plus, Undo2, X, Camera, ImagePlus, Loader2, ChevronsDownUp, ChevronsUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -178,6 +178,71 @@ function nextTempId(): string {
   return `new_${++_tempIdCounter}`;
 }
 
+/** Serialize builder state (Maps/Sets → plain objects/arrays) for sending to backend */
+function serializeBuilderState(opts: {
+  itemClassifications: Map<string, TenderClassification>;
+  poClassifications: Map<string | number, POClassification>;
+  editOverrides: Map<string, ItemOverride>;
+  newLines: NewTenderLine[];
+  sectionNotes: Map<string, string>;
+  ccSubtotalEnabled: Set<string>;
+  groupByCostCentre: boolean;
+  excludedIds: Set<string>;
+}): Record<string, unknown> {
+  return {
+    itemClassifications: Object.fromEntries(opts.itemClassifications),
+    poClassifications: Object.fromEntries(opts.poClassifications),
+    editOverrides: Object.fromEntries(opts.editOverrides),
+    newLines: opts.newLines,
+    sectionNotes: Object.fromEntries(opts.sectionNotes),
+    ccSubtotalEnabled: Array.from(opts.ccSubtotalEnabled),
+    groupByCostCentre: opts.groupByCostCentre,
+    excludedIds: Array.from(opts.excludedIds),
+  };
+}
+
+/** Deserialize builder state (plain objects/arrays → Maps/Sets) from backend */
+function deserializeBuilderState(state: Record<string, unknown>): {
+  itemClassifications: Map<string, TenderClassification>;
+  poClassifications: Map<string | number, POClassification>;
+  editOverrides: Map<string, ItemOverride>;
+  newLines: NewTenderLine[];
+  sectionNotes: Map<string, string>;
+  ccSubtotalEnabled: Set<string>;
+  groupByCostCentre: boolean;
+  excludedIds: Set<string>;
+} | null {
+  if (!state) return null;
+
+  try {
+    const itemCls = state.itemClassifications as Record<string, string> | undefined;
+    const poCls = state.poClassifications as Record<string, string> | undefined;
+    const overrides = state.editOverrides as Record<string, ItemOverride> | undefined;
+    const lines = state.newLines as NewTenderLine[] | undefined;
+    const notes = state.sectionNotes as Record<string, string> | undefined;
+    const ccSub = state.ccSubtotalEnabled as string[] | undefined;
+    const groupBy = state.groupByCostCentre as boolean | undefined;
+    const excluded = state.excludedIds as string[] | undefined;
+
+    return {
+      itemClassifications: new Map(Object.entries(itemCls || {})) as Map<string, TenderClassification>,
+      poClassifications: new Map(Object.entries(poCls || {})) as Map<string | number, POClassification>,
+      editOverrides: new Map(Object.entries(overrides || {})),
+      newLines: (lines || []).map((nl) => ({
+        ...nl,
+        tempId: nl.tempId || nextTempId(),
+      })),
+      sectionNotes: new Map(Object.entries(notes || {})),
+      ccSubtotalEnabled: new Set(ccSub || []),
+      groupByCostCentre: groupBy ?? true,
+      excludedIds: new Set(excluded || []),
+    };
+  } catch (err) {
+    console.error("Failed to deserialize builder state:", err);
+    return null;
+  }
+}
+
 // ─── Grouped structure for two-panel rendering ─────────────────────
 
 type SectionGroup = {
@@ -231,6 +296,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   useEffect(() => {
     loadBOQData();
     loadTenderTree();
+    loadBuilderState();
   }, [jobId]);
 
   const loadTenderTree = async () => {
@@ -241,6 +307,36 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       }
     } catch (err) {
       console.error("Failed to load tender tree:", err);
+    }
+  };
+
+  /** Load previously saved builder state from the latest tender version */
+  const loadBuilderState = async () => {
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: { builder_state: Record<string, unknown>; version: number; created_at: string } | null;
+      }>(`/api/v1/jobs/${jobId}/tender_documents/latest_builder_state`);
+
+      if (response?.success && response.data?.builder_state) {
+        const restored = deserializeBuilderState(response.data.builder_state);
+        if (restored) {
+          setItemClassifications(restored.itemClassifications);
+          setPOClassifications(restored.poClassifications);
+          setEditOverrides(restored.editOverrides);
+          setNewLines(restored.newLines);
+          setSectionNotes(restored.sectionNotes);
+          setCCSubtotalEnabled(restored.ccSubtotalEnabled);
+          setGroupByCostCentre(restored.groupByCostCentre);
+          setExcludedIds(restored.excludedIds);
+          // Prevent auto-exclude-qty-0 from overriding restored state
+          setAutoDefaultApplied(true);
+          toast.success(`Restored builder state from Version ${response.data.version}`);
+        }
+      }
+    } catch (err) {
+      // Silently fail - fresh state is fine for first-time use
+      console.debug("No saved builder state found:", err);
     }
   };
 
@@ -627,6 +723,32 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     });
   }, []);
 
+  const allCollapsed = collapsedHeaders.size > 0 || collapsedSections.size > 0 || collapsedCostCentres.size > 0 || collapsedPOs.size > 0;
+
+  const collapseAll = useCallback(() => {
+    const headers = new Set<string>();
+    const sections = new Set<string>();
+    const costCentres = new Set<string>();
+    const pos = new Set<string>();
+    for (const row of unifiedRows) {
+      if (row.type === "header") headers.add(row.name);
+      if (row.type === "section") sections.add(`${row.headerName}::${row.name}`);
+      if (row.type === "cost-centre") costCentres.add(`${row.headerName}::${row.sectionName}::cc::${row.name}`);
+      if (row.type === "po") pos.add(`${row.headerName}::${row.sectionName}::${row.poId}`);
+    }
+    setCollapsedHeaders(headers);
+    setCollapsedSections(sections);
+    setCollapsedCostCentres(costCentres);
+    setCollapsedPOs(pos);
+  }, [unifiedRows]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedHeaders(new Set());
+    setCollapsedSections(new Set());
+    setCollapsedCostCentres(new Set());
+    setCollapsedPOs(new Set());
+  }, []);
+
   /** Compute totals considering overrides, exclusions, and classifications */
   const totals = useMemo(() => {
     let included = 0;
@@ -755,7 +877,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     return map;
   }, [tenderTree]);
 
-  /** Get the note text for an empty section (user-edited or default) */
+  /** Get the note text for a section (user-edited or default) */
   const getSectionNote = useCallback((sectionName: string): string => {
     // User-edited note takes priority
     const userNote = sectionNotes.get(sectionName);
@@ -768,7 +890,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     return sectionName;
   }, [sectionNotes, tenderTreeSectionMap]);
 
-  /** Update the note for an empty section */
+  /** Update the note for a section */
   const updateSectionNote = useCallback((sectionName: string, note: string) => {
     setSectionNotes((prev) => {
       const next = new Map(prev);
@@ -830,6 +952,18 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         if (noteText.trim()) sectionNotesMap[sectionName] = noteText;
       }
 
+      // Serialize full builder state so it can be restored when reopening
+      const builderState = serializeBuilderState({
+        itemClassifications,
+        poClassifications,
+        editOverrides,
+        newLines,
+        sectionNotes,
+        ccSubtotalEnabled,
+        groupByCostCentre,
+        excludedIds,
+      });
+
       const response = await api.post<{ success: boolean; data: { id: number } }>(
         `/api/v1/jobs/${jobId}/tender_documents`,
         {
@@ -838,6 +972,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           item_overrides: itemOverrides,
           additional_items: additionalItems,
           section_notes: sectionNotesMap,
+          builder_state: builderState,
         }
       );
 
@@ -853,7 +988,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -938,6 +1073,18 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               Discard edits
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allCollapsed ? expandAll : collapseAll}
+            title={allCollapsed ? "Expand all" : "Collapse all"}
+            className="text-muted-foreground px-2"
+          >
+            {allCollapsed
+              ? <ChevronsUpDown className="h-4 w-4" />
+              : <ChevronsDownUp className="h-4 w-4" />
+            }
+          </Button>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
@@ -973,7 +1120,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               </div>
             </div>
             {/* Right column header */}
-            <div className="w-2/5 min-w-0 border-l bg-stone-50/50 dark:bg-zinc-900/50">
+            <div className="w-2/5 min-w-0 border-l">
               <div className="px-4 py-2 text-xs uppercase tracking-wider font-medium text-muted-foreground">
                 Tender Preview
               </div>
@@ -1172,10 +1319,10 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                               // Extract just the descriptive part of the cost centre name (strip leading code like "100 - ")
                               const ccDisplayName = block.name.replace(/^\d+\s*[-–—]\s*/, "").trim();
                               return (
-                                <div key={`cc-${block.name}-${blockIdx}`} className="flex bg-muted/60">
+                                <div key={`cc-${block.name}-${blockIdx}`} className="flex bg-muted">
                                   {/* Left: builder cost centre row */}
                                   <div
-                                    className="w-3/5 min-w-0 flex items-center border-b border-border/50 pl-8 pr-2 py-1 cursor-pointer hover:bg-muted/80"
+                                    className="w-3/5 min-w-0 flex items-center border-b border-border/50 pl-8 pr-2 py-1 cursor-pointer hover:bg-accent"
                                     onClick={() => toggleCostCentre(ccKey)}
                                   >
                                     <div className="shrink-0 w-5">
@@ -1184,7 +1331,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         : <ChevronDown className="h-3 w-3 text-muted-foreground" />
                                       }
                                     </div>
-                                    <span className="flex-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                    <span className="flex-1 text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                                       {block.name}
                                     </span>
                                     {/* Toggle subtotal in tender preview */}
@@ -1203,7 +1350,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                     </button>
                                   </div>
                                   {/* Right: preview heading when subtotal is enabled */}
-                                  <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b border-border/50">
+                                  <div className="w-2/5 min-w-0 border-l border-b border-border/50">
                                     {hasSubtotal && (
                                       <div className="px-4 py-1 flex items-center">
                                         <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
@@ -1250,10 +1397,10 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                               <>
                               <div key={poKey}>
                                 {/* PO header row — spans both panels */}
-                                <div className="flex">
+                                <div className="flex bg-gray-100 dark:bg-zinc-800/60">
                                   <div
                                     className={cn(
-                                      "w-3/5 min-w-0 grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/60 bg-muted/40 py-1.5",
+                                      "w-3/5 min-w-0 grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/60 py-1.5",
                                       poLevelCls === "per_po_incl" && "!bg-emerald-50 dark:!bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
                                       poLevelCls === "per_po_nt" && "!bg-amber-50 dark:!bg-amber-950/30 border-amber-200 dark:border-amber-800",
                                       poLevelCls === "per_po_exc" && "!bg-orange-50 dark:!bg-orange-950/30 border-orange-200 dark:border-orange-800 opacity-40",
@@ -1312,7 +1459,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                     </div>
                                   </div>
                                   {/* Right: empty for PO header */}
-                                  <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b border-border/60" />
+                                  <div className="w-2/5 min-w-0 border-l border-b border-border/60" />
                                 </div>
 
                                 {/* PO item rows — each row spans both panels for perfect alignment */}
@@ -1643,6 +1790,39 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                   {formatCurrency(includedSubtotal)}
                                 </span>
                               </div>
+                            </div>
+                          </div>
+
+                          {/* Section note editor (for sections with PO items) */}
+                          <div className="flex border-t border-dashed border-amber-300/50 dark:border-amber-700/50">
+                            {/* Left: compact note editor */}
+                            <div className="w-3/5 min-w-0 px-4 py-2 bg-amber-50/30 dark:bg-amber-950/10">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-[10px] shrink-0 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400">
+                                  Note
+                                </Badge>
+                                <input
+                                  type="text"
+                                  value={getSectionNote(sectionRow.name)}
+                                  onChange={(e) => updateSectionNote(sectionRow.name, e.target.value)}
+                                  placeholder="Add a note for this section..."
+                                  className={cn(
+                                    "flex-1 bg-transparent text-sm px-2 py-1 rounded border",
+                                    "hover:border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20",
+                                    sectionNotes.has(sectionRow.name)
+                                      ? "border-amber-300 dark:border-amber-700"
+                                      : "border-transparent",
+                                  )}
+                                />
+                              </div>
+                            </div>
+                            {/* Right: note preview */}
+                            <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 px-4 py-2 flex items-center">
+                              {getSectionNote(sectionRow.name) && (
+                                <span className="text-[12px] text-muted-foreground italic leading-snug">
+                                  {getSectionNote(sectionRow.name)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>

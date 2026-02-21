@@ -82,6 +82,25 @@ interface TenderDocumentData {
   base_price?: number;
   pc_total?: number;
   ps_total?: number;
+  changelog?: Changelog | null;
+  has_changelog?: boolean;
+}
+
+interface ChangelogChange {
+  type: "added" | "removed" | "price_changed" | "type_changed";
+  section: string;
+  description: string;
+  item_type: string;
+  amount?: number;
+  previous_amount?: number;
+  previous_type?: string;
+}
+
+interface Changelog {
+  previous_version: number;
+  previous_total: number;
+  current_total: number;
+  changes: ChangelogChange[];
 }
 
 interface TenderDocumentViewProps {
@@ -303,6 +322,97 @@ function computeSectionNumbers(
     }
   }
   return sectionNumbers;
+}
+
+const CHANGE_TYPE_CONFIG: Record<string, { label: string; color: string }> = {
+  added: { label: "Added", color: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" },
+  removed: { label: "Removed", color: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" },
+  price_changed: { label: "Price", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
+  type_changed: { label: "Type", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
+};
+
+/** Renders changelog between tender versions */
+function ChangelogSection({ changelog }: { changelog: Changelog }) {
+  const netChange = changelog.current_total - changelog.previous_total;
+  const changesBySection = changelog.changes.reduce<Record<string, ChangelogChange[]>>((acc, change) => {
+    const section = change.section || "Other";
+    if (!acc[section]) acc[section] = [];
+    acc[section].push(change);
+    return acc;
+  }, {});
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-bold tracking-wide">
+          <span className="underline underline-offset-4 decoration-1">
+            CHANGES FROM VERSION {changelog.previous_version}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Summary bar */}
+        <div className="flex items-center gap-4 p-3 rounded-md bg-muted/50 text-sm">
+          <div>
+            <span className="text-muted-foreground">Previous: </span>
+            <span className="font-medium">{formatCurrency(changelog.previous_total)}</span>
+          </div>
+          <span className="text-muted-foreground">{"\u2192"}</span>
+          <div>
+            <span className="text-muted-foreground">Current: </span>
+            <span className="font-medium">{formatCurrency(changelog.current_total)}</span>
+          </div>
+          <div className="ml-auto">
+            <span className="text-muted-foreground">Net: </span>
+            <span className={`font-bold ${netChange > 0 ? "text-red-600 dark:text-red-400" : netChange < 0 ? "text-green-600 dark:text-green-400" : ""}`}>
+              {netChange > 0 ? "+" : ""}{formatCurrency(netChange)}
+            </span>
+          </div>
+        </div>
+
+        {/* Changes grouped by section */}
+        {Object.entries(changesBySection).map(([section, changes]) => (
+          <div key={section}>
+            <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">
+              {section}
+            </h4>
+            <div className="space-y-1">
+              {changes.map((change, idx) => {
+                const config = CHANGE_TYPE_CONFIG[change.type] || CHANGE_TYPE_CONFIG.added;
+                return (
+                  <div key={idx} className="flex items-center gap-3 py-1.5 border-b border-border/20 text-sm">
+                    <Badge className={`text-[10px] shrink-0 ${config.color}`}>
+                      {config.label}
+                    </Badge>
+                    <span className="flex-1 min-w-0 truncate">{change.description}</span>
+                    {change.type === "price_changed" && change.previous_amount !== undefined && (
+                      <span className="shrink-0 text-muted-foreground text-xs">
+                        {formatCurrency(change.previous_amount)} {"\u2192"} {formatCurrency(change.amount || 0)}
+                      </span>
+                    )}
+                    {change.type === "type_changed" && change.previous_type && (
+                      <span className="shrink-0 text-muted-foreground text-xs">
+                        {change.previous_type} {"\u2192"} {change.item_type}
+                      </span>
+                    )}
+                    {(change.type === "added" || change.type === "removed") && change.amount !== undefined && change.amount !== 0 && (
+                      <span className="shrink-0 font-mono text-xs tabular-nums">
+                        {formatCurrency(change.amount)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <p className="text-xs text-muted-foreground pt-2">
+          {changelog.changes.length} change{changelog.changes.length !== 1 ? "s" : ""} from Version {changelog.previous_version}
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function TenderDocumentView({ document: doc, previewMode = false }: TenderDocumentViewProps) {
@@ -644,6 +754,11 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           </div>
         </CardContent>
       </Card>
+
+      {/* Changelog (version-to-version comparison) */}
+      {!previewMode && doc.has_changelog && doc.changelog && (
+        <ChangelogSection changelog={doc.changelog} />
+      )}
 
       {/* Revision Notes */}
       {!previewMode && doc.revision_notes && (

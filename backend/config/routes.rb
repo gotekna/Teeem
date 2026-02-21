@@ -730,7 +730,11 @@ Rails.application.routes.draw do
         resources :job_claims, only: [ :index, :create ]
 
         # Tender documents (nested under jobs for listing + creation)
-        resources :tender_documents, only: [ :index, :create ]
+        resources :tender_documents, only: [ :index, :create ] do
+          collection do
+            get :latest_builder_state
+          end
+        end
 
         # Job claim stages (progress claims tracking)
         resources :claim_stages, controller: "job_claim_stages", only: [ :index, :show, :create, :update, :destroy ] do
