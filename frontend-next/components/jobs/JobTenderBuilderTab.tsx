@@ -1281,7 +1281,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           <div className="flex">
             {/* Left column headers */}
             <div className="w-3/5 min-w-0">
-              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "12% 1fr 6% 8% 4% 9% 64px" }}>
+              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "12% 1fr 6% 8% 5% 9% 60px" }}>
                 <div className="px-2 text-left">Code</div>
                 <div className="px-2 text-left">Description</div>
                 <div className="px-2 text-right">Qty</div>
@@ -1732,7 +1732,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           cls === "pc" && "!bg-blue-50/50 dark:!bg-blue-950/20",
                                           cls === "ps" && "!bg-violet-50/50 dark:!bg-violet-950/20",
                                         )}
-                                        style={{ gridTemplateColumns: "12% 1fr 6% 8% 4% 9% 64px" }}
+                                        style={{ gridTemplateColumns: "12% 1fr 6% 8% 5% 9% 60px" }}
                                       >
                                         {/* Code */}
                                         <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40 overflow-visible", isExcluded && "line-through")}>
