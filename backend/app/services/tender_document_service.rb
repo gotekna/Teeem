@@ -157,24 +157,37 @@ class TenderDocumentService
   end
 
   def snapshot_job_data
+    # Build full address with suburb, state, postcode
+    address_parts = [@job.name]
+    postcode_state = [@job.suburb, @job.state, @job.postcode].compact.reject(&:blank?)
+    full_address = if @job.name.include?(@job.suburb.to_s) && @job.postcode.present?
+      # Name already has suburb - just append postcode if missing
+      @job.name.include?(@job.postcode.to_s) ? @job.name : "#{@job.name} #{@job.postcode}"
+    else
+      @job.name
+    end
+
     {
       job_name: @job.name,
-      job_address: @job.try(:address) || @job.name,
+      job_address: full_address,
       job_code: @job.job_code
     }
   end
 
   def snapshot_client_data
-    client = @job.client
-    return {} unless client
+    # Get ALL clients (job owners) - not just the first one
+    client_contacts = @job.job_contacts.where(role: "client").includes(:contact)
+    return {} if client_contacts.empty?
 
+    primary_client = client_contacts.first&.contact
+    all_client_names = client_contacts.map { |jc| jc.contact&.display_name }.compact
     salesperson = @job.job_contacts.find_by(role: "internal_sales")
 
     {
-      client_name: client.display_name,
-      client_address: client.full_address,
-      client_email: client.primary_email,
-      client_phone: client.primary_mobile,
+      client_name: all_client_names.join(" & "),
+      client_address: primary_client&.full_address,
+      client_email: primary_client&.primary_email,
+      client_phone: primary_client&.primary_mobile,
       salesperson_name: salesperson&.person_name
     }
   end

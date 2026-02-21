@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { formatCurrency } from "@/utils/formatters";
 
 interface TenderDocumentItem {
@@ -40,6 +41,7 @@ interface TenderDocumentData {
   gst: number;
   total: number;
   job_name: string | null;
+  job_address: string | null;
   job_code: string | null;
   client_name: string | null;
   client_address: string | null;
@@ -80,12 +82,11 @@ function SectionItemsTable({
   items: TenderDocumentItem[];
   sectionSubtotal: number;
 }) {
-  // If all items are default notes (no actual PO items), show the note text
   const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
 
   if (allNotes && items.length > 0) {
     return (
-      <p className="text-sm italic text-muted-foreground py-2">
+      <p className="text-sm italic text-muted-foreground py-2 pl-2">
         {items[0].default_note}
       </p>
     );
@@ -145,16 +146,49 @@ function SectionItemsTable({
   );
 }
 
+function CollapsibleSection({
+  title,
+  subtitle,
+  children,
+  defaultOpen = true,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = React.useState(defaultOpen);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between py-2 hover:bg-muted/50 rounded-sm transition-colors -mx-1 px-1"
+      >
+        <div className="flex items-center gap-2">
+          {isOpen ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+          <span className="text-sm font-medium text-foreground/80">{title}</span>
+        </div>
+        {subtitle}
+      </button>
+      {isOpen && <div className="pl-6">{children}</div>}
+    </div>
+  );
+}
+
 export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
   const headerGroups = doc.sections_grouped_by_header;
   const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
-
-  // Fall back to flat sections_grouped if no two-level data
   const flatSections = Object.entries(doc.sections_grouped || {});
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Document Header */}
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-semibold">
@@ -170,11 +204,11 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
         </Badge>
       </div>
 
-      {/* Client & Job Info */}
+      {/* Client & Job Info - Enhanced Rawson-style */}
       <div className="grid grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Client</CardTitle>
+            <CardTitle className="text-sm font-semibold">Client</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-1">
             <p className="font-medium">{doc.client_name || "—"}</p>
@@ -185,48 +219,71 @@ export function TenderDocumentView({ document: doc }: TenderDocumentViewProps) {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Job</CardTitle>
+            <CardTitle className="text-sm font-semibold">Job</CardTitle>
           </CardHeader>
           <CardContent className="text-sm space-y-1">
-            <p className="font-medium">{doc.job_name || "—"}</p>
+            <p className="font-medium">{doc.job_address || doc.job_name || "—"}</p>
             <p className="text-muted-foreground">{doc.job_code}</p>
             {doc.salesperson_name && (
-              <p className="text-muted-foreground">Contact: {doc.salesperson_name}</p>
+              <p className="text-muted-foreground">Sales: {doc.salesperson_name}</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Two-Level Sections (Header > Section > Items) */}
+      {/* Two-Level Sections (Header > Collapsible Section > Items) */}
       {hasTwoLevelData ? (
-        Object.entries(headerGroups).map(([headerName, sections]) => (
-          <Card key={headerName}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">{headerName}</CardTitle>
-                <span className="text-sm font-semibold">
-                  {formatCurrency(doc.header_subtotals?.[headerName] || 0)}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {Object.entries(sections).map(([sectionName, items]) => (
-                <div key={sectionName}>
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-medium text-foreground/80">{sectionName}</h4>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
-                    </span>
-                  </div>
-                  <SectionItemsTable
-                    items={items}
-                    sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
-                  />
+        Object.entries(headerGroups).map(([headerName, sections]) => {
+          const headerTotal = doc.header_subtotals?.[headerName] || 0;
+          const sectionEntries = Object.entries(sections);
+          const hasSingleSection = sectionEntries.length === 1 && sectionEntries[0][0] === headerName;
+
+          return (
+            <Card key={headerName}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base font-semibold">{headerName}</CardTitle>
+                  <span className="text-sm font-semibold">
+                    {formatCurrency(headerTotal)}
+                  </span>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))
+              </CardHeader>
+              <CardContent className="space-y-1">
+                {hasSingleSection ? (
+                  // Single section matching header name - show items directly (no collapsible)
+                  <SectionItemsTable
+                    items={sectionEntries[0][1]}
+                    sectionSubtotal={doc.section_subtotals?.[sectionEntries[0][0]] || 0}
+                  />
+                ) : (
+                  // Multiple sub-sections - each collapsible
+                  sectionEntries.map(([sectionName, items]) => {
+                    const sectionTotal = doc.section_subtotals?.[sectionName] || 0;
+                    const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
+
+                    return (
+                      <CollapsibleSection
+                        key={sectionName}
+                        title={sectionName}
+                        subtitle={
+                          <span className="text-xs font-medium text-muted-foreground mr-1">
+                            {allNotes ? "—" : formatCurrency(sectionTotal)}
+                          </span>
+                        }
+                        defaultOpen={!allNotes}
+                      >
+                        <SectionItemsTable
+                          items={items}
+                          sectionSubtotal={sectionTotal}
+                        />
+                      </CollapsibleSection>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          );
+        })
       ) : (
         /* Flat sections fallback (legacy documents without header data) */
         flatSections.map(([sectionName, items]) => (
