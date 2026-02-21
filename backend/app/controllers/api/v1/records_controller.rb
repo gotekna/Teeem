@@ -511,16 +511,18 @@ module Api
                     ["#{quoted_column} ILIKE ?", "%#{value}"]
                   end
                 when "is_empty"
-                  # Handle JSONB arrays specially - empty array is '[]', not ''
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NULL OR #{quoted_column} = '[]'::jsonb"]
+                  elsif %i[integer bigint decimal float].include?(db_column_type)
+                    ["#{quoted_column} IS NULL"]
                   else
                     ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
                   end
                 when "is_not_empty"
-                  # Handle JSONB arrays specially - non-empty means has at least one element
                   if [:jsonb, :json].include?(db_column_type)
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != '[]'::jsonb"]
+                  elsif %i[integer bigint decimal float].include?(db_column_type)
+                    ["#{quoted_column} IS NOT NULL"]
                   else
                     ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
                   end
@@ -1845,9 +1847,19 @@ module Api
                 when "contains"
                   ["#{quoted_column} ILIKE ?", "%#{value}%"]
                 when "is_empty"
-                  ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  db_col_type = model.columns_hash[column]&.type
+                  if %i[integer bigint decimal float].include?(db_col_type)
+                    ["#{quoted_column} IS NULL"]
+                  else
+                    ["#{quoted_column} IS NULL OR #{quoted_column} = ''"]
+                  end
                 when "is_not_empty"
-                  ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  db_col_type = model.columns_hash[column]&.type
+                  if %i[integer bigint decimal float].include?(db_col_type)
+                    ["#{quoted_column} IS NOT NULL"]
+                  else
+                    ["#{quoted_column} IS NOT NULL AND #{quoted_column} != ''"]
+                  end
                 else
                   nil
                 end

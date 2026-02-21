@@ -398,22 +398,24 @@ module Api
                   when "is_not_null"
                     query = query.where.not(column => nil)
                   when "is_empty"
-                    # Handle JSONB arrays specially - empty array is '[]', not ''
                     col_type = model.columns_hash[column]&.type
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
-                      # JSONB: NULL or empty array []
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = '[]'::jsonb")
+                    elsif %i[integer bigint decimal float].include?(col_type)
+                      # Numeric types can only be NULL, not empty string
+                      query = query.where(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NULL OR #{quoted_col} = ''")
                     end
                   when "is_not_empty"
-                    # Handle JSONB arrays specially - non-empty means has at least one element
                     col_type = model.columns_hash[column]&.type
                     quoted_col = conn.quote_column_name(column)
                     if col_type == :jsonb
-                      # JSONB: NOT NULL and NOT empty array
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != '[]'::jsonb")
+                    elsif %i[integer bigint decimal float].include?(col_type)
+                      # Numeric types: not empty just means not NULL
+                      query = query.where.not(column => nil)
                     else
                       query = query.where("#{quoted_col} IS NOT NULL AND #{quoted_col} != ''")
                     end
