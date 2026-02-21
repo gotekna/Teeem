@@ -74,6 +74,8 @@ export function RecordFormField({
   const label = name || column_name;
   const isSystem = column.system || ['id', 'created_at', 'updated_at'].includes(column_name);
   const isDisabled = disabled || isSystem;
+  const errorInputClass = error ? "border-destructive focus-visible:ring-destructive" : "";
+  const errorLabelClass = error ? "text-destructive" : "";
 
   // SSoT: Convert value to display string, handling objects properly
   const displayValue = getDisplayValue(value);
@@ -104,7 +106,7 @@ export function RecordFormField({
       case 'long_text':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Textarea
@@ -113,7 +115,7 @@ export function RecordFormField({
               onChange={(e) => handleChange(e.target.value)}
               rows={3}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -124,7 +126,7 @@ export function RecordFormField({
       case 'percentage':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
               {column_type === 'currency' && ' ($)'}
               {column_type === 'percentage' && ' (%)'}
@@ -136,7 +138,7 @@ export function RecordFormField({
               value={String(value ?? '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -144,7 +146,7 @@ export function RecordFormField({
       case 'date':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -153,7 +155,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -161,7 +163,7 @@ export function RecordFormField({
       case 'date_and_time':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -170,7 +172,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -178,7 +180,7 @@ export function RecordFormField({
       case 'email':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -187,7 +189,7 @@ export function RecordFormField({
               value={String(value || '')}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -195,7 +197,7 @@ export function RecordFormField({
       case 'url':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -205,7 +207,7 @@ export function RecordFormField({
               onChange={(e) => handleChange(e.target.value)}
               placeholder="https://"
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -213,7 +215,7 @@ export function RecordFormField({
       case 'color_picker':
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <div className="flex items-center gap-2">
@@ -222,14 +224,14 @@ export function RecordFormField({
                 type="color"
                 value={String(value || '#000000')}
                 onChange={(e) => handleChange(e.target.value)}
-                className="w-16 h-10 p-1"
+                className={cn("w-16 h-10 p-1", errorInputClass)}
                 disabled={isDisabled}
               />
               <Input
                 value={String(value || '')}
                 onChange={(e) => handleChange(e.target.value)}
                 placeholder="#000000"
-                className={cn("flex-1", isDisabled && "bg-muted")}
+                className={cn("flex-1", isDisabled && "bg-muted", errorInputClass)}
                 disabled={isDisabled}
               />
             </div>
@@ -241,7 +243,7 @@ export function RecordFormField({
         if (column.choices && column.choices.length > 0) {
           return (
             <div className="space-y-2">
-              <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+              <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
                 {label}
               </Label>
               <Select
@@ -249,7 +251,7 @@ export function RecordFormField({
                 onValueChange={(v) => handleChange(v)}
                 disabled={isDisabled}
               >
-                <SelectTrigger className={cn(isDisabled && "bg-muted")}>
+                <SelectTrigger className={cn(isDisabled && "bg-muted", errorInputClass)}>
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -267,7 +269,7 @@ export function RecordFormField({
         // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -275,7 +277,7 @@ export function RecordFormField({
               value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );
@@ -285,7 +287,7 @@ export function RecordFormField({
         // SSoT: Use displayValue to handle object values (lookups) properly
         return (
           <div className="space-y-2">
-            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground")}>
+            <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
               {label}
             </Label>
             <Input
@@ -293,7 +295,7 @@ export function RecordFormField({
               value={displayValue}
               onChange={(e) => handleChange(e.target.value)}
               disabled={isDisabled}
-              className={cn(isDisabled && "bg-muted")}
+              className={cn(isDisabled && "bg-muted", errorInputClass)}
             />
           </div>
         );

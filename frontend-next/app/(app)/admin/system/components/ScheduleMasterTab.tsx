@@ -669,6 +669,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         recordId={undefined}
         templates={templatesRef.current}
         selectedIdsRef={selectedPoTaskIdsRef}
+        assignmentField="costCentre"
+        entityLabel="Cost Centre"
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -703,6 +705,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         recordId={recordId}
         templates={templatesRef.current}
         selectedIdsRef={selectedPoTaskIdsRef}
+        assignmentField="costCentre"
+        entityLabel="Cost Centre"
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -183,6 +183,7 @@ export function EditRecordModal({
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [showFieldConfig, setShowFieldConfig] = useState(false);
   const [showMoreFields, setShowMoreFields] = useState(false);
 
@@ -367,6 +368,14 @@ export function EditRecordModal({
   const handleFieldChange = useCallback((columnName: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [columnName]: value }));
     setSaveError(null);
+    setFieldErrors((prev) => {
+      if (prev[columnName]) {
+        const next = { ...prev };
+        delete next[columnName];
+        return next;
+      }
+      return prev;
+    });
   }, []);
 
   // Handle form submission
@@ -375,6 +384,7 @@ export function EditRecordModal({
 
     setSaving(true);
     setSaveError(null);
+    setFieldErrors({});
     try {
       await api.patch(`/api/v1/foundations/${foundationId}/records/${record.id}`, {
         record: formData,
@@ -396,6 +406,28 @@ export function EditRecordModal({
       console.error("Failed to update record:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to update record. Please try again.";
       setSaveError(errorMessage);
+
+      // Parse field-level errors from Rails full_messages format
+      // e.g. "Code has already been taken" → field "code", error "has already been taken"
+      const apiError = error as { data?: { errors?: string[] } };
+      const serverErrors = apiError?.data?.errors;
+      if (Array.isArray(serverErrors)) {
+        const newFieldErrors: Record<string, string> = {};
+        for (const errMsg of serverErrors) {
+          if (typeof errMsg !== 'string') continue;
+          // Try to match against column labels (Rails humanizes attribute names)
+          for (const col of editableColumns) {
+            const label = col.label || col.key;
+            if (errMsg.startsWith(label + ' ') || errMsg.toLowerCase().startsWith(label.toLowerCase() + ' ')) {
+              newFieldErrors[col.key] = errMsg;
+              break;
+            }
+          }
+        }
+        if (Object.keys(newFieldErrors).length > 0) {
+          setFieldErrors(newFieldErrors);
+        }
+      }
     } finally {
       setSaving(false);
     }
@@ -509,6 +541,7 @@ export function EditRecordModal({
                 column={toColumnDefinition(col)}
                 value={formData[col.key]}
                 onChange={handleFieldChange}
+                error={fieldErrors[col.key]}
               />
             ))}
         </div>
@@ -535,6 +568,7 @@ export function EditRecordModal({
                         column={toColumnDefinition(col)}
                         value={formData[col.key]}
                         onChange={handleFieldChange}
+                        error={fieldErrors[col.key]}
                       />
                     ))}
                 </div>
