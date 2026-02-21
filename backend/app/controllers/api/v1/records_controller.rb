@@ -1601,15 +1601,6 @@ module Api
             end
           end
 
-          # SSoT: CostCentre PO counts per template from pre-fetched cache
-          if record.class.name == "CostCentre"
-            template_counts = @po_counts_by_template_cache&.dig(record.id) || {}
-            (@po_template_names || []).each do |tname|
-              col_key = "po_count_#{tname.parameterize(separator: '_')}"
-              json[col_key.to_sym] = template_counts[tname] || 0
-            end
-          end
-
           # SSoT: Job client_name comes from job_contacts where role='client'
           # This enables searching and displaying client name without denormalization
           if record.class.name == "Job"
@@ -1710,6 +1701,15 @@ module Api
             end
           else
             json[column.column_name] = value
+          end
+        end
+
+        # SSoT: CostCentre PO counts per template from pre-fetched cache
+        if record.class.name == "CostCentre" && @po_counts_by_template_cache
+          template_counts = @po_counts_by_template_cache.dig(record.id) || {}
+          (@po_template_names || []).each do |tname|
+            col_key = "po_count_#{tname.parameterize(separator: '_')}"
+            json[col_key] = template_counts[tname] || 0
           end
         end
 
