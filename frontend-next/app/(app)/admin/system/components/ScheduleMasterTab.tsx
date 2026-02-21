@@ -93,7 +93,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { Check, AlertCircle, Link2Off, PlayCircle, GitBranch, Phone, MessageSquare, Mail } from "lucide-react";
 import { SearchInput } from "@/components/ui/search-input";
 import { useAtom, useStore } from "jotai";
-import { smDataViewTemplateIdAtom } from "@/lib/table-atoms";
+import { smDataViewTemplateIdAtom, showEditRecordModalAtom, selectedRecordForModalAtom } from "@/lib/table-atoms";
 import { UI_COPY_FEEDBACK_MS, UI_SUCCESS_MESSAGE_MS, RETRY_DELAY_MS } from "@/lib/constants/timeout-constants";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 
@@ -629,6 +629,17 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
   const pendingNavigateRecordIdRef = React.useRef<number | null>(null);
+
+  // When a cost centre/tender link is clicked in PoTaskPicker, the dialog closes
+  // and we open the target record's edit dialog after a brief delay
+  const openEditForRecord = React.useCallback((id: number) => {
+    // Wait for the current dialog close animation to finish
+    setTimeout(() => {
+      jotaiStore.set(selectedRecordForModalAtom, { id });
+      jotaiStore.set(showEditRecordModalAtom, true);
+    }, 200);
+  }, [jotaiStore]);
+
   // Keep templates ref synced so stable callbacks can read latest value
   const templatesRef = React.useRef(templates);
   templatesRef.current = templates;
@@ -709,14 +720,13 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="costCentre"
         entityLabel="Cost Centre"
         onNavigateToRecord={helpers?.onClose ? (id) => {
-          // Close the current dialog - user can find the target cost centre in the table
-          pendingNavigateRecordIdRef.current = id;
           helpers.onClose();
+          openEditForRecord(id);
         } : undefined}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openEditForRecord]);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -815,13 +825,13 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="tender"
         entityLabel="Tender Section"
         onNavigateToRecord={helpers?.onClose ? (id) => {
-          pendingNavigateRecordIdRef.current = id;
           helpers.onClose();
+          openEditForRecord(id);
         } : undefined}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [openEditForRecord]);
 
   const handleTenderAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
     const tenderId = record.id;
