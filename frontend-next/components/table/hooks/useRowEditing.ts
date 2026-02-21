@@ -465,7 +465,13 @@ export function useRowEditing(options: UseRowEditingOptions): UseRowEditingRetur
         description: `Successfully saved ${rowsToUpdate.length} row${rowsToUpdate.length !== 1 ? "s" : ""}`,
       });
     } catch (error) {
-      console.error("Failed to save:", error);
+      // Use console.warn for 422 validation errors (expected behavior, not bugs)
+      const apiErr = error as { status?: number };
+      if (apiErr.status === 422) {
+        console.warn("Validation error on save:", error);
+      } else {
+        console.error("Failed to save:", error);
+      }
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       // Parse server validation errors (e.g., "Code has already been taken")

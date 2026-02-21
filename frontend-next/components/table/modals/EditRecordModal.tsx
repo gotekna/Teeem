@@ -403,7 +403,14 @@ export function EditRecordModal({
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
-      console.error("Failed to update record:", error);
+      // Use console.warn for 422 validation errors (expected behavior, not bugs)
+      // console.error would increment the sidebar error counter unnecessarily
+      const apiErr = error as { status?: number };
+      if (apiErr.status === 422) {
+        console.warn("Validation error on save:", error);
+      } else {
+        console.error("Failed to update record:", error);
+      }
       const errorMessage = error instanceof Error ? error.message : "Failed to update record. Please try again.";
       setSaveError(errorMessage);
 
@@ -458,6 +465,8 @@ export function EditRecordModal({
       if (!openState) {
         setShowMoreFields(false);
         setShowFieldConfig(false);
+        setSaveError(null);
+        setFieldErrors({});
       }
     }}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-6">

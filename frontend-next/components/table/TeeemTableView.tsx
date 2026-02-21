@@ -6604,6 +6604,8 @@ export default function TeeemTableView({
             onSuccess={() => {
               setShowEditRecordModal(false);
               setSelectedRecordForModal(null);
+              // Clear any lingering inline editing validation errors for this record
+              setValidationErrors({});
               // Refresh data - both internal (autoFetch) and external (parent callback)
               triggerAutoRefresh();
               onRefresh?.();
