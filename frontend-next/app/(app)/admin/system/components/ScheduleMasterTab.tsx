@@ -628,6 +628,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const poTasksLoadedRef = React.useRef(false);
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
+  const pendingNavigateRecordIdRef = React.useRef<number | null>(null);
   // Keep templates ref synced so stable callbacks can read latest value
   const templatesRef = React.useRef(templates);
   templatesRef.current = templates;
@@ -676,7 +677,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
+  const renderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow, helpers?: { onClose: () => void }) => {
     if (!poTasksLoadedRef.current) {
       fetchPoTasks();
       return (
@@ -707,6 +708,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedPoTaskIdsRef}
         assignmentField="costCentre"
         entityLabel="Cost Centre"
+        onNavigateToRecord={helpers?.onClose ? (id) => {
+          // Close the current dialog - user can find the target cost centre in the table
+          pendingNavigateRecordIdRef.current = id;
+          helpers.onClose();
+        } : undefined}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -777,7 +783,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const renderTenderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow) => {
+  const renderTenderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow, helpers?: { onClose: () => void }) => {
     if (!tenderPoTasksLoadedRef.current) {
       fetchTenderPoTasks();
       return (
@@ -808,6 +814,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedTenderPoTaskIdsRef}
         assignmentField="tender"
         entityLabel="Tender Section"
+        onNavigateToRecord={helpers?.onClose ? (id) => {
+          pendingNavigateRecordIdRef.current = id;
+          helpers.onClose();
+        } : undefined}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps

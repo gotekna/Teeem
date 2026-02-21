@@ -164,7 +164,7 @@ export interface TeeemTableViewProps {
   // Record CRUD modal extension points
   createDialogRenderExtra?: () => React.ReactNode; // Extra content rendered in CreateRecordDialog
   createDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful create
-  editDialogRenderExtra?: (record: TableRow) => React.ReactNode; // Extra content rendered in EditRecordModal
+  editDialogRenderExtra?: (record: TableRow, helpers?: { onClose: () => void }) => React.ReactNode; // Extra content rendered in EditRecordModal
   editDialogOnAfterSave?: (record: Record<string, unknown>) => Promise<void>; // Called after successful edit
 
   // View configuration

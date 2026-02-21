@@ -37,6 +37,8 @@ interface PoTaskPickerProps {
   selectedIdsRef: React.MutableRefObject<number[]>;
   assignmentField?: "costCentre" | "tender";
   entityLabel?: string;
+  /** Called when user clicks a linked record name (e.g., cost centre name in brackets) */
+  onNavigateToRecord?: (id: number) => void;
 }
 
 export function PoTaskPicker({
@@ -47,6 +49,7 @@ export function PoTaskPicker({
   selectedIdsRef,
   assignmentField = "tender",
   entityLabel = "Tender Section",
+  onNavigateToRecord,
 }: PoTaskPickerProps) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
   const [templateFilter, setTemplateFilter] = React.useState("all");
@@ -210,9 +213,23 @@ export function PoTaskPicker({
                 <span className="truncate">
                   {taskDisplay}
                   {isAssignedElsewhere && (
-                    <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
-                      ({assignedName || `${entityLabel} #${assignedId}`})
-                    </span>
+                    onNavigateToRecord && assignedId ? (
+                      <button
+                        type="button"
+                        className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onNavigateToRecord(assignedId);
+                        }}
+                      >
+                        ({assignedName || `${entityLabel} #${assignedId}`})
+                      </button>
+                    ) : (
+                      <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                        ({assignedName || `${entityLabel} #${assignedId}`})
+                      </span>
+                    )
                   )}
                 </span>
               </label>

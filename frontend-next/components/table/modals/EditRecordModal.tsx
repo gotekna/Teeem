@@ -31,6 +31,8 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import {
   Pencil,
   Settings,
@@ -41,6 +43,7 @@ import {
   ChevronUp,
   Check,
   AlertCircle,
+  List,
 } from "lucide-react";
 import { useToast } from '@/components/ui/use-toast';
 import { api } from '@/lib/api';
@@ -133,6 +136,115 @@ function SortableFieldItem({
   );
 }
 
+/**
+ * Shows a checkbox to reveal existing values for a field.
+ * Auto-expands when there's a uniqueness error. User can also toggle manually.
+ */
+function ExistingValuesToggle({
+  columnKey,
+  columnLabel,
+  foundationId,
+  existingValues,
+  setExistingValues,
+  showExisting,
+  setShowExisting,
+  fieldError,
+  currentValue,
+}: {
+  columnKey: string;
+  columnLabel: string;
+  foundationId: number | string;
+  existingValues: Record<string, string[]>;
+  setExistingValues: React.Dispatch<React.SetStateAction<Record<string, string[]>>>;
+  showExisting: Record<string, boolean>;
+  setShowExisting: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  fieldError?: string;
+  currentValue: string;
+}) {
+  const isOpen = showExisting[columnKey] ?? false;
+  const values = existingValues[columnKey];
+  const [loading, setLoading] = useState(false);
+
+  // Auto-expand when there's a uniqueness error
+  useEffect(() => {
+    if (fieldError?.toLowerCase().includes('already been taken') && !isOpen) {
+      setShowExisting((prev) => ({ ...prev, [columnKey]: true }));
+    }
+  }, [fieldError, columnKey, isOpen, setShowExisting]);
+
+  const handleToggle = (checked: boolean) => {
+    setShowExisting((prev) => ({ ...prev, [columnKey]: checked }));
+
+    // Fetch existing values on first open (if not already loaded)
+    if (checked && !values) {
+      setLoading(true);
+      api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/${foundationId}/records?per_page=1000`
+      ).then((response) => {
+        const records = response?.records || [];
+        const vals = records
+          .map((r) => r[columnKey])
+          .filter((v): v is string | number => v != null && v !== '')
+          .map(String);
+        // Sort: numbers first (numerically), then strings (alphabetically)
+        const nums = vals.filter((v) => /^\d+$/.test(v)).sort((a, b) => Number(a) - Number(b));
+        const strs = vals.filter((v) => !/^\d+$/.test(v)).sort((a, b) => a.localeCompare(b));
+        setExistingValues((prev) => ({ ...prev, [columnKey]: [...nums, ...strs] }));
+      }).catch(() => {
+        setExistingValues((prev) => ({ ...prev, [columnKey]: [] }));
+      }).finally(() => {
+        setLoading(false);
+      });
+    }
+  };
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-center gap-1.5">
+        <Checkbox
+          id={`show-existing-${columnKey}`}
+          checked={isOpen}
+          onCheckedChange={(checked) => handleToggle(checked === true)}
+          className="h-3.5 w-3.5"
+        />
+        <Label
+          htmlFor={`show-existing-${columnKey}`}
+          className="text-[11px] text-muted-foreground cursor-pointer select-none"
+        >
+          Show existing {columnLabel.toLowerCase()} values
+        </Label>
+      </div>
+      {isOpen && (
+        <div className="mt-1.5 max-h-[120px] overflow-y-auto rounded border bg-muted/30 p-2">
+          {loading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Spinner size={12} /> Loading...
+            </div>
+          ) : values && values.length > 0 ? (
+            <div className="flex flex-wrap gap-1">
+              {values.map((val) => (
+                <span
+                  key={val}
+                  className={cn(
+                    "inline-block px-1.5 py-0.5 rounded text-[11px] font-mono",
+                    val === currentValue
+                      ? "bg-destructive/15 text-destructive font-semibold ring-1 ring-destructive/30"
+                      : "bg-background text-foreground border"
+                  )}
+                >
+                  {val}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">No existing values</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export interface EditRecordModalProps {
   /** Whether modal is open */
   open: boolean;
@@ -159,7 +271,7 @@ export interface EditRecordModalProps {
   onSuccess?: () => void;
 
   /** Extra content rendered below form fields (e.g., PO Task picker) */
-  renderExtraContent?: (record: TableRowType) => React.ReactNode;
+  renderExtraContent?: (record: TableRowType, helpers?: { onClose: () => void }) => React.ReactNode;
 
   /** Called after successful save with the record data */
   onAfterSave?: (record: Record<string, unknown>) => Promise<void>;
@@ -184,6 +296,8 @@ export function EditRecordModal({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [existingValues, setExistingValues] = useState<Record<string, string[]>>({});
+  const [showExisting, setShowExisting] = useState<Record<string, boolean>>({});
   const [showFieldConfig, setShowFieldConfig] = useState(false);
   const [showMoreFields, setShowMoreFields] = useState(false);
 
@@ -433,6 +547,33 @@ export function EditRecordModal({
         }
         if (Object.keys(newFieldErrors).length > 0) {
           setFieldErrors(newFieldErrors);
+
+          // For uniqueness errors ("already been taken"), fetch existing values
+          const uniquenessFields = Object.entries(newFieldErrors)
+            .filter(([, msg]) => msg.toLowerCase().includes('already been taken'))
+            .map(([key]) => key);
+
+          if (uniquenessFields.length > 0) {
+            api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+              `/api/v1/foundations/${foundationId}/records?per_page=1000`
+            ).then((response) => {
+              const records = response?.records || [];
+              const newExisting: Record<string, string[]> = {};
+              for (const fieldKey of uniquenessFields) {
+                const values = records
+                  .map((r) => r[fieldKey])
+                  .filter((v): v is string | number => v != null && v !== '')
+                  .map(String);
+                // Sort: numbers first (numerically), then strings (alphabetically)
+                const nums = values.filter((v) => /^\d+$/.test(v)).sort((a, b) => Number(a) - Number(b));
+                const strs = values.filter((v) => !/^\d+$/.test(v)).sort((a, b) => a.localeCompare(b));
+                newExisting[fieldKey] = [...nums, ...strs];
+              }
+              setExistingValues((prev) => ({ ...prev, ...newExisting }));
+            }).catch(() => {
+              // Silently fail - existing values are a nice-to-have
+            });
+          }
         }
       }
     } finally {
@@ -467,6 +608,8 @@ export function EditRecordModal({
         setShowFieldConfig(false);
         setSaveError(null);
         setFieldErrors({});
+        setExistingValues({});
+        setShowExisting({});
       }
     }}>
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto p-6">
@@ -545,13 +688,25 @@ export function EditRecordModal({
           {getSortedColumns()
             .filter((col) => visibleFields.has(col.key))
             .map((col) => (
-              <RecordFormField
-                key={col.key}
-                column={toColumnDefinition(col)}
-                value={formData[col.key]}
-                onChange={handleFieldChange}
-                error={fieldErrors[col.key]}
-              />
+              <div key={col.key}>
+                <RecordFormField
+                  column={toColumnDefinition(col)}
+                  value={formData[col.key]}
+                  onChange={handleFieldChange}
+                  error={fieldErrors[col.key]}
+                />
+                <ExistingValuesToggle
+                  columnKey={col.key}
+                  columnLabel={col.label}
+                  foundationId={foundationId}
+                  existingValues={existingValues}
+                  setExistingValues={setExistingValues}
+                  showExisting={showExisting}
+                  setShowExisting={setShowExisting}
+                  fieldError={fieldErrors[col.key]}
+                  currentValue={String(formData[col.key] ?? '')}
+                />
+              </div>
             ))}
         </div>
 
@@ -593,7 +748,7 @@ export function EditRecordModal({
         )}
 
         {/* Extra content from parent (e.g., PO Task picker for Cost Centres) */}
-        {record && renderExtraContent?.(record)}
+        {record && renderExtraContent?.(record, { onClose: () => onOpenChange(false) })}
 
         <div className="sticky bottom-0 bg-background pt-2 space-y-3 -mx-6 px-6 -mb-6 pb-6 border-t">
           {saveError && (
