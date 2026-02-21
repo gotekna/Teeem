@@ -1281,12 +1281,11 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           <div className="flex">
             {/* Left column headers */}
             <div className="w-3/5 min-w-0">
-              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "12% 1fr 6% 8% 5% 9% 60px" }}>
+              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "12% 1fr 6% 8% 14% 60px" }}>
                 <div className="px-2 text-left">Code</div>
                 <div className="px-2 text-left">Description</div>
                 <div className="px-2 text-right">Qty</div>
                 <div className="px-2 text-right">Price</div>
-                <div className="px-1 text-center">GST</div>
                 <div className="px-2 text-right">Amount</div>
                 <div className="px-1 text-center">Type</div>
               </div>
@@ -1732,7 +1731,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           cls === "pc" && "!bg-blue-50/50 dark:!bg-blue-950/20",
                                           cls === "ps" && "!bg-violet-50/50 dark:!bg-violet-950/20",
                                         )}
-                                        style={{ gridTemplateColumns: "12% 1fr 6% 8% 5% 9% 60px" }}
+                                        style={{ gridTemplateColumns: "12% 1fr 6% 8% 14% 60px" }}
                                       >
                                         {/* Code */}
                                         <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40 min-w-0 overflow-hidden", isExcluded && "line-through")}>
@@ -1881,16 +1880,14 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           )}
                                         </div>
 
-                                        {/* GST */}
-                                        <div className="text-center px-1 py-1 text-xs">{row.gstCode}</div>
-
-                                        {/* Amount */}
+                                        {/* Amount (with GST prefix) */}
                                         <div className={cn(
                                           "text-right px-2 py-1 text-sm font-mono tabular-nums flex items-center justify-end gap-1",
                                           isExcluded && "line-through",
                                           isDirty && "font-semibold text-amber-700 dark:text-amber-400",
                                           isNewLine && "font-semibold text-green-700 dark:text-green-400",
                                         )}>
+                                          <span className="text-[10px] text-muted-foreground font-sans">{row.gstCode}</span>
                                           <span>{formatCurrency(row.amount)}</span>
                                           <Button
                                             variant="ghost"
