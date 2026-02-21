@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
-  Plus, Undo2, X,
+  Plus, Undo2, X, Camera, ImagePlus, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -42,6 +42,8 @@ interface BOQApiGroup {
     gstCode: string;
     subtotal: number;
     pricebookItemCode: string | null;
+    hasPricebookImage: boolean;
+    pricebookItemId: number | null;
     profitCentreId: number | null;
     profitCentreName: string | null;
   }>;
@@ -66,6 +68,34 @@ interface ItemOverride {
   unitPrice?: number;
 }
 
+/** Tender line classification */
+type TenderClassification = "included" | "incl_hidden" | "excluded" | "pc" | "ps";
+
+/** PO-level classification options */
+type POClassification = "per_item" | "per_po_incl" | "per_po_nt" | "per_po_exc" | "per_po_pc" | "per_po_ps";
+
+const CLASSIFICATION_LABELS: Record<TenderClassification, string> = {
+  included: "Included",
+  incl_hidden: "Incl (No Tender)",
+  excluded: "Excluded",
+  pc: "Prime Cost",
+  ps: "Prov. Sum",
+};
+
+/** Strip common task name prefixes to get a clean tender description */
+function cleanTaskName(taskName: string | null | undefined): string {
+  if (!taskName) return "";
+  return taskName
+    .replace(/^Request\s+For\s+/i, "")
+    .replace(/^Req\s+/i, "")
+    .replace(/^Do\s+/i, "")
+    .replace(/^Supply\s+(&|and)\s+Install\s+/i, "")
+    .replace(/^Supply\s+/i, "")
+    .replace(/^Install\s+/i, "")
+    .replace(/^[-–—]\s*/, "") // strip leading dash left after prefix removal
+    .trim();
+}
+
 /** A custom line item added by the user (not from a PO) */
 interface NewTenderLine {
   tempId: string;
@@ -76,10 +106,32 @@ interface NewTenderLine {
   unitPrice: number;
 }
 
-/** Unified row types: Header → Section → PO → Items → PO Footer */
+/** Tender tree section from /api/v1/tenders/tree */
+interface TenderTreeSection {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  sectionType: string;
+  defaultNote: string | null;
+  description: string | null;
+}
+interface TenderTreeHeader {
+  id: number;
+  code: string;
+  name: string;
+  sortOrder: number;
+  sectionType: string;
+  defaultNote: string | null;
+  description: string | null;
+  children: TenderTreeSection[];
+}
+
+/** Unified row types: Header → Section → (Cost Centre) → PO → Items → PO Footer */
 type UnifiedRow =
   | { type: "header"; name: string; subtotal: number; itemCount: number }
   | { type: "section"; name: string; headerName: string; subtotal: number; itemCount: number; poCount: number }
+  | { type: "cost-centre"; name: string; headerName: string; sectionName: string }
   | {
       type: "po";
       poId: string | number;
@@ -99,7 +151,10 @@ type UnifiedRow =
       lineNum: number;
       poId: string | number;
       poName: string;
+      taskName: string | null | undefined;
       pricebookCode: string | null | undefined;
+      hasPricebookImage: boolean;
+      pricebookItemId: number | null | undefined;
       description: string;
       quantity: number;
       unitPrice: number;
@@ -149,18 +204,45 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   const [creatingTender, setCreatingTender] = useState(false);
   const [collapsedHeaders, setCollapsedHeaders] = useState<Set<string>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [collapsedCostCentres, setCollapsedCostCentres] = useState<Set<string>>(new Set());
+  const [ccSubtotalEnabled, setCCSubtotalEnabled] = useState<Set<string>>(new Set());
   const [collapsedPOs, setCollapsedPOs] = useState<Set<string>>(new Set());
+
+  // Grouping options
+  const [groupByCostCentre, setGroupByCostCentre] = useState(true);
 
   // Editing state
   const [editOverrides, setEditOverrides] = useState<Map<string, ItemOverride>>(new Map());
   const [newLines, setNewLines] = useState<NewTenderLine[]>([]);
+  const [itemClassifications, setItemClassifications] = useState<Map<string, TenderClassification>>(new Map());
+  const [poClassifications, setPOClassifications] = useState<Map<string | number, POClassification>>(new Map());
+
+  // Tender tree (all headers/sections) and user-edited section notes
+  const [tenderTree, setTenderTree] = useState<TenderTreeHeader[]>([]);
+  const [sectionNotes, setSectionNotes] = useState<Map<string, string>>(new Map());
+
+  // Image upload
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingImageForId, setUploadingImageForId] = useState<number | null>(null);
 
   const hasEdits = editOverrides.size > 0 || newLines.length > 0;
   const editCount = editOverrides.size + newLines.length;
 
   useEffect(() => {
     loadBOQData();
+    loadTenderTree();
   }, [jobId]);
+
+  const loadTenderTree = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: TenderTreeHeader[] }>("/api/v1/tenders/tree");
+      if (response?.success && response.data) {
+        setTenderTree(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to load tender tree:", err);
+    }
+  };
 
   const loadBOQData = async () => {
     try {
@@ -195,6 +277,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         quantity: item.quantity, unitPrice: item.unitPrice,
         gstCode: item.gstCode, subtotal: item.subtotal,
         pricebookItemCode: item.pricebookItemCode,
+        hasPricebookImage: item.hasPricebookImage || false,
+        pricebookItemId: item.pricebookItemId,
         profitCentreId: item.profitCentreId,
         profitCentreName: item.profitCentreName,
       })),
@@ -248,6 +332,50 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     setNewLines([]);
   }, []);
 
+  /** Set classification for a line item */
+  const setClassification = useCallback((key: string, cls: TenderClassification) => {
+    setItemClassifications((prev) => {
+      const next = new Map(prev);
+      if (cls === "included") {
+        next.delete(key); // default is included, no need to store
+      } else {
+        next.set(key, cls);
+      }
+      return next;
+    });
+  }, []);
+
+  /** Set classification at the PO level */
+  const setPOClassification = useCallback((poId: string | number, cls: POClassification) => {
+    setPOClassifications((prev) => {
+      const next = new Map(prev);
+      if (cls === "per_item") {
+        next.delete(poId);
+      } else {
+        next.set(poId, cls);
+      }
+      return next;
+    });
+  }, []);
+
+  /** Get PO-level classification (default: per_item) */
+  const getPOClassification = useCallback((poId: string | number): POClassification => {
+    return poClassifications.get(poId) || "per_item";
+  }, [poClassifications]);
+
+  /** Get effective classification for a line item — PO-level overrides item-level */
+  const getClassification = useCallback((key: string, poId?: string | number): TenderClassification => {
+    if (poId !== undefined) {
+      const poCls = poClassifications.get(poId);
+      if (poCls === "per_po_pc") return "pc";
+      if (poCls === "per_po_ps") return "ps";
+      if (poCls === "per_po_incl") return "included";
+      if (poCls === "per_po_nt") return "incl_hidden";
+      if (poCls === "per_po_exc") return "excluded";
+    }
+    return itemClassifications.get(key) || "included";
+  }, [itemClassifications, poClassifications]);
+
   // ─── Build unified rows ──────────────────────────────────────────
 
   const unifiedRows = useMemo((): UnifiedRow[] => {
@@ -285,7 +413,25 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         rows.push({ type: "section", name: sectionName, headerName, subtotal: 0, itemCount: 0, poCount: poMap.size });
 
         let lineNum = 0;
-        for (const [poId, { group, items }] of poMap) {
+        // Sort POs by cost centre when grouping is enabled
+        const poEntries = Array.from(poMap.entries());
+        if (groupByCostCentre) {
+          poEntries.sort((a, b) => {
+            const ccA = a[1].group.costCentreName || "";
+            const ccB = b[1].group.costCentreName || "";
+            return ccA.localeCompare(ccB);
+          });
+        }
+        let lastCostCentre: string | null = null;
+        for (const [poId, { group, items }] of poEntries) {
+          // Insert cost centre sub-header when it changes
+          if (groupByCostCentre) {
+            const cc = group.costCentreName || "Uncategorised";
+            if (cc !== lastCostCentre) {
+              lastCostCentre = cc;
+              rows.push({ type: "cost-centre", name: cc, headerName, sectionName });
+            }
+          }
           let poTotal = 0;
           const poIdx = rows.length;
           rows.push({
@@ -307,7 +453,10 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               type: "item",
               key,
               lineNum, poId, poName: group.name,
+              taskName: group.taskName,
               pricebookCode: item.pricebookItemCode,
+              hasPricebookImage: item.hasPricebookImage || false,
+              pricebookItemId: item.pricebookItemId,
               description: getEffective(key, "description", item.description) as string,
               quantity: effQty, unitPrice: effPrice, gstCode: item.gstCode,
               amount, headerName, sectionName,
@@ -326,7 +475,10 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               type: "item",
               key: nl.tempId,
               lineNum, poId: "custom", poName: "Custom",
+              taskName: null,
               pricebookCode: null,
+              hasPricebookImage: false,
+              pricebookItemId: null,
               description: nl.description,
               quantity: nl.quantity, unitPrice: nl.unitPrice, gstCode: "GST",
               amount, headerName, sectionName,
@@ -357,7 +509,75 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     }
 
     return rows;
-  }, [boqGroups, editOverrides, newLines, getEffective]);
+  }, [boqGroups, editOverrides, newLines, getEffective, groupByCostCentre]);
+
+  // Auto-default qty=0 items to "excluded" (only on initial load, not overriding manual changes)
+  const [autoDefaultApplied, setAutoDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (autoDefaultApplied || !unifiedRows.length) return;
+    const defaults = new Map<string, TenderClassification>();
+    for (const row of unifiedRows) {
+      if (row.type === "item" && row.quantity === 0 && !row.isNewLine) {
+        defaults.set(row.key, "excluded");
+      }
+    }
+    if (defaults.size > 0) {
+      setItemClassifications((prev) => {
+        const next = new Map(prev);
+        for (const [key, cls] of defaults) {
+          if (!next.has(key)) next.set(key, cls);
+        }
+        return next;
+      });
+    }
+    setAutoDefaultApplied(true);
+  }, [unifiedRows, autoDefaultApplied]);
+
+  /** Trigger file picker for image upload */
+  const triggerImageUpload = useCallback((pricebookItemId: number) => {
+    setUploadingImageForId(pricebookItemId);
+    imageInputRef.current?.click();
+  }, []);
+
+  /** Handle file selection and upload */
+  const handleImageFileSelected = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadingImageForId) {
+      setUploadingImageForId(null);
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      await api.postFormData(`/api/v1/pricebook/${uploadingImageForId}/upload_image`, formData);
+
+      // Optimistic update: mark all items with this pricebook ID as having an image
+      setBOQData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          groups: prev.groups.map((g) => ({
+            ...g,
+            items: g.items.map((item) =>
+              item.pricebookItemId === uploadingImageForId
+                ? { ...item, hasPricebookImage: true }
+                : item
+            ),
+          })),
+        };
+      });
+
+      toast.success("Image uploaded");
+    } catch (err) {
+      console.error("Image upload failed:", err);
+      toast.error("Failed to upload image");
+    } finally {
+      setUploadingImageForId(null);
+      // Reset file input so same file can be re-selected
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  }, [uploadingImageForId]);
 
   const handleToggleExclude = useCallback((key: string) => {
     setExcludedIds((prev) => {
@@ -383,6 +603,22 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     });
   }, []);
 
+  const toggleCostCentre = useCallback((key: string) => {
+    setCollapsedCostCentres((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
+  const toggleCCSubtotal = useCallback((key: string) => {
+    setCCSubtotalEnabled((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }, []);
+
   const togglePO = useCallback((key: string) => {
     setCollapsedPOs((prev) => {
       const next = new Set(prev);
@@ -391,29 +627,42 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     });
   }, []);
 
-  /** Compute totals considering overrides and exclusions */
+  /** Compute totals considering overrides, exclusions, and classifications */
   const totals = useMemo(() => {
     let included = 0;
     let excluded = 0;
+    let pcTotal = 0;
+    let psTotal = 0;
     let includedCount = 0;
     let excludedCount = 0;
+    let pcCount = 0;
+    let psCount = 0;
 
     for (const row of unifiedRows) {
       if (row.type !== "item") continue;
-      if (excludedIds.has(row.key)) {
+      const cls = excludedIds.has(row.key) ? "excluded" as const : getClassification(row.key, row.poId);
+      if (cls === "excluded") {
         excluded += row.amount;
         excludedCount++;
+      } else if (cls === "pc") {
+        pcTotal += row.amount;
+        pcCount++;
+      } else if (cls === "ps") {
+        psTotal += row.amount;
+        psCount++;
       } else {
+        // included + incl_hidden both count toward base price
         included += row.amount;
         includedCount++;
       }
     }
 
-    return { includedTotal: included, excludedTotal: excluded, includedCount, excludedCount };
-  }, [unifiedRows, excludedIds]);
+    return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount };
+  }, [unifiedRows, excludedIds, getClassification]);
 
   /** Group unified rows into header → section → content for two-panel rendering */
   const groupedRows = useMemo((): HeaderGroup[] => {
+    // First pass: group PO-backed rows into header > section structure
     const groups: HeaderGroup[] = [];
     let currentHeader: HeaderGroup | null = null;
     let currentSection: SectionGroup | null = null;
@@ -431,15 +680,127 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       }
     }
 
+    // Second pass: merge in empty sections from the tender tree
+    // This ensures every header/section appears even with no PO items
+    if (tenderTree.length > 0) {
+      const existingHeaders = new Set(groups.map((g) => g.headerRow.name));
+      const existingSections = new Set(
+        groups.flatMap((g) => g.sections.map((s) => `${g.headerRow.name}::${s.sectionRow.name}`))
+      );
+
+      for (const treeHeader of tenderTree) {
+        let headerGroup = groups.find((g) => g.headerRow.name === treeHeader.name);
+        if (!headerGroup) {
+          // Header doesn't exist yet - add it with all its empty sections
+          headerGroup = {
+            headerRow: {
+              type: "header" as const,
+              name: treeHeader.name,
+              subtotal: 0,
+              itemCount: 0,
+            },
+            sections: [],
+          };
+          groups.push(headerGroup);
+        }
+
+        // Add any missing sections under this header
+        for (const treeSection of treeHeader.children) {
+          const sectionKey = `${treeHeader.name}::${treeSection.name}`;
+          if (!existingSections.has(sectionKey)) {
+            headerGroup.sections.push({
+              sectionRow: {
+                type: "section" as const,
+                name: treeSection.name,
+                headerName: treeHeader.name,
+                subtotal: 0,
+                itemCount: 0,
+                poCount: 0,
+              },
+              contentRows: [], // Empty - no PO items
+            });
+            existingSections.add(sectionKey);
+          }
+        }
+
+        // Sort sections within each header by the tender tree order
+        const sectionOrder = new Map(treeHeader.children.map((s, i) => [s.name, i]));
+        headerGroup.sections.sort((a, b) => {
+          const aOrder = sectionOrder.get(a.sectionRow.name) ?? 999;
+          const bOrder = sectionOrder.get(b.sectionRow.name) ?? 999;
+          return aOrder - bOrder;
+        });
+      }
+
+      // Sort headers by the tender tree order
+      const headerOrder = new Map(tenderTree.map((h, i) => [h.name, i]));
+      groups.sort((a, b) => {
+        const aOrder = headerOrder.get(a.headerRow.name) ?? 999;
+        const bOrder = headerOrder.get(b.headerRow.name) ?? 999;
+        return aOrder - bOrder;
+      });
+    }
+
     return groups;
-  }, [unifiedRows]);
+  }, [unifiedRows, tenderTree]);
+
+  /** Look up tender tree section data by section name */
+  const tenderTreeSectionMap = useMemo(() => {
+    const map = new Map<string, TenderTreeSection>();
+    for (const header of tenderTree) {
+      for (const section of header.children) {
+        map.set(section.name, section);
+      }
+    }
+    return map;
+  }, [tenderTree]);
+
+  /** Get the note text for an empty section (user-edited or default) */
+  const getSectionNote = useCallback((sectionName: string): string => {
+    // User-edited note takes priority
+    const userNote = sectionNotes.get(sectionName);
+    if (userNote !== undefined) return userNote;
+    // Fall back to tender tree defaults
+    const treeSection = tenderTreeSectionMap.get(sectionName);
+    if (treeSection) {
+      return treeSection.defaultNote || treeSection.description || treeSection.name;
+    }
+    return sectionName;
+  }, [sectionNotes, tenderTreeSectionMap]);
+
+  /** Update the note for an empty section */
+  const updateSectionNote = useCallback((sectionName: string, note: string) => {
+    setSectionNotes((prev) => {
+      const next = new Map(prev);
+      next.set(sectionName, note);
+      return next;
+    });
+  }, []);
 
   const handleCreateTender = useCallback(async () => {
     try {
       setCreatingTender(true);
-      const excludedLineItemIds = Array.from(excludedIds)
-        .filter((key) => !key.startsWith("new_"))
-        .map((key) => key.split(":")[1]);
+
+      // Build item classifications map: { lineItemId: classification }
+      // Items in excludedIds set are treated as "excluded"
+      const itemClsMap: Record<string, string> = {};
+      for (const [key, cls] of itemClassifications) {
+        if (key.startsWith("new_")) continue;
+        const lineItemId = key.split(":")[1];
+        if (lineItemId) itemClsMap[lineItemId] = cls;
+      }
+      // Legacy excludedIds → mark as excluded (override any classification)
+      for (const key of excludedIds) {
+        if (key.startsWith("new_")) continue;
+        const lineItemId = key.split(":")[1];
+        if (lineItemId) itemClsMap[lineItemId] = "excluded";
+      }
+
+      // Build PO classifications map: { poId: poClassification }
+      const poClsMap: Record<string, string> = {};
+      for (const [poId, cls] of poClassifications) {
+        poClsMap[String(poId)] = cls;
+      }
 
       const itemOverrides: Record<string, { description?: string; quantity?: number; unit_price?: number }> = {};
       for (const [key, override] of editOverrides) {
@@ -463,12 +824,20 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           unit_price: nl.unitPrice,
         }));
 
+      // Build section notes map: { sectionName: userEditedNote }
+      const sectionNotesMap: Record<string, string> = {};
+      for (const [sectionName, noteText] of sectionNotes) {
+        if (noteText.trim()) sectionNotesMap[sectionName] = noteText;
+      }
+
       const response = await api.post<{ success: boolean; data: { id: number } }>(
         `/api/v1/jobs/${jobId}/tender_documents`,
         {
-          excluded_line_item_ids: excludedLineItemIds,
+          item_classifications: itemClsMap,
+          po_classifications: poClsMap,
           item_overrides: itemOverrides,
           additional_items: additionalItems,
+          section_notes: sectionNotesMap,
         }
       );
 
@@ -484,7 +853,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -535,6 +904,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // Column layout: ☑ | Code | Sup | Description | Qty | Price | GST | Amount
   return (
     <div className="flex flex-col h-full">
+      {/* Hidden file input for pricebook image uploads */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleImageFileSelected}
+      />
+
       {/* Top toolbar */}
       <div className="flex items-center justify-between gap-3 pb-2 shrink-0">
         <div className="flex items-center gap-2">
@@ -560,6 +938,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               Discard edits
             </Button>
           )}
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={groupByCostCentre}
+              onChange={(e) => setGroupByCostCentre(e.target.checked)}
+              className="rounded border-border"
+            />
+            Cost Centre
+          </label>
           <Button variant="outline" size="sm" onClick={loadBOQData}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
@@ -570,19 +957,19 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       {/* Scrollable content area */}
       <div className="flex-1 min-h-0 overflow-auto border rounded-md">
         {/* Column headers row */}
-        <div className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm border-b">
+        <div className="sticky top-0 z-10 bg-muted border-b">
           <div className="flex">
             {/* Left column headers */}
             <div className="w-3/5 min-w-0">
-              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "36px 12% 5% 1fr 8% 10% 5% 10%" }}>
+              <div className="grid text-xs uppercase tracking-wider font-medium text-muted-foreground py-2" style={{ gridTemplateColumns: "36px 10% 1fr 7% 9% 4% 9% 72px" }}>
                 <div className="px-1" />
                 <div className="px-2 text-left">Code</div>
-                <div className="px-1 text-center">Sup</div>
                 <div className="px-2 text-left">Description</div>
                 <div className="px-2 text-right">Qty</div>
                 <div className="px-2 text-right">Price</div>
                 <div className="px-1 text-center">GST</div>
                 <div className="px-2 text-right">Amount</div>
+                <div className="px-1 text-center">Type</div>
               </div>
             </div>
             {/* Right column header */}
@@ -599,11 +986,13 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           const { headerRow } = headerGroup;
           const isHeaderCollapsed = collapsedHeaders.has(headerRow.name);
 
-          // Compute included subtotal for the header
+          // Compute included subtotal for the header (included + incl_hidden, not PC/PS)
           const headerIncludedItems = headerGroup.sections.flatMap((s) =>
-            s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> =>
-              r.type === "item" && !excludedIds.has(r.key)
-            )
+            s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> => {
+              if (r.type !== "item" || excludedIds.has(r.key)) return false;
+              const c = getClassification(r.key, r.poId);
+              return c === "included" || c === "incl_hidden";
+            })
           );
           const headerIncludedTotal = headerIncludedItems.reduce((sum, r) => sum + r.amount, 0);
 
@@ -638,7 +1027,13 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                 const sectionItems = contentRows.filter(
                   (r): r is Extract<UnifiedRow, { type: "item" }> => r.type === "item"
                 );
-                const includedSectionItems = sectionItems.filter((r) => !excludedIds.has(r.key));
+                const includedSectionItems = sectionItems.filter(
+                  (r) => {
+                    if (excludedIds.has(r.key)) return false;
+                    const c = getClassification(r.key, r.poId);
+                    return c === "included" || c === "incl_hidden";
+                  }
+                );
                 const includedSubtotal = includedSectionItems.reduce((sum, r) => sum + r.amount, 0);
 
                 return (
@@ -656,27 +1051,74 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                       </div>
                       <div className="flex-1 font-medium text-foreground/80 text-sm">
                         {sectionRow.name}
-                        <Badge variant="outline" className="ml-2 text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
+                        {sectionRow.poCount > 0 ? (
+                          <Badge variant="outline" className="ml-2 text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
+                        ) : (
+                          <Badge variant="outline" className="ml-2 text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">Note</Badge>
+                        )}
                       </div>
                       <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
                         {formatCurrency(includedSubtotal)}
                       </div>
                     </div>
 
+                    {/* ── Empty section: note editing ── */}
+                    {!isSectionCollapsed && contentRows.length === 0 && (
+                      <div className="flex border-b">
+                        {/* Left: note editor */}
+                        <div className="w-3/5 min-w-0 px-4 py-3 bg-muted/10">
+                          <div className="flex items-start gap-2">
+                            <Badge variant="outline" className="text-[10px] shrink-0 mt-0.5 border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400">
+                              Note
+                            </Badge>
+                            <textarea
+                              value={getSectionNote(sectionRow.name)}
+                              onChange={(e) => updateSectionNote(sectionRow.name, e.target.value)}
+                              placeholder="Enter note for this section..."
+                              rows={2}
+                              className={cn(
+                                "flex-1 bg-transparent text-sm px-2 py-1 rounded border resize-none",
+                                "hover:border-border focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/20",
+                                sectionNotes.has(sectionRow.name)
+                                  ? "border-amber-300 dark:border-amber-700"
+                                  : "border-border/50",
+                              )}
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1 pl-12">
+                            No POs assigned. This note will appear in the tender document.
+                          </p>
+                        </div>
+                        {/* Right: preview */}
+                        <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 px-4 py-3 flex items-start">
+                          <span className="text-[13px] text-muted-foreground italic leading-snug">
+                            {getSectionNote(sectionRow.name)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* ── Two-panel content (builder left, preview right) ── */}
-                    {!isSectionCollapsed && (() => {
-                      // Group content rows by PO for row-aligned preview
-                      const poGroups: Array<{
+                    {!isSectionCollapsed && contentRows.length > 0 && (() => {
+                      // Group content rows into a sequence of cost-centre headers and PO groups
+                      type POGroup = {
                         poRow: Extract<UnifiedRow, { type: "po" }>;
                         items: Extract<UnifiedRow, { type: "item" }>[];
                         footer: Extract<UnifiedRow, { type: "po-footer" }> | null;
-                      }> = [];
-                      let currentPOGroup: (typeof poGroups)[number] | null = null;
+                      };
+                      type ContentBlock =
+                        | { kind: "cost-centre"; name: string }
+                        | { kind: "po-group"; pg: POGroup };
+
+                      const contentBlocks: ContentBlock[] = [];
+                      let currentPOGroup: POGroup | null = null;
 
                       for (const row of contentRows) {
-                        if (row.type === "po") {
+                        if (row.type === "cost-centre") {
+                          contentBlocks.push({ kind: "cost-centre", name: row.name });
+                        } else if (row.type === "po") {
                           currentPOGroup = { poRow: row, items: [], footer: null };
-                          poGroups.push(currentPOGroup);
+                          contentBlocks.push({ kind: "po-group", pg: currentPOGroup });
                         } else if (row.type === "item" && currentPOGroup) {
                           currentPOGroup.items.push(row);
                         } else if (row.type === "po-footer" && currentPOGroup) {
@@ -685,22 +1127,140 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                       }
 
                       let previewLineNum = 0;
+                      let activeCostCentreKey: string | null = null;
+                      let activeCCName: string | null = null;
+
+                      // Pre-compute cost centre subtotals for preview
+                      const ccSubtotals = new Map<string, number>();
+                      {
+                        let currentCCKey: string | null = null;
+                        for (const block of contentBlocks) {
+                          if (block.kind === "cost-centre") {
+                            currentCCKey = `${sKey}::cc::${block.name}`;
+                          } else if (block.kind === "po-group" && currentCCKey) {
+                            const poItems = block.pg.items.filter((r) => {
+                              if (excludedIds.has(r.key)) return false;
+                              const c = getClassification(r.key, r.poId);
+                              // Only count items that show a price in the tender (PC/PS)
+                              // Included items show description only (no price), so they don't add to subtotal
+                              return c === "pc" || c === "ps";
+                            });
+                            const total = poItems.reduce((sum, r) => sum + r.amount, 0);
+                            ccSubtotals.set(currentCCKey, (ccSubtotals.get(currentCCKey) || 0) + total);
+                          }
+                        }
+                      }
+
+                      // Track whether the next block is a new cost centre (to insert subtotal before it)
+                      const shouldShowCCSubtotal = (blockIdx: number): boolean => {
+                        if (!activeCostCentreKey || !ccSubtotalEnabled.has(activeCostCentreKey)) return false;
+                        // Show subtotal if next block is a cost-centre or we're at the end
+                        const next = contentBlocks[blockIdx + 1];
+                        return !next || next.kind === "cost-centre";
+                      };
 
                       return (
                         <div className="border-b">
-                          {poGroups.map((pg) => {
+                          {contentBlocks.map((block, blockIdx) => {
+                            if (block.kind === "cost-centre") {
+                              // If previous cost centre needs a subtotal, it was already rendered inline
+                              const ccKey = `${sKey}::cc::${block.name}`;
+                              activeCostCentreKey = ccKey;
+                              activeCCName = block.name;
+                              const isCCCollapsed = collapsedCostCentres.has(ccKey);
+                              const hasSubtotal = ccSubtotalEnabled.has(ccKey);
+                              // Extract just the descriptive part of the cost centre name (strip leading code like "100 - ")
+                              const ccDisplayName = block.name.replace(/^\d+\s*[-–—]\s*/, "").trim();
+                              return (
+                                <div key={`cc-${block.name}-${blockIdx}`} className="flex bg-muted/60">
+                                  {/* Left: builder cost centre row */}
+                                  <div
+                                    className="w-3/5 min-w-0 flex items-center border-b border-border/50 pl-8 pr-2 py-1 cursor-pointer hover:bg-muted/80"
+                                    onClick={() => toggleCostCentre(ccKey)}
+                                  >
+                                    <div className="shrink-0 w-5">
+                                      {isCCCollapsed
+                                        ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                        : <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                      }
+                                    </div>
+                                    <span className="flex-1 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                      {block.name}
+                                    </span>
+                                    {/* Toggle subtotal in tender preview */}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); toggleCCSubtotal(ccKey); }}
+                                      className={cn(
+                                        "text-[10px] px-1.5 py-0.5 rounded border",
+                                        hasSubtotal
+                                          ? "bg-primary/10 border-primary/30 text-primary font-medium"
+                                          : "border-transparent text-muted-foreground/50 hover:text-muted-foreground hover:border-border",
+                                      )}
+                                      title={hasSubtotal ? "Remove subtotal from tender" : "Show subtotal in tender"}
+                                    >
+                                      Subtotal
+                                    </button>
+                                  </div>
+                                  {/* Right: preview heading when subtotal is enabled */}
+                                  <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b border-border/50">
+                                    {hasSubtotal && (
+                                      <div className="px-4 py-1 flex items-center">
+                                        <span className="text-[11px] font-semibold uppercase tracking-wider text-primary/80">
+                                          {ccDisplayName}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Hide PO groups when their cost centre is collapsed
+                            if (activeCostCentreKey && collapsedCostCentres.has(activeCostCentreKey)) {
+                              return null;
+                            }
+
+                            const showCCSubAfter = shouldShowCCSubtotal(blockIdx);
+                            const pg = block.pg;
                             const poKey = `${sKey}::${pg.poRow.poId}`;
                             const isPOCollapsed = collapsedPOs.has(poKey);
                             const includedItems = pg.items.filter((r) => !excludedIds.has(r.key));
+                            const poLevelCls = getPOClassification(pg.poRow.poId);
+                            const isInCCWithSubtotal = activeCostCentreKey && ccSubtotalEnabled.has(activeCostCentreKey);
+
+                            // Pre-compute PO-level roll-up data for preview
+                            const poRollup = (() => {
+                              if (poLevelCls === "per_item") return null;
+                              const poTotal = includedItems.reduce((sum, r) => sum + r.amount, 0);
+                              const cleanName = cleanTaskName(pg.poRow.taskName) || pg.poRow.poName;
+                              const isPcPs = poLevelCls === "per_po_pc" || poLevelCls === "per_po_ps";
+                              const label = poLevelCls === "per_po_pc" ? "PC" : poLevelCls === "per_po_ps" ? "PS" : "";
+                              const colorClass = poLevelCls === "per_po_pc"
+                                ? "text-blue-700 dark:text-blue-400"
+                                : poLevelCls === "per_po_ps"
+                                  ? "text-violet-700 dark:text-violet-400"
+                                  : "";
+                              return { poTotal, cleanName, isPcPs, label, colorClass };
+                            })();
+                            let shownPORollup = false;
+                            const previewPad = isInCCWithSubtotal ? "pl-8 pr-4" : "px-4";
 
                             return (
-                              <div key={poKey} className="flex">
-                                {/* Left: Builder PO group */}
-                                <div className="w-3/5 min-w-0">
-                                  {/* PO header */}
+                              <>
+                              <div key={poKey}>
+                                {/* PO header row — spans both panels */}
+                                <div className="flex">
                                   <div
-                                    className="grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/30 bg-muted/20 py-1.5"
-                                    style={{ gridTemplateColumns: "36px 1fr auto" }}
+                                    className={cn(
+                                      "w-3/5 min-w-0 grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/60 bg-muted/40 py-1.5",
+                                      poLevelCls === "per_po_incl" && "!bg-emerald-50 dark:!bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
+                                      poLevelCls === "per_po_nt" && "!bg-amber-50 dark:!bg-amber-950/30 border-amber-200 dark:border-amber-800",
+                                      poLevelCls === "per_po_exc" && "!bg-orange-50 dark:!bg-orange-950/30 border-orange-200 dark:border-orange-800 opacity-40",
+                                      poLevelCls === "per_po_pc" && "!bg-blue-50 dark:!bg-blue-950/30 border-blue-200 dark:border-blue-800",
+                                      poLevelCls === "per_po_ps" && "!bg-violet-50 dark:!bg-violet-950/30 border-violet-200 dark:border-violet-800",
+                                    )}
+                                    style={{ gridTemplateColumns: "36px 1fr auto 76px" }}
                                     onClick={() => togglePO(poKey)}
                                   >
                                     <div className="pl-4">
@@ -726,23 +1286,123 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                       <span className="ml-2 text-[10px] text-muted-foreground">{pg.poRow.itemCount} Items</span>
                                     </div>
                                     <div />
-                                  </div>
-
-                                  {/* PO items */}
-                                  {!isPOCollapsed && pg.items.map((row) => {
-                                    const isExcluded = excludedIds.has(row.key);
-                                    const isNewLine = row.isNewLine || false;
-                                    const isDirty = !isNewLine && editOverrides.has(row.key);
-
-                                    return (
-                                      <div
-                                        key={row.key}
+                                    {/* PO-level classification dropdown */}
+                                    <div className="px-1" onClick={(e) => e.stopPropagation()}>
+                                      <select
+                                        value={poLevelCls}
+                                        onChange={(e) => setPOClassification(pg.poRow.poId, e.target.value as POClassification)}
                                         className={cn(
-                                          "grid items-center border-b border-border/30 hover:bg-muted/20 transition-colors text-sm",
-                                          isExcluded && "opacity-40",
-                                          isNewLine && "!bg-green-50 dark:!bg-green-950/30",
+                                          "w-full h-6 text-[10px] rounded border bg-transparent cursor-pointer",
+                                          "focus:outline-none focus:ring-1 focus:ring-primary/20",
+                                          poLevelCls === "per_item" && "border-border/60 text-muted-foreground",
+                                          poLevelCls === "per_po_incl" && "border-emerald-400 text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 font-medium",
+                                          poLevelCls === "per_po_nt" && "border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/50 font-medium",
+                                          poLevelCls === "per_po_exc" && "border-orange-400 text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/50 font-medium",
+                                          poLevelCls === "per_po_pc" && "border-blue-400 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/50 font-medium",
+                                          poLevelCls === "per_po_ps" && "border-violet-400 text-violet-700 dark:text-violet-400 bg-violet-100 dark:bg-violet-950/50 font-medium",
                                         )}
-                                        style={{ gridTemplateColumns: "36px 12% 5% 1fr 8% 10% 5% 10%" }}
+                                      >
+                                        <option value="per_item">Per Item</option>
+                                        <option value="per_po_incl">PO Incl</option>
+                                        <option value="per_po_nt">PO NT</option>
+                                        <option value="per_po_exc">PO Exc</option>
+                                        <option value="per_po_pc">PO PC</option>
+                                        <option value="per_po_ps">PO PS</option>
+                                      </select>
+                                    </div>
+                                  </div>
+                                  {/* Right: empty for PO header */}
+                                  <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b border-border/60" />
+                                </div>
+
+                                {/* PO item rows — each row spans both panels for perfect alignment */}
+                                {!isPOCollapsed && pg.items.map((row) => {
+                                  const isExcluded = excludedIds.has(row.key);
+                                  const isNewLine = row.isNewLine || false;
+                                  const isDirty = !isNewLine && editOverrides.has(row.key);
+
+                                  const poCls = getPOClassification(pg.poRow.poId);
+                                  const cls = getClassification(row.key, row.poId);
+
+                                  // Compute preview content for this row
+                                  let previewContent: React.ReactNode = null;
+                                  if (!isExcluded && cls !== "excluded") {
+                                    if (poRollup) {
+                                      // PO-level roll-up: first non-excluded item shows the summary
+                                      if (!shownPORollup) {
+                                        shownPORollup = true;
+                                        previewLineNum++;
+                                        if (poRollup.isPcPs) {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className={cn("flex-1 truncate text-[13px] font-medium", poRollup.colorClass)}>{poRollup.label} {poRollup.cleanName}</span>
+                                              <span className={cn("text-right tabular-nums font-mono text-[13px] shrink-0 ml-2 font-medium", poRollup.colorClass)}>{formatCurrency(poRollup.poTotal)}</span>
+                                            </div>
+                                          );
+                                        } else if (poLevelCls !== "per_po_nt") {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className="flex-1 truncate text-[13px]">{poRollup.cleanName}</span>
+                                            </div>
+                                          );
+                                        }
+                                        // per_po_nt: no preview content (hidden from tender)
+                                      }
+                                    } else {
+                                      // Item-level classification
+                                      const itemCls = getClassification(row.key, row.poId);
+                                      if (itemCls !== "incl_hidden" && itemCls !== "excluded") {
+                                        previewLineNum++;
+                                        if (itemCls === "pc") {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className="flex-1 truncate text-[13px]">
+                                                <span className="text-blue-700 dark:text-blue-400 mr-1.5">PC</span>
+                                                {cleanTaskName(row.taskName) || row.description || "—"}
+                                              </span>
+                                              <span className="text-right tabular-nums font-mono text-[13px] shrink-0 ml-2 text-blue-700 dark:text-blue-400">{formatCurrency(row.amount)}</span>
+                                            </div>
+                                          );
+                                        } else if (itemCls === "ps") {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className="flex-1 truncate text-[13px]">
+                                                <span className="text-violet-700 dark:text-violet-400 mr-1.5">PS</span>
+                                                {cleanTaskName(row.taskName) || row.description || "—"}
+                                              </span>
+                                              <span className="text-right tabular-nums font-mono text-[13px] shrink-0 ml-2 text-violet-700 dark:text-violet-400">{formatCurrency(row.amount)}</span>
+                                            </div>
+                                          );
+                                        } else {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className="flex-1 truncate text-[13px]">{row.description || "—"}</span>
+                                            </div>
+                                          );
+                                        }
+                                      }
+                                    }
+                                  }
+
+                                  return (
+                                    <div key={row.key} className="flex">
+                                      {/* Left: builder item */}
+                                      <div
+                                        className={cn(
+                                          "w-3/5 min-w-0 grid items-center border-b border-border/30 hover:bg-muted/20 transition-colors text-sm",
+                                          (isExcluded || cls === "excluded") && "opacity-40",
+                                          isNewLine && "!bg-green-50 dark:!bg-green-950/30",
+                                          cls === "excluded" && "!bg-orange-50/50 dark:!bg-orange-950/20",
+                                          cls === "incl_hidden" && "!bg-amber-50/50 dark:!bg-amber-950/20",
+                                          cls === "pc" && "!bg-blue-50/50 dark:!bg-blue-950/20",
+                                          cls === "ps" && "!bg-violet-50/50 dark:!bg-violet-950/20",
+                                        )}
+                                        style={{ gridTemplateColumns: "36px 10% 1fr 7% 9% 4% 9% 72px" }}
                                       >
                                         {/* Checkbox */}
                                         <div className="pl-3 py-1 flex justify-center">
@@ -772,16 +1432,32 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         </div>
 
                                         {/* Code */}
-                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground", isExcluded && "line-through")}>
+                                        <div className={cn("px-2 py-1 text-xs font-mono text-muted-foreground flex items-center gap-1 bg-muted/40", isExcluded && "line-through")}>
                                           {isNewLine
                                             ? <span className="italic text-green-600 dark:text-green-400">NEW</span>
-                                            : (row.pricebookCode || "—")
+                                            : (
+                                              <>
+                                                {row.hasPricebookImage ? (
+                                                  <span title="Has pricebook image">
+                                                    <Camera className="h-3 w-3 text-blue-500 dark:text-blue-400 shrink-0" />
+                                                  </span>
+                                                ) : row.pricebookItemId ? (
+                                                  uploadingImageForId === row.pricebookItemId ? (
+                                                    <Loader2 className="h-3 w-3 text-muted-foreground animate-spin shrink-0" />
+                                                  ) : (
+                                                    <button
+                                                      title="Upload pricebook image"
+                                                      className="hover:text-blue-500 transition-colors"
+                                                      onClick={() => triggerImageUpload(row.pricebookItemId!)}
+                                                    >
+                                                      <ImagePlus className="h-3 w-3 shrink-0" />
+                                                    </button>
+                                                  )
+                                                ) : null}
+                                                <span className="truncate">{row.pricebookCode || "—"}</span>
+                                              </>
+                                            )
                                           }
-                                        </div>
-
-                                        {/* Sup badge */}
-                                        <div className="text-center px-1 py-1">
-                                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">Sup</Badge>
                                         </div>
 
                                         {/* Description */}
@@ -876,13 +1552,45 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         )}>
                                           {formatCurrency(row.amount)}
                                         </div>
-                                      </div>
-                                    );
-                                  })}
 
-                                  {/* PO footer */}
-                                  {!isPOCollapsed && pg.footer && (
-                                    <div className="flex items-center border-b-2 border-border bg-muted/10 py-1">
+                                        {/* Classification dropdown — disabled when PO-level is set */}
+                                        <div className="px-1 py-1">
+                                          <select
+                                            value={cls}
+                                            disabled={poCls !== "per_item"}
+                                            onChange={(e) => setClassification(row.key, e.target.value as TenderClassification)}
+                                            className={cn(
+                                              "w-full h-6 text-[10px] rounded border bg-transparent cursor-pointer",
+                                              "focus:outline-none focus:ring-1 focus:ring-primary/20",
+                                              poCls !== "per_item" && "!opacity-40 cursor-not-allowed",
+                                              cls === "included" && "border-transparent text-muted-foreground",
+                                              cls === "excluded" && "border-orange-400 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30",
+                                              cls === "incl_hidden" && "border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30",
+                                              cls === "pc" && "border-blue-400 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30",
+                                              cls === "ps" && "border-violet-400 text-violet-700 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/30",
+                                            )}
+                                          >
+                                            <option value="included">Incl</option>
+                                            <option value="excluded">Exc</option>
+                                            <option value="incl_hidden">Incl NT</option>
+                                            <option value="pc">PC</option>
+                                            <option value="ps">PS</option>
+                                          </select>
+                                        </div>
+                                      </div>
+
+                                      {/* Right: preview for this item */}
+                                      <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 flex items-center border-b border-border/30">
+                                        {previewContent}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* PO footer row — spans both panels */}
+                                {!isPOCollapsed && pg.footer && (
+                                  <div className="flex">
+                                    <div className="w-3/5 min-w-0 flex items-center border-b-2 border-border bg-muted/10 py-1">
                                       <div className="pl-10">
                                         <Button
                                           variant="ghost"
@@ -901,45 +1609,27 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                         {formatCurrency(pg.footer.subtotal)}
                                       </div>
                                     </div>
-                                  )}
-                                </div>
-
-                                {/* Right: Preview for this PO group */}
-                                <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30">
-                                  {/* Spacer matching PO header height */}
-                                  <div className="h-[33px]" />
-
-                                  {/* Preview items aligned with left rows */}
-                                  {!isPOCollapsed && (
-                                    <div className="px-4">
-                                      {pg.items.map((item) => {
-                                        const isExcluded = excludedIds.has(item.key);
-                                        if (isExcluded) {
-                                          return <div key={item.key} className="h-[33px]" />;
-                                        }
-                                        previewLineNum++;
-                                        return (
-                                          <div
-                                            key={item.key}
-                                            className="flex items-center gap-2 h-[33px]"
-                                          >
-                                            <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">
-                                              {previewLineNum}.
-                                            </span>
-                                            <span className="flex-1 truncate text-[13px]">{item.description || "—"}</span>
-                                            <span className="text-right tabular-nums font-mono text-[13px] shrink-0 ml-2">
-                                              {formatCurrency(item.amount)}
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-
-                                      {/* Spacer matching PO footer height */}
-                                      {pg.footer && <div className="h-[29px]" />}
-                                    </div>
-                                  )}
-                                </div>
+                                    <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 border-b-2 border-border" />
+                                  </div>
+                                )}
                               </div>
+                              {/* Cost centre subtotal in preview — after last PO in this cost centre */}
+                              {showCCSubAfter && activeCostCentreKey && (
+                                <div className="flex">
+                                  <div className="w-3/5 min-w-0" />
+                                  <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 pl-8 pr-4">
+                                    <div className="flex items-baseline justify-between gap-3 py-1.5 border-t border-dashed border-primary/30">
+                                      <span className="text-[10px] text-primary/70 font-medium uppercase">
+                                        {(activeCCName || "").replace(/^\d+\s*[-–—]\s*/, "").trim()} subtotal
+                                      </span>
+                                      <span className="text-[12px] font-semibold tabular-nums font-mono">
+                                        {formatCurrency(ccSubtotals.get(activeCostCentreKey) || 0)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
                             );
                           })}
 
@@ -967,17 +1657,53 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
         {/* Grand totals (full width) */}
         <div className="border-t-2 border-primary/30 bg-muted/30">
+          {/* Base price subtotal (included items only) */}
           <div className="flex justify-end items-baseline px-4 py-2 gap-4">
-            <span className="font-semibold text-sm">Subtotal (ex GST)</span>
-            <span className="font-semibold tabular-nums text-sm w-28 text-right">{formatCurrency(totals.includedTotal)}</span>
+            <span className="font-semibold text-sm">Base Price (ex GST)</span>
+            <span className="font-semibold tabular-nums text-sm w-32 text-right">{formatCurrency(totals.includedTotal)}</span>
           </div>
+
+          {/* Prime Costs */}
+          {totals.pcCount > 0 && (
+            <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+              <span className="text-sm text-blue-700 dark:text-blue-400">
+                Prime Costs ({totals.pcCount} items)
+              </span>
+              <span className="tabular-nums text-sm w-32 text-right text-blue-700 dark:text-blue-400">{formatCurrency(totals.pcTotal)}</span>
+            </div>
+          )}
+
+          {/* Provisional Sums */}
+          {totals.psCount > 0 && (
+            <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+              <span className="text-sm text-violet-700 dark:text-violet-400">
+                Provisional Sums ({totals.psCount} items)
+              </span>
+              <span className="tabular-nums text-sm w-32 text-right text-violet-700 dark:text-violet-400">{formatCurrency(totals.psTotal)}</span>
+            </div>
+          )}
+
+          {/* Combined subtotal */}
+          {(totals.pcCount > 0 || totals.psCount > 0) && (
+            <div className="flex justify-end items-baseline px-4 py-1 gap-4 border-t border-border/50">
+              <span className="text-sm font-medium">Contract Sum (ex GST)</span>
+              <span className="font-medium tabular-nums text-sm w-32 text-right">
+                {formatCurrency(totals.includedTotal + totals.pcTotal + totals.psTotal)}
+              </span>
+            </div>
+          )}
+
           <div className="flex justify-end items-baseline px-4 py-1 gap-4">
             <span className="text-muted-foreground text-sm">GST (10%)</span>
-            <span className="text-muted-foreground tabular-nums text-sm w-28 text-right">{formatCurrency(totals.includedTotal * 0.1)}</span>
+            <span className="text-muted-foreground tabular-nums text-sm w-32 text-right">
+              {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 0.1)}
+            </span>
           </div>
           <div className="flex justify-end items-baseline px-4 py-2 gap-4 border-t">
             <span className="font-bold text-base">Total (inc GST)</span>
-            <span className="font-bold text-base tabular-nums w-28 text-right">{formatCurrency(totals.includedTotal * 1.1)}</span>
+            <span className="font-bold text-base tabular-nums w-32 text-right">
+              {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 1.1)}
+            </span>
           </div>
         </div>
       </div>
@@ -989,6 +1715,22 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             Included: <span className="font-medium text-foreground">{totals.includedCount} lines</span>
             {" "}({formatCurrency(totals.includedTotal)})
           </span>
+          {totals.pcCount > 0 && (
+            <>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-blue-600 dark:text-blue-400">
+                PC: {totals.pcCount} ({formatCurrency(totals.pcTotal)})
+              </span>
+            </>
+          )}
+          {totals.psCount > 0 && (
+            <>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-violet-600 dark:text-violet-400">
+                PS: {totals.psCount} ({formatCurrency(totals.psTotal)})
+              </span>
+            </>
+          )}
           {excludedIds.size > 0 && (
             <>
               <span className="text-muted-foreground">|</span>

@@ -30,16 +30,20 @@ module Api
 
       # POST /api/v1/jobs/:job_id/tender_documents
       def create
-        excluded_ids = params[:excluded_line_item_ids] || []
+        item_classifications = params[:item_classifications]&.to_unsafe_h || {}
+        po_classifications = params[:po_classifications]&.to_unsafe_h || {}
         item_overrides = params[:item_overrides]&.to_unsafe_h || {}
         additional_items = params[:additional_items]&.map { |ai| ai.to_unsafe_h } || []
+        section_notes = params[:section_notes]&.to_unsafe_h || {}
 
         service = TenderDocumentService.new(
           job: @job,
           user: current_user,
-          excluded_line_item_ids: excluded_ids,
+          item_classifications: item_classifications,
+          po_classifications: po_classifications,
           item_overrides: item_overrides,
-          additional_items: additional_items
+          additional_items: additional_items,
+          section_notes: section_notes
         )
         doc = service.create!
 

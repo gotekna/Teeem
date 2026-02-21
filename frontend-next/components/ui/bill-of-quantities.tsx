@@ -39,6 +39,8 @@ export interface BOQLineItem {
   gstCode: string;
   subtotal: number;
   pricebookItemCode?: string | null;
+  hasPricebookImage?: boolean;
+  pricebookItemId?: number | null;
   profitCentreId?: number | null;
   profitCentreName?: string | null;
 }

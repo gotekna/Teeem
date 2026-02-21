@@ -980,6 +980,7 @@ Rails.application.routes.draw do
           get :history
           post :fetch_image
           post :update_image
+          post :upload_image
           post :add_price
           post :set_default_supplier
           delete "price_histories/:history_id", to: "pricebook_items#delete_price_history"

@@ -916,6 +916,8 @@ module Api
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
                   pricebookItemCode: item.pricebook_item&.item_code,
+                  hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                  pricebookItemId: item.pricebook_item_id,
                   profitCentreId: item.profit_centre_id,
                   profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
@@ -969,6 +971,8 @@ module Api
                   gstCode: item.gst_code || "GST",
                   subtotal: item.total_amount.to_f,
                   pricebookItemCode: item.pricebook_item&.item_code,
+                  hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                  pricebookItemId: item.pricebook_item_id,
                   profitCentreId: item.profit_centre_id,
                   profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
                 }
@@ -990,6 +994,8 @@ module Api
                 gstCode: item.gst_code || "GST",
                 subtotal: item.total_amount.to_f,
                 pricebookItemCode: item.pricebook_item&.item_code,
+                hasPricebookImage: item.pricebook_item&.image_storage_blob_id.present?,
+                pricebookItemId: item.pricebook_item_id,
                 profitCentreId: item.profit_centre_id,
                 profitCentreName: pc ? "#{pc.code} - #{pc.name}" : nil
               }

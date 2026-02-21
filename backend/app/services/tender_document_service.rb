@@ -16,12 +16,15 @@
 class TenderDocumentService
   class CreationError < StandardError; end
 
-  def initialize(job:, user:, excluded_line_item_ids: [], item_overrides: {}, additional_items: [])
+  def initialize(job:, user:, item_classifications: {}, po_classifications: {}, item_overrides: {}, additional_items: [], section_notes: {}, builder_state: {})
     @job = job
     @user = user
-    @excluded_line_item_ids = excluded_line_item_ids.map(&:to_i).to_set
+    @item_classifications = item_classifications.transform_keys(&:to_s)
+    @po_classifications = po_classifications.transform_keys(&:to_s)
     @item_overrides = item_overrides.transform_keys(&:to_i)
     @additional_items = additional_items
+    @section_notes = section_notes.transform_keys(&:to_s)
+    @builder_state = builder_state.presence || {}
   end
 
   def create!
@@ -63,19 +66,75 @@ class TenderDocumentService
       tender_section = resolve_tender_section(po)
       tender_header = tender_section&.parent
 
-      po.line_items.ordered.each do |item|
+      po_cls = @po_classifications[po.id.to_s]
+
+      # PO-level classifications: skip or roll up the entire PO
+      if po_cls.in?(%w[per_po_nt per_po_exc])
+        # Skip entire PO
+        next
+      elsif po_cls.in?(%w[per_po_incl per_po_pc per_po_ps])
+        # Create ONE summary line for the entire PO
         section_name = tender_section&.name || "Unallocated"
         line_counter_by_section[section_name] += 1
         sections_with_items << tender_section&.id if tender_section
 
-        is_excluded = @excluded_line_item_ids.include?(item.id)
+        po_total = po.line_items.sum { |li| (li.quantity || 0).to_d * (li.unit_price || 0).to_d }
+        summary_type = case po_cls
+                       when "per_po_incl" then "included"
+                       when "per_po_pc" then "priced"
+                       when "per_po_ps" then "provisional"
+                       end
+
+        task_name = po.sm_task&.name || po.description || "Purchase Order"
+
+        doc.tender_document_items.create!(
+          tender_section_name: section_name,
+          tender_section_code: tender_section&.code,
+          section_sort_order: tender_section&.sort_order || 999,
+          section_type: tender_section&.section_type || "priced",
+          tender_header_name: tender_header&.name,
+          tender_header_code: tender_header&.code,
+          header_sort_order: tender_header&.sort_order || 999,
+          line_number: line_counter_by_section[section_name],
+          description: clean_task_name(task_name),
+          quantity: summary_type == "included" ? nil : 1,
+          unit: nil,
+          unit_price: summary_type == "included" ? nil : po_total,
+          total_amount: summary_type == "included" ? BigDecimal("0") : po_total,
+          gst_code: "GST",
+          item_type: summary_type,
+          source_purchase_order_id: po.id,
+          source_po_number: po.purchase_order_number,
+          cost_centre_name: po.cost_centre_from_task,
+          trade_name: po.trade_from_task
+        )
+        next
+      end
+
+      # per_item (default): process each line item with individual classifications
+      po.line_items.ordered.each do |item|
+        item_cls = @item_classifications[item.id.to_s] || "included"
+
+        # Skip excluded / hidden items
+        next if item_cls.in?(%w[excluded incl_hidden])
+
+        section_name = tender_section&.name || "Unallocated"
+        line_counter_by_section[section_name] += 1
+        sections_with_items << tender_section&.id if tender_section
+
+        # Map classification to item_type
+        mapped_type = case item_cls
+                      when "included" then "included"
+                      when "ps" then "provisional"
+                      else "priced" # "pc" or default
+                      end
 
         # Apply user overrides from the Tender Builder (description, quantity, unit_price)
         override = @item_overrides[item.id] || {}
         eff_description = override[:description] || override["description"] || item.description
         eff_quantity = (override[:quantity] || override["quantity"] || item.quantity).to_d
         eff_unit_price = (override[:unit_price] || override["unit_price"] || item.unit_price).to_d
-        eff_total = eff_quantity * eff_unit_price
+        eff_total = mapped_type == "included" ? BigDecimal("0") : eff_quantity * eff_unit_price
 
         doc.tender_document_items.create!(
           tender_section_name: section_name,
@@ -87,18 +146,17 @@ class TenderDocumentService
           header_sort_order: tender_header&.sort_order || 999,
           line_number: line_counter_by_section[section_name],
           description: eff_description,
-          quantity: eff_quantity,
-          unit: item.pricebook_item&.unit_of_measure,
-          unit_price: eff_unit_price,
+          quantity: mapped_type == "included" ? nil : eff_quantity,
+          unit: mapped_type == "included" ? nil : item.pricebook_item&.unit_of_measure,
+          unit_price: mapped_type == "included" ? nil : eff_unit_price,
           total_amount: eff_total,
           gst_code: item.gst_code || "GST",
-          item_type: tender_section&.section_type || "priced",
+          item_type: mapped_type,
           source_purchase_order_id: po.id,
           source_po_number: po.purchase_order_number,
           source_line_item_id: item.id,
           cost_centre_name: po.cost_centre_from_task,
-          trade_name: po.trade_from_task,
-          excluded: is_excluded
+          trade_name: po.trade_from_task
         )
       end
     end
@@ -110,11 +168,18 @@ class TenderDocumentService
     insert_additional_items!(doc, line_counter_by_section)
   end
 
-  # For sections with a default_note and no PO items, insert a placeholder item
-  # so the tender document shows "No allowance has been made for..." text.
+  # Insert placeholder items for ALL sections that have no PO items.
+  # Uses default_note → description → section name as fallback text.
+  # This ensures EVERY tender section/header appears in the document even when empty.
   def insert_default_note_items!(doc, sections_with_items)
-    Tender.sections.active.where.not(default_note: [nil, ""]).find_each do |section|
+    Tender.sections.active.ordered.includes(:parent).find_each do |section|
       next if sections_with_items.include?(section.id)
+
+      # User-edited note takes priority, then default_note, then description, then section name
+      note_text = @section_notes[section.name].presence ||
+                  section.default_note.presence ||
+                  section.description.presence ||
+                  section.name
 
       header = section.parent
       doc.tender_document_items.create!(
@@ -126,9 +191,9 @@ class TenderDocumentService
         tender_header_code: header&.code,
         header_sort_order: header&.sort_order || 999,
         line_number: 1,
-        description: section.default_note,
+        description: note_text,
         item_type: "note",
-        default_note: section.default_note
+        default_note: note_text
       )
     end
   end
@@ -168,6 +233,15 @@ class TenderDocumentService
     end
   end
 
+  # Clean task name for PO-level summary lines (strips "SM:" prefix, codes like "0101", etc.)
+  def clean_task_name(name)
+    cleaned = name.to_s.dup
+    cleaned.sub!(/\ASM:\s*/i, "")         # Remove "SM:" prefix
+    cleaned.sub!(/\A\d{3,4}\s+/, "")      # Remove leading numeric codes like "0101 "
+    cleaned.strip!
+    cleaned.presence || "Allowance"
+  end
+
   def resolve_tender_section(po)
     tender_id = po.sm_task&.sm_schedule_master&.tender_id
     return nil unless tender_id
@@ -176,12 +250,13 @@ class TenderDocumentService
   end
 
   def calculate_totals!(doc)
-    priced_items = doc.tender_document_items.where(item_type: "priced", excluded: false)
-    subtotal = priced_items.sum(:total_amount)
+    # Include both priced and provisional items in totals (not "included" or "note")
+    countable_items = doc.tender_document_items.where(item_type: %w[priced provisional], excluded: false)
+    subtotal = countable_items.sum(:total_amount)
 
     # Calculate GST per item using GstCode rates
     gst_total = BigDecimal("0")
-    priced_items.find_each do |item|
+    countable_items.find_each do |item|
       rate = begin
         GstCode.rate_for(item.gst_code)
       rescue StandardError

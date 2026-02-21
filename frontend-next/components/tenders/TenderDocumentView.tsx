@@ -79,6 +79,9 @@ interface TenderDocumentData {
   sections_grouped_by_header?: Record<string, Record<string, TenderDocumentItem[]>>;
   section_subtotals: Record<string, number>;
   header_subtotals?: Record<string, number>;
+  base_price?: number;
+  pc_total?: number;
+  ps_total?: number;
 }
 
 interface TenderDocumentViewProps {
@@ -109,100 +112,105 @@ function formatTenderDate(dateStr: string): string {
   }
 }
 
-function SectionItemsTable({
+/** Renders the right-side label/price for an item matching the Rawson format */
+function ItemTypeLabel({ item }: { item: TenderDocumentItem }) {
+  switch (item.item_type) {
+    case "priced":
+      return (
+        <span className="font-medium text-right">
+          {formatCurrency(item.total_amount || 0)}
+        </span>
+      );
+    case "provisional":
+      return (
+        <span className="text-right">
+          <span className="font-medium block">{formatCurrency(item.total_amount || 0)}</span>
+          <span className="text-xs text-muted-foreground italic">Provisional</span>
+        </span>
+      );
+    case "included":
+      return <span className="text-right text-muted-foreground">Included</span>;
+    case "complimentary":
+      return <span className="text-right text-muted-foreground">Complimentary</span>;
+    case "note":
+      return <span className="text-right text-muted-foreground">Note</span>;
+    default:
+      return <span className="text-right text-muted-foreground">{"\u2014"}</span>;
+  }
+}
+
+/** Renders items for a section in clean list format (no table headers) matching Rawson PDF */
+function SectionItems({
   items,
+  sectionNumber,
   sectionSubtotal,
-  jobId,
+  sectionName,
 }: {
   items: TenderDocumentItem[];
+  sectionNumber: number;
   sectionSubtotal: number;
-  jobId: number;
+  sectionName: string;
 }) {
-  const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
-
-  if (allNotes && items.length > 0) {
-    return (
-      <p className="text-sm italic text-muted-foreground py-2 pl-2">
-        {items[0].default_note}
-      </p>
-    );
-  }
-
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b text-left text-muted-foreground">
-            <th className="py-2 w-10">#</th>
-            <th className="py-2">Description</th>
-            <th className="py-2 text-right w-20">Qty</th>
-            <th className="py-2 text-right w-28">Unit Price</th>
-            <th className="py-2 text-right w-28">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border-b border-border/50">
-              <td className="py-2 text-muted-foreground">{item.line_number}</td>
-              <td className="py-2">
-                {item.description}
-                {item.notes && (
-                  <span className="block text-xs text-muted-foreground">{item.notes}</span>
+    <div className="space-y-0">
+      {items.map((item) => (
+        <div key={item.id} className="flex gap-4 py-3 border-b border-border/30">
+          {/* Line number: sectionNumber - lineNumber */}
+          <div className="w-14 shrink-0 text-sm text-muted-foreground">
+            {sectionNumber} - {item.line_number}
+          </div>
+
+          {/* Description */}
+          <div className="flex-1 text-sm min-w-0">
+            <p className="whitespace-pre-wrap">{item.description}</p>
+            {item.notes && (
+              <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
+            )}
+            {item.source_po_number && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                PO:{" "}
+                {item.source_purchase_order_id ? (
+                  <a
+                    href={`/purchase_orders/${item.source_purchase_order_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {item.source_po_number}
+                  </a>
+                ) : (
+                  item.source_po_number
                 )}
-                {item.source_po_number && (
-                  <span className="block text-xs text-muted-foreground">
-                    PO:{" "}
-                    {item.source_purchase_order_id ? (
-                      <a
-                        href={`/purchase_orders/${item.source_purchase_order_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {item.source_po_number}
-                      </a>
-                    ) : (
-                      item.source_po_number
-                    )}
-                  </span>
-                )}
-              </td>
-              {item.item_type === "priced" || item.item_type === "provisional" ? (
-                <>
-                  <td className="py-2 text-right">{item.quantity}</td>
-                  <td className="py-2 text-right">{formatCurrency(item.unit_price || 0)}</td>
-                  <td className="py-2 text-right font-medium">{formatCurrency(item.total_amount || 0)}</td>
-                </>
-              ) : (
-                <td colSpan={3} className="py-2 text-right text-muted-foreground italic">
-                  {item.item_type === "included" ? "Included" : "\u2014"}
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-        {sectionSubtotal > 0 && (
-          <tfoot>
-            <tr>
-              <td colSpan={4} className="py-2 text-right text-muted-foreground text-xs">Section subtotal</td>
-              <td className="py-2 text-right font-medium text-xs">{formatCurrency(sectionSubtotal)}</td>
-            </tr>
-          </tfoot>
-        )}
-      </table>
+              </p>
+            )}
+          </div>
+
+          {/* Price / Type label */}
+          <div className="w-28 shrink-0 text-sm text-right flex items-start justify-end">
+            <ItemTypeLabel item={item} />
+          </div>
+        </div>
+      ))}
+
+      {/* Section subtotal */}
+      {sectionSubtotal > 0 && (
+        <div className="flex justify-end gap-4 py-2">
+          <span className="text-sm font-bold">Total {sectionName}</span>
+          <span className="w-28 text-sm font-bold text-right">{formatCurrency(sectionSubtotal)}</span>
+        </div>
+      )}
     </div>
   );
 }
 
-function CollapsibleSection({
+/** Collapsible section header (bold, underlined) matching Rawson PDF section titles */
+function TenderSection({
   title,
-  subtitle,
   children,
   defaultOpen = true,
 }: {
-  title: React.ReactNode;
-  subtitle?: React.ReactNode;
+  title: string;
   children: React.ReactNode;
   defaultOpen?: boolean;
 }) {
@@ -213,24 +221,24 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between py-2 hover:bg-muted/50 rounded-sm transition-colors -mx-1 px-1"
+        className="w-full flex items-center gap-2 py-2 hover:bg-muted/50 rounded-sm transition-colors group"
       >
-        <div className="flex items-center gap-2">
-          {isOpen ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-          )}
-          <span className="text-sm font-medium text-foreground/80">{title}</span>
-        </div>
-        {subtitle}
+        {isOpen ? (
+          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+        ) : (
+          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        )}
+        <span className="text-sm font-bold underline underline-offset-4 decoration-1">
+          {title}
+        </span>
       </button>
-      {isOpen && <div className="pl-6">{children}</div>}
+      {isOpen && <div className="pl-5">{children}</div>}
     </div>
   );
 }
 
-function CollapsibleCard({
+/** Header group (large bold title with underline) matching Rawson PDF header style */
+function TenderHeaderGroup({
   title,
   subtitle,
   children,
@@ -257,24 +265,56 @@ function CollapsibleCard({
             ) : (
               <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+            <CardTitle className="text-lg font-bold tracking-wide uppercase">
+              {title}
+            </CardTitle>
           </div>
-          <span className="text-sm font-semibold">{subtitle}</span>
+          <span className="text-sm font-bold">{subtitle}</span>
         </button>
       </CardHeader>
       {isOpen && (
-        <CardContent className="space-y-1">
+        <CardContent className="space-y-2 pt-0">
           {children}
+          {/* Header total at the bottom */}
+          <div className="flex justify-end gap-4 pt-2 border-t">
+            <span className="text-sm font-bold uppercase">Total {title}</span>
+            <span className="w-28 text-sm font-bold text-right">{subtitle}</span>
+          </div>
         </CardContent>
       )}
     </Card>
   );
 }
 
+/**
+ * Compute sequential section numbers across all headers.
+ * Returns a map: sectionName → sectionNumber (1-based, sequential across entire doc).
+ */
+function computeSectionNumbers(
+  headerGroups: Record<string, Record<string, TenderDocumentItem[]>>
+): Map<string, number> {
+  const sectionNumbers = new Map<string, number>();
+  let counter = 1;
+  for (const sections of Object.values(headerGroups)) {
+    for (const sectionName of Object.keys(sections)) {
+      if (!sectionNumbers.has(sectionName)) {
+        sectionNumbers.set(sectionName, counter++);
+      }
+    }
+  }
+  return sectionNumbers;
+}
+
 export function TenderDocumentView({ document: doc, previewMode = false }: TenderDocumentViewProps) {
   const headerGroups = doc.sections_grouped_by_header;
   const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
   const flatSections = Object.entries(doc.sections_grouped || {});
+
+  // Compute sequential section numbers across all sections
+  const sectionNumbers = React.useMemo(
+    () => (hasTwoLevelData ? computeSectionNumbers(headerGroups!) : new Map<string, number>()),
+    [hasTwoLevelData, headerGroups]
+  );
 
   return (
     <div className={previewMode ? "space-y-3" : "space-y-6"}>
@@ -520,77 +560,87 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
         </div>
       )}
 
-      {/* Two-Level Sections (Header > Collapsible Section > Items) */}
+      {/* Two-Level: Header > Section > Items (Rawson format) */}
       {hasTwoLevelData ? (
-        Object.entries(headerGroups).map(([headerName, sections]) => {
+        Object.entries(headerGroups!).map(([headerName, sections]) => {
           const headerTotal = doc.header_subtotals?.[headerName] || 0;
           const sectionEntries = Object.entries(sections);
 
           return (
-            <CollapsibleCard
+            <TenderHeaderGroup
               key={headerName}
               title={headerName}
               subtitle={formatCurrency(headerTotal)}
             >
               {sectionEntries.map(([sectionName, items]) => {
                 const sectionTotal = doc.section_subtotals?.[sectionName] || 0;
-                const allNotes = items.every((item) => item.item_type === "note" && item.default_note);
+                const secNum = sectionNumbers.get(sectionName) || 0;
+                const allNotes = items.every((item) => item.item_type === "note");
 
                 return (
-                  <CollapsibleSection
+                  <TenderSection
                     key={sectionName}
                     title={sectionName}
-                    subtitle={
-                      <span className="text-xs font-medium text-muted-foreground mr-1">
-                        {allNotes ? "\u2014" : formatCurrency(sectionTotal)}
-                      </span>
-                    }
-                    defaultOpen={!allNotes}
+                    defaultOpen={!allNotes || items.length <= 2}
                   >
-                    <SectionItemsTable
+                    <SectionItems
                       items={items}
+                      sectionNumber={secNum}
                       sectionSubtotal={sectionTotal}
-                      jobId={doc.job_id}
+                      sectionName={sectionName}
                     />
-                  </CollapsibleSection>
+                  </TenderSection>
                 );
               })}
-            </CollapsibleCard>
+            </TenderHeaderGroup>
           );
         })
       ) : (
         /* Flat sections fallback (legacy documents without header data) */
-        flatSections.map(([sectionName, items]) => (
-          <CollapsibleCard
-            key={sectionName}
-            title={sectionName}
-            subtitle={formatCurrency(doc.section_subtotals?.[sectionName] || 0)}
-          >
-            <SectionItemsTable
-              items={items}
-              sectionSubtotal={doc.section_subtotals?.[sectionName] || 0}
-              jobId={doc.job_id}
-            />
-          </CollapsibleCard>
-        ))
+        flatSections.map(([sectionName, items], idx) => {
+          const sectionTotal = doc.section_subtotals?.[sectionName] || 0;
+          return (
+            <Card key={sectionName}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-bold">{sectionName}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <SectionItems
+                  items={items}
+                  sectionNumber={idx + 1}
+                  sectionSubtotal={sectionTotal}
+                  sectionName={sectionName}
+                />
+              </CardContent>
+            </Card>
+          );
+        })
       )}
 
-      {/* ═══════ TOTALS ═══════ */}
+      {/* ═══════ TOTALS (Rawson cover letter style) ═══════ */}
       <Card>
         <CardContent className="pt-6">
-          <div className="space-y-2 text-right">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal (excl. GST)</span>
-              <span className="font-medium">{formatCurrency(doc.subtotal)}</span>
+          <div className="space-y-2">
+            {/* Per-header breakdown */}
+            {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
+              const headerTotal = doc.header_subtotals?.[headerName] || 0;
+              return (
+                <div key={headerName} className="flex justify-between">
+                  <span className="font-bold text-sm">{headerName}</span>
+                  <span className="font-medium text-sm w-32 text-right">{formatCurrency(headerTotal)}</span>
+                </div>
+              );
+            })}
+
+            {hasTwoLevelData && <div className="border-t my-1" />}
+
+            <div className="flex justify-between pt-1">
+              <div>
+                <span className="font-bold">The total cost to construct is:</span>
+              </div>
+              <span className="font-bold text-lg w-32 text-right">{formatCurrency(doc.total)}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">GST</span>
-              <span className="font-medium">{formatCurrency(doc.gst)}</span>
-            </div>
-            <div className="flex justify-between border-t pt-2">
-              <span className="font-semibold text-lg">Total (incl. GST)</span>
-              <span className="font-bold text-lg">{formatCurrency(doc.total)}</span>
-            </div>
+            <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
           </div>
         </CardContent>
       </Card>

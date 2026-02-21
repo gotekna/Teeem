@@ -3,7 +3,7 @@ module Api
     class PricebookItemsController < ApplicationController
       include DocumentProviderAware
 
-      before_action :set_pricebook_item, only: [ :show, :update, :destroy, :history, :fetch_image, :update_image, :add_price, :set_default_supplier, :delete_price_history, :update_price_history, :proxy_image ]
+      before_action :set_pricebook_item, only: [ :show, :update, :destroy, :history, :fetch_image, :update_image, :upload_image, :add_price, :set_default_supplier, :delete_price_history, :update_price_history, :proxy_image ]
 
       # GET /api/v1/pricebook
       def index
@@ -389,6 +389,36 @@ module Api
         else
           render_error("image_url is required", status: :unprocessable_entity)
         end
+      end
+
+      # POST /api/v1/pricebook/:id/upload_image
+      # Upload an image file directly for a pricebook item (e.g. from Tender Builder)
+      def upload_image
+        unless params[:file]
+          return render_error("No file provided", status: :unprocessable_entity)
+        end
+
+        file = params[:file]
+        content = file.read
+        filename = file.original_filename || "pricebook_image.jpg"
+        content_type = file.content_type || "image/jpeg"
+
+        # StorageBlob.find_or_create_for_content! handles dedup + upload to storage provider
+        blob = StorageBlob.find_or_create_for_content!(content, filename: filename, content_type: content_type)
+
+        @item.update!(
+          image_storage_blob: blob,
+          image_source: "upload",
+          image_fetched_at: Time.current,
+          image_fetch_status: "success",
+          photo_attached: true
+        )
+
+        render json: {
+          success: true,
+          message: "Image uploaded for #{@item.item_name}",
+          item: item_with_image_data(@item)
+        }
       end
 
       # POST /api/v1/pricebook/fetch_all_images
