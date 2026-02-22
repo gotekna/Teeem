@@ -68,6 +68,7 @@ import {
   X,
   MoreVertical,
   Tag,
+  Star,
   // SSoT: Expand/Minimize2 removed - fullscreen now handled by TeeemTableView
 } from "lucide-react";
 import {
@@ -1500,6 +1501,18 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   };
 
+  const handleSetDefault = async (id: number) => {
+    try {
+      await api.post(`/api/v1/sm_schedule_master_templates/${id}/set_default`);
+      const name = templates.find((t) => t.id === id)?.name || "Template";
+      toast({ title: "Primary set", description: `${name} is now the primary template` });
+      loadTemplates();
+    } catch (error) {
+      console.error("Failed to set default template:", error);
+      toast({ title: "Error", description: "Failed to set primary template", variant: "destructive" });
+    }
+  };
+
   // Get current template for display
   const currentTemplate = dataViewTemplateId ? templates.find(t => t.id === dataViewTemplateId) : null;
 
@@ -2818,6 +2831,21 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                         <div>
                           <div className="flex items-center gap-2">
                             <CardTitle className="text-base">{template.name}</CardTitle>
+                            <button
+                              type="button"
+                              title={template.is_default ? "Primary template" : "Set as primary template"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!template.is_default) handleSetDefault(template.id);
+                              }}
+                              className={`p-0.5 rounded transition-colors ${
+                                template.is_default
+                                  ? "text-amber-500 dark:text-amber-400"
+                                  : "text-muted-foreground/30 hover:text-amber-400 dark:hover:text-amber-500"
+                              }`}
+                            >
+                              <Star className="h-4 w-4" fill={template.is_default ? "currentColor" : "none"} />
+                            </button>
                             {!template.is_active && (
                               <Badge variant="outline" className="text-muted-foreground bg-muted">
                                 Inactive
