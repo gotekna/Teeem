@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/quote_templates
       def index
         templates = QuoteTemplate.active.ordered
-          .includes(quote_template_trades: { sm_trade: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
 
         render json: {
           success: true,
@@ -83,7 +83,7 @@ module Api
 
       def set_template
         @template = QuoteTemplate
-          .includes(quote_template_trades: { sm_trade: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
           .find(params[:id])
       end
 
@@ -91,7 +91,7 @@ module Api
         params.require(:quote_template).permit(
           :name, :description, :is_active, :position,
           quote_template_trades_attributes: [
-            :id, :sm_trade_id, :position, :default_instructions, :_destroy,
+            :id, :sm_schedule_master_id, :position, :default_instructions, :_destroy,
             { required_document_types: [] },
             { quote_template_trade_suppliers_attributes: [
               :id, :supplier_id, :contact_person_id, :position, :is_preferred, :_destroy
@@ -125,8 +125,10 @@ module Api
       def trade_json(trade)
         {
           id: trade.id,
-          smTradeId: trade.sm_trade_id,
-          tradeName: trade.sm_trade&.name,
+          smScheduleMasterId: trade.sm_schedule_master_id,
+          taskName: trade.sm_schedule_master&.name,
+          costCentre: trade.sm_schedule_master&.cost_centre,
+          poRequired: trade.sm_schedule_master&.po_required,
           position: trade.position,
           defaultInstructions: trade.default_instructions,
           requiredDocumentTypes: trade.required_document_types,

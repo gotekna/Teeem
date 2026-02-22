@@ -41,6 +41,7 @@ const OPERATIONS_TABS = [
   { id: "quote-templates", label: "Quote Templates" },
   { id: "claim-templates", label: "Claim Templates" },
   { id: "profit-centres", label: "Profit Centres" },
+  { id: "tender-headers", label: "Tender Headers" },
   { id: "tender-sections", label: "Tender Sections" },
 ];
 
@@ -51,6 +52,7 @@ const FULL_PAGE_TABS: Record<string, string> = {
   "schedule-master": "/settings/operations/schedule-master",
   "po-templates": "/settings/operations/po-templates",
   "quote-templates": "/settings/operations/quote-templates",
+  "tender-headers": "/settings/operations/schedule-master/tables/tenders",
   "tender-sections": "/settings/operations/schedule-master/tables/tenders",
 };
 

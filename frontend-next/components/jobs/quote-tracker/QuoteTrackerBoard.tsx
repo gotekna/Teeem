@@ -1,6 +1,5 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ClipboardList } from "lucide-react";
 import { formatCurrency } from "@/utils/formatters";
@@ -13,7 +12,7 @@ interface QuoteTrackerBoardProps {
   onSendRfq: (id: number) => Promise<void>;
   onRecordResponse: (id: number, price: number, timeframe?: string, notes?: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
-  onSendAllForTrade: (tradeId: number) => Promise<void>;
+  onSendAllForTask: (taskId: number) => Promise<void>;
 }
 
 export function QuoteTrackerBoard({
@@ -22,7 +21,7 @@ export function QuoteTrackerBoard({
   onSendRfq,
   onRecordResponse,
   onAccept,
-  onSendAllForTrade,
+  onSendAllForTask,
 }: QuoteTrackerBoardProps) {
   if (loading) {
     return (
@@ -32,7 +31,7 @@ export function QuoteTrackerBoard({
     );
   }
 
-  if (data.trades.length === 0) {
+  if (data.tasks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
         <ClipboardList className="h-8 w-8 mb-3 opacity-50" />
@@ -44,15 +43,15 @@ export function QuoteTrackerBoard({
 
   return (
     <div className="flex flex-col gap-4 p-4">
-      {/* Trade Sections */}
-      {data.trades.map((trade) => (
+      {/* Task Sections */}
+      {data.tasks.map((task) => (
         <TradeSection
-          key={trade.smTradeId ?? "uncategorized"}
-          trade={trade}
+          key={task.smScheduleMasterId ?? task.smTradeId ?? "uncategorized"}
+          trade={task}
           onSendRfq={onSendRfq}
           onRecordResponse={onRecordResponse}
           onAccept={onAccept}
-          onSendAllForTrade={onSendAllForTrade}
+          onSendAllForTask={onSendAllForTask}
         />
       ))}
 

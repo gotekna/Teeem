@@ -42,7 +42,7 @@ class QuoteReminderJob < ApplicationJob
       .where(sent_at: ..cutoff_date)
       .where(reminder_count: ...max_reminders)
       .where(last_reminder_at: [nil, ..cooldown])
-      .includes(:job, :supplier, :contact, :sm_trade, :sent_by)
+      .includes(:job, :supplier, :contact, :sm_schedule_master, :sm_trade, :sent_by)
 
     sent_count = 0
     error_count = 0
@@ -113,7 +113,7 @@ class QuoteReminderJob < ApplicationJob
     parts << "<ul>"
     parts << "<li><strong>Project:</strong> #{ERB::Util.html_escape(job.name)}</li>"
     parts << "<li><strong>Reference:</strong> #{ERB::Util.html_escape(job.job_code)}</li>" if job.job_code.present?
-    parts << "<li><strong>Trade:</strong> #{ERB::Util.html_escape(tracker.sm_trade&.name)}</li>" if tracker.sm_trade.present?
+    parts << "<li><strong>Trade:</strong> #{ERB::Util.html_escape(tracker.task_name)}</li>" if tracker.task_name.present?
     parts << "</ul>"
     parts << "<p>We would appreciate your response at your earliest convenience.</p>"
     parts << "<p>Kind regards,<br>#{ERB::Util.html_escape(user.name)}</p>"

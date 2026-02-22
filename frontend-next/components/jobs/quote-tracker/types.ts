@@ -3,8 +3,10 @@
 export interface QuoteTrackerRow {
   id: number;
   jobId: number;
+  smScheduleMasterId: number | null;
+  smTaskId: number | null;
   smTradeId: number | null;
-  tradeName: string | null;
+  taskName: string | null;
   supplierId: number | null;
   supplierName: string | null;
   contactId: number | null;
@@ -31,9 +33,11 @@ export interface QuoteTrackerRow {
   updatedAt: string;
 }
 
-export interface TradeSummary {
+export interface TaskSummary {
+  smScheduleMasterId: number | null;
   smTradeId: number | null;
-  tradeName: string | null;
+  taskName: string | null;
+  costCentre: number | null;
   totalSuppliers: number;
   respondedCount: number;
   sentCount: number;
@@ -44,9 +48,9 @@ export interface TradeSummary {
 export interface QuoteSummaryData {
   jobId: number;
   jobName: string;
-  totalTrades: number;
+  totalTasks: number;
   totalEstimated: number;
-  trades: TradeSummary[];
+  tasks: TaskSummary[];
 }
 
 export interface QuoteTemplateOption {

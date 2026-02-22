@@ -4,17 +4,16 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Send } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/utils/formatters";
-import type { TradeSummary } from "./types";
+import type { TaskSummary } from "./types";
 import { SupplierRow } from "./SupplierRow";
 
 interface TradeSectionProps {
-  trade: TradeSummary;
+  trade: TaskSummary;
   onSendRfq: (id: number) => Promise<void>;
   onRecordResponse: (id: number, price: number, timeframe?: string, notes?: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
-  onSendAllForTrade: (tradeId: number) => Promise<void>;
+  onSendAllForTask: (taskId: number) => Promise<void>;
 }
 
 export function TradeSection({
@@ -22,16 +21,17 @@ export function TradeSection({
   onSendRfq,
   onRecordResponse,
   onAccept,
-  onSendAllForTrade,
+  onSendAllForTask,
 }: TradeSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
   const draftCount = trade.suppliers.filter(s => s.status === "draft").length;
   const hasUnsent = draftCount > 0;
+  const taskId = trade.smScheduleMasterId ?? trade.smTradeId;
 
   return (
     <div className="border rounded-lg overflow-hidden">
-      {/* Trade Header */}
+      {/* Task Header */}
       <div
         className="flex items-center gap-3 px-4 py-2.5 bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
         onClick={() => setExpanded(!expanded)}
@@ -43,7 +43,7 @@ export function TradeSection({
         )}
 
         <span className="font-medium text-sm flex-1">
-          {trade.tradeName || "Uncategorized"}
+          {trade.taskName || "Uncategorized"}
         </span>
 
         {/* Status Summary */}
@@ -59,14 +59,14 @@ export function TradeSection({
           )}
 
           {/* Send All button for unsent */}
-          {hasUnsent && (
+          {hasUnsent && taskId != null && (
             <Button
               variant="outline"
               size="sm"
               className="h-7 text-xs"
               onClick={(e) => {
                 e.stopPropagation();
-                if (trade.smTradeId != null) onSendAllForTrade(trade.smTradeId);
+                onSendAllForTask(taskId);
               }}
             >
               <Send className="h-3 w-3 mr-1" />

@@ -65,7 +65,7 @@ export function TemplateApplyBar({ jobId, hasExistingQuotes, onApplied }: Templa
 
   const items: ComboboxItem[] = templates.map(t => ({
     id: String(t.id),
-    label: `${t.name} (${t.tradeCount} trades, ${t.supplierCount} suppliers)`,
+    label: `${t.name} (${t.tradeCount} tasks, ${t.supplierCount} suppliers)`,
   }));
 
   const selectedTemplate = templates.find(t => t.id === selectedId);

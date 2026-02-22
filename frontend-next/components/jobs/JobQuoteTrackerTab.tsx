@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { LayoutGrid, Table as TableIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -24,7 +23,7 @@ interface JobQuoteTrackerTabProps {
  * Location: Estimating > Quote Tracker tab
  *
  * Two views:
- * - Board: Grouped by trade, shows status, best price highlights, accept → PO
+ * - Board: Grouped by PO Task, shows status, best price highlights, accept → PO
  * - Table: Traditional TeeemTableView for detailed inline editing
  */
 export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
@@ -32,9 +31,9 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
   const [summaryData, setSummaryData] = useState<QuoteSummaryData>({
     jobId: Number(jobId),
     jobName: "",
-    totalTrades: 0,
+    totalTasks: 0,
     totalEstimated: 0,
-    trades: [],
+    tasks: [],
   });
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -78,7 +77,7 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
 
   // Opens the SendRFQDialog for a single tracker
   const handleSendRfq = async (trackerId: number) => {
-    const tracker = summaryData.trades
+    const tracker = summaryData.tasks
       .flatMap(t => t.suppliers)
       .find(s => s.id === trackerId);
 
@@ -88,12 +87,15 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
     }
   };
 
-  // Opens the SendRFQDialog for all draft trackers in a trade
-  const handleSendAllForTrade = async (tradeId: number) => {
-    const trade = summaryData.trades.find(t => t.smTradeId === tradeId);
-    if (!trade) return;
+  // Opens the SendRFQDialog for all draft trackers in a PO Task
+  const handleSendAllForTask = async (taskId: number) => {
+    // Find matching task group by smScheduleMasterId or smTradeId
+    const task = summaryData.tasks.find(
+      t => t.smScheduleMasterId === taskId || t.smTradeId === taskId
+    );
+    if (!task) return;
 
-    const draftTrackers = trade.suppliers.filter(s => s.status === "draft");
+    const draftTrackers = task.suppliers.filter(s => s.status === "draft");
     if (draftTrackers.length === 0) return;
 
     setRfqDialogTrackers(draftTrackers);
@@ -132,7 +134,7 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
 
-  const hasExistingQuotes = summaryData.trades.length > 0;
+  const hasExistingQuotes = summaryData.tasks.length > 0;
 
   return (
     <div className="flex flex-col h-full -mx-4">
@@ -146,7 +148,7 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
       {/* View Toggle */}
       <div className="flex items-center justify-between px-4 py-2 border-b">
         <h2 className="text-sm font-semibold text-muted-foreground">
-          {summaryData.totalTrades > 0 ? `${summaryData.totalTrades} trades` : "Quote Tracker"}
+          {summaryData.totalTasks > 0 ? `${summaryData.totalTasks} PO tasks` : "Quote Tracker"}
         </h2>
         <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
           <Button
@@ -179,7 +181,7 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
             onSendRfq={handleSendRfq}
             onRecordResponse={handleRecordResponse}
             onAccept={handleAccept}
-            onSendAllForTrade={handleSendAllForTrade}
+            onSendAllForTask={handleSendAllForTask}
           />
         ) : (
           <div className="flex flex-col h-full">

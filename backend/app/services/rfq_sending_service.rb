@@ -195,7 +195,8 @@ class RfqSendingService
       job_name: job.name,
       job_number: job.job_code,
       job_address: job.address,
-      trade_name: tracker.sm_trade&.name,
+      trade_name: tracker.task_name,
+      task_name: tracker.task_name,
       supplier_name: tracker.supplier&.display_name,
       recipient_name: tracker.contact&.name || tracker.supplier&.display_name,
       recipient_email: resolve_recipient_email(tracker),
@@ -218,7 +219,7 @@ class RfqSendingService
     parts << "<li><strong>Project:</strong> #{ERB::Util.html_escape(job.name)}</li>"
     parts << "<li><strong>Reference:</strong> #{ERB::Util.html_escape(job.job_code)}</li>" if job.job_code.present?
     parts << "<li><strong>Address:</strong> #{ERB::Util.html_escape(job.address)}</li>" if job.address.present?
-    parts << "<li><strong>Trade:</strong> #{ERB::Util.html_escape(tracker.sm_trade&.name)}</li>" if tracker.sm_trade.present?
+    parts << "<li><strong>Trade:</strong> #{ERB::Util.html_escape(tracker.task_name)}</li>" if tracker.task_name.present?
     parts << "</ul>"
 
     if tracker.quote_request_instructions.present?

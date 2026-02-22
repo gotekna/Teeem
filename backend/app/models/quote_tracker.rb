@@ -12,6 +12,9 @@
 #   draft → sent → responded → accepted (creates PO)
 #                             → rejected
 #
+# Grouping: By PO Task (sm_schedule_master_id) — the template-level task
+# Job linking: sm_task_id — the job-level task instance (for PO creation)
+#
 class QuoteTracker < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)
   acts_as_tenant :tenant
@@ -20,7 +23,9 @@ class QuoteTracker < ApplicationRecord
 
   # Associations
   belongs_to :job
-  belongs_to :sm_trade, optional: true        # Category (e.g. "Roof Trusses")
+  belongs_to :sm_schedule_master, optional: true  # PO Task (template-level, for grouping)
+  belongs_to :sm_task, class_name: 'SmTask', optional: true  # Job-level task instance
+  belongs_to :sm_trade, optional: true             # Legacy category field
   belongs_to :supplier, class_name: 'Contact', optional: true
   belongs_to :contact, class_name: 'ContactPerson', optional: true  # Employee at supplier
   belongs_to :quote_template, optional: true  # Which template created this row
@@ -32,12 +37,18 @@ class QuoteTracker < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
 
   # Scopes
-  scope :for_trade, ->(trade_id) { where(sm_trade_id: trade_id) }
+  scope :for_task, ->(master_id) { where(sm_schedule_master_id: master_id) }
+  scope :for_trade, ->(trade_id) { where(sm_trade_id: trade_id) }  # Legacy
   scope :draft, -> { where(status: 'draft') }
   scope :sent, -> { where(status: 'sent') }
   scope :responded, -> { where(status: 'responded') }
   scope :accepted, -> { where(status: 'accepted') }
   scope :with_price, -> { where.not(price_quoted: nil) }
+
+  # Display name for the grouping (PO Task name or trade name)
+  def task_name
+    sm_schedule_master&.name || sm_trade&.name
+  end
 
   # Mark as sent (email was dispatched to supplier)
   def mark_sent!(user)
@@ -64,21 +75,34 @@ class QuoteTracker < ApplicationRecord
 
     po = nil
     ActiveRecord::Base.transaction do
-      po = PurchaseOrder.create!(
+      po_attrs = {
         job: job,
         supplier: supplier,
-        description: "#{sm_trade&.name} - Quote #{quote_number}".strip,
+        description: "#{task_name} - Quote #{quote_number}".strip,
         status: 'draft',
         budget: price_quoted
-      )
+      }
+
+      # Link PO to the job-level SmTask if available
+      po_attrs[:sm_task] = sm_task if sm_task.present?
+
+      po = PurchaseOrder.create!(po_attrs)
 
       update!(status: 'accepted', purchase_order: po)
 
-      # Mark other quotes for same trade as rejected
-      QuoteTracker.where(job_id: job_id, sm_trade_id: sm_trade_id)
-                  .where.not(id: id)
-                  .where(status: %w[draft sent responded])
-                  .update_all(status: 'rejected')
+      # Mark other quotes for same PO Task as rejected
+      grouping_scope = if sm_schedule_master_id.present?
+        QuoteTracker.where(job_id: job_id, sm_schedule_master_id: sm_schedule_master_id)
+      elsif sm_trade_id.present?
+        QuoteTracker.where(job_id: job_id, sm_trade_id: sm_trade_id)
+      else
+        QuoteTracker.none
+      end
+
+      grouping_scope
+        .where.not(id: id)
+        .where(status: %w[draft sent responded])
+        .update_all(status: 'rejected')
 
       recalculate_best_prices!
     end
@@ -93,11 +117,17 @@ class QuoteTracker < ApplicationRecord
 
   private
 
-  # Recalculate is_best_price for all quotes with the same job + trade
+  # Recalculate is_best_price for all quotes in the same grouping
   def recalculate_best_prices!
-    siblings = QuoteTracker.where(job_id: job_id, sm_trade_id: sm_trade_id)
-                           .where.not(price_quoted: nil)
+    siblings = if sm_schedule_master_id.present?
+      QuoteTracker.where(job_id: job_id, sm_schedule_master_id: sm_schedule_master_id)
+    elsif sm_trade_id.present?
+      QuoteTracker.where(job_id: job_id, sm_trade_id: sm_trade_id)
+    else
+      QuoteTracker.none
+    end
 
+    siblings = siblings.where.not(price_quoted: nil)
     return if siblings.empty?
 
     # Find the lowest price

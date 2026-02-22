@@ -2,9 +2,9 @@
 
 # QuoteTemplate - Reusable templates for RFQ workflows
 #
-# Each template defines which SM Trades to quote and which suppliers to request
-# quotes from. Templates can be applied to a job, which creates QuoteTracker
-# rows for each trade × supplier combination.
+# Each template defines which PO Tasks (SmScheduleMaster) to quote and which
+# suppliers to request quotes from. Templates can be applied to a job, which
+# creates QuoteTracker rows for each task × supplier combination.
 #
 # SSoT: Foundation slug = 'quote-templates'
 # SSoT: Settings > Operations > Quote Templates
@@ -38,19 +38,36 @@ class QuoteTemplate < ApplicationRecord
     quote_template_trades.sum { |t| t.quote_template_trade_suppliers.size }
   end
 
-  # Apply this template to a job, creating QuoteTracker rows for each trade × supplier
+  # Apply this template to a job, creating QuoteTracker rows for each PO Task × supplier
+  #
+  # For each PO Task (SmScheduleMaster) in the template:
+  # - Find the matching SmTask in the target job (by sm_schedule_master_id)
+  # - Create a QuoteTracker row for each supplier, linked to both the
+  #   SmScheduleMaster (template-level) and SmTask (job-level)
+  #
   def apply_to_job!(job, created_by:)
     rows_created = []
 
+    # Build lookup: sm_schedule_master_id → SmTask for this job
+    job_tasks = SmTask.where(job_id: job.id).where.not(sm_schedule_master_id: nil)
+    task_by_master_id = job_tasks.index_by(&:sm_schedule_master_id)
+
     ActiveRecord::Base.transaction do
-      quote_template_trades.includes(quote_template_trade_suppliers: [:supplier, :contact_person]).each do |template_trade|
+      quote_template_trades.includes(
+        :sm_schedule_master,
+        quote_template_trade_suppliers: [:supplier, :contact_person]
+      ).each do |template_trade|
+        sm_master = template_trade.sm_schedule_master
+        sm_task = task_by_master_id[sm_master.id]
+
         template_trade.quote_template_trade_suppliers.each do |template_supplier|
-          # Find contact person's email if available
           contact_email = template_supplier.contact_person&.email
 
           tracker = QuoteTracker.create!(
             job: job,
-            sm_trade: template_trade.sm_trade,
+            sm_schedule_master: sm_master,
+            sm_task: sm_task,
+            sm_trade: nil, # Legacy field, not used for new records
             supplier: template_supplier.supplier,
             contact: template_supplier.contact_person,
             contact_email: contact_email,

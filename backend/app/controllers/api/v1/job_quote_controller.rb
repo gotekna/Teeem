@@ -7,39 +7,42 @@ module Api
       before_action :set_tracker, only: [:send_rfq, :record_response, :accept]
 
       # GET /api/v1/jobs/:job_id/quote_summary
-      # Returns QuoteTracker rows grouped by SM Trade with best_price flags
+      # Returns QuoteTracker rows grouped by PO Task (SmScheduleMaster) with best_price flags
       def summary
         trackers = QuoteTracker.where(job_id: @job.id)
-          .includes(:sm_trade, :supplier, :contact, :sent_by, :purchase_order, :quote_template)
-          .order(:sm_trade_id, :supplier_id)
+          .includes(:sm_schedule_master, :sm_task, :sm_trade, :supplier, :contact, :sent_by, :purchase_order, :quote_template)
+          .order(:sm_schedule_master_id, :supplier_id)
 
-        # Group by SM Trade
-        grouped = trackers.group_by(&:sm_trade_id)
+        # Group by PO Task (sm_schedule_master_id), falling back to sm_trade_id for legacy
+        grouped = trackers.group_by { |t| t.sm_schedule_master_id || "trade_#{t.sm_trade_id}" }
 
-        trades = grouped.map do |sm_trade_id, trade_trackers|
-          sm_trade = trade_trackers.first.sm_trade
+        tasks = grouped.map do |group_key, group_trackers|
+          first = group_trackers.first
+          sm_master = first.sm_schedule_master
           {
-            smTradeId: sm_trade_id,
-            tradeName: sm_trade&.name,
-            totalSuppliers: trade_trackers.size,
-            respondedCount: trade_trackers.count { |t| t.status == 'responded' || t.status == 'accepted' },
-            sentCount: trade_trackers.count { |t| t.status == 'sent' },
-            bestPrice: trade_trackers.select(&:is_best_price).first&.price_quoted&.to_f,
-            suppliers: trade_trackers.map { |t| tracker_json(t) }
+            smScheduleMasterId: first.sm_schedule_master_id,
+            smTradeId: first.sm_trade_id,
+            taskName: sm_master&.name || first.sm_trade&.name || "Uncategorized",
+            costCentre: sm_master&.cost_centre,
+            totalSuppliers: group_trackers.size,
+            respondedCount: group_trackers.count { |t| t.status == 'responded' || t.status == 'accepted' },
+            sentCount: group_trackers.count { |t| t.status == 'sent' },
+            bestPrice: group_trackers.select(&:is_best_price).first&.price_quoted&.to_f,
+            suppliers: group_trackers.map { |t| tracker_json(t) }
           }
         end
 
-        # Calculate total estimated cost (sum of best prices per trade)
-        total_estimated = trades.sum { |t| t[:bestPrice] || 0 }
+        # Calculate total estimated cost (sum of best prices per task)
+        total_estimated = tasks.sum { |t| t[:bestPrice] || 0 }
 
         render json: {
           success: true,
           data: {
             jobId: @job.id,
             jobName: @job.name,
-            totalTrades: trades.size,
+            totalTasks: tasks.size,
             totalEstimated: total_estimated,
-            trades: trades
+            tasks: tasks
           }
         }
       end
@@ -73,15 +76,6 @@ module Api
 
       # POST /api/v1/quote_trackers/:id/send_rfq
       # Sends an RFQ email to the supplier and marks tracker as sent
-      #
-      # Params:
-      #   email_template_id: (optional) EmailTemplate ID for composing the email
-      #   document_ids: (optional) Array of WarehouseDocument IDs to attach
-      #   custom_message: (optional) Additional message appended to email body
-      #   account_type: "imap" or "ms365" (required for email sending)
-      #   credential_id: Email credential ID (required for email sending)
-      #   mailbox_email: (required for ms365)
-      #   skip_email: (optional) If true, just marks as sent without sending email
       def send_rfq
         # If no email params provided or skip_email=true, just mark as sent (backward compat)
         if params[:skip_email] == true || params[:skip_email] == "true" || params[:account_type].blank?
@@ -122,10 +116,6 @@ module Api
 
       # POST /api/v1/quote_trackers/bulk_send_rfq
       # Sends RFQ emails to multiple suppliers at once
-      #
-      # Params:
-      #   tracker_ids: Array of QuoteTracker IDs to send
-      #   (same email params as send_rfq)
       def bulk_send_rfq
         tracker_ids = Array(params[:tracker_ids]).map(&:to_i)
         trackers = QuoteTracker.where(id: tracker_ids, status: 'draft')
@@ -275,7 +265,6 @@ module Api
         MicrosoftCredential.where(organization_id: tenant_org_ids)
                            .where(credential_type: 'app')
                            .each do |cred|
-          # Get monitored mailboxes for this credential
           mailboxes = cred.monitored_mailboxes || []
           mailboxes.each do |mb|
             accounts << {
@@ -305,7 +294,8 @@ module Api
             job_name: job.name,
             job_number: job.job_code,
             job_address: job.address,
-            trade_name: tracker.sm_trade&.name,
+            trade_name: tracker.task_name,
+            task_name: tracker.task_name,
             supplier_name: tracker.supplier&.display_name,
             recipient_name: tracker.contact&.name || tracker.supplier&.display_name,
             recipient_email: tracker.contact&.email || tracker.contact_email || tracker.supplier&.email,
@@ -350,8 +340,10 @@ module Api
         {
           id: tracker.id,
           jobId: tracker.job_id,
+          smScheduleMasterId: tracker.sm_schedule_master_id,
+          smTaskId: tracker.sm_task_id,
           smTradeId: tracker.sm_trade_id,
-          tradeName: tracker.sm_trade&.name,
+          taskName: tracker.task_name,
           supplierId: tracker.supplier_id,
           supplierName: tracker.supplier&.display_name,
           contactId: tracker.contact_id,
