@@ -89,6 +89,9 @@ export const STORAGE_KEYS = {
   // Help System
   HELP_BUTTON_HOVER_ONLY: 'teeem_help_button_hover_only',
 
+  // Schedule Master PO Task default template filter
+  SM_DEFAULT_PO_TEMPLATE: 'sm_default_po_template',
+
 } as const;
 
 /**

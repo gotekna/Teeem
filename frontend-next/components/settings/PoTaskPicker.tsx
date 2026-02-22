@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { getStorageItem, setStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 
 /**
  * PoTaskPicker - Shared PO Task assignment picker.
@@ -8,7 +9,8 @@ import * as React from "react";
  * Used by both ScheduleMasterTab (Cost Centre + Tender assignments) and
  * TenderSectionsTab (Tender section assignments in Settings > Operations).
  *
- * Shows a searchable, checkable list of SM Schedule Master PO tasks.
+ * Shows a searchable, checkable list of SM Schedule Master PO tasks
+ * grouped by cost centre with collapsible sections.
  * Selected task IDs are synced to a ref so the parent can read them on save.
  */
 
@@ -49,6 +51,12 @@ interface PoTaskPickerProps {
   onNavigateToTender?: (id: number) => void;
 }
 
+interface TaskGroup {
+  key: string; // costCentreId or "unassigned"
+  label: string;
+  tasks: POTaskItem[];
+}
+
 export function PoTaskPicker({
   allTasks,
   initialSelectedIds,
@@ -63,15 +71,29 @@ export function PoTaskPicker({
   onNavigateToTender,
 }: PoTaskPickerProps) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
-  const [templateFilter, setTemplateFilter] = React.useState(initialTemplateFilter || "all");
+  // Template filter: initialTemplateFilter (from navigation) > localStorage default > "all"
+  const [templateFilter, setTemplateFilterRaw] = React.useState(() => {
+    if (initialTemplateFilter) return initialTemplateFilter;
+    const saved = getStorageItem<string>(STORAGE_KEYS.SM_DEFAULT_PO_TEMPLATE, "all");
+    // Validate saved template exists in available templates (might be stale)
+    if (saved && saved !== "all" && templates.length > 0) {
+      return templates.some((t) => String(t.id) === saved) ? saved : "all";
+    }
+    return saved || "all";
+  });
+  // Persist template filter changes to localStorage
+  const setTemplateFilter = React.useCallback((value: string) => {
+    setTemplateFilterRaw(value);
+    setStorageItem(STORAGE_KEYS.SM_DEFAULT_PO_TEMPLATE, value);
+  }, []);
   const [search, setSearch] = React.useState("");
   const [hideSelected, setHideSelected] = React.useState(false);
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [newTaskName, setNewTaskName] = React.useState("");
   const [newTaskTemplateId, setNewTaskTemplateId] = React.useState<string>("");
   const [creating, setCreating] = React.useState(false);
-  // Tasks created during this session (added to allTasks for display)
   const [locallyCreatedTasks, setLocallyCreatedTasks] = React.useState<POTaskItem[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
 
   // Sync ref whenever local selection changes so parent can read it on save
   React.useEffect(() => {
@@ -102,17 +124,61 @@ export function PoTaskPicker({
       const recId = recordId != null ? Number(recordId) : null;
       tasks = tasks.filter((t) => {
         const aId = assignmentField === "tender" ? t.tenderId : t.costCentreId;
-        // Keep: unassigned, assigned to THIS record, or currently selected
         return aId == null || aId === recId || selectedIds.includes(t.id);
       });
     }
     return tasks;
   }, [combinedTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
 
+  // Group tasks by cost centre
+  const groupedTasks = React.useMemo(() => {
+    const groups = new Map<string, TaskGroup>();
+    for (const task of filteredTasks) {
+      const ccId = task.costCentreId;
+      const key = ccId != null ? String(ccId) : "unassigned";
+      const label = ccId != null ? (task.costCentreName || `Cost Centre #${ccId}`) : "Unassigned";
+      if (!groups.has(key)) {
+        groups.set(key, { key, label, tasks: [] });
+      }
+      groups.get(key)!.tasks.push(task);
+    }
+    // Sort: unassigned last, then alphabetical by label
+    const sorted = Array.from(groups.values()).sort((a, b) => {
+      if (a.key === "unassigned") return 1;
+      if (b.key === "unassigned") return -1;
+      return a.label.localeCompare(b.label);
+    });
+    return sorted;
+  }, [filteredTasks]);
+
   const toggleTask = (taskId: number) => {
     setSelectedIds((prev) =>
       prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
     );
+  };
+
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
+  // Select/deselect all tasks in a group
+  const toggleGroupSelection = (group: TaskGroup, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const groupIds = group.tasks.map((t) => t.id);
+    const allSelected = groupIds.every((id) => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !groupIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => [...new Set([...prev, ...groupIds])]);
+    }
   };
 
   // Selected task objects for badge display - filtered by current template
@@ -127,7 +193,6 @@ export function PoTaskPicker({
 
   const handleCreateTask = React.useCallback(async () => {
     if (!onCreateTask || !newTaskName.trim() || creating) return;
-    // Determine template ID: use filter if a specific template is selected, otherwise use the dropdown
     let tplId: number;
     if (templateFilter !== "all") {
       tplId = Number(templateFilter);
@@ -136,7 +201,7 @@ export function PoTaskPicker({
     } else if (newTaskTemplateId) {
       tplId = Number(newTaskTemplateId);
     } else {
-      return; // No template selected
+      return;
     }
     setCreating(true);
     try {
@@ -153,32 +218,112 @@ export function PoTaskPicker({
     }
   }, [onCreateTask, newTaskName, creating, templateFilter, templates, newTaskTemplateId]);
 
+  const renderTaskRow = (task: POTaskItem) => {
+    const isSelected = selectedIds.includes(task.id);
+    const assignedId =
+      assignmentField === "tender" ? task.tenderId : task.costCentreId;
+    const assignedName =
+      assignmentField === "tender" ? task.tenderName : task.costCentreName;
+    const isAssignedElsewhere =
+      assignedId != null &&
+      (recordId != null ? assignedId !== Number(recordId) : true);
+    const taskDisplay = task.taskCode
+      ? `${task.taskCode} - ${task.name}`
+      : task.name;
+    // Tender info for cross-reference display (shown when in costCentre context)
+    const showTenderInfo = assignmentField === "costCentre" && task.tenderId != null;
+    const tenderLabel = task.tenderHeaderName
+      ? `${task.tenderHeaderName} › ${task.tenderName}`
+      : task.tenderName;
+
+    return (
+      <label
+        key={task.id}
+        className={`flex items-start gap-2 px-2 py-1 text-sm rounded cursor-pointer hover:bg-accent ${
+          isSelected ? "bg-accent/50" : ""
+        }`}
+      >
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => toggleTask(task.id)}
+          className="rounded border-input mt-0.5"
+        />
+        <span className="min-w-0">
+          <span className="truncate block">
+            {taskDisplay}
+            {isAssignedElsewhere && (
+              onNavigateToRecord && assignedId ? (
+                <button
+                  type="button"
+                  className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onNavigateToRecord(assignedId, templateFilter);
+                  }}
+                >
+                  ({assignedName || `${entityLabel} #${assignedId}`})
+                </button>
+              ) : (
+                <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                  ({assignedName || `${entityLabel} #${assignedId}`})
+                </span>
+              )
+            )}
+          </span>
+          {showTenderInfo && (
+            onNavigateToTender && task.tenderId ? (
+              <button
+                type="button"
+                className="block text-xs text-purple-600 dark:text-purple-400 underline hover:text-purple-800 dark:hover:text-purple-300 truncate"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onNavigateToTender(task.tenderId!);
+                }}
+              >
+                Tender: {tenderLabel}
+              </button>
+            ) : (
+              <span className="block text-xs text-muted-foreground truncate">
+                Tender: {tenderLabel}
+              </span>
+            )
+          )}
+        </span>
+      </label>
+    );
+  };
+
   return (
     <div className="py-4 border-t">
       <label className="text-sm font-medium">PO Tasks</label>
       <p className="text-xs text-muted-foreground mt-1 mb-2">
         Assign SM PO Tasks to this {entityLabel}. Tasks showing a name in brackets will be reassigned.
       </p>
-      {/* Badges showing currently assigned tasks */}
+      {/* Badges showing currently assigned tasks - scrollable when many */}
       {selectedTasks.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-2">
-          {selectedTasks.map((task) => (
-            <button
-              key={task.id}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                toggleTask(task.id);
-              }}
-              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800/40 cursor-pointer"
-            >
-              {task.taskCode ? `${task.taskCode} - ${task.name}` : task.name}
-              <span className="ml-0.5 text-blue-500 dark:text-blue-300 font-bold">
-                &times;
-              </span>
-            </button>
-          ))}
+        <div className="max-h-[100px] overflow-y-auto mb-2 border rounded-md p-1.5 bg-muted/20">
+          <div className="flex flex-wrap gap-1">
+            {selectedTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  toggleTask(task.id);
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 hover:bg-blue-200 dark:hover:bg-blue-800/40 cursor-pointer"
+              >
+                {task.taskCode ? `${task.taskCode} - ${task.name}` : task.name}
+                <span className="ml-0.5 text-blue-500 dark:text-blue-300 font-bold">
+                  &times;
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {/* Template filter pills - only show if templates provided */}
@@ -230,88 +375,60 @@ export function PoTaskPicker({
             Hide assigned
           </label>
         </div>
-        <div className="max-h-64 overflow-y-auto p-1">
+        <div className="max-h-80 overflow-y-auto">
           {filteredTasks.length === 0 && (
             <p className="text-center text-sm text-muted-foreground py-2">
               No PO tasks found
             </p>
           )}
-          {filteredTasks.map((task) => {
-            const isSelected = selectedIds.includes(task.id);
-            const assignedId =
-              assignmentField === "tender" ? task.tenderId : task.costCentreId;
-            const assignedName =
-              assignmentField === "tender" ? task.tenderName : task.costCentreName;
-            const isAssignedElsewhere =
-              assignedId != null &&
-              (recordId != null ? assignedId !== Number(recordId) : true);
-            const taskDisplay = task.taskCode
-              ? `${task.taskCode} - ${task.name}`
-              : task.name;
-            // Tender info for cross-reference display (shown when in costCentre context)
-            const showTenderInfo = assignmentField === "costCentre" && task.tenderId != null;
-            const tenderLabel = task.tenderHeaderName
-              ? `${task.tenderHeaderName} › ${task.tenderName}`
-              : task.tenderName;
-            return (
-              <label
-                key={task.id}
-                className={`flex items-start gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent ${
-                  isSelected ? "bg-accent/50" : ""
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleTask(task.id)}
-                  className="rounded border-input mt-0.5"
-                />
-                <span className="min-w-0">
-                  <span className="truncate block">
-                    {taskDisplay}
-                    {isAssignedElsewhere && (
-                      onNavigateToRecord && assignedId ? (
-                        <button
-                          type="button"
-                          className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            onNavigateToRecord(assignedId, templateFilter);
-                          }}
-                        >
-                          ({assignedName || `${entityLabel} #${assignedId}`})
-                        </button>
-                      ) : (
-                        <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
-                          ({assignedName || `${entityLabel} #${assignedId}`})
-                        </span>
-                      )
-                    )}
-                  </span>
-                  {showTenderInfo && (
-                    onNavigateToTender && task.tenderId ? (
-                      <button
-                        type="button"
-                        className="block text-xs text-purple-600 dark:text-purple-400 underline hover:text-purple-800 dark:hover:text-purple-300 truncate"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onNavigateToTender(task.tenderId!);
-                        }}
-                      >
-                        Tender: {tenderLabel}
-                      </button>
-                    ) : (
-                      <span className="block text-xs text-muted-foreground truncate">
-                        Tender: {tenderLabel}
-                      </span>
-                    )
+          {groupedTasks.length === 1 && groupedTasks[0].key === "unassigned" ? (
+            // No grouping needed if all tasks are unassigned
+            <div className="p-1">
+              {groupedTasks[0].tasks.map(renderTaskRow)}
+            </div>
+          ) : (
+            groupedTasks.map((group) => {
+              const isCollapsed = collapsedGroups.has(group.key);
+              const groupSelectedCount = group.tasks.filter((t) =>
+                selectedIds.includes(t.id)
+              ).length;
+              const allGroupSelected =
+                group.tasks.length > 0 &&
+                groupSelectedCount === group.tasks.length;
+              return (
+                <div key={group.key} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium bg-muted/40 hover:bg-muted/60 text-left"
+                  >
+                    <span className={`transition-transform ${isCollapsed ? "" : "rotate-90"}`}>
+                      ▶
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={allGroupSelected}
+                      onChange={() => {/* handled by onClick below */}}
+                      onClick={(e) => toggleGroupSelection(group, e as unknown as React.MouseEvent)}
+                      className="rounded border-input"
+                    />
+                    <span className="flex-1 truncate">{group.label}</span>
+                    <span className="text-muted-foreground tabular-nums">
+                      {groupSelectedCount > 0 && (
+                        <span className="text-blue-600 dark:text-blue-400 mr-1">{groupSelectedCount}/</span>
+                      )}
+                      {group.tasks.length}
+                    </span>
+                  </button>
+                  {!isCollapsed && (
+                    <div className="pl-2 p-1">
+                      {group.tasks.map(renderTaskRow)}
+                    </div>
                   )}
-                </span>
-              </label>
-            );
-          })}
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
       {/* Create new PO task inline form */}
@@ -338,7 +455,6 @@ export function PoTaskPicker({
                 }}
               />
             </div>
-            {/* Template selector - show when "All Templates" is active and multiple templates exist */}
             {templateFilter === "all" && templates.length > 1 && (
               <select
                 value={newTaskTemplateId}
