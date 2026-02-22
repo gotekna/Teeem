@@ -665,6 +665,21 @@ assistant_monitor:
   queue: low
   schedule: every 15 minutes
 
+# Batch AI processing for email intelligence (summaries, action items, follow-ups)
+# Uses Haiku for cost efficiency (~$1.20/month)
+# Processes up to 50 emails per tenant per run
+email_intelligence:
+  class: EmailIntelligenceJob
+  queue: low
+  schedule: every 10 minutes
+
+# Morning briefing delivery - personalized daily digest for active users
+# Pure SQL aggregation ($0/month). Routes to web + preferred channels.
+daily_digest:
+  class: DailyDigestJob
+  queue: default
+  schedule: every day at 6:30am Australia/Brisbane
+
 signal_poll:
   class: SignalPollJob
   queue: low

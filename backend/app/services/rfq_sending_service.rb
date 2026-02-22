@@ -61,6 +61,8 @@ class RfqSendingService
     end
 
     # Send RFQs to multiple suppliers (e.g., all for a trade)
+    # Groups trackers by supplier_id so the same supplier receives ONE consolidated
+    # email listing all tasks, rather than separate emails per task.
     def send_bulk(trackers:, user:, email_template_id: nil, document_ids: [], custom_message: nil, account_type:, credential_id:, mailbox_email: nil)
       service = new(
         user: user,
@@ -72,7 +74,17 @@ class RfqSendingService
         mailbox_email: mailbox_email
       )
 
-      results = trackers.map { |tracker| service.send_single(tracker) }
+      results = []
+      grouped = trackers.group_by(&:supplier_id)
+
+      grouped.each do |_supplier_id, supplier_trackers|
+        if supplier_trackers.size == 1
+          results << service.send_single(supplier_trackers.first)
+        else
+          results.concat(service.send_consolidated(supplier_trackers))
+        end
+      end
+
       sent = results.count(&:success?)
 
       BulkResult.new(
@@ -138,6 +150,63 @@ class RfqSendingService
     Result.new(success: false, tracker_id: tracker.id, error: e.message)
   end
 
+  # Send ONE consolidated email for multiple trackers to the SAME supplier.
+  # All trackers must be draft status and share the same supplier_id.
+  # On success: marks ALL trackers as sent with the same email_message_id.
+  # On failure: marks NONE (atomic — don't partially send).
+  # Returns an array of Result structs (one per tracker).
+  def send_consolidated(supplier_trackers)
+    # Validate all are draft + same supplier
+    supplier_trackers.each { |t| validate_tracker!(t) }
+    supplier_ids = supplier_trackers.map(&:supplier_id).uniq
+    raise SendError, "Consolidated send requires all trackers to have the same supplier" if supplier_ids.size != 1
+
+    first_tracker = supplier_trackers.first
+    recipient_email = resolve_recipient_email(first_tracker)
+    raise SendError, "No email address for supplier #{first_tracker.supplier&.display_name}" unless recipient_email.present?
+
+    subject, body = compose_consolidated_email(supplier_trackers)
+    attachments = build_attachments(first_tracker) # Same document_ids, download once
+
+    # Send ONE email via EmailSendingService (SSoT)
+    email_result = EmailSendingService.send_and_log(
+      account_type: @account_type,
+      credential_id: @credential_id,
+      user: @user,
+      to: [recipient_email],
+      subject: subject,
+      body: body,
+      attachments: attachments,
+      mailbox_email: @mailbox_email
+    )
+
+    if email_result.success?
+      # Mark ALL trackers as sent with the same message_id
+      supplier_trackers.each do |tracker|
+        tracker.update!(
+          status: 'sent',
+          sent_at: Time.current,
+          sent_by: @user,
+          email_message_id: email_result.message_id
+        )
+      end
+
+      supplier_trackers.map do |tracker|
+        Result.new(success: true, tracker_id: tracker.id, message_id: email_result.message_id)
+      end
+    else
+      Rails.logger.error("[RfqSendingService] Failed consolidated send for supplier #{first_tracker.supplier_id}: #{email_result.error}")
+      supplier_trackers.map do |tracker|
+        Result.new(success: false, tracker_id: tracker.id, error: email_result.error)
+      end
+    end
+  rescue SendError => e
+    supplier_trackers.map { |t| Result.new(success: false, tracker_id: t.id, error: e.message) }
+  rescue StandardError => e
+    Rails.logger.error("[RfqSendingService] Unexpected error in consolidated send: #{e.class} - #{e.message}")
+    supplier_trackers.map { |t| Result.new(success: false, tracker_id: t.id, error: e.message) }
+  end
+
   private
 
   def validate_tracker!(tracker)
@@ -151,6 +220,36 @@ class RfqSendingService
     tracker.contact&.email.presence ||
       tracker.contact_email.presence ||
       tracker.supplier&.email.presence
+  end
+
+  # Compose consolidated email for multiple trackers to the same supplier
+  def compose_consolidated_email(supplier_trackers)
+    first_tracker = supplier_trackers.first
+    job = first_tracker.job
+    template = find_template
+
+    task_names = supplier_trackers.map(&:task_name).compact.join(", ")
+
+    if template
+      # Apply template using first tracker context, but replace task_name with combined list
+      context = build_template_context(first_tracker, job)
+      context[:trade_name] = task_names
+      context[:task_name] = task_names
+      rendered = template.apply(context)
+      template.record_usage!
+
+      subject = rendered[:subject]
+      body = rendered[:body_html]
+    else
+      subject = "Request for Quote - #{job.name} (#{job.job_code})"
+      body = build_consolidated_default_body(supplier_trackers, job)
+    end
+
+    if @custom_message.present?
+      body += "<br><br><p>#{ERB::Util.html_escape(@custom_message)}</p>"
+    end
+
+    [subject, body]
   end
 
   # Compose email subject and body
@@ -225,6 +324,40 @@ class RfqSendingService
     if tracker.quote_request_instructions.present?
       parts << "<p><strong>Instructions:</strong></p>"
       parts << "<p>#{ERB::Util.html_escape(tracker.quote_request_instructions)}</p>"
+    end
+
+    parts << "<p>Please provide your best quote at your earliest convenience.</p>"
+    parts << "<p>Kind regards,<br>#{ERB::Util.html_escape(@user.name)}</p>"
+    parts.join("\n")
+  end
+
+  # Default email body for consolidated send (multiple tasks, one supplier)
+  def build_consolidated_default_body(supplier_trackers, job)
+    first_tracker = supplier_trackers.first
+    parts = []
+    parts << "<p>Hi #{ERB::Util.html_escape(first_tracker.contact&.first_name || first_tracker.supplier&.display_name || 'there')},</p>"
+    parts << "<p>We would like to request quotes for the following items on #{ERB::Util.html_escape(job.name)} (#{ERB::Util.html_escape(job.job_code)}):</p>"
+
+    # Task table
+    parts << '<table style="border-collapse: collapse; width: 100%; margin: 12px 0;">'
+    parts << '<tr style="background-color: #f3f4f6;">'
+    parts << '<th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Task</th>'
+    parts << '<th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Instructions</th>'
+    parts << '</tr>'
+
+    supplier_trackers.each do |tracker|
+      task = ERB::Util.html_escape(tracker.task_name || "—")
+      instructions = tracker.quote_request_instructions.present? ? ERB::Util.html_escape(tracker.quote_request_instructions) : "—"
+      parts << "<tr>"
+      parts << "<td style=\"border: 1px solid #d1d5db; padding: 8px;\">#{task}</td>"
+      parts << "<td style=\"border: 1px solid #d1d5db; padding: 8px;\">#{instructions}</td>"
+      parts << "</tr>"
+    end
+
+    parts << '</table>'
+
+    if job.address.present?
+      parts << "<p><strong>Site Address:</strong> #{ERB::Util.html_escape(job.address)}</p>"
     end
 
     parts << "<p>Please provide your best quote at your earliest convenience.</p>"

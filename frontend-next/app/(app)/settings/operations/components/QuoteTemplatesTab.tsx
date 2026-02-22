@@ -37,6 +37,7 @@ import {
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { toast } from "sonner";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
@@ -1129,41 +1130,20 @@ function TaskSection({
               <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
                 <Paperclip className="h-3 w-3" />
                 Attach Document Types
-                {task.requiredDocumentTypes.length > 0 && (
-                  <span className="text-muted-foreground">
-                    ({task.requiredDocumentTypes.length} selected)
-                  </span>
-                )}
               </Label>
-              <div className="border rounded-md p-2 max-h-36 overflow-y-auto space-y-1">
-                {jobDocTypes.map((dt) => {
-                  const isChecked = task.requiredDocumentTypes.includes(dt.name);
-                  return (
-                    <div key={dt.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`doctype-${task.id}-${dt.id}`}
-                        checked={isChecked}
-                        onCheckedChange={() => {
-                          const updated = isChecked
-                            ? task.requiredDocumentTypes.filter((n) => n !== dt.name)
-                            : [...task.requiredDocumentTypes, dt.name];
-                          onUpdateDocumentTypes(updated);
-                        }}
-                        className="h-3.5 w-3.5"
-                      />
-                      <label
-                        htmlFor={`doctype-${task.id}-${dt.id}`}
-                        className="text-sm cursor-pointer select-none"
-                      >
-                        {dt.name}
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Matching documents will be suggested when sending RFQs for this task.
-              </p>
+              <MultiSelectFilter
+                values={jobDocTypes.map((dt) => dt.name)}
+                selected={new Set(task.requiredDocumentTypes)}
+                onToggle={(name) => {
+                  const current = task.requiredDocumentTypes;
+                  const updated = current.includes(name)
+                    ? current.filter((n) => n !== name)
+                    : [...current, name];
+                  onUpdateDocumentTypes(updated);
+                }}
+                placeholder="Select document types..."
+                label="Doc types"
+              />
             </div>
           )}
 

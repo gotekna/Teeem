@@ -84,6 +84,7 @@ import {
   Printer,
   Receipt,
   FolderSearch,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -352,8 +353,12 @@ interface Email {
   thread_count?: number;
   is_latest_in_thread?: boolean;
   thread?: Email[];
-  // AI Summary fields
+  // AI Summary fields (populated by EmailIntelligenceService)
   ai_summary?: string | null;
+  action_items?: Array<{ action: string; deadline?: string; priority: string }> | null;
+  follow_up_required?: boolean;
+  follow_up_date?: string | null;
+  follow_up_reason?: string | null;
   // Contact matching fields
   primary_contact_id?: number | null;
   primary_contact?: {
@@ -568,6 +573,19 @@ const EmailListItem = memo(function EmailListItem({
                   confidence={email.classification_confidence}
                   compact
                 />
+                {/* Follow-up badge */}
+                {email.follow_up_required && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 gap-0.5 border-orange-300 text-orange-600 dark:border-orange-700 dark:text-orange-400 shrink-0">
+                    <AlertTriangle className="h-2.5 w-2.5" />
+                    Follow-up
+                  </Badge>
+                )}
+                {/* Action items count badge */}
+                {email.action_items && email.action_items.length > 0 && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 gap-0.5 border-indigo-300 text-indigo-600 dark:border-indigo-700 dark:text-indigo-400 shrink-0">
+                    {email.action_items.length} action{email.action_items.length > 1 ? "s" : ""}
+                  </Badge>
+                )}
                 {/* Thread count badge */}
                 <ThreadCountBadge count={threadCount} isExpanded={isExpanded} />
                 {/* Timestamp - inline with sender */}
@@ -584,7 +602,12 @@ const EmailListItem = memo(function EmailListItem({
               )}>
                 {email.subject || "(No subject)"}
               </p>
-              {(() => {
+              {/* Show AI summary if available, otherwise show body snippet */}
+              {email.ai_summary ? (
+                <p className="text-xs truncate mt-0.5 text-indigo-600/70 dark:text-indigo-400/70 italic">
+                  {email.ai_summary}
+                </p>
+              ) : (() => {
                 const snippetText = decodeHtmlEntities(email.snippet || email.body_preview);
                 return snippetText ? (
                   <p className={cn(

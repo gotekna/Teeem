@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { LayoutGrid, Table as TableIcon, Send } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -102,6 +103,23 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
     setRfqDialogOpen(true);
   };
 
+  // Opens the SendRFQDialog for ALL draft trackers across ALL tasks
+  const handleSendAllUnsent = () => {
+    const allDrafts = summaryData.tasks.flatMap((t) =>
+      t.suppliers.filter((s) => s.status === "draft")
+    );
+    if (allDrafts.length === 0) return;
+
+    setRfqDialogTrackers(allDrafts);
+    setRfqDialogOpen(true);
+  };
+
+  // Count all draft trackers for the badge
+  const unsentCount = summaryData.tasks.reduce(
+    (acc, t) => acc + t.suppliers.filter((s) => s.status === "draft").length,
+    0
+  );
+
   const handleRecordResponse = async (trackerId: number, price: number, timeframe?: string, notes?: string) => {
     try {
       await api.post(`/api/v1/quote_trackers/${trackerId}/record_response`, {
@@ -156,30 +174,46 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
         onApplied={refresh}
       />
 
-      {/* View Toggle */}
+      {/* View Toggle + Send All */}
       <div className="flex items-center justify-between px-4 py-2 border-b">
         <h2 className="text-sm font-semibold text-muted-foreground">
           {summaryData.totalTasks > 0 ? `${summaryData.totalTasks} PO tasks` : "Quote Tracker"}
         </h2>
-        <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
-          <Button
-            variant={view === "board" ? "default" : "ghost"}
-            size="sm"
-            className="h-7 text-xs px-2"
-            onClick={() => setView("board")}
-          >
-            <LayoutGrid className="h-3.5 w-3.5 mr-1" />
-            Board
-          </Button>
-          <Button
-            variant={view === "table" ? "default" : "ghost"}
-            size="sm"
-            className="h-7 text-xs px-2"
-            onClick={() => setView("table")}
-          >
-            <TableIcon className="h-3.5 w-3.5 mr-1" />
-            Table
-          </Button>
+        <div className="flex items-center gap-2">
+          {unsentCount > 0 && (
+            <Button
+              variant="default"
+              size="sm"
+              className="h-7 text-xs px-2.5"
+              onClick={handleSendAllUnsent}
+            >
+              <Send className="h-3.5 w-3.5 mr-1" />
+              Send All Unsent
+              <Badge variant="secondary" className="ml-1.5 h-4 px-1 text-[10px] bg-primary-foreground/20 text-primary-foreground">
+                {unsentCount}
+              </Badge>
+            </Button>
+          )}
+          <div className="flex items-center gap-1 bg-muted rounded-md p-0.5">
+            <Button
+              variant={view === "board" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => setView("board")}
+            >
+              <LayoutGrid className="h-3.5 w-3.5 mr-1" />
+              Board
+            </Button>
+            <Button
+              variant={view === "table" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs px-2"
+              onClick={() => setView("table")}
+            >
+              <TableIcon className="h-3.5 w-3.5 mr-1" />
+              Table
+            </Button>
+          </div>
         </div>
       </div>
 

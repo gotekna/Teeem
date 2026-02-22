@@ -53,6 +53,7 @@ interface AssistantAlert {
   title: string;
   summary: string;
   context_data: Record<string, unknown>;
+  suggested_action_data?: { action: string; message: string } | null;
   created_at: string;
 }
 
@@ -221,9 +222,11 @@ function ActionCard({
 function AlertCard({
   alert,
   onDismiss,
+  onHandleAction,
 }: {
   alert: AssistantAlert;
   onDismiss: (id: number) => void;
+  onHandleAction?: (message: string) => void;
 }) {
   const priorityColors: Record<string, string> = {
     critical: "border-red-400 dark:border-red-700 bg-red-50 dark:bg-red-950/30",
@@ -250,6 +253,22 @@ function AlertCard({
       </div>
       {alert.summary && (
         <p className="text-xs text-muted-foreground mt-1">{alert.summary}</p>
+      )}
+      {alert.suggested_action_data?.message && onHandleAction && (
+        <div className="mt-1.5">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-6 text-xs px-2 gap-1 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
+            onClick={() => {
+              onHandleAction(alert.suggested_action_data!.message);
+              onDismiss(alert.id);
+            }}
+          >
+            <Bot className="h-3 w-3" />
+            Handle it
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -601,6 +620,14 @@ export function AssistantChat({ inline = false }: AssistantChatProps) {
                 key={alert.id}
                 alert={alert}
                 onDismiss={handleDismissAlert}
+                onHandleAction={(message) => {
+                  setNewMessage(message);
+                  setShowAlerts(false);
+                  // Auto-send the suggested action message
+                  setTimeout(() => {
+                    inputRef.current?.focus();
+                  }, 100);
+                }}
               />
             ))}
           </div>

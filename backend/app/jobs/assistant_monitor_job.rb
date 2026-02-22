@@ -41,6 +41,11 @@ class AssistantMonitorJob < ApplicationJob
     alerts += check_tasks_due_today(user)
     alerts += check_overdue_tasks(user)
     alerts += check_unread_notifications(user)
+    alerts += check_follow_up_emails(user)
+    alerts += check_stale_tasks(user)
+    alerts += check_unanswered_emails(user)
+    alerts += check_pending_approvals(user)
+    alerts += check_upcoming_deadlines(user)
 
     # Route new alerts to user's preferred channels (Phase 5)
     if alerts.any?
@@ -187,6 +192,185 @@ class AssistantMonitorJob < ApplicationJob
       title: "#{unread_count} unread notifications",
       summary: "You have #{unread_count} unread notifications from the last hour.",
       context_data: { unread_count: unread_count }
+    )
+    [alert]
+  end
+
+  # Emails with follow_up_date <= today (from EmailIntelligenceService)
+  def check_follow_up_emails(user)
+    follow_ups = SyncedEmail.follow_up_due
+      .where("received_at > ?", 30.days.ago)
+      .order(follow_up_date: :asc)
+      .limit(10)
+
+    return [] if follow_ups.empty?
+
+    # One alert per day for all follow-ups
+    return [] if AssistantAlert.exists?(
+      user: user,
+      alert_type: "follow_up_email",
+      status: %w[pending seen],
+      created_at: Date.current.beginning_of_day..
+    )
+
+    email_list = follow_ups.limit(5).map { |e| e.subject&.truncate(60) || "(No subject)" }
+
+    alert = AssistantAlert.create!(
+      user: user,
+      tenant_id: user.tenant_id,
+      alert_type: "follow_up_email",
+      priority: "medium",
+      title: "#{follow_ups.count} email follow-up(s) due",
+      summary: email_list.join(", "),
+      context_data: {
+        email_count: follow_ups.count,
+        email_ids: follow_ups.pluck(:id),
+        emails: follow_ups.limit(5).map { |e| { id: e.id, subject: e.subject, follow_up_reason: e.follow_up_reason } }
+      },
+      suggested_action_data: {
+        action: "review_follow_ups",
+        message: "Show me emails that need follow-up today"
+      }
+    )
+    [alert]
+  end
+
+  # Tasks with status "started" and no update in 3+ days
+  def check_stale_tasks(user)
+    stale = SmTask
+      .where(assigned_user_id: user.id)
+      .where(status: "started")
+      .where("updated_at < ?", 3.days.ago)
+
+    return [] if stale.empty?
+
+    return [] if AssistantAlert.exists?(
+      user: user,
+      alert_type: "stale_task",
+      status: %w[pending seen],
+      created_at: Date.current.beginning_of_day..
+    )
+
+    alert = AssistantAlert.create!(
+      user: user,
+      tenant_id: user.tenant_id,
+      alert_type: "stale_task",
+      priority: "low",
+      title: "#{stale.count} task(s) with no updates in 3+ days",
+      summary: stale.limit(5).map(&:name).join(", "),
+      context_data: {
+        task_count: stale.count,
+        task_ids: stale.pluck(:id),
+        tasks: stale.limit(5).map { |t| { id: t.id, name: t.name, days_stale: (Date.current - t.updated_at.to_date).to_i } }
+      },
+      suggested_action_data: {
+        action: "review_stale_tasks",
+        message: "Show me tasks that haven't been updated recently"
+      }
+    )
+    [alert]
+  end
+
+  # Business emails with no reply in 48+ hours
+  def check_unanswered_emails(user)
+    unanswered = SyncedEmail
+      .not_spam
+      .where(is_read: true) # They've seen it but not replied
+      .where("received_at < ? AND received_at > ?", 48.hours.ago, 7.days.ago)
+      .where(is_latest_in_thread: true) # Only latest in thread
+      .where("email_classification->>'email_type' IS DISTINCT FROM ?", "marketing")
+      .where("email_classification->>'email_type' IS DISTINCT FROM ?", "transactional")
+      .where("from_email NOT IN (?)", %w[noreply@tekna.com.au no-reply@tekna.com.au])
+      .order(received_at: :desc)
+      .limit(10)
+
+    return [] if unanswered.empty?
+
+    return [] if AssistantAlert.exists?(
+      user: user,
+      alert_type: "unanswered_email",
+      status: %w[pending seen],
+      created_at: Date.current.beginning_of_day..
+    )
+
+    alert = AssistantAlert.create!(
+      user: user,
+      tenant_id: user.tenant_id,
+      alert_type: "unanswered_email",
+      priority: "low",
+      title: "#{unanswered.count} email(s) awaiting your reply (48h+)",
+      summary: unanswered.limit(3).map { |e| "#{e.from_name}: #{e.subject&.truncate(40)}" }.join(", "),
+      context_data: {
+        email_count: unanswered.count,
+        email_ids: unanswered.pluck(:id)
+      },
+      suggested_action_data: {
+        action: "review_unanswered",
+        message: "Show me emails I haven't replied to"
+      }
+    )
+    [alert]
+  end
+
+  # Assistant actions pending for 2+ hours
+  def check_pending_approvals(user)
+    pending = AssistantAction
+      .where(user: user, status: "pending")
+      .where("created_at < ?", 2.hours.ago)
+
+    return [] if pending.empty?
+
+    return [] if AssistantAlert.exists?(
+      user: user,
+      alert_type: "pending_approval",
+      status: %w[pending seen],
+      created_at: Date.current.beginning_of_day..
+    )
+
+    alert = AssistantAlert.create!(
+      user: user,
+      tenant_id: user.tenant_id,
+      alert_type: "pending_approval",
+      priority: "medium",
+      title: "#{pending.count} assistant action(s) awaiting your approval",
+      summary: pending.limit(3).map(&:description).join(", "),
+      context_data: {
+        action_count: pending.count,
+        action_ids: pending.pluck(:id)
+      }
+    )
+    [alert]
+  end
+
+  # Tasks due tomorrow (heads-up)
+  def check_upcoming_deadlines(user)
+    tomorrow = Date.current + 1.day
+    due_tomorrow = SmTask
+      .where(assigned_user_id: user.id)
+      .where(end_date: tomorrow)
+      .where.not(status: "completed")
+
+    return [] if due_tomorrow.empty?
+
+    return [] if AssistantAlert.exists?(
+      user: user,
+      alert_type: "upcoming_deadline",
+      status: %w[pending seen],
+      created_at: Date.current.beginning_of_day..
+    )
+
+    alert = AssistantAlert.create!(
+      user: user,
+      tenant_id: user.tenant_id,
+      alert_type: "upcoming_deadline",
+      priority: "low",
+      title: "#{due_tomorrow.count} task(s) due tomorrow",
+      summary: due_tomorrow.limit(5).map(&:name).join(", "),
+      context_data: {
+        task_count: due_tomorrow.count,
+        task_ids: due_tomorrow.pluck(:id),
+        due_date: tomorrow.strftime("%d/%m/%Y")
+      }
     )
     [alert]
   end

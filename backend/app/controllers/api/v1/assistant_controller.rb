@@ -172,6 +172,9 @@ class Api::V1::AssistantController < ApplicationController
     ).to_h
 
     allowed[:autopilot_enabled] = params[:autopilot_enabled] if params.key?(:autopilot_enabled)
+    allowed[:daily_digest_enabled] = params[:daily_digest_enabled] if params.key?(:daily_digest_enabled)
+    allowed[:daily_digest_time] = params[:daily_digest_time] if params.key?(:daily_digest_time)
+    allowed[:priority_threshold] = params[:priority_threshold] if params.key?(:priority_threshold)
 
     prefs = current_user.assistant_preferences || {}
     prefs.merge!(allowed.stringify_keys)
@@ -451,6 +454,7 @@ class Api::V1::AssistantController < ApplicationController
       title: alert.title,
       summary: alert.summary,
       context_data: alert.context_data,
+      suggested_action_data: alert.respond_to?(:suggested_action_data) ? alert.suggested_action_data : nil,
       created_at: alert.created_at
     }
   end

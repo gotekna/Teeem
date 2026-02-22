@@ -99,6 +99,20 @@ export function SendRFQDialog({
   const isBulk = trackers.length > 1;
   const firstTracker = trackers[0];
 
+  // Group trackers by supplier for display — same supplier across tasks = 1 email
+  const supplierGroups = trackers.reduce<
+    Record<string, { supplierName: string; contactEmail: string | null; trackers: QuoteTrackerRow[] }>
+  >((acc, t) => {
+    const key = String(t.supplierId ?? t.id);
+    if (!acc[key]) {
+      acc[key] = { supplierName: t.supplierName || "Unknown", contactEmail: t.contactEmail, trackers: [] };
+    }
+    acc[key].trackers.push(t);
+    return acc;
+  }, {});
+  const uniqueSupplierCount = Object.keys(supplierGroups).length;
+  const hasConsolidation = isBulk && uniqueSupplierCount < trackers.length;
+
   // ─────────────────────────────────────────────────────────────────────────
   // Load data on open
   // ─────────────────────────────────────────────────────────────────────────
@@ -239,7 +253,9 @@ export function SendRFQDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
-            {isBulk ? `Send ${trackers.length} RFQs` : "Send RFQ"}
+            {isBulk
+              ? `Send RFQs (${uniqueSupplierCount} email${uniqueSupplierCount === 1 ? "" : "s"})`
+              : "Send RFQ"}
           </DialogTitle>
         </DialogHeader>
 
@@ -249,21 +265,31 @@ export function SendRFQDialog({
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {/* Recipients summary */}
+            {/* Recipients summary — grouped by supplier */}
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">
-                {isBulk ? "Recipients" : "To"}
+                {isBulk ? `Recipients (${uniqueSupplierCount} email${uniqueSupplierCount === 1 ? "" : "s"})` : "To"}
               </Label>
               <div className="flex flex-wrap gap-1">
-                {trackers.map((t) => (
-                  <Badge key={t.id} variant="secondary" className="text-xs">
-                    {t.supplierName}
-                    {t.contactEmail && (
-                      <span className="text-muted-foreground ml-1">{t.contactEmail}</span>
+                {Object.values(supplierGroups).map((group) => (
+                  <Badge key={group.supplierName} variant="secondary" className="text-xs">
+                    {group.supplierName}
+                    {group.trackers.length > 1 && (
+                      <span className="text-muted-foreground ml-1">
+                        ({group.trackers.length} tasks)
+                      </span>
+                    )}
+                    {group.contactEmail && group.trackers.length === 1 && (
+                      <span className="text-muted-foreground ml-1">{group.contactEmail}</span>
                     )}
                   </Badge>
                 ))}
               </div>
+              {hasConsolidation && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Same supplier across multiple tasks will receive one consolidated email.
+                </p>
+              )}
             </div>
 
             {/* Email account */}
@@ -398,7 +424,9 @@ export function SendRFQDialog({
                   ) : (
                     <Send className="h-3.5 w-3.5 mr-1" />
                   )}
-                  {isBulk ? `Send ${trackers.length} RFQs` : "Send RFQ"}
+                  {isBulk
+                    ? `Send ${uniqueSupplierCount} email${uniqueSupplierCount === 1 ? "" : "s"}`
+                    : "Send RFQ"}
                 </Button>
               </div>
             </div>

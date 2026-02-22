@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Zap,
   Loader2,
+  Sunrise,
 } from "lucide-react";
 import {
   Select,
@@ -34,6 +35,8 @@ interface AssistantPreferences {
   autopilot_enabled?: boolean;
   autopilot_actions?: string[];
   priority_threshold?: string;
+  daily_digest_enabled?: boolean;
+  daily_digest_time?: string;
 }
 
 const NOTIFICATION_CHANNELS = [
@@ -76,6 +79,8 @@ export default function AssistantPreferencesPage() {
     autopilot_enabled: false,
     autopilot_actions: [],
     priority_threshold: "all",
+    daily_digest_enabled: true,
+    daily_digest_time: "06:30",
   });
 
   // Load preferences
@@ -90,6 +95,8 @@ export default function AssistantPreferencesPage() {
             autopilot_enabled: response.data.autopilot_enabled || false,
             autopilot_actions: response.data.autopilot_actions || [],
             priority_threshold: response.data.priority_threshold || "all",
+            daily_digest_enabled: response.data.daily_digest_enabled ?? true,
+            daily_digest_time: response.data.daily_digest_time || "06:30",
           });
         }
       } catch (error) {
@@ -182,6 +189,59 @@ export default function AssistantPreferencesPage() {
                 </div>
               );
             })}
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Daily Digest */}
+      <section>
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <Sunrise className="h-5 w-5" />
+          Daily Digest
+        </h2>
+        <Card>
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base">Morning Briefing</Label>
+                <p className="text-sm text-muted-foreground">
+                  Receive a daily summary of tasks due, overdue items, email follow-ups, and pending approvals.
+                </p>
+              </div>
+              <Switch
+                checked={prefs.daily_digest_enabled ?? true}
+                onCheckedChange={(checked) => savePrefs({ daily_digest_enabled: checked })}
+                disabled={saving}
+              />
+            </div>
+
+            {(prefs.daily_digest_enabled ?? true) && (
+              <div className="border-t pt-4">
+                <div className="space-y-1">
+                  <Label>Delivery Time (Brisbane)</Label>
+                  <Select
+                    value={prefs.daily_digest_time || "06:30"}
+                    onValueChange={(value) => savePrefs({ daily_digest_time: value })}
+                  >
+                    <SelectTrigger className="w-[160px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["05:00", "05:30", "06:00", "06:30", "07:00", "07:30", "08:00", "08:30", "09:00"].map(
+                        (time) => (
+                          <SelectItem key={time} value={time}>
+                            {time} AEST
+                          </SelectItem>
+                        )
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Delivered to your enabled notification channels above.
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </section>

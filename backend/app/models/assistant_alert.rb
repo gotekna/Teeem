@@ -14,6 +14,10 @@ class AssistantAlert < ApplicationRecord
     urgent_email overdue_task
     task_due_today schedule_delay
     unread_notifications
+    follow_up_email stale_task
+    unanswered_email pending_approval
+    upcoming_deadline autopilot_suggestion
+    daily_digest
   ].freeze
 
   PRIORITIES = %w[low medium high critical].freeze

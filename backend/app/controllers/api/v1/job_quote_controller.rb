@@ -156,12 +156,16 @@ module Api
           mailbox_email: params[:mailbox_email]
         )
 
+        # Count unique emails sent (consolidated sends share the same message_id)
+        unique_emails = bulk_result.results.select(&:success?).map(&:message_id).uniq.size
+
         render json: {
           success: bulk_result.all_success?,
-          message: "Sent #{bulk_result.sent}/#{bulk_result.total} RFQs",
+          message: "Sent #{unique_emails} email#{'s' unless unique_emails == 1} covering #{bulk_result.sent} supplier#{'s' unless bulk_result.sent == 1}",
           data: {
             sent: bulk_result.sent,
             failed: bulk_result.failed,
+            emailsSent: unique_emails,
             errors: bulk_result.results.reject(&:success?).map { |r| { trackerId: r.tracker_id, error: r.error } }
           }
         }
