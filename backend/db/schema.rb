@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_220000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_240000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10268,6 +10268,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_220000) do
     t.index ["source_purchase_order_id"], name: "index_tender_document_items_on_source_purchase_order_id"
     t.index ["tender_document_id", "tender_section_name", "line_number"], name: "idx_tender_doc_items_section_line"
     t.index ["tender_document_id"], name: "index_tender_document_items_on_tender_document_id"
+  end
+
+  create_table "tender_document_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "cover_letter_html"
+    t.text "terms_and_conditions_html"
+    t.text "base_specification_html"
+    t.text "acceptance_page_html"
+    t.text "notes_html"
+    t.integer "validity_days", default: 30
+    t.boolean "is_default", default: true
+    t.boolean "is_active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "default_document_types", default: []
+    t.index ["tenant_id"], name: "index_tender_document_templates_on_tenant_id"
   end
 
   create_table "tender_documents", force: :cascade do |t|
