@@ -3,12 +3,12 @@
 module Api
   module V1
     class JobQuoteController < ApplicationController
-      before_action :set_job, only: [:quote_summary, :apply_template, :rfq_documents]
+      before_action :set_job, only: [:quote_summary, :apply_quote_template, :rfq_documents]
       before_action :set_tracker, only: [:send_rfq, :record_response, :accept]
 
       # GET /api/v1/jobs/:job_id/quote_summary
       # Returns QuoteTracker rows grouped by PO Task (SmScheduleMaster) with best_price flags
-      def summary
+      def quote_summary
         trackers = QuoteTracker.where(job_id: @job.id)
           .includes(:sm_schedule_master, :sm_task, :sm_trade, :supplier, :contact, :sent_by, :purchase_order, :quote_template)
           .order(:sm_schedule_master_id, :supplier_id)
@@ -49,7 +49,7 @@ module Api
 
       # POST /api/v1/jobs/:job_id/apply_quote_template
       # Applies a template, creating QuoteTracker rows
-      def apply_template
+      def apply_quote_template
         template = QuoteTemplate.find(params[:template_id])
 
         # Check if there are existing trackers from this template
