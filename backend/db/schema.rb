@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_120000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7959,14 +7959,16 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_120000) do
   create_table "quote_template_trades", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "quote_template_id", null: false
-    t.bigint "sm_trade_id", null: false
+    t.bigint "sm_trade_id"
     t.integer "position", default: 0, null: false
     t.text "default_instructions"
     t.jsonb "required_document_types", default: []
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["quote_template_id", "sm_trade_id"], name: "idx_qt_trades_template_trade", unique: true
+    t.bigint "sm_schedule_master_id"
+    t.index ["quote_template_id", "sm_schedule_master_id"], name: "idx_qt_trades_template_po_task", unique: true, where: "(sm_schedule_master_id IS NOT NULL)"
     t.index ["quote_template_id"], name: "index_quote_template_trades_on_quote_template_id"
+    t.index ["sm_schedule_master_id"], name: "index_quote_template_trades_on_sm_schedule_master_id"
     t.index ["sm_trade_id"], name: "index_quote_template_trades_on_sm_trade_id"
     t.index ["tenant_id"], name: "index_quote_template_trades_on_tenant_id"
   end
@@ -8015,12 +8017,17 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_120000) do
     t.string "timeframe"
     t.integer "reminder_count", default: 0
     t.datetime "last_reminder_at"
+    t.bigint "sm_schedule_master_id"
+    t.bigint "sm_task_id"
     t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
+    t.index ["job_id", "sm_schedule_master_id", "is_best_price"], name: "idx_quote_trackers_best_price_by_task"
     t.index ["job_id", "sm_trade_id", "is_best_price"], name: "idx_quote_trackers_best_price"
     t.index ["job_id"], name: "index_quote_trackers_on_job_id"
     t.index ["purchase_order_id"], name: "index_quote_trackers_on_purchase_order_id"
     t.index ["quote_template_id"], name: "index_quote_trackers_on_quote_template_id"
     t.index ["sent_by_id"], name: "index_quote_trackers_on_sent_by_id"
+    t.index ["sm_schedule_master_id"], name: "index_quote_trackers_on_sm_schedule_master_id"
+    t.index ["sm_task_id"], name: "index_quote_trackers_on_sm_task_id"
     t.index ["sm_trade_id"], name: "index_quote_trackers_on_sm_trade_id"
     t.index ["status"], name: "index_quote_trackers_on_status"
     t.index ["supplier_id"], name: "index_quote_trackers_on_supplier_id"

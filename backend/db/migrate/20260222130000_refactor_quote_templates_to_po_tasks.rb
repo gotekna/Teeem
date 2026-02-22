@@ -62,7 +62,7 @@ class RefactorQuoteTemplatesToPoTasks < ActiveRecord::Migration[7.2]
     return unless foundation
 
     # Find column type definitions
-    lookup_type = ColumnTypeDefinition.find_by(name: 'lookup')
+    lookup_type = ColumnTypeDefinition.find_by(type_key: 'lookup')
     return unless lookup_type
 
     max_position = foundation.columns.maximum(:position) || 0
@@ -71,14 +71,11 @@ class RefactorQuoteTemplatesToPoTasks < ActiveRecord::Migration[7.2]
     unless foundation.columns.exists?(name: 'sm_schedule_master_id')
       foundation.columns.create!(
         name: 'sm_schedule_master_id',
-        display_name: 'PO Task',
+        column_name: 'PO Task',
         column_type: 'lookup',
         column_type_definition: lookup_type,
         position: max_position + 1,
-        is_visible: true,
-        is_editable: true,
-        is_required: false,
-        lookup_table: 'sm_schedule_masters',
+        required: false,
         lookup_display_column: 'name'
       )
     end
@@ -87,14 +84,11 @@ class RefactorQuoteTemplatesToPoTasks < ActiveRecord::Migration[7.2]
     unless foundation.columns.exists?(name: 'sm_task_id')
       foundation.columns.create!(
         name: 'sm_task_id',
-        display_name: 'Job Task',
+        column_name: 'Job Task',
         column_type: 'lookup',
         column_type_definition: lookup_type,
         position: max_position + 2,
-        is_visible: false,
-        is_editable: false,
-        is_required: false,
-        lookup_table: 'sm_tasks',
+        required: false,
         lookup_display_column: 'name'
       )
     end

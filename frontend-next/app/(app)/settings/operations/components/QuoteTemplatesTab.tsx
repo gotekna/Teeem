@@ -48,10 +48,12 @@ interface QuoteTemplateSupplier {
   isPreferred: boolean;
 }
 
-interface QuoteTemplateTrade {
+interface QuoteTemplateTask {
   id: number;
-  smTradeId: number;
-  tradeName: string | null;
+  smScheduleMasterId: number;
+  taskName: string | null;
+  costCentre: number | null;
+  poRequired: boolean | null;
   position: number;
   defaultInstructions: string | null;
   requiredDocumentTypes: string[];
@@ -69,7 +71,7 @@ interface QuoteTemplate {
   supplierCount: number;
   createdAt: string;
   updatedAt: string;
-  trades?: QuoteTemplateTrade[];
+  trades?: QuoteTemplateTask[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -96,8 +98,8 @@ export function QuoteTemplatesTab() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   // Lookup data (lazy loaded)
-  const [tradeItems, setTradeItems] = useState<ComboboxItem[]>([]);
-  const [tradesLoaded, setTradesLoaded] = useState(false);
+  const [taskItems, setTaskItems] = useState<ComboboxItem[]>([]);
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [supplierItems, setSupplierItems] = useState<ComboboxItem[]>([]);
   const [suppliersLoaded, setSuppliersLoaded] = useState(false);
   const [supplierSearchLoading, setSupplierSearchLoading] = useState(false);
@@ -137,22 +139,24 @@ export function QuoteTemplatesTab() {
     }
   }, []);
 
-  const loadTrades = useCallback(async () => {
-    if (tradesLoaded) return;
+  // Load PO Tasks (SmScheduleMaster records that require POs)
+  const loadTasks = useCallback(async () => {
+    if (tasksLoaded) return;
     try {
       const response = await api.get<{ success: boolean; data: { records: Array<{ id: number; values: Record<string, unknown> }> } }>(
-        "/api/v1/foundations/sm_trades/records?per_page=500"
+        "/api/v1/foundations/sm-schedule-master/records?per_page=500&filters=" +
+        encodeURIComponent(JSON.stringify([{ column: "po_required", operator: "=", value: "true" }]))
       );
       const records = response?.data?.records || [];
-      setTradeItems(records.map(r => ({
+      setTaskItems(records.map(r => ({
         id: String(r.id),
-        label: (r.values?.name as string) || `Trade ${r.id}`,
+        label: (r.values?.name as string) || `Task ${r.id}`,
       })));
-      setTradesLoaded(true);
+      setTasksLoaded(true);
     } catch (err) {
-      console.error("[QuoteTemplatesTab] Failed to load trades:", err);
+      console.error("[QuoteTemplatesTab] Failed to load PO tasks:", err);
     }
-  }, [tradesLoaded]);
+  }, [tasksLoaded]);
 
   const loadSuppliers = useCallback(async (query?: string) => {
     try {
@@ -255,59 +259,59 @@ export function QuoteTemplatesTab() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Trade Management (within expanded template)
+  // Task Management (within expanded template)
   // ─────────────────────────────────────────────────────────────────────────
 
-  const handleAddTrade = async (templateId: number, tradeId: number) => {
+  const handleAddTask = async (templateId: number, smScheduleMasterId: number) => {
     if (!editingTemplate) return;
     try {
       setSaving(true);
-      const existingTrades = editingTemplate.trades || [];
-      const maxPosition = existingTrades.reduce((max, t) => Math.max(max, t.position), -1);
+      const existingTasks = editingTemplate.trades || [];
+      const maxPosition = existingTasks.reduce((max, t) => Math.max(max, t.position), -1);
 
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [
-            { sm_trade_id: tradeId, position: maxPosition + 1 },
+            { sm_schedule_master_id: smScheduleMasterId, position: maxPosition + 1 },
           ],
         },
       });
-      toast.success("Trade added");
+      toast.success("PO Task added");
       loadTemplateDetail(templateId);
     } catch (err) {
-      console.error("[QuoteTemplatesTab] Add trade failed:", err);
-      toast.error("Failed to add trade");
+      console.error("[QuoteTemplatesTab] Add task failed:", err);
+      toast.error("Failed to add PO task");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRemoveTrade = async (templateId: number, tradeRowId: number) => {
+  const handleRemoveTask = async (templateId: number, taskRowId: number) => {
     try {
       setSaving(true);
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [
-            { id: tradeRowId, _destroy: true },
+            { id: taskRowId, _destroy: true },
           ],
         },
       });
-      toast.success("Trade removed");
+      toast.success("PO Task removed");
       loadTemplateDetail(templateId);
     } catch (err) {
-      console.error("[QuoteTemplatesTab] Remove trade failed:", err);
-      toast.error("Failed to remove trade");
+      console.error("[QuoteTemplatesTab] Remove task failed:", err);
+      toast.error("Failed to remove PO task");
     } finally {
       setSaving(false);
     }
   };
 
-  const handleUpdateTradeInstructions = async (templateId: number, tradeRowId: number, instructions: string) => {
+  const handleUpdateTaskInstructions = async (templateId: number, taskRowId: number, instructions: string) => {
     try {
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [
-            { id: tradeRowId, default_instructions: instructions },
+            { id: taskRowId, default_instructions: instructions },
           ],
         },
       });
@@ -318,19 +322,19 @@ export function QuoteTemplatesTab() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Supplier Management (within a trade)
+  // Supplier Management (within a task)
   // ─────────────────────────────────────────────────────────────────────────
 
-  const handleAddSupplier = async (templateId: number, tradeRowId: number, supplierId: number) => {
+  const handleAddSupplier = async (templateId: number, taskRowId: number, supplierId: number) => {
     try {
       setSaving(true);
-      const trade = editingTemplate?.trades?.find(t => t.id === tradeRowId);
-      const maxPos = (trade?.suppliers || []).reduce((max, s) => Math.max(max, s.position), -1);
+      const task = editingTemplate?.trades?.find(t => t.id === taskRowId);
+      const maxPos = (task?.suppliers || []).reduce((max, s) => Math.max(max, s.position), -1);
 
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [{
-            id: tradeRowId,
+            id: taskRowId,
             quote_template_trade_suppliers_attributes: [
               { supplier_id: supplierId, position: maxPos + 1 },
             ],
@@ -347,13 +351,13 @@ export function QuoteTemplatesTab() {
     }
   };
 
-  const handleRemoveSupplier = async (templateId: number, tradeRowId: number, supplierRowId: number) => {
+  const handleRemoveSupplier = async (templateId: number, taskRowId: number, supplierRowId: number) => {
     try {
       setSaving(true);
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [{
-            id: tradeRowId,
+            id: taskRowId,
             quote_template_trade_suppliers_attributes: [
               { id: supplierRowId, _destroy: true },
             ],
@@ -370,12 +374,12 @@ export function QuoteTemplatesTab() {
     }
   };
 
-  const handleTogglePreferred = async (templateId: number, tradeRowId: number, supplierRow: QuoteTemplateSupplier) => {
+  const handleTogglePreferred = async (templateId: number, taskRowId: number, supplierRow: QuoteTemplateSupplier) => {
     try {
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
           quote_template_trades_attributes: [{
-            id: tradeRowId,
+            id: taskRowId,
             quote_template_trade_suppliers_attributes: [
               { id: supplierRow.id, is_preferred: !supplierRow.isPreferred },
             ],
@@ -398,7 +402,7 @@ export function QuoteTemplatesTab() {
       setEditingTemplate(null);
     } else {
       setExpandedId(id);
-      loadTrades();
+      loadTasks();
       if (!suppliersLoaded) loadSuppliers();
       loadTemplateDetail(id);
     }
@@ -423,7 +427,7 @@ export function QuoteTemplatesTab() {
         <div>
           <h2 className="text-lg font-semibold">Quote Templates</h2>
           <p className="text-sm text-muted-foreground">
-            Define trades and preferred suppliers for RFQ workflows
+            Define PO tasks and preferred suppliers for RFQ workflows
           </p>
         </div>
         <Button
@@ -446,7 +450,7 @@ export function QuoteTemplatesTab() {
           <CardContent className="py-12 text-center text-muted-foreground">
             <FileText className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No quote templates yet</p>
-            <p className="text-sm mt-1">Create a template to define trades and suppliers for RFQ workflows</p>
+            <p className="text-sm mt-1">Create a template to define PO tasks and suppliers for RFQ workflows</p>
           </CardContent>
         </Card>
       ) : (
@@ -477,7 +481,7 @@ export function QuoteTemplatesTab() {
 
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant="outline" className="text-xs">
-                    {template.tradeCount} {template.tradeCount === 1 ? "trade" : "trades"}
+                    {template.tradeCount} {template.tradeCount === 1 ? "task" : "tasks"}
                   </Badge>
                   <Badge variant="outline" className="text-xs">
                     <Users className="h-3 w-3 mr-1" />
@@ -528,23 +532,23 @@ export function QuoteTemplatesTab() {
                 <div className="border-t bg-muted/30 px-4 py-4">
                   <TemplateEditor
                     template={editingTemplate}
-                    tradeItems={tradeItems}
+                    taskItems={taskItems}
                     supplierItems={supplierItems}
                     supplierSearchLoading={supplierSearchLoading}
                     saving={saving}
-                    onAddTrade={(tradeId) => handleAddTrade(template.id, tradeId)}
-                    onRemoveTrade={(tradeRowId) => handleRemoveTrade(template.id, tradeRowId)}
-                    onUpdateInstructions={(tradeRowId, instructions) =>
-                      handleUpdateTradeInstructions(template.id, tradeRowId, instructions)
+                    onAddTask={(taskId) => handleAddTask(template.id, taskId)}
+                    onRemoveTask={(taskRowId) => handleRemoveTask(template.id, taskRowId)}
+                    onUpdateInstructions={(taskRowId, instructions) =>
+                      handleUpdateTaskInstructions(template.id, taskRowId, instructions)
                     }
-                    onAddSupplier={(tradeRowId, supplierId) =>
-                      handleAddSupplier(template.id, tradeRowId, supplierId)
+                    onAddSupplier={(taskRowId, supplierId) =>
+                      handleAddSupplier(template.id, taskRowId, supplierId)
                     }
-                    onRemoveSupplier={(tradeRowId, supplierRowId) =>
-                      handleRemoveSupplier(template.id, tradeRowId, supplierRowId)
+                    onRemoveSupplier={(taskRowId, supplierRowId) =>
+                      handleRemoveSupplier(template.id, taskRowId, supplierRowId)
                     }
-                    onTogglePreferred={(tradeRowId, supplierRow) =>
-                      handleTogglePreferred(template.id, tradeRowId, supplierRow)
+                    onTogglePreferred={(taskRowId, supplierRow) =>
+                      handleTogglePreferred(template.id, taskRowId, supplierRow)
                     }
                     onSearchSuppliers={loadSuppliers}
                   />
@@ -564,7 +568,7 @@ export function QuoteTemplatesTab() {
             </DialogTitle>
             <DialogDescription>
               {dialogMode === "create"
-                ? "Create a template to define trades and suppliers for RFQ workflows"
+                ? "Create a template to define PO tasks and suppliers for RFQ workflows"
                 : "Update the template name and description"}
             </DialogDescription>
           </DialogHeader>
@@ -640,73 +644,73 @@ export function QuoteTemplatesTab() {
 
 interface TemplateEditorProps {
   template: QuoteTemplate;
-  tradeItems: ComboboxItem[];
+  taskItems: ComboboxItem[];
   supplierItems: ComboboxItem[];
   supplierSearchLoading: boolean;
   saving: boolean;
-  onAddTrade: (tradeId: number) => void;
-  onRemoveTrade: (tradeRowId: number) => void;
-  onUpdateInstructions: (tradeRowId: number, instructions: string) => void;
-  onAddSupplier: (tradeRowId: number, supplierId: number) => void;
-  onRemoveSupplier: (tradeRowId: number, supplierRowId: number) => void;
-  onTogglePreferred: (tradeRowId: number, supplierRow: QuoteTemplateSupplier) => void;
+  onAddTask: (smScheduleMasterId: number) => void;
+  onRemoveTask: (taskRowId: number) => void;
+  onUpdateInstructions: (taskRowId: number, instructions: string) => void;
+  onAddSupplier: (taskRowId: number, supplierId: number) => void;
+  onRemoveSupplier: (taskRowId: number, supplierRowId: number) => void;
+  onTogglePreferred: (taskRowId: number, supplierRow: QuoteTemplateSupplier) => void;
   onSearchSuppliers: (query?: string) => void;
 }
 
 function TemplateEditor({
   template,
-  tradeItems,
+  taskItems,
   supplierItems,
   supplierSearchLoading,
   saving,
-  onAddTrade,
-  onRemoveTrade,
+  onAddTask,
+  onRemoveTask,
   onUpdateInstructions,
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
   onSearchSuppliers,
 }: TemplateEditorProps) {
-  const templateTrades = template.trades || [];
+  const templateTasks = template.trades || [];
 
-  // Filter trades not already in template
-  const usedTradeIds = new Set(templateTrades.map(t => String(t.smTradeId)));
-  const availableTradeItems = tradeItems.filter(t => !usedTradeIds.has(t.id));
+  // Filter tasks not already in template
+  const usedTaskIds = new Set(templateTasks.map(t => String(t.smScheduleMasterId)));
+  const availableTaskItems = taskItems.filter(t => !usedTaskIds.has(t.id));
 
   return (
     <div className="space-y-4">
-      {/* Trades List */}
-      {templateTrades.length === 0 ? (
+      {/* Tasks List */}
+      {templateTasks.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">
-          No trades added yet. Add a trade to start building this template.
+          No PO tasks added yet. Add a PO task to start building this template.
         </p>
       ) : (
         <div className="space-y-3">
-          {templateTrades.map((trade) => (
-            <TradeSection
-              key={trade.id}
-              trade={trade}
+          {templateTasks.map((task) => (
+            <TaskSection
+              key={task.id}
+              task={task}
               supplierItems={supplierItems}
               supplierSearchLoading={supplierSearchLoading}
-              onRemove={() => onRemoveTrade(trade.id)}
-              onUpdateInstructions={(instructions) => onUpdateInstructions(trade.id, instructions)}
-              onAddSupplier={(supplierId) => onAddSupplier(trade.id, supplierId)}
-              onRemoveSupplier={(supplierRowId) => onRemoveSupplier(trade.id, supplierRowId)}
-              onTogglePreferred={(supplierRow) => onTogglePreferred(trade.id, supplierRow)}
+              onRemove={() => onRemoveTask(task.id)}
+              onUpdateInstructions={(instructions) => onUpdateInstructions(task.id, instructions)}
+              onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
+              onRemoveSupplier={(supplierRowId) => onRemoveSupplier(task.id, supplierRowId)}
+              onTogglePreferred={(supplierRow) => onTogglePreferred(task.id, supplierRow)}
               onSearchSuppliers={onSearchSuppliers}
             />
           ))}
         </div>
       )}
 
-      {/* Add Trade */}
+      {/* Add Task */}
       <div className="flex items-center gap-2 pt-2">
         <ComboboxDropdown
-          items={availableTradeItems}
-          onSelect={(item) => onAddTrade(Number(item.id))}
-          placeholder="Add trade..."
-          searchPlaceholder="Search trades..."
-          emptyResults="No trades available"
+          items={availableTaskItems}
+          onSelect={(item) => onAddTask(Number(item.id))}
+          placeholder="Add PO task..."
+          searchPlaceholder="Search PO tasks..."
+          emptyResults="No PO tasks available"
           className="w-64"
         />
         {saving && <Spinner className="h-4 w-4" />}
@@ -716,11 +720,11 @@ function TemplateEditor({
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Trade Section (within template editor)
+// Task Section (within template editor)
 // ═══════════════════════════════════════════════════════════════════════════
 
-interface TradeSectionProps {
-  trade: QuoteTemplateTrade;
+interface TaskSectionProps {
+  task: QuoteTemplateTask;
   supplierItems: ComboboxItem[];
   supplierSearchLoading: boolean;
   onRemove: () => void;
@@ -731,8 +735,8 @@ interface TradeSectionProps {
   onSearchSuppliers: (query?: string) => void;
 }
 
-function TradeSection({
-  trade,
+function TaskSection({
+  task,
   supplierItems,
   supplierSearchLoading,
   onRemove,
@@ -741,9 +745,9 @@ function TradeSection({
   onRemoveSupplier,
   onTogglePreferred,
   onSearchSuppliers,
-}: TradeSectionProps) {
+}: TaskSectionProps) {
   const [expanded, setExpanded] = useState(true);
-  const [instructionsValue, setInstructionsValue] = useState(trade.defaultInstructions || "");
+  const [instructionsValue, setInstructionsValue] = useState(task.defaultInstructions || "");
   const instructionsTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Debounced save for instructions
@@ -753,13 +757,13 @@ function TradeSection({
     instructionsTimerRef.current = setTimeout(() => onUpdateInstructions(value), 1000);
   };
 
-  // Filter out suppliers already in this trade
-  const existingSupplierIds = new Set(trade.suppliers.map(s => String(s.supplierId)));
+  // Filter out suppliers already in this task
+  const existingSupplierIds = new Set(task.suppliers.map(s => String(s.supplierId)));
   const availableSupplierItems = supplierItems.filter(s => !existingSupplierIds.has(s.id));
 
   return (
     <div className="border rounded-lg bg-background">
-      {/* Trade Header */}
+      {/* Task Header */}
       <div
         className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted/50"
         onClick={() => setExpanded(!expanded)}
@@ -770,9 +774,9 @@ function TradeSection({
         ) : (
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
-        <span className="font-medium text-sm flex-1">{trade.tradeName || `Trade #${trade.smTradeId}`}</span>
+        <span className="font-medium text-sm flex-1">{task.taskName || `Task #${task.smScheduleMasterId}`}</span>
         <Badge variant="secondary" className="text-xs">
-          {trade.suppliers.length} {trade.suppliers.length === 1 ? "supplier" : "suppliers"}
+          {task.suppliers.length} {task.suppliers.length === 1 ? "supplier" : "suppliers"}
         </Badge>
         <Button
           variant="ghost"
@@ -787,7 +791,7 @@ function TradeSection({
         </Button>
       </div>
 
-      {/* Trade Detail */}
+      {/* Task Detail */}
       {expanded && (
         <div className="border-t px-3 py-3 space-y-3">
           {/* Default Instructions */}
@@ -796,7 +800,7 @@ function TradeSection({
             <Textarea
               value={instructionsValue}
               onChange={(e) => handleInstructionsChange(e.target.value)}
-              placeholder="Instructions that will be included in RFQ emails for this trade..."
+              placeholder="Instructions that will be included in RFQ emails for this task..."
               rows={2}
               className="text-sm"
             />
@@ -805,11 +809,11 @@ function TradeSection({
           {/* Suppliers List */}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Suppliers</Label>
-            {trade.suppliers.length === 0 ? (
+            {task.suppliers.length === 0 ? (
               <p className="text-xs text-muted-foreground py-1">No suppliers assigned</p>
             ) : (
               <div className="space-y-1">
-                {trade.suppliers.map((supplier) => (
+                {task.suppliers.map((supplier) => (
                   <div
                     key={supplier.id}
                     className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 group"
