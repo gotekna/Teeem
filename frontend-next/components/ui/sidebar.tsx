@@ -35,7 +35,8 @@ import { ComboboxDropdown, type ComboboxItem } from "./combobox-dropdown";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
-import { UI_COPY_FEEDBACK_MS, DEMO_LOADING_MS } from "@/lib/constants/timeout-constants";
+import { UI_COPY_FEEDBACK_MS } from "@/lib/constants/timeout-constants";
+import { useBadgeCountsWebSocket } from "@/hooks/useBadgeCountsWebSocket";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Popover,

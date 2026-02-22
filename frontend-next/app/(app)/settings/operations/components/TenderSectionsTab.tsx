@@ -4,7 +4,7 @@ import * as React from "react";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
-import { PoTaskPicker, type POTaskItem } from "@/components/settings/PoTaskPicker";
+import { PoTaskPicker, type POTaskItem, type SmTemplate } from "@/components/settings/PoTaskPicker";
 import { DocumentTypePicker } from "@/components/settings/DocumentTypePicker";
 import type { TableRow } from "@/components/table/types";
 
@@ -25,18 +25,27 @@ export function TenderSectionsTab() {
   const poTasksLoadedRef = React.useRef(false);
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const editRecordIdRef = React.useRef<number | string | null>(null);
+  const templatesRef = React.useRef<SmTemplate[]>([]);
 
   // Document type picker state - same ref pattern
   const docTypesRef = React.useRef<string[]>([]);
 
   const fetchPoTasks = React.useCallback(async () => {
     try {
-      const data = await api.get<{ success: boolean; data: POTaskItem[] }>(
-        "/api/v1/tenders/po_tasks"
-      );
-      if (data?.data) {
-        poTasksRef.current = data.data;
+      const [poData, tplData] = await Promise.all([
+        api.get<{ success: boolean; data: POTaskItem[] }>(
+          "/api/v1/tenders/po_tasks"
+        ),
+        api.get<{ success: boolean; sm_schedule_master_templates: SmTemplate[] }>(
+          "/api/v1/sm_schedule_master_templates"
+        ),
+      ]);
+      if (poData?.data) {
+        poTasksRef.current = poData.data;
         poTasksLoadedRef.current = true;
+      }
+      if (tplData?.sm_schedule_master_templates) {
+        templatesRef.current = tplData.sm_schedule_master_templates;
       }
     } catch (error) {
       console.error("Failed to fetch tender PO tasks:", error);
@@ -86,6 +95,7 @@ export function TenderSectionsTab() {
           allTasks={poTasksRef.current}
           initialSelectedIds={[]}
           recordId={undefined}
+          templates={templatesRef.current}
           selectedIdsRef={selectedPoTaskIdsRef}
           assignmentField="tender"
           entityLabel="Tender Section"
@@ -131,6 +141,7 @@ export function TenderSectionsTab() {
           allTasks={poTasksRef.current}
           initialSelectedIds={initialIds}
           recordId={recordId}
+          templates={templatesRef.current}
           selectedIdsRef={selectedPoTaskIdsRef}
           assignmentField="tender"
           entityLabel="Tender Section"

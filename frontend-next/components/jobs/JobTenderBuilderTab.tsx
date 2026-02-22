@@ -859,32 +859,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     });
   }, []);
 
-  const allCollapsed = collapsedHeaders.size > 0 || collapsedSections.size > 0 || collapsedCostCentres.size > 0 || collapsedPOs.size > 0;
-
-  const collapseAll = useCallback(() => {
-    const headers = new Set<string>();
-    const sections = new Set<string>();
-    const costCentres = new Set<string>();
-    const pos = new Set<string>();
-    for (const row of unifiedRows) {
-      if (row.type === "header") headers.add(row.name);
-      if (row.type === "section") sections.add(`${row.headerName}::${row.name}`);
-      if (row.type === "cost-centre") costCentres.add(`${row.headerName}::${row.sectionName}::cc::${row.name}`);
-      if (row.type === "po") pos.add(`${row.headerName}::${row.sectionName}::${row.poId}`);
-    }
-    setCollapsedHeaders(headers);
-    setCollapsedSections(sections);
-    setCollapsedCostCentres(costCentres);
-    setCollapsedPOs(pos);
-  }, [unifiedRows]);
-
-  const expandAll = useCallback(() => {
-    setCollapsedHeaders(new Set());
-    setCollapsedSections(new Set());
-    setCollapsedCostCentres(new Set());
-    setCollapsedPOs(new Set());
-  }, []);
-
   /** Compute totals considering overrides, exclusions, and classifications */
   const totals = useMemo(() => {
     let included = 0;
@@ -1047,6 +1021,37 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
     return groups;
   }, [unifiedRows, tenderTree]);
+
+  const allCollapsed = collapsedHeaders.size > 0 || collapsedSections.size > 0 || collapsedCostCentres.size > 0 || collapsedPOs.size > 0;
+
+  const collapseAll = useCallback(() => {
+    const headers = new Set<string>();
+    const sections = new Set<string>();
+    const costCentres = new Set<string>();
+    const pos = new Set<string>();
+    // Use groupedRows (not unifiedRows) to include empty sections from tenderTree
+    for (const group of groupedRows) {
+      headers.add(group.headerRow.name);
+      for (const section of group.sections) {
+        sections.add(`${section.sectionRow.headerName}::${section.sectionRow.name}`);
+        for (const row of section.contentRows) {
+          if (row.type === "cost-centre") costCentres.add(`${row.headerName}::${row.sectionName}::cc::${row.name}`);
+          if (row.type === "po") pos.add(`${row.headerName}::${row.sectionName}::${row.poId}`);
+        }
+      }
+    }
+    setCollapsedHeaders(headers);
+    setCollapsedSections(sections);
+    setCollapsedCostCentres(costCentres);
+    setCollapsedPOs(pos);
+  }, [groupedRows]);
+
+  const expandAll = useCallback(() => {
+    setCollapsedHeaders(new Set());
+    setCollapsedSections(new Set());
+    setCollapsedCostCentres(new Set());
+    setCollapsedPOs(new Set());
+  }, []);
 
   /** Get the note text for a section (user-edited or default) */
   const getSectionNote = useCallback((sectionName: string): string => {

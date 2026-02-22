@@ -20,6 +20,14 @@ queue_status_cache:
   queue: default
   schedule: every 30 seconds
 
+# Push badge counts to all connected WebSocket users
+# Replaces 7 HTTP polling endpoints (notifications, chat, proposals, bills, plans, emails)
+# FRC (Feb 2026): 8 polls/30-60s per tab caused R14 memory on Basic web dyno (512MB)
+badge_counts_broadcast:
+  class: BadgeCountsBroadcastJob
+  queue: default
+  schedule: every 30 seconds
+
 clear_solid_queue_finished_jobs:
   command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
   schedule: every hour at minute 12
