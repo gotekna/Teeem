@@ -825,24 +825,11 @@ function PcPsScheduleTable({
 }
 
 function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
-  // Aggregate PC and PS items at PO level (one row per PO, not per line item)
+  // Items are already stored at the correct level by TenderDocumentService:
+  // per-PO classified → one summary row per PO, per-item → individual rows
   const allItems = Object.values(doc.sections_grouped).flat();
-  const pcPoMap = new Map<number | string, TenderDocumentItem & { total_amount: number }>();
-  const psPoMap = new Map<number | string, TenderDocumentItem & { total_amount: number }>();
-  for (const item of allItems) {
-    const poKey = item.source_purchase_order_id || item.id;
-    if (item.item_type === "priced") {
-      const existing = pcPoMap.get(poKey);
-      if (existing) { existing.total_amount = (existing.total_amount || 0) + (item.total_amount || 0); }
-      else { pcPoMap.set(poKey, { ...item, total_amount: item.total_amount || 0 }); }
-    } else if (item.item_type === "provisional") {
-      const existing = psPoMap.get(poKey);
-      if (existing) { existing.total_amount = (existing.total_amount || 0) + (item.total_amount || 0); }
-      else { psPoMap.set(poKey, { ...item, total_amount: item.total_amount || 0 }); }
-    }
-  }
-  const pcItems = Array.from(pcPoMap.values());
-  const psItems = Array.from(psPoMap.values());
+  const pcItems = allItems.filter(i => i.item_type === "priced");
+  const psItems = allItems.filter(i => i.item_type === "provisional");
 
   return (
     <Card>

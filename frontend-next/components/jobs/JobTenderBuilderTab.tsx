@@ -896,30 +896,58 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     let pcCount = 0;
     let psCount = 0;
     const headerSubtotals: Record<string, number> = {};
-    // Aggregate PC/PS at PO level (one row per PO, not per line item)
-    const pcPoMap = new Map<string | number, { poName: string; amount: number; sectionName: string }>();
-    const psPoMap = new Map<string | number, { poName: string; amount: number; sectionName: string }>();
+
+    // Build PO info map for descriptive names (taskName, supplierName from PO rows)
+    const poInfoMap = new Map<string | number, { taskName: string | null | undefined; supplierName: string | null | undefined }>();
+    for (const row of unifiedRows) {
+      if (row.type === "po") poInfoMap.set(row.poId, { taskName: row.taskName, supplierName: row.supplierName });
+    }
+
+    // PC/PS schedule: per-PO → aggregate by PO; per-item → individual rows
+    const pcPoMap = new Map<string | number, { description: string; amount: number; sectionName: string }>();
+    const psPoMap = new Map<string | number, { description: string; amount: number; sectionName: string }>();
+    const pcItemList: { description: string; amount: number; sectionName: string }[] = [];
+    const psItemList: { description: string; amount: number; sectionName: string }[] = [];
 
     for (const row of unifiedRows) {
       if (row.type !== "item") continue;
       const cls = excludedIds.has(row.key) ? "excluded" as const : getClassification(row.key, row.poId, row.sectionName);
+      const isPerPo = poClassifications.get(row.poId) !== "per_item" && poClassifications.has(row.poId);
+
       if (cls === "excluded") {
         excluded += row.amount;
         excludedCount++;
       } else if (cls === "pc") {
         pcTotal += row.amount;
         pcCount++;
-        const existing = pcPoMap.get(row.poId);
-        if (existing) { existing.amount += row.amount; }
-        else { pcPoMap.set(row.poId, { poName: row.poName, amount: row.amount, sectionName: row.sectionName }); }
+        if (isPerPo) {
+          // PO-level: aggregate into one row per PO
+          const existing = pcPoMap.get(row.poId);
+          if (existing) { existing.amount += row.amount; }
+          else {
+            const info = poInfoMap.get(row.poId);
+            const desc = cleanTaskName(info?.taskName) || row.poName;
+            pcPoMap.set(row.poId, { description: desc, amount: row.amount, sectionName: row.sectionName });
+          }
+        } else {
+          // Per-item: individual row
+          pcItemList.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
+        }
       } else if (cls === "ps") {
         psTotal += row.amount;
         psCount++;
-        const existing = psPoMap.get(row.poId);
-        if (existing) { existing.amount += row.amount; }
-        else { psPoMap.set(row.poId, { poName: row.poName, amount: row.amount, sectionName: row.sectionName }); }
+        if (isPerPo) {
+          const existing = psPoMap.get(row.poId);
+          if (existing) { existing.amount += row.amount; }
+          else {
+            const info = poInfoMap.get(row.poId);
+            const desc = cleanTaskName(info?.taskName) || row.poName;
+            psPoMap.set(row.poId, { description: desc, amount: row.amount, sectionName: row.sectionName });
+          }
+        } else {
+          psItemList.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
+        }
       } else {
-        // included + incl_hidden both count toward base price
         included += row.amount;
         includedCount++;
       }
@@ -929,11 +957,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       }
     }
 
-    const pcItems = Array.from(pcPoMap.values()).map(v => ({ description: v.poName, amount: v.amount, sectionName: v.sectionName }));
-    const psItems = Array.from(psPoMap.values()).map(v => ({ description: v.poName, amount: v.amount, sectionName: v.sectionName }));
+    // Combine PO-level and item-level entries
+    const pcItems = [...Array.from(pcPoMap.values()), ...pcItemList];
+    const psItems = [...Array.from(psPoMap.values()), ...psItemList];
 
     return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount, headerSubtotals, pcItems, psItems };
-  }, [unifiedRows, excludedIds, getClassification]);
+  }, [unifiedRows, excludedIds, getClassification, poClassifications]);
 
   /** Group unified rows into header → section → content for two-panel rendering */
   const groupedRows = useMemo((): HeaderGroup[] => {
