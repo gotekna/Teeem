@@ -1022,7 +1022,16 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     return groups;
   }, [unifiedRows, tenderTree]);
 
-  const allCollapsed = collapsedHeaders.size > 0 || collapsedSections.size > 0 || collapsedCostCentres.size > 0 || collapsedPOs.size > 0;
+  // ⚠️ DO NOT SIMPLIFY to collapsedHeaders.size > 0 (Feb 2026)
+  // ════════════════════════════════════════════
+  // Why: The toggle button must show "collapse all" when ANY header is still
+  // expanded. The old check (size > 0) treated "any collapsed" as "all collapsed",
+  // so clicking the button with 3/4 headers collapsed would EXPAND instead of
+  // collapsing the remaining one.
+  // ❌ WRONG: collapsedHeaders.size > 0 — true when ANY is collapsed
+  // ✅ CORRECT: Check all headers are collapsed (sections hidden under headers)
+  // ════════════════════════════════════════════
+  const allCollapsed = groupedRows.length > 0 && groupedRows.every(g => collapsedHeaders.has(g.headerRow.name));
 
   const collapseAll = useCallback(() => {
     const headers = new Set<string>();
