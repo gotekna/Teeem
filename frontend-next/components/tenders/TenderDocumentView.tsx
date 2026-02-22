@@ -766,7 +766,60 @@ function BaseSpecificationPage({ doc }: { doc: TenderDocumentData }) {
 }
 
 /** Acceptance of Tender page (matches Rawson page 19) */
+/** Schedule table for PC or PS items — used on the acceptance page and as a contract attachment */
+function PcPsScheduleTable({
+  title,
+  items,
+  colorClass,
+}: {
+  title: string;
+  items: TenderDocumentItem[];
+  colorClass: string;
+}) {
+  if (items.length === 0) return null;
+  const total = items.reduce((sum, i) => sum + (i.total_amount || 0), 0);
+
+  return (
+    <div className="space-y-2">
+      <h3 className={`text-sm font-bold ${colorClass}`}>{title}</h3>
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr className="border-b-2 border-foreground/20">
+            <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+            <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+            <th className="text-left py-1.5 pr-4 font-semibold w-36">Trade / Section</th>
+            <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => (
+            <tr key={item.id} className="border-b border-border/30">
+              <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+              <td className="py-1.5 pr-4">{item.description}</td>
+              <td className="py-1.5 pr-4 text-muted-foreground text-xs">
+                {item.trade_name || stripCodePrefix(item.tender_section_name)}
+              </td>
+              <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.total_amount || 0)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-foreground/20">
+            <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total {title}</td>
+            <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
+  // Collect all PC and PS items across all sections
+  const allItems = Object.values(doc.sections_grouped).flat();
+  const pcItems = allItems.filter(i => i.item_type === "priced");
+  const psItems = allItems.filter(i => i.item_type === "provisional");
+
   return (
     <Card>
       <CardContent className="pt-8 pb-6 space-y-6">
@@ -828,6 +881,22 @@ function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
               Authorities for approval, including architectural working drawings, structural engineer
               design and specifications.
             </p>
+          </div>
+        )}
+
+        {/* Prime Cost & Provisional Sum Schedules */}
+        {(pcItems.length > 0 || psItems.length > 0) && (
+          <div className="space-y-6 pt-2">
+            <PcPsScheduleTable
+              title="Schedule of Prime Cost Items"
+              items={pcItems}
+              colorClass="text-blue-700 dark:text-blue-400"
+            />
+            <PcPsScheduleTable
+              title="Schedule of Provisional Sum Items"
+              items={psItems}
+              colorClass="text-violet-700 dark:text-violet-400"
+            />
           </div>
         )}
 

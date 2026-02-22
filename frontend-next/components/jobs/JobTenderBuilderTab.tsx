@@ -580,7 +580,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   }, [poClassifications]);
 
   /** Get effective classification for a line item — PO-level overrides item-level */
-  const getClassification = useCallback((key: string, poId?: string | number): TenderClassification => {
+  const getClassification = useCallback((key: string, poId?: string | number, sectionName?: string): TenderClassification => {
     if (poId !== undefined) {
       const poCls = poClassifications.get(poId);
       if (poCls === "per_po_pc") return "pc";
@@ -590,8 +590,18 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       if (poCls === "per_po_nt") return "incl_hidden";
       if (poCls === "per_po_exc") return "excluded";
     }
-    return itemClassifications.get(key) || "included";
-  }, [itemClassifications, poClassifications]);
+    const manualCls = itemClassifications.get(key);
+    if (manualCls) return manualCls;
+
+    // Default based on tender section type — only "provisional" sections default to PS
+    // NOTE: section_type "priced" is the DB default for ALL sections, it does NOT mean Prime Cost.
+    // PC items must be explicitly classified by the user.
+    if (sectionName) {
+      const section = tenderTreeSectionMap.get(sectionName);
+      if (section?.sectionType === "provisional") return "ps";
+    }
+    return "included";
+  }, [itemClassifications, poClassifications, tenderTreeSectionMap]);
 
   // ─── Build unified rows ──────────────────────────────────────────
 
@@ -885,27 +895,36 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     let excludedCount = 0;
     let pcCount = 0;
     let psCount = 0;
+    const headerSubtotals: Record<string, number> = {};
+    const pcItems: { description: string; amount: number; sectionName: string }[] = [];
+    const psItems: { description: string; amount: number; sectionName: string }[] = [];
 
     for (const row of unifiedRows) {
       if (row.type !== "item") continue;
-      const cls = excludedIds.has(row.key) ? "excluded" as const : getClassification(row.key, row.poId);
+      const cls = excludedIds.has(row.key) ? "excluded" as const : getClassification(row.key, row.poId, row.sectionName);
       if (cls === "excluded") {
         excluded += row.amount;
         excludedCount++;
       } else if (cls === "pc") {
         pcTotal += row.amount;
         pcCount++;
+        pcItems.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
       } else if (cls === "ps") {
         psTotal += row.amount;
         psCount++;
+        psItems.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
       } else {
         // included + incl_hidden both count toward base price
         included += row.amount;
         includedCount++;
       }
+      // Track per-header subtotals (all non-excluded items)
+      if (cls !== "excluded" && row.headerName) {
+        headerSubtotals[row.headerName] = (headerSubtotals[row.headerName] || 0) + row.amount;
+      }
     }
 
-    return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount };
+    return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount, headerSubtotals, pcItems, psItems };
   }, [unifiedRows, excludedIds, getClassification]);
 
   /** Group unified rows into header → section → content for two-panel rendering */
@@ -1074,12 +1093,14 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       setCreatingTender(true);
 
       // Build item classifications map: { lineItemId: classification }
-      // Items in excludedIds set are treated as "excluded"
+      // Includes section-type defaults for items in PC/PS sections without manual classification
       const itemClsMap: Record<string, string> = {};
-      for (const [key, cls] of itemClassifications) {
-        if (key.startsWith("new_")) continue;
-        const lineItemId = key.split(":")[1];
-        if (lineItemId) itemClsMap[lineItemId] = cls;
+      for (const row of unifiedRows) {
+        if (row.type !== "item" || row.key.startsWith("new_")) continue;
+        const lineItemId = row.key.split(":")[1];
+        if (!lineItemId) continue;
+        // Use the same getClassification logic (manual → section-type default → included)
+        itemClsMap[lineItemId] = getClassification(row.key, row.poId, row.sectionName);
       }
       // Legacy excludedIds → mark as excluded (override any classification)
       for (const key of excludedIds) {
@@ -1179,7 +1200,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes, getClassification, unifiedRows]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -1335,7 +1356,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           const headerIncludedItems = headerGroup.sections.flatMap((s) =>
             s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> => {
               if (r.type !== "item" || excludedIds.has(r.key)) return false;
-              const c = getClassification(r.key, r.poId);
+              const c = getClassification(r.key, r.poId, r.sectionName);
               return c === "included" || c === "incl_qty" || c === "incl_hidden";
             })
           );
@@ -1375,7 +1396,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                 const includedSectionItems = sectionItems.filter(
                   (r) => {
                     if (excludedIds.has(r.key)) return false;
-                    const c = getClassification(r.key, r.poId);
+                    const c = getClassification(r.key, r.poId, r.sectionName);
                     return c === "included" || c === "incl_qty" || c === "incl_hidden";
                   }
                 );
@@ -1521,7 +1542,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                           } else if (block.kind === "po-group" && currentCCKey) {
                             const poItems = block.pg.items.filter((r) => {
                               if (excludedIds.has(r.key)) return false;
-                              const c = getClassification(r.key, r.poId);
+                              const c = getClassification(r.key, r.poId, r.sectionName);
                               // Only count items that show a price in the tender (PC/PS)
                               // Included items show description only (no price), so they don't add to subtotal
                               return c === "pc" || c === "ps";
@@ -1717,7 +1738,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                   const isDirty = !isNewLine && editOverrides.has(row.key);
 
                                   const poCls = getPOClassification(pg.poRow.poId);
-                                  const cls = getClassification(row.key, row.poId);
+                                  const cls = getClassification(row.key, row.poId, row.sectionName);
 
                                   // Compute preview content for this row
                                   let previewContent: React.ReactNode = null;
@@ -1747,7 +1768,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                       }
                                     } else {
                                       // Item-level classification
-                                      const itemCls = getClassification(row.key, row.poId);
+                                      const itemCls = getClassification(row.key, row.poId, row.sectionName);
                                       if (itemCls !== "incl_hidden" && itemCls !== "excluded") {
                                         previewLineNum++;
                                         if (itemCls === "incl_qty") {
@@ -2127,19 +2148,32 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           );
         })}
 
-        {/* Grand totals (full width) */}
-        <div className="border-t-2 border-primary/30 bg-muted/30">
-          {/* Base price subtotal (included items only) */}
-          <div className="flex justify-end items-baseline px-4 py-2 gap-4">
+        {/* Grand totals — matches TenderDocumentView PriceSummaryBlock (SSoT) */}
+        <div className="border-t-2 border-primary/30 bg-muted/30 px-4 py-4">
+          {/* Header breakdown (Site Costs, Authority Conditions, etc.) */}
+          {Object.keys(totals.headerSubtotals).length > 0 && (
+            <>
+              {Object.entries(totals.headerSubtotals).map(([headerName, subtotal]) => (
+                <div key={headerName} className="flex justify-between items-baseline py-0.5">
+                  <span className="text-sm">{headerName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</span>
+                  <span className="tabular-nums text-sm w-32 text-right">{formatCurrency(subtotal)}</span>
+                </div>
+              ))}
+              <div className="border-t border-border/50 my-2" />
+            </>
+          )}
+
+          {/* Base Price */}
+          <div className="flex justify-between items-baseline py-1">
             <span className="font-semibold text-sm">Base Price (ex GST)</span>
             <span className="font-semibold tabular-nums text-sm w-32 text-right">{formatCurrency(totals.includedTotal)}</span>
           </div>
 
           {/* Prime Costs */}
           {totals.pcCount > 0 && (
-            <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+            <div className="flex justify-between items-baseline py-0.5">
               <span className="text-sm text-blue-700 dark:text-blue-400">
-                Prime Costs ({totals.pcCount} items)
+                Prime Costs ({totals.pcCount} {totals.pcCount === 1 ? "item" : "items"})
               </span>
               <span className="tabular-nums text-sm w-32 text-right text-blue-700 dark:text-blue-400">{formatCurrency(totals.pcTotal)}</span>
             </div>
@@ -2147,17 +2181,17 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
           {/* Provisional Sums */}
           {totals.psCount > 0 && (
-            <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+            <div className="flex justify-between items-baseline py-0.5">
               <span className="text-sm text-violet-700 dark:text-violet-400">
-                Provisional Sums ({totals.psCount} items)
+                Provisional Sums ({totals.psCount} {totals.psCount === 1 ? "item" : "items"})
               </span>
               <span className="tabular-nums text-sm w-32 text-right text-violet-700 dark:text-violet-400">{formatCurrency(totals.psTotal)}</span>
             </div>
           )}
 
-          {/* Combined subtotal */}
+          {/* Contract Sum (only shown when there are PC or PS items) */}
           {(totals.pcCount > 0 || totals.psCount > 0) && (
-            <div className="flex justify-end items-baseline px-4 py-1 gap-4 border-t border-border/50">
+            <div className="flex justify-between items-baseline py-1 border-t border-border/50 mt-1">
               <span className="text-sm font-medium">Contract Sum (ex GST)</span>
               <span className="font-medium tabular-nums text-sm w-32 text-right">
                 {formatCurrency(totals.includedTotal + totals.pcTotal + totals.psTotal)}
@@ -2165,18 +2199,90 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </div>
           )}
 
-          <div className="flex justify-end items-baseline px-4 py-1 gap-4">
+          {/* GST */}
+          <div className="flex justify-between items-baseline py-0.5">
             <span className="text-muted-foreground text-sm">GST (10%)</span>
             <span className="text-muted-foreground tabular-nums text-sm w-32 text-right">
               {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 0.1)}
             </span>
           </div>
-          <div className="flex justify-end items-baseline px-4 py-2 gap-4 border-t">
+
+          {/* Total */}
+          <div className="flex justify-between items-baseline py-2 border-t mt-1">
             <span className="font-bold text-base">Total (inc GST)</span>
             <span className="font-bold text-base tabular-nums w-32 text-right">
               {formatCurrency((totals.includedTotal + totals.pcTotal + totals.psTotal) * 1.1)}
             </span>
           </div>
+
+          {/* PC/PS detail tables (matches tender document acceptance page) */}
+          {(totals.pcItems.length > 0 || totals.psItems.length > 0) && (
+            <div className="space-y-4 pt-4 border-t mt-2">
+              {totals.pcItems.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Schedule of Prime Cost Items</h4>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-foreground/20">
+                        <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                        <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                        <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                        <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {totals.pcItems.map((item, idx) => (
+                        <tr key={idx} className="border-b border-border/30">
+                          <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                          <td className="py-1.5 pr-4">{item.description}</td>
+                          <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                          <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-foreground/20">
+                        <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Prime Costs</td>
+                        <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.pcTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+
+              {totals.psItems.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-violet-700 dark:text-violet-400">Schedule of Provisional Sum Items</h4>
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-foreground/20">
+                        <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                        <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                        <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                        <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {totals.psItems.map((item, idx) => (
+                        <tr key={idx} className="border-b border-border/30">
+                          <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                          <td className="py-1.5 pr-4">{item.description}</td>
+                          <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                          <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-foreground/20">
+                        <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Provisional Sums</td>
+                        <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.psTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
