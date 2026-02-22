@@ -1714,6 +1714,7 @@ Rails.application.routes.draw do
       get "assistant/preferences", to: "assistant#preferences"
       put "assistant/preferences", to: "assistant#update_preferences"
       get "assistant/cross_channel/:contact_id", to: "assistant#cross_channel_context"
+      get "assistant/briefing", to: "assistant#briefing"
       get "assistant/status", to: "assistant#status"
       put "assistant/setup", to: "assistant#setup"
 

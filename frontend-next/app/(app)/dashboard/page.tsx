@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
+import BriefingWidget from "./components/BriefingWidget";
 
 interface DashboardStats {
   activeJobs: number;
@@ -218,6 +219,9 @@ export default function DashboardPage() {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {/* AI Briefing */}
+          <BriefingWidget />
+
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" data-tour="metrics-cards">
             {statsLoading ? (

@@ -26,9 +26,9 @@
     },
     "/dashboard": {
       "title": "Dashboard",
-      "description": "Your home base showing key metrics, recent activity, and quick access to important items.",
-      "tips": ["Click any metric card to drill down into details", "Recent items show your last 10 accessed records", "Use the quick actions bar for common tasks"],
-      "tasks": ["View overdue tasks and upcoming deadlines", "Check recent job updates", "Access frequently used pages"]
+      "description": "Your home base showing key metrics, AI briefing, recent activity, and quick access to important items.",
+      "tips": ["The AI Briefing card shows tasks due, overdue items, and email follow-ups", "Click any metric card to drill down into details", "Recent items show your last 10 accessed records", "The briefing auto-refreshes every 5 minutes"],
+      "tasks": ["Review your AI daily briefing", "View overdue tasks and upcoming deadlines", "Check recent job updates", "Access frequently used pages"]
     },
     "/tasks": {
       "title": "Task Hub",

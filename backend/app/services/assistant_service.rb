@@ -320,10 +320,11 @@ class AssistantService
       }
     )
 
-    {
-      output: "Email draft created (Action ##{action.id}). The user will review and approve before sending.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "Email draft auto-sent via autopilot (Action ##{action.id}).", action: action }
+    else
+      { output: "Email draft created (Action ##{action.id}). The user will review and approve before sending.", action: action }
+    end
   end
 
   def tool_create_task(input, conversation)
@@ -346,10 +347,11 @@ class AssistantService
       }
     )
 
-    {
-      output: "Task creation prepared (Action ##{action.id}). The user will review and approve.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "Task '#{input['name']}' auto-created via autopilot (Action ##{action.id}).", action: action }
+    else
+      { output: "Task creation prepared (Action ##{action.id}). The user will review and approve.", action: action }
+    end
   end
 
   def tool_update_task(input, conversation)
@@ -370,10 +372,11 @@ class AssistantService
       action_data: { task_id: task.id, updates: updates }
     )
 
-    {
-      output: "Task update prepared (Action ##{action.id}). Changes: #{updates.keys.join(', ')}. The user will review and approve.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "Task '#{task.name}' auto-updated via autopilot (Action ##{action.id}). Changes: #{updates.keys.join(', ')}.", action: action }
+    else
+      { output: "Task update prepared (Action ##{action.id}). Changes: #{updates.keys.join(', ')}. The user will review and approve.", action: action }
+    end
   end
 
   def tool_get_schedule(input)
@@ -446,10 +449,11 @@ class AssistantService
       }
     )
 
-    {
-      output: "SMS draft created (Action ##{action.id}). The user will review and approve before sending.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "SMS auto-sent via autopilot to #{input['to']} (Action ##{action.id}).", action: action }
+    else
+      { output: "SMS draft created (Action ##{action.id}). The user will review and approve before sending.", action: action }
+    end
   end
 
   # Phase 2+: WhatsApp, Slack, Cross-channel tools
@@ -469,10 +473,11 @@ class AssistantService
       }
     )
 
-    {
-      output: "WhatsApp message prepared (Action ##{action.id}). The user will review and approve before sending.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "WhatsApp auto-sent via autopilot to #{input['to']} (Action ##{action.id}).", action: action }
+    else
+      { output: "WhatsApp message prepared (Action ##{action.id}). The user will review and approve before sending.", action: action }
+    end
   end
 
   def tool_send_slack(input, conversation)
@@ -489,10 +494,11 @@ class AssistantService
       }
     )
 
-    {
-      output: "Slack message prepared (Action ##{action.id}). The user will review and approve before sending.",
-      action: action
-    }
+    if maybe_autopilot(action)
+      { output: "Slack message auto-sent via autopilot (Action ##{action.id}).", action: action }
+    else
+      { output: "Slack message prepared (Action ##{action.id}). The user will review and approve before sending.", action: action }
+    end
   end
 
   def tool_get_cross_channel_context(input)
@@ -534,6 +540,21 @@ class AssistantService
 
     # Try by name (partial match)
     Job.where("name ILIKE ?", "%#{identifier}%").first
+  end
+
+  # Check if autopilot should auto-execute this action
+  def maybe_autopilot(action)
+    router = AssistantNotificationRouter.new(user: @user)
+    return false unless router.autopilot_enabled_for?(action.action_type)
+
+    # Auto-execute the action
+    action.approve!
+    action.execute!(note: "Auto-executed via autopilot", auto_executed: true)
+    Rails.logger.info "[AssistantService] Autopilot: auto-executed #{action.action_type} ##{action.id}"
+    true
+  rescue StandardError => e
+    Rails.logger.error "[AssistantService] Autopilot execution failed: #{e.message}"
+    false
   end
 
   # ========================================

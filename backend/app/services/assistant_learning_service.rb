@@ -81,6 +81,9 @@ class AssistantLearningService
     end
     @prefs["approval_rates"] = rates
 
+    # Check if we should suggest autopilot for any action type
+    check_autopilot_suggestions
+
     save_preferences!
   end
 
@@ -155,6 +158,40 @@ class AssistantLearningService
   end
 
   private
+
+  def check_autopilot_suggestions
+    rates = @prefs["approval_rates"] || {}
+    already_enabled = @prefs["autopilot_actions"] || []
+    already_suggested = @prefs["autopilot_suggestions_sent"] || []
+
+    rates.each do |action_type, data|
+      next if already_enabled.include?(action_type)
+      next if already_suggested.include?(action_type)
+      next unless data["total"].to_i >= 10 && data["rate"].to_f >= 90.0
+
+      # Create an alert suggesting autopilot for this action type
+      AssistantAlert.create!(
+        user: @user,
+        tenant_id: @user.tenant_id,
+        alert_type: "autopilot_suggestion",
+        priority: "low",
+        title: "Enable autopilot for '#{action_type.humanize}'?",
+        summary: "You've approved #{data['approved']}/#{data['total']} #{action_type.humanize.downcase} actions (#{data['rate']}%). Enable autopilot to skip the approval step.",
+        context_data: { action_type: action_type, approval_rate: data["rate"], total_actions: data["total"] },
+        suggested_action_data: {
+          action: "enable_autopilot",
+          action_type: action_type,
+          message: "Enable autopilot for #{action_type.humanize.downcase}"
+        }
+      )
+
+      already_suggested << action_type
+    rescue StandardError => e
+      Rails.logger.error "[AssistantLearning] Autopilot suggestion failed: #{e.message}"
+    end
+
+    @prefs["autopilot_suggestions_sent"] = already_suggested
+  end
 
   def learn_task_patterns(data)
     # Track common task name patterns

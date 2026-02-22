@@ -220,6 +220,18 @@ class Api::V1::AssistantController < ApplicationController
     render json: { success: true }
   end
 
+  # GET /api/v1/assistant/briefing
+  # Get real-time briefing data for the dashboard widget
+  def briefing
+    service = DailyDigestService.new(user: current_user)
+    digest = service.generate
+
+    render json: {
+      success: true,
+      data: digest
+    }
+  end
+
   # GET /api/v1/assistant/status
   # Returns connection status for all AI assistant services. Admin only.
   def status
@@ -293,8 +305,7 @@ class Api::V1::AssistantController < ApplicationController
     when "update_task"
       execute_update_task(action)
     when "draft_email"
-      # For now, just mark as executed. Phase 2 will integrate with EmailSendingService.
-      action.execute!(note: "Email draft saved. Open in email compose to send.")
+      execute_send_email(action)
     when "draft_sms"
       execute_send_sms(action)
     when "send_whatsapp"
@@ -338,6 +349,51 @@ class Api::V1::AssistantController < ApplicationController
 
     task.update!(updates)
     action.execute!(task_id: task.id, updated_fields: updates.keys)
+  end
+
+  def execute_send_email(action)
+    data = action.action_data.with_indifferent_access
+
+    # Find the user's sending credential (prefer MS365, fall back to IMAP)
+    credential = find_sending_credential
+    unless credential
+      action.execute!(note: "Email draft saved. No sending credential configured - open in email compose to send.")
+      return
+    end
+
+    result = EmailSendingService.send_and_log(
+      account_type: credential[:account_type],
+      credential_id: credential[:credential_id],
+      mailbox_email: credential[:mailbox_email],
+      user: current_user,
+      to: Array(data[:to]),
+      subject: data[:subject],
+      body: data[:body],
+      reply_to_message_id: data[:reply_to_message_id]
+    )
+
+    if result.success?
+      action.execute!(message_id: result.message_id, note: "Email sent")
+    else
+      action.fail!(result.error)
+    end
+  end
+
+  def find_sending_credential
+    # Try MS365 org credential first
+    tenant_org_ids = current_tenant&.organizations&.pluck(:id) || []
+    ms365 = MicrosoftCredential.app_credentials.where(organization_id: tenant_org_ids).first
+    if ms365
+      return { account_type: "ms365", credential_id: ms365.id, mailbox_email: current_user.email }
+    end
+
+    # Fall back to IMAP
+    imap = ImapCredential.accessible_by(current_user).first
+    if imap
+      return { account_type: "imap", credential_id: imap.id, mailbox_email: nil }
+    end
+
+    nil
   end
 
   def execute_send_sms(action)
