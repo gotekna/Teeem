@@ -27,6 +27,7 @@
 #
 class BackgroundJobProgress < ApplicationRecord
   self.table_name = "background_job_progress"
+  self.primary_key = "id"
 
   # Status constants
   STATUSES = %w[pending running completed failed].freeze

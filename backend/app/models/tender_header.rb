@@ -53,7 +53,8 @@ class TenderHeader < ApplicationRecord
           sortOrder: child.sort_order,
           sectionType: child.section_type,
           defaultNote: child.default_note,
-          description: child.description
+          description: child.description,
+          attachedDocumentTypes: child.attached_document_types || []
         }
       }
     }

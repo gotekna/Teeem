@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_210002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10366,6 +10366,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_210002) do
     t.datetime "updated_at", null: false
     t.text "default_note"
     t.bigint "tender_header_id", null: false
+    t.jsonb "attached_document_types", default: []
     t.index ["active"], name: "index_tenders_on_active"
     t.index ["sort_order"], name: "index_tenders_on_sort_order"
     t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true

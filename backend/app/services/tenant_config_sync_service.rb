@@ -374,6 +374,27 @@ class TenantConfigSyncService
         parent_id: { model: "CostCentre", match_field: :code }
       }
     },
+    tender_headers: {
+      model: "TenderHeader",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :sort_order, :active, :metadata],
+      description: "Tender header groupings (top-level containers for tender sections)",
+      group: "operations"
+    },
+    tenders: {
+      model: "Tender",
+      name_field: :name,
+      match_fields: [:code],
+      sync_fields: [:code, :name, :description, :section_type, :sort_order, :show_line_items,
+                    :section_notes, :active, :default_note, :tender_header_id, :metadata,
+                    :attached_document_types],
+      description: "Tender section definitions (grouped under tender headers)",
+      group: "operations",
+      remap_fks: {
+        tender_header_id: { model: "TenderHeader", match_field: :code }
+      }
+    },
     supervisor_checklist_templates: {
       model: "SupervisorChecklistTemplate",
       name_field: :name,

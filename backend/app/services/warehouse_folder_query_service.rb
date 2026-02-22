@@ -77,7 +77,8 @@ class WarehouseFolderQueryService
   # Single query to load all tabs with associations
   def preload_tabs
     tabs = WarehouseFolder.for_warehouse_type(@warehouse_type)
-                     .includes(:warehouse_folder_document_types, :document_types, :parent, :warehouse_type)
+                     .includes(:warehouse_folder_document_types, :document_types, :parent)
+                     .eager_load(:warehouse_type)
 
     tabs = tabs.enabled unless @include_disabled
     tabs = tabs.for_entity_type(@entity_type) if @entity_type.present?

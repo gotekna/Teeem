@@ -37,7 +37,7 @@ import {
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { DocumentTypePicker } from "@/components/settings/DocumentTypePicker";
 import { toast } from "sonner";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
@@ -146,10 +146,6 @@ export function QuoteTemplatesTab() {
   const [priceCompareIds, setPriceCompareIds] = useState<number[]>([]);
   const [priceCompareSupplierIds, setPriceCompareSupplierIds] = useState<number[]>([]);
 
-  // Job document types (lazy loaded)
-  const [jobDocTypes, setJobDocTypes] = useState<{ id: number; name: string }[]>([]);
-  const [docTypesLoaded, setDocTypesLoaded] = useState(false);
-
   // ─────────────────────────────────────────────────────────────────────────
   // Data Loading
   // ─────────────────────────────────────────────────────────────────────────
@@ -224,18 +220,6 @@ export function QuoteTemplatesTab() {
     }
   }, []);
 
-  const loadJobDocTypes = useCallback(async () => {
-    if (docTypesLoaded) return;
-    try {
-      const res = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
-        "/api/v1/document_types?scope=job"
-      );
-      setJobDocTypes((res?.data || []).map((dt) => ({ id: dt.id, name: dt.name })));
-      setDocTypesLoaded(true);
-    } catch (err) {
-      console.error("[QuoteTemplatesTab] Failed to load document types:", err);
-    }
-  }, [docTypesLoaded]);
 
   useEffect(() => {
     loadTemplates();
@@ -556,7 +540,6 @@ export function QuoteTemplatesTab() {
     } else {
       setExpandedId(id);
       if (!suppliersLoaded) loadSuppliers();
-      if (!docTypesLoaded) loadJobDocTypes();
       loadTemplateDetail(id);
     }
   };
@@ -762,7 +745,6 @@ export function QuoteTemplatesTab() {
                       }
                       poPacks={poPacks}
                       packId={editingTemplate.poTemplatePackId}
-                      jobDocTypes={jobDocTypes}
                     />
                   )}
                 </div>
@@ -922,7 +904,6 @@ interface TemplateEditorProps {
   onViewPrices: (smScheduleMasterId: number) => void;
   poPacks: PoPack[];
   packId: number | null;
-  jobDocTypes: { id: number; name: string }[];
 }
 
 function TemplateEditor({
@@ -946,7 +927,6 @@ function TemplateEditor({
   onViewPrices,
   poPacks,
   packId,
-  jobDocTypes,
 }: TemplateEditorProps) {
   const templateTasks = template.trades || [];
 
@@ -980,7 +960,6 @@ function TemplateEditor({
                 onUpdateContactPerson={(supplierRowId, contactPersonId) => onUpdateContactPerson(task.id, supplierRowId, contactPersonId)}
                 onSearchSuppliers={onSearchSuppliers}
                 onViewPrices={hasPricebookItems ? () => onViewPrices(task.smScheduleMasterId) : undefined}
-                jobDocTypes={jobDocTypes}
               />
             );
           })}
@@ -1024,7 +1003,6 @@ interface TaskSectionProps {
   onUpdateContactPerson: (supplierRowId: number, contactPersonId: number | null) => void;
   onSearchSuppliers: (query?: string) => void;
   onViewPrices?: () => void;
-  jobDocTypes: { id: number; name: string }[];
 }
 
 function TaskSection({
@@ -1042,7 +1020,6 @@ function TaskSection({
   onUpdateContactPerson,
   onSearchSuppliers,
   onViewPrices,
-  jobDocTypes,
 }: TaskSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [instructionsValue, setInstructionsValue] = useState(task.defaultInstructions || "");
@@ -1125,27 +1102,10 @@ function TaskSection({
           </div>
 
           {/* Attach Document Types */}
-          {jobDocTypes.length > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                <Paperclip className="h-3 w-3" />
-                Attach Document Types
-              </Label>
-              <MultiSelectFilter
-                values={jobDocTypes.map((dt) => dt.name)}
-                selected={new Set(task.requiredDocumentTypes)}
-                onToggle={(name) => {
-                  const current = task.requiredDocumentTypes;
-                  const updated = current.includes(name)
-                    ? current.filter((n) => n !== name)
-                    : [...current, name];
-                  onUpdateDocumentTypes(updated);
-                }}
-                placeholder="Select document types..."
-                label="Doc types"
-              />
-            </div>
-          )}
+          <DocumentTypePicker
+            selected={task.requiredDocumentTypes}
+            onChange={onUpdateDocumentTypes}
+          />
 
           {/* Suppliers List */}
           <div className="space-y-1">

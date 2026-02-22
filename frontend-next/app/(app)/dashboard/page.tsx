@@ -86,7 +86,7 @@ export default function DashboardPage() {
   // Redirect to default tab if none specified
   useEffect(() => {
     if (activeTab === null) {
-      router.replace("/dashboard/overview", { scroll: false });
+      router.replace("/dashboard/ai-joshua", { scroll: false });
     }
     // Redirect /dashboard/architecture to /dashboard/architecture/beginner
     if (activeTab === "architecture" && !subTab) {

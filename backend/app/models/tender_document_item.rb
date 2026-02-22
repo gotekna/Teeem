@@ -20,7 +20,7 @@ class TenderDocumentItem < ApplicationRecord
   belongs_to :pricebook_item, class_name: "PricebookItem", optional: true
 
   # Item types match tender section types
-  ITEM_TYPES = %w[priced note included provisional].freeze
+  ITEM_TYPES = %w[priced note included included_qty provisional].freeze
 
   validates :tender_section_name, presence: true
   validates :line_number, presence: true

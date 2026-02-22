@@ -133,6 +133,11 @@ class TenderDocument < ApplicationRecord
     changelog.present?
   end
 
+  # Per-section document types snapshot: { "Site Preparation" => ["Plans", "Engineering"] }
+  def section_document_types
+    settings&.dig("section_document_types") || {}
+  end
+
   def as_json(options = {})
     super(options).merge(
       "items" => tender_document_items.order(:header_sort_order, :section_sort_order, Arel.sql("COALESCE(cost_centre_name, '')"), :line_number).as_json,
@@ -168,7 +173,8 @@ class TenderDocument < ApplicationRecord
       "lot_address" => lot_address,
       "plan_number" => plan_number,
       "changelog" => changelog,
-      "has_changelog" => has_changelog?
+      "has_changelog" => has_changelog?,
+      "section_document_types" => section_document_types
     )
   end
 

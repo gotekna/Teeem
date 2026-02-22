@@ -35,6 +35,7 @@ module Api
         item_overrides = params[:item_overrides]&.to_unsafe_h || {}
         additional_items = params[:additional_items]&.map { |ai| ai.to_unsafe_h } || []
         section_notes = params[:section_notes]&.to_unsafe_h || {}
+        section_document_types = params[:section_document_types]&.to_unsafe_h || {}
         builder_state = params[:builder_state]&.to_unsafe_h || {}
 
         service = TenderDocumentService.new(
@@ -45,6 +46,7 @@ module Api
           item_overrides: item_overrides,
           additional_items: additional_items,
           section_notes: section_notes,
+          section_document_types: section_document_types,
           builder_state: builder_state
         )
         doc = service.create!

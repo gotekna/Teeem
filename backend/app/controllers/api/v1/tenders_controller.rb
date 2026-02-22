@@ -10,7 +10,7 @@
 # as Cost Centres use sm_schedule_masters.cost_centre.
 #
 class Api::V1::TendersController < ApplicationController
-  before_action :set_tender, only: [:assign_po_tasks]
+  before_action :set_tender, only: [:assign_po_tasks, :update_document_types]
 
   # GET /api/v1/tenders/tree
   # Returns hierarchical header > sections structure for the tender document system
@@ -107,6 +107,14 @@ class Api::V1::TendersController < ApplicationController
     end
 
     render json: { success: true, message: "PO tasks updated" }
+  end
+
+  # POST /api/v1/tenders/:id/update_document_types
+  # Accepts { document_types: ["Plans", "Engineering", ...] }
+  def update_document_types
+    doc_types = params[:document_types] || []
+    @tender.update!(attached_document_types: doc_types)
+    render json: { success: true, message: "Document types updated" }
   end
 
   private

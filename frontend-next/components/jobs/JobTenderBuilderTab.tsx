@@ -10,7 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import {
   RefreshCw, FileSignature, ChevronDown, ChevronRight, Check,
   Plus, Undo2, X, Camera, ImagePlus, Loader2, ChevronsDownUp, ChevronsUpDown,
-  ExternalLink, Save, Search,
+  ExternalLink, Save, Search, Paperclip,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
@@ -137,6 +137,7 @@ interface TenderTreeSection {
   sectionType: string;
   defaultNote: string | null;
   description: string | null;
+  attachedDocumentTypes: string[];
 }
 interface TenderTreeHeader {
   id: number;
@@ -310,6 +311,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // Tender tree (all headers/sections) and user-edited section notes
   const [tenderTree, setTenderTree] = useState<TenderTreeHeader[]>([]);
   const [sectionNotes, setSectionNotes] = useState<Map<string, string>>(new Map());
+  // Excluded doc types per section: "sectionName::docTypeName" → excluded
+  const [excludedDocTypes, setExcludedDocTypes] = useState<Set<string>>(new Set());
 
   // Image upload
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -1135,6 +1138,22 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         excludedIds,
       });
 
+      // Build section_document_types: { sectionName: ["Plans", "Engineering"] }
+      // (only includes non-excluded doc types from the tender tree)
+      const sectionDocTypesMap: Record<string, string[]> = {};
+      for (const header of tenderTree) {
+        for (const section of header.children) {
+          const docTypes = section.attachedDocumentTypes || [];
+          if (docTypes.length === 0) continue;
+          const activeDts = docTypes.filter(
+            (dt) => !excludedDocTypes.has(`${section.name}::${dt}`)
+          );
+          if (activeDts.length > 0) {
+            sectionDocTypesMap[section.name] = activeDts;
+          }
+        }
+      }
+
       const response = await api.post<{ success: boolean; data: { id: number } }>(
         `/api/v1/jobs/${jobId}/tender_documents`,
         {
@@ -1143,6 +1162,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           item_overrides: itemOverrides,
           additional_items: additionalItems,
           section_notes: sectionNotesMap,
+          section_document_types: sectionDocTypesMap,
           builder_state: builderState,
         }
       );
@@ -1159,7 +1179,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     } finally {
       setCreatingTender(false);
     }
-  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre]);
+  }, [jobId, excludedIds, editOverrides, newLines, router, itemClassifications, poClassifications, sectionNotes, ccSubtotalEnabled, groupByCostCentre, tenderTree, excludedDocTypes]);
 
   // ─── Render states ──────────────────────────────────────────────
 
@@ -1374,13 +1394,49 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                           : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                         }
                       </div>
-                      <div className="flex-1 font-medium text-foreground/80 text-sm">
-                        {sectionRow.name}
+                      <div className="flex-1 font-medium text-foreground/80 text-sm flex items-center gap-1 flex-wrap">
+                        <span>{sectionRow.name}</span>
                         {sectionRow.poCount > 0 ? (
-                          <Badge variant="outline" className="ml-2 text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
+                          <Badge variant="outline" className="text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
                         ) : (
-                          <Badge variant="outline" className="ml-2 text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">Note</Badge>
+                          <Badge variant="outline" className="text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">Note</Badge>
                         )}
+                        {/* Doc type badges from tender tree */}
+                        {(() => {
+                          const treeSection = tenderTreeSectionMap.get(sectionRow.name);
+                          const docTypes = treeSection?.attachedDocumentTypes || [];
+                          if (docTypes.length === 0) return null;
+                          return docTypes.map((dt) => {
+                            const excKey = `${sectionRow.name}::${dt}`;
+                            const isExcluded = excludedDocTypes.has(excKey);
+                            return (
+                              <Badge
+                                key={dt}
+                                variant="outline"
+                                className={cn(
+                                  "text-[10px] font-normal gap-0.5 cursor-pointer transition-opacity",
+                                  isExcluded
+                                    ? "opacity-40 line-through"
+                                    : "text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700",
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExcludedDocTypes((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(excKey)) next.delete(excKey);
+                                    else next.add(excKey);
+                                    return next;
+                                  });
+                                }}
+                                title={isExcluded ? `Click to re-include ${dt}` : `Click to exclude ${dt} from this tender`}
+                              >
+                                <Paperclip className="h-2.5 w-2.5" />
+                                {dt}
+                                {isExcluded && <X className="h-2.5 w-2.5 ml-0.5" />}
+                              </Badge>
+                            );
+                          });
+                        })()}
                       </div>
                       <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
                         {formatCurrency(includedSubtotal)}

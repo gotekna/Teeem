@@ -2333,6 +2333,7 @@ Rails.application.routes.draw do
         end
         member do
           post :assign_po_tasks
+          post :update_document_types
         end
       end
 

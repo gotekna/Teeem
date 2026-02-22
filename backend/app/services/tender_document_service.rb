@@ -16,7 +16,7 @@
 class TenderDocumentService
   class CreationError < StandardError; end
 
-  def initialize(job:, user:, item_classifications: {}, po_classifications: {}, item_overrides: {}, additional_items: [], section_notes: {}, builder_state: {})
+  def initialize(job:, user:, item_classifications: {}, po_classifications: {}, item_overrides: {}, additional_items: [], section_notes: {}, section_document_types: {}, builder_state: {})
     @job = job
     @user = user
     @item_classifications = item_classifications.transform_keys(&:to_s)
@@ -24,6 +24,7 @@ class TenderDocumentService
     @item_overrides = item_overrides.transform_keys(&:to_i)
     @additional_items = additional_items
     @section_notes = section_notes.transform_keys(&:to_s)
+    @section_document_types = section_document_types.transform_keys(&:to_s)
     @builder_state = builder_state.presence || {}
   end
 
@@ -403,6 +404,7 @@ class TenderDocumentService
     settings = doc.settings || {}
     settings["builder_state"] = state
     settings["changelog"] = changelog if changelog.present?
+    settings["section_document_types"] = @section_document_types if @section_document_types.present?
 
     doc.update!(settings: settings)
   end

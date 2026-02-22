@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Paperclip } from "lucide-react";
 import Image from "next/image";
 import { formatCurrency } from "@/utils/formatters";
 
@@ -132,6 +132,8 @@ interface TenderDocumentData {
   ps_total?: number;
   changelog?: Changelog | null;
   has_changelog?: boolean;
+  // Per-section document type references: { "Site Preparation": ["Plans", "Engineering"] }
+  section_document_types?: Record<string, string[]>;
   // Rich text pages
   cover_letter_html?: string | null;
   terms_and_conditions_html?: string | null;
@@ -756,37 +758,48 @@ function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
         )}
 
         {/* Signature Lines */}
-        <div className="pt-8 space-y-8">
-          <p className="font-bold text-sm">Accepted By:</p>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Client Name :(1)</p>
+        {(() => {
+          const clientNames = doc.client_name?.includes(" & ")
+            ? doc.client_name.split(" & ")
+            : [doc.client_name || null, null];
+          return (
+            <div className="pt-8 space-y-8">
+              <p className="font-bold text-sm">Accepted By:</p>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8 flex items-end pb-1">
+                    {clientNames[0] && <span className="text-sm">{clientNames[0]}</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Client Name :(1)</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8" />
+                  <p className="text-xs text-muted-foreground">Client Signature :(1)</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8" />
+                  <p className="text-xs text-muted-foreground">Date :</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8 flex items-end pb-1">
+                    {clientNames[1] && <span className="text-sm">{clientNames[1]}</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Client Name :(2)</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8" />
+                  <p className="text-xs text-muted-foreground">Client Signature :(2)</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="border-b border-foreground h-8" />
+                  <p className="text-xs text-muted-foreground">Date :</p>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Client Signature :(1)</p>
-            </div>
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Date :</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Client Name :(2)</p>
-            </div>
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Client Signature :(2)</p>
-            </div>
-            <div className="space-y-2">
-              <div className="border-b border-foreground h-8" />
-              <p className="text-xs text-muted-foreground">Date :</p>
-            </div>
-          </div>
-        </div>
+          );
+        })()}
 
         <PageFooter doc={doc} label="Acceptance of Tender" />
       </CardContent>
@@ -1062,6 +1075,8 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
                 const secNum = sectionNumbers.get(sectionName) || 0;
                 const allNotes = items.every((item) => item.item_type === "note");
 
+                const sectionDocTypes = doc.section_document_types?.[sectionName] || [];
+
                 return (
                   <TenderSection
                     key={sectionName}
@@ -1074,6 +1089,19 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
                       sectionSubtotal={sectionTotal}
                       sectionName={cleanSectionName(sectionName)}
                     />
+                    {sectionDocTypes.length > 0 && (
+                      <div className="pt-2 pb-1">
+                        <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 mb-1">
+                          <Paperclip className="h-3 w-3" />
+                          Reference Documents:
+                        </p>
+                        <ul className="text-xs text-muted-foreground pl-5 list-disc space-y-0.5">
+                          {sectionDocTypes.map((dt) => (
+                            <li key={dt}>{dt}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </TenderSection>
                 );
               })}

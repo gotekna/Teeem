@@ -5,6 +5,7 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { api } from "@/lib/api";
 import { PoTaskPicker, type POTaskItem } from "@/components/settings/PoTaskPicker";
+import { DocumentTypePicker } from "@/components/settings/DocumentTypePicker";
 import type { TableRow } from "@/components/table/types";
 
 /**
@@ -13,8 +14,7 @@ import type { TableRow } from "@/components/table/types";
  * SSoT: This is THE ONE location for managing tender section definitions.
  * Sections belong to TenderHeaders via tender_header_id.
  *
- * Includes PO Task picker in edit/create dialogs so users can see and manage
- * which SM Schedule Master tasks are assigned to each section.
+ * Includes PO Task picker and Document Type picker in edit/create dialogs.
  *
  * Headers are managed separately in TenderHeadersTab.
  * Part of Settings > Operations.
@@ -25,6 +25,9 @@ export function TenderSectionsTab() {
   const poTasksLoadedRef = React.useRef(false);
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const editRecordIdRef = React.useRef<number | string | null>(null);
+
+  // Document type picker state - same ref pattern
+  const docTypesRef = React.useRef<string[]>([]);
 
   const fetchPoTasks = React.useCallback(async () => {
     try {
@@ -40,7 +43,28 @@ export function TenderSectionsTab() {
     }
   }, []);
 
-  const renderPoTaskPickerForCreate = React.useCallback(() => {
+  // Fetch current attached_document_types for a tender section via tree API
+  const fetchDocTypesForSection = React.useCallback(async (tenderId: number | string) => {
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ children: Array<{ id: number; attachedDocumentTypes: string[] }> }> }>(
+        "/api/v1/tenders/tree"
+      );
+      if (response?.data) {
+        for (const header of response.data) {
+          for (const section of header.children) {
+            if (section.id === Number(tenderId)) {
+              docTypesRef.current = section.attachedDocumentTypes || [];
+              return;
+            }
+          }
+        }
+      }
+    } catch {
+      // Silent - default to empty
+    }
+  }, []);
+
+  const renderExtraForCreate = React.useCallback(() => {
     if (!poTasksLoadedRef.current) {
       fetchPoTasks();
       return (
@@ -53,22 +77,31 @@ export function TenderSectionsTab() {
     if (editRecordIdRef.current !== null && editRecordIdRef.current !== "create") {
       editRecordIdRef.current = "create";
       selectedPoTaskIdsRef.current = [];
+      docTypesRef.current = [];
     }
     return (
-      <PoTaskPicker
-        key="tender-section-create"
-        allTasks={poTasksRef.current}
-        initialSelectedIds={[]}
-        recordId={undefined}
-        selectedIdsRef={selectedPoTaskIdsRef}
-        assignmentField="tender"
-        entityLabel="Tender Section"
-      />
+      <>
+        <PoTaskPicker
+          key="tender-section-create"
+          allTasks={poTasksRef.current}
+          initialSelectedIds={[]}
+          recordId={undefined}
+          selectedIdsRef={selectedPoTaskIdsRef}
+          assignmentField="tender"
+          entityLabel="Tender Section"
+        />
+        <div className="py-2 border-t">
+          <DocumentTypePicker
+            selected={docTypesRef.current}
+            onChange={(types) => { docTypesRef.current = types; }}
+          />
+        </div>
+      </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const renderPoTaskPickerForEdit = React.useCallback((record: TableRow) => {
+  const renderExtraForEdit = React.useCallback((record: TableRow) => {
     if (!poTasksLoadedRef.current) {
       fetchPoTasks();
       return (
@@ -86,19 +119,29 @@ export function TenderSectionsTab() {
         .filter((t) => t.tenderId === Number(recordId))
         .map((t) => t.id);
       selectedPoTaskIdsRef.current = initialIds;
+      // Fetch doc types for this section
+      fetchDocTypesForSection(recordId);
     } else {
       initialIds = selectedPoTaskIdsRef.current;
     }
     return (
-      <PoTaskPicker
-        key={String(recordId)}
-        allTasks={poTasksRef.current}
-        initialSelectedIds={initialIds}
-        recordId={recordId}
-        selectedIdsRef={selectedPoTaskIdsRef}
-        assignmentField="tender"
-        entityLabel="Tender Section"
-      />
+      <>
+        <PoTaskPicker
+          key={String(recordId)}
+          allTasks={poTasksRef.current}
+          initialSelectedIds={initialIds}
+          recordId={recordId}
+          selectedIdsRef={selectedPoTaskIdsRef}
+          assignmentField="tender"
+          entityLabel="Tender Section"
+        />
+        <div className="py-2 border-t">
+          <DocumentTypePicker
+            selected={docTypesRef.current}
+            onChange={(types) => { docTypesRef.current = types; }}
+          />
+        </div>
+      </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -108,14 +151,20 @@ export function TenderSectionsTab() {
       const tenderId = record.id;
       if (!tenderId) return;
       try {
-        await api.post(`/api/v1/tenders/${tenderId}/assign_po_tasks`, {
-          po_task_ids: selectedPoTaskIdsRef.current,
-        });
+        await Promise.all([
+          api.post(`/api/v1/tenders/${tenderId}/assign_po_tasks`, {
+            po_task_ids: selectedPoTaskIdsRef.current,
+          }),
+          api.post(`/api/v1/tenders/${tenderId}/update_document_types`, {
+            document_types: docTypesRef.current,
+          }),
+        ]);
         await fetchPoTasks();
         selectedPoTaskIdsRef.current = [];
+        docTypesRef.current = [];
         editRecordIdRef.current = null;
       } catch (error) {
-        console.error("[PO Tasks] Failed to assign tender PO tasks:", error);
+        console.error("[TenderSections] Failed to save PO tasks / doc types:", error);
       }
     },
     [fetchPoTasks]
@@ -126,8 +175,8 @@ export function TenderSectionsTab() {
       <TeeemTableView
         foundationId={FOUNDATION_SLUGS.TENDERS}
         autoFetchRecords={true}
-        createDialogRenderExtra={renderPoTaskPickerForCreate}
-        editDialogRenderExtra={renderPoTaskPickerForEdit}
+        createDialogRenderExtra={renderExtraForCreate}
+        editDialogRenderExtra={renderExtraForEdit}
         createDialogOnAfterSave={handleAfterSave}
         editDialogOnAfterSave={handleAfterSave}
       />
