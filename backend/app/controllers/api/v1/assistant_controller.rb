@@ -7,6 +7,7 @@
 #
 class Api::V1::AssistantController < ApplicationController
   before_action :authorize_request
+  before_action :require_admin, only: [:status, :setup]
 
   # POST /api/v1/assistant/chat
   # Send a message to the assistant and get a response
@@ -216,7 +217,68 @@ class Api::V1::AssistantController < ApplicationController
     render json: { success: true }
   end
 
+  # GET /api/v1/assistant/status
+  # Returns connection status for all AI assistant services. Admin only.
+  def status
+    settings = TenantSetting.instance
+
+    render json: {
+      success: true,
+      data: {
+        claude: {
+          connected: ENV["ANTHROPIC_API_KEY"].present?,
+          model: ENV["ANTHROPIC_API_KEY"].present? ? (ENV["ANTHROPIC_MODEL"] || "claude-sonnet-4-5-20250929") : nil
+        },
+        twilio: {
+          connected: settings&.twilio_enabled? && settings&.twilio_account_sid.present?,
+          phone: settings&.twilio_enabled? ? settings&.twilio_phone_number : nil
+        },
+        deepgram: {
+          connected: deepgram_api_key_present?(settings)
+        },
+        slack: {
+          connected: slack_configured?(settings),
+          bot_name: slack_configured?(settings) ? "TEEEM" : nil
+        },
+        signal: {
+          connected: ENV["SIGNAL_CLI_REST_API_URL"].present?
+        },
+        assistant_enabled: settings&.assistant_enabled || false
+      }
+    }
+  end
+
+  # PUT /api/v1/assistant/setup
+  # Save AI assistant service credentials to TenantSetting. Admin only.
+  def setup
+    settings = TenantSetting.instance
+    return render json: { success: false, error: "Tenant settings not found" }, status: :not_found unless settings
+
+    permitted = params.permit(:deepgram_api_key, :slack_bot_token, :slack_signing_secret, :assistant_enabled)
+    updates = {}
+
+    updates[:deepgram_api_key] = permitted[:deepgram_api_key] if permitted.key?(:deepgram_api_key)
+    updates[:slack_bot_token] = permitted[:slack_bot_token] if permitted.key?(:slack_bot_token)
+    updates[:slack_signing_secret] = permitted[:slack_signing_secret] if permitted.key?(:slack_signing_secret)
+    updates[:assistant_enabled] = permitted[:assistant_enabled] if permitted.key?(:assistant_enabled)
+
+    if settings.update(updates)
+      render json: { success: true, data: { updated: updates.keys } }
+    else
+      render json: { success: false, error: settings.errors.full_messages.join(", ") }, status: :unprocessable_entity
+    end
+  end
+
   private
+
+  def deepgram_api_key_present?(settings)
+    settings&.deepgram_api_key.present? || ENV["DEEPGRAM_API_KEY"].present?
+  end
+
+  def slack_configured?(settings)
+    (settings&.slack_bot_token.present? && settings&.slack_signing_secret.present?) ||
+      (ENV["SLACK_BOT_TOKEN"].present? && ENV["SLACK_SIGNING_SECRET"].present?)
+  end
 
   # Execute an approved action
   def execute_approved_action(action)

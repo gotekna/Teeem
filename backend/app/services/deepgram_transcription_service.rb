@@ -33,9 +33,9 @@ class DeepgramTranscriptionService
     # @param options [Hash] Additional Deepgram options
     # @return [String, nil] Transcribed text or nil on failure
     def transcribe_url(url:, content_type: "audio/ogg", **options)
-      api_key = ENV["DEEPGRAM_API_KEY"]
+      api_key = resolve_api_key
       unless api_key.present?
-        Rails.logger.warn "[Deepgram] DEEPGRAM_API_KEY not configured"
+        Rails.logger.warn "[Deepgram] DEEPGRAM_API_KEY not configured (checked TenantSetting + ENV)"
         return nil
       end
 
@@ -65,9 +65,9 @@ class DeepgramTranscriptionService
     # @param options [Hash] Additional Deepgram options
     # @return [String, nil] Transcribed text or nil on failure
     def transcribe(content:, content_type: "audio/ogg", **options)
-      api_key = ENV["DEEPGRAM_API_KEY"]
+      api_key = resolve_api_key
       unless api_key.present?
-        Rails.logger.warn "[Deepgram] DEEPGRAM_API_KEY not configured"
+        Rails.logger.warn "[Deepgram] DEEPGRAM_API_KEY not configured (checked TenantSetting + ENV)"
         return nil
       end
 
@@ -92,10 +92,20 @@ class DeepgramTranscriptionService
 
     # Check if the Deepgram API is configured and reachable
     def configured?
-      ENV["DEEPGRAM_API_KEY"].present?
+      resolve_api_key.present?
     end
 
     private
+
+    # Resolve API key: TenantSetting (per-tenant) → ENV (platform-level)
+    def resolve_api_key
+      tenant_key = begin
+        TenantSetting.instance&.deepgram_api_key
+      rescue StandardError
+        nil
+      end
+      tenant_key.presence || ENV["DEEPGRAM_API_KEY"]
+    end
 
     def build_query_params(options)
       merged = DEFAULT_OPTIONS.merge(options)

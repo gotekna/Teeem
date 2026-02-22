@@ -10,6 +10,7 @@ import {
   Bell,
   Shield,
   Sliders,
+  Bot,
   Users,
   ShieldCheck,
   Building,
@@ -28,6 +29,7 @@ const PERSONAL_TABS = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "security", label: "Security", icon: Shield },
   { id: "preferences", label: "Preferences", icon: Sliders },
+  { id: "assistant", label: "Assistant", icon: Bot },
 ];
 
 // Organization tabs - visible to admin users only

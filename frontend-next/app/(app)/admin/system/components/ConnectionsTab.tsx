@@ -61,6 +61,7 @@ import { StorageCostTab } from "./StorageCostTab";
 import { BackupSettingsTab } from "./BackupSettingsTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
 import { EmailAccountsTab } from "./EmailAccountsTab";
+import { AIAssistantSetupTab } from "./AIAssistantSetupTab";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -2428,6 +2429,7 @@ function IntegrationsSubTab() {
 const CONNECTIONS_SUB_TABS = [
   { id: "provider", label: "Storage Provider" },
   { id: "integrations", label: "Integrations" },
+  { id: "ai-assistant", label: "AI Assistant" },
   { id: "email-accounts", label: "Email Accounts" },
   { id: "migration", label: "Migration" },
   { id: "costs", label: "Cost Comparison" },
@@ -2485,6 +2487,9 @@ export function ConnectionsTab({ subTab, deepTab, basePath = DEFAULT_CONNECTIONS
       </TabsContent>
       <TabsContent value="integrations" forceMount className={activeSubTab !== "integrations" ? "hidden" : ""}>
         {visitedTabs.has("integrations") && <IntegrationsSubTab />}
+      </TabsContent>
+      <TabsContent value="ai-assistant" forceMount className={activeSubTab !== "ai-assistant" ? "hidden" : ""}>
+        {visitedTabs.has("ai-assistant") && <AIAssistantSetupTab />}
       </TabsContent>
       <TabsContent value="email-accounts" forceMount className={activeSubTab !== "email-accounts" ? "hidden" : ""}>
         {visitedTabs.has("email-accounts") && <EmailAccountsTab subTab={deepTab} basePath={`${basePath}/email-accounts`} />}

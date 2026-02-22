@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_180000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7206,7 +7206,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_180000) do
     t.index ["status"], name: "index_performance_anomalies_on_status"
   end
 
-  create_table "performance_requests", force: :cascade do |t|
+  create_table "performance_requests", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "endpoint", null: false
     t.string "method", null: false
     t.integer "duration_ms", null: false
@@ -7284,7 +7285,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_180000) do
     t.index ["user_id"], name: "index_performance_slow_queries_on_user_id"
   end
 
-  create_table "performance_vitals", force: :cascade do |t|
+  create_table "performance_vitals", id: false, force: :cascade do |t|
+    t.bigserial "id", null: false
     t.string "metric_name", null: false
     t.float "value", null: false
     t.string "page_path"
@@ -10168,6 +10170,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_180000) do
     t.string "xero_tracking_category_name", default: "Job", comment: "Xero tracking category name used for job matching (e.g., 'Job', 'JOB ID')"
     t.string "po_template_variant", default: "classic", comment: "PO visual design variant (classic, modern, bold, compact, professional, construction, custom)"
     t.text "po_custom_template", comment: "Custom HTML template for PO (used when po_template_variant is 'custom')"
+    t.string "deepgram_api_key"
+    t.string "slack_bot_token"
+    t.string "slack_signing_secret"
+    t.boolean "assistant_enabled", default: false
     t.index ["company_group_id"], name: "index_tenant_settings_on_company_group_id", unique: true
     t.index ["saas_customer_contact_id"], name: "index_tenant_settings_on_saas_customer_contact_id"
     t.index ["stripe_customer_id"], name: "index_tenant_settings_on_stripe_customer_id"

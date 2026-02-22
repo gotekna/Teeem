@@ -80,7 +80,11 @@ export function TenderVersionHistory({ documents, selectedId, onSelect }: Tender
             </Badge>
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>{doc.date_prepared} · {doc.item_count} items</span>
+            <span>
+              {doc.date_prepared}
+              {doc.created_at && ` ${new Date(doc.created_at).toLocaleTimeString("en-AU", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Australia/Brisbane" })}`}
+              {" · "}{doc.item_count} items
+            </span>
             <span className="font-semibold text-foreground">{formatCurrency(doc.total)}</span>
           </div>
           {doc.revision_notes && (

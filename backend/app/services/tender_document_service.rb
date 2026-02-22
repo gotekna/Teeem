@@ -62,6 +62,7 @@ class TenderDocumentService
   def snapshot_po_items!(doc)
     line_counter_by_section = Hash.new(0)
     sections_with_items = Set.new
+    @hidden_inclusions_total = BigDecimal("0")
 
     @job.purchase_orders.includes(line_items: { pricebook_item: :image_storage_blob }, sm_task: :sm_schedule_master).find_each do |po|
       tender_section = resolve_tender_section(po)
@@ -70,8 +71,12 @@ class TenderDocumentService
       po_cls = @po_classifications[po.id.to_s]
 
       # PO-level classifications: skip or roll up the entire PO
-      if po_cls.in?(%w[per_po_nt per_po_exc])
-        # Skip entire PO
+      if po_cls == "per_po_exc"
+        # Excluded: skip entirely, not counted in total
+        next
+      elsif po_cls == "per_po_nt"
+        # No Tender: hidden from document but cost IS included in total
+        @hidden_inclusions_total += po.line_items.sum { |li| (li.quantity || 0).to_d * (li.unit_price || 0).to_d }
         next
       elsif po_cls.in?(%w[per_po_incl per_po_pc per_po_ps])
         # Create ONE summary line for the entire PO
@@ -120,8 +125,16 @@ class TenderDocumentService
       po.line_items.ordered.each do |item|
         item_cls = @item_classifications[item.id.to_s] || "included"
 
-        # Skip excluded / hidden items
-        next if item_cls.in?(%w[excluded incl_hidden])
+        # Skip excluded items entirely (not counted in total)
+        next if item_cls == "excluded"
+
+        # Hidden items: not shown in tender but cost IS included in total
+        if item_cls == "incl_hidden"
+          eff_qty = (item.quantity || 0).to_d
+          eff_price = (item.unit_price || 0).to_d
+          @hidden_inclusions_total += eff_qty * eff_price
+          next
+        end
 
         section_name = tender_section&.name || "Unallocated"
         line_counter_by_section[section_name] += 1
@@ -274,7 +287,11 @@ class TenderDocumentService
   def calculate_totals!(doc)
     # Include priced (PC), provisional (PS), and included items in totals (not "note")
     countable_items = doc.tender_document_items.where(item_type: %w[priced provisional included], excluded: false)
-    subtotal = countable_items.sum(:total_amount)
+    items_subtotal = countable_items.sum(:total_amount)
+
+    # Add hidden inclusions (incl_hidden / per_po_nt items not shown in tender but counted in total)
+    hidden_total = @hidden_inclusions_total || BigDecimal("0")
+    subtotal = items_subtotal + hidden_total
 
     # Calculate GST per item using GstCode rates
     gst_total = BigDecimal("0")
@@ -286,6 +303,12 @@ class TenderDocumentService
       end
       gst_total += (item.total_amount || 0) * rate
     end
+    # GST on hidden inclusions (default 10%)
+    gst_total += hidden_total * BigDecimal("0.1")
+
+    # Store hidden total in settings for transparency
+    doc.settings ||= {}
+    doc.settings["hidden_inclusions_total"] = hidden_total.to_f if hidden_total > 0
 
     doc.update!(
       subtotal: subtotal,

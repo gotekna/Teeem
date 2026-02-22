@@ -2,7 +2,7 @@
   "_meta": {
     "description": "SSoT for contextual page help. Claude updates this when screens change.",
     "lastUpdated": "2026-02-14",
-    "totalPages": 186,
+    "totalPages": 188,
     "format": "Each page has: title, description, tips (array), tasks (array)"
   },
   "pages": {
@@ -966,6 +966,12 @@
       "tips": ["Customize your experience", "Set default views", "Configure shortcuts"],
       "tasks": ["Set preferences", "Configure defaults", "Customize UI", "Save settings"]
     },
+    "/settings/assistant": {
+      "title": "Assistant Preferences",
+      "description": "Configure your personal AI Assistant notification channels, quiet hours, and autopilot settings.",
+      "tips": ["Web notifications are always on", "Quiet hours suppress non-critical alerts", "Autopilot lets the assistant act without approval", "Priority threshold filters low-priority notifications"],
+      "tasks": ["Choose notification channels", "Set quiet hours", "Configure priority threshold", "Enable autopilot for selected actions", "Connect your Slack account"]
+    },
     "/settings/notifications": {
       "title": "Notification Settings",
       "description": "Control how and when you receive notifications.",
@@ -1043,6 +1049,12 @@
       "description": "Manage integrations with external services (Storage, Email, Xero) and configure backups.",
       "tips": ["Storage provider syncs documents to cloud", "Email integration syncs your inbox", "Xero connects accounting data", "Backups tab configures automatic storage mirroring to Backblaze B2"],
       "tasks": ["Connect storage provider", "Add email account", "Link Xero organization", "Test connections", "Configure backup schedules and mirroring"]
+    },
+    "/settings/connections/ai-assistant": {
+      "title": "AI Assistant Setup",
+      "description": "Configure AI Assistant service connections for your organization.",
+      "tips": ["Claude AI and Signal are platform-managed", "Deepgram enables voice transcription for WhatsApp voice notes", "Slack bot allows slash commands and DM chat with the assistant", "Test Connection verifies your credentials are valid"],
+      "tasks": ["Enter Deepgram API key", "Configure Slack bot token and signing secret", "Test service connections", "Enable or disable the AI Assistant"]
     },
     "/settings/integrations": {
       "title": "Integrations",

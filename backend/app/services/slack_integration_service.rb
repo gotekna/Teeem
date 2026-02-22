@@ -67,9 +67,9 @@ class SlackIntegrationService
 
     # Send a message to a Slack channel or DM
     def send_message(channel_id:, text:, blocks: nil, thread_ts: nil)
-      bot_token = ENV["SLACK_BOT_TOKEN"]
+      bot_token = resolve_bot_token
       unless bot_token.present?
-        Rails.logger.warn "[Slack] SLACK_BOT_TOKEN not configured"
+        Rails.logger.warn "[Slack] SLACK_BOT_TOKEN not configured (checked TenantSetting + ENV)"
         return nil
       end
 
@@ -118,7 +118,7 @@ class SlackIntegrationService
     def valid_signature?(request)
       return true if Rails.env.development? || Rails.env.test?
 
-      signing_secret = ENV["SLACK_SIGNING_SECRET"]
+      signing_secret = resolve_signing_secret
       return false unless signing_secret.present?
 
       timestamp = request.headers["X-Slack-Request-Timestamp"]
@@ -160,10 +160,30 @@ class SlackIntegrationService
 
     # Check if Slack is configured
     def configured?
-      ENV["SLACK_BOT_TOKEN"].present? && ENV["SLACK_SIGNING_SECRET"].present?
+      resolve_bot_token.present? && resolve_signing_secret.present?
     end
 
     private
+
+    # Resolve bot token: TenantSetting (per-tenant) → ENV (platform-level)
+    def resolve_bot_token
+      tenant_token = begin
+        TenantSetting.instance&.slack_bot_token
+      rescue StandardError
+        nil
+      end
+      tenant_token.presence || ENV["SLACK_BOT_TOKEN"]
+    end
+
+    # Resolve signing secret: TenantSetting (per-tenant) → ENV (platform-level)
+    def resolve_signing_secret
+      tenant_secret = begin
+        TenantSetting.instance&.slack_signing_secret
+      rescue StandardError
+        nil
+      end
+      tenant_secret.presence || ENV["SLACK_SIGNING_SECRET"]
+    end
 
     def handle_mention(event)
       text = event["text"]&.gsub(/<@\w+>/, "")&.strip

@@ -133,6 +133,7 @@ export const ROUTES = {
     NOTIFICATIONS: "/settings/notifications",
     SECURITY: "/settings/security",
     PREFERENCES: "/settings/preferences",
+    ASSISTANT: "/settings/assistant",
 
     // Organization
     USERS: "/settings/users",
@@ -150,6 +151,7 @@ export const ROUTES = {
     CONNECTIONS_MIGRATION: "/settings/connections/migration",
     CONNECTIONS_COSTS: "/settings/connections/costs",
     CONNECTIONS_BACKUPS: "/settings/connections/backups",
+    CONNECTIONS_AI_ASSISTANT: "/settings/connections/ai-assistant",
     CONNECTIONS_EMAIL_ACCOUNTS: "/settings/connections/email-accounts/configuration",
 
     // Integrations (legacy redirects)

@@ -244,8 +244,12 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "view-table-demo": "ViewTable Demo",
   "setup-table-demo": "SetupTable Demo",
 
+  // Settings > Personal tabs
+  "assistant": "Assistant",
+
   // Settings > Connections sub-tabs
   "provider": "Storage Provider",
+  "ai-assistant": "AI Assistant",
   "migration": "Migration",
   "costs": "Cost Comparison",
   "email-accounts": "Email Accounts",

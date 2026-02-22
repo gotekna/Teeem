@@ -24,6 +24,9 @@ class TenantSetting < ApplicationRecord
 
   # Encrypt sensitive credentials (SSoT pattern from MicrosoftCredential)
   encrypts :twilio_auth_token
+  encrypts :deepgram_api_key
+  encrypts :slack_bot_token
+  encrypts :slack_signing_secret
 
   # ========================================
   # SSoT Defaults (used as fallbacks when tenant has no config)

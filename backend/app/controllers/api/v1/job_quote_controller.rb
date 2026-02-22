@@ -3,7 +3,7 @@
 module Api
   module V1
     class JobQuoteController < ApplicationController
-      before_action :set_job, only: [:summary, :apply_template, :rfq_documents]
+      before_action :set_job, only: [:quote_summary, :apply_template, :rfq_documents]
       before_action :set_tracker, only: [:send_rfq, :record_response, :accept]
 
       # GET /api/v1/jobs/:job_id/quote_summary
@@ -329,7 +329,7 @@ module Api
       private
 
       def set_job
-        @job = Job.find(params[:job_id])
+        @job = Job.find(params[:job_id] || params[:id])
       end
 
       def set_tracker
