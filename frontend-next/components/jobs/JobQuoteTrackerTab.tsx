@@ -11,7 +11,7 @@ interface JobQuoteTrackerTabProps {
  * JobQuoteTrackerTab - Track supplier quotes for a job
  *
  * SSoT: Foundation = 'quote-tracker'
- * Location: PreCon > Quote Tracker tab
+ * Location: Estimating > Quote Tracker tab
  *
  * This is for internal tracking of quotes received from suppliers.
  * Note: Different from QuoteRequest which is for sending RFQs.

@@ -53,6 +53,8 @@ interface PoTaskPickerProps {
   onCreateTask?: (name: string, templateId: number) => Promise<POTaskItem | null>;
   /** Called when user clicks a tender link to navigate to that tender's edit dialog */
   onNavigateToTender?: (id: number) => void;
+  /** Called when user clicks a cost centre link to navigate to that cost centre's edit dialog */
+  onNavigateToCostCentre?: (id: number, templateFilter: string) => void;
 }
 
 interface TaskGroup {
@@ -73,6 +75,7 @@ export function PoTaskPicker({
   initialTemplateFilter,
   onCreateTask,
   onNavigateToTender,
+  onNavigateToCostCentre,
 }: PoTaskPickerProps) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
   // Template filter priority: initialTemplateFilter (nav) > localStorage > is_default template > "all"
@@ -106,6 +109,9 @@ export function PoTaskPicker({
   const [expandedGroups, setExpandedGroups] = React.useState<Set<string>>(new Set());
   // Track which badge groups are EXPANDED (empty = all collapsed by default)
   const [expandedBadgeGroups, setExpandedBadgeGroups] = React.useState<Set<string>>(new Set());
+  // Collapsible sections: badges area and task list area (both collapsed by default)
+  const [badgesSectionOpen, setBadgesSectionOpen] = React.useState(false);
+  const [taskListSectionOpen, setTaskListSectionOpen] = React.useState(false);
 
   // Sync ref whenever local selection changes so parent can read it on save
   React.useEffect(() => {
@@ -141,6 +147,16 @@ export function PoTaskPicker({
     }
     return tasks;
   }, [combinedTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
+
+  // Debug: check data shape - REMOVE after fixing
+  React.useEffect(() => {
+    if (filteredTasks.length > 0) {
+      const withCC = filteredTasks.filter(t => t.costCentreId != null);
+      const withTender = filteredTasks.filter(t => t.tenderId != null);
+      console.log(`[PoTaskPicker] ${filteredTasks.length} tasks, ${withCC.length} with CC, ${withTender.length} with tender, assignmentField=${assignmentField}`);
+      if (filteredTasks.length > 0) console.log("[PoTaskPicker] sample task:", JSON.stringify(filteredTasks[0]));
+    }
+  }, [filteredTasks, assignmentField]);
 
   // Group tasks by cost centre
   const groupedTasks = React.useMemo(() => {
@@ -251,18 +267,20 @@ export function PoTaskPicker({
 
   const renderTaskRow = (task: POTaskItem) => {
     const isSelected = selectedIds.includes(task.id);
-    const assignedId =
-      assignmentField === "tender" ? task.tenderId : task.costCentreId;
-    const assignedName =
-      assignmentField === "tender" ? task.tenderName : task.costCentreName;
-    const isAssignedElsewhere =
-      assignedId != null &&
-      (recordId != null ? assignedId !== Number(recordId) : true);
     const taskDisplay = task.taskCode
       ? `${task.taskCode} - ${task.name}`
       : task.name;
-    // Tender info for cross-reference display (shown when in costCentre context)
-    const showTenderInfo = assignmentField === "costCentre" && task.tenderId != null;
+
+    // Cross-reference: cost centre (shown when editing tenders, or when assigned to a different cost centre)
+    const showCostCentre = task.costCentreId != null && (
+      assignmentField === "tender" ||
+      (assignmentField === "costCentre" && recordId != null && task.costCentreId !== Number(recordId))
+    );
+    // Cross-reference: tender section + header (always shown when tender exists)
+    const showTender = task.tenderId != null && (
+      assignmentField === "costCentre" ||
+      (assignmentField === "tender" && recordId != null && task.tenderId !== Number(recordId))
+    );
     const tenderLabel = task.tenderHeaderName
       ? `${task.tenderHeaderName} › ${task.tenderName}`
       : task.tenderName;
@@ -281,46 +299,49 @@ export function PoTaskPicker({
           className="rounded border-input mt-0.5"
         />
         <span className="min-w-0">
-          <span className="truncate block">
-            {taskDisplay}
-            {isAssignedElsewhere && (
-              onNavigateToRecord && assignedId ? (
-                <button
-                  type="button"
-                  className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onNavigateToRecord(assignedId, templateFilter);
-                  }}
-                >
-                  ({assignedName || `${entityLabel} #${assignedId}`})
-                </button>
-              ) : (
-                <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
-                  ({assignedName || `${entityLabel} #${assignedId}`})
-                </span>
-              )
-            )}
-          </span>
-          {showTenderInfo && (
-            onNavigateToTender && task.tenderId ? (
-              <button
-                type="button"
-                className="block text-xs text-purple-600 dark:text-purple-400 underline hover:text-purple-800 dark:hover:text-purple-300 truncate"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onNavigateToTender(task.tenderId!);
-                }}
-              >
-                Tender: {tenderLabel}
-              </button>
-            ) : (
-              <span className="block text-xs text-muted-foreground truncate">
-                Tender: {tenderLabel}
-              </span>
-            )
+          <span className="truncate block">{taskDisplay}</span>
+          {/* Cross-reference links: cost centre + tender info */}
+          {(showCostCentre || showTender) && (
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0">
+              {showCostCentre && (onNavigateToCostCentre || onNavigateToRecord) ? (
+                  <button
+                    type="button"
+                    className="text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (onNavigateToCostCentre) {
+                        onNavigateToCostCentre(task.costCentreId!, templateFilter);
+                      } else if (onNavigateToRecord) {
+                        onNavigateToRecord(task.costCentreId!, templateFilter);
+                      }
+                    }}
+                  >
+                    CC: {task.costCentreName || `#${task.costCentreId}`}
+                  </button>
+              ) : showCostCentre ? (
+                  <span className="text-xs text-muted-foreground">
+                    CC: {task.costCentreName || `#${task.costCentreId}`}
+                  </span>
+              ) : null}
+              {showTender && onNavigateToTender ? (
+                  <button
+                    type="button"
+                    className="text-xs text-purple-600 dark:text-purple-400 underline hover:text-purple-800 dark:hover:text-purple-300"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onNavigateToTender(task.tenderId!);
+                    }}
+                  >
+                    Tender: {tenderLabel}
+                  </button>
+              ) : showTender ? (
+                  <span className="text-xs text-muted-foreground">
+                    Tender: {tenderLabel}
+                  </span>
+              ) : null}
+            </span>
           )}
         </span>
       </label>
@@ -333,9 +354,19 @@ export function PoTaskPicker({
       <p className="text-xs text-muted-foreground mt-1 mb-2">
         Assign SM PO Tasks to this {entityLabel}. Tasks showing a name in brackets will be reassigned.
       </p>
-          {/* Badges showing currently assigned tasks - grouped by cost centre, scrollable when many */}
+          {/* Badges showing currently assigned tasks - collapsible section */}
           {selectedTasks.length > 0 && (
-            <div className="max-h-[200px] overflow-y-auto mb-2 border rounded-md p-1.5 bg-muted/20">
+            <div className="mb-2 border rounded-md bg-muted/20">
+              <button
+                type="button"
+                onClick={() => setBadgesSectionOpen((prev) => !prev)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium hover:bg-muted/40 text-left"
+              >
+                <span className={`transition-transform text-[10px] ${badgesSectionOpen ? "rotate-90" : ""}`}>▶</span>
+                <span className="flex-1">Selected Tasks</span>
+                <span className="text-muted-foreground tabular-nums">{selectedTasks.length}</span>
+              </button>
+              {badgesSectionOpen && <div className="max-h-[200px] overflow-y-auto p-1.5 pt-0">
               {selectedTaskGroups.length <= 1 ? (
                 // Single group or all unassigned - render flat
                 <div className="flex flex-wrap gap-1">
@@ -412,6 +443,7 @@ export function PoTaskPicker({
                   })}
                 </div>
               )}
+              </div>}
             </div>
           )}
           {/* Template filter pills - only show if templates provided */}
@@ -446,7 +478,17 @@ export function PoTaskPicker({
             </div>
           )}
           <div className="border rounded-md">
-            <div className="p-2 border-b flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setTaskListSectionOpen((prev) => !prev)}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-xs font-medium hover:bg-muted/40 text-left"
+            >
+              <span className={`transition-transform text-[10px] ${taskListSectionOpen ? "rotate-90" : ""}`}>▶</span>
+              <span className="flex-1">Browse &amp; Search PO Tasks</span>
+              <span className="text-muted-foreground tabular-nums">{filteredTasks.length}</span>
+            </button>
+            {taskListSectionOpen && <>
+            <div className="p-2 border-t flex items-center gap-2">
               <input
                 type="text"
                 value={search}
@@ -532,6 +574,7 @@ export function PoTaskPicker({
                 })
               )}
             </div>
+          </>}
           </div>
           {/* Create new PO task inline form */}
           {onCreateTask && (

@@ -2,11 +2,11 @@
 
 # QuoteTracker - Tracks supplier quotes for construction jobs
 #
-# This is a PreCon feature for internal tracking of quotes received from suppliers.
+# Tracks supplier quotes received for a job during the estimating phase.
 # Note: This is separate from QuoteRequest (which is for sending RFQs to suppliers).
 #
 # SSoT: Foundation slug = 'quote-tracker'
-# SSoT: Tab = PreCon > Quote Tracker
+# SSoT: Tab = Estimating > Quote Tracker
 #
 class QuoteTracker < ApplicationRecord
   # Multi-tenancy: Scope all queries to current tenant (Tenant model is SSoT)

@@ -676,9 +676,39 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   }, [jotaiStore, router, basePath]);
 
+  // Navigate to a cost centre's edit dialog (cross-table navigation from tenders)
+  const navigateToCostCentre = React.useCallback(async (costCentreId: number, templateFilter?: string) => {
+    try {
+      pendingTemplateFilterRef.current = templateFilter;
+      // Switch to cost centres table via URL
+      router.push(`${basePath}/tables/cost_centres`, { scroll: false });
+      // Fetch the cost centre record to populate the edit dialog
+      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/cost_centres/records?per_page=1000`
+      );
+      const record = resp?.records?.find((r) => Number(r.id) === costCentreId);
+      if (!record) return;
+      // Wait for table switch + dialog close animation, then open edit
+      setTimeout(() => {
+        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
+        jotaiStore.set(showEditRecordModalAtom, true);
+      }, 400);
+    } catch (err) {
+      console.error("Failed to navigate to cost centre:", err);
+    }
+  }, [jotaiStore, router, basePath]);
+
   // Keep templates ref synced so stable callbacks can read latest value
   const templatesRef = React.useRef(templates);
   templatesRef.current = templates;
+
+  // Keep callback refs synced so stable callbacks always have latest version
+  const navigateToTenderRef = React.useRef(navigateToTender);
+  navigateToTenderRef.current = navigateToTender;
+  const navigateToCostCentreRef = React.useRef(navigateToCostCentre);
+  navigateToCostCentreRef.current = navigateToCostCentre;
+  const openEditForRecordRef = React.useRef(openEditForRecord);
+  openEditForRecordRef.current = openEditForRecord;
 
   const fetchPoTasks = React.useCallback(async () => {
     try {
@@ -751,7 +781,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="costCentre"
         entityLabel="Cost Centre"
         onCreateTask={createPoTask}
-        onNavigateToTender={navigateToTender}
+        onNavigateToTender={(tenderId) => navigateToTenderRef.current(tenderId)}
+        onNavigateToCostCentre={(id, tplFilter) => navigateToCostCentreRef.current(id, tplFilter)}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -789,19 +820,23 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="costCentre"
         entityLabel="Cost Centre"
         initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
-        onNavigateToRecord={helpers?.onClose ? (id, tplFilter) => {
-          helpers.onClose();
-          openEditForRecord(id, tplFilter);
-        } : undefined}
+        onNavigateToRecord={(id, tplFilter) => {
+          helpers?.onClose?.();
+          openEditForRecordRef.current(id, tplFilter);
+        }}
         onCreateTask={createPoTask}
-        onNavigateToTender={helpers?.onClose ? (tenderId) => {
-          helpers.onClose();
-          navigateToTender(tenderId);
-        } : undefined}
+        onNavigateToTender={(tenderId) => {
+          helpers?.onClose?.();
+          navigateToTenderRef.current(tenderId);
+        }}
+        onNavigateToCostCentre={(id, tplFilter) => {
+          helpers?.onClose?.();
+          navigateToCostCentreRef.current(id, tplFilter);
+        }}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openEditForRecord, navigateToTender]);
+  }, []);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -894,6 +929,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="tender"
         entityLabel="Tender Section"
         onCreateTask={createTenderPoTask}
+        onNavigateToTender={(tenderId) => navigateToTenderRef.current(tenderId)}
+        onNavigateToCostCentre={(id, tplFilter) => navigateToCostCentreRef.current(id, tplFilter)}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -931,15 +968,23 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="tender"
         entityLabel="Tender Section"
         initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
-        onNavigateToRecord={helpers?.onClose ? (id, tplFilter) => {
-          helpers.onClose();
-          openEditForRecord(id, tplFilter);
-        } : undefined}
+        onNavigateToRecord={(id, tplFilter) => {
+          helpers?.onClose?.();
+          openEditForRecordRef.current(id, tplFilter);
+        }}
         onCreateTask={createTenderPoTask}
+        onNavigateToTender={(tenderId) => {
+          helpers?.onClose?.();
+          navigateToTenderRef.current(tenderId);
+        }}
+        onNavigateToCostCentre={(id, tplFilter) => {
+          helpers?.onClose?.();
+          navigateToCostCentreRef.current(id, tplFilter);
+        }}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openEditForRecord]);
+  }, []);
 
   const handleTenderAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
     const tenderId = record.id;
