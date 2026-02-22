@@ -629,16 +629,30 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const selectedPoTaskIdsRef = React.useRef<number[]>([]);
   const poTasksEditRecordIdRef = React.useRef<number | string | null>(null);
   const pendingNavigateRecordIdRef = React.useRef<number | null>(null);
+  const pendingTemplateFilterRef = React.useRef<string | undefined>(undefined);
 
   // When a cost centre/tender link is clicked in PoTaskPicker, the dialog closes
-  // and we open the target record's edit dialog after a brief delay
-  const openEditForRecord = React.useCallback((id: number) => {
-    // Wait for the current dialog close animation to finish
-    setTimeout(() => {
-      jotaiStore.set(selectedRecordForModalAtom, { id });
-      jotaiStore.set(showEditRecordModalAtom, true);
-    }, 200);
-  }, [jotaiStore]);
+  // and we open the target record's edit dialog after fetching full record data
+  const openEditForRecord = React.useCallback(async (id: number, templateFilter?: string) => {
+    pendingTemplateFilterRef.current = templateFilter;
+    try {
+      // Determine which foundation to query based on active table
+      const foundationSlug = selectedLookupTable === "tenders" ? "tenders" : "cost_centres";
+      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/${foundationSlug}/records?per_page=1000`
+      );
+      const record = resp?.records?.find((r) => Number(r.id) === id);
+      if (!record) return;
+
+      // Wait for dialog close animation, then open edit with full record data
+      setTimeout(() => {
+        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
+        jotaiStore.set(showEditRecordModalAtom, true);
+      }, 200);
+    } catch (err) {
+      console.error("Failed to fetch record for navigation:", err);
+    }
+  }, [jotaiStore, selectedLookupTable]);
 
   // Keep templates ref synced so stable callbacks can read latest value
   const templatesRef = React.useRef(templates);
@@ -719,9 +733,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedPoTaskIdsRef}
         assignmentField="costCentre"
         entityLabel="Cost Centre"
-        onNavigateToRecord={helpers?.onClose ? (id) => {
+        initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
+        onNavigateToRecord={helpers?.onClose ? (id, tplFilter) => {
           helpers.onClose();
-          openEditForRecord(id);
+          openEditForRecord(id, tplFilter);
         } : undefined}
       />
     );
@@ -824,9 +839,10 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedTenderPoTaskIdsRef}
         assignmentField="tender"
         entityLabel="Tender Section"
-        onNavigateToRecord={helpers?.onClose ? (id) => {
+        initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
+        onNavigateToRecord={helpers?.onClose ? (id, tplFilter) => {
           helpers.onClose();
-          openEditForRecord(id);
+          openEditForRecord(id, tplFilter);
         } : undefined}
       />
     );

@@ -38,7 +38,9 @@ interface PoTaskPickerProps {
   assignmentField?: "costCentre" | "tender";
   entityLabel?: string;
   /** Called when user clicks a linked record name (e.g., cost centre name in brackets) */
-  onNavigateToRecord?: (id: number) => void;
+  onNavigateToRecord?: (id: number, templateFilter: string) => void;
+  /** Initial template filter to restore (e.g., after navigation) */
+  initialTemplateFilter?: string;
 }
 
 export function PoTaskPicker({
@@ -50,9 +52,10 @@ export function PoTaskPicker({
   assignmentField = "tender",
   entityLabel = "Tender Section",
   onNavigateToRecord,
+  initialTemplateFilter,
 }: PoTaskPickerProps) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
-  const [templateFilter, setTemplateFilter] = React.useState("all");
+  const [templateFilter, setTemplateFilter] = React.useState(initialTemplateFilter || "all");
   const [search, setSearch] = React.useState("");
   const [hideSelected, setHideSelected] = React.useState(false);
 
@@ -220,7 +223,7 @@ export function PoTaskPicker({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          onNavigateToRecord(assignedId);
+                          onNavigateToRecord(assignedId, templateFilter);
                         }}
                       >
                         ({assignedName || `${entityLabel} #${assignedId}`})
