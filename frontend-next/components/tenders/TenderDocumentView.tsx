@@ -188,20 +188,24 @@ function formatTenderDate(dateStr: string): string {
   }
 }
 
-/** Price Summary block matching the Tender Builder's totals table format.
- * Shows: Base Price, Prime Costs (count), Provisional Sums (count), Contract Sum, GST (10%), Total.
+/** Price Summary block showing header breakdown + builder-style totals.
+ * Top: Header subtotals (Site Costs, Authority Conditions, Base Price, etc.)
+ * Bottom: Base Price, Prime Costs (count), Provisional Sums (count), Contract Sum, GST (10%), Total.
  */
 function PriceSummaryBlock({
   doc,
+  headerGroups,
   widthClass = "w-40",
 }: {
   doc: TenderDocumentData;
+  headerGroups?: Record<string, Record<string, TenderDocumentItem[]>>;
   widthClass?: string;
 }) {
   const pcTotal = doc.pc_total || 0;
   const psTotal = doc.ps_total || 0;
   const basePrice = doc.subtotal - pcTotal - psTotal;
   const hasPcOrPs = pcTotal > 0 || psTotal > 0;
+  const hasHeaders = headerGroups && Object.keys(headerGroups).length > 0;
 
   // Count PC and PS items from sections data
   const allItems = Object.values(doc.sections_grouped).flat();
@@ -210,6 +214,22 @@ function PriceSummaryBlock({
 
   return (
     <div className="py-4">
+      {/* Header breakdown (Site Costs, Authority Conditions, Base Price, etc.) */}
+      {hasHeaders && (
+        <>
+          {Object.entries(headerGroups!).map(([headerName, _sections]) => {
+            const headerTotal = doc.header_subtotals?.[headerName] || 0;
+            return (
+              <div key={headerName} className="flex justify-between items-baseline py-0.5">
+                <span className="text-sm">{cleanSectionName(headerName)}</span>
+                <span className={`tabular-nums text-sm ${widthClass} text-right`}>{formatCurrency(headerTotal)}</span>
+              </div>
+            );
+          })}
+          <div className="border-t border-border/50 my-2" />
+        </>
+      )}
+
       {/* Base Price */}
       <div className="flex justify-between items-baseline py-1">
         <span className="font-semibold text-sm">Base Price (ex GST)</span>
@@ -642,7 +662,7 @@ function CoverLetterPage({ doc }: { doc: TenderDocumentData }) {
         </div>
 
         {/* Price Summary Table */}
-        <PriceSummaryBlock doc={doc} widthClass="w-40" />
+        <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-40" />
 
         {/* Validity */}
         <p className="text-sm">
@@ -1193,7 +1213,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
       {previewMode && (
         <Card>
           <CardContent className="pt-6">
-            <PriceSummaryBlock doc={doc} widthClass="w-32" />
+            <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-32" />
           </CardContent>
         </Card>
       )}
