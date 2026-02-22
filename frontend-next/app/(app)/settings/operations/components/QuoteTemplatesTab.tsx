@@ -28,6 +28,7 @@ import {
   GripVertical,
   Users,
   FileText,
+  CalendarDays,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -37,6 +38,11 @@ import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dr
 // ═══════════════════════════════════════════════════════════════════════════
 // Types matching backend JSON response (camelCase)
 // ═══════════════════════════════════════════════════════════════════════════
+
+interface SmTemplateOption {
+  id: number;
+  name: string;
+}
 
 interface QuoteTemplateSupplier {
   id: number;
@@ -67,6 +73,8 @@ interface QuoteTemplate {
   description: string | null;
   isActive: boolean;
   position: number;
+  smScheduleMasterTemplateId: number | null;
+  smScheduleMasterTemplateName: string | null;
   tradeCount: number;
   supplierCount: number;
   createdAt: string;
@@ -93,13 +101,18 @@ export function QuoteTemplatesTab() {
   const [dialogName, setDialogName] = useState("");
   const [dialogDescription, setDialogDescription] = useState("");
   const [dialogTemplateId, setDialogTemplateId] = useState<number | null>(null);
+  const [dialogSmTemplateId, setDialogSmTemplateId] = useState<number | null>(null);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // Lookup data (lazy loaded)
+  // SM Templates (for dropdown)
+  const [smTemplates, setSmTemplates] = useState<SmTemplateOption[]>([]);
+  const [smTemplatesLoaded, setSmTemplatesLoaded] = useState(false);
+
+  // Lookup data (lazy loaded per expanded template)
   const [taskItems, setTaskItems] = useState<ComboboxItem[]>([]);
-  const [tasksLoaded, setTasksLoaded] = useState(false);
+  const tasksLoadedForRef = useRef<number | null>(null);
   const [supplierItems, setSupplierItems] = useState<ComboboxItem[]>([]);
   const [suppliersLoaded, setSuppliersLoaded] = useState(false);
   const [supplierSearchLoading, setSupplierSearchLoading] = useState(false);
@@ -139,33 +152,58 @@ export function QuoteTemplatesTab() {
     }
   }, []);
 
-  // Load PO Tasks (SmScheduleMaster records that require POs)
-  const loadTasks = useCallback(async () => {
-    if (tasksLoaded) return;
+  // Load SM Schedule Master Templates for dropdown
+  const loadSmTemplates = useCallback(async () => {
+    if (smTemplatesLoaded) return;
     try {
-      const response = await api.get<{ success: boolean; data: { records: Array<{ id: number; values: Record<string, unknown> }> } }>(
-        "/api/v1/foundations/sm-schedule-master/records?per_page=500&filters=" +
-        encodeURIComponent(JSON.stringify([{ column: "po_required", operator: "=", value: "true" }]))
+      const response = await api.get<{
+        success: boolean;
+        sm_schedule_master_templates: Array<{ id: number; name: string }>;
+      }>("/api/v1/sm_schedule_master_templates");
+      setSmTemplates(
+        (response?.sm_schedule_master_templates || []).map(t => ({
+          id: t.id,
+          name: t.name,
+        }))
       );
-      const records = response?.data?.records || [];
-      setTaskItems(records.map(r => ({
-        id: String(r.id),
-        label: (r.values?.name as string) || `Task ${r.id}`,
+      setSmTemplatesLoaded(true);
+    } catch (err) {
+      console.error("[QuoteTemplatesTab] Failed to load SM templates:", err);
+    }
+  }, [smTemplatesLoaded]);
+
+  // Load PO Tasks for a specific SM template
+  const loadTasksForSmTemplate = useCallback(async (smTemplateId: number | null) => {
+    if (!smTemplateId) {
+      setTaskItems([]);
+      tasksLoadedForRef.current = null;
+      return;
+    }
+    if (tasksLoadedForRef.current === smTemplateId) return;
+    try {
+      const response = await api.get<{
+        success: boolean;
+        data: Array<{ id: number; name: string; costCentre: number | null }>;
+      }>(`/api/v1/quote_templates/po_tasks?sm_template_id=${smTemplateId}`);
+      const tasks = response?.data || [];
+      setTaskItems(tasks.map(t => ({
+        id: String(t.id),
+        label: t.name || `Task ${t.id}`,
       })));
-      setTasksLoaded(true);
+      tasksLoadedForRef.current = smTemplateId;
     } catch (err) {
       console.error("[QuoteTemplatesTab] Failed to load PO tasks:", err);
     }
-  }, [tasksLoaded]);
+  }, []);
 
   const loadSuppliers = useCallback(async (query?: string) => {
     try {
       setSupplierSearchLoading(true);
       const searchParam = query ? `&search=${encodeURIComponent(query)}` : "";
-      const response = await api.get<{ success: boolean; data: { records: Array<{ id: number; values: Record<string, unknown> }> } }>(
+      const response = await api.get<{ success: boolean; records: Array<{ id: number; values: Record<string, unknown> }> }>(
         `/api/v1/foundations/contacts/records?per_page=50${searchParam}`
       );
-      const records = response?.data?.records || [];
+      const records = response?.records || [];
       setSupplierItems(records.map(r => ({
         id: String(r.id),
         label: (r.values?.name as string) || (r.values?.display_name as string) || `Contact ${r.id}`,
@@ -180,7 +218,8 @@ export function QuoteTemplatesTab() {
 
   useEffect(() => {
     loadTemplates();
-  }, [loadTemplates]);
+    loadSmTemplates();
+  }, [loadTemplates, loadSmTemplates]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Template CRUD
@@ -194,12 +233,14 @@ export function QuoteTemplatesTab() {
         quote_template: {
           name: dialogName.trim(),
           description: dialogDescription.trim() || null,
+          sm_schedule_master_template_id: dialogSmTemplateId,
         },
       });
       toast.success(`Created "${dialogName.trim()}"`);
       setShowDialog(false);
       setDialogName("");
       setDialogDescription("");
+      setDialogSmTemplateId(null);
       loadTemplates();
     } catch (err) {
       console.error("[QuoteTemplatesTab] Create failed:", err);
@@ -217,12 +258,18 @@ export function QuoteTemplatesTab() {
         quote_template: {
           name: dialogName.trim(),
           description: dialogDescription.trim() || null,
+          sm_schedule_master_template_id: dialogSmTemplateId,
         },
       });
       toast.success("Template updated");
       setShowDialog(false);
       loadTemplates();
-      if (expandedId === dialogTemplateId) loadTemplateDetail(dialogTemplateId);
+      if (expandedId === dialogTemplateId) {
+        // Reload tasks if SM template changed
+        tasksLoadedForRef.current = null;
+        loadTasksForSmTemplate(dialogSmTemplateId);
+        loadTemplateDetail(dialogTemplateId);
+      }
     } catch (err) {
       console.error("[QuoteTemplatesTab] Rename failed:", err);
       toast.error("Failed to update template");
@@ -402,11 +449,25 @@ export function QuoteTemplatesTab() {
       setEditingTemplate(null);
     } else {
       setExpandedId(id);
-      loadTasks();
+      const template = templates.find(t => t.id === id);
+      if (template?.smScheduleMasterTemplateId) {
+        loadTasksForSmTemplate(template.smScheduleMasterTemplateId);
+      } else {
+        setTaskItems([]);
+      }
       if (!suppliersLoaded) loadSuppliers();
       loadTemplateDetail(id);
     }
   };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const smTemplateItems: ComboboxItem[] = smTemplates.map(t => ({
+    id: String(t.id),
+    label: t.name,
+  }));
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -436,6 +497,7 @@ export function QuoteTemplatesTab() {
             setDialogMode("create");
             setDialogName("");
             setDialogDescription("");
+            setDialogSmTemplateId(null);
             setShowDialog(true);
           }}
         >
@@ -471,6 +533,12 @@ export function QuoteTemplatesTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{template.name}</span>
+                    {template.smScheduleMasterTemplateName && (
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        {template.smScheduleMasterTemplateName}
+                      </Badge>
+                    )}
                     {template.description && (
                       <span className="text-sm text-muted-foreground truncate hidden sm:inline">
                         — {template.description}
@@ -494,12 +562,13 @@ export function QuoteTemplatesTab() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      title="Rename"
+                      title="Edit"
                       onClick={() => {
                         setDialogMode("rename");
                         setDialogTemplateId(template.id);
                         setDialogName(template.name);
                         setDialogDescription(template.description || "");
+                        setDialogSmTemplateId(template.smScheduleMasterTemplateId);
                         setShowDialog(true);
                       }}
                     >
@@ -530,28 +599,36 @@ export function QuoteTemplatesTab() {
               {/* Expanded Detail */}
               {expandedId === template.id && editingTemplate && (
                 <div className="border-t bg-muted/30 px-4 py-4">
-                  <TemplateEditor
-                    template={editingTemplate}
-                    taskItems={taskItems}
-                    supplierItems={supplierItems}
-                    supplierSearchLoading={supplierSearchLoading}
-                    saving={saving}
-                    onAddTask={(taskId) => handleAddTask(template.id, taskId)}
-                    onRemoveTask={(taskRowId) => handleRemoveTask(template.id, taskRowId)}
-                    onUpdateInstructions={(taskRowId, instructions) =>
-                      handleUpdateTaskInstructions(template.id, taskRowId, instructions)
-                    }
-                    onAddSupplier={(taskRowId, supplierId) =>
-                      handleAddSupplier(template.id, taskRowId, supplierId)
-                    }
-                    onRemoveSupplier={(taskRowId, supplierRowId) =>
-                      handleRemoveSupplier(template.id, taskRowId, supplierRowId)
-                    }
-                    onTogglePreferred={(taskRowId, supplierRow) =>
-                      handleTogglePreferred(template.id, taskRowId, supplierRow)
-                    }
-                    onSearchSuppliers={loadSuppliers}
-                  />
+                  {!template.smScheduleMasterTemplateId ? (
+                    <div className="text-sm text-muted-foreground py-4 text-center">
+                      <CalendarDays className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                      <p className="font-medium">No Schedule Master template selected</p>
+                      <p className="mt-1">Edit this template to link it to a Schedule Master template, then add PO tasks.</p>
+                    </div>
+                  ) : (
+                    <TemplateEditor
+                      template={editingTemplate}
+                      taskItems={taskItems}
+                      supplierItems={supplierItems}
+                      supplierSearchLoading={supplierSearchLoading}
+                      saving={saving}
+                      onAddTask={(taskId) => handleAddTask(template.id, taskId)}
+                      onRemoveTask={(taskRowId) => handleRemoveTask(template.id, taskRowId)}
+                      onUpdateInstructions={(taskRowId, instructions) =>
+                        handleUpdateTaskInstructions(template.id, taskRowId, instructions)
+                      }
+                      onAddSupplier={(taskRowId, supplierId) =>
+                        handleAddSupplier(template.id, taskRowId, supplierId)
+                      }
+                      onRemoveSupplier={(taskRowId, supplierRowId) =>
+                        handleRemoveSupplier(template.id, taskRowId, supplierRowId)
+                      }
+                      onTogglePreferred={(taskRowId, supplierRow) =>
+                        handleTogglePreferred(template.id, taskRowId, supplierRow)
+                      }
+                      onSearchSuppliers={loadSuppliers}
+                    />
+                  )}
                 </div>
               )}
             </Card>
@@ -559,7 +636,7 @@ export function QuoteTemplatesTab() {
         </div>
       )}
 
-      {/* Create/Rename Dialog */}
+      {/* Create/Edit Dialog */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent>
           <DialogHeader>
@@ -569,7 +646,7 @@ export function QuoteTemplatesTab() {
             <DialogDescription>
               {dialogMode === "create"
                 ? "Create a template to define PO tasks and suppliers for RFQ workflows"
-                : "Update the template name and description"}
+                : "Update the template name and schedule master template"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -586,6 +663,21 @@ export function QuoteTemplatesTab() {
                   }
                 }}
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Schedule Master Template</Label>
+              <ComboboxDropdown
+                items={smTemplateItems}
+                selectedItem={dialogSmTemplateId ? smTemplateItems.find(i => i.id === String(dialogSmTemplateId)) : undefined}
+                onSelect={(item) => setDialogSmTemplateId(Number(item.id))}
+                placeholder="Select schedule master template..."
+                searchPlaceholder="Search templates..."
+                emptyResults="No templates found"
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                PO tasks will be sourced from the selected schedule master template
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Description (optional)</Label>
@@ -710,7 +802,7 @@ function TemplateEditor({
           onSelect={(item) => onAddTask(Number(item.id))}
           placeholder="Add PO task..."
           searchPlaceholder="Search PO tasks..."
-          emptyResults="No PO tasks available"
+          emptyResults={taskItems.length === 0 ? "Loading PO tasks..." : "No more PO tasks available"}
           className="w-64"
         />
         {saving && <Spinner className="h-4 w-4" />}

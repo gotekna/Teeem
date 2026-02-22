@@ -15,6 +15,7 @@ class QuoteTemplate < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
+  belongs_to :sm_schedule_master_template, optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
   has_many :quote_template_trades, -> { order(:position) }, dependent: :destroy

@@ -561,7 +561,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
     { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
     { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
-    { id: "tenders", name: "Tender Sections", description: "Tender sections for grouping PO items in tender documents" },
     { id: "sm_task_groups", name: "Task Groups", description: "Group PO and non-PO tasks together - when any PO from group is on job, all linked tasks appear" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
@@ -637,10 +636,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const openEditForRecord = React.useCallback(async (id: number, templateFilter?: string) => {
     pendingTemplateFilterRef.current = templateFilter;
     try {
-      // Determine which foundation to query based on active table
-      const foundationSlug = selectedLookupTable === "tenders" ? "tenders" : "cost_centres";
       const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
-        `/api/v1/foundations/${foundationSlug}/records?per_page=1000`
+        `/api/v1/foundations/cost_centres/records?per_page=1000`
       );
       const record = resp?.records?.find((r) => Number(r.id) === id);
       if (!record) return;
@@ -653,30 +650,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     } catch (err) {
       console.error("Failed to fetch record for navigation:", err);
     }
-  }, [jotaiStore, selectedLookupTable]);
+  }, [jotaiStore]);
 
-  // Navigate to a tender's edit dialog (cross-table navigation from cost centres)
-  const navigateToTender = React.useCallback(async (tenderId: number) => {
-    try {
-      // Switch to tenders table via URL
-      router.push(`${basePath}/tables/tenders`, { scroll: false });
-      // Fetch the tender record to populate the edit dialog
-      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
-        `/api/v1/foundations/tenders/records?per_page=1000`
-      );
-      const record = resp?.records?.find((r) => Number(r.id) === tenderId);
-      if (!record) return;
-      // Wait for table switch + dialog close animation, then open edit
-      setTimeout(() => {
-        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
-        jotaiStore.set(showEditRecordModalAtom, true);
-      }, 400);
-    } catch (err) {
-      console.error("Failed to navigate to tender:", err);
-    }
-  }, [jotaiStore, router, basePath]);
-
-  // Navigate to a cost centre's edit dialog (cross-table navigation from tenders)
+  // Navigate to a cost centre's edit dialog (cross-table navigation)
   const navigateToCostCentre = React.useCallback(async (costCentreId: number, templateFilter?: string) => {
     try {
       pendingTemplateFilterRef.current = templateFilter;
@@ -703,8 +679,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   templatesRef.current = templates;
 
   // Keep callback refs synced so stable callbacks always have latest version
-  const navigateToTenderRef = React.useRef(navigateToTender);
-  navigateToTenderRef.current = navigateToTender;
   const navigateToCostCentreRef = React.useRef(navigateToCostCentre);
   navigateToCostCentreRef.current = navigateToCostCentre;
   const openEditForRecordRef = React.useRef(openEditForRecord);
@@ -781,7 +755,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         assignmentField="costCentre"
         entityLabel="Cost Centre"
         onCreateTask={createPoTask}
-        onNavigateToTender={(tenderId) => navigateToTenderRef.current(tenderId)}
         onNavigateToCostCentre={(id, tplFilter) => navigateToCostCentreRef.current(id, tplFilter)}
       />
     );
@@ -825,10 +798,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           openEditForRecordRef.current(id, tplFilter);
         }}
         onCreateTask={createPoTask}
-        onNavigateToTender={(tenderId) => {
-          helpers?.onClose?.();
-          navigateToTenderRef.current(tenderId);
-        }}
         onNavigateToCostCentre={(id, tplFilter) => {
           helpers?.onClose?.();
           navigateToCostCentreRef.current(id, tplFilter);
@@ -855,151 +824,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       console.error("[PO Tasks] Failed to assign PO tasks:", error);
     }
   }, [fetchPoTasks]);
-
-  // Tender PO Task picker — same pattern as Cost Centres but uses tender_id
-  const tenderPoTasksRef = React.useRef<POTaskItem[]>([]);
-  const tenderPoTasksLoadedRef = React.useRef(false);
-  const selectedTenderPoTaskIdsRef = React.useRef<number[]>([]);
-  const tenderPoTasksEditRecordIdRef = React.useRef<number | string | null>(null);
-
-  const fetchTenderPoTasks = React.useCallback(async () => {
-    try {
-      const data = await api.get<{ success: boolean; data: POTaskItem[] }>("/api/v1/tenders/po_tasks");
-      if (data?.data) {
-        tenderPoTasksRef.current = data.data;
-        tenderPoTasksLoadedRef.current = true;
-      }
-    } catch (error) {
-      console.error("Failed to fetch tender PO tasks:", error);
-    }
-  }, []);
-
-  // Create a new PO task for tender context
-  const createTenderPoTask = React.useCallback(async (name: string, templateId: number): Promise<POTaskItem | null> => {
-    try {
-      const resp = await api.post<{ success: boolean; row: Record<string, unknown> }>(
-        `/api/v1/sm_schedule_master_templates/${templateId}/rows`,
-        { row: { name, po_required: true } }
-      );
-      if (resp?.success && resp.row) {
-        const row = resp.row;
-        const newTask: POTaskItem = {
-          id: Number(row.id),
-          name: String(row.name || name),
-          taskCode: row.task_code ? String(row.task_code) : null,
-          taskNumber: Number(row.task_number || row.id),
-          costCentreId: null,
-          costCentreName: null,
-          tenderId: null,
-          tenderName: null,
-          templateIds: Array.isArray(row.sm_template_ids) ? row.sm_template_ids.map(Number) : [templateId],
-        };
-        tenderPoTasksRef.current = [...tenderPoTasksRef.current, newTask];
-        return newTask;
-      }
-      return null;
-    } catch (error) {
-      console.error("Failed to create PO task:", error);
-      return null;
-    }
-  }, []);
-
-  const renderTenderPoTaskPickerForCreate = React.useCallback(() => {
-    if (!tenderPoTasksLoadedRef.current) {
-      fetchTenderPoTasks();
-      return (
-        <div className="py-4 border-t">
-          <Label className="text-sm font-medium">PO Tasks</Label>
-          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
-        </div>
-      );
-    }
-    if (tenderPoTasksEditRecordIdRef.current !== null && tenderPoTasksEditRecordIdRef.current !== "create") {
-      tenderPoTasksEditRecordIdRef.current = "create";
-      selectedTenderPoTaskIdsRef.current = [];
-    }
-    return (
-      <PoTaskPicker
-        key="tender-create"
-        allTasks={tenderPoTasksRef.current}
-        initialSelectedIds={[]}
-        recordId={undefined}
-        templates={templatesRef.current}
-        selectedIdsRef={selectedTenderPoTaskIdsRef}
-        assignmentField="tender"
-        entityLabel="Tender Section"
-        onCreateTask={createTenderPoTask}
-        onNavigateToTender={(tenderId) => navigateToTenderRef.current(tenderId)}
-        onNavigateToCostCentre={(id, tplFilter) => navigateToCostCentreRef.current(id, tplFilter)}
-      />
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const renderTenderPoTaskPickerForEdit = React.useCallback((record: TeeemTableRow, helpers?: { onClose: () => void }) => {
-    if (!tenderPoTasksLoadedRef.current) {
-      fetchTenderPoTasks();
-      return (
-        <div className="py-4 border-t">
-          <Label className="text-sm font-medium">PO Tasks</Label>
-          <p className="text-xs text-muted-foreground mt-1">Loading PO tasks...</p>
-        </div>
-      );
-    }
-    const recordId = record.id;
-    let initialIds: number[];
-    if (tenderPoTasksEditRecordIdRef.current !== recordId) {
-      tenderPoTasksEditRecordIdRef.current = recordId;
-      initialIds = tenderPoTasksRef.current
-        .filter((t) => t.tenderId === Number(recordId))
-        .map((t) => t.id);
-      selectedTenderPoTaskIdsRef.current = initialIds;
-    } else {
-      initialIds = selectedTenderPoTaskIdsRef.current;
-    }
-    return (
-      <PoTaskPicker
-        key={String(recordId)}
-        allTasks={tenderPoTasksRef.current}
-        initialSelectedIds={initialIds}
-        recordId={recordId}
-        templates={templatesRef.current}
-        selectedIdsRef={selectedTenderPoTaskIdsRef}
-        assignmentField="tender"
-        entityLabel="Tender Section"
-        initialTemplateFilter={pendingTemplateFilterRef.current || undefined}
-        onNavigateToRecord={(id, tplFilter) => {
-          helpers?.onClose?.();
-          openEditForRecordRef.current(id, tplFilter);
-        }}
-        onCreateTask={createTenderPoTask}
-        onNavigateToTender={(tenderId) => {
-          helpers?.onClose?.();
-          navigateToTenderRef.current(tenderId);
-        }}
-        onNavigateToCostCentre={(id, tplFilter) => {
-          helpers?.onClose?.();
-          navigateToCostCentreRef.current(id, tplFilter);
-        }}
-      />
-    );
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const handleTenderAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
-    const tenderId = record.id;
-    if (!tenderId) return;
-    try {
-      await api.post(`/api/v1/tenders/${tenderId}/assign_po_tasks`, {
-        po_task_ids: selectedTenderPoTaskIdsRef.current,
-      });
-      await fetchTenderPoTasks();
-      selectedTenderPoTaskIdsRef.current = [];
-      tenderPoTasksEditRecordIdRef.current = null;
-    } catch (error) {
-      console.error("[PO Tasks] Failed to assign tender PO tasks:", error);
-    }
-  }, [fetchTenderPoTasks]);
 
   // FRC (Feb 2026): Edit dialog data loaded lazily on first edit sheet open.
   // These 5 endpoints took ~19 seconds combined and were only used in EditRowDialog.
@@ -4299,11 +4123,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                       createDialogOnAfterSave: handleCostCentreAfterSave,
                       editDialogRenderExtra: renderPoTaskPickerForEdit,
                       editDialogOnAfterSave: handleCostCentreAfterSave,
-                    } : table.id === "tenders" ? {
-                      createDialogRenderExtra: renderTenderPoTaskPickerForCreate,
-                      createDialogOnAfterSave: handleTenderAfterSave,
-                      editDialogRenderExtra: renderTenderPoTaskPickerForEdit,
-                      editDialogOnAfterSave: handleTenderAfterSave,
                     } : {})}
                   />
                 </div>

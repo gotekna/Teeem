@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_130000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_140000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7983,7 +7983,9 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_130000) do
     t.bigint "updated_by_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "sm_schedule_master_template_id"
     t.index ["created_by_id"], name: "index_quote_templates_on_created_by_id"
+    t.index ["sm_schedule_master_template_id"], name: "index_quote_templates_on_sm_schedule_master_template_id"
     t.index ["tenant_id", "name"], name: "index_quote_templates_on_tenant_id_and_name", unique: true
     t.index ["tenant_id"], name: "index_quote_templates_on_tenant_id"
     t.index ["updated_by_id"], name: "index_quote_templates_on_updated_by_id"
@@ -12083,6 +12085,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_130000) do
   add_foreign_key "quote_template_trades", "quote_templates"
   add_foreign_key "quote_template_trades", "sm_trades"
   add_foreign_key "quote_template_trades", "tenants"
+  add_foreign_key "quote_templates", "sm_schedule_master_templates"
   add_foreign_key "quote_templates", "tenants"
   add_foreign_key "quote_templates", "users", column: "created_by_id"
   add_foreign_key "quote_templates", "users", column: "updated_by_id"

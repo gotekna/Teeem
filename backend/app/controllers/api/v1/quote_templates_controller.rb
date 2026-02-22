@@ -8,11 +8,23 @@ module Api
       # GET /api/v1/quote_templates
       def index
         templates = QuoteTemplate.active.ordered
-          .includes(quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(:sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
 
         render json: {
           success: true,
           data: templates.map { |t| template_json(t) }
+        }
+      end
+
+      # GET /api/v1/quote_templates/po_tasks?sm_template_id=123
+      # Returns PO-required SmScheduleMaster records, optionally filtered by SM template
+      def po_tasks
+        tasks = SmScheduleMaster.requiring_po.active.in_sequence
+        tasks = tasks.for_template(params[:sm_template_id].to_i) if params[:sm_template_id].present?
+
+        render json: {
+          success: true,
+          data: tasks.map { |t| { id: t.id, name: t.name, costCentre: t.cost_centre } }
         }
       end
 
@@ -83,13 +95,13 @@ module Api
 
       def set_template
         @template = QuoteTemplate
-          .includes(quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(:sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
           .find(params[:id])
       end
 
       def template_params
         params.require(:quote_template).permit(
-          :name, :description, :is_active, :position,
+          :name, :description, :is_active, :position, :sm_schedule_master_template_id,
           quote_template_trades_attributes: [
             :id, :sm_schedule_master_id, :position, :default_instructions, :_destroy,
             { required_document_types: [] },
@@ -107,6 +119,8 @@ module Api
           description: template.description,
           isActive: template.is_active,
           position: template.position,
+          smScheduleMasterTemplateId: template.sm_schedule_master_template_id,
+          smScheduleMasterTemplateName: template.sm_schedule_master_template&.name,
           tradeCount: template.trade_count,
           supplierCount: template.supplier_count,
           createdAt: template.created_at&.iso8601,

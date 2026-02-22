@@ -8,23 +8,32 @@
  * - string, long_text, boolean, number, whole_number
  * - currency, percentage, date, date_and_time
  * - email, url, color_picker, dropdown (lookup_foundation_id)
+ * - lookup, multiple_lookups (ComboboxDropdown)
  *
  * @see TeeemTableView modals folder for other SSoT modal components
  */
 
+import * as React from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ComboboxDropdown } from '@/components/ui/combobox-dropdown';
 import { cn } from '@/lib/utils';
 import { formatDate } from '@/utils/formatters';
+import { isLookupColumn } from '@/lib/constants/column-types';
+import { api } from '@/lib/api';
 
 export interface ColumnDefinition {
   column_name: string;
   name?: string;
   column_type: string;
+  column_id?: number; // Backend Column.id (for lookup_options endpoint)
+  foundation_id?: number; // The column's own foundation ID
   lookup_foundation_id?: number;
+  lookup_foundation_slug?: string;
+  lookup_display_column?: string;
   choices?: string[];
   required?: boolean;
   system?: boolean;
@@ -62,6 +71,11 @@ function getDisplayValue(value: unknown): string {
   return '';
 }
 
+interface LookupOption {
+  id: number;
+  display: string;
+}
+
 export function RecordFormField({
   column,
   value,
@@ -77,6 +91,53 @@ export function RecordFormField({
   const errorInputClass = error ? "border-destructive focus-visible:ring-destructive" : "";
   const errorLabelClass = error ? "text-destructive" : "";
 
+  // Lookup column state
+  const isLookup = (isLookupColumn(column_type) && column_type !== "multiple_lookups") || !!column.lookup_foundation_id;
+  const [lookupOptions, setLookupOptions] = React.useState<LookupOption[]>([]);
+  const [lookupLoading, setLookupLoading] = React.useState(false);
+
+  // Fetch lookup options when column is a lookup type
+  // Prefers dedicated lookup_options endpoint (respects lookup_filter),
+  // falls back to Foundation records API
+  React.useEffect(() => {
+    if (!isLookup) return;
+    const targetFoundation = column.lookup_foundation_slug || column.lookup_foundation_id;
+    if (!targetFoundation) return;
+
+    let cancelled = false;
+    setLookupLoading(true);
+    (async () => {
+      try {
+        // Use dedicated lookup_options endpoint when column_id available
+        // This applies server-side lookup_filter (e.g., only show headers)
+        if (column.column_id && column.foundation_id) {
+          const resp = await api.get<{ success: boolean; options: LookupOption[] }>(
+            `/api/v1/foundations/${column.foundation_id}/columns/${column.column_id}/lookup_options`
+          );
+          if (!cancelled) setLookupOptions(resp.options || []);
+        } else {
+          // Fallback: fetch all records from target foundation
+          const resp = await api.get<{ records: Record<string, unknown>[] }>(
+            `/api/v1/foundations/${targetFoundation}/records`,
+            { params: { per_page: 1000 } }
+          );
+          if (cancelled) return;
+          const displayCol = column.lookup_display_column || "name";
+          const options: LookupOption[] = (resp.records || []).map((r) => ({
+            id: Number(r.id),
+            display: String(r[displayCol] || r.name || r.title || r.id || ""),
+          }));
+          setLookupOptions(options);
+        }
+      } catch {
+        if (!cancelled) setLookupOptions([]);
+      } finally {
+        if (!cancelled) setLookupLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isLookup, column.column_id, column.foundation_id, column.lookup_foundation_slug, column.lookup_foundation_id, column.lookup_display_column]);
+
   // SSoT: Convert value to display string, handling objects properly
   const displayValue = getDisplayValue(value);
 
@@ -87,6 +148,31 @@ export function RecordFormField({
   };
 
   const renderField = () => {
+    // Handle lookup columns with ComboboxDropdown
+    if (isLookup) {
+      const selectedOption = lookupOptions.find(o => String(o.id) === String(value));
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
+            {label}
+          </Label>
+          <ComboboxDropdown
+            items={lookupOptions.map(o => ({ id: String(o.id), label: o.display }))}
+            selectedItem={selectedOption ? { id: String(selectedOption.id), label: selectedOption.display } : undefined}
+            onSelect={(item) => handleChange(Number(item.id))}
+            placeholder="Search..."
+            searchPlaceholder="Type to search..."
+            isLoading={lookupLoading}
+            clearable
+            onClear={() => handleChange(null)}
+            emptyResults="No options available"
+            className={cn(errorInputClass)}
+            disabled={isDisabled}
+          />
+        </div>
+      );
+    }
+
     switch (column_type) {
       case 'boolean':
         return (
