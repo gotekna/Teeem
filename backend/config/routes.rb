@@ -903,10 +903,11 @@ Rails.application.routes.draw do
       # Quote Templates - reusable templates for RFQ workflows
       resources :quote_templates do
         collection do
-          get :po_tasks
+          get :po_packs
         end
         member do
           post :duplicate
+          post :populate_from_pack
         end
       end
 

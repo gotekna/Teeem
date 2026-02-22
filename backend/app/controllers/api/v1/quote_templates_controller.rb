@@ -3,12 +3,12 @@
 module Api
   module V1
     class QuoteTemplatesController < ApplicationController
-      before_action :set_template, only: [:show, :update, :destroy, :duplicate]
+      before_action :set_template, only: [:show, :update, :destroy, :duplicate, :populate_from_pack]
 
       # GET /api/v1/quote_templates
       def index
         templates = QuoteTemplate.active.ordered
-          .includes(:sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
 
         render json: {
           success: true,
@@ -16,15 +16,33 @@ module Api
         }
       end
 
-      # GET /api/v1/quote_templates/po_tasks?sm_template_id=123
-      # Returns PO-required SmScheduleMaster records, optionally filtered by SM template
-      def po_tasks
-        tasks = SmScheduleMaster.requiring_po.active.in_sequence
-        tasks = tasks.for_template(params[:sm_template_id].to_i) if params[:sm_template_id].present?
+      # GET /api/v1/quote_templates/po_packs
+      # Returns active PO Template Packs for the picker dropdown
+      def po_packs
+        packs = PoTemplatePack.active.ordered
+          .includes(:sm_schedule_master_template, po_template_items: [:sm_schedule_master, :supplier])
 
         render json: {
           success: true,
-          data: tasks.map { |t| { id: t.id, name: t.name, costCentre: t.cost_centre } }
+          data: packs.map { |pack|
+            {
+              id: pack.id,
+              name: pack.name,
+              description: pack.description,
+              itemCount: pack.po_template_items.size,
+              smTemplateName: pack.sm_schedule_master_template&.name,
+              items: pack.po_template_items.sort_by(&:position).map { |item|
+                {
+                  id: item.id,
+                  name: item.name,
+                  smScheduleMasterId: item.sm_schedule_master_id,
+                  smScheduleMasterName: item.sm_schedule_master&.name,
+                  supplierId: item.supplier_id,
+                  supplierName: item.supplier&.display_name
+                }
+              }
+            }
+          }
         }
       end
 
@@ -42,6 +60,9 @@ module Api
         template.created_by = current_user
 
         if template.save
+          # Auto-populate trades from pack if one was selected
+          template.populate_from_pack! if template.po_template_pack_id.present?
+
           render json: { success: true, data: template_json(template.reload, include_details: true) }, status: :created
         else
           render_validation_errors(template)
@@ -51,8 +72,13 @@ module Api
       # PATCH /api/v1/quote_templates/:id
       def update
         @template.updated_by = current_user
+        pack_changed = template_params[:po_template_pack_id].present? &&
+                       template_params[:po_template_pack_id].to_i != @template.po_template_pack_id
 
         if @template.update(template_params)
+          # Re-populate trades if pack was changed
+          @template.populate_from_pack! if pack_changed
+
           render json: { success: true, data: template_json(@template.reload, include_details: true) }
         else
           render_validation_errors(@template)
@@ -63,6 +89,18 @@ module Api
       def destroy
         @template.update!(is_active: false)
         render json: { success: true }
+      end
+
+      # POST /api/v1/quote_templates/:id/populate_from_pack
+      # Re-populates trades from the linked PO Template Pack
+      def populate_from_pack
+        unless @template.po_template_pack_id.present?
+          render json: { success: false, error: "No PO Template Pack linked" }, status: :unprocessable_entity
+          return
+        end
+
+        @template.populate_from_pack!
+        render json: { success: true, data: template_json(@template, include_details: true) }
       end
 
       # POST /api/v1/quote_templates/:id/duplicate
@@ -95,13 +133,13 @@ module Api
 
       def set_template
         @template = QuoteTemplate
-          .includes(:sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
           .find(params[:id])
       end
 
       def template_params
         params.require(:quote_template).permit(
-          :name, :description, :is_active, :position, :sm_schedule_master_template_id,
+          :name, :description, :is_active, :position, :po_template_pack_id,
           quote_template_trades_attributes: [
             :id, :sm_schedule_master_id, :position, :default_instructions, :_destroy,
             { required_document_types: [] },
@@ -113,14 +151,16 @@ module Api
       end
 
       def template_json(template, include_details: false)
+        pack = template.po_template_pack
         json = {
           id: template.id,
           name: template.name,
           description: template.description,
           isActive: template.is_active,
           position: template.position,
-          smScheduleMasterTemplateId: template.sm_schedule_master_template_id,
-          smScheduleMasterTemplateName: template.sm_schedule_master_template&.name,
+          poTemplatePackId: template.po_template_pack_id,
+          poTemplatePackName: pack&.name,
+          smTemplateName: pack&.sm_schedule_master_template&.name,
           tradeCount: template.trade_count,
           supplierCount: template.supplier_count,
           createdAt: template.created_at&.iso8601,

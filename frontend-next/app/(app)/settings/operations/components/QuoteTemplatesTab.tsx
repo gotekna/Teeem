@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,7 @@ import {
   GripVertical,
   Users,
   FileText,
-  CalendarDays,
+  Package,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,9 +40,22 @@ import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dr
 // Types matching backend JSON response (camelCase)
 // ═══════════════════════════════════════════════════════════════════════════
 
-interface SmTemplateOption {
+interface PoPackItem {
   id: number;
   name: string;
+  smScheduleMasterId: number | null;
+  smScheduleMasterName: string | null;
+  supplierId: number | null;
+  supplierName: string | null;
+}
+
+interface PoPack {
+  id: number;
+  name: string;
+  description: string | null;
+  itemCount: number;
+  smTemplateName: string | null;
+  items: PoPackItem[];
 }
 
 interface QuoteTemplateSupplier {
@@ -73,8 +87,9 @@ interface QuoteTemplate {
   description: string | null;
   isActive: boolean;
   position: number;
-  smScheduleMasterTemplateId: number | null;
-  smScheduleMasterTemplateName: string | null;
+  poTemplatePackId: number | null;
+  poTemplatePackName: string | null;
+  smTemplateName: string | null;
   tradeCount: number;
   supplierCount: number;
   createdAt: string;
@@ -101,21 +116,20 @@ export function QuoteTemplatesTab() {
   const [dialogName, setDialogName] = useState("");
   const [dialogDescription, setDialogDescription] = useState("");
   const [dialogTemplateId, setDialogTemplateId] = useState<number | null>(null);
-  const [dialogSmTemplateId, setDialogSmTemplateId] = useState<number | null>(null);
+  const [dialogPackId, setDialogPackId] = useState<number | null>(null);
 
   // Delete confirmation
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
-  // SM Templates (for dropdown)
-  const [smTemplates, setSmTemplates] = useState<SmTemplateOption[]>([]);
-  const [smTemplatesLoaded, setSmTemplatesLoaded] = useState(false);
+  // PO Template Packs (for dropdown)
+  const [poPacks, setPoPacks] = useState<PoPack[]>([]);
+  const [poPacksLoaded, setPoPacksLoaded] = useState(false);
 
   // Lookup data (lazy loaded per expanded template)
-  const [taskItems, setTaskItems] = useState<ComboboxItem[]>([]);
-  const tasksLoadedForRef = useRef<number | null>(null);
   const [supplierItems, setSupplierItems] = useState<ComboboxItem[]>([]);
   const [suppliersLoaded, setSuppliersLoaded] = useState(false);
   const [supplierSearchLoading, setSupplierSearchLoading] = useState(false);
+  const [showAllSuppliers, setShowAllSuppliers] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -152,49 +166,19 @@ export function QuoteTemplatesTab() {
     }
   }, []);
 
-  // Load SM Schedule Master Templates for dropdown
-  const loadSmTemplates = useCallback(async () => {
-    if (smTemplatesLoaded) return;
+  // Load PO Template Packs for dropdown
+  const loadPoPacks = useCallback(async () => {
+    if (poPacksLoaded) return;
     try {
-      const response = await api.get<{
-        success: boolean;
-        sm_schedule_master_templates: Array<{ id: number; name: string }>;
-      }>("/api/v1/sm_schedule_master_templates");
-      setSmTemplates(
-        (response?.sm_schedule_master_templates || []).map(t => ({
-          id: t.id,
-          name: t.name,
-        }))
+      const response = await api.get<{ success: boolean; data: PoPack[] }>(
+        "/api/v1/quote_templates/po_packs"
       );
-      setSmTemplatesLoaded(true);
+      setPoPacks(response?.data || []);
+      setPoPacksLoaded(true);
     } catch (err) {
-      console.error("[QuoteTemplatesTab] Failed to load SM templates:", err);
+      console.error("[QuoteTemplatesTab] Failed to load PO packs:", err);
     }
-  }, [smTemplatesLoaded]);
-
-  // Load PO Tasks for a specific SM template
-  const loadTasksForSmTemplate = useCallback(async (smTemplateId: number | null) => {
-    if (!smTemplateId) {
-      setTaskItems([]);
-      tasksLoadedForRef.current = null;
-      return;
-    }
-    if (tasksLoadedForRef.current === smTemplateId) return;
-    try {
-      const response = await api.get<{
-        success: boolean;
-        data: Array<{ id: number; name: string; costCentre: number | null }>;
-      }>(`/api/v1/quote_templates/po_tasks?sm_template_id=${smTemplateId}`);
-      const tasks = response?.data || [];
-      setTaskItems(tasks.map(t => ({
-        id: String(t.id),
-        label: t.name || `Task ${t.id}`,
-      })));
-      tasksLoadedForRef.current = smTemplateId;
-    } catch (err) {
-      console.error("[QuoteTemplatesTab] Failed to load PO tasks:", err);
-    }
-  }, []);
+  }, [poPacksLoaded]);
 
   const loadSuppliers = useCallback(async (query?: string) => {
     try {
@@ -218,8 +202,30 @@ export function QuoteTemplatesTab() {
 
   useEffect(() => {
     loadTemplates();
-    loadSmTemplates();
-  }, [loadTemplates, loadSmTemplates]);
+    loadPoPacks();
+  }, [loadTemplates, loadPoPacks]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Helpers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Get the selected pack's supplier items (for default supplier filtering)
+  const getPackSupplierItems = useCallback((packId: number | null): ComboboxItem[] => {
+    if (!packId) return [];
+    const pack = poPacks.find(p => p.id === packId);
+    if (!pack) return [];
+
+    // Dedupe: one pack can have the same supplier on multiple items
+    const seen = new Set<number>();
+    const items: ComboboxItem[] = [];
+    for (const item of pack.items) {
+      if (item.supplierId && !seen.has(item.supplierId)) {
+        seen.add(item.supplierId);
+        items.push({ id: String(item.supplierId), label: item.supplierName || `Supplier ${item.supplierId}` });
+      }
+    }
+    return items;
+  }, [poPacks]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Template CRUD
@@ -233,14 +239,14 @@ export function QuoteTemplatesTab() {
         quote_template: {
           name: dialogName.trim(),
           description: dialogDescription.trim() || null,
-          sm_schedule_master_template_id: dialogSmTemplateId,
+          po_template_pack_id: dialogPackId,
         },
       });
       toast.success(`Created "${dialogName.trim()}"`);
       setShowDialog(false);
       setDialogName("");
       setDialogDescription("");
-      setDialogSmTemplateId(null);
+      setDialogPackId(null);
       loadTemplates();
     } catch (err) {
       console.error("[QuoteTemplatesTab] Create failed:", err);
@@ -258,20 +264,17 @@ export function QuoteTemplatesTab() {
         quote_template: {
           name: dialogName.trim(),
           description: dialogDescription.trim() || null,
-          sm_schedule_master_template_id: dialogSmTemplateId,
+          po_template_pack_id: dialogPackId,
         },
       });
       toast.success("Template updated");
       setShowDialog(false);
       loadTemplates();
       if (expandedId === dialogTemplateId) {
-        // Reload tasks if SM template changed
-        tasksLoadedForRef.current = null;
-        loadTasksForSmTemplate(dialogSmTemplateId);
         loadTemplateDetail(dialogTemplateId);
       }
     } catch (err) {
-      console.error("[QuoteTemplatesTab] Rename failed:", err);
+      console.error("[QuoteTemplatesTab] Update failed:", err);
       toast.error("Failed to update template");
     } finally {
       setSaving(false);
@@ -440,6 +443,24 @@ export function QuoteTemplatesTab() {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
+  // Re-populate from pack
+  // ─────────────────────────────────────────────────────────────────────────
+
+  const handleResyncFromPack = async (templateId: number) => {
+    try {
+      setSaving(true);
+      await api.post(`/api/v1/quote_templates/${templateId}/populate_from_pack`);
+      toast.success("Synced tasks from PO Template");
+      loadTemplateDetail(templateId);
+    } catch (err) {
+      console.error("[QuoteTemplatesTab] Resync failed:", err);
+      toast.error("Failed to sync from PO Template");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
   // Expand/Collapse
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -449,12 +470,6 @@ export function QuoteTemplatesTab() {
       setEditingTemplate(null);
     } else {
       setExpandedId(id);
-      const template = templates.find(t => t.id === id);
-      if (template?.smScheduleMasterTemplateId) {
-        loadTasksForSmTemplate(template.smScheduleMasterTemplateId);
-      } else {
-        setTaskItems([]);
-      }
       if (!suppliersLoaded) loadSuppliers();
       loadTemplateDetail(id);
     }
@@ -464,10 +479,25 @@ export function QuoteTemplatesTab() {
   // Render helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  const smTemplateItems: ComboboxItem[] = smTemplates.map(t => ({
-    id: String(t.id),
-    label: t.name,
+  const poPackItems: ComboboxItem[] = poPacks.map(p => ({
+    id: String(p.id),
+    label: `${p.name}${p.smTemplateName ? ` (${p.smTemplateName})` : ""}`,
   }));
+
+  // Get available PO tasks from the selected pack (for "Add Task" dropdown)
+  const getAvailableTasksFromPack = (template: QuoteTemplate): ComboboxItem[] => {
+    if (!template.poTemplatePackId) return [];
+    const pack = poPacks.find(p => p.id === template.poTemplatePackId);
+    if (!pack) return [];
+
+    const usedTaskIds = new Set((template.trades || []).map(t => t.smScheduleMasterId));
+    return pack.items
+      .filter(item => item.smScheduleMasterId && !usedTaskIds.has(item.smScheduleMasterId))
+      .map(item => ({
+        id: String(item.smScheduleMasterId!),
+        label: item.smScheduleMasterName || item.name,
+      }));
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -488,7 +518,7 @@ export function QuoteTemplatesTab() {
         <div>
           <h2 className="text-lg font-semibold">Quote Templates</h2>
           <p className="text-sm text-muted-foreground">
-            Define PO tasks and preferred suppliers for RFQ workflows
+            Link a PO Template to define tasks and suppliers for RFQ workflows
           </p>
         </div>
         <Button
@@ -497,7 +527,7 @@ export function QuoteTemplatesTab() {
             setDialogMode("create");
             setDialogName("");
             setDialogDescription("");
-            setDialogSmTemplateId(null);
+            setDialogPackId(null);
             setShowDialog(true);
           }}
         >
@@ -512,7 +542,7 @@ export function QuoteTemplatesTab() {
           <CardContent className="py-12 text-center text-muted-foreground">
             <FileText className="h-8 w-8 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No quote templates yet</p>
-            <p className="text-sm mt-1">Create a template to define PO tasks and suppliers for RFQ workflows</p>
+            <p className="text-sm mt-1">Create a template linked to a PO Template to define tasks and suppliers</p>
           </CardContent>
         </Card>
       ) : (
@@ -533,10 +563,15 @@ export function QuoteTemplatesTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{template.name}</span>
-                    {template.smScheduleMasterTemplateName && (
+                    {template.poTemplatePackName && (
                       <Badge variant="secondary" className="text-xs shrink-0">
-                        <CalendarDays className="h-3 w-3 mr-1" />
-                        {template.smScheduleMasterTemplateName}
+                        <Package className="h-3 w-3 mr-1" />
+                        {template.poTemplatePackName}
+                      </Badge>
+                    )}
+                    {template.smTemplateName && (
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {template.smTemplateName}
                       </Badge>
                     )}
                     {template.description && (
@@ -568,7 +603,7 @@ export function QuoteTemplatesTab() {
                         setDialogTemplateId(template.id);
                         setDialogName(template.name);
                         setDialogDescription(template.description || "");
-                        setDialogSmTemplateId(template.smScheduleMasterTemplateId);
+                        setDialogPackId(template.poTemplatePackId);
                         setShowDialog(true);
                       }}
                     >
@@ -599,17 +634,20 @@ export function QuoteTemplatesTab() {
               {/* Expanded Detail */}
               {expandedId === template.id && editingTemplate && (
                 <div className="border-t bg-muted/30 px-4 py-4">
-                  {!template.smScheduleMasterTemplateId ? (
+                  {!template.poTemplatePackId ? (
                     <div className="text-sm text-muted-foreground py-4 text-center">
-                      <CalendarDays className="h-6 w-6 mx-auto mb-2 opacity-50" />
-                      <p className="font-medium">No Schedule Master template selected</p>
-                      <p className="mt-1">Edit this template to link it to a Schedule Master template, then add PO tasks.</p>
+                      <Package className="h-6 w-6 mx-auto mb-2 opacity-50" />
+                      <p className="font-medium">No PO Template linked</p>
+                      <p className="mt-1">Edit this template to link it to a PO Template, then tasks and suppliers will be auto-populated.</p>
                     </div>
                   ) : (
                     <TemplateEditor
                       template={editingTemplate}
-                      taskItems={taskItems}
+                      availableTaskItems={getAvailableTasksFromPack(editingTemplate)}
                       supplierItems={supplierItems}
+                      packSupplierItems={getPackSupplierItems(editingTemplate.poTemplatePackId)}
+                      showAllSuppliers={showAllSuppliers}
+                      onToggleShowAll={() => setShowAllSuppliers(!showAllSuppliers)}
                       supplierSearchLoading={supplierSearchLoading}
                       saving={saving}
                       onAddTask={(taskId) => handleAddTask(template.id, taskId)}
@@ -627,6 +665,7 @@ export function QuoteTemplatesTab() {
                         handleTogglePreferred(template.id, taskRowId, supplierRow)
                       }
                       onSearchSuppliers={loadSuppliers}
+                      onResyncFromPack={() => handleResyncFromPack(template.id)}
                     />
                   )}
                 </div>
@@ -645,8 +684,8 @@ export function QuoteTemplatesTab() {
             </DialogTitle>
             <DialogDescription>
               {dialogMode === "create"
-                ? "Create a template to define PO tasks and suppliers for RFQ workflows"
-                : "Update the template name and schedule master template"}
+                ? "Create a template linked to a PO Template for RFQ workflows"
+                : "Update the template name and linked PO Template"}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -665,19 +704,39 @@ export function QuoteTemplatesTab() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Schedule Master Template</Label>
+              <Label>PO Template</Label>
               <ComboboxDropdown
-                items={smTemplateItems}
-                selectedItem={dialogSmTemplateId ? smTemplateItems.find(i => i.id === String(dialogSmTemplateId)) : undefined}
-                onSelect={(item) => setDialogSmTemplateId(Number(item.id))}
-                placeholder="Select schedule master template..."
-                searchPlaceholder="Search templates..."
-                emptyResults="No templates found"
+                items={poPackItems}
+                selectedItem={dialogPackId ? poPackItems.find(i => i.id === String(dialogPackId)) : undefined}
+                onSelect={(item) => setDialogPackId(Number(item.id))}
+                placeholder="Select PO template..."
+                searchPlaceholder="Search PO templates..."
+                emptyResults="No PO templates found"
                 className="w-full"
               />
-              <p className="text-xs text-muted-foreground">
-                PO tasks will be sourced from the selected schedule master template
-              </p>
+              {dialogPackId && (() => {
+                const pack = poPacks.find(p => p.id === dialogPackId);
+                return pack ? (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>{pack.itemCount} items{pack.smTemplateName ? ` • Schedule: ${pack.smTemplateName}` : ""}</p>
+                    {pack.items.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {pack.items.slice(0, 6).map(item => (
+                          <Badge key={item.id} variant="outline" className="text-xs">
+                            {item.smScheduleMasterName || item.name}
+                            {item.supplierName ? ` → ${item.supplierName}` : ""}
+                          </Badge>
+                        ))}
+                        {pack.items.length > 6 && (
+                          <Badge variant="outline" className="text-xs">
+                            +{pack.items.length - 6} more
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+              })()}
             </div>
             <div className="space-y-2">
               <Label>Description (optional)</Label>
@@ -736,8 +795,11 @@ export function QuoteTemplatesTab() {
 
 interface TemplateEditorProps {
   template: QuoteTemplate;
-  taskItems: ComboboxItem[];
+  availableTaskItems: ComboboxItem[];
   supplierItems: ComboboxItem[];
+  packSupplierItems: ComboboxItem[];
+  showAllSuppliers: boolean;
+  onToggleShowAll: () => void;
   supplierSearchLoading: boolean;
   saving: boolean;
   onAddTask: (smScheduleMasterId: number) => void;
@@ -747,12 +809,16 @@ interface TemplateEditorProps {
   onRemoveSupplier: (taskRowId: number, supplierRowId: number) => void;
   onTogglePreferred: (taskRowId: number, supplierRow: QuoteTemplateSupplier) => void;
   onSearchSuppliers: (query?: string) => void;
+  onResyncFromPack: () => void;
 }
 
 function TemplateEditor({
   template,
-  taskItems,
+  availableTaskItems,
   supplierItems,
+  packSupplierItems,
+  showAllSuppliers,
+  onToggleShowAll,
   supplierSearchLoading,
   saving,
   onAddTask,
@@ -762,19 +828,41 @@ function TemplateEditor({
   onRemoveSupplier,
   onTogglePreferred,
   onSearchSuppliers,
+  onResyncFromPack,
 }: TemplateEditorProps) {
   const templateTasks = template.trades || [];
 
-  // Filter tasks not already in template
-  const usedTaskIds = new Set(templateTasks.map(t => String(t.smScheduleMasterId)));
-  const availableTaskItems = taskItems.filter(t => !usedTaskIds.has(t.id));
-
   return (
     <div className="space-y-4">
+      {/* Controls bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="show-all-suppliers"
+              checked={showAllSuppliers}
+              onCheckedChange={() => onToggleShowAll()}
+            />
+            <label htmlFor="show-all-suppliers" className="text-sm text-muted-foreground cursor-pointer">
+              Show all suppliers
+            </label>
+          </div>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onResyncFromPack}
+          disabled={saving}
+        >
+          <Package className="h-3.5 w-3.5 mr-1" />
+          Re-sync from PO Template
+        </Button>
+      </div>
+
       {/* Tasks List */}
       {templateTasks.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">
-          No PO tasks added yet. Add a PO task to start building this template.
+          No PO tasks yet. Tasks will be auto-populated from the linked PO Template, or add one manually.
         </p>
       ) : (
         <div className="space-y-3">
@@ -782,8 +870,9 @@ function TemplateEditor({
             <TaskSection
               key={task.id}
               task={task}
-              supplierItems={supplierItems}
+              supplierItems={showAllSuppliers ? supplierItems : packSupplierItems}
               supplierSearchLoading={supplierSearchLoading}
+              showAllSuppliers={showAllSuppliers}
               onRemove={() => onRemoveTask(task.id)}
               onUpdateInstructions={(instructions) => onUpdateInstructions(task.id, instructions)}
               onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
@@ -796,17 +885,19 @@ function TemplateEditor({
       )}
 
       {/* Add Task */}
-      <div className="flex items-center gap-2 pt-2">
-        <ComboboxDropdown
-          items={availableTaskItems}
-          onSelect={(item) => onAddTask(Number(item.id))}
-          placeholder="Add PO task..."
-          searchPlaceholder="Search PO tasks..."
-          emptyResults={taskItems.length === 0 ? "Loading PO tasks..." : "No more PO tasks available"}
-          className="w-64"
-        />
-        {saving && <Spinner className="h-4 w-4" />}
-      </div>
+      {availableTaskItems.length > 0 && (
+        <div className="flex items-center gap-2 pt-2">
+          <ComboboxDropdown
+            items={availableTaskItems}
+            onSelect={(item) => onAddTask(Number(item.id))}
+            placeholder="Add PO task..."
+            searchPlaceholder="Search PO tasks..."
+            emptyResults="No more PO tasks available from this template"
+            className="w-64"
+          />
+          {saving && <Spinner className="h-4 w-4" />}
+        </div>
+      )}
     </div>
   );
 }
@@ -819,6 +910,7 @@ interface TaskSectionProps {
   task: QuoteTemplateTask;
   supplierItems: ComboboxItem[];
   supplierSearchLoading: boolean;
+  showAllSuppliers: boolean;
   onRemove: () => void;
   onUpdateInstructions: (instructions: string) => void;
   onAddSupplier: (supplierId: number) => void;
@@ -831,6 +923,7 @@ function TaskSection({
   task,
   supplierItems,
   supplierSearchLoading,
+  showAllSuppliers,
   onRemove,
   onUpdateInstructions,
   onAddSupplier,
@@ -953,12 +1046,12 @@ function TaskSection({
               <ComboboxDropdown
                 items={availableSupplierItems}
                 onSelect={(item) => onAddSupplier(Number(item.id))}
-                onInputChange={(query) => onSearchSuppliers(query)}
-                disableInternalFilter
+                onInputChange={showAllSuppliers ? (query) => onSearchSuppliers(query) : undefined}
+                disableInternalFilter={showAllSuppliers}
                 isLoading={supplierSearchLoading}
                 placeholder="Add supplier..."
-                searchPlaceholder="Search contacts..."
-                emptyResults="No matching contacts"
+                searchPlaceholder={showAllSuppliers ? "Search all contacts..." : "Search pack suppliers..."}
+                emptyResults={showAllSuppliers ? "No matching contacts" : "No more suppliers from this PO template"}
                 className="w-56"
               />
             </div>

@@ -2,20 +2,25 @@
 
 # QuoteTemplate - Reusable templates for RFQ workflows
 #
-# Each template defines which PO Tasks (SmScheduleMaster) to quote and which
-# suppliers to request quotes from. Templates can be applied to a job, which
-# creates QuoteTracker rows for each task × supplier combination.
+# Links to a PO Template Pack which defines:
+#   - SM Schedule Master Template (schedule)
+#   - PO Tasks (SmScheduleMaster) with assigned suppliers
+#   - Pricebook line items per task
+#
+# The PO Template Pack's items are used to seed QuoteTemplateTrades
+# (tasks with suppliers). Users can add additional suppliers beyond
+# the pack defaults for competitive quoting.
+#
+# When applied to a job, creates QuoteTracker rows for each task × supplier.
 #
 # SSoT: Foundation slug = 'quote-templates'
 # SSoT: Settings > Operations > Quote Templates
-#
-# Pattern follows: PoTemplatePack (parent template with nested children)
 #
 class QuoteTemplate < ApplicationRecord
   acts_as_tenant :tenant
 
   # Associations
-  belongs_to :sm_schedule_master_template, optional: true
+  belongs_to :po_template_pack, optional: true
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true
   has_many :quote_template_trades, -> { order(:position) }, dependent: :destroy
@@ -31,12 +36,53 @@ class QuoteTemplate < ApplicationRecord
   scope :active, -> { where(is_active: true) }
   scope :ordered, -> { order(:position, :name) }
 
+  # Delegate SM template access through pack
+  delegate :sm_schedule_master_template, to: :po_template_pack, allow_nil: true
+
   def trade_count
     quote_template_trades.size
   end
 
   def supplier_count
     quote_template_trades.sum { |t| t.quote_template_trade_suppliers.size }
+  end
+
+  # Populate QuoteTemplateTrades from the linked PO Template Pack's items.
+  # Each pack item with an sm_schedule_master creates a trade row,
+  # and the pack item's supplier becomes the first (preferred) supplier.
+  #
+  # Idempotent: skips tasks and suppliers already present.
+  #
+  def populate_from_pack!
+    return unless po_template_pack
+
+    po_template_pack.po_template_items
+      .includes(:supplier, :sm_schedule_master)
+      .each do |item|
+        next unless item.sm_schedule_master_id
+
+        # Find or create trade for this PO task
+        trade = quote_template_trades.find_or_initialize_by(
+          sm_schedule_master_id: item.sm_schedule_master_id
+        )
+        if trade.new_record?
+          trade.position = item.position
+          trade.default_instructions = item.notes
+          trade.save!
+        end
+
+        # Add the pack's supplier if present and not already on this trade
+        next unless item.supplier_id.present?
+        next if trade.quote_template_trade_suppliers.exists?(supplier_id: item.supplier_id)
+
+        trade.quote_template_trade_suppliers.create!(
+          supplier_id: item.supplier_id,
+          position: 0,
+          is_preferred: true
+        )
+      end
+
+    reload
   end
 
   # Apply this template to a job, creating QuoteTracker rows for each PO Task × supplier

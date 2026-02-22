@@ -150,7 +150,12 @@ export function RecordFormField({
   const renderField = () => {
     // Handle lookup columns with ComboboxDropdown
     if (isLookup) {
-      const selectedOption = lookupOptions.find(o => String(o.id) === String(value));
+      // Foundation API returns lookup values as expanded objects { id: X, display: "..." }
+      // Extract raw ID for matching against lookup options
+      const rawId = (typeof value === 'object' && value !== null && 'id' in (value as Record<string, unknown>))
+        ? (value as Record<string, unknown>).id
+        : value;
+      const selectedOption = lookupOptions.find(o => String(o.id) === String(rawId));
       return (
         <div className="space-y-2">
           <Label htmlFor={column_name} className={cn(isDisabled && "text-muted-foreground", errorLabelClass)}>
