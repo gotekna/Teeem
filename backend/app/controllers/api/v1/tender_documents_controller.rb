@@ -310,8 +310,8 @@ module Api
             section_name: section_name,
             current_items: current_items.map(&:as_json),
             other_items: other_items.map(&:as_json),
-            current_subtotal: current_items.select { |i| i.item_type.in?(%w[priced provisional included]) }.sum(&:total_amount),
-            other_subtotal: other_items.select { |i| i.item_type.in?(%w[priced provisional included]) }.sum(&:total_amount)
+            current_subtotal: current_items.select { |i| i.item_type.in?(%w[priced provisional included included_qty]) }.sum(&:total_amount),
+            other_subtotal: other_items.select { |i| i.item_type.in?(%w[priced provisional included included_qty]) }.sum(&:total_amount)
           }
         end
 

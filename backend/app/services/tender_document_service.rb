@@ -146,7 +146,8 @@ class TenderDocumentService
         # "provisional" = Provisional Sum (client sees price + "Provisional Sum" label)
         mapped_type = case item_cls
                       when "ps" then "provisional"
-                      when "included", "incl_qty" then "included"
+                      when "included" then "included"
+                      when "incl_qty" then "included_qty"
                       else "priced" # "pc" or default — Prime Cost with amount
                       end
 
@@ -286,7 +287,7 @@ class TenderDocumentService
 
   def calculate_totals!(doc)
     # Include priced (PC), provisional (PS), and included items in totals (not "note")
-    countable_items = doc.tender_document_items.where(item_type: %w[priced provisional included], excluded: false)
+    countable_items = doc.tender_document_items.where(item_type: %w[priced provisional included included_qty], excluded: false)
     items_subtotal = countable_items.sum(:total_amount)
 
     # Add hidden inclusions (incl_hidden / per_po_nt items not shown in tender but counted in total)

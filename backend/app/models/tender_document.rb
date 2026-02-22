@@ -100,7 +100,7 @@ class TenderDocument < ApplicationRecord
 
   def section_subtotals
     tender_document_items
-      .where(item_type: %w[priced provisional included])
+      .where(item_type: %w[priced provisional included included_qty])
       .group(:tender_section_name)
       .sum(:total_amount)
   end
@@ -108,7 +108,7 @@ class TenderDocument < ApplicationRecord
   # Header-level subtotals (sum of all priced + provisional + included items under each header)
   def header_subtotals
     tender_document_items
-      .where(item_type: %w[priced provisional included])
+      .where(item_type: %w[priced provisional included included_qty])
       .group(:tender_header_name)
       .sum(:total_amount)
   end

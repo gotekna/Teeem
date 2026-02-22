@@ -165,6 +165,8 @@ function ItemTypeLabel({ item }: { item: TenderDocumentItem }) {
       );
     case "included":
       return <span className="text-right text-muted-foreground">Included</span>;
+    case "included_qty":
+      return <span className="text-right text-muted-foreground">Included</span>;
     case "complimentary":
       return <span className="text-right text-muted-foreground">Complimentary</span>;
     case "note":
@@ -211,7 +213,7 @@ function SectionItems({
       {costCentreGroups.map((group) => {
         // Cost centre subtotal (priced + provisional items only)
         const ccSubtotal = group.items
-          .filter((i) => i.item_type === "priced" || i.item_type === "provisional" || i.item_type === "included")
+          .filter((i) => i.item_type === "priced" || i.item_type === "provisional" || i.item_type === "included" || i.item_type === "included_qty")
           .reduce((sum, i) => sum + (i.total_amount || 0), 0);
 
         return (
@@ -235,9 +237,13 @@ function SectionItems({
                     {sectionNumber} - {lineNum}
                   </div>
 
-                  {/* Description */}
+                  {/* Description (with quantity prefix for included_qty items) */}
                   <div className="flex-1 text-sm min-w-0">
-                    <p className="whitespace-pre-wrap">{item.description}</p>
+                    <p className="whitespace-pre-wrap">
+                      {item.item_type === "included_qty" && item.quantity && item.quantity > 1
+                        ? `${Math.round(item.quantity)}x ${item.description}`
+                        : item.description}
+                    </p>
                     {item.notes && (
                       <p className="text-xs text-muted-foreground mt-1">{item.notes}</p>
                     )}
