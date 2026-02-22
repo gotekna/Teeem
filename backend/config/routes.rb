@@ -900,6 +900,28 @@ Rails.application.routes.draw do
         end
       end
 
+      # Quote Templates - reusable templates for RFQ workflows
+      resources :quote_templates do
+        member do
+          post :duplicate
+        end
+      end
+
+      # Job Quote operations - apply templates, send RFQs, record responses, accept
+      resources :jobs, only: [] do
+        member do
+          get :quote_summary, controller: 'job_quote'
+          post :apply_quote_template, controller: 'job_quote'
+        end
+      end
+      resources :quote_trackers, only: [] do
+        member do
+          post :send_rfq, controller: 'job_quote'
+          post :record_response, controller: 'job_quote'
+          post :accept, controller: 'job_quote'
+        end
+      end
+
       # Claim Stage Templates - define reusable claim stage configurations
       resources :claim_stage_templates do
         member do

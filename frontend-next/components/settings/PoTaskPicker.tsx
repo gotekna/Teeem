@@ -24,6 +24,7 @@ export interface POTaskItem {
   taskNumber: number;
   costCentreId?: number | null;
   costCentreName?: string | null;
+  costCentreCode?: string | null;
   tenderId?: number | null;
   tenderName?: string | null;
   tenderHeaderId?: number | null;
@@ -60,6 +61,7 @@ interface PoTaskPickerProps {
 interface TaskGroup {
   key: string; // costCentreId or "unassigned"
   label: string;
+  code: string | null; // cost centre code for sorting
   tasks: POTaskItem[];
 }
 
@@ -148,15 +150,6 @@ export function PoTaskPicker({
     return tasks;
   }, [combinedTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
 
-  // Debug: check data shape - REMOVE after fixing
-  React.useEffect(() => {
-    if (filteredTasks.length > 0) {
-      const withCC = filteredTasks.filter(t => t.costCentreId != null);
-      const withTender = filteredTasks.filter(t => t.tenderId != null);
-      console.log(`[PoTaskPicker] ${filteredTasks.length} tasks, ${withCC.length} with CC, ${withTender.length} with tender, assignmentField=${assignmentField}`);
-      if (filteredTasks.length > 0) console.log("[PoTaskPicker] sample task:", JSON.stringify(filteredTasks[0]));
-    }
-  }, [filteredTasks, assignmentField]);
 
   // Group tasks by cost centre
   const groupedTasks = React.useMemo(() => {
@@ -165,15 +158,20 @@ export function PoTaskPicker({
       const ccId = task.costCentreId;
       const key = ccId != null ? String(ccId) : "unassigned";
       const label = ccId != null ? (task.costCentreName || `Cost Centre #${ccId}`) : "Unassigned";
+      const code = ccId != null ? (task.costCentreCode || null) : null;
       if (!groups.has(key)) {
-        groups.set(key, { key, label, tasks: [] });
+        groups.set(key, { key, label, code, tasks: [] });
       }
       groups.get(key)!.tasks.push(task);
     }
-    // Sort: unassigned last, then alphabetical by label
+    // Sort: unassigned last, then by cost centre code (natural sort)
     const sorted = Array.from(groups.values()).sort((a, b) => {
       if (a.key === "unassigned") return 1;
       if (b.key === "unassigned") return -1;
+      // Sort by code using natural sort (handles "100", "100-1", "1000" correctly)
+      if (a.code && b.code) return a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: "base" });
+      if (a.code) return -1;
+      if (b.code) return 1;
       return a.label.localeCompare(b.label);
     });
     return sorted;
@@ -221,20 +219,26 @@ export function PoTaskPicker({
 
   // Group selected tasks by cost centre for badge display
   const selectedTaskGroups = React.useMemo(() => {
-    const groups = new Map<string, { label: string; tasks: POTaskItem[] }>();
+    const groups = new Map<string, { label: string; code: string | null; tasks: POTaskItem[] }>();
     for (const task of selectedTasks) {
       const ccId = task.costCentreId;
       const key = ccId != null ? String(ccId) : "unassigned";
       const label = ccId != null ? (task.costCentreName || `Cost Centre #${ccId}`) : "Unassigned";
+      const code = ccId != null ? (task.costCentreCode || null) : null;
       if (!groups.has(key)) {
-        groups.set(key, { label, tasks: [] });
+        groups.set(key, { label, code, tasks: [] });
       }
       groups.get(key)!.tasks.push(task);
     }
     return Array.from(groups.entries()).sort(([keyA], [keyB]) => {
       if (keyA === "unassigned") return 1;
       if (keyB === "unassigned") return -1;
-      return (groups.get(keyA)!.label).localeCompare(groups.get(keyB)!.label);
+      const a = groups.get(keyA)!;
+      const b = groups.get(keyB)!;
+      if (a.code && b.code) return a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: "base" });
+      if (a.code) return -1;
+      if (b.code) return 1;
+      return a.label.localeCompare(b.label);
     });
   }, [selectedTasks]);
 
@@ -417,7 +421,7 @@ export function PoTaskPicker({
                           className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground uppercase tracking-wide px-0.5 py-0.5 hover:text-foreground cursor-pointer w-full text-left"
                         >
                           <span className={`transition-transform text-[8px] ${isBadgeExpanded ? "rotate-90" : ""}`}>▶</span>
-                          {group.label} ({group.tasks.length})
+                          {group.code ? `${group.code} - ${group.label}` : group.label} ({group.tasks.length})
                         </button>
                         {isBadgeExpanded && (
                           <div className="flex flex-wrap gap-1 pb-1">
@@ -556,7 +560,7 @@ export function PoTaskPicker({
                           onClick={(e) => toggleGroupSelection(group, e as unknown as React.MouseEvent)}
                           className="rounded border-input"
                         />
-                        <span className="flex-1 truncate">{group.label}</span>
+                        <span className="flex-1 truncate">{group.code ? `${group.code} - ${group.label}` : group.label}</span>
                         <span className="text-muted-foreground tabular-nums">
                           {groupSelectedCount > 0 && (
                             <span className="text-blue-600 dark:text-blue-400 mr-1">{groupSelectedCount}/</span>

@@ -1,0 +1,153 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    class QuoteTemplatesController < ApplicationController
+      before_action :set_template, only: [:show, :update, :destroy, :duplicate]
+
+      # GET /api/v1/quote_templates
+      def index
+        templates = QuoteTemplate.active.ordered
+          .includes(quote_template_trades: { sm_trade: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+
+        render json: {
+          success: true,
+          data: templates.map { |t| template_json(t) }
+        }
+      end
+
+      # GET /api/v1/quote_templates/:id
+      def show
+        render json: {
+          success: true,
+          data: template_json(@template, include_details: true)
+        }
+      end
+
+      # POST /api/v1/quote_templates
+      def create
+        template = QuoteTemplate.new(template_params)
+        template.created_by = current_user
+
+        if template.save
+          render json: { success: true, data: template_json(template.reload, include_details: true) }, status: :created
+        else
+          render_validation_errors(template)
+        end
+      end
+
+      # PATCH /api/v1/quote_templates/:id
+      def update
+        @template.updated_by = current_user
+
+        if @template.update(template_params)
+          render json: { success: true, data: template_json(@template.reload, include_details: true) }
+        else
+          render_validation_errors(@template)
+        end
+      end
+
+      # DELETE /api/v1/quote_templates/:id (soft delete)
+      def destroy
+        @template.update!(is_active: false)
+        render json: { success: true }
+      end
+
+      # POST /api/v1/quote_templates/:id/duplicate
+      def duplicate
+        new_template = nil
+
+        ActiveRecord::Base.transaction do
+          new_template = @template.dup
+          new_template.name = "#{@template.name} (Copy)"
+          new_template.created_by = current_user
+          new_template.save!
+
+          @template.quote_template_trades.includes(:quote_template_trade_suppliers).each do |trade|
+            new_trade = trade.dup
+            new_trade.quote_template = new_template
+            new_trade.save!
+
+            trade.quote_template_trade_suppliers.each do |supplier|
+              new_supplier = supplier.dup
+              new_supplier.quote_template_trade = new_trade
+              new_supplier.save!
+            end
+          end
+        end
+
+        render json: { success: true, data: template_json(new_template.reload, include_details: true) }, status: :created
+      end
+
+      private
+
+      def set_template
+        @template = QuoteTemplate
+          .includes(quote_template_trades: { sm_trade: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .find(params[:id])
+      end
+
+      def template_params
+        params.require(:quote_template).permit(
+          :name, :description, :is_active, :position,
+          quote_template_trades_attributes: [
+            :id, :sm_trade_id, :position, :default_instructions, :_destroy,
+            { required_document_types: [] },
+            { quote_template_trade_suppliers_attributes: [
+              :id, :supplier_id, :contact_person_id, :position, :is_preferred, :_destroy
+            ] }
+          ]
+        )
+      end
+
+      def template_json(template, include_details: false)
+        json = {
+          id: template.id,
+          name: template.name,
+          description: template.description,
+          isActive: template.is_active,
+          position: template.position,
+          tradeCount: template.trade_count,
+          supplierCount: template.supplier_count,
+          createdAt: template.created_at&.iso8601,
+          updatedAt: template.updated_at&.iso8601,
+        }
+
+        if include_details
+          json[:trades] = template.quote_template_trades
+            .sort_by(&:position)
+            .map { |trade| trade_json(trade) }
+        end
+
+        json
+      end
+
+      def trade_json(trade)
+        {
+          id: trade.id,
+          smTradeId: trade.sm_trade_id,
+          tradeName: trade.sm_trade&.name,
+          position: trade.position,
+          defaultInstructions: trade.default_instructions,
+          requiredDocumentTypes: trade.required_document_types,
+          supplierCount: trade.supplier_count,
+          suppliers: trade.quote_template_trade_suppliers
+            .sort_by(&:position)
+            .map { |s| supplier_json(s) }
+        }
+      end
+
+      def supplier_json(supplier)
+        {
+          id: supplier.id,
+          supplierId: supplier.supplier_id,
+          supplierName: supplier.supplier&.display_name,
+          contactPersonId: supplier.contact_person_id,
+          contactPersonName: supplier.contact_person&.name,
+          position: supplier.position,
+          isPreferred: supplier.is_preferred
+        }
+      end
+    end
+  end
+end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -7940,6 +7940,53 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_100000) do
     t.index ["submitted_at"], name: "index_quote_responses_on_submitted_at"
   end
 
+  create_table "quote_template_trade_suppliers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "quote_template_trade_id", null: false
+    t.bigint "supplier_id", null: false
+    t.bigint "contact_person_id"
+    t.integer "position", default: 0, null: false
+    t.boolean "is_preferred", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_person_id"], name: "index_quote_template_trade_suppliers_on_contact_person_id"
+    t.index ["quote_template_trade_id", "supplier_id"], name: "idx_qt_trade_suppliers_trade_supplier", unique: true
+    t.index ["quote_template_trade_id"], name: "idx_on_quote_template_trade_id_4bd879638a"
+    t.index ["supplier_id"], name: "index_quote_template_trade_suppliers_on_supplier_id"
+    t.index ["tenant_id"], name: "index_quote_template_trade_suppliers_on_tenant_id"
+  end
+
+  create_table "quote_template_trades", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "quote_template_id", null: false
+    t.bigint "sm_trade_id", null: false
+    t.integer "position", default: 0, null: false
+    t.text "default_instructions"
+    t.jsonb "required_document_types", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["quote_template_id", "sm_trade_id"], name: "idx_qt_trades_template_trade", unique: true
+    t.index ["quote_template_id"], name: "index_quote_template_trades_on_quote_template_id"
+    t.index ["sm_trade_id"], name: "index_quote_template_trades_on_sm_trade_id"
+    t.index ["tenant_id"], name: "index_quote_template_trades_on_tenant_id"
+  end
+
+  create_table "quote_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_quote_templates_on_created_by_id"
+    t.index ["tenant_id", "name"], name: "index_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_quote_templates_on_tenant_id"
+    t.index ["updated_by_id"], name: "index_quote_templates_on_updated_by_id"
+  end
+
   create_table "quote_trackers", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.bigint "job_id", null: false
@@ -7957,9 +8004,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_100000) do
     t.text "estimating_notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "status", default: "draft", null: false
+    t.datetime "sent_at"
+    t.bigint "sent_by_id"
+    t.boolean "is_best_price", default: false, null: false
+    t.bigint "purchase_order_id"
+    t.bigint "quote_template_id"
+    t.string "email_message_id"
+    t.text "response_notes"
+    t.string "timeframe"
     t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
+    t.index ["job_id", "sm_trade_id", "is_best_price"], name: "idx_quote_trackers_best_price"
     t.index ["job_id"], name: "index_quote_trackers_on_job_id"
+    t.index ["purchase_order_id"], name: "index_quote_trackers_on_purchase_order_id"
+    t.index ["quote_template_id"], name: "index_quote_trackers_on_quote_template_id"
+    t.index ["sent_by_id"], name: "index_quote_trackers_on_sent_by_id"
     t.index ["sm_trade_id"], name: "index_quote_trackers_on_sm_trade_id"
+    t.index ["status"], name: "index_quote_trackers_on_status"
     t.index ["supplier_id"], name: "index_quote_trackers_on_supplier_id"
     t.index ["tenant_id", "job_id"], name: "index_quote_trackers_on_tenant_id_and_job_id"
     t.index ["tenant_id", "supplier_id"], name: "index_quote_trackers_on_tenant_id_and_supplier_id"
@@ -12006,11 +12067,24 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_100000) do
   add_foreign_key "quote_responses", "contacts"
   add_foreign_key "quote_responses", "portal_users", column: "responded_by_portal_user_id"
   add_foreign_key "quote_responses", "quote_requests"
+  add_foreign_key "quote_template_trade_suppliers", "contact_persons"
+  add_foreign_key "quote_template_trade_suppliers", "contacts", column: "supplier_id"
+  add_foreign_key "quote_template_trade_suppliers", "quote_template_trades"
+  add_foreign_key "quote_template_trade_suppliers", "tenants"
+  add_foreign_key "quote_template_trades", "quote_templates"
+  add_foreign_key "quote_template_trades", "sm_trades"
+  add_foreign_key "quote_template_trades", "tenants"
+  add_foreign_key "quote_templates", "tenants"
+  add_foreign_key "quote_templates", "users", column: "created_by_id"
+  add_foreign_key "quote_templates", "users", column: "updated_by_id"
   add_foreign_key "quote_trackers", "contact_persons", column: "contact_id"
   add_foreign_key "quote_trackers", "contacts", column: "supplier_id"
   add_foreign_key "quote_trackers", "jobs"
+  add_foreign_key "quote_trackers", "purchase_orders"
+  add_foreign_key "quote_trackers", "quote_templates"
   add_foreign_key "quote_trackers", "sm_trades"
   add_foreign_key "quote_trackers", "tenants"
+  add_foreign_key "quote_trackers", "users", column: "sent_by_id"
   add_foreign_key "rain_logs", "jobs"
   add_foreign_key "rain_logs", "users", column: "created_by_user_id"
   add_foreign_key "recipe_categories", "recipe_categories", column: "parent_id"

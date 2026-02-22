@@ -139,9 +139,11 @@ class Api::V1::CostCentresController < ApplicationController
   def po_tasks
     tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
 
-    # Build a lookup of cost centre names for display
+    # Build a lookup of cost centre names and codes for display
     cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
-    cost_centre_names = CostCentre.where(id: cost_centre_ids).pluck(:id, :name).to_h
+    cost_centre_data = CostCentre.where(id: cost_centre_ids).pluck(:id, :name, :code)
+    cost_centre_names = cost_centre_data.to_h { |id, name, _| [id, name] }
+    cost_centre_codes = cost_centre_data.to_h { |id, _, code| [id, code] }
 
     # Build a lookup of tender names + headers for cross-reference display
     tender_ids = tasks.pluck(:tender_id).compact.uniq
@@ -158,6 +160,7 @@ class Api::V1::CostCentresController < ApplicationController
           taskNumber: t.task_number,
           costCentreId: t.cost_centre,
           costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
+          costCentreCode: t.cost_centre.present? ? cost_centre_codes[t.cost_centre] : nil,
           tenderId: t.tender_id,
           tenderName: tender&.name,
           tenderHeaderId: tender&.parent_id,

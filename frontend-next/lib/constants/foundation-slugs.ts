@@ -157,6 +157,7 @@ export const FOUNDATION_SLUGS = {
   // Quotes & Requests
   // ═══════════════════════════════════════════════════════════════════════════
   QUOTE_TRACKER: 'quote-tracker',  // ⚠️ HYPHEN - PreCon quote tracking
+  QUOTE_TEMPLATES: 'quote-templates',  // ⚠️ HYPHEN - RFQ template system
   QUOTE_REQUESTS: 'quote_requests',
   QUOTE_REQUEST_CONTACTS: 'quote_request_contacts',
   QUOTE_RESPONSES: 'quote_responses',
