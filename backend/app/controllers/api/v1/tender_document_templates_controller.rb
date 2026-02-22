@@ -76,7 +76,8 @@ class Api::V1::TenderDocumentTemplatesController < ApplicationController
       :acceptance_page_html,
       :notes_html,
       :validity_days,
-      :is_default
+      :is_default,
+      default_document_types: []
     )
   end
 
@@ -90,6 +91,7 @@ class Api::V1::TenderDocumentTemplatesController < ApplicationController
       acceptancePageHtml: template.acceptance_page_html,
       notesHtml: template.notes_html,
       validityDays: template.validity_days,
+      defaultDocumentTypes: template.default_document_types || [],
       isDefault: template.is_default,
       isActive: template.is_active,
       createdAt: template.created_at,

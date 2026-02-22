@@ -188,6 +188,77 @@ function formatTenderDate(dateStr: string): string {
   }
 }
 
+/** Price Summary block used on both the Cover Letter and Preview mode totals.
+ * Shows header breakdown (Site Costs, Authority, Base Price, etc.), then PC/PS, subtotal, GST, total.
+ */
+function PriceSummaryBlock({
+  doc,
+  headerGroups,
+  widthClass = "w-40",
+}: {
+  doc: TenderDocumentData;
+  headerGroups?: Record<string, Record<string, TenderDocumentItem[]>>;
+  widthClass?: string;
+}) {
+  const pcTotal = doc.pc_total || 0;
+  const psTotal = doc.ps_total || 0;
+  const hasHeaders = headerGroups && Object.keys(headerGroups).length > 0;
+
+  return (
+    <div className="space-y-2 py-4">
+      {/* Header breakdown (Site Costs, Authority Conditions, Base Price, etc.) */}
+      {hasHeaders && Object.entries(headerGroups!).map(([headerName, _sections]) => {
+        const headerTotal = doc.header_subtotals?.[headerName] || 0;
+        return (
+          <div key={headerName} className="flex justify-between">
+            <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
+            <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(headerTotal)}</span>
+          </div>
+        );
+      })}
+
+      {/* Prime Cost Allowances */}
+      {pcTotal > 0 && (
+        <div className="flex justify-between">
+          <span className="text-sm italic">incl. Prime Cost Allowances</span>
+          <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(pcTotal)}</span>
+        </div>
+      )}
+
+      {/* Provisional Sum Allowances */}
+      {psTotal > 0 && (
+        <div className="flex justify-between">
+          <span className="text-sm italic">incl. Provisional Sum Allowances</span>
+          <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(psTotal)}</span>
+        </div>
+      )}
+
+      <div className="border-t my-2" />
+
+      {/* Subtotal ex GST */}
+      <div className="flex justify-between">
+        <span className="text-sm">Subtotal (ex GST)</span>
+        <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(doc.subtotal)}</span>
+      </div>
+
+      {/* GST */}
+      <div className="flex justify-between">
+        <span className="text-sm">GST</span>
+        <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(doc.gst)}</span>
+      </div>
+
+      <div className="border-t my-2" />
+
+      {/* Grand Total */}
+      <div className="flex justify-between pt-1">
+        <span className="font-bold">The total cost to construct is:</span>
+        <span className={`font-bold text-lg ${widthClass} text-right`}>{formatCurrency(doc.total)}</span>
+      </div>
+      <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
+    </div>
+  );
+}
+
 /** Renders the right-side label/price for an item matching the Rawson format */
 function ItemTypeLabel({ item }: { item: TenderDocumentItem }) {
   switch (item.item_type) {
@@ -570,25 +641,7 @@ function CoverLetterPage({ doc }: { doc: TenderDocumentData }) {
         </div>
 
         {/* Price Summary Table */}
-        <div className="space-y-2 py-4">
-          {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
-            const headerTotal = doc.header_subtotals?.[headerName] || 0;
-            return (
-              <div key={headerName} className="flex justify-between">
-                <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
-                <span className="font-medium text-sm w-40 text-right">{formatCurrency(headerTotal)}</span>
-              </div>
-            );
-          })}
-
-          {hasTwoLevelData && <div className="border-t my-2" />}
-
-          <div className="flex justify-between pt-1">
-            <span className="font-bold">The total cost to construct is:</span>
-            <span className="font-bold text-lg w-40 text-right">{formatCurrency(doc.total)}</span>
-          </div>
-          <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
-        </div>
+        <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-40" />
 
         {/* Validity */}
         <p className="text-sm">
@@ -1139,23 +1192,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
       {previewMode && (
         <Card>
           <CardContent className="pt-6">
-            <div className="space-y-2">
-              {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
-                const headerTotal = doc.header_subtotals?.[headerName] || 0;
-                return (
-                  <div key={headerName} className="flex justify-between">
-                    <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
-                    <span className="font-medium text-sm w-32 text-right">{formatCurrency(headerTotal)}</span>
-                  </div>
-                );
-              })}
-              {hasTwoLevelData && <div className="border-t my-1" />}
-              <div className="flex justify-between pt-1">
-                <span className="font-bold">The total cost to construct is:</span>
-                <span className="font-bold text-lg w-32 text-right">{formatCurrency(doc.total)}</span>
-              </div>
-              <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
-            </div>
+            <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-32" />
           </CardContent>
         </Card>
       )}
