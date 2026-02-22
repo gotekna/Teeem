@@ -19,6 +19,7 @@ import { ProfitCentresTab } from "./components/ProfitCentresTab";
 import { CostCentresTab } from "./components/CostCentresTab";
 import { TenderHeadersTab } from "./components/TenderHeadersTab";
 import { TenderSectionsTab } from "./components/TenderSectionsTab";
+import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplatesTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -47,6 +48,7 @@ const OPERATIONS_TABS = [
   { id: "cost-centres", label: "Cost Centres" },
   { id: "tender-headers", label: "Tender Headers" },
   { id: "tender-sections", label: "Tender Sections" },
+  { id: "tender-documents", label: "Tender Documents" },
 ];
 
 const DEFAULT_TAB = "sm-tasks";
@@ -133,6 +135,9 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="tender-sections" className="absolute inset-0 h-full">
             <TenderSectionsTab />
+          </TabsContent>
+          <TabsContent value="tender-documents" className="absolute inset-0 overflow-auto">
+            <TenderDocumentTemplatesTab />
           </TabsContent>
         </div>
       </Tabs>

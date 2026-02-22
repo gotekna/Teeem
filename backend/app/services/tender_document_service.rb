@@ -31,6 +31,8 @@ class TenderDocumentService
   def create!
     TenderDocument.transaction do
       version = next_version_number
+      template = TenderDocumentTemplate.default_template.first
+      template_validity = template&.validity_days || 30
 
       doc = TenderDocument.create!(
         job: @job,
@@ -38,10 +40,15 @@ class TenderDocumentService
         document_number: "TD-TEMP-#{SecureRandom.hex(4)}",
         version: version,
         date_prepared: Date.current,
-        valid_until: Date.current + 30.days,
-        validity_days: 30,
+        valid_until: Date.current + template_validity.days,
+        validity_days: template_validity,
         previous_version_id: current_version&.id,
         status: "draft",
+        cover_letter_html: template&.cover_letter_html,
+        terms_and_conditions_html: template&.terms_and_conditions_html,
+        base_specification_html: template&.base_specification_html,
+        acceptance_page_html: template&.acceptance_page_html,
+        notes_html: template&.notes_html,
         **snapshot_job_data,
         **snapshot_client_data,
         **snapshot_tender_details

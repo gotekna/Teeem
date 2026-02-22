@@ -2325,6 +2325,11 @@ Rails.application.routes.draw do
       end
 
       resources :tender_headers, only: []
+      resources :tender_document_templates, only: [ :index, :create, :update, :destroy ] do
+        collection do
+          get :default
+        end
+      end
       resources :tenders, only: [] do
         collection do
           get :po_tasks

@@ -270,6 +270,11 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "po-templates": "PO Templates",
   "quote-templates": "Quote Templates",
   "claim-templates": "Claim Templates",
+  "tender-headers": "Tender Headers",
+  "tender-sections": "Tender Sections",
+  "tender-documents": "Tender Documents",
+  "profit-centres": "Profit Centres",
+  "cost-centres": "Cost Centres",
 
   // Settings > System sub-tabs
   "navigation": "Navigation",
