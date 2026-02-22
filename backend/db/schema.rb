@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_110000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8013,6 +8013,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_110000) do
     t.string "email_message_id"
     t.text "response_notes"
     t.string "timeframe"
+    t.integer "reminder_count", default: 0
+    t.datetime "last_reminder_at"
     t.index ["contact_id"], name: "index_quote_trackers_on_contact_id"
     t.index ["job_id", "sm_trade_id", "is_best_price"], name: "idx_quote_trackers_best_price"
     t.index ["job_id"], name: "index_quote_trackers_on_job_id"

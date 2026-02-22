@@ -912,6 +912,7 @@ Rails.application.routes.draw do
         member do
           get :quote_summary, controller: 'job_quote'
           post :apply_quote_template, controller: 'job_quote'
+          get :rfq_documents, controller: 'job_quote'
         end
       end
       resources :quote_trackers, only: [] do
@@ -920,7 +921,15 @@ Rails.application.routes.draw do
           post :record_response, controller: 'job_quote'
           post :accept, controller: 'job_quote'
         end
+        collection do
+          post :bulk_send_rfq, controller: 'job_quote'
+        end
       end
+
+      # RFQ email helpers (not job-scoped)
+      get :rfq_email_templates, controller: 'job_quote', action: 'email_templates'
+      get :rfq_email_accounts, controller: 'job_quote', action: 'email_accounts'
+      post :rfq_email_preview, controller: 'job_quote', action: 'email_preview'
 
       # Claim Stage Templates - define reusable claim stage configurations
       resources :claim_stage_templates do

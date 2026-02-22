@@ -16,7 +16,6 @@ import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesT
 import { QuoteTemplatesTab } from "./components/QuoteTemplatesTab";
 import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
-import { TenderHeadersTab } from "./components/TenderHeadersTab";
 import { TenderSectionsTab } from "./components/TenderSectionsTab";
 
 /**
@@ -43,7 +42,6 @@ const OPERATIONS_TABS = [
   { id: "quote-templates", label: "Quote Templates" },
   { id: "claim-templates", label: "Claim Templates" },
   { id: "profit-centres", label: "Profit Centres" },
-  { id: "tender-headers", label: "Tender Headers" },
   { id: "tender-sections", label: "Tender Sections" },
 ];
 
@@ -122,9 +120,6 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="profit-centres" className="absolute inset-0 h-full">
             <ProfitCentresTab />
-          </TabsContent>
-          <TabsContent value="tender-headers" className="absolute inset-0 h-full">
-            <TenderHeadersTab />
           </TabsContent>
           <TabsContent value="tender-sections" className="absolute inset-0 h-full">
             <TenderSectionsTab />

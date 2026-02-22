@@ -3,7 +3,7 @@
 module Api
   module V1
     class JobQuoteController < ApplicationController
-      before_action :set_job, only: [:summary, :apply_template]
+      before_action :set_job, only: [:summary, :apply_template, :rfq_documents]
       before_action :set_tracker, only: [:send_rfq, :record_response, :accept]
 
       # GET /api/v1/jobs/:job_id/quote_summary
@@ -72,12 +72,99 @@ module Api
       end
 
       # POST /api/v1/quote_trackers/:id/send_rfq
-      # Marks a tracker as sent (Phase 4 will add actual email sending)
+      # Sends an RFQ email to the supplier and marks tracker as sent
+      #
+      # Params:
+      #   email_template_id: (optional) EmailTemplate ID for composing the email
+      #   document_ids: (optional) Array of WarehouseDocument IDs to attach
+      #   custom_message: (optional) Additional message appended to email body
+      #   account_type: "imap" or "ms365" (required for email sending)
+      #   credential_id: Email credential ID (required for email sending)
+      #   mailbox_email: (required for ms365)
+      #   skip_email: (optional) If true, just marks as sent without sending email
       def send_rfq
-        @tracker.mark_sent!(current_user)
+        # If no email params provided or skip_email=true, just mark as sent (backward compat)
+        if params[:skip_email] == true || params[:skip_email] == "true" || params[:account_type].blank?
+          @tracker.mark_sent!(current_user)
+          render json: {
+            success: true,
+            data: tracker_json(@tracker.reload),
+            message: "Marked as sent (no email dispatched)"
+          }
+          return
+        end
+
+        result = RfqSendingService.send_rfq(
+          tracker: @tracker,
+          user: current_user,
+          email_template_id: params[:email_template_id],
+          document_ids: params[:document_ids],
+          custom_message: params[:custom_message],
+          account_type: params[:account_type],
+          credential_id: params[:credential_id],
+          mailbox_email: params[:mailbox_email]
+        )
+
+        if result.success?
+          render json: {
+            success: true,
+            data: tracker_json(@tracker.reload),
+            message: "RFQ sent to #{@tracker.supplier&.display_name}"
+          }
+        else
+          render json: {
+            success: false,
+            error: result.error,
+            data: tracker_json(@tracker.reload)
+          }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/quote_trackers/bulk_send_rfq
+      # Sends RFQ emails to multiple suppliers at once
+      #
+      # Params:
+      #   tracker_ids: Array of QuoteTracker IDs to send
+      #   (same email params as send_rfq)
+      def bulk_send_rfq
+        tracker_ids = Array(params[:tracker_ids]).map(&:to_i)
+        trackers = QuoteTracker.where(id: tracker_ids, status: 'draft')
+
+        if trackers.empty?
+          render json: { success: false, error: "No draft trackers found" }, status: :unprocessable_entity
+          return
+        end
+
+        # If no email params, just mark all as sent
+        if params[:skip_email] == true || params[:skip_email] == "true" || params[:account_type].blank?
+          trackers.each { |t| t.mark_sent!(current_user) }
+          render json: {
+            success: true,
+            message: "#{trackers.size} trackers marked as sent",
+            data: { sent: trackers.size, failed: 0 }
+          }
+          return
+        end
+
+        bulk_result = RfqSendingService.send_bulk(
+          trackers: trackers,
+          user: current_user,
+          email_template_id: params[:email_template_id],
+          document_ids: params[:document_ids],
+          custom_message: params[:custom_message],
+          account_type: params[:account_type],
+          credential_id: params[:credential_id],
+          mailbox_email: params[:mailbox_email]
+        )
+
         render json: {
-          success: true,
-          data: tracker_json(@tracker.reload)
+          success: bulk_result.all_success?,
+          message: "Sent #{bulk_result.sent}/#{bulk_result.total} RFQs",
+          data: {
+            sent: bulk_result.sent,
+            failed: bulk_result.failed,
+            errors: bulk_result.results.reject(&:success?).map { |r| { trackerId: r.tracker_id, error: r.error } }
+          }
         }
       end
 
@@ -118,6 +205,135 @@ module Api
         }
       rescue => e
         render json: { success: false, error: e.message }, status: :unprocessable_entity
+      end
+
+      # GET /api/v1/jobs/:job_id/rfq_documents
+      # Returns WarehouseDocuments for this job that can be attached to RFQs
+      def rfq_documents
+        documents = WarehouseDocument.where(
+          documentable_type: 'Job',
+          documentable_id: @job.id
+        ).includes(:storage_blob)
+         .where.not(storage_blobs: { id: nil })
+         .order(:ui_name)
+         .limit(50)
+
+        render json: {
+          success: true,
+          data: documents.map { |doc|
+            {
+              id: doc.id,
+              name: doc.ui_name || doc.original_filename,
+              folder: doc.folder_path,
+              contentType: doc.storage_blob&.content_type,
+              size: doc.storage_blob&.byte_size
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/rfq_email_templates
+      # Returns email templates available for RFQ composition
+      def email_templates
+        templates = EmailTemplate.available_to(current_user)
+                                 .where(category: 'quote')
+                                 .or(EmailTemplate.available_to(current_user).where(category: 'other'))
+                                 .ordered
+
+        render json: {
+          success: true,
+          data: templates.map { |t|
+            {
+              id: t.id,
+              name: t.name,
+              subject: t.subject,
+              category: t.category,
+              variables: t.variables,
+              isShared: t.is_shared
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/rfq_email_accounts
+      # Returns available email accounts for sending RFQs
+      def email_accounts
+        accounts = []
+
+        # IMAP accounts
+        ImapCredential.accessible_by(current_user).where(is_active: true).each do |cred|
+          accounts << {
+            id: cred.id,
+            type: 'imap',
+            email: cred.email_address,
+            label: cred.display_name || cred.email_address
+          }
+        end
+
+        # MS365 accounts
+        tenant_org_ids = current_user.tenant&.organizations&.pluck(:id) || []
+        MicrosoftCredential.where(organization_id: tenant_org_ids)
+                           .where(credential_type: 'app')
+                           .each do |cred|
+          # Get monitored mailboxes for this credential
+          mailboxes = cred.monitored_mailboxes || []
+          mailboxes.each do |mb|
+            accounts << {
+              id: cred.id,
+              type: 'ms365',
+              email: mb,
+              label: mb
+            }
+          end
+        end
+
+        render json: { success: true, data: accounts }
+      end
+
+      # POST /api/v1/rfq_email_preview
+      # Previews the composed RFQ email with template variables substituted
+      def email_preview
+        tracker = QuoteTracker.find(params[:tracker_id])
+        job = tracker.job
+
+        template = if params[:email_template_id].present?
+                     EmailTemplate.available_to(current_user).find_by(id: params[:email_template_id])
+                   end
+
+        if template
+          context = {
+            job_name: job.name,
+            job_number: job.job_code,
+            job_address: job.address,
+            trade_name: tracker.sm_trade&.name,
+            supplier_name: tracker.supplier&.display_name,
+            recipient_name: tracker.contact&.name || tracker.supplier&.display_name,
+            recipient_email: tracker.contact&.email || tracker.contact_email || tracker.supplier&.email,
+            recipient_company: tracker.supplier&.display_name,
+            sender_name: current_user.name,
+            sender_email: current_user.email,
+            sender_phone: current_user.phone,
+            today_date: Date.current.strftime("%d %B %Y"),
+            company_name: current_user.tenant&.name,
+            instructions: tracker.quote_request_instructions
+          }
+          rendered = template.apply(context)
+          subject = rendered[:subject]
+          body = rendered[:body_html]
+        else
+          subject = "Request for Quote - #{job.name} (#{job.job_code})"
+          body = "<p>Default RFQ email will be generated.</p>"
+        end
+
+        render json: {
+          success: true,
+          data: {
+            subject: subject,
+            body: body,
+            recipientEmail: tracker.contact&.email || tracker.contact_email || tracker.supplier&.email,
+            recipientName: tracker.contact&.name || tracker.supplier&.display_name
+          }
+        }
       end
 
       private

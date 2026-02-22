@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutGrid, Table as TableIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -11,7 +10,8 @@ import TeeemTableView from "@/components/table/TeeemTableView";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { TemplateApplyBar } from "./quote-tracker/TemplateApplyBar";
 import { QuoteTrackerBoard } from "./quote-tracker/QuoteTrackerBoard";
-import type { QuoteSummaryData } from "./quote-tracker/types";
+import { SendRFQDialog } from "./quote-tracker/SendRFQDialog";
+import type { QuoteSummaryData, QuoteTrackerRow } from "./quote-tracker/types";
 
 interface JobQuoteTrackerTabProps {
   jobId: string | number;
@@ -38,6 +38,10 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
   });
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // SendRFQDialog state
+  const [rfqDialogOpen, setRfqDialogOpen] = useState(false);
+  const [rfqDialogTrackers, setRfqDialogTrackers] = useState<QuoteTrackerRow[]>([]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Load summary data (board view)
@@ -72,15 +76,28 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
   // Actions
   // ─────────────────────────────────────────────────────────────────────────
 
+  // Opens the SendRFQDialog for a single tracker
   const handleSendRfq = async (trackerId: number) => {
-    try {
-      await api.post(`/api/v1/quote_trackers/${trackerId}/send_rfq`);
-      toast.success("RFQ marked as sent");
-      loadSummary();
-    } catch (err) {
-      console.error("[JobQuoteTrackerTab] Send RFQ failed:", err);
-      toast.error("Failed to send RFQ");
+    const tracker = summaryData.trades
+      .flatMap(t => t.suppliers)
+      .find(s => s.id === trackerId);
+
+    if (tracker) {
+      setRfqDialogTrackers([tracker]);
+      setRfqDialogOpen(true);
     }
+  };
+
+  // Opens the SendRFQDialog for all draft trackers in a trade
+  const handleSendAllForTrade = async (tradeId: number) => {
+    const trade = summaryData.trades.find(t => t.smTradeId === tradeId);
+    if (!trade) return;
+
+    const draftTrackers = trade.suppliers.filter(s => s.status === "draft");
+    if (draftTrackers.length === 0) return;
+
+    setRfqDialogTrackers(draftTrackers);
+    setRfqDialogOpen(true);
   };
 
   const handleRecordResponse = async (trackerId: number, price: number, timeframe?: string, notes?: string) => {
@@ -108,24 +125,6 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
     } catch (err) {
       console.error("[JobQuoteTrackerTab] Accept failed:", err);
       toast.error("Failed to accept quote");
-    }
-  };
-
-  const handleSendAllForTrade = async (tradeId: number) => {
-    const trade = summaryData.trades.find(t => t.smTradeId === tradeId);
-    if (!trade) return;
-
-    const draftTrackers = trade.suppliers.filter(s => s.status === "draft");
-    if (draftTrackers.length === 0) return;
-
-    try {
-      await Promise.all(draftTrackers.map(t => api.post(`/api/v1/quote_trackers/${t.id}/send_rfq`)));
-      toast.success(`Sent ${draftTrackers.length} RFQs for ${trade.tradeName}`);
-      loadSummary();
-    } catch (err) {
-      console.error("[JobQuoteTrackerTab] Send all failed:", err);
-      toast.error("Failed to send some RFQs");
-      loadSummary();
     }
   };
 
@@ -200,6 +199,15 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
           </div>
         )}
       </div>
+
+      {/* Send RFQ Dialog */}
+      <SendRFQDialog
+        open={rfqDialogOpen}
+        onOpenChange={setRfqDialogOpen}
+        trackers={rfqDialogTrackers}
+        jobId={Number(jobId)}
+        onSent={refresh}
+      />
     </div>
   );
 }
