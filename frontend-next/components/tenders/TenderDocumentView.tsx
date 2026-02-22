@@ -694,10 +694,11 @@ function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
   return (
     <Card>
       <CardContent className="pt-8 pb-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between">
-          <div className="text-sm">
-            {doc.company_name && <p className="font-bold">{doc.company_name}</p>}
+        {/* Header with logo */}
+        <div className="flex justify-between items-start">
+          <div>
+            <CompanyLogo doc={doc} className="h-12 w-auto mb-2" />
+            {doc.company_name && <p className="font-bold text-sm">{doc.company_name}</p>}
           </div>
           <div className="text-sm text-right">
             {doc.client_name && <p className="font-medium">{doc.client_name}</p>}
