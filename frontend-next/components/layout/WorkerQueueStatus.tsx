@@ -382,11 +382,10 @@ export function WorkerQueueStatus() {
     }
   }, [status]);
 
-  // Fetch on mount + poll every 60s for worker health visibility
+  // Fetch on mount only (no polling - queue status is complex data, fetch on-demand when popover opens)
+  // FRC (Feb 2026): Removed 60s interval that contributed to R14 memory on Basic web dyno
   useEffect(() => {
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 60_000);
-    return () => clearInterval(interval);
   }, [fetchQueueStatus]);
 
   // Re-fetch when popover opens (for fresh detail data)

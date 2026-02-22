@@ -57,7 +57,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/lib/constants/route-paths";
-import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
+import { useBadgeCountsWebSocket } from "@/hooks/useBadgeCountsWebSocket";
 
 
 // Microsoft 365 icon component
@@ -90,6 +90,14 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   const { user, logout } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [unreadCount, setUnreadCount] = React.useState(0);
+
+  // Receive chat unread count via WebSocket (replaces HTTP polling)
+  const { counts: wsBadgeCounts } = useBadgeCountsWebSocket();
+  React.useEffect(() => {
+    if (wsBadgeCounts) {
+      setUnreadCount(wsBadgeCounts.unread_chat_messages);
+    }
+  }, [wsBadgeCounts]);
   const [emailAccounts, setEmailAccounts] = React.useState<Array<{
     id: number;
     name: string;
@@ -115,19 +123,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
   // Note: User-level Microsoft OAuth auto-reconnect removed
   // Now using organization-wide SharePoint credentials from /api/v1/microsoft_app/status
 
-  // Fetch unread message count and integration statuses
+  // Fetch integration statuses (on mount only, not polled)
+  // Chat unread count now pushed via WebSocket (BadgeCountsChannel)
   React.useEffect(() => {
-    const fetchUnreadCount = async () => {
-      try {
-        const response = await api.get<{ unread_count: number }>("/api/v1/chat_messages/unread_count");
-        if (response?.unread_count !== undefined) {
-          setUnreadCount(response.unread_count);
-        }
-      } catch (error) {
-        console.debug("Failed to fetch unread count:", error);
-      }
-    };
-
     const fetchIntegrationStatus = async () => {
       // Check Xero connection - SSoT: show actual status to user
       try {
@@ -307,15 +305,9 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
 
-    fetchUnreadCount();
     fetchIntegrationStatus();
 
-    // Poll every 30 seconds for unread count
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, POLLING_INTERVAL_MS);
     return () => {
-      clearInterval(interval);
       fetchingRef.current = false;
     };
   }, []);

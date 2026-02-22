@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { hasStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
-import { POLLING_INTERVAL_MS } from "@/lib/constants/timeout-constants";
+import { useBadgeCountsWebSocket } from "@/hooks/useBadgeCountsWebSocket";
 
 interface Notification {
   id: number;
@@ -31,6 +31,14 @@ export function NotificationBell() {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Receive unread count via WebSocket (replaces HTTP polling)
+  const { counts: wsBadgeCounts } = useBadgeCountsWebSocket();
+  useEffect(() => {
+    if (wsBadgeCounts) {
+      setUnreadCount(wsBadgeCounts.unread_notifications);
+    }
+  }, [wsBadgeCounts]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -50,19 +58,7 @@ export function NotificationBell() {
     }
   }, []);
 
-  const fetchUnreadCount = useCallback(async () => {
-    try {
-      // SSoT: storage-utils.ts for localStorage access
-      if (!hasStorageItem(STORAGE_KEYS.TOKEN)) return;
-
-      const data = await api.get<{ unread_count: number }>(
-        "/api/v1/notifications/unread_count"
-      );
-      setUnreadCount(data.unread_count || 0);
-    } catch (error) {
-      console.error("Failed to fetch unread count:", error);
-    }
-  }, []);
+  // fetchUnreadCount removed - now pushed via WebSocket (BadgeCountsChannel)
 
   const markAsRead = async (id: number) => {
     try {
@@ -119,12 +115,7 @@ export function NotificationBell() {
     }
   }, [isOpen, fetchNotifications]);
 
-  // Poll for unread count every 30 seconds
-  useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, POLLING_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [fetchUnreadCount]);
+  // Polling removed - unread count now pushed via WebSocket (BadgeCountsChannel)
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);

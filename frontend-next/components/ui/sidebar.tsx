@@ -462,8 +462,6 @@ function SidebarContent({
 export function Sidebar() {
   const { isExpanded, setIsExpanded, isPinned, setIsPinned } = useSidebar();
   const [persona, setPersona] = useState<Persona>('manager');
-  const [badges, setBadges] = useState<Record<string, number>>({});
-  const [emailAccountBadges, setEmailAccountBadges] = useState<Record<string, number>>({});
   const [backendVersion, setBackendVersion] = useState<string | null>(null);
   const [herokuRelease, setHerokuRelease] = useState<string | null>(null);
   const [apiEnvironment, setApiEnvironment] = useState<string | null>(null);
@@ -478,6 +476,28 @@ export function Sidebar() {
   const router = useRouter();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { user, logout, isAuthenticated } = useAuth();
+
+  // Badge counts via WebSocket (replaces 5 HTTP polling endpoints)
+  // FRC (Feb 2026): 5 polls every 60s caused R14 memory on Basic web dyno
+  const { counts: wsBadgeCounts } = useBadgeCountsWebSocket({ enabled: isAuthenticated });
+
+  // Map WS counts to badge_key format used by navigation items
+  const badges: Record<string, number> = wsBadgeCounts ? {
+    pendingProposals: wsBadgeCounts.pending_job_proposals,
+    pendingCaseProposals: wsBadgeCounts.pending_case_proposals,
+    pendingBills: wsBadgeCounts.pending_bills,
+    plans_pending: wsBadgeCounts.pending_plan_scans,
+    unreadEmails: wsBadgeCounts.unread_emails,
+  } : {};
+
+  // Map per-account email counts
+  const emailAccountBadges: Record<string, number> = wsBadgeCounts
+    ? Object.fromEntries(
+        (wsBadgeCounts.email_by_account || [])
+          .filter(a => a.email)
+          .map(a => [a.email.toLowerCase(), a.count])
+      )
+    : {};
 
   // Tenant context for company/environment display
   const tenantContext = useTenantOptional();
@@ -505,8 +525,7 @@ export function Sidebar() {
     }
   }, [tenantContext?.currentTenant?.environment]);
 
-  // Prevent duplicate fetches (React StrictMode double-mount)
-  const badgeFetchingRef = useRef(false);
+  // badgeFetchingRef removed - badge counts now pushed via WebSocket
 
   // Ref for the nav element - stable now that SidebarContent is outside the component
   const navRef = useRef<HTMLElement | null>(null);
@@ -586,101 +605,9 @@ export function Sidebar() {
     loadVersion();
   }, []);
 
-  // Load badge counts (pending proposals, etc.)
-  useEffect(() => {
-    // Helper to safely fetch with retry on auth errors
-    const safeFetch = async <T,>(
-      endpoint: string,
-      retries = 2,
-      delay = 500
-    ): Promise<T | null> => {
-      for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-          return await api.get<T>(endpoint);
-        } catch (error: unknown) {
-          const isAuthError = error instanceof Error &&
-            (error.message.includes('401') ||
-             error.message.includes('Unauthorized') ||
-             error.message.includes('Session expired'));
-
-          // Don't retry auth errors - user needs to re-login
-          if (isAuthError) {
-            return null;
-          }
-
-          // Retry transient errors with delay
-          if (attempt < retries) {
-            await new Promise(resolve => setTimeout(resolve, delay * (attempt + 1)));
-          }
-        }
-      }
-      return null;
-    };
-
-    // FRC (Feb 2026): Badge counts were fetching full proposal objects sequentially,
-    // adding 3-8 seconds to every page load. Now uses lightweight count endpoints
-    // and runs all fetches in parallel with Promise.allSettled.
-    const loadBadgeCounts = async () => {
-      const [jobResult, caseResult, billResult, plansResult, emailResult] = await Promise.allSettled([
-        safeFetch<{ count: number }>("/api/v1/email_job_proposals/pending_count"),
-        safeFetch<{ count: number }>("/api/v1/email_case_proposals/pending_count"),
-        safeFetch<{ pending: number; errors: number; awaiting_approval: number }>("/api/v1/bill_inbox/stats"),
-        safeFetch<{ pending_count: number }>("/api/v1/plan_folder_scans/pending_count"),
-        safeFetch<{ total: number; by_account: Array<{ email: string; count: number }> }>("/api/v1/synced_emails/unread_counts"),
-      ]);
-
-      setBadges(prev => {
-        const updated = { ...prev };
-        if (jobResult.status === "fulfilled" && jobResult.value) {
-          updated.pendingProposals = jobResult.value.count || 0;
-        }
-        if (caseResult.status === "fulfilled" && caseResult.value) {
-          updated.pendingCaseProposals = caseResult.value.count || 0;
-        }
-        if (billResult.status === "fulfilled" && billResult.value) {
-          const bill = billResult.value;
-          updated.pendingBills = (bill.pending || 0) + (bill.errors || 0) + (bill.awaiting_approval || 0);
-        }
-        if (plansResult.status === "fulfilled" && plansResult.value) {
-          updated.plans_pending = plansResult.value.pending_count || 0;
-        }
-        if (emailResult.status === "fulfilled" && emailResult.value) {
-          updated.unreadEmails = emailResult.value.total || 0;
-        }
-        return updated;
-      });
-
-      // Update email account badges separately (outside the main setBadges)
-      if (emailResult.status === "fulfilled" && emailResult.value) {
-        const accountBadges: Record<string, number> = {};
-        (emailResult.value.by_account || []).forEach(({ email, count }) => {
-          if (email) {
-            accountBadges[email.toLowerCase()] = count;
-          }
-        });
-        setEmailAccountBadges(accountBadges);
-      }
-    };
-
-    if (isAuthenticated) {
-      // Prevent duplicate fetches on React StrictMode double-mount
-      if (badgeFetchingRef.current) return;
-      badgeFetchingRef.current = true;
-
-      // Defer badge counts to let page content load first (FRC: was 100ms, blocking page paint)
-      const initialDelay = setTimeout(() => {
-        loadBadgeCounts();
-      }, DEMO_LOADING_MS);
-
-      // Refresh every 60 seconds
-      const interval = setInterval(loadBadgeCounts, 60000);
-      return () => {
-        clearTimeout(initialDelay);
-        clearInterval(interval);
-        badgeFetchingRef.current = false;
-      };
-    }
-  }, [isAuthenticated]);
+  // Badge counts now pushed via WebSocket (BadgeCountsChannel)
+  // FRC (Feb 2026): Removed 5 HTTP polling endpoints that caused R14 memory on Basic web dyno.
+  // useBadgeCountsWebSocket hook (above) receives counts from server every 30s.
 
   const handlePersonaChange = (newPersona: Persona) => {
     setPersona(newPersona);
