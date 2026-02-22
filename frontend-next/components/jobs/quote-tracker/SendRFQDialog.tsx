@@ -295,12 +295,12 @@ export function SendRFQDialog({
             {/* Email template */}
             <div>
               <Label className="text-xs text-muted-foreground mb-1 block">Email template</Label>
-              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+              <Select value={selectedTemplate || "default"} onValueChange={(v) => setSelectedTemplate(v === "default" ? "" : v)}>
                 <SelectTrigger className="h-9">
                   <SelectValue placeholder="Default RFQ email" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Default RFQ email</SelectItem>
+                  <SelectItem value="default">Default RFQ email</SelectItem>
                   {templates.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name}

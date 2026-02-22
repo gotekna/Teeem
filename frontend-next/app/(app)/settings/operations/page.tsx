@@ -16,7 +16,6 @@ import { PoTemplatesTab } from "@/app/(app)/admin/system/components/PoTemplatesT
 import { QuoteTemplatesTab } from "./components/QuoteTemplatesTab";
 import { ClaimTemplatesTab } from "@/app/(app)/admin/system/components/ClaimTemplatesTab";
 import { ProfitCentresTab } from "./components/ProfitCentresTab";
-import { TenderSectionsTab } from "./components/TenderSectionsTab";
 
 /**
  * Operations Settings Page - Organization Settings
@@ -52,6 +51,7 @@ const FULL_PAGE_TABS: Record<string, string> = {
   "schedule-master": "/settings/operations/schedule-master",
   "po-templates": "/settings/operations/po-templates",
   "quote-templates": "/settings/operations/quote-templates",
+  "tender-sections": "/settings/operations/schedule-master/tables/tenders",
 };
 
 export default function OperationsSettingsPage() {
@@ -120,9 +120,6 @@ export default function OperationsSettingsPage() {
           </TabsContent>
           <TabsContent value="profit-centres" className="absolute inset-0 h-full">
             <ProfitCentresTab />
-          </TabsContent>
-          <TabsContent value="tender-sections" className="absolute inset-0 h-full">
-            <TenderSectionsTab />
           </TabsContent>
         </div>
       </Tabs>
