@@ -31,7 +31,9 @@ import {
   FileText,
   Package,
   BarChart3,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -66,8 +68,10 @@ interface QuoteTemplateSupplier {
   id: number;
   supplierId: number;
   supplierName: string | null;
+  supplierEmail: string | null;
   contactPersonId: number | null;
   contactPersonName: string | null;
+  contactPersonEmail: string | null;
   position: number;
   isPreferred: boolean;
 }
@@ -486,6 +490,27 @@ export function QuoteTemplatesTab() {
     }
   };
 
+  const handleUpdateContactPerson = async (
+    templateId: number, taskRowId: number, supplierRowId: number, contactPersonId: number | null
+  ) => {
+    try {
+      await api.patch(`/api/v1/quote_templates/${templateId}`, {
+        quote_template: {
+          quote_template_trades_attributes: [{
+            id: taskRowId,
+            quote_template_trade_suppliers_attributes: [
+              { id: supplierRowId, contact_person_id: contactPersonId },
+            ],
+          }],
+        },
+      });
+      loadTemplateDetail(templateId);
+    } catch (err) {
+      console.error("[QuoteTemplatesTab] Update contact person failed:", err);
+      toast.error("Failed to update contact person");
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Expand/Collapse
   // ─────────────────────────────────────────────────────────────────────────
@@ -690,6 +715,9 @@ export function QuoteTemplatesTab() {
                       onTogglePreferred={(taskRowId, supplierRow) =>
                         handleTogglePreferred(template.id, taskRowId, supplierRow)
                       }
+                      onUpdateContactPerson={(taskRowId, supplierRowId, contactPersonId) =>
+                        handleUpdateContactPerson(template.id, taskRowId, supplierRowId, contactPersonId)
+                      }
                       onSearchSuppliers={loadSuppliers}
                       onViewPrices={(smScheduleMasterId) =>
                         handleViewPrices(smScheduleMasterId, editingTemplate.poTemplatePackId)
@@ -849,6 +877,7 @@ interface TemplateEditorProps {
   onAddSupplier: (taskRowId: number, supplierId: number) => void;
   onRemoveSupplier: (taskRowId: number, supplierRowId: number) => void;
   onTogglePreferred: (taskRowId: number, supplierRow: QuoteTemplateSupplier) => void;
+  onUpdateContactPerson: (taskRowId: number, supplierRowId: number, contactPersonId: number | null) => void;
   onSearchSuppliers: (query?: string) => void;
   onViewPrices: (smScheduleMasterId: number) => void;
   poPacks: PoPack[];
@@ -870,6 +899,7 @@ function TemplateEditor({
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
+  onUpdateContactPerson,
   onSearchSuppliers,
   onViewPrices,
   poPacks,
@@ -903,6 +933,7 @@ function TemplateEditor({
                 onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
                 onRemoveSupplier={(supplierRowId) => onRemoveSupplier(task.id, supplierRowId)}
                 onTogglePreferred={(supplierRow) => onTogglePreferred(task.id, supplierRow)}
+                onUpdateContactPerson={(supplierRowId, contactPersonId) => onUpdateContactPerson(task.id, supplierRowId, contactPersonId)}
                 onSearchSuppliers={onSearchSuppliers}
                 onViewPrices={hasPricebookItems ? () => onViewPrices(task.smScheduleMasterId) : undefined}
               />
@@ -944,6 +975,7 @@ interface TaskSectionProps {
   onAddSupplier: (supplierId: number) => void;
   onRemoveSupplier: (supplierRowId: number) => void;
   onTogglePreferred: (supplierRow: QuoteTemplateSupplier) => void;
+  onUpdateContactPerson: (supplierRowId: number, contactPersonId: number | null) => void;
   onSearchSuppliers: (query?: string) => void;
   onViewPrices?: () => void;
 }
@@ -959,6 +991,7 @@ function TaskSection({
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
+  onUpdateContactPerson,
   onSearchSuppliers,
   onViewPrices,
 }: TaskSectionProps) {
@@ -1044,44 +1077,13 @@ function TaskSection({
             ) : (
               <div className="space-y-1">
                 {task.suppliers.map((supplier) => (
-                  <div
+                  <SupplierRow
                     key={supplier.id}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 group"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn(
-                        "h-5 w-5 shrink-0",
-                        supplier.isPreferred ? "text-yellow-500" : "text-muted-foreground/30"
-                      )}
-                      title={supplier.isPreferred ? "Preferred supplier" : "Set as preferred"}
-                      onClick={() => onTogglePreferred(supplier)}
-                    >
-                      <Star className={cn("h-3.5 w-3.5", supplier.isPreferred && "fill-current")} />
-                    </Button>
-                    <span className="text-sm flex-1 truncate">
-                      {supplier.supplierName || `Supplier #${supplier.supplierId}`}
-                    </span>
-                    {supplier.contactPersonName && (
-                      <span className="text-xs text-muted-foreground truncate">
-                        {supplier.contactPersonName}
-                      </span>
-                    )}
-                    {supplier.isPreferred && (
-                      <Badge variant="outline" className="text-xs text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700">
-                        Preferred
-                      </Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
-                      onClick={() => onRemoveSupplier(supplier.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+                    supplier={supplier}
+                    onTogglePreferred={() => onTogglePreferred(supplier)}
+                    onRemove={() => onRemoveSupplier(supplier.id)}
+                    onUpdateContactPerson={(contactPersonId) => onUpdateContactPerson(supplier.id, contactPersonId)}
+                  />
                 ))}
               </div>
             )}
@@ -1119,6 +1121,132 @@ function TaskSection({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Supplier Row (enriched with email, contact link, person picker)
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface SupplierRowProps {
+  supplier: QuoteTemplateSupplier;
+  onTogglePreferred: () => void;
+  onRemove: () => void;
+  onUpdateContactPerson: (contactPersonId: number | null) => void;
+}
+
+function SupplierRow({ supplier, onTogglePreferred, onRemove, onUpdateContactPerson }: SupplierRowProps) {
+  const [personItems, setPersonItems] = useState<ComboboxItem[]>([]);
+  const [personLoading, setPersonLoading] = useState(false);
+  const [personLoaded, setPersonLoaded] = useState(false);
+
+  const loadContactPersons = useCallback(async () => {
+    if (personLoaded || !supplier.supplierId) return;
+    try {
+      setPersonLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        contact_persons: Array<{
+          id: number;
+          first_name: string | null;
+          last_name: string | null;
+          email: string | null;
+        }>;
+      }>(`/api/v1/contacts/${supplier.supplierId}/contact_persons`);
+      const persons = response?.contact_persons || [];
+      setPersonItems(
+        persons.map((p) => {
+          const name = [p.first_name, p.last_name].filter(Boolean).join(" ") || `Person #${p.id}`;
+          return {
+            id: String(p.id),
+            label: p.email ? `${name} (${p.email})` : name,
+          };
+        })
+      );
+      setPersonLoaded(true);
+    } catch {
+      // Silently fail — picker shows empty
+    } finally {
+      setPersonLoading(false);
+    }
+  }, [supplier.supplierId, personLoaded]);
+
+  // Build selectedItem for ComboboxDropdown
+  const selectedPersonItem: ComboboxItem | undefined = supplier.contactPersonId
+    ? personItems.find((p) => p.id === String(supplier.contactPersonId)) || {
+        id: String(supplier.contactPersonId),
+        label: supplier.contactPersonName || `Person #${supplier.contactPersonId}`,
+      }
+    : undefined;
+
+  const displayEmail = supplier.contactPersonEmail || supplier.supplierEmail;
+
+  return (
+    <div className="px-2 py-1.5 rounded hover:bg-muted/50 group">
+      {/* Line 1: Star | Name (linked) | Person picker | Preferred | Delete */}
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "h-5 w-5 shrink-0",
+            supplier.isPreferred ? "text-yellow-500" : "text-muted-foreground/30"
+          )}
+          title={supplier.isPreferred ? "Preferred supplier" : "Set as preferred"}
+          onClick={onTogglePreferred}
+        >
+          <Star className={cn("h-3.5 w-3.5", supplier.isPreferred && "fill-current")} />
+        </Button>
+
+        <Link
+          href={`/contacts/${supplier.supplierId}`}
+          target="_blank"
+          className="text-sm font-medium text-foreground hover:text-primary hover:underline truncate shrink-0"
+          onClick={(e) => e.stopPropagation()}
+          title={`Open ${supplier.supplierName || "supplier"} in new tab`}
+        >
+          {supplier.supplierName || `Supplier #${supplier.supplierId}`}
+          <ExternalLink className="inline h-3 w-3 ml-1 opacity-0 group-hover:opacity-50" />
+        </Link>
+
+        {displayEmail && (
+          <span className="text-xs text-muted-foreground truncate" title={displayEmail}>
+            {displayEmail}
+          </span>
+        )}
+
+        <div className="flex-1" />
+
+        {/* Contact person picker — lazy loads on first interaction */}
+        <ComboboxDropdown
+          items={personItems}
+          selectedItem={selectedPersonItem}
+          onSelect={(item) => onUpdateContactPerson(Number(item.id))}
+          onInputChange={() => loadContactPersons()}
+          isLoading={personLoading}
+          placeholder="Select person..."
+          searchPlaceholder="Search people..."
+          emptyResults={personLoaded ? "No people at this contact" : "Loading..."}
+          className="w-48"
+          clearable={!!supplier.contactPersonId}
+          onClear={() => onUpdateContactPerson(null)}
+        />
+
+        {supplier.isPreferred && (
+          <Badge variant="outline" className="text-xs text-yellow-600 dark:text-yellow-400 border-yellow-300 dark:border-yellow-700 shrink-0">
+            Preferred
+          </Badge>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive shrink-0"
+          onClick={onRemove}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
     </div>
   );
 }

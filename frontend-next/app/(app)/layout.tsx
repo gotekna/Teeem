@@ -21,6 +21,7 @@ import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
+import { AssistantChat } from "@/components/chat/AssistantChat";
 import { ROUTES } from "@/lib/constants/route-paths";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
@@ -139,6 +140,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
       {/* Global Screen Share Prompt - handles incoming requests from any page */}
       <ScreenSharePrompt />
+
+      {/* AI Assistant - floating chat with voice input, tool use, and action approval */}
+      <AssistantChat />
 
       {/* Force Password Change Dialog (Feb 2026) - shown when admin sends login invite */}
       <ChangePasswordDialog

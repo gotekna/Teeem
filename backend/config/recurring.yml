@@ -653,3 +653,19 @@ orphan_blob_audit:
 #   class: GoldStandardComplianceCheckJob
 #   queue: low
 #   schedule: at 6am on Monday
+
+# ============================================
+# AI ASSISTANT - Proactive Monitoring
+# ============================================
+# Scans for items needing attention: urgent emails, overdue tasks, etc.
+# Creates AssistantAlert records for users who have used the assistant recently.
+# Only runs for active assistant users (used in last 7 days).
+assistant_monitor:
+  class: AssistantMonitorJob
+  queue: low
+  schedule: every 15 minutes
+
+signal_poll:
+  class: SignalPollJob
+  queue: low
+  schedule: every 30 seconds

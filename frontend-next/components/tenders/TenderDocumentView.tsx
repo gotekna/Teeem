@@ -211,7 +211,7 @@ function SectionItems({
       {costCentreGroups.map((group) => {
         // Cost centre subtotal (priced + provisional items only)
         const ccSubtotal = group.items
-          .filter((i) => i.item_type === "priced" || i.item_type === "provisional")
+          .filter((i) => i.item_type === "priced" || i.item_type === "provisional" || i.item_type === "included")
           .reduce((sum, i) => sum + (i.total_amount || 0), 0);
 
         return (

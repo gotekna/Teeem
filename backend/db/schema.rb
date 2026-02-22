@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_170000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10590,12 +10590,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_170000) do
     t.string "openclaw_api_key_last4"
     t.jsonb "openclaw_permissions", default: {"chat"=>false, "notes"=>false, "contacts"=>false, "job_updates"=>false}
     t.datetime "openclaw_api_key_created_at"
+    t.jsonb "assistant_preferences", default: {}
+    t.string "slack_user_id"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
     t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
     t.index ["openclaw_api_key_digest"], name: "index_users_on_openclaw_api_key_digest", unique: true, where: "(openclaw_api_key_digest IS NOT NULL)"
     t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
     t.index ["signature_blob_id"], name: "index_users_on_signature_blob_id"
+    t.index ["slack_user_id"], name: "index_users_on_slack_user_id", unique: true, where: "(slack_user_id IS NOT NULL)"
     t.index ["tenant_id"], name: "index_users_on_tenant_id"
     t.index ["user_group_id"], name: "index_users_on_user_group_id"
     t.index ["username"], name: "index_users_on_username", unique: true, where: "(username IS NOT NULL)"

@@ -74,13 +74,14 @@ interface ItemOverride {
 }
 
 /** Tender line classification */
-type TenderClassification = "included" | "incl_hidden" | "excluded" | "pc" | "ps";
+type TenderClassification = "included" | "incl_qty" | "incl_hidden" | "excluded" | "pc" | "ps";
 
 /** PO-level classification options */
-type POClassification = "per_item" | "per_po_incl" | "per_po_nt" | "per_po_exc" | "per_po_pc" | "per_po_ps";
+type POClassification = "per_item" | "per_po_incl" | "per_po_incl_qty" | "per_po_nt" | "per_po_exc" | "per_po_pc" | "per_po_ps";
 
 const CLASSIFICATION_LABELS: Record<TenderClassification, string> = {
   included: "Included",
+  incl_qty: "Incl (Show Qty)",
   incl_hidden: "Incl (No Tender)",
   excluded: "Excluded",
   pc: "Prime Cost",
@@ -582,6 +583,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       if (poCls === "per_po_pc") return "pc";
       if (poCls === "per_po_ps") return "ps";
       if (poCls === "per_po_incl") return "included";
+      if (poCls === "per_po_incl_qty") return "incl_qty";
       if (poCls === "per_po_nt") return "incl_hidden";
       if (poCls === "per_po_exc") return "excluded";
     }
@@ -1309,12 +1311,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           const { headerRow } = headerGroup;
           const isHeaderCollapsed = collapsedHeaders.has(headerRow.name);
 
-          // Compute included subtotal for the header (included + incl_hidden, not PC/PS)
+          // Compute included subtotal for the header (included + incl_qty + incl_hidden, not PC/PS)
           const headerIncludedItems = headerGroup.sections.flatMap((s) =>
             s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> => {
               if (r.type !== "item" || excludedIds.has(r.key)) return false;
               const c = getClassification(r.key, r.poId);
-              return c === "included" || c === "incl_hidden";
+              return c === "included" || c === "incl_qty" || c === "incl_hidden";
             })
           );
           const headerIncludedTotal = headerIncludedItems.reduce((sum, r) => sum + r.amount, 0);
@@ -1354,7 +1356,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                   (r) => {
                     if (excludedIds.has(r.key)) return false;
                     const c = getClassification(r.key, r.poId);
-                    return c === "included" || c === "incl_hidden";
+                    return c === "included" || c === "incl_qty" || c === "incl_hidden";
                   }
                 );
                 const includedSubtotal = includedSectionItems.reduce((sum, r) => sum + r.amount, 0);
@@ -1589,6 +1591,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                     className={cn(
                                       "w-3/5 min-w-0 grid items-center border-b border-border/60 cursor-pointer hover:bg-muted/60 py-1.5",
                                       poLevelCls === "per_po_incl" && "!bg-emerald-50 dark:!bg-emerald-950/30 border-emerald-200 dark:border-emerald-800",
+                                      poLevelCls === "per_po_incl_qty" && "!bg-cyan-50 dark:!bg-cyan-950/30 border-cyan-200 dark:border-cyan-800",
                                       poLevelCls === "per_po_nt" && "!bg-amber-50 dark:!bg-amber-950/30 border-amber-200 dark:border-amber-800",
                                       poLevelCls === "per_po_exc" && "!bg-orange-50 dark:!bg-orange-950/30 border-orange-200 dark:border-orange-800 opacity-40",
                                       poLevelCls === "per_po_pc" && "!bg-blue-50 dark:!bg-blue-950/30 border-blue-200 dark:border-blue-800",
@@ -1630,6 +1633,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           "focus:outline-none focus:ring-1 focus:ring-primary/20",
                                           poLevelCls === "per_item" && "border-border/60 text-muted-foreground",
                                           poLevelCls === "per_po_incl" && "border-emerald-400 text-emerald-700 dark:text-emerald-400 bg-emerald-100 dark:bg-emerald-950/50 font-medium",
+                                          poLevelCls === "per_po_incl_qty" && "border-cyan-400 text-cyan-700 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-950/50 font-medium",
                                           poLevelCls === "per_po_nt" && "border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-950/50 font-medium",
                                           poLevelCls === "per_po_exc" && "border-orange-400 text-orange-700 dark:text-orange-400 bg-orange-100 dark:bg-orange-950/50 font-medium",
                                           poLevelCls === "per_po_pc" && "border-blue-400 text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/50 font-medium",
@@ -1638,6 +1642,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                       >
                                         <option value="per_item">Per Item</option>
                                         <option value="per_po_incl">PO Incl</option>
+                                        <option value="per_po_incl_qty">PO Incl Qty</option>
                                         <option value="per_po_nt">PO NT</option>
                                         <option value="per_po_exc">PO Exc</option>
                                         <option value="per_po_pc">PO PC</option>
@@ -1689,7 +1694,17 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                       const itemCls = getClassification(row.key, row.poId);
                                       if (itemCls !== "incl_hidden" && itemCls !== "excluded") {
                                         previewLineNum++;
-                                        if (itemCls === "pc") {
+                                        if (itemCls === "incl_qty") {
+                                          previewContent = (
+                                            <div className={cn("flex items-center gap-2", previewPad)}>
+                                              <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
+                                              <span className="flex-1 truncate text-[13px]">
+                                                <span className="font-medium tabular-nums">{row.quantity}x</span>{" "}
+                                                {row.description || "—"}
+                                              </span>
+                                            </div>
+                                          );
+                                        } else if (itemCls === "pc") {
                                           previewContent = (
                                             <div className={cn("flex items-center gap-2", previewPad)}>
                                               <span className="text-[11px] text-muted-foreground/60 w-5 text-right shrink-0 tabular-nums">{previewLineNum}.</span>
@@ -1732,6 +1747,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                           (isExcluded || cls === "excluded") && "opacity-40",
                                           isNewLine && "!bg-green-50 dark:!bg-green-950/30",
                                           cls === "excluded" && "!bg-orange-50/50 dark:!bg-orange-950/20",
+                                          cls === "incl_qty" && "!bg-cyan-50/50 dark:!bg-cyan-950/20",
                                           cls === "incl_hidden" && "!bg-amber-50/50 dark:!bg-amber-950/20",
                                           cls === "pc" && "!bg-blue-50/50 dark:!bg-blue-950/20",
                                           cls === "ps" && "!bg-violet-50/50 dark:!bg-violet-950/20",
@@ -1921,6 +1937,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                               "focus:outline-none focus:ring-1 focus:ring-primary/20",
                                               poCls !== "per_item" && "!opacity-40 cursor-not-allowed",
                                               cls === "included" && "border-transparent text-muted-foreground",
+                                              cls === "incl_qty" && "border-cyan-400 text-cyan-700 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-950/30",
                                               cls === "excluded" && "border-orange-400 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30",
                                               cls === "incl_hidden" && "border-amber-400 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30",
                                               cls === "pc" && "border-blue-400 text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30",
@@ -1928,6 +1945,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                                             )}
                                           >
                                             <option value="included">Incl</option>
+                                            <option value="incl_qty">Incl Qty</option>
                                             <option value="excluded">Exc</option>
                                             <option value="incl_hidden">Incl NT</option>
                                             <option value="pc">PC</option>

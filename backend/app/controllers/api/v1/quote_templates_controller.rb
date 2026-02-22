@@ -8,7 +8,7 @@ module Api
       # GET /api/v1/quote_templates
       def index
         templates = QuoteTemplate.active.ordered
-          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [{ supplier: :contact_emails }, :contact_person] })
 
         render json: {
           success: true,
@@ -127,7 +127,7 @@ module Api
 
       def set_template
         @template = QuoteTemplate
-          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [:supplier, :contact_person] })
+          .includes(po_template_pack: :sm_schedule_master_template, quote_template_trades: { sm_schedule_master: [], quote_template_trade_suppliers: [{ supplier: :contact_emails }, :contact_person] })
           .find(params[:id])
       end
 
@@ -192,8 +192,10 @@ module Api
           id: supplier.id,
           supplierId: supplier.supplier_id,
           supplierName: supplier.supplier&.display_name,
+          supplierEmail: supplier.supplier&.primary_email,
           contactPersonId: supplier.contact_person_id,
-          contactPersonName: supplier.contact_person&.name,
+          contactPersonName: supplier.contact_person&.display_name,
+          contactPersonEmail: supplier.contact_person&.email,
           position: supplier.position,
           isPreferred: supplier.is_preferred
         }

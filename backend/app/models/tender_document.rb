@@ -100,15 +100,15 @@ class TenderDocument < ApplicationRecord
 
   def section_subtotals
     tender_document_items
-      .where(item_type: %w[priced provisional])
+      .where(item_type: %w[priced provisional included])
       .group(:tender_section_name)
       .sum(:total_amount)
   end
 
-  # Header-level subtotals (sum of all priced + provisional items under each header)
+  # Header-level subtotals (sum of all priced + provisional + included items under each header)
   def header_subtotals
     tender_document_items
-      .where(item_type: %w[priced provisional])
+      .where(item_type: %w[priced provisional included])
       .group(:tender_header_name)
       .sum(:total_amount)
   end
@@ -142,7 +142,7 @@ class TenderDocument < ApplicationRecord
       },
       "section_subtotals" => section_subtotals.transform_keys(&:to_s),
       "header_subtotals" => header_subtotals.transform_keys(&:to_s),
-      "base_price" => tender_document_items.where(item_type: "included", excluded: false).count,
+      "base_price" => tender_document_items.where(item_type: "included", excluded: false).sum(:total_amount),
       "pc_total" => tender_document_items.where(item_type: "priced", excluded: false).sum(:total_amount),
       "ps_total" => tender_document_items.where(item_type: "provisional", excluded: false).sum(:total_amount),
       "created_by_name" => created_by&.name,

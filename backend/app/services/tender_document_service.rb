@@ -80,10 +80,14 @@ class TenderDocumentService
         sections_with_items << tender_section&.id if tender_section
 
         po_total = po.line_items.sum { |li| (li.quantity || 0).to_d * (li.unit_price || 0).to_d }
-        # All PO-level summaries are priced (contribute to total)
+        # Map PO-level classification to item_type
+        # "included" = bundled into base price (client sees "Included", no price)
+        # "priced" = Prime Cost (client sees price + "Prime Cost" label)
+        # "provisional" = Provisional Sum (client sees price + "Provisional Sum" label)
         summary_type = case po_cls
                        when "per_po_ps" then "provisional"
-                       else "priced" # per_po_incl, per_po_pc — all priced with amount
+                       when "per_po_incl", "per_po_incl_qty" then "included"
+                       else "priced" # per_po_pc — Prime Cost with amount
                        end
 
         task_name = po.sm_task&.name || po.description || "Purchase Order"
@@ -124,12 +128,13 @@ class TenderDocumentService
         sections_with_items << tender_section&.id if tender_section
 
         # Map classification to item_type
-        # "included" = standard inclusion (priced, contributes to total)
-        # "pc" = prime cost allowance (priced, shown as PC)
-        # "ps" = provisional sum (shown as PS)
+        # "included" = bundled into base price (client sees "Included", no price)
+        # "priced" = Prime Cost allowance (client sees price + "Prime Cost" label)
+        # "provisional" = Provisional Sum (client sees price + "Provisional Sum" label)
         mapped_type = case item_cls
                       when "ps" then "provisional"
-                      else "priced" # "included", "pc", or default — all priced with amount
+                      when "included", "incl_qty" then "included"
+                      else "priced" # "pc" or default — Prime Cost with amount
                       end
 
         # Apply user overrides from the Tender Builder (description, quantity, unit_price)
@@ -267,8 +272,8 @@ class TenderDocumentService
   end
 
   def calculate_totals!(doc)
-    # Include both priced and provisional items in totals (not "included" or "note")
-    countable_items = doc.tender_document_items.where(item_type: %w[priced provisional], excluded: false)
+    # Include priced (PC), provisional (PS), and included items in totals (not "note")
+    countable_items = doc.tender_document_items.where(item_type: %w[priced provisional included], excluded: false)
     subtotal = countable_items.sum(:total_amount)
 
     # Calculate GST per item using GstCode rates

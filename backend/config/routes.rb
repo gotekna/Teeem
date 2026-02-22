@@ -1700,6 +1700,30 @@ Rails.application.routes.draw do
         end
       end
 
+      # AI Assistant (smart construction manager assistant)
+      post "assistant/chat", to: "assistant#chat"
+      get "assistant/conversations", to: "assistant#conversations"
+      get "assistant/conversations/:id/history", to: "assistant#history"
+      post "assistant/conversations/new", to: "assistant#new_conversation"
+      get "assistant/actions", to: "assistant#actions"
+      post "assistant/actions/:id/approve", to: "assistant#approve_action"
+      post "assistant/actions/:id/reject", to: "assistant#reject_action"
+      get "assistant/alerts", to: "assistant#alerts"
+      post "assistant/alerts/:id/dismiss", to: "assistant#dismiss_alert"
+      get "assistant/preferences", to: "assistant#preferences"
+      put "assistant/preferences", to: "assistant#update_preferences"
+      get "assistant/cross_channel/:contact_id", to: "assistant#cross_channel_context"
+
+      # AI Assistant webhooks (Phase 2-4: WhatsApp, SMS, Slack, Signal)
+      # These skip auth - validated by provider signatures
+      post "assistant/whatsapp/webhook", to: "assistant/whatsapp#webhook"
+      post "assistant/whatsapp/status", to: "assistant/whatsapp#status_webhook"
+      post "assistant/sms/webhook", to: "assistant/sms#webhook"
+      post "assistant/sms/status", to: "assistant/sms#status_webhook"
+      post "assistant/slack/events", to: "assistant/slack#events"
+      post "assistant/slack/command", to: "assistant/slack#command"
+      post "assistant/slack/interactions", to: "assistant/slack#interactions"
+
       # Writing Assistant (AI-powered spell check, grammar, tone)
       post "writing_assistant/check", to: "writing_assistant#check"
 

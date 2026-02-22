@@ -176,6 +176,12 @@ class AssistantService
       tool_get_notifications(input)
     when "draft_sms"
       tool_draft_sms(input, conversation)
+    when "send_whatsapp"
+      tool_send_whatsapp(input, conversation)
+    when "send_slack"
+      tool_send_slack(input, conversation)
+    when "get_cross_channel_context"
+      tool_get_cross_channel_context(input)
     else
       { output: "Unknown tool: #{name}", action: nil }
     end
@@ -446,6 +452,70 @@ class AssistantService
     }
   end
 
+  # Phase 2+: WhatsApp, Slack, Cross-channel tools
+
+  def tool_send_whatsapp(input, conversation)
+    action = AssistantAction.create!(
+      user: @user,
+      tenant_id: @tenant.id,
+      assistant_conversation: conversation,
+      action_type: "send_whatsapp",
+      status: "pending",
+      description: "Send WhatsApp to #{input['to']}",
+      action_data: {
+        to: input["to"],
+        body: input["body"],
+        contact_id: input["contact_id"]
+      }
+    )
+
+    {
+      output: "WhatsApp message prepared (Action ##{action.id}). The user will review and approve before sending.",
+      action: action
+    }
+  end
+
+  def tool_send_slack(input, conversation)
+    action = AssistantAction.create!(
+      user: @user,
+      tenant_id: @tenant.id,
+      assistant_conversation: conversation,
+      action_type: "send_slack",
+      status: "pending",
+      description: "Send Slack message to #{input['channel_or_user']}",
+      action_data: {
+        channel_or_user: input["channel_or_user"],
+        body: input["body"]
+      }
+    )
+
+    {
+      output: "Slack message prepared (Action ##{action.id}). The user will review and approve before sending.",
+      action: action
+    }
+  end
+
+  def tool_get_cross_channel_context(input)
+    contact = Contact.find_by(id: input["contact_id"])
+    return { output: "Contact not found", action: nil } unless contact
+
+    service = CrossChannelContextService.new(user: @user, tenant: @tenant)
+    context = service.unified_context_for(contact: contact, hours: input["hours"] || 72)
+
+    summary = {
+      contact: contact.display_name,
+      channels: context[:channels],
+      message_count: context[:messages].size,
+      topic_clusters: context[:topic_clusters].size,
+      summary: context[:summary],
+      recent_messages: context[:messages].last(5).map do |m|
+        { channel: m[:channel], content: m[:content]&.truncate(150), timestamp: m[:timestamp]&.strftime("%d/%m %H:%M") }
+      end
+    }
+
+    { output: summary.to_json, action: nil }
+  end
+
   # ========================================
   # Helpers
   # ========================================
@@ -477,9 +547,10 @@ class AssistantService
       You help construction managers by:
       - Answering questions about their jobs, tasks, and schedule
       - Searching emails and contacts
-      - Drafting replies to emails and SMS messages
+      - Drafting replies across channels (email, SMS, WhatsApp, Slack)
       - Creating and updating tasks
       - Alerting about overdue items and schedule delays
+      - Showing cross-channel context (same person contacting via multiple channels)
 
       IMPORTANT RULES:
       1. Be concise and professional. Construction managers are busy.
@@ -640,6 +711,43 @@ class AssistantService
             contact_id: { type: "integer", description: "Optional contact ID" }
           },
           required: ["to", "body"]
+        }
+      },
+      {
+        name: "send_whatsapp",
+        description: "Send a WhatsApp message. The user will review and approve before it's sent.",
+        input_schema: {
+          type: "object",
+          properties: {
+            to: { type: "string", description: "Recipient phone number or contact name" },
+            body: { type: "string", description: "WhatsApp message body" },
+            contact_id: { type: "integer", description: "Optional contact ID" }
+          },
+          required: ["to", "body"]
+        }
+      },
+      {
+        name: "send_slack",
+        description: "Send a message via Slack. The user will review and approve before it's sent.",
+        input_schema: {
+          type: "object",
+          properties: {
+            channel_or_user: { type: "string", description: "Slack channel name or user name" },
+            body: { type: "string", description: "Slack message body" }
+          },
+          required: ["channel_or_user", "body"]
+        }
+      },
+      {
+        name: "get_cross_channel_context",
+        description: "Get unified cross-channel communication context for a contact (email + SMS + WhatsApp + Slack + Signal)",
+        input_schema: {
+          type: "object",
+          properties: {
+            contact_id: { type: "integer", description: "Contact ID to look up" },
+            hours: { type: "integer", description: "How many hours back to look (default 72)" }
+          },
+          required: ["contact_id"]
         }
       }
     ]
