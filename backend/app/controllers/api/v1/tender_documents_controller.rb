@@ -182,11 +182,14 @@ module Api
             latest.settings["builder_state"] = builder_state
             latest.save!
           else
+            # Create a draft tender document to hold builder state
+            # Version must be >= 1 (model validation), so use next_version_number
+            next_ver = (@job.tender_documents.maximum(:version) || 0) + 1
             @job.tender_documents.create!(
               tenant: current_tenant,
               created_by: current_user,
-              document_number: "TD-#{@job.job_code || @job.id}-DRAFT",
-              version: 0,
+              document_number: "TD-DRAFT-#{@job.job_code || @job.id}-#{SecureRandom.hex(4)}",
+              version: next_ver,
               status: "draft",
               date_prepared: Date.current,
               settings: { "builder_state" => builder_state }

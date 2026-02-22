@@ -12,7 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Plus, Download, Send, RotateCcw, Check, XCircle, ArrowLeft, ArrowLeftRight } from "lucide-react";
+import { FileText, Plus, Download, Send, RotateCcw, Check, XCircle, ArrowLeft, ArrowLeftRight, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { pollPdfGeneration } from "@/lib/pdf-generation";
 import { TenderVersionHistory } from "@/components/tenders/TenderVersionHistory";
@@ -36,6 +36,7 @@ export default function JobTenderTab({ jobId }: JobTenderTabProps) {
   const [diffData, setDiffData] = React.useState<{ sections: DiffSection[]; vA: number; vB: number } | null>(null);
   const [viewMode, setViewMode] = React.useState<ViewMode>("list");
   const [loading, setLoading] = React.useState(true);
+  const [fetchError, setFetchError] = React.useState<string | null>(null);
   const [actionLoading, setActionLoading] = React.useState<string | null>(null);
   const [revisionDialogOpen, setRevisionDialogOpen] = React.useState(false);
   const [revisionNotes, setRevisionNotes] = React.useState("");
@@ -43,14 +44,16 @@ export default function JobTenderTab({ jobId }: JobTenderTabProps) {
   // Fetch all tender documents for this job
   const fetchDocuments = React.useCallback(async () => {
     try {
+      setFetchError(null);
       const response = await api.get<{ success: boolean; data: { tender_documents: TenderDocumentSummary[]; total_count: number } }>(
         `/api/v1/jobs/${jobId}/tender_documents`
       );
       if (response?.success) {
         setDocuments(response.data.tender_documents || []);
       }
-    } catch {
-      // Silently fail - empty state will show
+    } catch (err) {
+      console.error("Failed to fetch tender documents:", err);
+      setFetchError("Failed to load tender documents. Please try refreshing.");
     } finally {
       setLoading(false);
     }
@@ -374,7 +377,16 @@ export default function JobTenderTab({ jobId }: JobTenderTabProps) {
         </Button>
       </div>
 
-      {documents.length === 0 ? (
+      {fetchError ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-destructive">{fetchError}</p>
+            <Button variant="outline" onClick={fetchDocuments} className="mt-4" size="sm">
+              <RefreshCw className="h-4 w-4 mr-1" /> Retry
+            </Button>
+          </CardContent>
+        </Card>
+      ) : documents.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-3" />
