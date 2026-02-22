@@ -576,6 +576,7 @@ export default function TeeemTableView({
   hideFooter = false,
   hideAddRecord = false,
   alwaysVisibleColumns = [],
+  initiallyHiddenColumns = [],
   enableFullscreen = true, // SSoT: Default enabled for all tables
   stats,
   category,
@@ -1453,13 +1454,20 @@ export default function TeeemTableView({
 
   const DEFAULT_COLUMN_ORDER = useMemo(() => COLUMNS.map((c) => c.key), [COLUMNS]);
 
+  const hiddenSet = useMemo(() => new Set(initiallyHiddenColumns), [initiallyHiddenColumns]);
   const getDefaultVisibleColumns = useCallback(
     () =>
       COLUMNS.reduce((acc, col) => {
-        acc[col.key] = true;
+        acc[col.key] = !hiddenSet.has(col.key);
         return acc;
       }, {} as VisibleColumnsState),
-    [COLUMNS]
+    [COLUMNS, hiddenSet]
+  );
+
+  // Columns with initiallyHiddenColumns filtered out (for dialogs that should not show these fields)
+  const dialogColumns = useMemo(
+    () => hiddenSet.size > 0 ? COLUMNS.filter(c => !hiddenSet.has(c.key)) : COLUMNS,
+    [COLUMNS, hiddenSet]
   );
 
   // Get default searchable columns from foundation schema (SSoT)
@@ -3860,8 +3868,8 @@ export default function TeeemTableView({
     const orderedVisible = columnOrder
       .filter((key) => {
         if (!isVisibilityInitialized) {
-          // Not initialized yet - show all except system columns
-          return !isVisibleSystemColumn(key);
+          // Not initialized yet - show all except system columns and initiallyHiddenColumns
+          return !isVisibleSystemColumn(key) && !hiddenSet.has(key);
         }
         return visibleColumns[key] === true;
       })
@@ -3906,7 +3914,7 @@ export default function TeeemTableView({
     });
 
     return orderedVisible;
-  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, stickyActions]);
+  }, [columnOrder, visibleColumns, COLUMNS, alwaysVisibleColumns, hiddenSet, stickyActions]);
 
   // Calculate total table width based on column widths
   const totalTableWidth = useMemo(() => {
@@ -6580,7 +6588,7 @@ export default function TeeemTableView({
             onOpenChange={setShowAddRecordModal}
             foundationId={effectiveFoundationId}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
             editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowAddRecordModal(false);
@@ -6598,7 +6606,7 @@ export default function TeeemTableView({
             onOpenChange={setShowEditRecordModal}
             foundationId={effectiveFoundationId}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
             record={selectedRecordForModal}
             editModalConfig={editModalConfig}
             onSuccess={() => {
@@ -6622,7 +6630,7 @@ export default function TeeemTableView({
               if (!open) setSelectedRecordForModal(null);
             }}
             tableName={tableName}
-            columns={COLUMNS}
+            columns={dialogColumns}
             record={selectedRecordForModal}
             onEdit={() => {
               // Switch from View to Edit mode

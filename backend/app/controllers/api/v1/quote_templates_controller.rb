@@ -20,7 +20,7 @@ module Api
       # Returns active PO Template Packs for the picker dropdown
       def po_packs
         packs = PoTemplatePack.active.ordered
-          .includes(:sm_schedule_master_template, po_template_items: [:sm_schedule_master, :supplier])
+          .includes(:sm_schedule_master_template, po_template_items: [:sm_schedule_master, :supplier, :po_template_line_items])
 
         render json: {
           success: true,
@@ -38,7 +38,9 @@ module Api
                   smScheduleMasterId: item.sm_schedule_master_id,
                   smScheduleMasterName: item.sm_schedule_master&.name,
                   supplierId: item.supplier_id,
-                  supplierName: item.supplier&.display_name
+                  supplierName: item.supplier&.display_name,
+                  supplierIsPriceOnly: item.supplier&.entity_type == "price_only",
+                  pricebookItemIds: item.po_template_line_items.filter_map(&:pricebook_item_id)
                 }
               }
             }
@@ -60,9 +62,6 @@ module Api
         template.created_by = current_user
 
         if template.save
-          # Auto-populate trades from pack if one was selected
-          template.populate_from_pack! if template.po_template_pack_id.present?
-
           render json: { success: true, data: template_json(template.reload, include_details: true) }, status: :created
         else
           render_validation_errors(template)
@@ -72,13 +71,8 @@ module Api
       # PATCH /api/v1/quote_templates/:id
       def update
         @template.updated_by = current_user
-        pack_changed = template_params[:po_template_pack_id].present? &&
-                       template_params[:po_template_pack_id].to_i != @template.po_template_pack_id
 
         if @template.update(template_params)
-          # Re-populate trades if pack was changed
-          @template.populate_from_pack! if pack_changed
-
           render json: { success: true, data: template_json(@template.reload, include_details: true) }
         else
           render_validation_errors(@template)

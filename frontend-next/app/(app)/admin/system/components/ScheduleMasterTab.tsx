@@ -560,7 +560,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   const LOOKUP_TABLES = [
     { id: "sm_trades", name: "SM Trades", description: "Trade types for schedule tasks (e.g., CARPENTER, ELECTRICIAN)" },
     { id: "sm_stages", name: "SM Stages", description: "Stage types for schedule tasks (e.g., 01 Slab, 05 Enclosed)" },
-    { id: "cost_centres", name: "Cost Centres", description: "Cost centres for categorizing schedule tasks" },
     { id: "sm_task_groups", name: "Task Groups", description: "Group PO and non-PO tasks together - when any PO from group is on job, all linked tasks appear" },
   ] as const;
   type LookupTableId = typeof LOOKUP_TABLES[number]["id"];
@@ -4118,12 +4117,6 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
                     enableExport={true}
                     autoFetchRecords
                     onRefresh={() => setLookupTableRefreshKey(k => k + 1)}
-                    {...(table.id === "cost_centres" ? {
-                      createDialogRenderExtra: renderPoTaskPickerForCreate,
-                      createDialogOnAfterSave: handleCostCentreAfterSave,
-                      editDialogRenderExtra: renderPoTaskPickerForEdit,
-                      editDialogOnAfterSave: handleCostCentreAfterSave,
-                    } : {})}
                   />
                 </div>
               )

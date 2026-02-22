@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_160000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -384,6 +384,86 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_160000) do
     t.index ["company_id"], name: "index_assets_on_company_id"
     t.index ["registration_number"], name: "index_assets_on_registration_number"
     t.index ["tenant_id"], name: "index_assets_on_tenant_id"
+  end
+
+  create_table "assistant_actions", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.bigint "assistant_conversation_id"
+    t.string "action_type", limit: 50, null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.text "description"
+    t.jsonb "action_data", default: {}
+    t.jsonb "result_data", default: {}
+    t.string "source_type"
+    t.bigint "source_id"
+    t.datetime "approved_at"
+    t.datetime "executed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assistant_conversation_id"], name: "index_assistant_actions_on_assistant_conversation_id"
+    t.index ["source_type", "source_id"], name: "index_assistant_actions_on_source_type_and_source_id"
+    t.index ["status"], name: "index_assistant_actions_on_status"
+    t.index ["tenant_id"], name: "index_assistant_actions_on_tenant_id"
+    t.index ["user_id", "action_type"], name: "index_assistant_actions_on_user_id_and_action_type"
+    t.index ["user_id", "status"], name: "index_assistant_actions_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_actions_on_user_id"
+  end
+
+  create_table "assistant_alerts", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "alert_type", limit: 50, null: false
+    t.string "priority", limit: 20, default: "medium", null: false
+    t.string "status", limit: 20, default: "pending", null: false
+    t.string "title", limit: 255, null: false
+    t.text "summary"
+    t.jsonb "context_data", default: {}
+    t.string "source_type"
+    t.bigint "source_id"
+    t.bigint "assistant_action_id"
+    t.datetime "seen_at"
+    t.datetime "actioned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["alert_type"], name: "index_assistant_alerts_on_alert_type"
+    t.index ["assistant_action_id"], name: "index_assistant_alerts_on_assistant_action_id"
+    t.index ["source_type", "source_id"], name: "index_assistant_alerts_on_source_type_and_source_id"
+    t.index ["tenant_id"], name: "index_assistant_alerts_on_tenant_id"
+    t.index ["user_id", "priority"], name: "index_assistant_alerts_on_user_id_and_priority"
+    t.index ["user_id", "status"], name: "index_assistant_alerts_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_alerts_on_user_id"
+  end
+
+  create_table "assistant_conversations", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "tenant_id", null: false
+    t.string "title", limit: 255
+    t.string "channel", limit: 50, default: "web", null: false
+    t.string "status", limit: 20, default: "active", null: false
+    t.jsonb "metadata", default: {}
+    t.datetime "last_message_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["last_message_at"], name: "index_assistant_conversations_on_last_message_at"
+    t.index ["tenant_id"], name: "index_assistant_conversations_on_tenant_id"
+    t.index ["user_id", "channel"], name: "index_assistant_conversations_on_user_id_and_channel"
+    t.index ["user_id", "status"], name: "index_assistant_conversations_on_user_id_and_status"
+    t.index ["user_id"], name: "index_assistant_conversations_on_user_id"
+  end
+
+  create_table "assistant_messages", force: :cascade do |t|
+    t.bigint "assistant_conversation_id", null: false
+    t.string "role", limit: 20, null: false
+    t.text "content"
+    t.string "content_type", limit: 30, default: "text"
+    t.jsonb "tool_calls", default: []
+    t.jsonb "tool_results", default: []
+    t.jsonb "metadata", default: {}
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assistant_conversation_id", "created_at"], name: "idx_assistant_msgs_conversation_created"
+    t.index ["assistant_conversation_id"], name: "index_assistant_messages_on_assistant_conversation_id"
   end
 
   create_table "ato_effective_life_categories", force: :cascade do |t|
@@ -11358,6 +11438,15 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_160000) do
   add_foreign_key "assets", "corporates", column: "company_id"
   add_foreign_key "assets", "tenants"
   add_foreign_key "assets", "users", column: "assigned_user_id"
+  add_foreign_key "assistant_actions", "assistant_conversations"
+  add_foreign_key "assistant_actions", "tenants"
+  add_foreign_key "assistant_actions", "users"
+  add_foreign_key "assistant_alerts", "assistant_actions"
+  add_foreign_key "assistant_alerts", "tenants"
+  add_foreign_key "assistant_alerts", "users"
+  add_foreign_key "assistant_conversations", "tenants"
+  add_foreign_key "assistant_conversations", "users"
+  add_foreign_key "assistant_messages", "assistant_conversations"
   add_foreign_key "ato_effective_life_rates", "ato_effective_life_categories"
   add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "primary_credential_id"
   add_foreign_key "backup_configurations", "s3_compatible_credentials", column: "secondary_credential_id"

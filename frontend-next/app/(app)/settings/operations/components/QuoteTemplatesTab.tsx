@@ -30,11 +30,13 @@ import {
   Users,
   FileText,
   Package,
+  BarChart3,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import PriceComparisonSheet from "@/app/(app)/pricebook/components/PriceComparisonSheet";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Types matching backend JSON response (camelCase)
@@ -47,6 +49,8 @@ interface PoPackItem {
   smScheduleMasterName: string | null;
   supplierId: number | null;
   supplierName: string | null;
+  supplierIsPriceOnly: boolean | null;
+  pricebookItemIds: number[];
 }
 
 interface PoPack {
@@ -132,6 +136,10 @@ export function QuoteTemplatesTab() {
   const [showAllSuppliers, setShowAllSuppliers] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Price comparison sheet state
+  const [priceCompareIds, setPriceCompareIds] = useState<number[]>([]);
+  const [priceCompareSupplierIds, setPriceCompareSupplierIds] = useState<number[]>([]);
+
   // ─────────────────────────────────────────────────────────────────────────
   // Data Loading
   // ─────────────────────────────────────────────────────────────────────────
@@ -184,14 +192,20 @@ export function QuoteTemplatesTab() {
     try {
       setSupplierSearchLoading(true);
       const searchParam = query ? `&search=${encodeURIComponent(query)}` : "";
-      const response = await api.get<{ success: boolean; records: Array<{ id: number; values: Record<string, unknown> }> }>(
+      // Contacts is a system foundation — fields are top-level on each record, not nested under `values`
+      const response = await api.get<{ success: boolean; records: Array<Record<string, unknown> & { id: number }> }>(
         `/api/v1/foundations/contacts/records?per_page=50${searchParam}`
       );
       const records = response?.records || [];
-      setSupplierItems(records.map(r => ({
-        id: String(r.id),
-        label: (r.values?.name as string) || (r.values?.display_name as string) || `Contact ${r.id}`,
-      })));
+      // Filter out price_only and person contacts — only real suppliers can be quoted
+      setSupplierItems(
+        records
+          .filter(r => r.entity_type !== "price_only" && r.entity_type !== "person")
+          .map(r => ({
+            id: String(r.id),
+            label: (r.display_name as string) || (r.company_name_or_trust as string) || `Contact ${r.id}`,
+          }))
+      );
       setSuppliersLoaded(true);
     } catch (err) {
       console.error("[QuoteTemplatesTab] Failed to load suppliers:", err);
@@ -209,22 +223,36 @@ export function QuoteTemplatesTab() {
   // Helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Get the selected pack's supplier items (for default supplier filtering)
+  // Get the selected pack's real supplier items (excluding price_only contacts)
   const getPackSupplierItems = useCallback((packId: number | null): ComboboxItem[] => {
     if (!packId) return [];
     const pack = poPacks.find(p => p.id === packId);
     if (!pack) return [];
 
-    // Dedupe: one pack can have the same supplier on multiple items
+    // Dedupe + filter out price_only contacts (they have no real supplier info)
     const seen = new Set<number>();
     const items: ComboboxItem[] = [];
     for (const item of pack.items) {
-      if (item.supplierId && !seen.has(item.supplierId)) {
+      if (item.supplierId && !item.supplierIsPriceOnly && !seen.has(item.supplierId)) {
         seen.add(item.supplierId);
         items.push({ id: String(item.supplierId), label: item.supplierName || `Supplier ${item.supplierId}` });
       }
     }
     return items;
+  }, [poPacks]);
+
+  // Open PriceComparisonSheet for a specific task's pricebook items
+  const handleViewPrices = useCallback((smScheduleMasterId: number, packId: number | null) => {
+    if (!packId) return;
+    const pack = poPacks.find(p => p.id === packId);
+    if (!pack) return;
+    const packItem = pack.items.find(i => i.smScheduleMasterId === smScheduleMasterId);
+    if (!packItem || packItem.pricebookItemIds.length === 0) {
+      toast.error("No pricebook items linked to this task's PO line items");
+      return;
+    }
+    setPriceCompareIds(packItem.pricebookItemIds);
+    setPriceCompareSupplierIds(packItem.supplierId ? [packItem.supplierId] : []);
   }, [poPacks]);
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -319,14 +347,30 @@ export function QuoteTemplatesTab() {
       const existingTasks = editingTemplate.trades || [];
       const maxPosition = existingTasks.reduce((max, t) => Math.max(max, t.position), -1);
 
+      // Check if the pack has a real supplier for this task — auto-add as preferred
+      // Skip price_only contacts (they have no real supplier info for quoting)
+      const pack = poPacks.find(p => p.id === editingTemplate.poTemplatePackId);
+      const packItem = pack?.items.find(i => i.smScheduleMasterId === smScheduleMasterId);
+      const hasRealSupplier = packItem?.supplierId && !packItem.supplierIsPriceOnly;
+
+      const tradeAttrs: Record<string, unknown> = {
+        sm_schedule_master_id: smScheduleMasterId,
+        position: maxPosition + 1,
+      };
+
+      if (hasRealSupplier) {
+        tradeAttrs.quote_template_trade_suppliers_attributes = [
+          { supplier_id: packItem.supplierId, position: 0, is_preferred: true },
+        ];
+      }
+
       await api.patch(`/api/v1/quote_templates/${templateId}`, {
         quote_template: {
-          quote_template_trades_attributes: [
-            { sm_schedule_master_id: smScheduleMasterId, position: maxPosition + 1 },
-          ],
+          quote_template_trades_attributes: [tradeAttrs],
         },
       });
-      toast.success("PO Task added");
+      const supplierMsg = hasRealSupplier ? ` with ${packItem.supplierName}` : "";
+      toast.success(`PO Task added${supplierMsg}`);
       loadTemplateDetail(templateId);
     } catch (err) {
       console.error("[QuoteTemplatesTab] Add task failed:", err);
@@ -439,24 +483,6 @@ export function QuoteTemplatesTab() {
       loadTemplateDetail(templateId);
     } catch (err) {
       console.error("[QuoteTemplatesTab] Toggle preferred failed:", err);
-    }
-  };
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Re-populate from pack
-  // ─────────────────────────────────────────────────────────────────────────
-
-  const handleResyncFromPack = async (templateId: number) => {
-    try {
-      setSaving(true);
-      await api.post(`/api/v1/quote_templates/${templateId}/populate_from_pack`);
-      toast.success("Synced tasks from PO Template");
-      loadTemplateDetail(templateId);
-    } catch (err) {
-      console.error("[QuoteTemplatesTab] Resync failed:", err);
-      toast.error("Failed to sync from PO Template");
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -638,7 +664,7 @@ export function QuoteTemplatesTab() {
                     <div className="text-sm text-muted-foreground py-4 text-center">
                       <Package className="h-6 w-6 mx-auto mb-2 opacity-50" />
                       <p className="font-medium">No PO Template linked</p>
-                      <p className="mt-1">Edit this template to link it to a PO Template, then tasks and suppliers will be auto-populated.</p>
+                      <p className="mt-1">Edit this template to link it to a PO Template for task and supplier suggestions.</p>
                     </div>
                   ) : (
                     <TemplateEditor
@@ -665,7 +691,11 @@ export function QuoteTemplatesTab() {
                         handleTogglePreferred(template.id, taskRowId, supplierRow)
                       }
                       onSearchSuppliers={loadSuppliers}
-                      onResyncFromPack={() => handleResyncFromPack(template.id)}
+                      onViewPrices={(smScheduleMasterId) =>
+                        handleViewPrices(smScheduleMasterId, editingTemplate.poTemplatePackId)
+                      }
+                      poPacks={poPacks}
+                      packId={editingTemplate.poTemplatePackId}
                     />
                   )}
                 </div>
@@ -785,6 +815,17 @@ export function QuoteTemplatesTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Price Comparison Sheet */}
+      <PriceComparisonSheet
+        open={priceCompareIds.length > 0}
+        onOpenChange={(open: boolean) => { if (!open) setPriceCompareIds([]); }}
+        selectedIds={priceCompareIds}
+        clearSelection={() => {}}
+        onRefresh={() => {}}
+        includeSupplierIds={priceCompareSupplierIds}
+        expandToSupplierItems={true}
+      />
     </div>
   );
 }
@@ -809,7 +850,9 @@ interface TemplateEditorProps {
   onRemoveSupplier: (taskRowId: number, supplierRowId: number) => void;
   onTogglePreferred: (taskRowId: number, supplierRow: QuoteTemplateSupplier) => void;
   onSearchSuppliers: (query?: string) => void;
-  onResyncFromPack: () => void;
+  onViewPrices: (smScheduleMasterId: number) => void;
+  poPacks: PoPack[];
+  packId: number | null;
 }
 
 function TemplateEditor({
@@ -828,59 +871,43 @@ function TemplateEditor({
   onRemoveSupplier,
   onTogglePreferred,
   onSearchSuppliers,
-  onResyncFromPack,
+  onViewPrices,
+  poPacks,
+  packId,
 }: TemplateEditorProps) {
   const templateTasks = template.trades || [];
 
   return (
     <div className="space-y-4">
-      {/* Controls bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="show-all-suppliers"
-              checked={showAllSuppliers}
-              onCheckedChange={() => onToggleShowAll()}
-            />
-            <label htmlFor="show-all-suppliers" className="text-sm text-muted-foreground cursor-pointer">
-              Show all suppliers
-            </label>
-          </div>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onResyncFromPack}
-          disabled={saving}
-        >
-          <Package className="h-3.5 w-3.5 mr-1" />
-          Re-sync from PO Template
-        </Button>
-      </div>
-
       {/* Tasks List */}
       {templateTasks.length === 0 ? (
         <p className="text-sm text-muted-foreground py-2">
-          No PO tasks yet. Tasks will be auto-populated from the linked PO Template, or add one manually.
+          No PO tasks yet. Add a task from the linked PO Template below.
         </p>
       ) : (
         <div className="space-y-3">
-          {templateTasks.map((task) => (
-            <TaskSection
-              key={task.id}
-              task={task}
-              supplierItems={showAllSuppliers ? supplierItems : packSupplierItems}
-              supplierSearchLoading={supplierSearchLoading}
-              showAllSuppliers={showAllSuppliers}
-              onRemove={() => onRemoveTask(task.id)}
-              onUpdateInstructions={(instructions) => onUpdateInstructions(task.id, instructions)}
-              onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
-              onRemoveSupplier={(supplierRowId) => onRemoveSupplier(task.id, supplierRowId)}
-              onTogglePreferred={(supplierRow) => onTogglePreferred(task.id, supplierRow)}
-              onSearchSuppliers={onSearchSuppliers}
-            />
-          ))}
+          {templateTasks.map((task) => {
+            const pack = packId ? poPacks.find(p => p.id === packId) : null;
+            const packItem = pack?.items.find(i => i.smScheduleMasterId === task.smScheduleMasterId);
+            const hasPricebookItems = (packItem?.pricebookItemIds?.length ?? 0) > 0;
+            return (
+              <TaskSection
+                key={task.id}
+                task={task}
+                supplierItems={showAllSuppliers ? supplierItems : packSupplierItems}
+                supplierSearchLoading={supplierSearchLoading}
+                showAllSuppliers={showAllSuppliers}
+                onToggleShowAll={onToggleShowAll}
+                onRemove={() => onRemoveTask(task.id)}
+                onUpdateInstructions={(instructions) => onUpdateInstructions(task.id, instructions)}
+                onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
+                onRemoveSupplier={(supplierRowId) => onRemoveSupplier(task.id, supplierRowId)}
+                onTogglePreferred={(supplierRow) => onTogglePreferred(task.id, supplierRow)}
+                onSearchSuppliers={onSearchSuppliers}
+                onViewPrices={hasPricebookItems ? () => onViewPrices(task.smScheduleMasterId) : undefined}
+              />
+            );
+          })}
         </div>
       )}
 
@@ -911,12 +938,14 @@ interface TaskSectionProps {
   supplierItems: ComboboxItem[];
   supplierSearchLoading: boolean;
   showAllSuppliers: boolean;
+  onToggleShowAll: () => void;
   onRemove: () => void;
   onUpdateInstructions: (instructions: string) => void;
   onAddSupplier: (supplierId: number) => void;
   onRemoveSupplier: (supplierRowId: number) => void;
   onTogglePreferred: (supplierRow: QuoteTemplateSupplier) => void;
   onSearchSuppliers: (query?: string) => void;
+  onViewPrices?: () => void;
 }
 
 function TaskSection({
@@ -924,12 +953,14 @@ function TaskSection({
   supplierItems,
   supplierSearchLoading,
   showAllSuppliers,
+  onToggleShowAll,
   onRemove,
   onUpdateInstructions,
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
   onSearchSuppliers,
+  onViewPrices,
 }: TaskSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [instructionsValue, setInstructionsValue] = useState(task.defaultInstructions || "");
@@ -963,6 +994,20 @@ function TaskSection({
         <Badge variant="secondary" className="text-xs">
           {task.suppliers.length} {task.suppliers.length === 1 ? "supplier" : "suppliers"}
         </Badge>
+        {onViewPrices && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            title="View price history for this task's pricebook items"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewPrices();
+            }}
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"
@@ -1042,7 +1087,7 @@ function TaskSection({
             )}
 
             {/* Add Supplier */}
-            <div className="pt-1">
+            <div className="flex items-center gap-3 pt-1">
               <ComboboxDropdown
                 items={availableSupplierItems}
                 onSelect={(item) => onAddSupplier(Number(item.id))}
@@ -1054,6 +1099,22 @@ function TaskSection({
                 emptyResults={showAllSuppliers ? "No matching contacts" : "No more suppliers from this PO template"}
                 className="w-56"
               />
+              <div className="flex items-center gap-1.5">
+                <Checkbox
+                  id={`show-all-${task.id}`}
+                  checked={showAllSuppliers}
+                  onCheckedChange={() => onToggleShowAll()}
+                  className="h-3.5 w-3.5"
+                  title="Excludes price-only and person contacts"
+                />
+                <label
+                  htmlFor={`show-all-${task.id}`}
+                  className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap"
+                  title="Search all company and supplier contacts (excludes price-only and person contacts)"
+                >
+                  Show all contacts
+                </label>
+              </div>
             </div>
           </div>
         </div>

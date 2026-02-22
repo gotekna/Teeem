@@ -112,6 +112,7 @@ export function TenderHeadersTab() {
             locked: true,
           },
         ]}
+        initiallyHiddenColumns={["parent_id"]}
         editDialogRenderExtra={renderLinkedSections}
       />
     </div>
