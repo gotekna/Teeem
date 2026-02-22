@@ -32,6 +32,7 @@ import {
   Package,
   BarChart3,
   ExternalLink,
+  Paperclip,
 } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -144,6 +145,10 @@ export function QuoteTemplatesTab() {
   const [priceCompareIds, setPriceCompareIds] = useState<number[]>([]);
   const [priceCompareSupplierIds, setPriceCompareSupplierIds] = useState<number[]>([]);
 
+  // Job document types (lazy loaded)
+  const [jobDocTypes, setJobDocTypes] = useState<{ id: number; name: string }[]>([]);
+  const [docTypesLoaded, setDocTypesLoaded] = useState(false);
+
   // ─────────────────────────────────────────────────────────────────────────
   // Data Loading
   // ─────────────────────────────────────────────────────────────────────────
@@ -217,6 +222,19 @@ export function QuoteTemplatesTab() {
       setSupplierSearchLoading(false);
     }
   }, []);
+
+  const loadJobDocTypes = useCallback(async () => {
+    if (docTypesLoaded) return;
+    try {
+      const res = await api.get<{ success: boolean; data: Array<{ id: number; name: string }> }>(
+        "/api/v1/document_types?scope=job"
+      );
+      setJobDocTypes((res?.data || []).map((dt) => ({ id: dt.id, name: dt.name })));
+      setDocTypesLoaded(true);
+    } catch (err) {
+      console.error("[QuoteTemplatesTab] Failed to load document types:", err);
+    }
+  }, [docTypesLoaded]);
 
   useEffect(() => {
     loadTemplates();
@@ -419,6 +437,21 @@ export function QuoteTemplatesTab() {
     }
   };
 
+  const handleUpdateDocumentTypes = async (templateId: number, taskRowId: number, docTypes: string[]) => {
+    try {
+      await api.patch(`/api/v1/quote_templates/${templateId}`, {
+        quote_template: {
+          quote_template_trades_attributes: [
+            { id: taskRowId, required_document_types: docTypes },
+          ],
+        },
+      });
+    } catch (err) {
+      console.error("[QuoteTemplatesTab] Update document types failed:", err);
+      toast.error("Failed to update document types");
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Supplier Management (within a task)
   // ─────────────────────────────────────────────────────────────────────────
@@ -522,6 +555,7 @@ export function QuoteTemplatesTab() {
     } else {
       setExpandedId(id);
       if (!suppliersLoaded) loadSuppliers();
+      if (!docTypesLoaded) loadJobDocTypes();
       loadTemplateDetail(id);
     }
   };
@@ -706,6 +740,9 @@ export function QuoteTemplatesTab() {
                       onUpdateInstructions={(taskRowId, instructions) =>
                         handleUpdateTaskInstructions(template.id, taskRowId, instructions)
                       }
+                      onUpdateDocumentTypes={(taskRowId, docTypes) =>
+                        handleUpdateDocumentTypes(template.id, taskRowId, docTypes)
+                      }
                       onAddSupplier={(taskRowId, supplierId) =>
                         handleAddSupplier(template.id, taskRowId, supplierId)
                       }
@@ -724,6 +761,7 @@ export function QuoteTemplatesTab() {
                       }
                       poPacks={poPacks}
                       packId={editingTemplate.poTemplatePackId}
+                      jobDocTypes={jobDocTypes}
                     />
                   )}
                 </div>
@@ -874,6 +912,7 @@ interface TemplateEditorProps {
   onAddTask: (smScheduleMasterId: number) => void;
   onRemoveTask: (taskRowId: number) => void;
   onUpdateInstructions: (taskRowId: number, instructions: string) => void;
+  onUpdateDocumentTypes: (taskRowId: number, docTypes: string[]) => void;
   onAddSupplier: (taskRowId: number, supplierId: number) => void;
   onRemoveSupplier: (taskRowId: number, supplierRowId: number) => void;
   onTogglePreferred: (taskRowId: number, supplierRow: QuoteTemplateSupplier) => void;
@@ -882,6 +921,7 @@ interface TemplateEditorProps {
   onViewPrices: (smScheduleMasterId: number) => void;
   poPacks: PoPack[];
   packId: number | null;
+  jobDocTypes: { id: number; name: string }[];
 }
 
 function TemplateEditor({
@@ -896,6 +936,7 @@ function TemplateEditor({
   onAddTask,
   onRemoveTask,
   onUpdateInstructions,
+  onUpdateDocumentTypes,
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
@@ -904,6 +945,7 @@ function TemplateEditor({
   onViewPrices,
   poPacks,
   packId,
+  jobDocTypes,
 }: TemplateEditorProps) {
   const templateTasks = template.trades || [];
 
@@ -930,12 +972,14 @@ function TemplateEditor({
                 onToggleShowAll={onToggleShowAll}
                 onRemove={() => onRemoveTask(task.id)}
                 onUpdateInstructions={(instructions) => onUpdateInstructions(task.id, instructions)}
+                onUpdateDocumentTypes={(docTypes) => onUpdateDocumentTypes(task.id, docTypes)}
                 onAddSupplier={(supplierId) => onAddSupplier(task.id, supplierId)}
                 onRemoveSupplier={(supplierRowId) => onRemoveSupplier(task.id, supplierRowId)}
                 onTogglePreferred={(supplierRow) => onTogglePreferred(task.id, supplierRow)}
                 onUpdateContactPerson={(supplierRowId, contactPersonId) => onUpdateContactPerson(task.id, supplierRowId, contactPersonId)}
                 onSearchSuppliers={onSearchSuppliers}
                 onViewPrices={hasPricebookItems ? () => onViewPrices(task.smScheduleMasterId) : undefined}
+                jobDocTypes={jobDocTypes}
               />
             );
           })}
@@ -972,12 +1016,14 @@ interface TaskSectionProps {
   onToggleShowAll: () => void;
   onRemove: () => void;
   onUpdateInstructions: (instructions: string) => void;
+  onUpdateDocumentTypes: (docTypes: string[]) => void;
   onAddSupplier: (supplierId: number) => void;
   onRemoveSupplier: (supplierRowId: number) => void;
   onTogglePreferred: (supplierRow: QuoteTemplateSupplier) => void;
   onUpdateContactPerson: (supplierRowId: number, contactPersonId: number | null) => void;
   onSearchSuppliers: (query?: string) => void;
   onViewPrices?: () => void;
+  jobDocTypes: { id: number; name: string }[];
 }
 
 function TaskSection({
@@ -988,12 +1034,14 @@ function TaskSection({
   onToggleShowAll,
   onRemove,
   onUpdateInstructions,
+  onUpdateDocumentTypes,
   onAddSupplier,
   onRemoveSupplier,
   onTogglePreferred,
   onUpdateContactPerson,
   onSearchSuppliers,
   onViewPrices,
+  jobDocTypes,
 }: TaskSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [instructionsValue, setInstructionsValue] = useState(task.defaultInstructions || "");
@@ -1024,6 +1072,12 @@ function TaskSection({
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         )}
         <span className="font-medium text-sm flex-1">{task.taskName || `Task #${task.smScheduleMasterId}`}</span>
+        {task.requiredDocumentTypes.length > 0 && (
+          <Badge variant="outline" className="text-xs">
+            <Paperclip className="h-3 w-3 mr-1" />
+            {task.requiredDocumentTypes.length}
+          </Badge>
+        )}
         <Badge variant="secondary" className="text-xs">
           {task.suppliers.length} {task.suppliers.length === 1 ? "supplier" : "suppliers"}
         </Badge>
@@ -1068,6 +1122,50 @@ function TaskSection({
               className="text-sm"
             />
           </div>
+
+          {/* Attach Document Types */}
+          {jobDocTypes.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <Paperclip className="h-3 w-3" />
+                Attach Document Types
+                {task.requiredDocumentTypes.length > 0 && (
+                  <span className="text-muted-foreground">
+                    ({task.requiredDocumentTypes.length} selected)
+                  </span>
+                )}
+              </Label>
+              <div className="border rounded-md p-2 max-h-36 overflow-y-auto space-y-1">
+                {jobDocTypes.map((dt) => {
+                  const isChecked = task.requiredDocumentTypes.includes(dt.name);
+                  return (
+                    <div key={dt.id} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`doctype-${task.id}-${dt.id}`}
+                        checked={isChecked}
+                        onCheckedChange={() => {
+                          const updated = isChecked
+                            ? task.requiredDocumentTypes.filter((n) => n !== dt.name)
+                            : [...task.requiredDocumentTypes, dt.name];
+                          onUpdateDocumentTypes(updated);
+                        }}
+                        className="h-3.5 w-3.5"
+                      />
+                      <label
+                        htmlFor={`doctype-${task.id}-${dt.id}`}
+                        className="text-sm cursor-pointer select-none"
+                      >
+                        {dt.name}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Matching documents will be suggested when sending RFQs for this task.
+              </p>
+            </div>
+          )}
 
           {/* Suppliers List */}
           <div className="space-y-1">

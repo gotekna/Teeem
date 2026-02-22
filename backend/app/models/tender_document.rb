@@ -148,6 +148,8 @@ class TenderDocument < ApplicationRecord
       "created_by_name" => created_by&.name,
       "locked_by_name" => locked_by&.name,
       "company_name" => tenant&.name,
+      "company_logo_url" => tenant&.settings&.effective_logo_url,
+      "company_logo_dark_url" => tenant&.settings&.logo_dark,
       "pdf_download_url" => pdf_generation&.download_url,
       # Tender detail snapshots
       "council" => council,

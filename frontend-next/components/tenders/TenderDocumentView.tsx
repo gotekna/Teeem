@@ -4,7 +4,38 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import Image from "next/image";
 import { formatCurrency } from "@/utils/formatters";
+
+/** Builder's company logo - supports light/dark mode with separate URLs */
+function CompanyLogo({ doc, className = "h-16 w-auto" }: { doc: TenderDocumentData; className?: string }) {
+  if (!doc.company_logo_url && !doc.company_logo_dark_url) return null;
+
+  return (
+    <>
+      {doc.company_logo_url && (
+        <Image
+          src={doc.company_logo_url}
+          alt={doc.company_name || "Company Logo"}
+          width={200}
+          height={64}
+          className={`${className} object-contain ${doc.company_logo_dark_url ? "dark:hidden" : ""}`}
+          unoptimized
+        />
+      )}
+      {doc.company_logo_dark_url && (
+        <Image
+          src={doc.company_logo_dark_url}
+          alt={doc.company_name || "Company Logo"}
+          width={200}
+          height={64}
+          className={`${className} object-contain hidden dark:block`}
+          unoptimized
+        />
+      )}
+    </>
+  );
+}
 
 /** Strip leading numeric code prefix from section/cost centre names (e.g. "100 - SURVEYOR" → "Surveyor") */
 function stripCodePrefix(name: string): string {
@@ -73,6 +104,8 @@ interface TenderDocumentData {
   declined_at: string | null;
   revision_notes: string | null;
   company_name?: string | null;
+  company_logo_url?: string | null;
+  company_logo_dark_url?: string | null;
   plan_name?: string | null;
   // Tender detail snapshots
   council?: string | null;
@@ -99,6 +132,13 @@ interface TenderDocumentData {
   ps_total?: number;
   changelog?: Changelog | null;
   has_changelog?: boolean;
+  // Rich text pages
+  cover_letter_html?: string | null;
+  terms_and_conditions_html?: string | null;
+  base_specification_html?: string | null;
+  acceptance_page_html?: string | null;
+  notes_html?: string | null;
+  validity_days?: number | null;
 }
 
 interface ChangelogChange {
@@ -475,6 +515,284 @@ function ChangelogSection({ changelog }: { changelog: Changelog }) {
   );
 }
 
+/** Page footer matching Rawson format: page number + job ref + client initial area */
+function PageFooter({ doc, label }: { doc: TenderDocumentData; label: string }) {
+  const jobRef = [doc.job_code, doc.lot_address || doc.job_address].filter(Boolean).join(" - ");
+  return (
+    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-4 mt-6 border-t border-border/30">
+      <span>{jobRef}</span>
+      <span>{label}</span>
+      <span>Client: ___________</span>
+    </div>
+  );
+}
+
+/** Cover Letter page - generated from tender data (matches Rawson page 13) */
+function CoverLetterPage({ doc }: { doc: TenderDocumentData }) {
+  const headerGroups = doc.sections_grouped_by_header;
+  const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
+  const validityDays = doc.validity_days || 30;
+
+  return (
+    <Card>
+      <CardContent className="pt-8 pb-6 space-y-6">
+        {/* Letterhead with logo */}
+        <div className="flex justify-between items-start">
+          <div>
+            <CompanyLogo doc={doc} className="h-12 w-auto mb-2" />
+            {doc.company_name && <p className="font-bold text-sm">{doc.company_name}</p>}
+          </div>
+          <div className="text-sm text-right">
+            <p>{formatTenderDate(doc.date_prepared)}</p>
+            {doc.client_name && <p className="font-medium mt-2">{doc.client_name}</p>}
+            {doc.client_address && <p className="text-muted-foreground">{doc.client_address}</p>}
+          </div>
+        </div>
+
+        {/* Greeting */}
+        <div className="text-sm space-y-4">
+          <p>Dear {doc.client_name || "Valued Client"},</p>
+
+          <p>
+            We thank you for the opportunity of presenting this tender to construct your new
+            {doc.company_name ? ` ${doc.company_name}` : ""} home at;
+          </p>
+
+          <p className="font-bold">{doc.lot_address || doc.job_address || doc.job_name}</p>
+
+          <p>
+            This tender supersedes all previous tenders and offers. It is based upon our recent
+            site inspection, known council and statutory authority requirements and the disclosure
+            of all related information about your land including restrictions and/or covenants.
+          </p>
+        </div>
+
+        {/* Price Summary Table */}
+        <div className="space-y-2 py-4">
+          {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
+            const headerTotal = doc.header_subtotals?.[headerName] || 0;
+            return (
+              <div key={headerName} className="flex justify-between">
+                <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
+                <span className="font-medium text-sm w-40 text-right">{formatCurrency(headerTotal)}</span>
+              </div>
+            );
+          })}
+
+          {hasTwoLevelData && <div className="border-t my-2" />}
+
+          <div className="flex justify-between pt-1">
+            <span className="font-bold">The total cost to construct is:</span>
+            <span className="font-bold text-lg w-40 text-right">{formatCurrency(doc.total)}</span>
+          </div>
+          <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
+        </div>
+
+        {/* Validity */}
+        <p className="text-sm">
+          The tender price will remain fixed for {validityDays} days provided that, within 7 days from the
+          original tender date (or {doc.valid_until ? formatTenderDate(doc.valid_until) : "the valid until date"})
+          you have paid an acceptance fee and signed the tender.
+        </p>
+
+        {/* Acceptance Checklist */}
+        <div className="text-sm space-y-2">
+          <p>Upon your acceptance of this tender we will:</p>
+          <div className="space-y-2 pl-4">
+            <label className="flex items-center gap-3">
+              <div className="w-4 h-4 border border-foreground/50 rounded-sm shrink-0" />
+              <span>Prepare preliminary plans for your approval</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <div className="w-4 h-4 border border-foreground/50 rounded-sm shrink-0" />
+              <span>Prepare Development Application Plans and Documents</span>
+            </label>
+            {doc.developer_approval && (
+              <label className="flex items-center gap-3">
+                <div className="w-4 h-4 border border-foreground/50 rounded-sm shrink-0" />
+                <span>Obtain Developer approval (if applicable)</span>
+              </label>
+            )}
+          </div>
+        </div>
+
+        {/* Closing */}
+        <div className="text-sm space-y-4 pt-4">
+          <p>
+            Once again, we would like to thank you for the opportunity to present this tender for the
+            construction of your new home and trust that it meets with your satisfaction. We take great
+            pride in the homes we build, their quality and design, and we are confident that you too will
+            be extremely proud of your new home.
+          </p>
+
+          <div className="pt-4">
+            <p>Yours Sincerely,</p>
+            <p className="font-bold pt-8">{doc.company_name?.toUpperCase() || "THE BUILDER"}</p>
+          </div>
+        </div>
+
+        <PageFooter doc={doc} label="Cover Letter" />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Terms & Conditions / "PLEASE NOTE" page */
+function TermsPage({ doc }: { doc: TenderDocumentData }) {
+  if (!doc.terms_and_conditions_html) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xl font-bold tracking-wide">
+          <span className="underline underline-offset-8 decoration-2 decoration-primary">
+            PLEASE NOTE
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <div
+          className="prose prose-sm dark:prose-invert max-w-none [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-2"
+          dangerouslySetInnerHTML={{ __html: doc.terms_and_conditions_html }}
+        />
+        <PageFooter doc={doc} label="Terms & Conditions" />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Base Specification page (two-column spec sheet) */
+function BaseSpecificationPage({ doc }: { doc: TenderDocumentData }) {
+  if (!doc.base_specification_html) return null;
+
+  const specTitle = doc.specification
+    ? `${doc.specification} Specification`
+    : "Base Specification";
+
+  return (
+    <Card>
+      <CardHeader className="pb-0">
+        <CardTitle className="text-xl font-bold tracking-wide">
+          <span className="underline underline-offset-8 decoration-2 decoration-primary">
+            {specTitle.toUpperCase()}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <div
+          className="prose prose-sm dark:prose-invert max-w-none columns-1 md:columns-2 gap-8 [&_h3]:font-bold [&_h3]:text-sm [&_h3]:uppercase [&_h3]:mt-4 [&_h3]:mb-1 [&_p]:text-xs [&_p]:mb-1 [&_ul]:text-xs [&_ul]:pl-3 [&_li]:mb-0.5"
+          dangerouslySetInnerHTML={{ __html: doc.base_specification_html }}
+        />
+        <PageFooter doc={doc} label="Base Specification" />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Acceptance of Tender page (matches Rawson page 19) */
+function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
+  return (
+    <Card>
+      <CardContent className="pt-8 pb-6 space-y-6">
+        {/* Header */}
+        <div className="flex justify-between">
+          <div className="text-sm">
+            {doc.company_name && <p className="font-bold">{doc.company_name}</p>}
+          </div>
+          <div className="text-sm text-right">
+            {doc.client_name && <p className="font-medium">{doc.client_name}</p>}
+            {doc.client_address && <p className="text-muted-foreground">{doc.client_address}</p>}
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="border-2 border-foreground p-4 text-center">
+          <h2 className="text-lg font-bold tracking-wide">
+            ACCEPTANCE OF TENDER AND INSTRUCTION FOR PREPARATION
+            OF DEVELOPMENT APPLICATION PLANS
+          </h2>
+        </div>
+
+        {/* Key Details */}
+        <dl className="grid grid-cols-[220px_1fr] gap-x-6 gap-y-3 text-sm">
+          <dt className="font-bold">Construction of Dwelling at:</dt>
+          <dd>{doc.lot_address || doc.job_address || doc.job_name}</dd>
+
+          <dt className="font-bold">Tender Date:</dt>
+          <dd>{formatTenderDate(doc.date_prepared)}</dd>
+
+          <dt className="font-bold">Total Tender Price:</dt>
+          <dd className="font-bold">{formatCurrency(doc.total)}</dd>
+        </dl>
+
+        {/* Acceptance Text */}
+        {doc.acceptance_page_html ? (
+          <div
+            className="prose prose-sm dark:prose-invert max-w-none"
+            dangerouslySetInnerHTML={{ __html: doc.acceptance_page_html }}
+          />
+        ) : (
+          <div className="text-sm space-y-4">
+            <p>
+              I/We hereby accept your tender for the construction of our new home at the above address.
+              We have initialled and attached the tender and any plans to this acceptance.
+            </p>
+
+            <p>
+              I/We hereby acknowledge that this tender price will remain fixed for a period of{" "}
+              <span className="underline">{doc.validity_days || 180}</span> days from the Tender 1 date,
+              which is {doc.valid_until ? formatTenderDate(doc.valid_until) : "___/___/___"} and subject
+              to the terms of the building contract will remain fixed on the condition that the building
+              works commence construction on or before this date.
+            </p>
+
+            <p>
+              You are hereby authorised to prepare all necessary documentation for submission to the
+              Authorities for approval, including architectural working drawings, structural engineer
+              design and specifications.
+            </p>
+          </div>
+        )}
+
+        {/* Signature Lines */}
+        <div className="pt-8 space-y-8">
+          <p className="font-bold text-sm">Accepted By:</p>
+          <div className="grid grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Client Name :(1)</p>
+            </div>
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Client Signature :(1)</p>
+            </div>
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Date :</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Client Name :(2)</p>
+            </div>
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Client Signature :(2)</p>
+            </div>
+            <div className="space-y-2">
+              <div className="border-b border-foreground h-8" />
+              <p className="text-xs text-muted-foreground">Date :</p>
+            </div>
+          </div>
+        </div>
+
+        <PageFooter doc={doc} label="Acceptance of Tender" />
+      </CardContent>
+    </Card>
+  );
+}
+
 export function TenderDocumentView({ document: doc, previewMode = false }: TenderDocumentViewProps) {
   const headerGroups = doc.sections_grouped_by_header;
   const hasTwoLevelData = headerGroups && Object.keys(headerGroups).length > 0;
@@ -493,6 +811,10 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           {/* ═══════ COVER PAGE ═══════ */}
           <Card>
             <CardContent className="py-16 flex flex-col items-center text-center space-y-6">
+              {/* Builder's logo */}
+              <CompanyLogo doc={doc} className="h-20 w-auto" />
+
+              {/* Company name (shown if no logo, or as subtitle under logo) */}
               {doc.company_name && (
                 <h2 className="text-2xl font-bold tracking-widest uppercase">
                   {doc.company_name}
@@ -779,33 +1101,44 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
         })
       )}
 
-      {/* ═══════ TOTALS (Rawson cover letter style) ═══════ */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="space-y-2">
-            {/* Per-header breakdown */}
-            {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
-              const headerTotal = doc.header_subtotals?.[headerName] || 0;
-              return (
-                <div key={headerName} className="flex justify-between">
-                  <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
-                  <span className="font-medium text-sm w-32 text-right">{formatCurrency(headerTotal)}</span>
-                </div>
-              );
-            })}
+      {/* ═══════ COVER LETTER WITH TOTALS (Rawson page 13) ═══════ */}
+      {!previewMode && (
+        <CoverLetterPage doc={doc} />
+      )}
 
-            {hasTwoLevelData && <div className="border-t my-1" />}
-
-            <div className="flex justify-between pt-1">
-              <div>
+      {/* Totals summary (always visible, including in preview mode) */}
+      {previewMode && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-2">
+              {hasTwoLevelData && Object.entries(headerGroups!).map(([headerName, _sections]) => {
+                const headerTotal = doc.header_subtotals?.[headerName] || 0;
+                return (
+                  <div key={headerName} className="flex justify-between">
+                    <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
+                    <span className="font-medium text-sm w-32 text-right">{formatCurrency(headerTotal)}</span>
+                  </div>
+                );
+              })}
+              {hasTwoLevelData && <div className="border-t my-1" />}
+              <div className="flex justify-between pt-1">
                 <span className="font-bold">The total cost to construct is:</span>
+                <span className="font-bold text-lg w-32 text-right">{formatCurrency(doc.total)}</span>
               </div>
-              <span className="font-bold text-lg w-32 text-right">{formatCurrency(doc.total)}</span>
+              <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
             </div>
-            <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ═══════ TERMS & CONDITIONS / "PLEASE NOTE" (Rawson pages 14-15) ═══════ */}
+      {!previewMode && <TermsPage doc={doc} />}
+
+      {/* ═══════ BASE SPECIFICATION (Rawson pages 16-18) ═══════ */}
+      {!previewMode && <BaseSpecificationPage doc={doc} />}
+
+      {/* ═══════ ACCEPTANCE OF TENDER (Rawson page 19) ═══════ */}
+      {!previewMode && <AcceptancePage doc={doc} />}
 
       {/* Changelog (version-to-version comparison) */}
       {!previewMode && doc.has_changelog && doc.changelog && (
