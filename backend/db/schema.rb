@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_23_100000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_23_100002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -822,6 +822,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_100000) do
     t.index ["storage_item_id"], name: "index_bill_inboxes_on_storage_item_id"
     t.index ["supplier_id", "invoice_number"], name: "index_bill_inboxes_on_supplier_id_and_invoice_number", unique: true, where: "(invoice_number IS NOT NULL)"
     t.index ["supplier_id"], name: "index_bill_inboxes_on_supplier_id"
+    t.index ["tenant_id", "match_status"], name: "index_bill_inboxes_on_tenant_id_and_match_status"
+    t.index ["tenant_id", "status"], name: "index_bill_inboxes_on_tenant_id_and_status"
     t.index ["tenant_id"], name: "index_bill_inboxes_on_tenant_id"
   end
 
@@ -7908,6 +7910,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_100000) do
     t.bigint "tenant_id"
     t.bigint "external_invoice_id"
     t.decimal "credit_amount", precision: 15, scale: 2, default: "0.0"
+    t.integer "tender_id"
     t.index ["approved_by_id"], name: "index_purchase_orders_on_approved_by_id"
     t.index ["arrived_at"], name: "index_purchase_orders_on_arrived_at"
     t.index ["budget_locked_at"], name: "index_purchase_orders_on_budget_locked_at"
@@ -7929,6 +7932,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_100000) do
     t.index ["status"], name: "index_purchase_orders_on_status"
     t.index ["supplier_id"], name: "index_purchase_orders_on_supplier_id"
     t.index ["tenant_id"], name: "index_purchase_orders_on_tenant_id"
+    t.index ["tender_id"], name: "index_purchase_orders_on_tender_id"
     t.index ["visible_to_supplier"], name: "index_purchase_orders_on_visible_to_supplier"
     t.index ["xero_invoice_id"], name: "index_purchase_orders_on_xero_invoice_id"
   end
