@@ -1020,6 +1020,12 @@
       "tips": ["Create packs from existing jobs using 'Create from Job'", "Each pack contains multiple PO definitions with line items", "Templates link to SM tasks and suppliers for automatic matching", "Duplicate a pack to create variations (e.g., 2-storey house)"],
       "tasks": ["Create a template pack", "Create pack from existing job", "Edit pack items and line items", "Duplicate a pack", "Apply template to a job"]
     },
+    "/settings/operations/quote-templates": {
+      "title": "Quote Templates",
+      "description": "Define reusable RFQ templates with trades and preferred suppliers. Apply templates to jobs to create quote tracker rows for each trade-supplier combination.",
+      "tips": ["Each template defines trades (e.g. Roof Trusses, Plumbing) and assigns suppliers to each", "Star a supplier to mark them as preferred for that trade", "Default instructions are included when sending RFQ emails", "Apply a template to a job to populate the Quote Tracker board"],
+      "tasks": ["Create a quote template", "Add trades and suppliers", "Set preferred suppliers", "Duplicate a template", "Apply template to a job"]
+    },
     "/settings/operations/claim-templates": {
       "title": "Claim Stage Templates",
       "description": "Define reusable progress claim templates with percentage-based stages. Apply templates to jobs to auto-generate claim stages.",

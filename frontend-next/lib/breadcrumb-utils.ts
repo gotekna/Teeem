@@ -264,6 +264,7 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "supervisor": "Supervisor Checklist",
   "cost": "Cost",
   "po-templates": "PO Templates",
+  "quote-templates": "Quote Templates",
   "claim-templates": "Claim Templates",
 
   // Settings > System sub-tabs
