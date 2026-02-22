@@ -13,6 +13,7 @@ interface QuoteTrackerBoardProps {
   onRecordResponse: (id: number, price: number, timeframe?: string, notes?: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
   onSendAllForTask: (taskId: number) => Promise<void>;
+  onUpdateInstructions: (id: number, instructions: string) => Promise<void>;
 }
 
 export function QuoteTrackerBoard({
@@ -22,6 +23,7 @@ export function QuoteTrackerBoard({
   onRecordResponse,
   onAccept,
   onSendAllForTask,
+  onUpdateInstructions,
 }: QuoteTrackerBoardProps) {
   if (loading) {
     return (
@@ -52,6 +54,7 @@ export function QuoteTrackerBoard({
           onRecordResponse={onRecordResponse}
           onAccept={onAccept}
           onSendAllForTask={onSendAllForTask}
+          onUpdateInstructions={onUpdateInstructions}
         />
       ))}
 

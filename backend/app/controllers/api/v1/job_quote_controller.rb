@@ -4,7 +4,7 @@ module Api
   module V1
     class JobQuoteController < ApplicationController
       before_action :set_job, only: [:quote_summary, :apply_quote_template, :rfq_documents]
-      before_action :set_tracker, only: [:send_rfq, :record_response, :accept]
+      before_action :set_tracker, only: [:update_tracker, :send_rfq, :record_response, :accept]
 
       # GET /api/v1/jobs/:job_id/quote_summary
       # Returns QuoteTracker rows grouped by PO Task (SmScheduleMaster) with best_price flags
@@ -72,6 +72,15 @@ module Api
           },
           message: "Applied '#{template.name}' - created #{rows.size} quote tracker rows"
         }
+      end
+
+      # PATCH /api/v1/quote_trackers/:id/update_tracker
+      # Updates editable fields on a QuoteTracker (instructions, notes)
+      def update_tracker
+        @tracker.update!(tracker_update_params)
+        render json: { success: true, data: tracker_json(@tracker.reload) }
+      rescue => e
+        render json: { success: false, error: e.message }, status: :unprocessable_entity
       end
 
       # POST /api/v1/quote_trackers/:id/send_rfq
@@ -334,6 +343,10 @@ module Api
 
       def set_tracker
         @tracker = QuoteTracker.find(params[:id])
+      end
+
+      def tracker_update_params
+        params.require(:quote_tracker).permit(:quote_request_instructions, :estimating_notes)
       end
 
       def tracker_json(tracker)

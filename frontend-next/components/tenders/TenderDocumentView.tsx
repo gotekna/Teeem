@@ -590,7 +590,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           </dl>
 
           {/* Site Details */}
-          {(doc.estate || doc.developer_approval || doc.developer_contact || doc.land_registration || doc.building_contract_type || doc.development_application) && (
+          {(doc.estate || doc.developer_approval != null || doc.developer_contact || doc.land_registration || doc.building_contract_type || doc.development_application) && (
             <dl className="grid grid-cols-[200px_1fr] gap-x-6 gap-y-3 mt-6 pt-4 border-t">
               {doc.estate && (
                 <>
@@ -599,12 +599,8 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
                 </>
               )}
 
-              {doc.developer_approval !== null && doc.developer_approval !== undefined && (
-                <>
-                  <dt className="font-bold text-sm">DEVELOPER APPROVAL:</dt>
-                  <dd className="text-sm">{doc.developer_approval ? "Yes" : "No"}</dd>
-                </>
-              )}
+              <dt className="font-bold text-sm">DEVELOPER APPROVAL:</dt>
+              <dd className="text-sm">{doc.developer_approval ? "Yes" : "No"}</dd>
 
               {doc.developer_contact && (
                 <>
@@ -664,21 +660,17 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
           )}
 
           {/* PRIMARY CONTACT */}
-          {(doc.client_email || doc.client_phone) && (
+          {doc.client_name && (
             <dl className="grid grid-cols-[200px_1fr] gap-x-6 mt-6 pt-4 border-t">
               <dt className="font-bold text-sm">PRIMARY CONTACT:</dt>
               <dd className="text-sm">
                 <dl className="grid grid-cols-[80px_1fr] gap-x-4 gap-y-1.5">
-                  {doc.client_name && (
-                    <>
-                      <dt className="font-bold">Name:</dt>
-                      <dd>
-                        {doc.client_name.includes(" & ")
-                          ? doc.client_name.split(" & ")[0]
-                          : doc.client_name}
-                      </dd>
-                    </>
-                  )}
+                  <dt className="font-bold">Name:</dt>
+                  <dd>
+                    {doc.client_name.includes(" & ")
+                      ? doc.client_name.split(" & ")[0]
+                      : doc.client_name}
+                  </dd>
                   {doc.client_phone && (
                     <>
                       <dt className="font-bold">Mobile:</dt>

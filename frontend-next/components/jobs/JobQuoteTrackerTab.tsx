@@ -130,6 +130,17 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
     }
   };
 
+  const handleUpdateInstructions = async (trackerId: number, instructions: string) => {
+    try {
+      await api.patch(`/api/v1/quote_trackers/${trackerId}/update_tracker`, {
+        quote_tracker: { quote_request_instructions: instructions },
+      });
+    } catch (err) {
+      console.error("[JobQuoteTrackerTab] Update instructions failed:", err);
+      toast.error("Failed to save instructions");
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -182,6 +193,7 @@ export function JobQuoteTrackerTab({ jobId }: JobQuoteTrackerTabProps) {
             onRecordResponse={handleRecordResponse}
             onAccept={handleAccept}
             onSendAllForTask={handleSendAllForTask}
+            onUpdateInstructions={handleUpdateInstructions}
           />
         ) : (
           <div className="flex flex-col h-full">

@@ -921,6 +921,7 @@ Rails.application.routes.draw do
       end
       resources :quote_trackers, only: [] do
         member do
+          patch :update_tracker, controller: 'job_quote'
           post :send_rfq, controller: 'job_quote'
           post :record_response, controller: 'job_quote'
           post :accept, controller: 'job_quote'

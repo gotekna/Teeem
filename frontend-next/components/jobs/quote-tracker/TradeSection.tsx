@@ -14,6 +14,7 @@ interface TradeSectionProps {
   onRecordResponse: (id: number, price: number, timeframe?: string, notes?: string) => Promise<void>;
   onAccept: (id: number) => Promise<void>;
   onSendAllForTask: (taskId: number) => Promise<void>;
+  onUpdateInstructions: (id: number, instructions: string) => Promise<void>;
 }
 
 export function TradeSection({
@@ -22,6 +23,7 @@ export function TradeSection({
   onRecordResponse,
   onAccept,
   onSendAllForTask,
+  onUpdateInstructions,
 }: TradeSectionProps) {
   const [expanded, setExpanded] = useState(true);
 
@@ -96,6 +98,7 @@ export function TradeSection({
               onSendRfq={onSendRfq}
               onRecordResponse={onRecordResponse}
               onAccept={onAccept}
+              onUpdateInstructions={onUpdateInstructions}
             />
           ))}
         </div>
