@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "stripe"
+
 class StripePaymentService
   class PaymentError < StandardError; end
 

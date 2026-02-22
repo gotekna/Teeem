@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # == Schema Information
 #
 # Table name: balance_sheet_reports

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # Generates a PDF bank statement report from Xero bank feed data.
 # Format matches standard bank statement layout with running balance.
 # Bank-specific branding applied based on account name.

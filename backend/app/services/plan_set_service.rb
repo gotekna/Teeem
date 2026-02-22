@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # Service for processing multi-page PDF plan sets
 # Uploads to storage and extracts individual pages with AI-named files
 #

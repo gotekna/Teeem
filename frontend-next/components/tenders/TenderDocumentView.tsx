@@ -230,9 +230,14 @@ function PriceSummaryBlock({
         </>
       )}
 
-      {/* Base Price */}
+      {/* Base Price (excluding PC & PS) */}
       <div className="flex justify-between items-baseline py-1">
-        <span className="font-semibold text-sm">Base Price (ex GST)</span>
+        <div>
+          <span className="font-semibold text-sm">Base Price (ex GST)</span>
+          {hasPcOrPs && (
+            <span className="text-xs text-muted-foreground ml-1.5">excl. Prime Costs &amp; Provisional Sums</span>
+          )}
+        </div>
         <span className={`font-semibold tabular-nums text-sm ${widthClass} text-right`}>{formatCurrency(basePrice)}</span>
       </div>
 
@@ -240,7 +245,7 @@ function PriceSummaryBlock({
       {pcTotal > 0 && (
         <div className="flex justify-between items-baseline py-0.5">
           <span className="text-sm text-blue-700 dark:text-blue-400">
-            Prime Costs ({pcCount} {pcCount === 1 ? "item" : "items"})
+            + Prime Costs ({pcCount} {pcCount === 1 ? "item" : "items"})
           </span>
           <span className={`tabular-nums text-sm ${widthClass} text-right text-blue-700 dark:text-blue-400`}>{formatCurrency(pcTotal)}</span>
         </div>
@@ -250,7 +255,7 @@ function PriceSummaryBlock({
       {psTotal > 0 && (
         <div className="flex justify-between items-baseline py-0.5">
           <span className="text-sm text-violet-700 dark:text-violet-400">
-            Provisional Sums ({psCount} {psCount === 1 ? "item" : "items"})
+            + Provisional Sums ({psCount} {psCount === 1 ? "item" : "items"})
           </span>
           <span className={`tabular-nums text-sm ${widthClass} text-right text-violet-700 dark:text-violet-400`}>{formatCurrency(psTotal)}</span>
         </div>
@@ -771,10 +776,12 @@ function PcPsScheduleTable({
   title,
   items,
   colorClass,
+  description,
 }: {
   title: string;
   items: TenderDocumentItem[];
   colorClass: string;
+  description?: string;
 }) {
   if (items.length === 0) return null;
   const total = items.reduce((sum, i) => sum + (i.total_amount || 0), 0);
@@ -782,6 +789,9 @@ function PcPsScheduleTable({
   return (
     <div className="space-y-2">
       <h3 className={`text-sm font-bold ${colorClass}`}>{title}</h3>
+      {description && (
+        <p className="text-xs text-muted-foreground italic leading-relaxed">{description}</p>
+      )}
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="border-b-2 border-foreground/20">
@@ -815,10 +825,24 @@ function PcPsScheduleTable({
 }
 
 function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
-  // Collect all PC and PS items across all sections
+  // Aggregate PC and PS items at PO level (one row per PO, not per line item)
   const allItems = Object.values(doc.sections_grouped).flat();
-  const pcItems = allItems.filter(i => i.item_type === "priced");
-  const psItems = allItems.filter(i => i.item_type === "provisional");
+  const pcPoMap = new Map<number | string, TenderDocumentItem & { total_amount: number }>();
+  const psPoMap = new Map<number | string, TenderDocumentItem & { total_amount: number }>();
+  for (const item of allItems) {
+    const poKey = item.source_purchase_order_id || item.id;
+    if (item.item_type === "priced") {
+      const existing = pcPoMap.get(poKey);
+      if (existing) { existing.total_amount = (existing.total_amount || 0) + (item.total_amount || 0); }
+      else { pcPoMap.set(poKey, { ...item, total_amount: item.total_amount || 0 }); }
+    } else if (item.item_type === "provisional") {
+      const existing = psPoMap.get(poKey);
+      if (existing) { existing.total_amount = (existing.total_amount || 0) + (item.total_amount || 0); }
+      else { psPoMap.set(poKey, { ...item, total_amount: item.total_amount || 0 }); }
+    }
+  }
+  const pcItems = Array.from(pcPoMap.values());
+  const psItems = Array.from(psPoMap.values());
 
   return (
     <Card>
@@ -891,11 +915,13 @@ function AcceptancePage({ doc }: { doc: TenderDocumentData }) {
               title="Schedule of Prime Cost Items"
               items={pcItems}
               colorClass="text-blue-700 dark:text-blue-400"
+              description="A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed."
             />
             <PcPsScheduleTable
               title="Schedule of Provisional Sum Items"
               items={psItems}
               colorClass="text-violet-700 dark:text-violet-400"
+              description="A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out."
             />
           </div>
         )}

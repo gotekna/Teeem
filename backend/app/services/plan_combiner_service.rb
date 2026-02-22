@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # =============================================================================
 # PlanCombinerService - Auto-generate "All Plans" combined PDF
 # =============================================================================

@@ -1,3 +1,5 @@
+require "dentaku"
+
 class FormulaEvaluator
   def initialize(table)
     @table = table

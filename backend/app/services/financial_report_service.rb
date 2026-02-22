@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # Generates PDF financial reports (P&L, Balance Sheet) from Xero data
 # SSoT: Single service for all financial report types
 class FinancialReportService

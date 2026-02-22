@@ -1,3 +1,5 @@
+require "dentaku"
+
 # QuantityVariable - master list of house spec variables (like DataBuild's quantity generator)
 #
 # SSoT: These are the standard variables that can be used in recipe formulas.

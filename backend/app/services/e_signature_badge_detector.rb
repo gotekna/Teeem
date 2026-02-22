@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # ESignatureBadgeDetector - Detects blue signature badges in PDF documents
 # and creates ESignatureField records at their positions.
 #

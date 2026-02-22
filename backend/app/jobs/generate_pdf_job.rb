@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+require "grover"
+
 # Background job for PDF generation. Runs on the worker dyno where Grover/HexaPDF are available.
 #
 # Supports all PDF generator types:

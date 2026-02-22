@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "grover"
+
 # TenderDocumentPdfGenerator - Generates professional tender PDFs from TenderDocument records.
 #
 # Uses TeknaTemplateRenderer to render ERB templates with the Tekna branded layout,

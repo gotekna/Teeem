@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "mini_magick"
+
 # Parses invoice PDFs using AI to extract structured data
 # Uses Claude to analyze the document and extract:
 # - Supplier details (name, ABN)

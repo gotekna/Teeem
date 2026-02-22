@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 module Engines
   # PdfOverlayEngine handles PDF form filling and text overlay for documents
   # that must maintain exact original format (e.g., QBCC contracts, HIA documents).

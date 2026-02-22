@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # Parses PDF form fields (AcroForms) to detect field positions and sizes
 # Used by PDF Field Editor to show clickable hotspots for mapping data fields
 class PdfFormParserService

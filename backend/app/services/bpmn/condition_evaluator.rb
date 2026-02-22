@@ -1,3 +1,5 @@
+require "dentaku"
+
 module Bpmn
   class ConditionEvaluator
     # Evaluate a condition expression against variables

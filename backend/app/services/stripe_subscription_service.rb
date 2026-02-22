@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "stripe"
+
 # StripeSubscriptionService - Handles Stripe subscriptions for email hosting
 #
 # Manages recurring billing for email subscriptions including:

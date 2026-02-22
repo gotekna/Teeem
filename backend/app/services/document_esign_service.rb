@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # DocumentEsignService - Generate a document and send for e-signature
 #
 # This service combines document generation with the e-signature system

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # ESignatureCertificate is the completion certificate that proves
 # the document was signed by all parties. It contains the SHA256
 # hash chain for tamper detection and a summary of all signatures.

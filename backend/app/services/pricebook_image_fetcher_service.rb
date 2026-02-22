@@ -4,6 +4,7 @@
 #
 # SSoT: Uses StorageUploadable for provider-agnostic storage (Wasabi/S3/SharePoint)
 
+require "mini_magick"
 require "httparty"
 require "open-uri"
 require "resolv"
@@ -301,7 +302,6 @@ class PricebookImageFetcherService
   # Compress image to be under MAX_FILE_SIZE (900KB) and make it square with padding
   def compress_image(source_path)
     begin
-      require "mini_magick"
       image = MiniMagick::Image.open(source_path)
 
       # Get current dimensions and file size

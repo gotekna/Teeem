@@ -1,3 +1,5 @@
+require "hexapdf"
+
 # ESignaturePdfStamper - Applies signatures to PDF documents
 #
 # Uses HexaPDF to:

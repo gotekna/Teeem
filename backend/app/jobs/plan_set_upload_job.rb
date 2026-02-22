@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+
 # =============================================================================
 # PlanSetUploadJob - Background processing of plan set uploads
 # =============================================================================

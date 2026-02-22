@@ -896,8 +896,9 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     let pcCount = 0;
     let psCount = 0;
     const headerSubtotals: Record<string, number> = {};
-    const pcItems: { description: string; amount: number; sectionName: string }[] = [];
-    const psItems: { description: string; amount: number; sectionName: string }[] = [];
+    // Aggregate PC/PS at PO level (one row per PO, not per line item)
+    const pcPoMap = new Map<string | number, { poName: string; amount: number; sectionName: string }>();
+    const psPoMap = new Map<string | number, { poName: string; amount: number; sectionName: string }>();
 
     for (const row of unifiedRows) {
       if (row.type !== "item") continue;
@@ -908,11 +909,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
       } else if (cls === "pc") {
         pcTotal += row.amount;
         pcCount++;
-        pcItems.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
+        const existing = pcPoMap.get(row.poId);
+        if (existing) { existing.amount += row.amount; }
+        else { pcPoMap.set(row.poId, { poName: row.poName, amount: row.amount, sectionName: row.sectionName }); }
       } else if (cls === "ps") {
         psTotal += row.amount;
         psCount++;
-        psItems.push({ description: row.description, amount: row.amount, sectionName: row.sectionName });
+        const existing = psPoMap.get(row.poId);
+        if (existing) { existing.amount += row.amount; }
+        else { psPoMap.set(row.poId, { poName: row.poName, amount: row.amount, sectionName: row.sectionName }); }
       } else {
         // included + incl_hidden both count toward base price
         included += row.amount;
@@ -923,6 +928,9 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         headerSubtotals[row.headerName] = (headerSubtotals[row.headerName] || 0) + row.amount;
       }
     }
+
+    const pcItems = Array.from(pcPoMap.values()).map(v => ({ description: v.poName, amount: v.amount, sectionName: v.sectionName }));
+    const psItems = Array.from(psPoMap.values()).map(v => ({ description: v.poName, amount: v.amount, sectionName: v.sectionName }));
 
     return { includedTotal: included, excludedTotal: excluded, pcTotal, psTotal, includedCount, excludedCount, pcCount, psCount, headerSubtotals, pcItems, psItems };
   }, [unifiedRows, excludedIds, getClassification]);
@@ -2150,10 +2158,15 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
         {/* Grand totals — matches TenderDocumentView PriceSummaryBlock (SSoT) */}
         <div className="border-t-2 border-primary/30 bg-muted/30 px-4 py-4">
-          {/* Header breakdown (Site Costs, Authority Conditions, etc.) */}
+          {/* Header breakdown — sorted to match tender tree order */}
           {Object.keys(totals.headerSubtotals).length > 0 && (
             <>
-              {Object.entries(totals.headerSubtotals).map(([headerName, subtotal]) => (
+              {Object.entries(totals.headerSubtotals)
+                .sort(([a], [b]) => {
+                  const treeOrder = new Map(tenderTree.map((h, i) => [h.name, i]));
+                  return (treeOrder.get(a) ?? 999) - (treeOrder.get(b) ?? 999);
+                })
+                .map(([headerName, subtotal]) => (
                 <div key={headerName} className="flex justify-between items-baseline py-0.5">
                   <span className="text-sm">{headerName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</span>
                   <span className="tabular-nums text-sm w-32 text-right">{formatCurrency(subtotal)}</span>
@@ -2163,9 +2176,14 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </>
           )}
 
-          {/* Base Price */}
+          {/* Base Price (excluding PC & PS) */}
           <div className="flex justify-between items-baseline py-1">
-            <span className="font-semibold text-sm">Base Price (ex GST)</span>
+            <div>
+              <span className="font-semibold text-sm">Base Price (ex GST)</span>
+              {(totals.pcCount > 0 || totals.psCount > 0) && (
+                <span className="text-xs text-muted-foreground ml-1.5">excl. Prime Costs &amp; Provisional Sums</span>
+              )}
+            </div>
             <span className="font-semibold tabular-nums text-sm w-32 text-right">{formatCurrency(totals.includedTotal)}</span>
           </div>
 
@@ -2173,7 +2191,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           {totals.pcCount > 0 && (
             <div className="flex justify-between items-baseline py-0.5">
               <span className="text-sm text-blue-700 dark:text-blue-400">
-                Prime Costs ({totals.pcCount} {totals.pcCount === 1 ? "item" : "items"})
+                + Prime Costs ({totals.pcCount} {totals.pcCount === 1 ? "item" : "items"})
               </span>
               <span className="tabular-nums text-sm w-32 text-right text-blue-700 dark:text-blue-400">{formatCurrency(totals.pcTotal)}</span>
             </div>
@@ -2183,7 +2201,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           {totals.psCount > 0 && (
             <div className="flex justify-between items-baseline py-0.5">
               <span className="text-sm text-violet-700 dark:text-violet-400">
-                Provisional Sums ({totals.psCount} {totals.psCount === 1 ? "item" : "items"})
+                + Provisional Sums ({totals.psCount} {totals.psCount === 1 ? "item" : "items"})
               </span>
               <span className="tabular-nums text-sm w-32 text-right text-violet-700 dark:text-violet-400">{formatCurrency(totals.psTotal)}</span>
             </div>
@@ -2221,6 +2239,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               {totals.pcItems.length > 0 && (
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Schedule of Prime Cost Items</h4>
+                  <p className="text-xs text-muted-foreground italic leading-relaxed">A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed.</p>
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b-2 border-foreground/20">
@@ -2253,6 +2272,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               {totals.psItems.length > 0 && (
                 <div className="space-y-1">
                   <h4 className="text-sm font-bold text-violet-700 dark:text-violet-400">Schedule of Provisional Sum Items</h4>
+                  <p className="text-xs text-muted-foreground italic leading-relaxed">A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out.</p>
                   <table className="w-full text-sm border-collapse">
                     <thead>
                       <tr className="border-b-2 border-foreground/20">

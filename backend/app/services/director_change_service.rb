@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "hexapdf"
+require "grover"
+
 # DirectorChangeService generates ASIC Form 484 director change packages.
 #
 # Generates 4 documents:

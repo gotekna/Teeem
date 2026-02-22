@@ -1,3 +1,5 @@
+require "twilio-ruby"
+
 class TwilioService
   class << self
     def send_sms(to:, body:, contact:, user: nil)

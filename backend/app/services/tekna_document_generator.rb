@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "grover"
+
 # TeknaDocumentGenerator generates branded PDF documents from HTML/ERB templates.
 #
 # Usage:
