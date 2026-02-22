@@ -654,6 +654,27 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   }, [jotaiStore, selectedLookupTable]);
 
+  // Navigate to a tender's edit dialog (cross-table navigation from cost centres)
+  const navigateToTender = React.useCallback(async (tenderId: number) => {
+    try {
+      // Switch to tenders table via URL
+      router.push(`${basePath}/tables/tenders`, { scroll: false });
+      // Fetch the tender record to populate the edit dialog
+      const resp = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
+        `/api/v1/foundations/tenders/records?per_page=1000`
+      );
+      const record = resp?.records?.find((r) => Number(r.id) === tenderId);
+      if (!record) return;
+      // Wait for table switch + dialog close animation, then open edit
+      setTimeout(() => {
+        jotaiStore.set(selectedRecordForModalAtom, record as { id: string | number; [key: string]: unknown });
+        jotaiStore.set(showEditRecordModalAtom, true);
+      }, 400);
+    } catch (err) {
+      console.error("Failed to navigate to tender:", err);
+    }
+  }, [jotaiStore, router, basePath]);
+
   // Keep templates ref synced so stable callbacks can read latest value
   const templatesRef = React.useRef(templates);
   templatesRef.current = templates;
@@ -667,6 +688,37 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       }
     } catch (error) {
       console.error("Failed to fetch PO tasks:", error);
+    }
+  }, []);
+
+  // Create a new PO task via SM templates API
+  const createPoTask = React.useCallback(async (name: string, templateId: number): Promise<POTaskItem | null> => {
+    try {
+      const resp = await api.post<{ success: boolean; row: Record<string, unknown> }>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`,
+        { row: { name, po_required: true } }
+      );
+      if (resp?.success && resp.row) {
+        const row = resp.row;
+        const newTask: POTaskItem = {
+          id: Number(row.id),
+          name: String(row.name || name),
+          taskCode: row.task_code ? String(row.task_code) : null,
+          taskNumber: Number(row.task_number || row.id),
+          costCentreId: null,
+          costCentreName: null,
+          tenderId: null,
+          tenderName: null,
+          templateIds: Array.isArray(row.sm_template_ids) ? row.sm_template_ids.map(Number) : [templateId],
+        };
+        // Also add to the ref so future renders include it
+        poTasksRef.current = [...poTasksRef.current, newTask];
+        return newTask;
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to create PO task:", error);
+      return null;
     }
   }, []);
 
@@ -697,6 +749,8 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedPoTaskIdsRef}
         assignmentField="costCentre"
         entityLabel="Cost Centre"
+        onCreateTask={createPoTask}
+        onNavigateToTender={navigateToTender}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -738,10 +792,15 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           helpers.onClose();
           openEditForRecord(id, tplFilter);
         } : undefined}
+        onCreateTask={createPoTask}
+        onNavigateToTender={helpers?.onClose ? (tenderId) => {
+          helpers.onClose();
+          navigateToTender(tenderId);
+        } : undefined}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openEditForRecord]);
+  }, [openEditForRecord, navigateToTender]);
 
   // Handle after-save for Cost Centre: assign PO tasks
   const handleCostCentreAfterSave = React.useCallback(async (record: Record<string, unknown>) => {
@@ -779,6 +838,36 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
     }
   }, []);
 
+  // Create a new PO task for tender context
+  const createTenderPoTask = React.useCallback(async (name: string, templateId: number): Promise<POTaskItem | null> => {
+    try {
+      const resp = await api.post<{ success: boolean; row: Record<string, unknown> }>(
+        `/api/v1/sm_schedule_master_templates/${templateId}/rows`,
+        { row: { name, po_required: true } }
+      );
+      if (resp?.success && resp.row) {
+        const row = resp.row;
+        const newTask: POTaskItem = {
+          id: Number(row.id),
+          name: String(row.name || name),
+          taskCode: row.task_code ? String(row.task_code) : null,
+          taskNumber: Number(row.task_number || row.id),
+          costCentreId: null,
+          costCentreName: null,
+          tenderId: null,
+          tenderName: null,
+          templateIds: Array.isArray(row.sm_template_ids) ? row.sm_template_ids.map(Number) : [templateId],
+        };
+        tenderPoTasksRef.current = [...tenderPoTasksRef.current, newTask];
+        return newTask;
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to create PO task:", error);
+      return null;
+    }
+  }, []);
+
   const renderTenderPoTaskPickerForCreate = React.useCallback(() => {
     if (!tenderPoTasksLoadedRef.current) {
       fetchTenderPoTasks();
@@ -803,6 +892,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
         selectedIdsRef={selectedTenderPoTaskIdsRef}
         assignmentField="tender"
         entityLabel="Tender Section"
+        onCreateTask={createTenderPoTask}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -844,6 +934,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
           helpers.onClose();
           openEditForRecord(id, tplFilter);
         } : undefined}
+        onCreateTask={createTenderPoTask}
       />
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps

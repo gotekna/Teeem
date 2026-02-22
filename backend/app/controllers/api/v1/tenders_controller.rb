@@ -33,20 +33,29 @@ class Api::V1::TendersController < ApplicationController
   def po_tasks
     tasks = SmScheduleMaster.where(po_required: true).order(:task_number, :name)
 
-    # Build a lookup of tender names for display
+    # Build a lookup of tender names + headers for display
     tender_ids = tasks.pluck(:tender_id).compact.uniq
-    tender_names = Tender.where(id: tender_ids).pluck(:id, :name).to_h
+    tenders_data = Tender.where(id: tender_ids).includes(:parent).index_by(&:id)
+
+    # Build a lookup of cost centre names for cross-reference display
+    cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
+    cost_centre_names = CostCentre.where(id: cost_centre_ids).pluck(:id, :name).to_h
 
     render json: {
       success: true,
       data: tasks.map { |t|
+        tender = t.tender_id.present? ? tenders_data[t.tender_id] : nil
         {
           id: t.id,
           name: t.name,
           taskCode: t.task_code,
           taskNumber: t.task_number,
           tenderId: t.tender_id,
-          tenderName: t.tender_id.present? ? tender_names[t.tender_id] : nil,
+          tenderName: tender&.name,
+          tenderHeaderId: tender&.parent_id,
+          tenderHeaderName: tender&.parent&.name,
+          costCentreId: t.cost_centre,
+          costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
           templateIds: t.sm_template_ids || []
         }
       }

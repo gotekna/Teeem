@@ -21,6 +21,8 @@ export interface POTaskItem {
   costCentreName?: string | null;
   tenderId?: number | null;
   tenderName?: string | null;
+  tenderHeaderId?: number | null;
+  tenderHeaderName?: string | null;
   templateIds: number[];
 }
 
@@ -41,6 +43,10 @@ interface PoTaskPickerProps {
   onNavigateToRecord?: (id: number, templateFilter: string) => void;
   /** Initial template filter to restore (e.g., after navigation) */
   initialTemplateFilter?: string;
+  /** Called to create a new PO task. Returns the new task item if successful. */
+  onCreateTask?: (name: string, templateId: number) => Promise<POTaskItem | null>;
+  /** Called when user clicks a tender link to navigate to that tender's edit dialog */
+  onNavigateToTender?: (id: number) => void;
 }
 
 export function PoTaskPicker({
@@ -53,19 +59,33 @@ export function PoTaskPicker({
   entityLabel = "Tender Section",
   onNavigateToRecord,
   initialTemplateFilter,
+  onCreateTask,
+  onNavigateToTender,
 }: PoTaskPickerProps) {
   const [selectedIds, setSelectedIds] = React.useState<number[]>(initialSelectedIds);
   const [templateFilter, setTemplateFilter] = React.useState(initialTemplateFilter || "all");
   const [search, setSearch] = React.useState("");
   const [hideSelected, setHideSelected] = React.useState(false);
+  const [showCreateForm, setShowCreateForm] = React.useState(false);
+  const [newTaskName, setNewTaskName] = React.useState("");
+  const [newTaskTemplateId, setNewTaskTemplateId] = React.useState<string>("");
+  const [creating, setCreating] = React.useState(false);
+  // Tasks created during this session (added to allTasks for display)
+  const [locallyCreatedTasks, setLocallyCreatedTasks] = React.useState<POTaskItem[]>([]);
 
   // Sync ref whenever local selection changes so parent can read it on save
   React.useEffect(() => {
     selectedIdsRef.current = selectedIds;
   }, [selectedIds, selectedIdsRef]);
 
+  // Combine passed-in tasks with any created during this session
+  const combinedTasks = React.useMemo(
+    () => [...allTasks, ...locallyCreatedTasks],
+    [allTasks, locallyCreatedTasks]
+  );
+
   const filteredTasks = React.useMemo(() => {
-    let tasks = allTasks;
+    let tasks = combinedTasks;
     if (templateFilter !== "all") {
       const tid = Number(templateFilter);
       tasks = tasks.filter((t) => t.templateIds.includes(tid));
@@ -87,7 +107,7 @@ export function PoTaskPicker({
       });
     }
     return tasks;
-  }, [allTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
+  }, [combinedTasks, templateFilter, search, hideSelected, selectedIds, recordId, assignmentField]);
 
   const toggleTask = (taskId: number) => {
     setSelectedIds((prev) =>
@@ -97,13 +117,41 @@ export function PoTaskPicker({
 
   // Selected task objects for badge display - filtered by current template
   const selectedTasks = React.useMemo(() => {
-    let tasks = allTasks.filter((t) => selectedIds.includes(t.id));
+    let tasks = combinedTasks.filter((t) => selectedIds.includes(t.id));
     if (templateFilter !== "all") {
       const tid = Number(templateFilter);
       tasks = tasks.filter((t) => t.templateIds.includes(tid));
     }
     return tasks;
-  }, [allTasks, selectedIds, templateFilter]);
+  }, [combinedTasks, selectedIds, templateFilter]);
+
+  const handleCreateTask = React.useCallback(async () => {
+    if (!onCreateTask || !newTaskName.trim() || creating) return;
+    // Determine template ID: use filter if a specific template is selected, otherwise use the dropdown
+    let tplId: number;
+    if (templateFilter !== "all") {
+      tplId = Number(templateFilter);
+    } else if (templates.length === 1) {
+      tplId = templates[0].id;
+    } else if (newTaskTemplateId) {
+      tplId = Number(newTaskTemplateId);
+    } else {
+      return; // No template selected
+    }
+    setCreating(true);
+    try {
+      const newTask = await onCreateTask(newTaskName.trim(), tplId);
+      if (newTask) {
+        setLocallyCreatedTasks((prev) => [...prev, newTask]);
+        setSelectedIds((prev) => [...prev, newTask.id]);
+        setNewTaskName("");
+        setNewTaskTemplateId("");
+        setShowCreateForm(false);
+      }
+    } finally {
+      setCreating(false);
+    }
+  }, [onCreateTask, newTaskName, creating, templateFilter, templates, newTaskTemplateId]);
 
   return (
     <div className="py-4 border-t">
@@ -200,10 +248,15 @@ export function PoTaskPicker({
             const taskDisplay = task.taskCode
               ? `${task.taskCode} - ${task.name}`
               : task.name;
+            // Tender info for cross-reference display (shown when in costCentre context)
+            const showTenderInfo = assignmentField === "costCentre" && task.tenderId != null;
+            const tenderLabel = task.tenderHeaderName
+              ? `${task.tenderHeaderName} › ${task.tenderName}`
+              : task.tenderName;
             return (
               <label
                 key={task.id}
-                className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent ${
+                className={`flex items-start gap-2 px-2 py-1.5 text-sm rounded cursor-pointer hover:bg-accent ${
                   isSelected ? "bg-accent/50" : ""
                 }`}
               >
@@ -211,26 +264,47 @@ export function PoTaskPicker({
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => toggleTask(task.id)}
-                  className="rounded border-input"
+                  className="rounded border-input mt-0.5"
                 />
-                <span className="truncate">
-                  {taskDisplay}
-                  {isAssignedElsewhere && (
-                    onNavigateToRecord && assignedId ? (
+                <span className="min-w-0">
+                  <span className="truncate block">
+                    {taskDisplay}
+                    {isAssignedElsewhere && (
+                      onNavigateToRecord && assignedId ? (
+                        <button
+                          type="button"
+                          className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onNavigateToRecord(assignedId, templateFilter);
+                          }}
+                        >
+                          ({assignedName || `${entityLabel} #${assignedId}`})
+                        </button>
+                      ) : (
+                        <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
+                          ({assignedName || `${entityLabel} #${assignedId}`})
+                        </span>
+                      )
+                    )}
+                  </span>
+                  {showTenderInfo && (
+                    onNavigateToTender && task.tenderId ? (
                       <button
                         type="button"
-                        className="ml-1.5 text-xs text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                        className="block text-xs text-purple-600 dark:text-purple-400 underline hover:text-purple-800 dark:hover:text-purple-300 truncate"
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          onNavigateToRecord(assignedId, templateFilter);
+                          onNavigateToTender(task.tenderId!);
                         }}
                       >
-                        ({assignedName || `${entityLabel} #${assignedId}`})
+                        Tender: {tenderLabel}
                       </button>
                     ) : (
-                      <span className="ml-1.5 text-xs text-amber-600 dark:text-amber-400">
-                        ({assignedName || `${entityLabel} #${assignedId}`})
+                      <span className="block text-xs text-muted-foreground truncate">
+                        Tender: {tenderLabel}
                       </span>
                     )
                   )}
@@ -240,6 +314,75 @@ export function PoTaskPicker({
           })}
         </div>
       </div>
+      {/* Create new PO task inline form */}
+      {onCreateTask && (
+        showCreateForm ? (
+          <div className="mt-2 p-2 border rounded-md bg-muted/30 space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                placeholder="New PO task name..."
+                className="flex-1 bg-background text-sm border rounded px-2 py-1.5 outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !creating) {
+                    e.preventDefault();
+                    handleCreateTask();
+                  } else if (e.key === "Escape") {
+                    setShowCreateForm(false);
+                    setNewTaskName("");
+                    setNewTaskTemplateId("");
+                  }
+                }}
+              />
+            </div>
+            {/* Template selector - show when "All Templates" is active and multiple templates exist */}
+            {templateFilter === "all" && templates.length > 1 && (
+              <select
+                value={newTaskTemplateId}
+                onChange={(e) => setNewTaskTemplateId(e.target.value)}
+                className="w-full bg-background text-sm border rounded px-2 py-1.5 outline-none"
+              >
+                <option value="">Select template...</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={String(t.id)}>{t.name}</option>
+                ))}
+              </select>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={creating || !newTaskName.trim() || (templateFilter === "all" && templates.length > 1 && !newTaskTemplateId)}
+                onClick={handleCreateTask}
+                className="px-3 py-1 text-xs font-medium rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creating ? "Creating..." : "Create"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateForm(false);
+                  setNewTaskName("");
+                  setNewTaskTemplateId("");
+                }}
+                className="px-3 py-1 text-xs rounded border hover:bg-accent"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowCreateForm(true)}
+            className="mt-2 text-xs text-primary hover:text-primary/80 font-medium"
+          >
+            + New PO Task
+          </button>
+        )
+      )}
       {selectedIds.length > 0 && (
         <p className="text-xs text-muted-foreground mt-1">
           {selectedIds.length} task{selectedIds.length !== 1 ? "s" : ""} selected
