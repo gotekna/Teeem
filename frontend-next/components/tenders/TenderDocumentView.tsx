@@ -188,71 +188,72 @@ function formatTenderDate(dateStr: string): string {
   }
 }
 
-/** Price Summary block used on both the Cover Letter and Preview mode totals.
- * Shows header breakdown (Site Costs, Authority, Base Price, etc.), then PC/PS, subtotal, GST, total.
+/** Price Summary block matching the Tender Builder's totals table format.
+ * Shows: Base Price, Prime Costs (count), Provisional Sums (count), Contract Sum, GST (10%), Total.
  */
 function PriceSummaryBlock({
   doc,
-  headerGroups,
   widthClass = "w-40",
 }: {
   doc: TenderDocumentData;
-  headerGroups?: Record<string, Record<string, TenderDocumentItem[]>>;
   widthClass?: string;
 }) {
   const pcTotal = doc.pc_total || 0;
   const psTotal = doc.ps_total || 0;
-  const hasHeaders = headerGroups && Object.keys(headerGroups).length > 0;
+  const basePrice = doc.subtotal - pcTotal - psTotal;
+  const hasPcOrPs = pcTotal > 0 || psTotal > 0;
+
+  // Count PC and PS items from sections data
+  const allItems = Object.values(doc.sections_grouped).flat();
+  const pcCount = allItems.filter(i => i.item_type === "priced").length;
+  const psCount = allItems.filter(i => i.item_type === "provisional").length;
 
   return (
-    <div className="space-y-2 py-4">
-      {/* Header breakdown (Site Costs, Authority Conditions, Base Price, etc.) */}
-      {hasHeaders && Object.entries(headerGroups!).map(([headerName, _sections]) => {
-        const headerTotal = doc.header_subtotals?.[headerName] || 0;
-        return (
-          <div key={headerName} className="flex justify-between">
-            <span className="font-bold text-sm">{cleanSectionName(headerName)}</span>
-            <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(headerTotal)}</span>
-          </div>
-        );
-      })}
-
-      {/* Prime Cost Allowances */}
-      {pcTotal > 0 && (
-        <div className="flex justify-between">
-          <span className="text-sm italic">incl. Prime Cost Allowances</span>
-          <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(pcTotal)}</span>
-        </div>
-      )}
-
-      {/* Provisional Sum Allowances */}
-      {psTotal > 0 && (
-        <div className="flex justify-between">
-          <span className="text-sm italic">incl. Provisional Sum Allowances</span>
-          <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(psTotal)}</span>
-        </div>
-      )}
-
-      <div className="border-t my-2" />
-
-      {/* Subtotal ex GST */}
-      <div className="flex justify-between">
-        <span className="text-sm">Subtotal (ex GST)</span>
-        <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(doc.subtotal)}</span>
+    <div className="py-4">
+      {/* Base Price */}
+      <div className="flex justify-between items-baseline py-1">
+        <span className="font-semibold text-sm">Base Price (ex GST)</span>
+        <span className={`font-semibold tabular-nums text-sm ${widthClass} text-right`}>{formatCurrency(basePrice)}</span>
       </div>
+
+      {/* Prime Costs */}
+      {pcTotal > 0 && (
+        <div className="flex justify-between items-baseline py-0.5">
+          <span className="text-sm text-blue-700 dark:text-blue-400">
+            Prime Costs ({pcCount} {pcCount === 1 ? "item" : "items"})
+          </span>
+          <span className={`tabular-nums text-sm ${widthClass} text-right text-blue-700 dark:text-blue-400`}>{formatCurrency(pcTotal)}</span>
+        </div>
+      )}
+
+      {/* Provisional Sums */}
+      {psTotal > 0 && (
+        <div className="flex justify-between items-baseline py-0.5">
+          <span className="text-sm text-violet-700 dark:text-violet-400">
+            Provisional Sums ({psCount} {psCount === 1 ? "item" : "items"})
+          </span>
+          <span className={`tabular-nums text-sm ${widthClass} text-right text-violet-700 dark:text-violet-400`}>{formatCurrency(psTotal)}</span>
+        </div>
+      )}
+
+      {/* Contract Sum (only shown when there are PC or PS items) */}
+      {hasPcOrPs && (
+        <div className="flex justify-between items-baseline py-1 border-t border-border/50 mt-1">
+          <span className="text-sm font-medium">Contract Sum (ex GST)</span>
+          <span className={`font-medium tabular-nums text-sm ${widthClass} text-right`}>{formatCurrency(doc.subtotal)}</span>
+        </div>
+      )}
 
       {/* GST */}
-      <div className="flex justify-between">
-        <span className="text-sm">GST</span>
-        <span className={`font-medium text-sm ${widthClass} text-right`}>{formatCurrency(doc.gst)}</span>
+      <div className="flex justify-between items-baseline py-0.5">
+        <span className="text-muted-foreground text-sm">GST (10%)</span>
+        <span className={`text-muted-foreground tabular-nums text-sm ${widthClass} text-right`}>{formatCurrency(doc.gst)}</span>
       </div>
 
-      <div className="border-t my-2" />
-
-      {/* Grand Total */}
-      <div className="flex justify-between pt-1">
-        <span className="font-bold">The total cost to construct is:</span>
-        <span className={`font-bold text-lg ${widthClass} text-right`}>{formatCurrency(doc.total)}</span>
+      {/* Total */}
+      <div className="flex justify-between items-baseline py-2 border-t mt-1">
+        <span className="font-bold text-base">Total (inc GST)</span>
+        <span className={`font-bold text-base tabular-nums ${widthClass} text-right`}>{formatCurrency(doc.total)}</span>
       </div>
       <p className="text-sm font-bold text-muted-foreground">All our prices are GST inclusive</p>
     </div>
@@ -641,7 +642,7 @@ function CoverLetterPage({ doc }: { doc: TenderDocumentData }) {
         </div>
 
         {/* Price Summary Table */}
-        <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-40" />
+        <PriceSummaryBlock doc={doc} widthClass="w-40" />
 
         {/* Validity */}
         <p className="text-sm">
@@ -1192,7 +1193,7 @@ export function TenderDocumentView({ document: doc, previewMode = false }: Tende
       {previewMode && (
         <Card>
           <CardContent className="pt-6">
-            <PriceSummaryBlock doc={doc} headerGroups={headerGroups} widthClass="w-32" />
+            <PriceSummaryBlock doc={doc} widthClass="w-32" />
           </CardContent>
         </Card>
       )}
