@@ -11,6 +11,15 @@
 # ============================================
 # SYSTEM MAINTENANCE
 # ============================================
+
+# Pre-compute queue_status payload on shared worker (1024 MB headroom)
+# instead of the web dyno (448/512 MB). Reduces web endpoint from
+# 59 queries/4.7s to a single cache read (<50ms).
+queue_status_cache:
+  class: QueueStatusCacheJob
+  queue: default
+  schedule: every 30 seconds
+
 clear_solid_queue_finished_jobs:
   command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
   schedule: every hour at minute 12
