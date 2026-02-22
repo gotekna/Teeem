@@ -1183,6 +1183,9 @@ class SmScheduleMasterSyncService
       requires_document_to_complete: template_row.requires_document_to_complete,
       completion_document_type_id: template_row.completion_document_type_id,
 
+      # Tender section (from template SSoT)
+      tender_id: template_row.tender_id,
+
       # Automation (from template)
       spawn_scan_task_id: template_row.spawn_scan_task_id,
       spawn_scan_lag_days: template_row.spawn_scan_lag_days,

@@ -10,9 +10,11 @@
 #     TS-011 Piering to Slab (Tender section)
 #     TS-022 Flood Requirements (Tender section, default_note: "No allowance...")
 #
-# Linked to SM Schedule Masters via tender_id lookup column.
-# When a tender document is created, POs inherit their tender section
-# via the chain: PO → SmTask → SmScheduleMaster.tender_id → Tender → Tender.tender_header
+# Linked via tender_id on SmScheduleMaster (template), SmTask (job), and PurchaseOrder (manual).
+# SSoT priority for tender assignment:
+#   1. PurchaseOrder.tender_id (direct, for manual POs)
+#   2. SmTask.tender_id (synced from template)
+#   3. SmScheduleMaster.tender_id (template source)
 #
 # Section Types:
 #   priced      - Shows line items with prices (normal)
@@ -31,6 +33,8 @@ class Tender < ApplicationRecord
   # Associations
   belongs_to :tender_header
   has_many :sm_schedule_masters, foreign_key: :tender_id, dependent: :nullify
+  has_many :sm_tasks, foreign_key: :tender_id, dependent: :nullify
+  has_many :purchase_orders, foreign_key: :tender_id, dependent: :nullify
 
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }

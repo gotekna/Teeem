@@ -33,6 +33,9 @@ class PurchaseOrder < ApplicationRecord
   # No reverse column on SmTask - use sm_task.linked_purchase_order for reverse lookup
   belongs_to :sm_task, class_name: "SmTask", optional: true
 
+  # Direct tender assignment (for manual POs not linked to SM tasks)
+  belongs_to :tender, optional: true
+
   # Backwards compatibility: Frontend expects sm_tasks array
   def sm_tasks
     sm_task ? [sm_task] : []
@@ -82,10 +85,11 @@ class PurchaseOrder < ApplicationRecord
   end
 
   def tender_from_task
-    # Try SmTask's sm_schedule_master.tender_id (tender_id lives on SM template)
-    tender_id = sm_task&.sm_schedule_master&.tender_id
-    return nil unless tender_id
-    Tender.find_by(id: tender_id)&.name
+    # SSoT priority: PO direct > SmTask (synced) > SmScheduleMaster (template)
+    # PO.tender_id used for manual POs not linked to SM tasks
+    tid = tender_id || sm_task&.tender_id || sm_task&.sm_schedule_master&.tender_id
+    return nil unless tid
+    Tender.find_by(id: tid)&.name
   end
 
   def profit_centre_from_line_items

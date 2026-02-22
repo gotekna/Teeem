@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_240000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_23_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9106,6 +9106,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_240000) do
     t.boolean "auto_attach_email_files", default: true, null: false
     t.string "sync_key"
     t.string "task_code", limit: 50
+    t.integer "tender_id"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9142,6 +9143,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_240000) do
     t.index ["supplier_confirmed_by_id"], name: "index_sm_tasks_on_supplier_confirmed_by_id"
     t.index ["supplier_id"], name: "index_sm_tasks_on_supplier_id"
     t.index ["tenant_id"], name: "index_sm_tasks_on_tenant_id"
+    t.index ["tender_id"], name: "index_sm_tasks_on_tender_id"
     t.index ["ticket_priority"], name: "index_sm_tasks_on_ticket_priority"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
   end

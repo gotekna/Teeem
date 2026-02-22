@@ -195,6 +195,8 @@ class SmScheduleMasterTemplateCopyService
         header_gantt: row.header_gantt,
         color: row.color,
         cost_centre: row.cost_centre,
+        # Tender section (synced from template SSoT)
+        tender_id: row.tender_id,
         # Workflow settings
         start_workflow_enabled: row.start_workflow_enabled,
         start_workflow_id: row.start_workflow_id,

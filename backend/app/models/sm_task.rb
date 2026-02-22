@@ -80,6 +80,8 @@ class SmTask < ApplicationRecord
 
   # SSoT association - points to sm_schedule_master (THE ONE template system)
   belongs_to :sm_schedule_master, optional: true
+  # Tender section - synced from SmScheduleMaster template via SM sync
+  belongs_to :tender, optional: true
   belongs_to :parent_task, class_name: "SmTask", optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
