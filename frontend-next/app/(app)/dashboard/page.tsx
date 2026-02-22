@@ -27,10 +27,12 @@ import {
   Target,
   Network,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
 import BriefingWidget from "./components/BriefingWidget";
+import AIJoshuaTab from "./components/AIJoshuaTab";
 
 interface DashboardStats {
   activeJobs: number;
@@ -210,6 +212,10 @@ export default function DashboardPage() {
           <TabsTrigger value="competitor" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Competitor Comparison
+          </TabsTrigger>
+          <TabsTrigger value="ai-joshua" className="gap-2">
+            <Sparkles className="h-4 w-4" />
+            AI Joshua
           </TabsTrigger>
           <TabsTrigger value="architecture" className="gap-2">
             <Network className="h-4 w-4" />
@@ -471,6 +477,11 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* AI Joshua Tab */}
+        <TabsContent value="ai-joshua">
+          <AIJoshuaTab />
         </TabsContent>
 
         {/* Competitor Comparison Tab */}

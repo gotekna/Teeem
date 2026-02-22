@@ -9,7 +9,7 @@ import type { TableRow } from "@/components/table/types";
 /**
  * TenderHeadersTab - Manage tender headers (top-level groupings).
  *
- * Headers are tender records with parent_id = NULL.
+ * Headers live in their own tender_headers table (split from tenders).
  * They group tender sections into two-level hierarchy for tender documents
  * (e.g., "Site Costs" header contains "Site Preparation", "Piering to Slab", etc.)
  *
@@ -33,7 +33,7 @@ function LinkedSections({ headerId }: { headerId: number | string }) {
     (async () => {
       try {
         const filters = JSON.stringify([
-          { column: "parent_id", operator: "equals", value: String(headerId) },
+          { column: "tender_header_id", operator: "equals", value: String(headerId) },
         ]);
         const data = await api.get<{ success: boolean; records: Record<string, unknown>[] }>(
           `/api/v1/foundations/${FOUNDATION_SLUGS.TENDERS}/records?per_page=200&filters=${encodeURIComponent(filters)}`
@@ -101,18 +101,8 @@ export function TenderHeadersTab() {
   return (
     <div className="flex flex-col h-full -mx-4">
       <TeeemTableView
-        foundationId={FOUNDATION_SLUGS.TENDERS}
+        foundationId={FOUNDATION_SLUGS.TENDER_HEADERS}
         autoFetchRecords={true}
-        initialFilters={[
-          {
-            id: "header-filter",
-            column: "parent_id",
-            operator: "is_empty",
-            value: null,
-            locked: true,
-          },
-        ]}
-        initiallyHiddenColumns={["parent_id"]}
         editDialogRenderExtra={renderLinkedSections}
       />
     </div>

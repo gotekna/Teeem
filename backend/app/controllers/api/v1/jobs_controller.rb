@@ -787,9 +787,9 @@ module Api
 
         cost_budgets = @job.job_cost_budgets.includes(:cost_centre)
 
-        # Pre-load tenders + their parent headers for efficient lookup (avoids N+1)
+        # Pre-load tenders + their tender headers for efficient lookup (avoids N+1)
         tender_ids = purchase_orders.filter_map { |po| po.sm_task&.sm_schedule_master&.tender_id }.uniq
-        tenders_by_id = tender_ids.any? ? Tender.where(id: tender_ids).includes(:parent).index_by(&:id) : {}
+        tenders_by_id = tender_ids.any? ? Tender.where(id: tender_ids).includes(:tender_header).index_by(&:id) : {}
 
         # Pre-load Databuild BOQ line items (SmScheduleMaster records linked to cost centres)
         cc_ids = cost_budgets.filter_map { |b| b.cost_centre&.id }
@@ -935,7 +935,7 @@ module Api
                 stagePosition: sm&.sequence_order,
                 costCentreName: po.cost_centre_from_task,
                 tenderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.name),
-                tenderHeaderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.parent&.name),
+                tenderHeaderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.tender_header&.name),
                 profitCentreName: po.profit_centre_from_line_items,
                 items: items
               }
@@ -959,7 +959,7 @@ module Api
               stagePosition: sm&.sequence_order,
               costCentreName: po.cost_centre_from_task,
               tenderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.name),
-              tenderHeaderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.parent&.name),
+              tenderHeaderName: (tenders_by_id[po.sm_task&.sm_schedule_master&.tender_id]&.tender_header&.name),
               profitCentreName: po.profit_centre_from_line_items,
               items: po.line_items.sort_by(&:line_number).map do |item|
                 pc = item.profit_centre

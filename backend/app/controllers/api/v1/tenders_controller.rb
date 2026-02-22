@@ -2,7 +2,7 @@
 
 # TendersController - Manages tender sections/headers and their PO task assignments.
 #
-# Two-level hierarchy: headers (parent_id = nil) group sections (parent_id set).
+# Two-level hierarchy: TenderHeader groups Tender sections.
 # Tender sections group PO line items into sections for tender documents
 # (e.g., "Base Price & Essential Inclusions", "Site Costs").
 #
@@ -15,13 +15,13 @@ class Api::V1::TendersController < ApplicationController
   # GET /api/v1/tenders/tree
   # Returns hierarchical header > sections structure for the tender document system
   def tree
-    render json: { success: true, data: Tender.tree }
+    render json: { success: true, data: TenderHeader.tree }
   end
 
   # GET /api/v1/tenders/headers
-  # Returns headers-only (parent_id = nil) for dropdown selection in sections tab
+  # Returns headers for dropdown selection in sections tab
   def headers
-    headers_list = Tender.headers.active.ordered.select(:id, :code, :name, :sort_order)
+    headers_list = TenderHeader.active.ordered.select(:id, :code, :name, :sort_order)
     render json: {
       success: true,
       data: headers_list.map { |h| { id: h.id, code: h.code, name: h.name, sortOrder: h.sort_order } }
@@ -35,7 +35,7 @@ class Api::V1::TendersController < ApplicationController
 
     # Build a lookup of tender names + headers for display
     tender_ids = tasks.pluck(:tender_id).compact.uniq
-    tenders_data = Tender.where(id: tender_ids).includes(:parent).index_by(&:id)
+    tenders_data = Tender.where(id: tender_ids).includes(:tender_header).index_by(&:id)
 
     # Build a lookup of cost centre names and codes for cross-reference display
     cost_centre_ids = tasks.pluck(:cost_centre).compact.uniq
@@ -54,8 +54,8 @@ class Api::V1::TendersController < ApplicationController
           taskNumber: t.task_number,
           tenderId: t.tender_id,
           tenderName: tender&.name,
-          tenderHeaderId: tender&.parent_id,
-          tenderHeaderName: tender&.parent&.name,
+          tenderHeaderId: tender&.tender_header_id,
+          tenderHeaderName: tender&.tender_header&.name,
           costCentreId: t.cost_centre,
           costCentreName: t.cost_centre.present? ? cost_centre_names[t.cost_centre] : nil,
           costCentreCode: t.cost_centre.present? ? cost_centre_codes[t.cost_centre] : nil,

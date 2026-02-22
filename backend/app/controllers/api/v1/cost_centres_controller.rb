@@ -147,7 +147,7 @@ class Api::V1::CostCentresController < ApplicationController
 
     # Build a lookup of tender names + headers for cross-reference display
     tender_ids = tasks.pluck(:tender_id).compact.uniq
-    tenders_data = Tender.where(id: tender_ids).includes(:parent).index_by(&:id)
+    tenders_data = Tender.where(id: tender_ids).includes(:tender_header).index_by(&:id)
 
     render json: {
       success: true,
@@ -163,8 +163,8 @@ class Api::V1::CostCentresController < ApplicationController
           costCentreCode: t.cost_centre.present? ? cost_centre_codes[t.cost_centre] : nil,
           tenderId: t.tender_id,
           tenderName: tender&.name,
-          tenderHeaderId: tender&.parent_id,
-          tenderHeaderName: tender&.parent&.name,
+          tenderHeaderId: tender&.tender_header_id,
+          tenderHeaderName: tender&.tender_header&.name,
           templateIds: t.sm_template_ids || []
         }
       }

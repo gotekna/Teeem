@@ -66,7 +66,7 @@ class TenderDocumentService
 
     @job.purchase_orders.includes(line_items: { pricebook_item: :image_storage_blob }, sm_task: :sm_schedule_master).find_each do |po|
       tender_section = resolve_tender_section(po)
-      tender_header = tender_section&.parent
+      tender_header = tender_section&.tender_header
 
       po_cls = @po_classifications[po.id.to_s]
 
@@ -196,7 +196,7 @@ class TenderDocumentService
   # - Populated sections: get a note item only if the user has written one in @section_notes
   # This ensures every section appears in the document, and user notes show alongside PO items.
   def insert_default_note_items!(doc, sections_with_items)
-    Tender.sections.active.ordered.includes(:parent).find_each do |section|
+    Tender.active.ordered.includes(:tender_header).find_each do |section|
       has_items = sections_with_items.include?(section.id)
       user_note = @section_notes[section.name].presence
 
@@ -214,7 +214,7 @@ class TenderDocumentService
                       section.name
                   end
 
-      header = section.parent
+      header = section.tender_header
       doc.tender_document_items.create!(
         tender_section_name: section.name,
         tender_section_code: section.code,
@@ -241,8 +241,8 @@ class TenderDocumentService
       line_counter_by_section[section_name] += 1
 
       # Resolve tender section from name for sort_order / code
-      tender_section = Tender.sections.active.find_by(name: section_name)
-      tender_header = tender_section&.parent || Tender.headers.active.find_by(name: header_name)
+      tender_section = Tender.active.find_by(name: section_name)
+      tender_header = tender_section&.tender_header || TenderHeader.active.find_by(name: header_name)
 
       qty = (ai[:quantity] || 1).to_d
       price = (ai[:unit_price] || 0).to_d

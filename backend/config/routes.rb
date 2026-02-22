@@ -2324,6 +2324,7 @@ Rails.application.routes.draw do
         end
       end
 
+      resources :tender_headers, only: []
       resources :tenders, only: [] do
         collection do
           get :po_tasks

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_22_210002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -426,6 +426,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
     t.datetime "actioned_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "suggested_action_data"
     t.index ["alert_type"], name: "index_assistant_alerts_on_alert_type"
     t.index ["assistant_action_id"], name: "index_assistant_alerts_on_assistant_action_id"
     t.index ["source_type", "source_id"], name: "index_assistant_alerts_on_source_type_and_source_id"
@@ -9710,14 +9711,21 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
     t.boolean "content_unavailable", default: false, null: false
     t.string "content_unavailable_reason"
     t.boolean "needs_enrichment", default: false
+    t.boolean "follow_up_required", default: false
+    t.date "follow_up_date"
+    t.string "follow_up_reason", limit: 255
+    t.datetime "ai_processed_at"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_classification_type", where: "(email_classification IS NOT NULL)"
     t.index "((email_classification ->> 'email_type'::text))", name: "idx_email_warehouse_email_type"
+    t.index ["ai_processed_at"], name: "index_synced_emails_on_ai_unprocessed", where: "(ai_processed_at IS NULL)"
     t.index ["cc_emails"], name: "idx_email_warehouse_cc_emails_gin", using: :gin
     t.index ["contact_ids"], name: "idx_email_warehouse_contact_ids_gin", using: :gin
     t.index ["content_unavailable"], name: "index_synced_emails_on_content_unavailable", where: "(content_unavailable = true)"
     t.index ["conversation_id", "is_latest_in_thread"], name: "idx_email_warehouse_conversation_latest"
     t.index ["direction"], name: "index_synced_emails_on_direction"
     t.index ["email_mailbox_id"], name: "index_synced_emails_on_email_mailbox_id"
+    t.index ["follow_up_required", "follow_up_date"], name: "index_synced_emails_on_follow_up_due", where: "(follow_up_required = true)"
+    t.index ["follow_up_required"], name: "index_synced_emails_on_follow_up_required", where: "(follow_up_required = true)"
     t.index ["from_email"], name: "idx_email_warehouse_from_email"
     t.index ["id"], name: "idx_email_warehouse_unassigned", where: "(job_id IS NULL)"
     t.index ["imap_credential_id", "uid"], name: "idx_email_warehouse_imap_uid", where: "(uid IS NOT NULL)"
@@ -10325,6 +10333,23 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
     t.index ["tenant_id", "document_number"], name: "index_tender_documents_on_tenant_id_and_document_number", unique: true
   end
 
+  create_table "tender_headers", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "code", limit: 20, null: false
+    t.string "name", limit: 100, null: false
+    t.text "description"
+    t.integer "sort_order"
+    t.boolean "active", default: true
+    t.jsonb "metadata", default: {}
+    t.string "sync_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["active"], name: "index_tender_headers_on_active"
+    t.index ["sort_order"], name: "index_tender_headers_on_sort_order"
+    t.index ["tenant_id", "code"], name: "index_tender_headers_on_tenant_id_and_code", unique: true
+    t.index ["tenant_id"], name: "index_tender_headers_on_tenant_id"
+  end
+
   create_table "tenders", force: :cascade do |t|
     t.bigint "tenant_id", null: false
     t.string "code", limit: 20, null: false
@@ -10339,13 +10364,13 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
     t.string "sync_key"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "parent_id"
     t.text "default_note"
+    t.bigint "tender_header_id", null: false
     t.index ["active"], name: "index_tenders_on_active"
-    t.index ["parent_id"], name: "index_tenders_on_parent_id"
     t.index ["sort_order"], name: "index_tenders_on_sort_order"
     t.index ["tenant_id", "code"], name: "index_tenders_on_tenant_id_and_code", unique: true
     t.index ["tenant_id"], name: "index_tenders_on_tenant_id"
+    t.index ["tender_header_id"], name: "index_tenders_on_tender_header_id"
   end
 
   create_table "trial_invitations", force: :cascade do |t|
@@ -12427,7 +12452,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_22_190000) do
   add_foreign_key "tender_documents", "users", column: "created_by_id"
   add_foreign_key "tender_documents", "users", column: "locked_by_id"
   add_foreign_key "tenders", "tenants", on_delete: :cascade
-  add_foreign_key "tenders", "tenders", column: "parent_id"
+  add_foreign_key "tenders", "tender_headers"
   add_foreign_key "trial_invitations", "tenants", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "invited_by_user_id", on_delete: :nullify
   add_foreign_key "trial_invitations", "users", column: "sent_from_user_id", on_delete: :nullify
