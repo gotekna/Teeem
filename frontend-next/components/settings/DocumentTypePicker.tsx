@@ -104,6 +104,7 @@ export function DocumentTypePicker({
       groupMap[folder].push({
         id: dt.name, // Use name as ID since selected[] uses names
         label: dt.name,
+        searchText: folder, // Search by folder name (e.g., typing "plan" finds all items in "Plans" folder)
       });
     }
     return Object.entries(groupMap)
