@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
-import { Edit, Save } from "lucide-react";
+import { Edit, Save, Eye, EyeOff } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Corporate } from "@/lib/types/corporate";
 
@@ -27,6 +27,8 @@ interface CorporateTabProps {
 export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showAnswer, setShowAnswer] = React.useState(false);
   const [formData, setFormData] = React.useState({
     tfn: company.tfn || "",
     business_names: company.business_names || "",
@@ -198,7 +200,14 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
                 className="mt-1"
               />
             ) : (
-              <p className="text-sm mt-1">{company.has_asic_password ? "••••••••" : "-"}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm">{!company.encrypted_asic_password ? "-" : showPassword ? company.encrypted_asic_password : "••••••••"}</p>
+                {company.encrypted_asic_password && (
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-muted-foreground hover:text-foreground p-0.5">
+                    {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div>
@@ -223,7 +232,14 @@ export function CorporateTab({ company, onUpdate }: CorporateTabProps) {
                 className="mt-1"
               />
             ) : (
-              <p className="text-sm mt-1">{company.has_recovery_answer ? "••••••••" : "-"}</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <p className="text-sm">{!company.encrypted_recovery_answer ? "-" : showAnswer ? company.encrypted_recovery_answer : "••••••••"}</p>
+                {company.encrypted_recovery_answer && (
+                  <button type="button" onClick={() => setShowAnswer(!showAnswer)} className="text-muted-foreground hover:text-foreground p-0.5">
+                    {showAnswer ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

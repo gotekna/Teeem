@@ -110,8 +110,10 @@ export interface Corporate {
   corporate_key?: string;
   asic_username?: string;
   has_asic_password?: boolean;
+  encrypted_asic_password?: string;
   recovery_question?: string;
   has_recovery_answer?: boolean;
+  encrypted_recovery_answer?: string;
   bank_name?: string;
   bank_bsb?: string;
   bank_account_number?: string;
