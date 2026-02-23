@@ -17,9 +17,15 @@ import {
   ChevronRight,
   ExternalLink,
   Sparkles,
+  Reply,
+  Check,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import JoshuaMascot from "./JoshuaMascot";
 
 interface BriefingItem {
@@ -27,6 +33,8 @@ interface BriefingItem {
   name?: string;
   subject?: string;
   from?: string;
+  from_email?: string;
+  ai_summary?: string;
   status?: string;
   job_name?: string;
   days_overdue?: number;
@@ -104,7 +112,11 @@ const SECTION_CONFIG: Record<string, {
   },
 };
 
-function SectionCard({ section }: { section: BriefingSection }) {
+function SectionCard({ section, onCompleteTask, completingTaskId }: {
+  section: BriefingSection;
+  onCompleteTask: (taskId: number) => void;
+  completingTaskId: number | null;
+}) {
   const config = SECTION_CONFIG[section.type] || {
     icon: CheckSquare,
     color: "text-muted-foreground",
@@ -141,7 +153,13 @@ function SectionCard({ section }: { section: BriefingSection }) {
       <CardContent>
         <div className="space-y-2">
           {section.items.map((item, idx) => (
-            <ItemRow key={item.id || idx} item={item} type={section.type} />
+            <ItemRow
+              key={item.id || idx}
+              item={item}
+              type={section.type}
+              onCompleteTask={onCompleteTask}
+              completingTaskId={completingTaskId}
+            />
           ))}
         </div>
       </CardContent>
@@ -149,85 +167,173 @@ function SectionCard({ section }: { section: BriefingSection }) {
   );
 }
 
-function ItemRow({ item, type }: { item: BriefingItem; type: string }) {
+function buildReplyUrl(item: BriefingItem): string {
+  const params = new URLSearchParams();
+  if (item.from_email) params.set("compose_to", item.from_email);
+  if (item.subject) {
+    const subject = item.subject.startsWith("RE:") ? item.subject : `RE: ${item.subject}`;
+    params.set("compose_subject", subject);
+  }
+  return `/email?${params.toString()}`;
+}
+
+function ItemRow({ item, type, onCompleteTask, completingTaskId }: {
+  item: BriefingItem;
+  type: string;
+  onCompleteTask: (taskId: number) => void;
+  completingTaskId: number | null;
+}) {
+  const router = useRouter();
+  const isCompleting = completingTaskId === item.id;
+
   switch (type) {
     case "tasks_due":
       return (
-        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 group">
           <div className="flex items-center gap-2 min-w-0">
             <div className={`h-2 w-2 rounded-full shrink-0 ${
               item.priority === "high" ? "bg-red-500" : "bg-blue-500"
             }`} />
             <span className="text-sm truncate">{item.name}</span>
           </div>
-          {item.job_name && (
-            <Badge variant="outline" className="text-xs shrink-0 ml-2">
-              {item.job_name}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            {item.job_name && (
+              <Badge variant="outline" className="text-xs">
+                {item.job_name}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => onCompleteTask(item.id)}
+              disabled={isCompleting}
+            >
+              {isCompleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  Done
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       );
 
     case "overdue":
       return (
-        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 group">
           <div className="flex items-center gap-2 min-w-0">
             <div className="h-2 w-2 rounded-full shrink-0 bg-red-500" />
             <span className="text-sm truncate">{item.name}</span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
             {item.job_name && (
               <Badge variant="outline" className="text-xs">{item.job_name}</Badge>
             )}
             <Badge variant="destructive" className="text-xs font-mono">
               {item.days_overdue}d
             </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => onCompleteTask(item.id)}
+              disabled={isCompleting}
+            >
+              {isCompleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <>
+                  <Check className="h-3 w-3 mr-1" />
+                  Done
+                </>
+              )}
+            </Button>
           </div>
         </div>
       );
 
     case "follow_ups":
       return (
-        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 group">
           <div className="min-w-0">
             <p className="text-sm truncate">{item.subject}</p>
             <p className="text-xs text-muted-foreground">From: {item.from}</p>
+            {item.ai_summary && (
+              <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{item.ai_summary}</p>
+            )}
           </div>
-          {item.follow_up_reason && (
-            <Badge variant="outline" className="text-xs shrink-0 ml-2">
-              {item.follow_up_reason}
-            </Badge>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            {item.follow_up_reason && (
+              <Badge variant="outline" className="text-xs">
+                {item.follow_up_reason}
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => router.push(buildReplyUrl(item))}
+            >
+              <Reply className="h-3 w-3 mr-1" />
+              Reply
+            </Button>
+          </div>
         </div>
       );
 
     case "unanswered":
       return (
-        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 group">
           <div className="min-w-0">
             <p className="text-sm truncate">{item.subject}</p>
             <p className="text-xs text-muted-foreground">From: {item.from}</p>
           </div>
-          <Badge variant="outline" className="text-xs shrink-0 ml-2 font-mono">
-            {item.hours_waiting}h
-          </Badge>
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            <Badge variant="outline" className="text-xs font-mono">
+              {item.hours_waiting}h
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => router.push(buildReplyUrl(item))}
+            >
+              <Reply className="h-3 w-3 mr-1" />
+              Reply
+            </Button>
+          </div>
         </div>
       );
 
     case "pending_pos":
       return (
-        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0">
+        <div className="flex items-center justify-between py-1.5 border-b border-border/50 last:border-0 group">
           <div className="min-w-0">
             <p className="text-sm font-mono">{item.po_number}</p>
             {item.supplier && (
               <p className="text-xs text-muted-foreground">{item.supplier}</p>
             )}
           </div>
-          {item.total != null && (
-            <span className="text-sm font-medium shrink-0 ml-2">
-              ${Number(item.total).toLocaleString()}
-            </span>
-          )}
+          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+            {item.total != null && (
+              <span className="text-sm font-medium">
+                ${Number(item.total).toLocaleString()}
+              </span>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => router.push("/purchase_orders")}
+            >
+              <Eye className="h-3 w-3 mr-1" />
+              Review
+            </Button>
+          </div>
         </div>
       );
 
@@ -244,6 +350,35 @@ export default function AIJoshuaTab() {
   const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
+
+  const handleCompleteTask = async (taskId: number) => {
+    setCompletingTaskId(taskId);
+    try {
+      const res = await api.post<{ success: boolean }>(`/api/v1/sm_tasks/${taskId}/complete`, {});
+      if (res?.success) {
+        toast.success("Task marked as complete");
+        // Remove the completed task from the briefing locally
+        setBriefing(prev => {
+          if (!prev) return prev;
+          const sections = prev.sections
+            .map(s => {
+              if (s.type !== "tasks_due" && s.type !== "overdue") return s;
+              const items = s.items.filter(i => i.id !== taskId);
+              return { ...s, items, count: items.length };
+            })
+            .filter(s => s.count > 0);
+          return { ...prev, sections, has_items: sections.length > 0 };
+        });
+      } else {
+        toast.error("Failed to complete task");
+      }
+    } catch {
+      toast.error("Failed to complete task");
+    } finally {
+      setCompletingTaskId(null);
+    }
+  };
 
   const fetchBriefing = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -367,7 +502,12 @@ export default function AIJoshuaTab() {
       {briefing?.has_items ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {briefing.sections.map((section) => (
-            <SectionCard key={section.type} section={section} />
+            <SectionCard
+              key={section.type}
+              section={section}
+              onCompleteTask={handleCompleteTask}
+              completingTaskId={completingTaskId}
+            />
           ))}
         </div>
       ) : (

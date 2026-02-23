@@ -223,7 +223,7 @@ class Api::V1::AssistantController < ApplicationController
   # GET /api/v1/assistant/briefing
   # Get real-time briefing data for the dashboard widget
   def briefing
-    service = DailyDigestService.new(user: current_user)
+    service = DailyDigestService.new(user: current_user, tenant: current_tenant)
     digest = service.generate
 
     render json: {

@@ -22,40 +22,45 @@
 #   service.format_for(:slack)    # => Slack blocks JSON
 #
 class DailyDigestService
-  def initialize(user:)
+  def initialize(user:, tenant: nil)
     @user = user
+    @tenant = tenant || user.tenant
+    @user_email = user.email&.downcase
   end
 
   # Generate the full digest data
   # @return [Hash] { greeting: String, sections: Array, has_items: Boolean, generated_at: String }
   def generate
-    sections = []
+    # Explicit tenant scoping for safety (belt-and-suspenders with acts_as_tenant)
+    ActsAsTenant.with_tenant(@tenant) do
+      sections = []
 
-    tasks_due = tasks_due_today
-    sections << { type: "tasks_due", title: "Tasks Due Today", count: tasks_due.size, items: tasks_due } if tasks_due.any?
+      tasks_due = tasks_due_today
+      sections << { type: "tasks_due", title: "Tasks Due Today", count: tasks_due.size, items: tasks_due } if tasks_due.any?
 
-    overdue = overdue_tasks
-    sections << { type: "overdue", title: "Overdue Tasks", count: overdue.size, items: overdue } if overdue.any?
+      overdue = overdue_tasks
+      sections << { type: "overdue", title: "Overdue Tasks", count: overdue.size, items: overdue } if overdue.any?
 
-    follow_ups = follow_up_emails
-    sections << { type: "follow_ups", title: "Email Follow-ups Due", count: follow_ups.size, items: follow_ups } if follow_ups.any?
+      follow_ups = follow_up_emails
+      sections << { type: "follow_ups", title: "Email Follow-ups Due", count: follow_ups.size, items: follow_ups } if follow_ups.any?
 
-    unanswered = unanswered_emails
-    sections << { type: "unanswered", title: "Awaiting Your Reply (48h+)", count: unanswered.size, items: unanswered } if unanswered.any?
+      unanswered = unanswered_emails
+      sections << { type: "unanswered", title: "Awaiting Your Reply (48h+)", count: unanswered.size, items: unanswered } if unanswered.any?
 
-    pending_pos = pending_po_approvals
-    sections << { type: "pending_pos", title: "Pending PO Approvals", count: pending_pos.size, items: pending_pos } if pending_pos.any?
+      pending_pos = pending_po_approvals
+      sections << { type: "pending_pos", title: "Pending PO Approvals", count: pending_pos.size, items: pending_pos } if pending_pos.any?
 
-    alert_count = active_alert_count
+      alert_count = active_alert_count
 
-    {
-      greeting: greeting_text,
-      sections: sections,
-      has_items: sections.any?,
-      alert_count: alert_count,
-      generated_at: Time.current.in_time_zone("Australia/Brisbane").strftime("%d/%m/%Y %H:%M"),
-      user_name: @user.name
-    }
+      {
+        greeting: greeting_text,
+        sections: sections,
+        has_items: sections.any?,
+        alert_count: alert_count,
+        generated_at: Time.current.in_time_zone("Australia/Brisbane").strftime("%d/%m/%Y %H:%M"),
+        user_name: @user.name
+      }
+    end
   end
 
   # Format digest for a specific channel
@@ -128,42 +133,55 @@ class DailyDigestService
   end
 
   def follow_up_emails
+    return [] if @user_email.blank?
+
     SyncedEmail.follow_up_due
-      .where("received_at > ?", 30.days.ago)
+      .joins(:synced_email_mailboxes)
+      .where(synced_email_mailboxes: { mailbox_owner_email: @user_email })
+      .where("synced_emails.received_at > ?", 30.days.ago)
       .order(follow_up_date: :asc)
+      .distinct
       .limit(10)
       .map do |e|
         {
           id: e.id,
           subject: e.subject&.truncate(80),
           from: e.from_name || e.from_email,
-          follow_up_reason: e.follow_up_reason
+          from_email: e.from_email,
+          follow_up_reason: e.follow_up_reason,
+          ai_summary: e.ai_summary&.truncate(120)
         }
       end
   end
 
   def unanswered_emails
+    return [] if @user_email.blank?
+
     SyncedEmail.not_spam
+      .joins(:synced_email_mailboxes)
+      .where(synced_email_mailboxes: { mailbox_owner_email: @user_email })
       .where(is_read: true, is_latest_in_thread: true)
-      .where("received_at < ? AND received_at > ?", 48.hours.ago, 7.days.ago)
+      .where("synced_emails.received_at < ? AND synced_emails.received_at > ?", 48.hours.ago, 7.days.ago)
       .where("email_classification->>'email_type' IS DISTINCT FROM ?", "marketing")
       .where("email_classification->>'email_type' IS DISTINCT FROM ?", "transactional")
-      .order(received_at: :desc)
+      .order("synced_emails.received_at DESC")
+      .distinct
       .limit(10)
       .map do |e|
         {
           id: e.id,
           subject: e.subject&.truncate(80),
           from: e.from_name || e.from_email,
+          from_email: e.from_email,
           hours_waiting: ((Time.current - e.received_at) / 3600).to_i
         }
       end
   end
 
   def pending_po_approvals
-    # Check for PurchaseOrders in pending_approval status
+    # Only show POs created by this user that are pending approval
     if defined?(PurchaseOrder) && PurchaseOrder.respond_to?(:column_names) && PurchaseOrder.column_names.include?("status")
-      PurchaseOrder.where(status: "pending_approval")
+      PurchaseOrder.where(status: "pending_approval", created_by_id: @user.id)
         .order(created_at: :desc)
         .limit(5)
         .map do |po|
