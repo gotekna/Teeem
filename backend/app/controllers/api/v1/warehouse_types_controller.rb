@@ -159,7 +159,7 @@ module Api
         folder_id_counts.each do |wf_id, count|
           wf = WarehouseFolder.find_by(id: wf_id)
           next unless wf
-          name_path = build_folder_name_path(wf)
+          name_path = lookup_folder_name_path(wf)
           folder_counts[name_path] = (folder_counts[name_path] || 0) + count
         end
 
@@ -644,6 +644,106 @@ module Api
         parts.join("/")
       end
 
+      # ⚠️ DO NOT SIMPLIFY - Pre-loaded folder lookup for N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: Methods like full_folder_path, full_ancestor_path, and
+      # build_ancestor_path walk up the parent chain using current.parent,
+      # which triggers a DB query per parent level per folder. With 500+
+      # folders nested 2-3 levels deep, this caused ~1,000 extra queries
+      # on /api/v1/warehouse_types and /api/v1/document_types endpoints.
+      # ❌ WRONG: wf.full_folder_path (walks parent chain via DB, N+1)
+      # ✅ CORRECT: Pre-load all folders once, compute paths in pure Ruby
+      # ════════════════════════════════════════════════════════════════════
+
+      # Load all warehouse folders into memory for O(1) parent chain lookups (1 query total)
+      def preload_folder_lookup!
+        @_folder_lookup ||= begin
+          rows = WarehouseFolder.pluck(:id, :parent_id, :name, :folder_segment, :display_name)
+          rows.each_with_object({}) do |(id, parent_id, name, folder_segment, display_name), hash|
+            hash[id] = { parent_id: parent_id, name: name, folder_segment: folder_segment, display_name: display_name }
+          end
+        end
+      end
+
+      # Equivalent to build_ancestor_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_ancestor_path(warehouse_folder)
+        preload_folder_lookup!
+        parts = []
+        current_id = warehouse_folder.id
+        while current_id
+          entry = @_folder_lookup[current_id]
+          break unless entry
+          parts.unshift(entry[:name])
+          current_id = entry[:parent_id]
+        end
+        parts.join('/')
+      end
+
+      # Equivalent to full_ancestor_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_full_ancestor_path(warehouse_folder)
+        preload_folder_lookup!
+        segments = []
+        current_id = warehouse_folder.id
+        while current_id
+          entry = @_folder_lookup[current_id]
+          break unless entry
+          segments.unshift(entry[:folder_segment]) if entry[:folder_segment].present?
+          current_id = entry[:parent_id]
+        end
+        segments.join('/')
+      end
+
+      # Equivalent to full_folder_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_full_folder_path(warehouse_folder, warehouse_type = nil)
+        wt = warehouse_type || warehouse_folder.warehouse_type
+        wt_base = wt&.folder_path_template.presence || wt&.display_name
+
+        ancestor_path = lookup_full_ancestor_path(warehouse_folder)
+
+        parts = []
+        parts << wt_base if wt_base.present?
+        parts << ancestor_path if ancestor_path.present?
+        parts.join('/')
+      end
+
+      # Equivalent to build_folder_name_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_folder_name_path(warehouse_folder)
+        preload_folder_lookup!
+        parts = []
+        current_id = warehouse_folder.id
+        while current_id
+          entry = @_folder_lookup[current_id]
+          break unless entry
+          parts.unshift(entry[:display_name].presence || entry[:name])
+          current_id = entry[:parent_id]
+        end
+        parts.join('/')
+      end
+
+      # Equivalent to path_preview but uses pre-loaded lookup (0 DB queries)
+      def lookup_path_preview(warehouse_folder, warehouse_type = nil)
+        template = lookup_full_folder_path(warehouse_folder, warehouse_type)
+        return warehouse_folder.name if template.blank?
+
+        preview = template.dup
+        preview.gsub!("{{JobCode}}", "J-001")
+        preview.gsub!("{{JobName}}", "Smith Residence")
+        preview.gsub!("{{ContactName}}", "John Smith")
+        preview.gsub!("{{CompanyCode}}", "ABC")
+        preview.gsub!("{{CompanyGroup}}", "ABC Group")
+        preview.gsub!("{{TaskId}}", "123")
+        preview.gsub!("{{TaskName}}", "Site Inspection")
+        preview.gsub!("{{CaseId}}", "456")
+        preview.gsub!("{{CaseName}}", "Insurance Claim")
+        preview.gsub!("{{UserName}}", "John Doe")
+        preview.gsub!("{{TabName}}", "Sales")
+        preview.gsub!("{{Year}}", Time.current.year.to_s)
+        preview.gsub!("{{Month}}", Time.current.strftime("%B"))
+        preview.gsub!("{{Mailbox}}", "inbox@example.com")
+        preview.gsub!("{{Date}}", Time.current.strftime("%Y-%m-%d"))
+        preview
+      end
+
       # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
       # ════════════════════════════════════════════════════════
       # Why: Scoped queries (.enabled, .ordered, .includes) bypass eager-loaded
@@ -676,7 +776,7 @@ module Api
           warehouse_folders: enabled_folders.map do |wf|
             wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
 
-            ancestor_path = build_ancestor_path(wf)
+            ancestor_path = lookup_ancestor_path(wf)
 
             full_template = if wt_template.blank?
               ancestor_path
@@ -693,6 +793,9 @@ module Api
             # Use already eager-loaded document_types - do NOT call .includes() again
             doc_types = wf.document_types
 
+            # FRC (Feb 2026): Use lookup_* methods to avoid N+1 parent chain walks
+            computed_full_folder_path = lookup_full_folder_path(wf, warehouse_type)
+
             {
               id: wf.id,
               name: wf.name,
@@ -702,9 +805,9 @@ module Api
               folder_segment: wf.folder_segment,
               folder_path_suffix: wf.folder_path_suffix,
               full_path_template: full_template,
-              full_folder_path: wf.full_folder_path,
+              full_folder_path: computed_full_folder_path,
               scope_base_template: wt_template,
-              path_preview: wf.path_preview,
+              path_preview: lookup_path_preview(wf, warehouse_type),
               is_system: wf.is_system,
               warehouse_type_code: warehouse_type.code,
               display_name: wf.display_name,
@@ -832,11 +935,19 @@ module Api
       end
 
       # Build a tree node for a warehouse type
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: .enabled.ordered.where(parent_id: nil) creates a NEW scoped query per
+      # warehouse type, bypassing the eager-loaded collection from tree action's .includes().
+      # ❌ WRONG: warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
+      # ✅ CORRECT: Filter the eager-loaded collection in Ruby
+      # ════════════════════════════════════════════════════════════════════
       def warehouse_type_tree_node(warehouse_type, counts)
-        # Get only root-level folders (parent_id: nil) - children are nested via children association
-        # FRC (Feb 2026): Without this filter, .includes() eager-loads ALL folders into memory,
-        # so warehouse_type.warehouse_folders returns root AND children at the same level
-        warehouse_folders = warehouse_type.warehouse_folders.enabled.ordered.where(parent_id: nil)
+        # Filter eager-loaded collection in Ruby to avoid N+1 (one query per type)
+        all_folders = warehouse_type.warehouse_folders
+        root_folders = all_folders
+          .select { |wf| wf.parent_id.nil? && wf.enabled }
+          .sort_by { |wf| [wf.order_position || 999, wf.name || ""] }
 
         # Get count for this warehouse type
         file_count = counts[warehouse_type.code] || 0
@@ -850,16 +961,18 @@ module Api
           folderPathTemplate: warehouse_type.folder_path_template.presence || warehouse_type.display_name,
           pathPreview: resolve_template_tokens(warehouse_type.folder_path_template.presence || warehouse_type.display_name),
           fileCount: file_count,
-          warehouseFolders: warehouse_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type) }
+          warehouseFolders: root_folders.map { |wf| warehouse_folder_tree_node(wf, warehouse_type, all_folders) }
         }
       end
 
       # Build a tree node for a warehouse folder
       # SSoT (Feb 2026): WarehouseFolder is THE ONE
-      def warehouse_folder_tree_node(warehouse_folder, warehouse_type)
-        # Build full path template
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # Uses all_folders array for Ruby filtering + lookup_* for path computation
+      def warehouse_folder_tree_node(warehouse_folder, warehouse_type, all_folders = nil)
+        # Build full path template using pre-loaded lookup (no parent chain DB walks)
         wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
-        ancestor_path = build_ancestor_path(warehouse_folder)
+        ancestor_path = lookup_ancestor_path(warehouse_folder)
 
         full_template = if wt_template.blank?
           ancestor_path
@@ -873,24 +986,32 @@ module Api
           end
         end
 
-        # SSoT: Children come directly from WarehouseFolder (has parent/children self-ref)
-        children = warehouse_folder.children
-          .where(warehouse_enabled: true)
-          .enabled
-          .ordered
-          .map { |child| warehouse_folder_tree_node(child, warehouse_type) }
+        # SSoT: Children come from WarehouseFolder (has parent/children self-ref)
+        # Filter eager-loaded collection in Ruby to avoid N+1 scoped queries
+        children_nodes = if all_folders
+          all_folders
+            .select { |f| f.parent_id == warehouse_folder.id && f.warehouse_enabled && f.enabled }
+            .sort_by { |f| [f.order_position || 999, f.name || ""] }
+            .map { |child| warehouse_folder_tree_node(child, warehouse_type, all_folders) }
+        else
+          # Fallback: filter eager-loaded .children (used when all_folders not available)
+          warehouse_folder.children
+            .select { |child| child.warehouse_enabled && child.enabled }
+            .sort_by { |child| [child.order_position || 999, child.name || ""] }
+            .map { |child| warehouse_folder_tree_node(child, warehouse_type) }
+        end
 
         {
           id: "wf-#{warehouse_folder.id}",
           name: warehouse_folder.name,
           parentId: warehouse_folder.parent_id,
           folderPathTemplate: full_template,
-          fullFolderPath: warehouse_folder.full_folder_path,
+          fullFolderPath: lookup_full_folder_path(warehouse_folder, warehouse_type),
           folderSegment: warehouse_folder.folder_segment,
           folderPathSuffix: warehouse_folder.folder_path_suffix,
-          pathPreview: warehouse_folder.path_preview,
+          pathPreview: lookup_path_preview(warehouse_folder, warehouse_type),
           isSystem: warehouse_folder.is_system,
-          children: children,
+          children: children_nodes,
           # SSoT (Feb 2026): UI config now directly on WarehouseFolder
           displayName: warehouse_folder.display_name,
           iconName: warehouse_folder.icon_name || "folder",

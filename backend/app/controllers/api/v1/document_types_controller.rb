@@ -343,7 +343,7 @@ module Api
             id: tab.id,
             tab_key: tab.tab_key,
             display_name: tab.display_name,
-            hierarchy_path: [tab.warehouse_type&.display_name, tab.full_ancestor_path].compact.join('/'),
+            hierarchy_path: [tab.warehouse_type&.display_name, lookup_full_ancestor_path(tab)].compact.join('/'),
             warehouse_type_code: tab.warehouse_type&.code,
             warehouse_type_name: tab.warehouse_type&.display_name,
             parent_id: tab.parent_id,
@@ -374,7 +374,7 @@ module Api
         else
           document_type.read_attribute(:scope)
         end
-        derived_target_folder = primary_wfdt&.warehouse_folder&.full_folder_path || document_type.read_attribute(:target_folder)
+        derived_target_folder = (primary_wfdt&.warehouse_folder ? lookup_full_folder_path(primary_wfdt.warehouse_folder) : nil) || document_type.read_attribute(:target_folder)
 
         # Inline effective template resolution to avoid WFDT→document_type reverse N+1
         # Fallback chain: WFDT override → DocumentType → WarehouseFolder
@@ -456,6 +456,52 @@ module Api
           by_folder: by_folder,
           requiring_filing: types.count(&:requires_filing)
         }
+      end
+
+      # ⚠️ DO NOT SIMPLIFY - Pre-loaded folder lookup for N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════════════════
+      # Why: full_ancestor_path and full_folder_path walk up the parent chain
+      # using current.parent, triggering a DB query per parent level per folder.
+      # With ~700 document types each calling these methods, this caused ~1,000
+      # queries and 85s response times on /api/v1/document_types.
+      # ❌ WRONG: tab.full_ancestor_path (walks parent chain via DB)
+      # ✅ CORRECT: Pre-load all folders once, compute paths in pure Ruby
+      # ════════════════════════════════════════════════════════════════════
+
+      def preload_folder_lookup!
+        @_folder_lookup ||= begin
+          rows = WarehouseFolder.pluck(:id, :parent_id, :name, :folder_segment, :display_name)
+          rows.each_with_object({}) do |(id, parent_id, name, folder_segment, display_name), hash|
+            hash[id] = { parent_id: parent_id, name: name, folder_segment: folder_segment, display_name: display_name }
+          end
+        end
+      end
+
+      # Equivalent to full_ancestor_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_full_ancestor_path(warehouse_folder)
+        preload_folder_lookup!
+        segments = []
+        current_id = warehouse_folder.id
+        while current_id
+          entry = @_folder_lookup[current_id]
+          break unless entry
+          segments.unshift(entry[:folder_segment]) if entry[:folder_segment].present?
+          current_id = entry[:parent_id]
+        end
+        segments.join('/')
+      end
+
+      # Equivalent to full_folder_path but uses pre-loaded lookup (0 DB queries)
+      def lookup_full_folder_path(warehouse_folder)
+        wt = warehouse_folder.warehouse_type
+        wt_base = wt&.folder_path_template.presence || wt&.display_name
+
+        ancestor_path = lookup_full_ancestor_path(warehouse_folder)
+
+        parts = []
+        parts << wt_base if wt_base.present?
+        parts << ancestor_path if ancestor_path.present?
+        parts.join('/')
       end
 
       def all_available_tabs
