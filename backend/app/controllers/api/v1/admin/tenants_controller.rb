@@ -201,23 +201,19 @@ module Api
             return render_error("Access denied to this tenant", status: :forbidden)
           end
 
-          current_user.default_tenant_id = tenant.id
-          if current_user.save
-            Rails.logger.info "[TenantDefault] User #{current_user.id} (#{current_user.email}) set default tenant to #{tenant.id} (#{tenant.name})"
-            render json: {
-              success: true,
-              message: "Default tenant set to #{tenant.name}",
-              default_tenant_id: tenant.id
-            }
-          else
-            render_validation_errors(current_user)
-          end
+          current_user.update_column(:default_tenant_id, tenant.id)
+          Rails.logger.info "[TenantDefault] User #{current_user.id} (#{current_user.email}) set default tenant to #{tenant.id} (#{tenant.name})"
+          render json: {
+            success: true,
+            message: "Default tenant set to #{tenant.name}",
+            default_tenant_id: tenant.id
+          }
         end
 
         # DELETE /api/v1/admin/tenants/default
         # Clear default tenant preference (revert to assigned tenant on login)
         def clear_default
-          current_user.update!(default_tenant_id: nil)
+          current_user.update_column(:default_tenant_id, nil)
           Rails.logger.info "[TenantDefault] User #{current_user.id} (#{current_user.email}) cleared default tenant preference"
 
           render json: {
