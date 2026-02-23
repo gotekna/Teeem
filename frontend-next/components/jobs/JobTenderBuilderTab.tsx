@@ -925,8 +925,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         included += row.amount;
         includedCount++;
       }
-      // Track per-header subtotals (all non-excluded items)
-      if (cls !== "excluded" && row.headerName) {
+      // Track per-header subtotals (included items only — PC/PS shown separately below)
+      if (cls !== "excluded" && cls !== "pc" && cls !== "ps" && row.headerName) {
         headerSubtotals[row.headerName] = (headerSubtotals[row.headerName] || 0) + row.amount;
       }
     }
@@ -1419,13 +1419,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               else if (c === "ps") headerPsTotal += r.amount;
             }
           }
-          // Notes & Conditions header: show global PC/PS totals since PC/PS items
-          // live in their original sections (Base Price, etc.) but aggregate here
-          if (headerRow.name === "Notes & Conditions") {
-            headerPcTotal = totals.pcTotal;
-            headerPsTotal = totals.psTotal;
-          }
-
           return (
             <div key={`h-${headerRow.name}`}>
               {/* ── Header row (full width) ── */}
@@ -1443,26 +1436,23 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                   {headerRow.name}
                   <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{headerRow.itemCount} items</Badge>
                 </div>
-                {(headerPcTotal > 0 || headerPsTotal > 0) ? (
-                  <div className="flex items-center gap-4 tabular-nums text-sm">
-                    <span className="text-primary font-medium">{formatCurrency(headerIncludedTotal)}</span>
-                    {headerPcTotal > 0 && (
-                      <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">PC {formatCurrency(headerPcTotal)}</span>
-                    )}
-                    {headerPsTotal > 0 && (
-                      <span className="text-violet-600 dark:text-violet-400 text-xs font-medium">PS {formatCurrency(headerPsTotal)}</span>
-                    )}
-                    <span className="text-primary font-semibold">{formatCurrency(headerIncludedTotal + headerPcTotal + headerPsTotal)}</span>
-                  </div>
-                ) : (
-                  <div className="text-right font-semibold text-primary tabular-nums text-sm">
-                    {formatCurrency(headerIncludedTotal)}
-                  </div>
-                )}
+                {/* Show included total + PC/PS indicators (no combined total — Schedule is SSoT) */}
+                <div className="flex items-center gap-3 tabular-nums text-sm">
+                  {headerPcTotal > 0 && (
+                    <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">PC {formatCurrency(headerPcTotal)}</span>
+                  )}
+                  {headerPsTotal > 0 && (
+                    <span className="text-violet-600 dark:text-violet-400 text-xs font-medium">PS {formatCurrency(headerPsTotal)}</span>
+                  )}
+                  <span className="text-primary font-semibold">{formatCurrency(headerIncludedTotal)}</span>
+                </div>
               </div>
 
               {/* Sections under this header */}
-              {!isHeaderCollapsed && headerGroup.sections.map((sectionGroup) => {
+              {!isHeaderCollapsed && headerGroup.sections
+                // Prime Costs & Provisional Sums have their own Schedule sections at the bottom (SSoT)
+                .filter((sg) => sg.sectionRow.name !== "Prime Costs" && sg.sectionRow.name !== "Provisional Sums")
+                .map((sectionGroup) => {
                 const { sectionRow, contentRows } = sectionGroup;
                 const sKey = `${sectionRow.headerName}::${sectionRow.name}`;
                 const isSectionCollapsed = collapsedSections.has(sKey);
@@ -1496,14 +1486,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                         <span>{sectionRow.name}</span>
                         {sectionRow.poCount > 0 ? (
                           <Badge variant="outline" className="text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
-                        ) : sectionRow.name === "Prime Costs" && totals.pcCount > 0 ? (
-                          <Badge variant="outline" className="text-[10px] font-normal text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700">
-                            {totals.pcCount} {totals.pcCount === 1 ? "item" : "items"}
-                          </Badge>
-                        ) : sectionRow.name === "Provisional Sums" && totals.psCount > 0 ? (
-                          <Badge variant="outline" className="text-[10px] font-normal text-violet-600 dark:text-violet-400 border-violet-300 dark:border-violet-700">
-                            {totals.psCount} {totals.psCount === 1 ? "item" : "items"}
-                          </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">Note</Badge>
                         )}
@@ -1544,20 +1526,9 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                           });
                         })()}
                       </div>
-                      {/* Show aggregated PC/PS totals for their conceptual sections */}
-                      {sectionRow.name === "Prime Costs" && totals.pcTotal > 0 ? (
-                        <div className="text-right font-medium text-blue-600 dark:text-blue-400 tabular-nums text-sm">
-                          {formatCurrency(totals.pcTotal)}
-                        </div>
-                      ) : sectionRow.name === "Provisional Sums" && totals.psTotal > 0 ? (
-                        <div className="text-right font-medium text-violet-600 dark:text-violet-400 tabular-nums text-sm">
-                          {formatCurrency(totals.psTotal)}
-                        </div>
-                      ) : (
-                        <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
-                          {formatCurrency(includedSubtotal)}
-                        </div>
-                      )}
+                      <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
+                        {formatCurrency(includedSubtotal)}
+                      </div>
                     </div>
 
                     {/* ── Empty section: note editing ── */}
