@@ -12,13 +12,14 @@
 # 4. Build tree in Ruby memory (no recursive queries)
 #
 class WarehouseFolderQueryService
-  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false)
+  def initialize(warehouse_type: nil, scope: nil, entity_type: nil, include_disabled: false, tab_group: nil, with_document_types: false, include_counts: false)
     # Accept both warehouse_type and scope (scope for backwards compat)
     @warehouse_type = warehouse_type || scope
     @entity_type = entity_type
     @include_disabled = include_disabled
     @tab_group = tab_group
     @with_document_types = with_document_types
+    @include_counts = include_counts
   end
 
   # Returns nested tabs JSON matching the expected format
@@ -29,9 +30,14 @@ class WarehouseFolderQueryService
     # Step 2: Group by parent for tree building
     @children_by_parent_id = all_tabs.group_by(&:parent_id)
 
-    # Step 3: Pre-fetch document counts (single grouped query)
-    all_doc_type_ids = all_tabs.flat_map { |t| t.document_types.map(&:id) }.compact.uniq
-    @document_counts_by_type = preload_document_counts(all_doc_type_ids)
+    # Step 3: Pre-fetch document counts only when explicitly requested
+    # Querying 303K+ WarehouseDocuments is expensive (~15-25s). Skip unless needed.
+    if @include_counts
+      all_doc_type_ids = all_tabs.flat_map { |t| t.document_types.map(&:id) }.compact.uniq
+      @document_counts_by_type = preload_document_counts(all_doc_type_ids)
+    else
+      @document_counts_by_type = {}
+    end
 
     # Step 4: Memoize storage config (single query)
     @storage_config = load_storage_config
