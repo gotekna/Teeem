@@ -23,6 +23,7 @@ class PurchaseOrder < ApplicationRecord
   belongs_to :quote_response, optional: true
   belongs_to :external_invoice, optional: true
   has_many :line_items, class_name: "PurchaseOrderLineItem", dependent: :destroy
+  has_many :items, class_name: "PurchaseOrderLineItem" # Alias for Foundation API eager loading
 
   # Budget Lockdown associations
   belongs_to :budget_locked_by, class_name: "User", optional: true

@@ -2017,7 +2017,7 @@ export default function TeeemTableView({
     effectiveFoundationId,
     validGroupByColumnForApi, // Only pass valid database columns to API
     safeFilters, // Pass cascade filters so counts reflect filtered data
-    groupByColumns.length > 0 && !!validGroupByColumnForApi, // ULTRA: Hook provides SSR-aware values
+    useAutoFetch && groupByColumns.length > 0 && !!validGroupByColumnForApi, // Skip for legacyDataSource (entries prop) - server counts would mismatch custom API data
     groupByColumns, // ULTRA: Hook provides SSR-aware values on first render
     ssrGroupCountsData, // SSR: Pre-fetched group counts to eliminate CLS
     extraQueryParams // Scope group counts to match record filter (e.g., job_id)
@@ -2894,6 +2894,11 @@ export default function TeeemTableView({
     // Skip if no foundation or groupBy column
     if (!effectiveFoundationId || !groupByColumn) return;
 
+    // Skip lazy loading for legacyDataSource tables (entries prop)
+    // All data is already client-side - fetching from Foundation API would return
+    // different data than the custom API, causing group content mismatches
+    if (!useAutoFetch) return;
+
     // Skip if already loaded or loading
     if (lazyLoadedGroups.has(groupKey) || groupLoadingState.has(groupKey)) return;
 
@@ -3020,7 +3025,7 @@ export default function TeeemTableView({
         return next;
       });
     }
-  }, [effectiveFoundationId, groupByColumn, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
+  }, [effectiveFoundationId, groupByColumn, useAutoFetch, lazyLoadedGroups, groupLoadingState, safeFilters, sortColumns, search, propSearchMode]);
 
   const toggleGroupCollapse = useCallback((groupKey: string) => {
     setCollapsedGroups((prev: Set<string>) => {

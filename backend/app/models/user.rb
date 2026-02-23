@@ -51,6 +51,8 @@ class User < ApplicationRecord
   has_many :teeem_documents, dependent: :destroy
   has_many :teeem_presentations, dependent: :destroy
   has_many :teeem_pdfs, dependent: :destroy
+  has_many :assistant_conversations, dependent: :destroy
+  has_many :assistant_alerts, dependent: :destroy
 
   # SSoT: Links to deduplicated file storage (Jan 2026)
   belongs_to :signature_blob, class_name: "StorageBlob", optional: true

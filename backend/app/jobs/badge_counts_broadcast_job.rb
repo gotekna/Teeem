@@ -37,25 +37,17 @@ class BadgeCountsBroadcastJob < ApplicationJob
 
   private
 
-  # Find user IDs with active BadgeCountsChannel subscriptions
-  # ActionCable uses Redis pubsub - channel names follow the pattern:
-  #   "action_cable/BadgeCountsChannel/Z:gid://teeem/User/123"
+  # Find user IDs likely to have active WebSocket subscriptions
+  #
+  # ⚠️ DO NOT SIMPLIFY - PostgreSQL adapter has no subscriber introspection (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: ActionCable with PostgreSQL adapter uses LISTEN/NOTIFY, not Redis pubsub.
+  # There's no API to ask "who is currently subscribed to a channel?"
+  # ❌ WRONG: redis_connection_for_subscriptions (Redis-only, crashes on PostgreSQL)
+  # ❌ WRONG: last_sign_in_at (column doesn't exist - it's last_login_at)
+  # ✅ CORRECT: Query recently active users. broadcast_to is a no-op for non-subscribers.
+  # ════════════════════════════════════════════════════════════════════
   def find_connected_user_ids
-    redis = ActionCable.server.pubsub.send(:redis_connection_for_subscriptions)
-
-    # Get all ActionCable subscription channels from Redis
-    channels = redis.pubsub("channels", "action_cable/BadgeCountsChannel/*")
-
-    # Extract user IDs from channel names
-    # Channel format: "action_cable/BadgeCountsChannel/Z:gid://app-name/User/123"
-    channels.filter_map do |channel|
-      if channel =~ %r{/User/(\d+)\z}
-        $1.to_i
-      end
-    end.uniq
-  rescue StandardError => e
-    # Fallback: broadcast to all recently active users if Redis introspection fails
-    Rails.logger.warn "[BadgeCountsBroadcast] Redis channel lookup failed: #{e.message}, falling back to recent users"
-    User.where("last_sign_in_at > ?", 1.hour.ago).pluck(:id)
+    User.where("last_login_at > ?", 1.hour.ago).pluck(:id)
   end
 end

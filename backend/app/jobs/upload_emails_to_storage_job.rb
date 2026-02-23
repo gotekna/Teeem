@@ -42,7 +42,7 @@ class UploadEmailsToStorageJob < ApplicationJob
 
     # If tenant specified, process just that tenant
     if tenant_id
-      tenant = Tenant.find(tenant_id)
+      tenant = ActsAsTenant.without_tenant { Tenant.find(tenant_id) }
       process_tenant(tenant, batch_size: batch_size)
     else
       # FRC (Jan 2026): Process ALL tenants with pending emails
@@ -82,7 +82,8 @@ class UploadEmailsToStorageJob < ApplicationJob
     tenant_ids_with_pending.each do |tid|
       break unless time_remaining?
 
-      tenant = Tenant.find(tid)
+      # Unscoped find to avoid acts_as_tenant adding WHERE tenants."true"
+      tenant = ActsAsTenant.without_tenant { Tenant.find(tid) }
       result = process_tenant(tenant, batch_size: batch_size)
       results[:uploaded] += result[:uploaded].to_i
       results[:skipped] += result[:skipped].to_i
@@ -97,11 +98,20 @@ class UploadEmailsToStorageJob < ApplicationJob
     progress = nil
     Rails.logger.info "[UploadEmailsToStorageJob] Processing tenant #{tenant.id} (#{tenant.name})"
 
-    ActsAsTenant.with_tenant(tenant) do
-      progress = BackgroundJobProgress.start(
+    # ⚠️ DO NOT SIMPLIFY - BackgroundJobProgress MUST be created outside tenant scope (Feb 2026)
+    # ════════════════════════════════════════════════════════════════════
+    # Why: BackgroundJobProgress has no tenant_id column. When created/updated inside
+    # ActsAsTenant.with_tenant, acts_as_tenant adds WHERE ""=$1 (empty column name)
+    # causing PG::SyntaxError and MissingAttributeError.
+    # ════════════════════════════════════════════════════════════════════
+    progress = ActsAsTenant.without_tenant do
+      BackgroundJobProgress.start(
         job_type: "email_storage_upload",
         metadata: { batch_size: batch_size, tenant_id: tenant.id }
       )
+    end
+
+    ActsAsTenant.with_tenant(tenant) do
 
       total_uploaded = 0
       total_skipped = 0
