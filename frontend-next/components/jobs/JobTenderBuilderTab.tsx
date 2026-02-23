@@ -1403,15 +1403,19 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           const { headerRow } = headerGroup;
           const isHeaderCollapsed = collapsedHeaders.has(headerRow.name);
 
-          // Compute included subtotal for the header (included + incl_qty + incl_hidden, not PC/PS)
-          const headerIncludedItems = headerGroup.sections.flatMap((s) =>
-            s.contentRows.filter((r): r is Extract<UnifiedRow, { type: "item" }> => {
-              if (r.type !== "item" || excludedIds.has(r.key)) return false;
+          // Compute subtotals by classification for the header
+          let headerIncludedTotal = 0;
+          let headerPcTotal = 0;
+          let headerPsTotal = 0;
+          for (const s of headerGroup.sections) {
+            for (const r of s.contentRows) {
+              if (r.type !== "item" || excludedIds.has(r.key)) continue;
               const c = getClassification(r.key, r.poId, r.sectionName);
-              return c === "included" || c === "incl_qty" || c === "incl_hidden";
-            })
-          );
-          const headerIncludedTotal = headerIncludedItems.reduce((sum, r) => sum + r.amount, 0);
+              if (c === "included" || c === "incl_qty" || c === "incl_hidden") headerIncludedTotal += r.amount;
+              else if (c === "pc") headerPcTotal += r.amount;
+              else if (c === "ps") headerPsTotal += r.amount;
+            }
+          }
 
           return (
             <div key={`h-${headerRow.name}`}>
@@ -1430,9 +1434,22 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                   {headerRow.name}
                   <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{headerRow.itemCount} items</Badge>
                 </div>
-                <div className="text-right font-semibold text-primary tabular-nums text-sm">
-                  {formatCurrency(headerIncludedTotal)}
-                </div>
+                {(headerPcTotal > 0 || headerPsTotal > 0) ? (
+                  <div className="flex items-center gap-4 tabular-nums text-sm">
+                    <span className="text-primary font-medium">{formatCurrency(headerIncludedTotal)}</span>
+                    {headerPcTotal > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400 text-xs font-medium">PC {formatCurrency(headerPcTotal)}</span>
+                    )}
+                    {headerPsTotal > 0 && (
+                      <span className="text-violet-600 dark:text-violet-400 text-xs font-medium">PS {formatCurrency(headerPsTotal)}</span>
+                    )}
+                    <span className="text-primary font-semibold">{formatCurrency(headerIncludedTotal + headerPcTotal + headerPsTotal)}</span>
+                  </div>
+                ) : (
+                  <div className="text-right font-semibold text-primary tabular-nums text-sm">
+                    {formatCurrency(headerIncludedTotal)}
+                  </div>
+                )}
               </div>
 
               {/* Sections under this header */}
