@@ -757,7 +757,7 @@ export function EditRecordModal({
         {/* Spacer: ensures extra content can scroll above sticky footer (footer ~60px tall) */}
         {renderExtraContent && <div className="pb-14" />}
 
-        <div className="sticky bottom-0 bg-background pt-2 space-y-3 -mx-6 px-6 -mb-6 pb-6 border-t">
+        <div className="sticky bottom-0 z-10 bg-background pt-2 space-y-3 -mx-6 px-6 -mb-6 pb-6 border-t">
           {saveError && (
             <div className="flex items-start gap-2 p-3 rounded-md bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />

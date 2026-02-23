@@ -10,7 +10,7 @@
 # - on_issue counts maintained by callbacks (see update_on_issue_counts)
 #
 class JobPlan < ApplicationRecord
-  belongs_to :job, counter_cache: true
+  belongs_to :job, counter_cache: :plans_count
   belongs_to :job_plan_tab, optional: true, counter_cache: :plans_count
   belongs_to :plan_type, optional: true
   belongs_to :current_revision, class_name: 'JobPlanRevision', optional: true
