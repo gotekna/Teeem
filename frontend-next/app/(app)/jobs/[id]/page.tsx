@@ -355,7 +355,8 @@ const COMPONENT_BY_NAME: Record<string, React.ComponentType<any>> = {
 };
 
 // Tabs that need special rendering (complex inline JSX or special behavior)
-const SPECIAL_TABS = ["overview", "whs", "plans"];
+// "plan" included as guard against duplicate DB entries (plan vs plans SSoT fix Feb 2026)
+const SPECIAL_TABS = ["overview", "whs", "plans", "plan"];
 
 // Dynamically import LocationMap to avoid SSR issues with Leaflet
 const LocationMap = dynamic(

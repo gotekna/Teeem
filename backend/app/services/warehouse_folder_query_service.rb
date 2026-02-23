@@ -212,7 +212,7 @@ class WarehouseFolderQueryService
       full_warehouse_path: full_path,
       uses_custom_path: tab.uses_custom_path,
       warehouse_type_override: tab.warehouse_type_override,
-      path_preview: tab.path_preview,
+      path_preview: compute_path_preview(full_path, tab.name),
       hierarchy_path: full_path,
       document_count: doc_count,
       is_photo_category: tab.is_photo_category,
@@ -282,6 +282,32 @@ class WarehouseFolderQueryService
     return false if tab.warehouse_folder_document_types.any?  # already eager-loaded
 
     true
+  end
+
+  # Compute path preview from pre-computed full_path (no DB queries).
+  # Replaces tab.path_preview which calls full_path_template → full_folder_path →
+  # ancestor_segment_chain → parent.parent... (N+1 per parent level).
+  def compute_path_preview(full_path, fallback_name)
+    return fallback_name if full_path.blank?
+
+    preview = full_path.dup
+    preview.gsub!("{{JobCode}}", "J-001")
+    preview.gsub!("{{JobName}}", "Smith Residence")
+    preview.gsub!("{{ContactName}}", "John Smith")
+    preview.gsub!("{{CompanyCode}}", "ABC")
+    preview.gsub!("{{CompanyName}}", "ABC Pty Ltd")
+    preview.gsub!("{{CompanyGroup}}", "ABC Group")
+    preview.gsub!("{{TaskId}}", "123")
+    preview.gsub!("{{TaskName}}", "Site Inspection")
+    preview.gsub!("{{CaseId}}", "456")
+    preview.gsub!("{{CaseName}}", "Insurance Claim")
+    preview.gsub!("{{UserName}}", "John Doe")
+    preview.gsub!("{{TabName}}", "Sales")
+    preview.gsub!("{{Year}}", Time.current.year.to_s)
+    preview.gsub!("{{Month}}", Time.current.strftime("%B"))
+    preview.gsub!("{{Mailbox}}", "inbox@example.com")
+    preview.gsub!("{{Date}}", Time.current.strftime("%Y-%m-%d"))
+    preview
   end
 
   # Compute effective icon (inherits from parent)

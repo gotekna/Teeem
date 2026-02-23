@@ -6,6 +6,8 @@
 module Api
   module V1
     class WarehouseFoldersController < ApplicationController
+      include WarehouseFolderPathLookup
+
       before_action :set_warehouse_folder, only: [:show, :update, :destroy]
 
       # GET /api/v1/warehouse_folders?warehouse_type=corporate
@@ -126,7 +128,7 @@ module Api
                 tab_key: tab.tab_key,
                 display_name: tab.display_name || tab.name,
                 display_code: tab.display_code,
-                hierarchy_path: tab.full_folder_path,
+                hierarchy_path: lookup_full_folder_path(tab),
                 tab_group: tab.tab_group,
                 warehouse_enabled: tab.warehouse_enabled,
                 has_storage_folder: tab.warehouse_enabled
@@ -324,8 +326,8 @@ module Api
           type: "category",
           icon: folder.icon_name || "folder",
           warehouseType: folder.warehouse_type_code,
-          folderPath: folder.full_folder_path,
-          fullPath: folder.full_folder_path,
+          folderPath: lookup_full_folder_path(folder),
+          fullPath: lookup_full_folder_path(folder),
           fileCount: 0,
           children: depth < 5 ? children.map { |child| build_tree_node(child, depth + 1) } : []
         }
