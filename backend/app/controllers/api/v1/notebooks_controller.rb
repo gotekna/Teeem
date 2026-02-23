@@ -200,24 +200,12 @@ module Api
           page_count: section.page_count,
           pages: section.pages.active.ordered.map { |p| page_summary_json(p) },
           created_at: section.created_at,
-          updated_at: section.updated_at,
-          pages: section.pages.active.ordered.map { |p| page_summary_json(p) }
+          updated_at: section.updated_at
         }
       end
 
-      def page_summary_json(page)
-        {
-          id: page.id,
-          title: page.title,
-          position: page.position,
-          is_pinned: page.is_pinned,
-          preview: page.preview,
-          word_count: page.word_count,
-          last_edited_by: page.last_edited_by&.name,
-          updated_at: page.updated_at
-        }
-      end
-
+      # FRC (Feb 2026): Was defined twice - second definition overwrote first,
+      # losing word_count and last_edited_by fields. Merged into single method.
       def page_summary_json(page)
         {
           id: page.id,
@@ -225,6 +213,8 @@ module Api
           position: page.position,
           is_pinned: page.is_pinned,
           preview: page.preview(50),
+          word_count: page.word_count,
+          last_edited_by: page.last_edited_by&.name,
           updated_at: page.updated_at
         }
       end

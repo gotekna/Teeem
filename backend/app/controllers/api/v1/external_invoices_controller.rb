@@ -37,6 +37,9 @@ module Api
         total_count = invoices.count
         invoices = invoices.order(invoice_date: :desc).offset((page - 1) * per_page).limit(per_page).to_a
 
+        # Batch preload child PDF status for invoice_has_pdf? (avoids N+1)
+        preload_child_pdf_doc_ids(invoices)
+
         # Batch-load SyncConfigurations to avoid N+1
         # FRC (Feb 2026): Use xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer FK).
         # tenant_id is an integer FK to TEEEM's tenants table.
@@ -159,8 +162,12 @@ module Api
 
         # Batch-load SyncConfigurations to avoid N+1 in serialize_invoice
         # FRC (Feb 2026): Use xero_org_id (Xero UUID), NOT tenant_id (TEEEM integer FK).
-        xero_org_ids = invoices.map(&:xero_org_id).compact.uniq
+        all_invoices = invoices.to_a
+        xero_org_ids = all_invoices.map(&:xero_org_id).compact.uniq
         config_lookup = SyncConfiguration.where(xero_tenant_id: xero_org_ids).index_by(&:xero_tenant_id)
+
+        # Batch preload child PDF status for invoice_has_pdf? (avoids N+1)
+        preload_child_pdf_doc_ids(all_invoices)
 
         render json: {
           success: true,
@@ -643,6 +650,30 @@ module Api
 
       private
 
+      # FRC (Feb 2026): Batch preload child PDF status to avoid N+1 in invoice_has_pdf?
+      # Call this once before rendering invoice lists. Sets @_child_pdf_parent_ids
+      # so invoice_has_pdf? can check in-memory instead of querying per invoice.
+      def preload_child_pdf_doc_ids(invoices)
+        parent_doc_ids = []
+        invoices.each do |inv|
+          docs = inv.warehouse_documents.to_a  # uses eager-loaded data
+          next if docs.any? { |wd| wd.storage_blob_id.present? }
+          parent_doc_ids.concat(docs.map(&:id))
+        end
+
+        @_child_pdf_parent_ids = if parent_doc_ids.any?
+          Set.new(
+            WarehouseDocument
+              .where(parent_document_id: parent_doc_ids)
+              .where.not(storage_blob_id: nil)
+              .distinct
+              .pluck(:parent_document_id)
+          )
+        else
+          Set.new
+        end
+      end
+
       # Check if an invoice has a PDF available (direct or via child attachments)
       # Bills have primary warehouse_documents with storage_blob nil; their actual
       # file attachments are child WarehouseDocuments linked via parent_document_id.
@@ -654,9 +685,15 @@ module Api
         doc_ids = docs.map(&:id)
         return false if doc_ids.empty?
 
-        WarehouseDocument.where(parent_document_id: doc_ids)
-                         .where.not(storage_blob_id: nil)
-                         .exists?
+        if @_child_pdf_parent_ids
+          # Use batch-preloaded data (single query for all invoices)
+          doc_ids.any? { |did| @_child_pdf_parent_ids.include?(did) }
+        else
+          # Fallback for single-invoice endpoints (show, create, update)
+          WarehouseDocument.where(parent_document_id: doc_ids)
+                           .where.not(storage_blob_id: nil)
+                           .exists?
+        end
       end
 
       # SSoT: Maps invoice_type to document_type - MUST match XeroAttachmentSyncService.document_type_for_invoice

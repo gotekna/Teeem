@@ -796,7 +796,8 @@ class Api::V1::ImapCredentialsController < ApplicationController
     # Default: Combine tenant users + already shared users (deduped)
     all_user_ids = (tenant_user_ids + already_shared_ids).uniq
 
-    users = User.where(id: all_user_ids).order(:name).map do |user|
+    # FRC (Feb 2026): Add .includes(:tenant) to avoid N+1 on cross-tenant users
+    users = User.where(id: all_user_ids).includes(:tenant).order(:name).map do |user|
       is_cross_tenant = !tenant_user_ids.include?(user.id)
       {
         id: user.id,
@@ -816,11 +817,13 @@ class Api::V1::ImapCredentialsController < ApplicationController
   # GET /api/v1/imap_credentials/tenants_list
   # List all tenants for cross-tenant sharing dropdown
   def tenants_list
+    # FRC (Feb 2026): Batch load user counts to avoid N+1 (was 1 COUNT per tenant)
+    user_counts_by_tenant = User.group(:tenant_id).count
     tenants = Tenant.order(:name).map do |tenant|
       {
         id: tenant.id,
         name: tenant.name,
-        user_count: tenant.users.count,
+        user_count: user_counts_by_tenant[tenant.id] || 0,
         is_current: tenant.id == current_tenant&.id
       }
     end
