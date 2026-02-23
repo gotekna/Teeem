@@ -192,7 +192,9 @@ export function ImageLightbox({
 
     try {
       // Get presigned URL from backend (SSoT: same endpoint as PDF viewer)
-      const response = await api.get(`/api/v1/documents/presigned_url?document_id=${documentId}`) as {
+      // skipAuthRedirect: A 401 from storage endpoints means "storage not connected",
+      // not "session expired". Without this, storage errors trigger logout.
+      const response = await api.get(`/api/v1/documents/presigned_url?document_id=${documentId}`, { skipAuthRedirect: true }) as {
         success?: boolean;
         url?: string;
         error?: string;
