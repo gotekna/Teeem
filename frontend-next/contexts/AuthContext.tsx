@@ -204,6 +204,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // This allows users to temporarily toggle theme without it reverting on every modal open
         // applyUserTheme(response.user); // REMOVED - only apply on login, not on auth check
 
+        // Auto-set default tenant on page refresh (Feb 2026)
+        // Safety net: /me response from current environment includes default_tenant_id
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        }
+
         // Check force_password_change on session restore (Feb 2026)
         if (response.user.force_password_change) {
           setForcePasswordChange(true);
@@ -305,6 +311,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Only applies when user has a default preference AND no existing override
         if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
           setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        } else if (!response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          // ⚠️ DO NOT SIMPLIFY - Fallback /me call for cross-env login (Feb 2026)
+          // ════════════════════════════════════════════════════════════════════
+          // Why: loginToProduction hits the PRODUCTION backend as the "router".
+          // If production hasn't been deployed with default_tenant_id in the
+          // login response, the field is missing. Fetch from the environment's
+          // own /me endpoint (staging/beta) which has the latest code.
+          // ════════════════════════════════════════════════════════════════════
+          try {
+            const meResponse = await api.get<AuthResponse>('/api/v1/auth/me');
+            if (meResponse?.user?.default_tenant_id) {
+              setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(meResponse.user.default_tenant_id));
+              setUser(meResponse.user);
+            }
+          } catch {
+            // Non-critical - default_tenant_id is a convenience feature
+          }
         }
 
         // Check if user must change their temporary password (Feb 2026)
@@ -446,6 +469,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (response.success && response.user) {
         setUser(response.user);
         applyUserTheme(response.user);
+
+        // Auto-set default tenant on cross-domain redirect (Feb 2026)
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
+        }
+
         loadTypeDefinitions();
         setLoading(false);
         return true;
