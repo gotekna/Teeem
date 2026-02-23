@@ -28,8 +28,12 @@ module Api
         if params[:grouped] == "true"
           # SSoT: folder is computed from primary WarehouseFolder - group in Ruby after query
           # Include warehouse_folders association for folder computation
-          types = @document_types.active.includes(warehouse_folder_document_types: :warehouse_folder).order(:name)
-          grouped = types.group_by(&:folder).sort_by { |folder, _| folder || "" }.to_h
+          types = @document_types.active.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).order(:name)
+          # Derive folder from eager-loaded WFDT to avoid N+1 (document_type.folder triggers find_by per type)
+          grouped = types.group_by { |dt|
+            primary_wfdt = dt.warehouse_folder_document_types.find(&:is_primary) || dt.warehouse_folder_document_types.first
+            primary_wfdt&.warehouse_folder&.display_name || dt.read_attribute(:folder) || "Uncategorized"
+          }.sort_by { |folder, _| folder || "" }.to_h
           render json: {
             success: true,
             data: grouped.transform_values { |doc_types|
@@ -351,6 +355,36 @@ module Api
         primary_tab_data = warehouse_folders_data.find { |f| f[:is_primary] } || warehouse_folders_data.first
         primary_wfdt = folder_joins.find { |wfdt| wfdt.is_primary } || folder_joins.first
 
+        # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+        # ════════════════════════════════════════════════════════════════════
+        # Why: document_type.folder, .scope, .target_folder each call
+        # primary_warehouse_folder which does find_by (SQL) per doc type.
+        # With ~700 doc types × 5 method calls = ~3500 queries + OOM crash.
+        # ❌ WRONG: document_type.folder (triggers primary_warehouse_folder query)
+        # ✅ CORRECT: Use already-computed primary_tab_data from eager-loaded associations
+        # ════════════════════════════════════════════════════════════════════
+        derived_folder = primary_tab_data&.dig(:display_name) || document_type.read_attribute(:folder)
+        derived_scope = if primary_tab_data
+          case primary_tab_data[:warehouse_type_code]
+          when 'corporate' then 'company'
+          when 'job' then 'job'
+          when 'contact' then 'contacts'
+          else 'company'
+          end
+        else
+          document_type.read_attribute(:scope)
+        end
+        derived_target_folder = primary_wfdt&.warehouse_folder&.full_folder_path || document_type.read_attribute(:target_folder)
+
+        # Inline effective template resolution to avoid WFDT→document_type reverse N+1
+        # Fallback chain: WFDT override → DocumentType → WarehouseFolder
+        effective_ui = primary_wfdt&.ui_name_template.presence ||
+          document_type.ui_name.presence ||
+          primary_wfdt&.warehouse_folder&.ui_name_template
+        effective_dl = primary_wfdt&.download_name_template.presence ||
+          document_type.download_name.presence ||
+          primary_wfdt&.warehouse_folder&.download_name_template
+
         {
           id: document_type.id,
           name: document_type.name,
@@ -358,7 +392,7 @@ module Api
           abbreviation: document_type.abbreviation,
           downloadName: document_type.download_name,
           title_preview: document_type.title_preview,
-          folder: document_type.folder,
+          folder: derived_folder,
           description: document_type.description,
           requires_filing: document_type.requires_filing,
           retention_years: document_type.retention_years,
@@ -389,14 +423,14 @@ module Api
           entity_tabs: warehouse_folders_data,
           # SSoT: Effective templates (from WFDT chain: WFDT override → DocumentType → WarehouseFolder)
           # These may differ from uiName/downloadName when WFDT has folder-specific overrides
-          effectiveUiName: primary_wfdt&.effective_ui_name_template || document_type.ui_name,
-          effectiveDownloadName: primary_wfdt&.effective_download_name_template || document_type.download_name,
+          effectiveUiName: effective_ui || document_type.ui_name,
+          effectiveDownloadName: effective_dl || document_type.download_name,
           hasTemplateOverrides: primary_wfdt&.has_template_overrides? || false,
-          scope: document_type.scope,
+          scope: derived_scope,
           file_extensions: document_type.file_extensions || [],
           aliases: document_type.aliases || [],
           filename_patterns: document_type.filename_patterns || [],
-          target_folder: document_type.target_folder,
+          target_folder: derived_target_folder,
           form_number_mapping: document_type.form_number_mapping || {},
           supports_versioning: document_type.supports_versioning,
           generates_certificate: document_type.generates_certificate || false,
@@ -411,9 +445,15 @@ module Api
       def document_type_summary
         # Use already-loaded @document_types to avoid extra COUNT queries
         types = @document_types.to_a
+        # Derive folder from eager-loaded WFDT associations to avoid N+1
+        # (document_type.folder calls primary_warehouse_folder which does find_by per type)
+        by_folder = types.group_by { |dt|
+          primary_wfdt = dt.warehouse_folder_document_types.find(&:is_primary) || dt.warehouse_folder_document_types.first
+          primary_wfdt&.warehouse_folder&.display_name || dt.read_attribute(:folder) || "Uncategorized"
+        }.transform_values(&:size)
         {
           total: types.size,
-          by_folder: types.group_by(&:folder).transform_values(&:size),
+          by_folder: by_folder,
           requiring_filing: types.count(&:requires_filing)
         }
       end

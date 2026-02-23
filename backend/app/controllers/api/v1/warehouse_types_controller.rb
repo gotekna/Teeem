@@ -734,7 +734,8 @@ module Api
               }
             }
           end,
-          can_delete: warehouse_type.can_delete?,
+          # Inline can_delete? to avoid N+1 (.exists? bypasses eager loading)
+          can_delete: !warehouse_type.is_system && all_folders.empty?,
           created_at: warehouse_type.created_at,
           updated_at: warehouse_type.updated_at
         }
