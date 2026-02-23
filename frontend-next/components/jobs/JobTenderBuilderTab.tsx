@@ -1031,7 +1031,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // ❌ WRONG: collapsedHeaders.size > 0 — true when ANY is collapsed
   // ✅ CORRECT: Check all headers are collapsed (sections hidden under headers)
   // ════════════════════════════════════════════
-  const allCollapsed = groupedRows.length > 0 && groupedRows.every(g => collapsedHeaders.has(g.headerRow.name));
+  const allCollapsed = groupedRows.length > 0 && groupedRows.every(g => collapsedHeaders.has(g.headerRow.name))
+    && collapsedHeaders.has("__pc_schedule__") && collapsedHeaders.has("__ps_schedule__");
 
   const collapseAll = useCallback(() => {
     const headers = new Set<string>();
@@ -1049,6 +1050,8 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         }
       }
     }
+    headers.add("__pc_schedule__");
+    headers.add("__ps_schedule__");
     setCollapsedHeaders(headers);
     setCollapsedSections(sections);
     setCollapsedCostCentres(costCentres);
@@ -2216,6 +2219,120 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
           );
         })}
 
+        {/* ── Prime Costs schedule (collapsible header) ── */}
+        <div>
+          <div
+            className="flex items-center bg-blue-50/60 dark:bg-blue-950/20 border-b cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 px-2 py-2"
+            onClick={() => toggleHeader("__pc_schedule__")}
+          >
+            <div className="shrink-0 w-5">
+              {collapsedHeaders.has("__pc_schedule__")
+                ? <ChevronRight className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                : <ChevronDown className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+              }
+            </div>
+            <div className="flex-1 font-semibold text-blue-700 dark:text-blue-400 text-sm">
+              Schedule of Prime Cost Items
+              <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{totals.pcCount} {totals.pcCount === 1 ? "item" : "items"}</Badge>
+            </div>
+            <div className="text-right font-semibold text-blue-700 dark:text-blue-400 tabular-nums text-sm">
+              {formatCurrency(totals.pcTotal)}
+            </div>
+          </div>
+          {!collapsedHeaders.has("__pc_schedule__") && (
+            <div className="px-4 py-3 bg-blue-50/30 dark:bg-blue-950/10 border-b">
+              <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed.</p>
+              {totals.pcItems.length > 0 ? (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-foreground/20">
+                      <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                      <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                      <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                      <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {totals.pcItems.map((item, idx) => (
+                      <tr key={idx} className="border-b border-border/30">
+                        <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                        <td className="py-1.5 pr-4">{item.description}</td>
+                        <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                        <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-foreground/20">
+                      <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Prime Costs</td>
+                      <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.pcTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                <p className="text-sm text-muted-foreground">No prime cost items</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── Provisional Sums schedule (collapsible header) ── */}
+        <div>
+          <div
+            className="flex items-center bg-violet-50/60 dark:bg-violet-950/20 border-b cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-950/30 px-2 py-2"
+            onClick={() => toggleHeader("__ps_schedule__")}
+          >
+            <div className="shrink-0 w-5">
+              {collapsedHeaders.has("__ps_schedule__")
+                ? <ChevronRight className="h-4 w-4 text-violet-700 dark:text-violet-400" />
+                : <ChevronDown className="h-4 w-4 text-violet-700 dark:text-violet-400" />
+              }
+            </div>
+            <div className="flex-1 font-semibold text-violet-700 dark:text-violet-400 text-sm">
+              Schedule of Provisional Sum Items
+              <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{totals.psCount} {totals.psCount === 1 ? "item" : "items"}</Badge>
+            </div>
+            <div className="text-right font-semibold text-violet-700 dark:text-violet-400 tabular-nums text-sm">
+              {formatCurrency(totals.psTotal)}
+            </div>
+          </div>
+          {!collapsedHeaders.has("__ps_schedule__") && (
+            <div className="px-4 py-3 bg-violet-50/30 dark:bg-violet-950/10 border-b">
+              <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out.</p>
+              {totals.psItems.length > 0 ? (
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="border-b-2 border-foreground/20">
+                      <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                      <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                      <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                      <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {totals.psItems.map((item, idx) => (
+                      <tr key={idx} className="border-b border-border/30">
+                        <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                        <td className="py-1.5 pr-4">{item.description}</td>
+                        <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                        <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-foreground/20">
+                      <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Provisional Sums</td>
+                      <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.psTotal)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              ) : (
+                <p className="text-sm text-muted-foreground">No provisional sum items</p>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Grand totals — matches TenderDocumentView PriceSummaryBlock (SSoT) */}
         <div className="border-t-2 border-primary/30 bg-muted/30 px-4 py-4">
           {/* Header breakdown — sorted to match tender tree order */}
@@ -2293,76 +2410,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </span>
           </div>
 
-          {/* PC/PS detail tables (matches tender document acceptance page) */}
-          {(totals.pcItems.length > 0 || totals.psItems.length > 0) && (
-            <div className="space-y-4 pt-4 border-t mt-2">
-              {totals.pcItems.length > 0 && (
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400">Schedule of Prime Cost Items</h4>
-                  <p className="text-xs text-muted-foreground italic leading-relaxed">A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed.</p>
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-foreground/20">
-                        <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
-                        <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
-                        <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
-                        <th className="text-right py-1.5 font-semibold w-28">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {totals.pcItems.map((item, idx) => (
-                        <tr key={idx} className="border-b border-border/30">
-                          <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
-                          <td className="py-1.5 pr-4">{item.description}</td>
-                          <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
-                          <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-foreground/20">
-                        <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Prime Costs</td>
-                        <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.pcTotal)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-
-              {totals.psItems.length > 0 && (
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-violet-700 dark:text-violet-400">Schedule of Provisional Sum Items</h4>
-                  <p className="text-xs text-muted-foreground italic leading-relaxed">A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out.</p>
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b-2 border-foreground/20">
-                        <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
-                        <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
-                        <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
-                        <th className="text-right py-1.5 font-semibold w-28">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {totals.psItems.map((item, idx) => (
-                        <tr key={idx} className="border-b border-border/30">
-                          <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
-                          <td className="py-1.5 pr-4">{item.description}</td>
-                          <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
-                          <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t-2 border-foreground/20">
-                        <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Provisional Sums</td>
-                        <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.psTotal)}</td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
