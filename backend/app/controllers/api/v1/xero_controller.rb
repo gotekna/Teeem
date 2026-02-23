@@ -1875,12 +1875,16 @@ module Api
                        else
                          XeroCredential.for_teeem_tenant(current_tenant).where(status: %w[connected degraded disconnected])
                        end
+          # Batch-load remaining counts for ALL credentials in 2 queries (not N*2)
+          xero_org_ids = cred_scope.pluck(:tenant_id)
+          remaining_counts = batch_count_remaining(xero_org_ids)
+
           per_tenant_status = cred_scope.map do |cred|
             usage = XeroRateLimitTracker.usage_for(cred.tenant_id)
             lockout = XeroRateLimitTracker.current_lockout(tenant_id: cred.tenant_id)
 
-            # Count remaining for this specific tenant (using xero_org_id)
-            tenant_remaining = count_remaining_for_tenant(cred.tenant_id)
+            # Use pre-computed counts instead of per-credential queries
+            tenant_remaining = remaining_counts[cred.tenant_id] || { total: 0, synced: 0, pending: 0, percentage: 100.0 }
 
             # Determine status and reason
             status_info = determine_tenant_status(cred, usage, lockout, tenant_remaining)
@@ -3727,6 +3731,50 @@ module Api
       # ============================================
       # PER-TENANT STATUS HELPERS (Feb 2026: Ultra Transparency)
       # ============================================
+
+      # Batch-count remaining PDFs for ALL Xero tenants in 2 queries (not N*2)
+      # Returns: { xero_org_id => { total:, synced:, pending:, percentage: }, ... }
+      def batch_count_remaining(xero_org_ids)
+        return {} if xero_org_ids.empty?
+
+        # Query 1: Total invoices per org (excluding voided/deleted/draft)
+        totals = ExternalInvoice.unscoped
+          .where(xero_org_id: xero_org_ids)
+          .where.not(status: %w[voided deleted draft])
+          .group(:xero_org_id)
+          .count
+
+        # Query 2: Synced invoices per org (with valid PDF or bill record marker)
+        synced_counts = WarehouseDocument
+          .where(source_type: "xero")
+          .where(documentable_type: "ExternalInvoice")
+          .joins("INNER JOIN external_invoices ON external_invoices.id = warehouse_documents.documentable_id")
+          .where(external_invoices: { xero_org_id: xero_org_ids })
+          .where.not(external_invoices: { status: "draft" })
+          .where.not(external_invoices: { status: %w[voided deleted] })
+          .where(<<~SQL.squish)
+            (warehouse_documents.metadata->>'is_bill_record' = 'true')
+            OR
+            (warehouse_documents.metadata->>'is_primary' = 'true'
+             AND warehouse_documents.storage_blob_id IS NOT NULL
+             AND EXISTS (
+               SELECT 1 FROM storage_blobs
+               WHERE storage_blobs.id = warehouse_documents.storage_blob_id
+               AND storage_blobs.content_hash IS NOT NULL
+             ))
+          SQL
+          .group("external_invoices.xero_org_id")
+          .distinct.count(:documentable_id)
+
+        # Build result hash for all org_ids
+        xero_org_ids.each_with_object({}) do |org_id, hash|
+          total = totals[org_id] || 0
+          synced = synced_counts[org_id] || 0
+          pending = [total - synced, 0].max
+          percentage = total > 0 ? ((synced.to_f / total) * 100).round(1) : 100.0
+          hash[org_id] = { total: total, synced: synced, pending: pending, percentage: percentage }
+        end
+      end
 
       # Count remaining PDFs for a specific Xero tenant (by xero_org_id)
       # FRC (Feb 2026): Query by xero_org_id directly, NOT via contact_ids.

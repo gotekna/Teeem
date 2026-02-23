@@ -644,7 +644,24 @@ module Api
         parts.join("/")
       end
 
+      # ⚠️ DO NOT SIMPLIFY - N+1 prevention (Feb 2026)
+      # ════════════════════════════════════════════════════════
+      # Why: Scoped queries (.enabled, .ordered, .includes) bypass eager-loaded
+      # associations and trigger new DB queries. With 42 types × 547 folders ×
+      # 764 doc types, this caused ~1,200 queries, 30s+ response, and OOM crashes.
+      # ❌ WRONG: warehouse_type.warehouse_folders.enabled.ordered (new query per type)
+      # ❌ WRONG: wf.document_types.includes(...) (new query per folder)
+      # ❌ WRONG: wf.children.count (COUNT query per folder)
+      # ✅ CORRECT: Filter/sort eager-loaded collections in Ruby
+      # ════════════════════════════════════════════════════════
       def serialize_warehouse_type(warehouse_type)
+        # Use eager-loaded association, filter/sort in Ruby to avoid N+1
+        all_folders = warehouse_type.warehouse_folders
+        enabled_folders = all_folders.select(&:enabled).sort_by { |f| [f.order_position || 999, f.name || ""] }
+
+        # Pre-compute children counts from the eager-loaded collection
+        children_counts = all_folders.group_by(&:parent_id).transform_values(&:size)
+
         {
           id: warehouse_type.id,
           code: warehouse_type.code,
@@ -655,57 +672,41 @@ module Api
           is_system: warehouse_type.is_system,
           enabled: warehouse_type.enabled,
           order_position: warehouse_type.order_position,
-          warehouse_folders_count: warehouse_type.warehouse_folders.count,
-          warehouse_folders: warehouse_type.warehouse_folders.enabled.ordered.map do |wf|
-            # SSoT (Feb 2026): Return full_path_template for tree building
-            # FRC: Build full path by combining:
-            # 1. Warehouse type's base template (e.g., "Corporate/{{CompanyGroup}}/{{CompanyCode}}")
-            # 2. Ancestor path from parent hierarchy (e.g., "Xero/Balance Sheet/Statement")
-            #
-            # Example: Corporate type has "Corporate/{{CompanyGroup}}/{{CompanyCode}}"
-            #          Statement has parent Balance Sheet, which has parent Xero
-            #          Full path = "Corporate/{{CompanyGroup}}/{{CompanyCode}}/Xero/Balance Sheet/Statement"
+          warehouse_folders_count: all_folders.size,
+          warehouse_folders: enabled_folders.map do |wf|
             wt_template = warehouse_type.folder_path_template.presence || warehouse_type.display_name
 
-            # Build path from parent hierarchy
             ancestor_path = build_ancestor_path(wf)
 
             full_template = if wt_template.blank?
-              # No warehouse type template → just use ancestor path
               ancestor_path
             else
-              # FRC (Feb 2026): Compare first FOLDER exactly, not string prefix
-              # "Assets".start_with?("Asset") was returning true incorrectly
               scope_root = wt_template.split('/').first
               first_folder = ancestor_path.split('/').first
               if first_folder == scope_root
-                # Already a full path → use as-is
                 ancestor_path
               else
-                # Combine warehouse type template + ancestor path
                 "#{wt_template}/#{ancestor_path}"
               end
             end
 
-            # SSoT (Feb 2026): WarehouseFolder now contains all UI config directly
-            # Document types linked via warehouse_folder_document_types join table
-            document_types = wf.document_types.includes(:warehouse_folder_document_types)
+            # Use already eager-loaded document_types - do NOT call .includes() again
+            doc_types = wf.document_types
 
             {
               id: wf.id,
               name: wf.name,
               parent_id: wf.parent_id,
               parent_name: wf.parent&.name,
-              children_count: wf.children.count,
+              children_count: children_counts[wf.id] || 0,
               folder_segment: wf.folder_segment,
               folder_path_suffix: wf.folder_path_suffix,
               full_path_template: full_template,
               full_folder_path: wf.full_folder_path,
-              scope_base_template: wt_template,  # SSoT: Warehouse type's base template for folder editor grey prefix
+              scope_base_template: wt_template,
               path_preview: wf.path_preview,
               is_system: wf.is_system,
               warehouse_type_code: warehouse_type.code,
-              # SSoT (Feb 2026): UI config now directly on WarehouseFolder
               display_name: wf.display_name,
               icon_name: wf.icon_name,
               ui_name_template: wf.ui_name_template,
@@ -719,15 +720,14 @@ module Api
               is_cad_category: wf.is_cad_category,
               is_mailbox: wf.is_mailbox,
               dynamic_type: wf.dynamic_type,
-              # Document types via join table - SSoT: NO FALLBACKS (Feb 2026)
-              document_types: document_types.map { |dt|
+              # Use eager-loaded warehouse_folder_document_types from the association
+              document_types: doc_types.map { |dt|
                 wfdt = dt.warehouse_folder_document_types.find { |j| j.warehouse_folder_id == wf.id }
                 {
                   id: dt.id,
                   name: dt.name,
                   abbreviation: dt.abbreviation,
                   is_primary: wfdt&.is_primary || false,
-                  # SSoT: Templates from join table ONLY - no fallback to DocumentType
                   ui_name_template: wfdt&.ui_name_template,
                   download_name_template: wfdt&.download_name_template
                 }
@@ -741,11 +741,13 @@ module Api
       end
 
       def warehouse_type_summary
+        # Use already-loaded @warehouse_types to avoid 4 extra COUNT queries
+        all_types = @warehouse_types.to_a
         {
-          total: WarehouseType.count,
-          enabled: WarehouseType.enabled.count,
-          system: WarehouseType.system_types.count,
-          custom: WarehouseType.custom_types.count
+          total: all_types.size,
+          enabled: all_types.count(&:enabled),
+          system: all_types.count(&:is_system),
+          custom: all_types.count { |t| !t.is_system }
         }
       end
 

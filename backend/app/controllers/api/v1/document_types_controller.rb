@@ -327,8 +327,8 @@ module Api
         # Use warehouse_folder_document_types to get is_primary flag and proper ordering
         # Sort by is_primary DESC so primary folder is first, then by order_position
         # SSoT (Feb 2026): Use warehouse_folder_document_types/warehouse_folder
+        # Use eager-loaded association - do NOT call .includes() again (causes N+1)
         folder_joins = document_type.warehouse_folder_document_types
-                                    .includes(:warehouse_folder)
                                     .sort_by { |wfdt| [ wfdt.is_primary ? 0 : 1, wfdt.warehouse_folder&.order_position || 999 ] }
 
         warehouse_folders_data = folder_joins.filter_map do |wfdt|
@@ -409,24 +409,31 @@ module Api
       end
 
       def document_type_summary
+        # Use already-loaded @document_types to avoid extra COUNT queries
+        types = @document_types.to_a
         {
-          total: DocumentType.count,
-          # SSoT: category column removed (Jan 2026) - use folder for grouping
-          by_folder: DocumentType.group(:folder).count,
-          requiring_filing: DocumentType.requiring_filing.count
+          total: types.size,
+          by_folder: types.group_by(&:folder).transform_values(&:size),
+          requiring_filing: types.count(&:requires_filing)
         }
       end
 
       def all_available_tabs
         # SSoT (Feb 2026): Get all document tabs from WarehouseFolder (THE ONE table)
-        WarehouseFolder.for_warehouse_type('corporate')
+        # Eager load document_types for count + children for nesting
+        tabs = WarehouseFolder.for_warehouse_type('corporate')
                  .where(tab_group: 'documents')
                  .where(warehouse_enabled: true)
                  .enabled
                  .root_folders
                  .ordered
-                 .includes(children: :children)
-                 .map do |tab|
+                 .includes(children: :children, document_types: [])
+
+        # Pre-fetch document type counts in one query to avoid N+1
+        all_folder_ids = tabs.flat_map { |t| [t.id] + t.children.map(&:id) + t.children.flat_map { |c| c.children.map(&:id) } }
+        doc_type_counts = WarehouseFolderDocumentType.where(warehouse_folder_id: all_folder_ids).group(:warehouse_folder_id).count
+
+        tabs.map do |tab|
           {
             id: tab.id,
             name: tab.display_name,
@@ -435,8 +442,8 @@ module Api
             description: tab.description,
             parent_id: tab.parent_id,
             entity_types: tab.entity_filters,
-            document_type_count: tab.document_types.count,
-            children: tab.children.enabled.ordered.map do |child|
+            document_type_count: doc_type_counts[tab.id] || 0,
+            children: tab.children.select(&:enabled).sort_by { |c| [c.order_position || 999, c.name || ""] }.map do |child|
               {
                 id: child.id,
                 name: child.display_name,
@@ -446,8 +453,8 @@ module Api
                 parent_id: child.parent_id,
                 parent_name: tab.display_name,
                 entity_types: child.entity_filters,
-                document_type_count: child.document_types.count,
-                children: child.children.enabled.ordered.map do |grandchild|
+                document_type_count: doc_type_counts[child.id] || 0,
+                children: child.children.select(&:enabled).sort_by { |c| [c.order_position || 999, c.name || ""] }.map do |grandchild|
                   {
                     id: grandchild.id,
                     name: grandchild.display_name,
@@ -457,7 +464,7 @@ module Api
                     parent_id: grandchild.parent_id,
                     parent_name: child.display_name,
                     entity_types: grandchild.entity_filters,
-                    document_type_count: grandchild.document_types.count
+                    document_type_count: doc_type_counts[grandchild.id] || 0
                   }
                 end
               }

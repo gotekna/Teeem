@@ -221,8 +221,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         logout();
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
-      logout();
+      // ⚠️ DO NOT SIMPLIFY - Network errors must NOT trigger logout (Feb 2026)
+      // ════════════════════════════════════════════════════════════════════
+      // Why: When backend is down (503, R14 memory, timeout), checkAuth fails
+      // with a network error. Calling logout() destroys a valid token.
+      // ❌ WRONG: logout() on any error (kills session when server is down)
+      // ✅ CORRECT: Only logout on 401 (token actually invalid/expired)
+      // ════════════════════════════════════════════════════════════════════
+      const apiError = error as { status?: number };
+      if (apiError.status === 401) {
+        logout();
+      } else {
+        // Server unreachable - preserve token so refresh works when server recovers
+        console.warn('Auth check failed (server unreachable), preserving token:', error);
+      }
     } finally {
       setLoading(false);
       authCheckingRef.current = false;

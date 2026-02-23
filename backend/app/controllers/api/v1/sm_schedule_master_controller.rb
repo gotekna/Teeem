@@ -189,6 +189,7 @@ module Api
           :start_workflow,
           :complete_workflow,
           :sm_task_group,
+          :completion_document_type,
           :related_po_tasks,
           { sm_schedule_master_document_types: :document_type }
         ]
@@ -420,7 +421,7 @@ module Api
           # Broken dependency tracking - for restore in dependency editor
           predecessor_ids_backup: row.predecessor_ids_backup || [],
           dependency_broken_at: row.dependency_broken_at,
-          dependency_broken_by: row.dependency_broken_by_id.present? ? User.find_by(id: row.dependency_broken_by_id)&.name : nil,
+          dependency_broken_by: row.dependency_broken_by_id.present? ? users_map[row.dependency_broken_by_id] : nil,
           created_at: row.created_at,
           updated_at: row.updated_at
         }
@@ -487,6 +488,12 @@ module Api
             .to_a
             .each_with_object({}) { |r, h| h[r["id"]] = r["name"] }
         end
+      end
+
+      # SSoT: Load users lookup map (ID => name)
+      # Memoized per request to avoid N+1 queries (e.g., dependency_broken_by)
+      def users_map
+        @users_map ||= User.pluck(:id, :name).to_h
       end
 
       # SSoT: Load header lookup map (ID => name) - self-reference to sm_schedule_master

@@ -260,16 +260,34 @@ class XeroHealthMonitorJob < ApplicationJob
   end
 
   # Check for syncs that haven't run in their expected time window
+  # PERFORMANCE: Batch-load latest sync events to avoid N+1 (credentials × sync_types queries)
   def check_stale_syncs
     issues = 0
+    credentials = XeroCredential.healthy.to_a
+    return 0 if credentials.empty?
 
-    XeroCredential.healthy.find_each do |credential|
+    # Batch-load the latest event per (credential_id, sync_type) in a single query
+    # instead of querying per credential × sync_type (was N*4 queries, now 1)
+    latest_events = XeroSyncEvent
+      .where(xero_credential_id: credentials.map(&:id), sync_type: EXPECTED_INTERVALS.keys)
+      .select("DISTINCT ON (xero_credential_id, sync_type) *")
+      .order(Arel.sql("xero_credential_id, sync_type, created_at DESC"))
+
+    events_map = latest_events.index_by { |e| [e.xero_credential_id, e.sync_type] }
+
+    credentials.each do |credential|
       EXPECTED_INTERVALS.each do |sync_type, expected_interval|
-        health = XeroSyncEvent.health_for_type(
-          sync_type: sync_type,
-          credential: credential,
-          expected_interval: expected_interval
-        )
+        last_event = events_map[[credential.id, sync_type]]
+
+        health = if last_event.nil?
+                   { status: :never_run, last_run: nil, message: "Never synced" }
+                 elsif last_event.failed?
+                   { status: :failed, last_run: last_event.completed_at, message: last_event.error_message }
+                 elsif last_event.completed_at && last_event.completed_at < expected_interval.ago
+                   { status: :stale, last_run: last_event.completed_at, message: "Sync is overdue" }
+                 else
+                   { status: :healthy, last_run: last_event.completed_at, message: "OK" }
+                 end
 
         if health[:status] == :stale
           issues += 1
