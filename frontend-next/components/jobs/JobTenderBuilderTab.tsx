@@ -1419,6 +1419,12 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               else if (c === "ps") headerPsTotal += r.amount;
             }
           }
+          // Notes & Conditions header: show global PC/PS totals since PC/PS items
+          // live in their original sections (Base Price, etc.) but aggregate here
+          if (headerRow.name === "Notes & Conditions") {
+            headerPcTotal = totals.pcTotal;
+            headerPsTotal = totals.psTotal;
+          }
 
           return (
             <div key={`h-${headerRow.name}`}>
@@ -1490,6 +1496,14 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                         <span>{sectionRow.name}</span>
                         {sectionRow.poCount > 0 ? (
                           <Badge variant="outline" className="text-[10px] font-normal">{sectionRow.poCount} POs</Badge>
+                        ) : sectionRow.name === "Prime Costs" && totals.pcCount > 0 ? (
+                          <Badge variant="outline" className="text-[10px] font-normal text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700">
+                            {totals.pcCount} {totals.pcCount === 1 ? "item" : "items"}
+                          </Badge>
+                        ) : sectionRow.name === "Provisional Sums" && totals.psCount > 0 ? (
+                          <Badge variant="outline" className="text-[10px] font-normal text-violet-600 dark:text-violet-400 border-violet-300 dark:border-violet-700">
+                            {totals.psCount} {totals.psCount === 1 ? "item" : "items"}
+                          </Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">Note</Badge>
                         )}
@@ -1530,9 +1544,20 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                           });
                         })()}
                       </div>
-                      <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
-                        {formatCurrency(includedSubtotal)}
-                      </div>
+                      {/* Show aggregated PC/PS totals for their conceptual sections */}
+                      {sectionRow.name === "Prime Costs" && totals.pcTotal > 0 ? (
+                        <div className="text-right font-medium text-blue-600 dark:text-blue-400 tabular-nums text-sm">
+                          {formatCurrency(totals.pcTotal)}
+                        </div>
+                      ) : sectionRow.name === "Provisional Sums" && totals.psTotal > 0 ? (
+                        <div className="text-right font-medium text-violet-600 dark:text-violet-400 tabular-nums text-sm">
+                          {formatCurrency(totals.psTotal)}
+                        </div>
+                      ) : (
+                        <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
+                          {formatCurrency(includedSubtotal)}
+                        </div>
+                      )}
                     </div>
 
                     {/* ── Empty section: note editing ── */}
