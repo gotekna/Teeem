@@ -46,6 +46,7 @@ import {
   MoreVertical,
   Plus,
   Trash2,
+  RotateCcw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -820,6 +821,7 @@ export default function JobDetailPage() {
     toggleTab,
     tabOrder,
     setTabOrder,
+    resetToDefaults,
   } = useUserTabPreferences("job");
 
   // Sort and filter tabs based on user preferences
@@ -1544,6 +1546,16 @@ export default function JobDetailPage() {
                       ))}
                     </SortableList>
                   </RadioGroup>
+                  <DropdownMenuSeparator />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start text-xs text-muted-foreground"
+                    onClick={resetToDefaults}
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1.5" />
+                    Reset to Default
+                  </Button>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>

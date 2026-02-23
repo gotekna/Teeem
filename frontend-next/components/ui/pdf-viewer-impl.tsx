@@ -132,8 +132,11 @@ export function PDFViewerImpl({
 
             if (fileId) {
               // Fetch presigned URL from backend (skips Rails streaming) - returns JSON
+              // skipAuthRedirect: A 401 from storage endpoints means "storage not connected",
+              // not "session expired". Without this, storage errors trigger logout.
               const presignedResponse = await api.get<{ success: boolean; url: string }>(
-                `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
+                `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+                { skipAuthRedirect: true }
               );
 
               if (presignedResponse?.success && presignedResponse.url) {
