@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_23_100002) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_23_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10645,8 +10645,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_100002) do
     t.datetime "openclaw_api_key_created_at"
     t.jsonb "assistant_preferences", default: {}
     t.string "slack_user_id"
+    t.integer "default_tenant_id"
     t.index "lower((email)::text)", name: "idx_users_lower_email"
     t.index ["contact_id"], name: "index_users_on_contact_id_unique", unique: true, where: "(contact_id IS NOT NULL)"
+    t.index ["default_tenant_id"], name: "index_users_on_default_tenant_id"
     t.index ["email", "tenant_id"], name: "index_users_on_email_and_tenant", unique: true
     t.index ["openclaw_api_key_digest"], name: "index_users_on_openclaw_api_key_digest", unique: true, where: "(openclaw_api_key_digest IS NOT NULL)"
     t.index ["photo_blob_id"], name: "index_users_on_photo_blob_id"
@@ -12498,6 +12500,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_100002) do
   add_foreign_key "users", "storage_blobs", column: "photo_blob_id"
   add_foreign_key "users", "storage_blobs", column: "signature_blob_id"
   add_foreign_key "users", "tenants"
+  add_foreign_key "users", "tenants", column: "default_tenant_id", on_delete: :nullify
   add_foreign_key "users", "user_groups"
   add_foreign_key "vip_senders", "users"
   add_foreign_key "warehouse_documents", "storage_blobs"

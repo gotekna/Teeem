@@ -1517,7 +1517,7 @@ export default function DocumentTypeDetailPage() {
                   ))}
                 </SelectContent>
               </Select>
-                <p className="text-xs text-muted-foreground">Auto-set by Primary Tab</p>
+                <p className="text-xs text-muted-foreground">Auto-set by Primary Tab / Folder</p>
               </div>
             </div>
 
@@ -1533,9 +1533,9 @@ export default function DocumentTypeDetailPage() {
               />
             </div>
 
-            {/* Tab View - Primary Tab */}
+            {/* Tab View - Primary Tab / Folder */}
             <div className="space-y-2">
-              <Label>Primary Tab</Label>
+              <Label>Primary Tab / Folder</Label>
               {/* Scope filter buttons */}
               <div className="flex gap-1 mb-1">
                 {[

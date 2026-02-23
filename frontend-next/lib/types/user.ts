@@ -46,6 +46,8 @@ export interface User {
   can_sign_certificates?: boolean;
   // AI writing assistant preference
   enable_ai_writing_assistant?: boolean;
+  // Default tenant preference (Feb 2026) - auto-set on login
+  default_tenant_id?: number | null;
   // OpenClaw integration (Feb 2026)
   openclaw_key_active?: boolean;
   openclaw_api_key_last4?: string | null;

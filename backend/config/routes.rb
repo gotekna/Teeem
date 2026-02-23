@@ -4679,9 +4679,11 @@ Rails.application.routes.draw do
             get :dashboard
             patch :environment, action: :update_environment
             delete :switch, action: :clear_switch
+            delete :default, action: :clear_default
           end
           member do
             post :switch
+            post :set_default
             post :extend_trial
             post :convert_to_paid
           end

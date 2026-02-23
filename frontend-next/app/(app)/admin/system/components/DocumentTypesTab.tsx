@@ -44,7 +44,7 @@ interface DocumentType extends TableRow {
   ui_name?: string;
   download_name?: string;
   title_preview?: string;
-  primary_tab?: string;
+  primary_tab?: string; // DEPRECATED - use folder instead
   folder?: string;
   tabs?: string[];
   // Folder lookup fields
@@ -478,7 +478,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           // Reasons:
           // 1. Custom API: /api/v1/document_types with include_inactive=true param
           // 2. Client-side OR filtering: scope="company" OR scope="both" (complex filter logic)
-          // 3. Computed grouping: Groups by primary_tab (not a database column)
+          // 3. Computed grouping: Groups by folder (derived from primary warehouse folder)
           legacyDataSource="custom-api: /api/v1/document_types?include_inactive=true + client-side scope OR filtering"
           // Disable URL-based view syncing - this table is embedded, parent owns URL
           viewSlug={null}
@@ -492,7 +492,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           enableSchemaEditor={true}
           customCellRenderer={customCellRenderer}
           onColumnUpdate={fetchColumns}
-          initialGroupByColumn="primary_tab"
+          initialGroupByColumn="folder"
         />
 
         </TabsContent>

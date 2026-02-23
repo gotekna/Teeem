@@ -5,7 +5,7 @@ import { useTheme } from 'next-themes';
 import { api, setApiUrl, clearApiUrl, setEnvironment, clearEnvironment, getCurrentEnvironment } from '@/lib/api';
 import { loadTypeDefinitions } from '@/lib/column-type-registry';
 import { clearAllCachedRecords } from '@/lib/records-cache';
-import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
+import { getStorageItem, setStorageItem, removeStorageItem, hasStorageItem, STORAGE_KEYS } from '@/lib/storage-utils';
 import type { User } from '@/lib/types';
 
 interface AuthContextType {
@@ -299,6 +299,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         }
         if (response.environment) {
           setEnvironment(response.environment);
+        }
+
+        // Auto-set default tenant on fresh login (Feb 2026)
+        // Only applies when user has a default preference AND no existing override
+        if (response.user.default_tenant_id && !hasStorageItem(STORAGE_KEYS.TENANT_OVERRIDE)) {
+          setStorageItem(STORAGE_KEYS.TENANT_OVERRIDE, String(response.user.default_tenant_id));
         }
 
         // Check if user must change their temporary password (Feb 2026)
