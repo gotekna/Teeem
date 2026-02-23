@@ -109,11 +109,11 @@ export interface Corporate {
   // Corporate details
   corporate_key?: string;
   asic_username?: string;
-  has_asic_password?: boolean;
-  encrypted_asic_password?: string;
   recovery_question?: string;
+  // Boolean flags (from show response) - actual values require password via reveal_sensitive
+  has_tfn?: boolean;
+  has_asic_password?: boolean;
   has_recovery_answer?: boolean;
-  encrypted_recovery_answer?: string;
   bank_name?: string;
   bank_bsb?: string;
   bank_account_number?: string;

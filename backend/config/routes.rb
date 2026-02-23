@@ -3151,6 +3151,7 @@ Rails.application.routes.draw do
           get :data_stats   # Data warehouse statistics for this company
           get :warehouse_health   # Data warehouse health checks for this company
           get :health   # Single company health score (fast - loads only this company)
+          post :reveal_sensitive  # Returns TFN/ASIC credentials after password verification
         end
 
         # Bank Accounts (nested under companies)

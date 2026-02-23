@@ -345,8 +345,11 @@ export function JobPlansTab({ jobId, jobCode, jobTitle }: JobPlansTabProps) {
 
       try {
         // Get presigned URL for faster download
+        // FRC (Feb 2026): skipAuthRedirect prevents logout when SharePoint credential fails
+        // A storage 401 means "credential issue", not "session expired"
         const data = await api.get<{ success: boolean; url?: string }>(
-          `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`
+          `/api/v1/documents/presigned_url?file_id=${encodeURIComponent(fileId)}`,
+          { skipAuthRedirect: true }
         );
 
         if (!data.success || !data.url) return false;

@@ -429,8 +429,14 @@ class MicrosoftCredential < ApplicationRecord
   # SSoT: SharePoint credential lookup (replaces OrganizationSharePointCredential.active_credential)
   # Tries delegated credentials first (user OAuth), then app credentials (client credentials)
   # FRC (Feb 2026): Changed from .connected to .refreshable_* for 24/7 availability
+  # FRC (Feb 2026): Must be tenant-scoped to prevent cross-tenant credential leaks
   def self.sharepoint_credential
-    refreshable_delegated.org_level.first || refreshable_app.first
+    scope = if ActsAsTenant.current_tenant
+              for_tenant(ActsAsTenant.current_tenant)
+            else
+              all
+            end
+    scope.refreshable_delegated.org_level.first || scope.refreshable_app.first
   end
 
   # SharePoint configuration helpers

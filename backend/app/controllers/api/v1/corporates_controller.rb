@@ -71,9 +71,14 @@ module Api
             contact: {}, # Include contact with ABN verification fields
             company_group: {} # Include company group for display
           },
-          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ]
-          # Note: total_asset_value removed - depends on assets table
+          methods: [ :formatted_acn, :formatted_abn, :has_xero_connection?, :storage_folder_url, :has_consolidated_children? ],
+          except: [ :tfn, :encrypted_asic_password, :encrypted_recovery_answer ]
         )
+
+        # Include boolean flags so UI knows whether to show reveal toggle
+        company_json["has_tfn"] = @company.tfn.present?
+        company_json["has_asic_password"] = @company.encrypted_asic_password.present?
+        company_json["has_recovery_answer"] = @company.encrypted_recovery_answer.present?
 
         # Serialize current directors separately (corporate_directors returns CorporateDirector objects)
         company_json["current_directors"] = @company.corporate_directors.current.includes(:contact).map do |director|
@@ -557,6 +562,23 @@ module Api
         end
       end
 
+      # POST /api/v1/companies/:id/reveal_sensitive
+      # Returns sensitive fields (TFN, ASIC password, recovery answer) after password verification
+      def reveal_sensitive
+        unless current_user.authenticate(params[:password].to_s)
+          return render json: { success: false, error: "Invalid password" }, status: :unauthorized
+        end
+
+        render json: {
+          success: true,
+          data: {
+            tfn: @company.tfn,
+            encrypted_asic_password: @company.encrypted_asic_password,
+            encrypted_recovery_answer: @company.encrypted_recovery_answer
+          }
+        }
+      end
+
       # GET /api/v1/companies/:id/data_stats
       # Returns data warehouse statistics for a company
       # Note: corporate_company_documents table DROPPED (Jan 2026) - migrated to WarehouseDocument
@@ -914,9 +936,9 @@ module Api
               company_group_name: company.company_group&.name,
               corporate_key: company.corporate_key,
               asic_username: company.asic_username,
-              asic_password: company.encrypted_asic_password,
+              has_asic_password: company.encrypted_asic_password.present?,
               recovery_question: company.recovery_question,
-              recovery_answer: company.encrypted_recovery_answer,
+              has_recovery_answer: company.encrypted_recovery_answer.present?,
               has_credentials: company.asic_username.present?
             }
           end,
