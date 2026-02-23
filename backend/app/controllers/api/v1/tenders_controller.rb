@@ -109,6 +109,68 @@ class Api::V1::TendersController < ApplicationController
     render json: { success: true, message: "PO tasks updated" }
   end
 
+  # GET /api/v1/tenders/job_documents?job_id=123
+  # Returns job documents grouped by document type name for the Tender Builder.
+  # Sources document type names from:
+  #   1. TenderDocumentTemplate.default_document_types (org-level)
+  #   2. Tender.attached_document_types (per-section overrides)
+  def job_documents
+    job = Job.find(params[:job_id])
+
+    # Collect all configured document type names (union of both sources)
+    template = TenderDocumentTemplate.find_by(is_default: true)
+    default_types = template&.default_document_types || []
+    section_types = Tender.where.not(attached_document_types: []).pluck(:attached_document_types).flatten.uniq
+    all_type_names = (default_types + section_types).uniq
+
+    if all_type_names.empty?
+      return render json: { success: true, data: [] }
+    end
+
+    # Find matching DocumentType records
+    doc_types = DocumentType.where(name: all_type_names)
+    doc_type_ids = doc_types.pluck(:id)
+    doc_type_map = doc_types.index_by(&:id) # id → DocumentType
+
+    # Find WarehouseFolderDocumentType IDs for these doc types
+    wfdt_lookup = WarehouseFolderDocumentType
+      .where(document_type_id: doc_type_ids)
+      .pluck(:id, :document_type_id)
+      .to_h # wfdt_id → doc_type_id
+
+    # Query WarehouseDocuments for this job matching those types (all versions)
+    documents = WarehouseDocument
+      .for_job(job)
+      .where(warehouse_folder_document_type_id: wfdt_lookup.keys)
+      .includes(:storage_blob)
+      .order(:version_group_id, version_number: :desc)
+
+    # Group by document type name, then by version_group for history
+    grouped = {}
+    documents.each do |doc|
+      dt_id = wfdt_lookup[doc.warehouse_folder_document_type_id]
+      dt = doc_type_map[dt_id]
+      next unless dt
+
+      grouped[dt.name] ||= []
+      grouped[dt.name] << {
+        id: doc.id,
+        name: doc.ui_name || doc.original_filename,
+        versionNumber: doc.version_number || 1,
+        versionGroupId: doc.version_group_id,
+        isLatest: doc.is_latest_version,
+        mimeType: doc.storage_blob&.content_type,
+        fileSize: doc.storage_blob&.byte_size,
+        createdAt: doc.created_at,
+        updatedAt: doc.updated_at
+      }
+    end
+
+    render json: { success: true, data: grouped }
+  rescue ActiveRecord::RecordNotFound
+    render json: { success: false, error: "Job not found" }, status: :not_found
+  end
+
   # POST /api/v1/tenders/:id/update_document_types
   # Accepts { document_types: ["Plans", "Engineering", ...] }
   def update_document_types

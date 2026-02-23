@@ -147,12 +147,14 @@ interface TenderTreeHeader {
   sectionType: string;
   defaultNote: string | null;
   description: string | null;
+  headerType: "standard" | "pc_schedule" | "ps_schedule";
+  systemLocked: boolean;
   children: TenderTreeSection[];
 }
 
 /** Unified row types: Header → Section → (Cost Centre) → PO → Items → PO Footer */
 type UnifiedRow =
-  | { type: "header"; name: string; subtotal: number; itemCount: number }
+  | { type: "header"; name: string; subtotal: number; itemCount: number; headerType?: "standard" | "pc_schedule" | "ps_schedule" }
   | { type: "section"; name: string; headerName: string; subtotal: number; itemCount: number; poCount: number }
   | { type: "cost-centre"; name: string; headerName: string; sectionName: string }
   | {
@@ -313,6 +315,36 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   const [sectionNotes, setSectionNotes] = useState<Map<string, string>>(new Map());
   // Excluded doc types per section: "sectionName::docTypeName" → excluded
   const [excludedDocTypes, setExcludedDocTypes] = useState<Set<string>>(new Set());
+  // Attached job documents grouped by document type name
+  interface TenderAttachedDoc {
+    id: number;
+    name: string;
+    versionNumber: number;
+    versionGroupId: number | null;
+    isLatest: boolean;
+    mimeType: string | null;
+    fileSize: number | null;
+    createdAt: string;
+    updatedAt: string;
+  }
+  const [tenderAttachedDocs, setTenderAttachedDocs] = useState<Record<string, TenderAttachedDoc[]>>({});
+
+  // Job claims for "Tender Fee Paid" section
+  interface TenderJobClaim {
+    id: number;
+    invoice_number: string;
+    description: string | null;
+    amount: number;
+    amount_paid: number;
+    amount_due: number;
+    status: string;
+    date: string | null;
+    due_date: string | null;
+    contact_name: string | null;
+    payment_percentage: number;
+    outstanding_amount: number;
+  }
+  const [jobClaims, setJobClaims] = useState<TenderJobClaim[]>([]);
 
   // Image upload
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -334,7 +366,35 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
     loadBOQData();
     loadTenderTree();
     loadBuilderState();
+    loadTenderAttachedDocs();
+    loadJobClaims();
   }, [jobId]);
+
+  const loadJobClaims = async () => {
+    try {
+      const response = await api.get<{ success: boolean; job_claims: TenderJobClaim[] }>(
+        `/api/v1/jobs/${jobId}/job_claims`
+      );
+      if (response?.success && response.job_claims) {
+        setJobClaims(response.job_claims);
+      }
+    } catch (err) {
+      console.error("Failed to load job claims:", err);
+    }
+  };
+
+  const loadTenderAttachedDocs = async () => {
+    try {
+      const response = await api.get<{ success: boolean; data: Record<string, TenderAttachedDoc[]> }>(
+        `/api/v1/tenders/job_documents?job_id=${jobId}`
+      );
+      if (response?.success && response.data) {
+        setTenderAttachedDocs(response.data);
+      }
+    } catch (err) {
+      console.error("Failed to load tender attached documents:", err);
+    }
+  };
 
   const loadTenderTree = async () => {
     try {
@@ -976,11 +1036,18 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               name: treeHeader.name,
               subtotal: 0,
               itemCount: 0,
+              headerType: treeHeader.headerType || "standard",
             },
             sections: [],
           };
           groups.push(headerGroup);
+        } else {
+          // Stamp headerType on existing header rows from tenderTree
+          headerGroup.headerRow.headerType = treeHeader.headerType || "standard";
         }
+
+        // PC/PS schedule headers don't have sections - they render aggregated items
+        if (treeHeader.headerType === "pc_schedule" || treeHeader.headerType === "ps_schedule") continue;
 
         // Add any missing sections under this header
         for (const treeSection of treeHeader.children) {
@@ -1031,8 +1098,7 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
   // ❌ WRONG: collapsedHeaders.size > 0 — true when ANY is collapsed
   // ✅ CORRECT: Check all headers are collapsed (sections hidden under headers)
   // ════════════════════════════════════════════
-  const allCollapsed = groupedRows.length > 0 && groupedRows.every(g => collapsedHeaders.has(g.headerRow.name))
-    && collapsedHeaders.has("__pc_schedule__") && collapsedHeaders.has("__ps_schedule__");
+  const allCollapsed = groupedRows.length > 0 && groupedRows.every(g => collapsedHeaders.has(g.headerRow.name));
 
   const collapseAll = useCallback(() => {
     const headers = new Set<string>();
@@ -1050,8 +1116,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
         }
       }
     }
-    headers.add("__pc_schedule__");
-    headers.add("__ps_schedule__");
     setCollapsedHeaders(headers);
     setCollapsedSections(sections);
     setCollapsedCostCentres(costCentres);
@@ -1419,6 +1483,136 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
               else if (c === "ps") headerPsTotal += r.amount;
             }
           }
+
+          // ── PC/PS schedule headers render aggregated items, not sections ──
+          if (headerRow.headerType === "pc_schedule") {
+            const colKey = headerRow.name;
+            const scheduleItems = totals.pcItems;
+            const scheduleTotal = totals.pcTotal;
+            const scheduleCount = totals.pcCount;
+            return (
+              <div key={`h-${headerRow.name}`}>
+                <div
+                  className="flex items-center bg-blue-50/60 dark:bg-blue-950/20 border-b cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 px-2 py-2"
+                  onClick={() => toggleHeader(colKey)}
+                >
+                  <div className="shrink-0 w-5">
+                    {collapsedHeaders.has(colKey)
+                      ? <ChevronRight className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                      : <ChevronDown className="h-4 w-4 text-blue-700 dark:text-blue-400" />
+                    }
+                  </div>
+                  <div className="flex-1 font-semibold text-blue-700 dark:text-blue-400 text-sm">
+                    {headerRow.name}
+                    <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{scheduleCount} {scheduleCount === 1 ? "item" : "items"}</Badge>
+                  </div>
+                  <div className="text-right font-semibold text-blue-700 dark:text-blue-400 tabular-nums text-sm">
+                    {formatCurrency(scheduleTotal)}
+                  </div>
+                </div>
+                {!collapsedHeaders.has(colKey) && (
+                  <div className="px-4 py-3 bg-blue-50/30 dark:bg-blue-950/10 border-b">
+                    <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed.</p>
+                    {scheduleItems.length > 0 ? (
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b-2 border-foreground/20">
+                            <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                            <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                            <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                            <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scheduleItems.map((item, idx) => (
+                            <tr key={idx} className="border-b border-border/30">
+                              <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                              <td className="py-1.5 pr-4">{item.description}</td>
+                              <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                              <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-foreground/20">
+                            <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Prime Costs</td>
+                            <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(scheduleTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No prime cost items</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (headerRow.headerType === "ps_schedule") {
+            const colKey = headerRow.name;
+            const scheduleItems = totals.psItems;
+            const scheduleTotal = totals.psTotal;
+            const scheduleCount = totals.psCount;
+            return (
+              <div key={`h-${headerRow.name}`}>
+                <div
+                  className="flex items-center bg-violet-50/60 dark:bg-violet-950/20 border-b cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-950/30 px-2 py-2"
+                  onClick={() => toggleHeader(colKey)}
+                >
+                  <div className="shrink-0 w-5">
+                    {collapsedHeaders.has(colKey)
+                      ? <ChevronRight className="h-4 w-4 text-violet-700 dark:text-violet-400" />
+                      : <ChevronDown className="h-4 w-4 text-violet-700 dark:text-violet-400" />
+                    }
+                  </div>
+                  <div className="flex-1 font-semibold text-violet-700 dark:text-violet-400 text-sm">
+                    {headerRow.name}
+                    <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{scheduleCount} {scheduleCount === 1 ? "item" : "items"}</Badge>
+                  </div>
+                  <div className="text-right font-semibold text-violet-700 dark:text-violet-400 tabular-nums text-sm">
+                    {formatCurrency(scheduleTotal)}
+                  </div>
+                </div>
+                {!collapsedHeaders.has(colKey) && (
+                  <div className="px-4 py-3 bg-violet-50/30 dark:bg-violet-950/10 border-b">
+                    <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out.</p>
+                    {scheduleItems.length > 0 ? (
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b-2 border-foreground/20">
+                            <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
+                            <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
+                            <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
+                            <th className="text-right py-1.5 font-semibold w-28">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scheduleItems.map((item, idx) => (
+                            <tr key={idx} className="border-b border-border/30">
+                              <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
+                              <td className="py-1.5 pr-4">{item.description}</td>
+                              <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
+                              <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t-2 border-foreground/20">
+                            <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Provisional Sums</td>
+                            <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(scheduleTotal)}</td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No provisional sum items</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          }
+
           return (
             <div key={`h-${headerRow.name}`}>
               {/* ── Header row (full width) ── */}
@@ -1450,8 +1644,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
 
               {/* Sections under this header */}
               {!isHeaderCollapsed && headerGroup.sections
-                // Prime Costs & Provisional Sums have their own Schedule sections at the bottom (SSoT)
-                .filter((sg) => sg.sectionRow.name !== "Prime Costs" && sg.sectionRow.name !== "Provisional Sums")
                 .map((sectionGroup) => {
                 const { sectionRow, contentRows } = sectionGroup;
                 const sKey = `${sectionRow.headerName}::${sectionRow.name}`;
@@ -1525,6 +1717,28 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                             );
                           });
                         })()}
+                        {/* Claims badge for fee/claim sections */}
+                        {(() => {
+                          const nameLC = sectionRow.name.toLowerCase();
+                          const isClaimSection = nameLC.includes("fee") || nameLC.includes("claim") || nameLC.includes("payment");
+                          if (!isClaimSection || jobClaims.length === 0) return null;
+                          const liveCount = jobClaims.filter((c) => ["draft", "submitted", "authorised"].includes(c.status)).length;
+                          const paidCount = jobClaims.filter((c) => c.status === "paid").length;
+                          return (
+                            <>
+                              {liveCount > 0 && (
+                                <Badge variant="outline" className="text-[10px] font-normal text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700">
+                                  {liveCount} live
+                                </Badge>
+                              )}
+                              {paidCount > 0 && (
+                                <Badge variant="outline" className="text-[10px] font-normal text-green-600 dark:text-green-400 border-green-300 dark:border-green-700">
+                                  {paidCount} paid
+                                </Badge>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                       <div className="text-right font-medium text-foreground/80 tabular-nums text-sm">
                         {formatCurrency(includedSubtotal)}
@@ -1557,12 +1771,175 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
                           <p className="text-[10px] text-muted-foreground mt-1 pl-12">
                             No POs assigned. This note will appear in the tender document.
                           </p>
+                          {/* Attached documents from job matching this section's document types */}
+                          {(() => {
+                            const treeSection = tenderTreeSectionMap.get(sectionRow.name);
+                            const sectionDocTypes = treeSection?.attachedDocumentTypes || [];
+                            if (sectionDocTypes.length === 0) return null;
+                            // Collect docs matching this section's attached types
+                            const sectionDocs = sectionDocTypes.flatMap(
+                              (typeName) => (tenderAttachedDocs[typeName] || []).map((d) => ({ ...d, typeName }))
+                            );
+                            if (sectionDocs.length === 0) return null;
+                            return (
+                              <div className="mt-3 pt-3 border-t border-border/30">
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="border-b border-border/40">
+                                      <th className="text-left py-1 font-medium text-muted-foreground">Document</th>
+                                      <th className="text-left py-1 font-medium text-muted-foreground w-20">Type</th>
+                                      <th className="text-center py-1 font-medium text-muted-foreground w-12">Ver</th>
+                                      <th className="text-right py-1 font-medium text-muted-foreground w-24">Updated</th>
+                                      <th className="text-center py-1 font-medium text-muted-foreground w-16">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {sectionDocs.map((doc) => (
+                                      <tr key={doc.id} className="border-b border-border/20">
+                                        <td className="py-1 flex items-center gap-1.5">
+                                          <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
+                                          <span className="truncate">{doc.name}</span>
+                                        </td>
+                                        <td className="py-1 text-muted-foreground">{doc.typeName}</td>
+                                        <td className="py-1 text-center">
+                                          <Badge variant="outline" className="text-[9px] font-normal">v{doc.versionNumber}</Badge>
+                                        </td>
+                                        <td className="py-1 text-right text-muted-foreground">
+                                          {new Date(doc.updatedAt).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" })}
+                                        </td>
+                                        <td className="py-1 text-center">
+                                          {doc.isLatest ? (
+                                            <Badge className="text-[9px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-0">Current</Badge>
+                                          ) : (
+                                            <Badge variant="outline" className="text-[9px] text-muted-foreground">Prev</Badge>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            );
+                          })()}
+                          {/* Job claims display for fee/claim sections */}
+                          {(() => {
+                            const nameLC = sectionRow.name.toLowerCase();
+                            const isClaimSection = nameLC.includes("fee") || nameLC.includes("claim") || nameLC.includes("payment");
+                            if (!isClaimSection || jobClaims.length === 0) return null;
+                            const liveClaims = jobClaims.filter((c) => ["draft", "submitted", "authorised"].includes(c.status));
+                            const paidClaims = jobClaims.filter((c) => c.status === "paid");
+                            const claimsTotal = jobClaims.filter((c) => c.status !== "voided").reduce((sum, c) => sum + (c.amount || 0), 0);
+                            const paidTotal = paidClaims.reduce((sum, c) => sum + (c.amount_paid || 0), 0);
+                            const STATUS_COLORS: Record<string, string> = {
+                              draft: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+                              submitted: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                              authorised: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                              paid: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400",
+                            };
+                            const renderClaimRows = (claims: TenderJobClaim[]) => claims.map((claim) => (
+                              <tr key={claim.id} className="border-b border-border/20">
+                                <td className="py-1.5 font-mono text-xs">{claim.invoice_number}</td>
+                                <td className="py-1.5 truncate max-w-[200px]">{claim.description || claim.contact_name || "—"}</td>
+                                <td className="py-1.5 text-right tabular-nums">{formatCurrency(claim.amount)}</td>
+                                <td className="py-1.5 text-right tabular-nums">{formatCurrency(claim.amount_paid)}</td>
+                                <td className="py-1.5 text-center">
+                                  <Badge className={cn("text-[9px] border-0 capitalize", STATUS_COLORS[claim.status] || "")}>{claim.status}</Badge>
+                                </td>
+                                <td className="py-1.5 text-right text-muted-foreground">
+                                  {claim.date ? new Date(claim.date).toLocaleDateString("en-AU", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                                </td>
+                              </tr>
+                            ));
+                            return (
+                              <div className="mt-3 pt-3 border-t border-border/30">
+                                {liveClaims.length > 0 && (
+                                  <>
+                                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Live Claims ({liveClaims.length})</p>
+                                    <table className="w-full text-xs mb-3">
+                                      <thead>
+                                        <tr className="border-b border-border/40">
+                                          <th className="text-left py-1 font-medium text-muted-foreground w-24">Invoice #</th>
+                                          <th className="text-left py-1 font-medium text-muted-foreground">Description</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-24">Amount</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-20">Paid</th>
+                                          <th className="text-center py-1 font-medium text-muted-foreground w-20">Status</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-24">Date</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>{renderClaimRows(liveClaims)}</tbody>
+                                    </table>
+                                  </>
+                                )}
+                                {paidClaims.length > 0 && (
+                                  <>
+                                    <p className="text-xs font-medium text-muted-foreground mb-1.5">Paid Claims ({paidClaims.length})</p>
+                                    <table className="w-full text-xs mb-3">
+                                      <thead>
+                                        <tr className="border-b border-border/40">
+                                          <th className="text-left py-1 font-medium text-muted-foreground w-24">Invoice #</th>
+                                          <th className="text-left py-1 font-medium text-muted-foreground">Description</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-24">Amount</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-20">Paid</th>
+                                          <th className="text-center py-1 font-medium text-muted-foreground w-20">Status</th>
+                                          <th className="text-right py-1 font-medium text-muted-foreground w-24">Date</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>{renderClaimRows(paidClaims)}</tbody>
+                                    </table>
+                                  </>
+                                )}
+                                <div className="flex items-center justify-between text-xs pt-2 border-t border-border/30">
+                                  <span className="text-muted-foreground">Total Claimed: <span className="font-semibold text-foreground">{formatCurrency(claimsTotal)}</span></span>
+                                  <span className="text-muted-foreground">Total Paid: <span className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(paidTotal)}</span></span>
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                         {/* Right: preview */}
-                        <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 px-4 py-3 flex items-start">
-                          <span className="text-[13px] text-muted-foreground italic leading-snug">
-                            {getSectionNote(sectionRow.name)}
-                          </span>
+                        <div className="w-2/5 min-w-0 border-l bg-stone-50/80 dark:bg-zinc-900/30 px-4 py-3">
+                          {getSectionNote(sectionRow.name) && (
+                            <span className="text-[13px] text-muted-foreground italic leading-snug block mb-2">
+                              {getSectionNote(sectionRow.name)}
+                            </span>
+                          )}
+                          {/* Preview: list current-version documents for tender output */}
+                          {(() => {
+                            const treeSection = tenderTreeSectionMap.get(sectionRow.name);
+                            const sectionDocTypes = treeSection?.attachedDocumentTypes || [];
+                            const currentDocs = sectionDocTypes.flatMap(
+                              (typeName) => (tenderAttachedDocs[typeName] || []).filter((d) => d.isLatest)
+                            );
+                            if (currentDocs.length === 0) return null;
+                            return (
+                              <div className="text-xs text-muted-foreground">
+                                <p className="font-medium mb-1">Included documents:</p>
+                                {currentDocs.map((doc) => (
+                                  <p key={doc.id} className="py-0.5">• {doc.name} (v{doc.versionNumber})</p>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                          {/* Preview: claims summary for fee/claim sections */}
+                          {(() => {
+                            const nameLC = sectionRow.name.toLowerCase();
+                            const isClaimSection = nameLC.includes("fee") || nameLC.includes("claim") || nameLC.includes("payment");
+                            if (!isClaimSection || jobClaims.length === 0) return null;
+                            const liveClaims = jobClaims.filter((c) => ["draft", "submitted", "authorised"].includes(c.status));
+                            const paidClaims = jobClaims.filter((c) => c.status === "paid");
+                            const outstanding = liveClaims.reduce((sum, c) => sum + (c.outstanding_amount || 0), 0);
+                            return (
+                              <div className="text-xs text-muted-foreground">
+                                <p className="font-medium mb-1">Claims Summary:</p>
+                                {liveClaims.length > 0 && (
+                                  <p className="py-0.5">Live: {liveClaims.length} claim{liveClaims.length !== 1 ? "s" : ""} — {formatCurrency(outstanding)} outstanding</p>
+                                )}
+                                {paidClaims.length > 0 && (
+                                  <p className="py-0.5">Paid: {paidClaims.length} claim{paidClaims.length !== 1 ? "s" : ""} — {formatCurrency(paidClaims.reduce((s, c) => s + (c.amount_paid || 0), 0))}</p>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
@@ -2214,120 +2591,6 @@ export function JobTenderBuilderTab({ jobId }: JobTenderBuilderTabProps) {
             </div>
           );
         })}
-
-        {/* ── Prime Costs schedule (collapsible header) ── */}
-        <div>
-          <div
-            className="flex items-center bg-blue-50/60 dark:bg-blue-950/20 border-b cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 px-2 py-2"
-            onClick={() => toggleHeader("__pc_schedule__")}
-          >
-            <div className="shrink-0 w-5">
-              {collapsedHeaders.has("__pc_schedule__")
-                ? <ChevronRight className="h-4 w-4 text-blue-700 dark:text-blue-400" />
-                : <ChevronDown className="h-4 w-4 text-blue-700 dark:text-blue-400" />
-              }
-            </div>
-            <div className="flex-1 font-semibold text-blue-700 dark:text-blue-400 text-sm">
-              Schedule of Prime Cost Items
-              <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{totals.pcCount} {totals.pcCount === 1 ? "item" : "items"}</Badge>
-            </div>
-            <div className="text-right font-semibold text-blue-700 dark:text-blue-400 tabular-nums text-sm">
-              {formatCurrency(totals.pcTotal)}
-            </div>
-          </div>
-          {!collapsedHeaders.has("__pc_schedule__") && (
-            <div className="px-4 py-3 bg-blue-50/30 dark:bg-blue-950/10 border-b">
-              <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Prime Cost is an allowance for items where the actual cost is not yet determined. The contract price will be adjusted to reflect the actual cost of these items when purchased or completed.</p>
-              {totals.pcItems.length > 0 ? (
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-foreground/20">
-                      <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
-                      <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
-                      <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
-                      <th className="text-right py-1.5 font-semibold w-28">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {totals.pcItems.map((item, idx) => (
-                      <tr key={idx} className="border-b border-border/30">
-                        <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
-                        <td className="py-1.5 pr-4">{item.description}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
-                        <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-foreground/20">
-                      <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Prime Costs</td>
-                      <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.pcTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              ) : (
-                <p className="text-sm text-muted-foreground">No prime cost items</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ── Provisional Sums schedule (collapsible header) ── */}
-        <div>
-          <div
-            className="flex items-center bg-violet-50/60 dark:bg-violet-950/20 border-b cursor-pointer hover:bg-violet-50 dark:hover:bg-violet-950/30 px-2 py-2"
-            onClick={() => toggleHeader("__ps_schedule__")}
-          >
-            <div className="shrink-0 w-5">
-              {collapsedHeaders.has("__ps_schedule__")
-                ? <ChevronRight className="h-4 w-4 text-violet-700 dark:text-violet-400" />
-                : <ChevronDown className="h-4 w-4 text-violet-700 dark:text-violet-400" />
-              }
-            </div>
-            <div className="flex-1 font-semibold text-violet-700 dark:text-violet-400 text-sm">
-              Schedule of Provisional Sum Items
-              <Badge variant="secondary" className="ml-2 text-[10px] font-normal">{totals.psCount} {totals.psCount === 1 ? "item" : "items"}</Badge>
-            </div>
-            <div className="text-right font-semibold text-violet-700 dark:text-violet-400 tabular-nums text-sm">
-              {formatCurrency(totals.psTotal)}
-            </div>
-          </div>
-          {!collapsedHeaders.has("__ps_schedule__") && (
-            <div className="px-4 py-3 bg-violet-50/30 dark:bg-violet-950/10 border-b">
-              <p className="text-xs text-muted-foreground italic leading-relaxed mb-2">A Provisional Sum is an allowance for work that cannot be fully defined at the time of tendering. The contract price will be adjusted based on the actual cost when the work is carried out.</p>
-              {totals.psItems.length > 0 ? (
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b-2 border-foreground/20">
-                      <th className="text-left py-1.5 pr-4 font-semibold w-10">#</th>
-                      <th className="text-left py-1.5 pr-4 font-semibold">Description</th>
-                      <th className="text-left py-1.5 pr-4 font-semibold w-36">Section</th>
-                      <th className="text-right py-1.5 font-semibold w-28">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {totals.psItems.map((item, idx) => (
-                      <tr key={idx} className="border-b border-border/30">
-                        <td className="py-1.5 pr-4 text-muted-foreground">{idx + 1}</td>
-                        <td className="py-1.5 pr-4">{item.description}</td>
-                        <td className="py-1.5 pr-4 text-muted-foreground text-xs">{item.sectionName.replace(/^\d+\s*[-–—]\s*/, "").trim()}</td>
-                        <td className="py-1.5 text-right tabular-nums">{formatCurrency(item.amount)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="border-t-2 border-foreground/20">
-                      <td colSpan={3} className="py-2 font-semibold text-right pr-4">Total Provisional Sums</td>
-                      <td className="py-2 text-right font-semibold tabular-nums">{formatCurrency(totals.psTotal)}</td>
-                    </tr>
-                  </tfoot>
-                </table>
-              ) : (
-                <p className="text-sm text-muted-foreground">No provisional sum items</p>
-              )}
-            </div>
-          )}
-        </div>
 
         {/* Grand totals — matches TenderDocumentView PriceSummaryBlock (SSoT) */}
         <div className="border-t-2 border-primary/30 bg-muted/30 px-4 py-4">

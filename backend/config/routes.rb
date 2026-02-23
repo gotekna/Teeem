@@ -2335,6 +2335,7 @@ Rails.application.routes.draw do
           get :po_tasks
           get :tree
           get :headers
+          get :job_documents
         end
         member do
           post :assign_po_tasks

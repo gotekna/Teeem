@@ -23,6 +23,10 @@ class TenderHeader < ApplicationRecord
   # Validations
   validates :code, presence: true, uniqueness: { scope: :tenant_id }, length: { maximum: 20 }
   validates :name, presence: true, length: { maximum: 100 }
+  validates :header_type, inclusion: { in: %w[standard pc_schedule ps_schedule] }
+
+  # Callbacks
+  before_destroy :prevent_system_locked_deletion
 
   # Scopes
   scope :active, -> { where(active: true) }
@@ -45,6 +49,8 @@ class TenderHeader < ApplicationRecord
       name: name,
       sortOrder: sort_order,
       description: description,
+      headerType: header_type,
+      systemLocked: system_locked,
       children: tenders.select(&:active?).sort_by { |t| [t.sort_order || 999999, t.name] }.map { |child|
         {
           id: child.id,
@@ -58,5 +64,14 @@ class TenderHeader < ApplicationRecord
         }
       }
     }
+  end
+
+  private
+
+  def prevent_system_locked_deletion
+    if system_locked?
+      errors.add(:base, "System headers cannot be deleted")
+      throw(:abort)
+    end
   end
 end
