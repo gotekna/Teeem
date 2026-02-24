@@ -354,23 +354,28 @@ class WarehouseDocument < ApplicationRecord
     # Mark all existing versions as not latest
     versions.update_all(is_latest_version: false)
 
-    # Create new version
-    # NOTE (Feb 2026): folder column removed - folder is computed from source_type at runtime
-    new_version = WarehouseDocument.create!(
-      attributes.merge(
-        ui_name: ui_name,
-        source_type: source_type,
-        storage_blob: blob,
-        parent_document: self,
-        version_group_id: group_id,
-        version_number: (versions.maximum(:version_number) || 0) + 1,
-        is_latest_version: true,
-        tenant_id: tenant_id,
-        linkable: linkable,
-        metadata: metadata
-      )
-    )
+    # Inherit folder/type fields from current version (overridable via attributes)
+    inherited = {
+      ui_name: ui_name,
+      source_type: source_type,
+      original_filename: original_filename,
+      file_size: file_size,
+      content_type: content_type,
+      warehouse_folder_id: warehouse_folder_id,
+      warehouse_folder_document_type_id: warehouse_folder_document_type_id,
+      folder_path: folder_path,
+      warehouse_type: warehouse_type,
+      storage_blob: blob,
+      parent_document: self,
+      version_group_id: group_id,
+      version_number: (versions.maximum(:version_number) || 0) + 1,
+      is_latest_version: true,
+      tenant_id: tenant_id,
+      linkable: linkable,
+      metadata: metadata
+    }
 
+    new_version = WarehouseDocument.create!(inherited.merge(attributes))
     new_version
   end
 

@@ -10,7 +10,7 @@
  * Props follow TaskFormProps interface from lib/workflow-task-forms.ts.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -210,6 +210,18 @@ export default function DirectorChangeForm({
   const [contactSearch, setContactSearch] = useState("");
   const [contactResults, setContactResults] = useState<ContactSearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const searchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+        setContactResults([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const currentOfficers = officers.filter((o) => o.is_current);
 
@@ -1141,7 +1153,7 @@ export default function DirectorChangeForm({
               ))}
 
               {/* Contact Search */}
-              <div className="relative">
+              <div className="relative" ref={searchDropdownRef}>
                 <Input
                   placeholder="Search contacts to appoint..."
                   value={contactSearch}

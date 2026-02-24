@@ -267,20 +267,43 @@ module Api
       def create_library_document(key, filename, content_type, file_size, metadata, provider)
         blob = find_or_create_blob(key, filename, content_type, file_size, provider)
 
-        doc = WarehouseDocumentCreator.create!(
-          filename: filename,
+        wf_id = metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"]
+        f_path = metadata[:folder_path] || metadata["folder_path"]
+
+        # Version detection: check for existing doc with same filename in same folder
+        existing = WarehouseDocument.where(
+          original_filename: filename,
+          warehouse_folder_id: wf_id,
           source_type: "library",
-          storage_blob: blob,
-          file_size: file_size,
-          content_type: content_type,
-          warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
-          folder_path: metadata[:folder_path] || metadata["folder_path"],
-          metadata: {
-            "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
-            "source" => "manual"
-          },
-          user: current_user
-        )
+          is_latest_version: true
+        ).first if wf_id.present?
+
+        if existing
+          # Create new version of existing document
+          doc = existing.create_new_version(
+            blob: blob,
+            file_size: file_size,
+            content_type: content_type,
+            original_filename: filename,
+            warehouse_folder_id: wf_id,
+            folder_path: f_path
+          )
+        else
+          doc = WarehouseDocumentCreator.create!(
+            filename: filename,
+            source_type: "library",
+            storage_blob: blob,
+            file_size: file_size,
+            content_type: content_type,
+            warehouse_folder_id: wf_id,
+            folder_path: f_path,
+            metadata: {
+              "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
+              "source" => "manual"
+            },
+            user: current_user
+          )
+        end
 
         { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
       end
