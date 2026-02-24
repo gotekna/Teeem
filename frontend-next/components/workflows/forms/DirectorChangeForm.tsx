@@ -274,13 +274,11 @@ export default function DirectorChangeForm({
       setSearchLoading(true);
       try {
         const response = await api.get<{ contacts: ContactSearchResult[] }>(
-          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&per_page=10`
+          `/api/v1/contacts?search=${encodeURIComponent(contactSearch)}&entity_type=person,sole_trader`
         );
-        const people = (response.contacts || []).filter(
-          (c) => c.entity_type === "person" || c.entity_type === "sole_trader"
-        );
-        setContactResults(people);
-      } catch {
+        setContactResults(response.contacts || []);
+      } catch (err) {
+        console.error("[DirectorChangeForm] Contact search failed:", err);
         setContactResults([]);
       } finally {
         setSearchLoading(false);
