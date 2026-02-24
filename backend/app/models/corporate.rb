@@ -41,9 +41,10 @@ class Corporate < ApplicationRecord
   has_many :investments, class_name: "CorporateShareholding", as: :shareholder, dependent: :destroy
 
   has_many :corporate_directors, foreign_key: "company_id", dependent: :destroy
+  has_many :current_corporate_directors, -> { where(is_current: true) },
+           class_name: "CorporateDirector", foreign_key: "company_id"
   has_many :directors, through: :corporate_directors, source: :contact
-  has_many :current_directors, -> { where(corporate_directors: { is_current: true }) },
-           through: :corporate_directors, source: :contact
+  has_many :current_directors, through: :current_corporate_directors, source: :contact
 
   has_many :bank_accounts, foreign_key: "company_id", dependent: :destroy
   has_many :active_bank_accounts, -> { where(status: "active") }, class_name: "BankAccount", foreign_key: "company_id"
