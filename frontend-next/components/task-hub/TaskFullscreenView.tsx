@@ -124,7 +124,7 @@ import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Job } from '@/lib/types';
-import { formatFileLink } from '@/lib/formatters/email-file-links';
+import { formatFileLink, formatZipAndClosing } from '@/lib/formatters/email-file-links';
 
 // Type for rich text editor modal
 type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
@@ -4316,23 +4316,12 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
     }, 0);
     const totalLinkedDocuments = questionLinkedDocCount + linkedFiles.length;
 
-    // Add "Download All" link if available (for multiple linked files)
-    // Use ref for synchronous access (avoids React state timing issues)
-    const downloadUrl = downloadAllShareUrlRef.current;
-    if (downloadUrl && totalLinkedDocuments > 1) {
-      const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p>For your convenience, you can download all ${totalLinkedDocuments} files in a single ZIP archive:</p>\n`;
-      body += `<p>📦 <a href="${downloadUrl}"><strong>Download All Files (ZIP)</strong></a></p>\n`;
-      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
-    } else if (totalLinkedDocuments === 1) {
-      // Single linked document still needs expiration warning (links expire same as ZIP)
-      const expiryDays = downloadAllExpiryDaysRef.current;
-      body += `<p style="font-size: 12px; color: #666;"><em>Note: This download link expires in ${expiryDays} day${expiryDays === 1 ? '' : 's'}.</em></p>\n`;
-    }
-
-    // Add closing line (with blank line before for visual separation)
-    body += '<p></p>\n';
-    body += '<p>Please let me know if you have any further questions.</p>\n';
+    // SSoT: ZIP + expiry + closing from shared utility (lib/formatters/email-file-links.ts)
+    body += formatZipAndClosing({
+      linkedFileCount: totalLinkedDocuments,
+      zipUrl: downloadAllShareUrlRef.current || undefined,
+      expiryDays: downloadAllExpiryDaysRef.current,
+    });
 
     // Add simple signature (TipTap-compatible) - positioned BEFORE quoted chain like Outlook
     // Use ref for company settings to avoid React state timing issues

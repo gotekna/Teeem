@@ -58,5 +58,11 @@ export interface User {
     job_updates: boolean;
     contacts: boolean;
   };
+  // Tutorial progress (Feb 2026) - TEEEM Academy onboarding
+  tutorial_progress?: {
+    dismissed: boolean;
+    completed_chapters: string[];
+    completed_at: string | null;
+  } | null;
   [key: string]: unknown; // Allow additional properties from API
 }

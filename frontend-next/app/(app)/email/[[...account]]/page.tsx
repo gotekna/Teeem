@@ -280,6 +280,30 @@ function getInitials(name: string | null | undefined, email: string | null | und
   return "??";
 }
 
+// Detect if a folder is a Sent folder (matches backend SENT_FOLDER_VARIANTS)
+const SENT_FOLDER_VARIANTS = ["sent", "sent items", "sent mail", "inbox.sent"];
+function isSentFolder(folderName: string | undefined): boolean {
+  if (!folderName) return false;
+  return SENT_FOLDER_VARIANTS.includes(folderName.toLowerCase());
+}
+
+// Get the display name for an email based on folder context
+// Sent folder: show recipient (TO) like Gmail/Outlook/Group Office
+// Other folders: show sender (FROM) as normal
+function getEmailDisplayPerson(email: Email, sourceFolder?: string): { name: string | null; email: string } {
+  if (isSentFolder(sourceFolder) || email.direction === "sent") {
+    // Sent folder: show recipients (email address, matching Group Office behavior)
+    const recipients = email.to_emails?.length ? email.to_emails : email.to_addresses || [];
+    const firstRecipient = recipients[0] || "";
+    const extraCount = recipients.length - 1;
+    // Show email address + count of additional recipients
+    const displayEmail = extraCount > 0 ? `${firstRecipient} +${extraCount}` : firstRecipient;
+    return { name: null, email: displayEmail };
+  }
+  // Inbox/other: show sender
+  return { name: email.from_name || null, email: email.from_email || email.from_address || "" };
+}
+
 // Generate consistent color from string (for avatar background)
 // Gmail-style color palette
 const AVATAR_COLORS = [
@@ -473,6 +497,12 @@ const EmailListItem = memo(function EmailListItem({
 }) {
   const hasThread = threadCount > 1;
 
+  // Determine display person based on folder context (sent = show recipient, inbox = show sender)
+  const isSent = isSentFolder(sourceFolder) || email.direction === "sent";
+  const displayPerson = getEmailDisplayPerson(email, sourceFolder);
+  const displayName = displayPerson.name || displayPerson.email;
+  const displayEmail = displayPerson.email;
+
   const content = (
     <EmailContextMenu
       emailId={email.id}
@@ -537,15 +567,15 @@ const EmailListItem = memo(function EmailListItem({
             )}
           </div>
 
-          {/* Sender Avatar */}
+          {/* Avatar - shows recipient in Sent folder, sender otherwise */}
           <div className="shrink-0 pt-0.5">
             <div
               className={cn(
                 "h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-medium",
-                getAvatarColor(email.from_email || email.from_address || "unknown")
+                getAvatarColor(displayEmail || "unknown")
               )}
             >
-              {getInitials(email.from_name, email.from_email || email.from_address)}
+              {getInitials(displayPerson.name, displayEmail)}
             </div>
           </div>
 
@@ -562,7 +592,8 @@ const EmailListItem = memo(function EmailListItem({
                   "text-sm truncate flex-1 min-w-0",
                   !email.is_read ? "font-semibold text-foreground" : "font-normal text-muted-foreground"
                 )}>
-                  {email.from_name || email.from_email || email.from_address}
+                  {isSent && <span className="text-muted-foreground font-normal">To: </span>}
+                  {displayName}
                 </span>
                 {email.has_attachments && (
                   <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />

@@ -83,6 +83,9 @@ export const STORAGE_KEYS = {
   // Tours
   TOUR_COMPLETED_PREFIX: 'tour_completed_', // Append tourId
 
+  // Tutorial (TEEEM Academy)
+  TUTORIAL_DISMISSED: 'tutorial_dismissed',
+
   // Takeoff
   TAKEOFF_SIDEBAR_PINNED: 'takeoff-sidebar-pinned',
 

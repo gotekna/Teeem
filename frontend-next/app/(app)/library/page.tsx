@@ -66,7 +66,7 @@ import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
-import { formatFileLinksSection } from "@/lib/formatters/email-file-links";
+import { formatFileEmailBody } from "@/lib/formatters/email-file-links";
 
 // Document shape from /api/v1/documents/warehouse
 interface LibraryDocument {
@@ -422,20 +422,17 @@ export default function LibraryPage() {
           }
         }
 
-        // Build email body using shared SSoT utility (lib/formatters/email-file-links.ts)
-        // Matches Task email format: greeting + file links + closing (signature added by ComposeEmailModal)
+        // Build email body using shared SSoT (lib/formatters/email-file-links.ts)
         if (validResults.length > 0) {
-          bodyHtml = `<p>Hi,</p>\n<p>&nbsp;</p>\n`;
-          bodyHtml += formatFileLinksSection(
-            validResults.map((r, idx) => {
+          bodyHtml = formatFileEmailBody({
+            files: validResults.map((r, idx) => {
               const name = r.doc.originalFilename || r.doc.displayName || "Document";
               const openHref = viewerUrl && validResults.length > 1
                 ? `${viewerUrl}?idx=${idx}`
                 : r.openUrl || r.downloadUrl || "";
               return { name, downloadUrl: r.downloadUrl || undefined, openUrl: openHref || undefined };
-            })
-          );
-          bodyHtml += `<p>Please let me know if you have any further questions.</p>\n`;
+            }),
+          });
         }
       } catch (error) {
         toast({
