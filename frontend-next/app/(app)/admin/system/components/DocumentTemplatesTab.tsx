@@ -77,8 +77,7 @@ interface DocumentTemplatesContentProps {
 
 const DEFAULT_BASE_PATH = "/settings/company/documents/document-templates";
 
-// Default preview job for Pilgrim Homes tenant
-const DEFAULT_PREVIEW_JOB_ID = 106;
+// No default job - preview uses sample data until user selects a job
 
 const TABS = [
   { id: "po-templates", label: "PO Templates" },
@@ -151,7 +150,7 @@ function SsotTemplatesPanel() {
 
   // Job selector for preview
   const [jobs, setJobs] = React.useState<JobOption[]>([]);
-  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(DEFAULT_PREVIEW_JOB_ID);
+  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(null);
   const [jobsLoading, setJobsLoading] = React.useState(false);
 
   const apiUrl = getApiBaseUrl();
@@ -164,9 +163,13 @@ function SsotTemplatesPanel() {
   const loadJobs = async () => {
     try {
       setJobsLoading(true);
-      const response = await api.get<{ jobs?: JobOption[] }>("/api/v1/jobs/for_select");
+      const response = await api.get<{ jobs?: JobOption[]; default_preview_job_id?: number | null }>("/api/v1/jobs/for_select");
       if (response?.jobs) {
         setJobs(response.jobs);
+        // Auto-select: backend returns most recent job with POs (tenant-dynamic)
+        if (!selectedJobId && response.default_preview_job_id) {
+          setSelectedJobId(response.default_preview_job_id);
+        }
       }
     } catch (error) {
       console.error("Failed to load jobs:", error);

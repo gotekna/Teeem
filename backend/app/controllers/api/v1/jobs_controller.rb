@@ -150,8 +150,16 @@ module Api
 
         jobs = jobs.order(created_at: :desc).limit(100)
 
+        # Default preview job: most recent job that has purchase orders (tenant-dynamic)
+        default_preview_job = Job.joins(:purchase_orders)
+                                 .where.not(purchase_orders: { status: "cancelled" })
+                                 .order("purchase_orders.created_at DESC")
+                                 .limit(1)
+                                 .pick(:id)
+
         render json: {
           success: true,
+          default_preview_job_id: default_preview_job,
           jobs: jobs.map do |job|
             client = job.job_contacts.find { |jc| jc.role == "client" }&.contact
             employees = job.job_contacts

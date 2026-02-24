@@ -1832,9 +1832,15 @@ module Api
           associations << { job_contacts: :contact }
         end
 
-        # PurchaseOrder: Need line_items with profit_centre for profit_centre_from_line_items virtual column
+        # PurchaseOrder: Eager load associations for as_json virtual methods
+        # FRC (Feb 2026): Without this, sm_task.sm_schedule_master and lookup refs
+        # (stage, trade, cost_centre, tender) trigger N+1 queries per PO row
         if model == PurchaseOrder
           associations << { line_items: :profit_centre }
+          associations << { sm_task: [
+            { sm_schedule_master: [:sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender] },
+            :sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender
+          ] }
         end
 
         # Apply eager loading if we found associations

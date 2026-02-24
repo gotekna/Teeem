@@ -28,7 +28,7 @@ class SmScheduleMaster < ApplicationRecord
   # Excludes self-referential (spawn_scan_task) and heavy (po_supplier) associations
   # Used by Foundation API's apply_eager_loading method
   def self.safe_eager_load_associations
-    [:checklist, :created_by, :updated_by]
+    [:checklist, :created_by, :updated_by, :sm_stage_ref, :sm_trade_ref, :cost_centre_ref, :tender]
   end
 
   # Associations
@@ -48,6 +48,14 @@ class SmScheduleMaster < ApplicationRecord
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true
+
+  # Lookup associations for stage/trade/cost_centre/tender integer FK columns
+  # FRC (Feb 2026): These columns store IDs but lack _id suffix. Without associations,
+  # PurchaseOrder.as_json virtual methods did find_by per row (N+1).
+  belongs_to :sm_stage_ref, class_name: "SmStage", foreign_key: :stage, optional: true
+  belongs_to :sm_trade_ref, class_name: "SmTrade", foreign_key: :trade, optional: true
+  belongs_to :cost_centre_ref, class_name: "CostCentre", foreign_key: :cost_centre, optional: true
+  belongs_to :tender, optional: true
 
   belongs_to :created_by, class_name: "User", optional: true
   belongs_to :updated_by, class_name: "User", optional: true

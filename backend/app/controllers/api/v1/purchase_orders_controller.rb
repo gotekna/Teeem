@@ -921,13 +921,61 @@ module Api
       end
 
       # GET /api/v1/purchase_orders/template_preview?variant=modern
-      # HTML preview using rich sample data to showcase the template design
+      # HTML preview using rich sample data or real PO data to showcase the template design
+      # Optional params:
+      #   purchase_order_id - use a real PO for preview (with variant override)
+      #   job_id - pick first PO from this job for preview
       def template_preview
         variant = params[:variant] || "classic"
         valid_variants = %w[classic modern bold compact professional construction]
         variant = "classic" unless valid_variants.include?(variant)
 
-        render html: build_sample_po_preview(variant).html_safe
+        # Try to find a real PO for live preview
+        po = nil
+        if params[:purchase_order_id].present?
+          po = PurchaseOrder.includes(:line_items, :supplier, :job, :sm_task).find_by(id: params[:purchase_order_id])
+        elsif params[:job_id].present?
+          po = PurchaseOrder.includes(:line_items, :supplier, :job, :sm_task)
+                            .where(job_id: params[:job_id])
+                            .where.not(status: "cancelled")
+                            .order(created_at: :desc)
+                            .first
+        end
+
+        if po
+          # Render real PO with variant override
+          generator = TeknaDocumentGenerator.new(:purchase_order)
+          result = generator.generate(
+            purchase_order: po,
+            html_only: true,
+            extra_data: { po_template_variant: variant }
+          )
+          render html: result[:html].html_safe
+        else
+          render html: build_sample_po_preview(variant).html_safe
+        end
+      end
+
+      # GET /api/v1/purchase_orders/for_job?job_id=123
+      # Returns POs for a job (for template preview selector)
+      def for_job
+        return render json: { success: true, data: [] } unless params[:job_id].present?
+
+        pos = PurchaseOrder.where(job_id: params[:job_id])
+                           .where.not(status: "cancelled")
+                           .order(created_at: :desc)
+                           .limit(50)
+                           .select(:id, :purchase_order_number, :description, :status, :created_at)
+
+        render json: {
+          success: true,
+          data: pos.map { |po| {
+            id: po.id,
+            purchase_order_number: po.purchase_order_number,
+            description: po.description,
+            status: po.status
+          }}
+        }
       end
 
       # GET /api/v1/purchase_orders/supplier_coverage_gaps?job_id=123

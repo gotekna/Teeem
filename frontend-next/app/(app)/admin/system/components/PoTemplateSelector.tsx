@@ -4,11 +4,12 @@ import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { api, getApiBaseUrl } from "@/lib/api";
-import { TemplatePreviewModal } from "./TemplatePreviewModal";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
+import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import {
   Check,
   Eye,
@@ -29,6 +30,19 @@ interface PoTemplateVariant {
   active: boolean;
 }
 
+interface JobOption {
+  id: number;
+  name: string;
+  job_code: string;
+}
+
+interface PoOption {
+  id: number;
+  purchase_order_number: string;
+  description: string | null;
+  status: string;
+}
+
 const VARIANT_ICONS: Record<string, React.ElementType> = {
   classic: FileText,
   modern: Minus,
@@ -39,25 +53,37 @@ const VARIANT_ICONS: Record<string, React.ElementType> = {
   custom: Code,
 };
 
-const VARIANT_COLORS: Record<string, string> = {
-  classic: "border-gray-300 dark:border-gray-600",
-  modern: "border-gray-200 dark:border-gray-700",
-  bold: "border-emerald-400 dark:border-emerald-600",
-  compact: "border-amber-300 dark:border-amber-600",
-  professional: "border-blue-400 dark:border-blue-600",
-  construction: "border-yellow-400 dark:border-yellow-600",
-  custom: "border-purple-400 dark:border-purple-600",
-};
+// No default job - preview uses sample data until user selects a job
 
-const VARIANT_ACCENT_BG: Record<string, string> = {
-  classic: "bg-gray-50 dark:bg-gray-800/50",
-  modern: "bg-gray-50 dark:bg-gray-800/30",
-  bold: "bg-emerald-50 dark:bg-emerald-900/20",
-  compact: "bg-amber-50 dark:bg-amber-900/20",
-  professional: "bg-blue-50 dark:bg-blue-900/20",
-  construction: "bg-yellow-50 dark:bg-yellow-900/20",
-  custom: "bg-purple-50 dark:bg-purple-900/20",
-};
+/** Wraps HTML content in an A4-aspect page container for full-preview new tabs */
+function openA4Preview(html: string, title?: string) {
+  const pageHtml = `<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<title>${title || "Preview"}</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e5e5e5; display: flex; justify-content: center; padding: 20px 0; min-height: 100vh; }
+  .a4-page { width: 210mm; min-height: 297mm; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 0; overflow: auto; }
+  @media print { body { padding: 0; background: white; } .a4-page { box-shadow: none; width: 100%; } }
+  @media (max-width: 240mm) { .a4-page { width: 100%; } }
+</style>
+</head><body>
+<div class="a4-page" id="content"></div>
+<script>
+  var content = document.getElementById('content');
+  var shadow = content.attachShadow({ mode: 'open' });
+  shadow.innerHTML = ${JSON.stringify(html)};
+</script>
+</body></html>`;
+
+  const blob = new Blob([pageHtml], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const newWindow = window.open(url, "_blank");
+  if (newWindow) {
+    newWindow.onload = () => URL.revokeObjectURL(url);
+  }
+}
 
 export function PoTemplateSelector() {
   const { toast } = useToast();
@@ -67,16 +93,78 @@ export function PoTemplateSelector() {
   const [currentVariant, setCurrentVariant] = React.useState<string>("classic");
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
-  const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [selectedVariantKey, setSelectedVariantKey] = React.useState<string | null>(null);
   const [previewHtml, setPreviewHtml] = React.useState("");
   const [previewLoading, setPreviewLoading] = React.useState(false);
-  const [previewVariant, setPreviewVariant] = React.useState("");
   const [customHtml, setCustomHtml] = React.useState("");
   const [editingCustom, setEditingCustom] = React.useState(false);
 
+  // Job + PO selectors for live data preview
+  const [jobs, setJobs] = React.useState<JobOption[]>([]);
+  const [selectedJobId, setSelectedJobId] = React.useState<number | null>(null);
+  const [jobsLoading, setJobsLoading] = React.useState(false);
+  const [pos, setPos] = React.useState<PoOption[]>([]);
+  const [selectedPoId, setSelectedPoId] = React.useState<number | null>(null);
+  const [posLoading, setPosLoading] = React.useState(false);
+
   React.useEffect(() => {
     loadVariants();
+    loadJobs();
   }, []);
+
+  // Load POs when job changes
+  React.useEffect(() => {
+    if (selectedJobId) {
+      loadPosForJob(selectedJobId);
+    } else {
+      setPos([]);
+      setSelectedPoId(null);
+    }
+  }, [selectedJobId]);
+
+  const loadJobs = async () => {
+    try {
+      setJobsLoading(true);
+      const response = await api.get<{ jobs?: JobOption[]; default_preview_job_id?: number | null }>("/api/v1/jobs/for_select");
+      if (response?.jobs) {
+        setJobs(response.jobs);
+        // Auto-select: backend returns most recent job with POs (tenant-dynamic)
+        if (!selectedJobId && response.default_preview_job_id) {
+          setSelectedJobId(response.default_preview_job_id);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load jobs:", error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  const loadPosForJob = async (jobId: number) => {
+    try {
+      setPosLoading(true);
+      const response = await api.get<{
+        success: boolean;
+        data: PoOption[];
+      }>(`/api/v1/purchase_orders/for_job?job_id=${jobId}`);
+
+      if (response?.success && response.data) {
+        setPos(response.data);
+        // Auto-select first PO if available
+        if (response.data.length > 0) {
+          setSelectedPoId(response.data[0].id);
+        } else {
+          setSelectedPoId(null);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load POs:", error);
+      setPos([]);
+      setSelectedPoId(null);
+    } finally {
+      setPosLoading(false);
+    }
+  };
 
   const loadVariants = async () => {
     try {
@@ -90,9 +178,10 @@ export function PoTemplateSelector() {
       if (response?.success) {
         setVariants(response.data);
         setCurrentVariant(response.current);
+        // Auto-preview the active variant
+        loadPreview(response.current);
       }
 
-      // Also load custom template if exists
       const settingsResponse = await api.get<{
         success: boolean;
         data: { variant: string; custom_template: string | null };
@@ -108,10 +197,55 @@ export function PoTemplateSelector() {
     }
   };
 
+  const loadPreview = async (variantKey: string, jobId?: number | null, poId?: number | null) => {
+    if (variantKey === "custom") return;
+    setSelectedVariantKey(variantKey);
+    setPreviewLoading(true);
+    setPreviewHtml("");
+
+    try {
+      const params = new URLSearchParams({ variant: variantKey });
+      const previewPoId = poId !== undefined ? poId : selectedPoId;
+      const previewJobId = jobId !== undefined ? jobId : selectedJobId;
+
+      if (previewPoId) {
+        params.set("purchase_order_id", String(previewPoId));
+      } else if (previewJobId) {
+        params.set("job_id", String(previewJobId));
+      }
+
+      const html = await api.getText(
+        `/api/v1/purchase_orders/template_preview?${params.toString()}`
+      );
+      setPreviewHtml(html);
+    } catch (error) {
+      console.error("Failed to load preview:", error);
+      setPreviewHtml("<p>Failed to load preview</p>");
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleJobChange = (jobId: number | null) => {
+    setSelectedJobId(jobId);
+    setSelectedPoId(null);
+    // Preview will reload after POs load (via useEffect)
+    if (!jobId && selectedVariantKey) {
+      // No job selected - preview with sample data
+      loadPreview(selectedVariantKey, null, null);
+    }
+  };
+
+  const handlePoChange = (poId: number | null) => {
+    setSelectedPoId(poId);
+    if (selectedVariantKey) {
+      loadPreview(selectedVariantKey, selectedJobId, poId);
+    }
+  };
+
   const selectVariant = async (variantKey: string) => {
     if (variantKey === currentVariant) return;
 
-    // If selecting custom but no template exists, open editor
     if (variantKey === "custom" && !customHtml.trim()) {
       setEditingCustom(true);
       return;
@@ -139,24 +273,6 @@ export function PoTemplateSelector() {
       });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const previewTemplate = async (variantKey: string) => {
-    setPreviewVariant(variantKey);
-    setPreviewOpen(true);
-    setPreviewLoading(true);
-
-    try {
-      const html = await api.getText(
-        `/api/v1/purchase_orders/template_preview?variant=${variantKey}`
-      );
-      setPreviewHtml(html);
-    } catch (error) {
-      console.error("Failed to load preview:", error);
-      setPreviewHtml("<p>Failed to load preview</p>");
-    } finally {
-      setPreviewLoading(false);
     }
   };
 
@@ -188,13 +304,20 @@ export function PoTemplateSelector() {
     }
   };
 
+  // Reload preview when POs load for the first time (auto-select first PO)
+  const prevPosRef = React.useRef<PoOption[]>([]);
+  React.useEffect(() => {
+    if (pos.length > 0 && prevPosRef.current.length === 0 && selectedVariantKey) {
+      loadPreview(selectedVariantKey, selectedJobId, pos[0].id);
+    }
+    prevPosRef.current = pos;
+  }, [pos]);
+
   if (loading) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-center py-12">
-          <Spinner size={24} className="text-muted-foreground" />
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-center py-12">
+        <Spinner size={24} className="text-muted-foreground" />
+      </div>
     );
   }
 
@@ -243,130 +366,227 @@ export function PoTemplateSelector() {
     );
   }
 
+  const selectedVariant = variants.find(v => v.key === selectedVariantKey);
+  const selectedJob = jobs.find(j => j.id === selectedJobId);
+  const selectedPo = pos.find(p => p.id === selectedPoId);
+
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base">Purchase Order Template</CardTitle>
-              <CardDescription>
-                Select a visual design for all purchase order PDFs. Company-wide setting.
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="sm" onClick={loadVariants}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+    <div className="space-y-4">
+      {/* Header with job/PO selectors */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Label className="text-sm text-muted-foreground whitespace-nowrap">Preview Job:</Label>
+          <ComboboxDropdown
+            items={jobs.map(j => ({
+              id: String(j.id),
+              label: `${j.job_code || ""} ${j.name}`.trim(),
+            }))}
+            selectedItem={selectedJob ? {
+              id: String(selectedJob.id),
+              label: `${selectedJob.job_code || ""} ${selectedJob.name}`.trim(),
+            } : undefined}
+            onSelect={(item) => handleJobChange(Number(item.id))}
+            onClear={() => handleJobChange(null)}
+            placeholder={jobsLoading ? "Loading jobs..." : "Select a job..."}
+            searchPlaceholder="Search jobs..."
+            emptyResults="No jobs found"
+            className="w-[240px]"
+            clearable
+          />
+          {selectedJobId && (
+            <>
+              <Label className="text-sm text-muted-foreground whitespace-nowrap">PO:</Label>
+              <ComboboxDropdown
+                items={pos.map(p => ({
+                  id: String(p.id),
+                  label: `${p.purchase_order_number}${p.description ? ` - ${p.description}` : ""}`,
+                }))}
+                selectedItem={selectedPo ? {
+                  id: String(selectedPo.id),
+                  label: `${selectedPo.purchase_order_number}${selectedPo.description ? ` - ${selectedPo.description}` : ""}`,
+                } : undefined}
+                onSelect={(item) => handlePoChange(Number(item.id))}
+                onClear={() => handlePoChange(null)}
+                placeholder={posLoading ? "Loading POs..." : pos.length === 0 ? "No POs for this job" : "Select a PO..."}
+                searchPlaceholder="Search POs..."
+                emptyResults="No purchase orders found"
+                className="w-[280px]"
+                clearable
+              />
+            </>
+          )}
+        </div>
+        <Button variant="outline" size="sm" onClick={loadVariants}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
+      {/* List + Preview layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Template List */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">PO Design Variants</CardTitle>
+            <CardDescription className="text-xs">
+              {variants.length} variants available. Active variant is used for all PO PDFs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
             {variants.map((variant) => {
               const Icon = VARIANT_ICONS[variant.key] || FileText;
               const isActive = variant.key === currentVariant;
-              const borderColor = VARIANT_COLORS[variant.key] || "border-gray-300";
-              const accentBg = VARIANT_ACCENT_BG[variant.key] || "bg-gray-50";
+              const isSelected = variant.key === selectedVariantKey;
 
               return (
                 <div
                   key={variant.key}
                   className={cn(
-                    "relative border-2 rounded-lg p-4 cursor-pointer transition-all hover:shadow-md",
-                    isActive
-                      ? "border-primary ring-2 ring-primary/20 shadow-sm"
-                      : borderColor,
-                    accentBg
+                    "p-3 rounded-lg border transition-all cursor-pointer",
+                    isSelected
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50"
                   )}
-                  onClick={() => selectVariant(variant.key)}
+                  onClick={() => {
+                    if (variant.key === "custom") {
+                      setSelectedVariantKey("custom");
+                    } else {
+                      loadPreview(variant.key);
+                    }
+                  }}
+                  onDoubleClick={() => selectVariant(variant.key)}
                 >
-                  {isActive && (
-                    <div className="absolute top-2 right-2">
-                      <Badge className="bg-primary text-primary-foreground text-xs px-1.5 py-0.5">
-                        <Check className="h-3 w-3 mr-1" />
-                        Active
-                      </Badge>
-                    </div>
-                  )}
-
-                  <div className="flex items-start gap-3 mb-2">
+                  <div className="flex items-center gap-3">
                     <div className={cn(
-                      "p-2 rounded-md",
-                      isActive ? "bg-primary/10" : "bg-background"
+                      "p-2 rounded-md shrink-0",
+                      isActive ? "bg-primary/10" : "bg-muted/50"
                     )}>
                       <Icon className={cn(
-                        "h-5 w-5",
+                        "h-4 w-4",
                         isActive ? "text-primary" : "text-muted-foreground"
                       )} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm leading-tight">{variant.name}</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">{variant.name}</span>
+                        {isActive && (
+                          <Badge className="bg-primary text-primary-foreground text-xs px-1.5 py-0">
+                            <Check className="h-3 w-3 mr-0.5" />
+                            Active
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                        {variant.description}
+                      </p>
                     </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                    {variant.description}
-                  </p>
-
-                  <div className="flex gap-2">
-                    {variant.key !== "custom" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          previewTemplate(variant.key);
-                        }}
-                      >
-                        <Eye className="h-3 w-3 mr-1" />
-                        Preview
-                      </Button>
-                    )}
-                    {variant.key === "custom" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingCustom(true);
-                        }}
-                      >
-                        <Code className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {variant.key === "custom" ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCustom(true);
+                          }}
+                        >
+                          <Code className="h-3 w-3 mr-1" />
+                          Edit
+                        </Button>
+                      ) : !isActive ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            selectVariant(variant.key);
+                          }}
+                          disabled={saving}
+                        >
+                          {saving ? <Spinner size={12} className="mr-1" /> : <Check className="h-3 w-3 mr-1" />}
+                          Use
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               );
             })}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Preview Modal */}
-      <TemplatePreviewModal
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        title={`Preview: ${variants.find((v) => v.key === previewVariant)?.name || previewVariant}`}
-        previewHtml={previewHtml}
-        loading={previewLoading}
-        actionButton={
-          previewVariant !== currentVariant ? (
-            <Button
-              onClick={() => {
-                selectVariant(previewVariant);
-                setPreviewOpen(false);
-              }}
-              disabled={saving}
-            >
-              {saving ? <Spinner size={14} className="mr-2" /> : null}
-              Use This Template
-            </Button>
-          ) : undefined
-        }
-      />
-    </>
+        {/* Preview Panel */}
+        <div className="lg:sticky lg:top-4">
+          <Card className="h-[700px] flex flex-col">
+            <CardHeader className="pb-3 shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">
+                    {selectedVariant ? selectedVariant.name : "Preview"}
+                  </CardTitle>
+                  {selectedVariant && (
+                    <CardDescription className="text-xs">
+                      {selectedVariant.description}
+                      {selectedPo && ` \u2022 ${selectedPo.purchase_order_number}`}
+                      {!selectedPo && selectedJob && ` \u2022 ${selectedJob.job_code || selectedJob.name}`}
+                      {!selectedPo && !selectedJob && " \u2022 Sample data"}
+                    </CardDescription>
+                  )}
+                </div>
+                {selectedVariant && previewHtml && (
+                  <div className="flex gap-2">
+                    {selectedVariantKey !== currentVariant && (
+                      <Button
+                        size="sm"
+                        onClick={() => selectVariant(selectedVariantKey!)}
+                        disabled={saving}
+                      >
+                        {saving ? <Spinner size={14} className="mr-1" /> : <Check className="h-4 w-4 mr-1" />}
+                        Use This
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openA4Preview(previewHtml, `PO Preview: ${selectedVariant?.name || ""}`)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      Full Preview
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="flex-1 min-h-0 overflow-hidden p-0">
+              {!selectedVariantKey || selectedVariantKey === "custom" ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                  <FileText className="h-12 w-12 mb-4 opacity-20" />
+                  <p className="text-sm">
+                    {selectedVariantKey === "custom"
+                      ? "Custom templates use your own HTML"
+                      : "Select a template to preview"}
+                  </p>
+                </div>
+              ) : previewLoading ? (
+                <div className="flex items-center justify-center h-full">
+                  <Spinner size={32} className="text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="h-full overflow-auto bg-white dark:bg-muted">
+                  <iframe
+                    srcDoc={previewHtml}
+                    className="w-full h-full border-0"
+                    title={`Preview: ${selectedVariant?.name || ""}`}
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   );
 }

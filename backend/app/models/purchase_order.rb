@@ -61,44 +61,36 @@ class PurchaseOrder < ApplicationRecord
   # Virtual attributes for Foundation - expose stage/trade via SmTask
   # Path: PO → SmTask.{stage, trade} (or SmScheduleMaster as fallback) → sm_stages/sm_trades.name
   # Used by Expenses tab for hierarchical grouping
+  #
+  # FRC (Feb 2026): Replaced find_by per row with eager-loaded associations (sm_stage_ref etc.)
+  # to eliminate N+1 queries. RecordsController eager loads sm_task with all lookup refs.
   def stage_from_task
-    # Try SmTask.stage first, then SmScheduleMaster.stage
-    stage_id = sm_task&.stage || sm_task&.sm_schedule_master&.stage
-    return nil unless stage_id
-    # Look up stage name from sm_stages table using ActiveRecord (SQL injection safe)
-    SmStage.find_by(id: stage_id)&.name
+    # Use eager-loaded associations (zero queries when properly included)
+    stage_ref = sm_task&.sm_stage_ref || sm_task&.sm_schedule_master&.sm_stage_ref
+    stage_ref&.name
   end
 
   def trade_from_task
-    # Try SmTask.trade first, then SmScheduleMaster.trade
-    trade_id = sm_task&.trade || sm_task&.sm_schedule_master&.trade
-    return nil unless trade_id
-    # Look up trade name from sm_trades table using ActiveRecord (SQL injection safe)
-    SmTrade.find_by(id: trade_id)&.name
+    trade_ref = sm_task&.sm_trade_ref || sm_task&.sm_schedule_master&.sm_trade_ref
+    trade_ref&.name
   end
 
   def cost_centre_from_task
-    # Try SmTask.cost_centre first, then SmScheduleMaster.cost_centre
-    cc_id = sm_task&.cost_centre || sm_task&.sm_schedule_master&.cost_centre
-    return nil unless cc_id
-    cc = CostCentre.find_by(id: cc_id)
+    cc = sm_task&.cost_centre_ref || sm_task&.sm_schedule_master&.cost_centre_ref
     cc ? "#{cc.code} - #{cc.name}" : nil
   end
 
   def tender_from_task
     # SSoT priority: PO direct > SmTask (synced) > SmScheduleMaster (template)
     # PO.tender_id used for manual POs not linked to SM tasks
-    tid = tender_id || sm_task&.tender_id || sm_task&.sm_schedule_master&.tender_id
-    return nil unless tid
-    Tender.find_by(id: tid)&.name
+    t = self.tender || sm_task&.tender || sm_task&.sm_schedule_master&.tender
+    t&.name
   end
 
   def profit_centre_from_line_items
-    # Derive PO-level profit centre from line items
+    # Derive PO-level profit centre from line items (eager-loaded via { line_items: :profit_centre })
     # If all line items share the same profit centre, use that; otherwise first non-nil
-    pc_ids = line_items.filter_map(&:profit_centre_id).uniq
-    return nil if pc_ids.empty?
-    pc = ProfitCentre.find_by(id: pc_ids.first)
+    pc = line_items.filter_map(&:profit_centre).uniq(&:id).first
     pc ? "#{pc.code} - #{pc.name}" : nil
   end
 

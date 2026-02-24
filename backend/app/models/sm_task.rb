@@ -83,6 +83,13 @@ class SmTask < ApplicationRecord
   # Tender section - synced from SmScheduleMaster template via SM sync
   belongs_to :tender, optional: true
   belongs_to :parent_task, class_name: "SmTask", optional: true
+
+  # Lookup associations for stage/trade/cost_centre integer FK columns
+  # FRC (Feb 2026): These columns store IDs but lack _id suffix. Without associations,
+  # PurchaseOrder.as_json virtual methods did find_by per row (N+1).
+  belongs_to :sm_stage_ref, class_name: "SmStage", foreign_key: :stage, optional: true
+  belongs_to :sm_trade_ref, class_name: "SmTrade", foreign_key: :trade, optional: true
+  belongs_to :cost_centre_ref, class_name: "CostCentre", foreign_key: :cost_centre, optional: true
   has_many :children, class_name: "SmTask", foreign_key: :parent_task_id, dependent: :nullify
 
   # Claim stage link - for CLAIM tasks, links to the job's claim stage

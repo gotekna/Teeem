@@ -584,7 +584,7 @@ export function EmailSignaturesTab() {
                       id="custom-name"
                       value={customNameDraft}
                       onChange={(e) => setCustomNameDraft(e.target.value)}
-                      placeholder="e.g., Tekna Official"
+                      placeholder="e.g., Company Official"
                       className="mt-1"
                     />
                   </div>

@@ -191,6 +191,7 @@ module Api
           :sm_task_group,
           :completion_document_type,
           :related_po_tasks,
+          :created_by,
           { sm_schedule_master_document_types: :document_type }
         ]
       end
