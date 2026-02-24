@@ -360,7 +360,11 @@ export function ContactUserTab({
             label="Date of Birth"
             value={details.dateOfBirth}
             onSave={(value) => saveField("dateOfBirth", value as string)}
-            placeholder="YYYY-MM-DD"
+            placeholder="DD/MM/YYYY"
+            format={(v) => {
+              const d = new Date(v);
+              return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-AU");
+            }}
           />
         </CardContent>
       </Card>
