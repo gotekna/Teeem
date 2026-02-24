@@ -16,13 +16,14 @@ interface DocTypeRaw {
   scope?: string | null;
 }
 
-type ScopeFilter = "all" | "job" | "company" | "contacts";
+type ScopeFilter = "all" | "job" | "company" | "contacts" | "library";
 
 const SCOPE_TABS: { key: ScopeFilter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "company", label: "Corporate" },
   { key: "job", label: "Job" },
   { key: "contacts", label: "Contact" },
+  { key: "library", label: "Library" },
 ];
 
 interface DocumentTypePickerProps {

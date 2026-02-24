@@ -40,6 +40,7 @@ class DocumentType < ApplicationRecord
     when 'corporate' then 'company'
     when 'job' then 'job'
     when 'contact' then 'contacts'
+    when 'library' then 'library'
     else 'company'
     end
   end

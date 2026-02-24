@@ -72,7 +72,7 @@ export default function SettingsLayout({
   // Detail pages are 2+ levels deep under sections without sub-tabs
   // Company and Connections sub-tabs still show navigation (e.g., /settings/company/info, /settings/connections/provider)
   // View paths (/settings/users/view/setup-2) are NOT detail pages - they're saved table views
-  const sectionsWithSubTabs = ["company", "connections", "operations", "tables"];
+  const sectionsWithSubTabs = ["company", "connections", "operations", "tables", "roles", "corporate", "developer", "system"];
   const isViewPath = pathParts[1] === "view";
   const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]) && !isViewPath;
 
