@@ -356,11 +356,81 @@ export default function LibraryPage() {
     setUploadDialogOpen(true);
   }, [resolvedTab]);
 
-  // Handle email - single doc or multiple selected
+  // Handle email - opens options dialog for attach/link/skip choice
   const handleEmail = useCallback((docs: LibraryDocument[]) => {
     setEmailDocs(docs);
-    setComposeOpen(true);
+    // Default all docs to "attach"
+    const defaults: Record<number, "attach" | "link" | "skip"> = {};
+    docs.forEach(d => { defaults[d.id] = "attach"; });
+    setEmailOptions(defaults);
+    setEmailBody("");
+    setEmailDialogOpen(true);
   }, []);
+
+  // Generate share links and open compose modal
+  const handleComposeEmail = useCallback(async () => {
+    const attachDocs = emailDocs.filter(d => emailOptions[d.id] === "attach");
+    const linkDocs = emailDocs.filter(d => emailOptions[d.id] === "link");
+
+    // If no docs selected (all skipped), just open compose with no attachments
+    if (attachDocs.length === 0 && linkDocs.length === 0) {
+      setEmailDialogOpen(false);
+      setComposeOpen(true);
+      return;
+    }
+
+    // If there are link docs, generate share links
+    let bodyHtml = "";
+    if (linkDocs.length > 0) {
+      setPreparingEmail(true);
+      try {
+        const linkResults = await Promise.all(
+          linkDocs.map(async (doc) => {
+            const [dlRes, openRes] = await Promise.all([
+              api.post<{ success: boolean; shareUrl: string }>(`/api/v1/documents/${doc.id}/share_link`),
+              api.post<{ success: boolean; shareUrl: string }>(`/api/v1/documents/${doc.id}/share_link`, { open: true }),
+            ]);
+            return {
+              doc,
+              downloadUrl: dlRes?.success ? dlRes.shareUrl : null,
+              openUrl: openRes?.success ? openRes.shareUrl : null,
+            };
+          })
+        );
+
+        const linkLines = linkResults
+          .filter(r => r.downloadUrl || r.openUrl)
+          .map(r => {
+            const name = r.doc.displayName || r.doc.originalFilename || "Document";
+            const size = r.doc.fileSize > 0 ? ` (${formatFileSize(r.doc.fileSize)})` : "";
+            const parts: string[] = [];
+            if (r.downloadUrl) parts.push(`<a href="${r.downloadUrl}">Download</a>`);
+            if (r.openUrl) parts.push(`<a href="${r.openUrl}" target="_blank">Open</a>`);
+            return `<p>&#128206; <strong>${name}</strong>${size} &mdash; ${parts.join(" &middot; ")}</p>`;
+          });
+
+        if (linkLines.length > 0) {
+          bodyHtml = `<p><strong>Shared Documents:</strong></p>${linkLines.join("")}<br/>`;
+        }
+      } catch (error) {
+        toast({
+          title: "Link Generation Failed",
+          description: "Could not generate share links. Documents will be attached instead.",
+          variant: "destructive",
+        });
+        // Fallback: move link docs to attach
+        linkDocs.forEach(d => {
+          emailOptions[d.id] = "attach";
+        });
+      } finally {
+        setPreparingEmail(false);
+      }
+    }
+
+    setEmailBody(bodyHtml);
+    setEmailDialogOpen(false);
+    setComposeOpen(true);
+  }, [emailDocs, emailOptions, toast]);
 
   // Toggle selection
   const toggleSelect = useCallback((docId: number, e: React.MouseEvent) => {
@@ -650,6 +720,78 @@ export default function LibraryPage() {
           </div>
         )}
       </Tabs>
+
+      {/* Email options dialog - attach/link/skip per document */}
+      <Dialog open={emailDialogOpen} onOpenChange={(open) => {
+        if (!open) setEmailDialogOpen(false);
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Email Documents</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2 max-h-[60vh] overflow-auto">
+            <p className="text-sm text-muted-foreground">
+              Choose how to include each document in the email.
+            </p>
+            {emailDocs.map((doc) => {
+              const option = emailOptions[doc.id] || "attach";
+              return (
+                <div key={doc.id} className="flex items-start gap-3 p-3 rounded-lg border bg-muted/30">
+                  <FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
+                    </p>
+                    {doc.fileSize > 0 && (
+                      <p className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</p>
+                    )}
+                    <RadioGroup
+                      value={option}
+                      onValueChange={(val) => setEmailOptions(prev => ({ ...prev, [doc.id]: val as "attach" | "link" | "skip" }))}
+                      className="flex gap-4 mt-2"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <RadioGroupItem value="attach" id={`attach-${doc.id}`} />
+                        <Label htmlFor={`attach-${doc.id}`} className="text-xs font-normal flex items-center gap-1 cursor-pointer">
+                          <Paperclip className="h-3 w-3" />
+                          Attach
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <RadioGroupItem value="link" id={`link-${doc.id}`} />
+                        <Label htmlFor={`link-${doc.id}`} className="text-xs font-normal flex items-center gap-1 cursor-pointer">
+                          <Link className="h-3 w-3" />
+                          Link
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <RadioGroupItem value="skip" id={`skip-${doc.id}`} />
+                        <Label htmlFor={`skip-${doc.id}`} className="text-xs font-normal flex items-center gap-1 cursor-pointer">
+                          <EyeOff className="h-3 w-3" />
+                          Skip
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleComposeEmail} disabled={preparingEmail}>
+              {preparingEmail ? (
+                <Spinner className="h-4 w-4 mr-2" />
+              ) : (
+                <Mail className="h-4 w-4 mr-2" />
+              )}
+              {preparingEmail ? "Generating Links..." : "Compose Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Upload dialog - document type picker */}
       <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
@@ -942,8 +1084,9 @@ export default function LibraryPage() {
               ? emailDocs[0].displayName || emailDocs[0].originalFilename || "Library Document"
               : `${emailDocs.length} Library Documents`
           }
+          defaultBody={emailBody}
           initialPreUploadedAttachments={emailDocs
-            .filter(d => d.storagePath)
+            .filter(d => d.storagePath && emailOptions[d.id] === "attach")
             .map(d => ({
               filename: d.originalFilename || d.displayName || "document",
               storageKey: d.storagePath!,
