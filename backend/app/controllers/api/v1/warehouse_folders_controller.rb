@@ -111,19 +111,30 @@ module Api
       # that were causing H12 timeouts on staging (single dyno overwhelmed).
       # Returns ALL scopes' nested tabs in a single query.
       def all_scopes
+        mem_before = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+        Rails.logger.info "[MEMORY] all_scopes START: #{mem_before}MB (pid=#{Process.pid})"
+
         service = WarehouseFolderQueryService.new(
           include_disabled: params[:include_disabled] == "true"
         )
 
         tabs_by_scope = service.all_scopes_nested_tabs
 
-        render json: {
+        mem_after = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+        Rails.logger.info "[MEMORY] all_scopes AFTER_QUERY: #{mem_after}MB (+#{mem_after - mem_before}MB)"
+
+        result = {
           success: true,
           data: {
             tabs_by_scope: tabs_by_scope,
             groups: WarehouseFolder::TAB_GROUPS
           }
         }
+
+        mem_after_serialize = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+        Rails.logger.info "[MEMORY] all_scopes AFTER_SERIALIZE: #{mem_after_serialize}MB (+#{mem_after_serialize - mem_before}MB)"
+
+        render json: result
       end
 
       # GET /api/v1/warehouse_folders/for_warehouse_type/:warehouse_type

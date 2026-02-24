@@ -13,12 +13,18 @@ module Api
       # GET /api/v1/warehouse_provider
       # Returns storage configuration for the current provider
       def show
+        mem_before = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+        Rails.logger.info "[MEMORY] warehouse_provider#show START: #{mem_before}MB"
+
         config_hash = begin
           WarehouseProvider.instance&.to_config_hash || {}
         rescue TenantNotFoundError => e
           Rails.logger.warn "[WarehouseProvider] No tenant context: #{e.message}"
           {}
         end
+
+        mem_after = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+        Rails.logger.info "[MEMORY] warehouse_provider#show END: #{mem_after}MB (+#{mem_after - mem_before}MB)"
 
         render json: {
           success: true,
