@@ -114,7 +114,8 @@ module Bpmn
           status: "pending",
           assigned_to: resolve_assignee(config, token.bpmn_process_instance),
           assigned_to_role: role_value,
-          due_date: calculate_due_date(config)
+          due_date: calculate_due_date(config),
+          form_data: prefill_form_data(token)
         )
 
         token.wait!
@@ -289,6 +290,25 @@ module Bpmn
         else
           nil
         end
+      end
+
+      # Pre-populate adaptive form fields from subject data when field names match
+      def prefill_form_data(token)
+        form_schema = token.current_node.config&.dig("form_schema")
+        return nil unless form_schema
+
+        fields = form_schema["fields"] || []
+        field_names = fields.map { |f| f["name"] }
+        subject = token.bpmn_process_instance.subject
+        data = {}
+
+        if subject.is_a?(Corporate)
+          data["company_name"] = subject.name if field_names.include?("company_name") && subject.name.present?
+          data["acn"] = subject.formatted_acn if field_names.include?("acn") && subject.try(:formatted_acn).present?
+          data["abn"] = subject.formatted_abn if field_names.include?("abn") && subject.try(:formatted_abn).present?
+        end
+
+        data.present? ? data : nil
       end
 
       def calculate_due_date(config)

@@ -131,7 +131,7 @@ module Api
 
       private
 
-      VALID_SCOPES = %w[documents user_documents job_documents imports chat transactions].freeze
+      VALID_SCOPES = %w[documents user_documents job_documents library_documents imports chat transactions].freeze
 
       def valid_scope?(scope)
         VALID_SCOPES.include?(scope)

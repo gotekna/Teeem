@@ -122,11 +122,12 @@ module Api
 
       def serialize_task_full(task)
         instance = task.bpmn_process_instance
+        form_data = task.form_data.presence || prefill_form_data_from_subject(task)
 
         serialize_task(task).merge(
           node_config: task.bpmn_node.config,
           form_schema: task.bpmn_node.form_schema,
-          form_data: task.form_data,
+          form_data: form_data,
           execution_result: task.execution_result,
           error_message: task.error_message,
           retry_count: task.retry_count,
@@ -134,6 +135,25 @@ module Api
           subject: serialize_subject(instance.subject),
           completed_at: task.completed_at
         )
+      end
+
+      # Pre-fill adaptive form fields from subject when form_data is empty
+      def prefill_form_data_from_subject(task)
+        form_schema = task.bpmn_node.config&.dig("form_schema")
+        return nil unless form_schema
+
+        fields = form_schema["fields"] || []
+        field_names = fields.map { |f| f["name"] }
+        subject = task.bpmn_process_instance.subject
+        data = {}
+
+        if subject.is_a?(Corporate)
+          data["company_name"] = subject.name if field_names.include?("company_name") && subject.name.present?
+          data["acn"] = subject.formatted_acn if field_names.include?("acn") && subject.try(:formatted_acn).present?
+          data["abn"] = subject.formatted_abn if field_names.include?("abn") && subject.try(:formatted_abn).present?
+        end
+
+        data.present? ? data : nil
       end
 
       def serialize_subject(subject)
