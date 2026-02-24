@@ -1,6 +1,6 @@
 class TaskViewer < ApplicationRecord
   # Associations
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :sm_task
 
   # Validations

@@ -10,7 +10,7 @@
 class NotebookActivity < ApplicationRecord
   # Associations
   belongs_to :notebook
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :page, class_name: "NotebookPage", optional: true
   belongs_to :section, class_name: "NotebookSection", optional: true
 

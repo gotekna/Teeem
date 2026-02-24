@@ -1,7 +1,7 @@
 # World-Class Asset Register - Asset Disposal (sale/scrapping tracking)
 class AssetDisposal < ApplicationRecord
   belongs_to :asset
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :replacement_asset, class_name: "Asset", optional: true
 
   # Disposal types

@@ -10,7 +10,7 @@
 class NotebookShare < ApplicationRecord
   # Associations
   belongs_to :notebook
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :granted_by, class_name: "User", optional: true
 
   # Validations

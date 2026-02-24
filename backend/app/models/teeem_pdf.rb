@@ -4,7 +4,7 @@ class TeeemPdf < ApplicationRecord
   include WarehouseSyncable
   warehouse_type :pdf
 
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :job, optional: true
   belongs_to :storage_blob, optional: true
 

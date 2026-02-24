@@ -4,7 +4,7 @@ class FinancialTransaction < ApplicationRecord
 
   # Associations
   belongs_to :job, optional: true
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :corporate, foreign_key: "company_id"
   belongs_to :keepr_journal, class_name: "Keepr::Journal", optional: true
 

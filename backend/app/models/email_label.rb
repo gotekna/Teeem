@@ -5,7 +5,7 @@
 # Each user has their own set of labels.
 #
 class EmailLabel < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
   has_many :email_label_assignments, dependent: :destroy
   has_many :emails, through: :email_label_assignments, source: :email_warehouse
 

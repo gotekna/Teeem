@@ -9,7 +9,7 @@ class EmailTemplate < ApplicationRecord
   include ConfigSyncable
   self.sync_key_source = [:name, :category]
 
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # SSoT: Categories configurable per tenant via TenantSetting (Feb 2026)
   DEFAULT_CATEGORY_VALUES = %w[quick_reply formal follow_up meeting quote invoice other].freeze

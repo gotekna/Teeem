@@ -676,7 +676,7 @@ export default function LibraryPage() {
                   return (
                     <button
                       key={doc.id}
-                      className={`flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
+                      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
                       onClick={() => handleDocumentClick(doc)}
                       onDoubleClick={() => handleDocumentDoubleClick(doc)}
                     >
@@ -685,36 +685,31 @@ export default function LibraryPage() {
                         onClick={(e) => toggleSelect(doc.id, e)}
                         className="shrink-0"
                       />
-                      <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium truncate">
-                            {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
-                          </p>
-                          {doc.versionCount > 1 && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-                              v{doc.versionNumber}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
-                          {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
-                          {doc.versionCount > 1 && (
-                            <span className="inline-flex items-center gap-1">
-                              <History className="h-3 w-3" />
-                              {doc.versionCount} versions
-                            </span>
-                          )}
-                          {doc.verified ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                              <CheckCircle2 className="h-3 w-3" />
-                              Verified
-                            </span>
-                          ) : (
-                            <span className="text-amber-500 dark:text-amber-400">Unverified</span>
-                          )}
-                        </div>
+                      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <p className="text-sm font-medium truncate flex-1 min-w-0">
+                        {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
+                      </p>
+                      {doc.versionCount > 1 && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
+                          v{doc.versionNumber}
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                        {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
+                        {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
+                        {doc.versionCount > 1 && (
+                          <span className="inline-flex items-center gap-1">
+                            <History className="h-3 w-3" />
+                            {doc.versionCount}
+                          </span>
+                        )}
+                        {doc.verified ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                            <CheckCircle2 className="h-3 w-3" />
+                          </span>
+                        ) : (
+                          <span className="text-amber-500 dark:text-amber-400 text-[10px]">!</span>
+                        )}
                       </div>
                       {doc.fileUrl && (
                         <a

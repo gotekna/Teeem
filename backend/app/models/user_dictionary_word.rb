@@ -6,7 +6,7 @@
 # technical terms, etc.) and they will be excluded from spell check.
 #
 class UserDictionaryWord < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   validates :word, presence: true, length: { minimum: 1, maximum: 100 }
   validates :word, uniqueness: { scope: :user_id, case_sensitive: false }

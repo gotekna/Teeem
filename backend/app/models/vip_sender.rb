@@ -5,7 +5,7 @@
 # Emails from VIP senders appear in the VIP inbox and can trigger notifications.
 #
 class VipSender < ApplicationRecord
-  belongs_to :user
+  belongs_to :user, optional: true
 
   # Constants
   CATEGORIES = %w[work personal client vendor team other].freeze

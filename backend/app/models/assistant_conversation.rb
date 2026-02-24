@@ -8,7 +8,7 @@
 class AssistantConversation < ApplicationRecord
   acts_as_tenant :tenant
 
-  belongs_to :user
+  belongs_to :user, optional: true
   has_many :assistant_messages, dependent: :destroy
   has_many :assistant_actions, dependent: :nullify
 

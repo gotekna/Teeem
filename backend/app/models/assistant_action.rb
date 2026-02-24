@@ -7,7 +7,7 @@
 class AssistantAction < ApplicationRecord
   acts_as_tenant :tenant
 
-  belongs_to :user
+  belongs_to :user, optional: true
   belongs_to :assistant_conversation, optional: true
   belongs_to :source, polymorphic: true, optional: true
 

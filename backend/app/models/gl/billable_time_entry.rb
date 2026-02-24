@@ -9,7 +9,7 @@ module Gl
     TASK_TYPES = %w[design development meeting review admin travel other].freeze
 
     belongs_to :corporate, foreign_key: "company_id"
-    belongs_to :user
+    belongs_to :user, optional: true
     belongs_to :job, optional: true
     belongs_to :billable_rate, class_name: "Gl::BillableRate", optional: true
     belongs_to :invoice, class_name: "Gl::Invoice", optional: true
