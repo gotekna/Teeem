@@ -398,6 +398,9 @@ export default function LibraryPage() {
           })
         );
 
+        // Build viewer URLs that open in the Teeem document viewer instead of raw S3
+        const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
+
         const linkLines = linkResults
           .filter(r => r.downloadUrl || r.openUrl)
           .map(r => {
@@ -405,7 +408,10 @@ export default function LibraryPage() {
             const size = r.doc.fileSize > 0 ? ` (${formatFileSize(r.doc.fileSize)})` : "";
             const parts: string[] = [];
             if (r.downloadUrl) parts.push(`<a href="${r.downloadUrl}">Download</a>`);
-            if (r.openUrl) parts.push(`<a href="${r.openUrl}" target="_blank">Open</a>`);
+            if (r.openUrl) {
+              const viewerUrl = `${appOrigin}/view?url=${encodeURIComponent(r.openUrl)}&name=${encodeURIComponent(name)}${r.downloadUrl ? `&download=${encodeURIComponent(r.downloadUrl)}` : ""}`;
+              parts.push(`<a href="${viewerUrl}" target="_blank">Open</a>`);
+            }
             return `<p>&#128206; <strong>${name}</strong>${size} &mdash; ${parts.join(" &middot; ")}</p>`;
           });
 
@@ -730,9 +736,31 @@ export default function LibraryPage() {
             <DialogTitle>Email Documents</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2 max-h-[60vh] overflow-auto">
-            <p className="text-sm text-muted-foreground">
-              Choose how to include each document in the email.
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Choose how to include each document.
+              </p>
+              <div className="flex items-center gap-1">
+                {(["attach", "link", "skip"] as const).map((opt) => (
+                  <Button
+                    key={opt}
+                    size="sm"
+                    variant={Object.values(emailOptions).every(v => v === opt) ? "default" : "outline"}
+                    className="text-xs h-7 px-2"
+                    onClick={() => {
+                      const updated: Record<number, "attach" | "link" | "skip"> = {};
+                      emailDocs.forEach(d => { updated[d.id] = opt; });
+                      setEmailOptions(updated);
+                    }}
+                  >
+                    {opt === "attach" && <Paperclip className="h-3 w-3 mr-1" />}
+                    {opt === "link" && <Link className="h-3 w-3 mr-1" />}
+                    {opt === "skip" && <EyeOff className="h-3 w-3 mr-1" />}
+                    All {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                  </Button>
+                ))}
+              </div>
+            </div>
             {emailDocs.map((doc) => {
               const option = emailOptions[doc.id] || "attach";
               return (
