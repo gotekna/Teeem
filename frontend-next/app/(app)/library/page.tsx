@@ -66,6 +66,7 @@ import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
+import { formatFileLinksSection } from "@/lib/formatters/email-file-links";
 
 // Document shape from /api/v1/documents/warehouse
 interface LibraryDocument {
@@ -421,25 +422,17 @@ export default function LibraryPage() {
           }
         }
 
-        // Build email body - consistent with Task email format (SSoT)
+        // Build email body using shared SSoT utility (lib/formatters/email-file-links.ts)
         if (validResults.length > 0) {
-          bodyHtml = `<p><strong>File links:</strong></p>\n<ul>\n`;
-          validResults.forEach((r, idx) => {
-            const name = r.doc.originalFilename || r.doc.displayName || "Document";
-            const downloadLink = r.downloadUrl ? `<a href="${r.downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a>` : "";
-            // Open link: use viewer context with index for multi-file navigation
-            let openLink = "";
-            if (r.openUrl || r.downloadUrl) {
+          bodyHtml = formatFileLinksSection(
+            validResults.map((r, idx) => {
+              const name = r.doc.originalFilename || r.doc.displayName || "Document";
               const openHref = viewerUrl && validResults.length > 1
                 ? `${viewerUrl}?idx=${idx}`
                 : r.openUrl || r.downloadUrl || "";
-              openLink = `<a href="${openHref}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
-            }
-            const links = [downloadLink, openLink].filter(Boolean).join(" · ");
-            bodyHtml += `<li><a href="${r.downloadUrl || r.openUrl || ""}">${name}</a>${links ? ` · ${links}` : ""}</li>\n`;
-          });
-          bodyHtml += `</ul>\n`;
-          bodyHtml += `<p style="font-size: 12px; color: #666;"><em>Note: These download links expire in 7 days.</em></p>\n`;
+              return { name, downloadUrl: r.downloadUrl || undefined, openUrl: openHref || undefined };
+            })
+          );
         }
       } catch (error) {
         toast({

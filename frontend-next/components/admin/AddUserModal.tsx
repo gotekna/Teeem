@@ -11,13 +11,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ComboboxDropdown } from "@/components/ui/combobox-dropdown";
 import { api } from "@/lib/api";
@@ -411,22 +404,30 @@ export function AddUserModal({ isOpen, onClose, onUserAdded }: AddUserModalProps
 
           {/* Role Selection */}
           <div className="space-y-2">
-            <Label htmlFor="role">Role</Label>
-            <Select
-              value={formData.role_ids[0]?.toString() || ""}
-              onValueChange={(value) => setFormData({ ...formData, role_ids: value ? [parseInt(value)] : [] })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select a role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={role.id.toString()}>
-                    {role.display_name || role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Role</Label>
+            <ComboboxDropdown
+              placeholder="Select a role"
+              searchPlaceholder="Search roles..."
+              items={roles.map((role) => ({
+                id: role.id.toString(),
+                label: role.display_name || role.name,
+              }))}
+              selectedItem={
+                formData.role_ids[0]
+                  ? {
+                      id: formData.role_ids[0].toString(),
+                      label: roles.find((r) => r.id === formData.role_ids[0])?.display_name ||
+                             roles.find((r) => r.id === formData.role_ids[0])?.name || "",
+                    }
+                  : undefined
+              }
+              onSelect={(item) =>
+                setFormData({ ...formData, role_ids: [parseInt(item.id)] })
+              }
+              clearable
+              onClear={() => setFormData({ ...formData, role_ids: [] })}
+              emptyResults="No roles found"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
