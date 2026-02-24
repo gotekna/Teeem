@@ -35,6 +35,7 @@ import {
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { SupplierPicker, type Supplier as SupplierPickerType } from "@/components/ui/supplier-picker";
 import { PricebookCodePicker, type PricebookItem as PricebookPickerType } from "@/components/ui/pricebook-code-picker";
+import { PricebookLineSearch } from "@/components/ui/bill-of-quantities";
 import { BackButton } from "@/components/ui/back-button";
 import {
   DollarSign,
@@ -1652,7 +1653,7 @@ export default function PurchaseOrderDetailPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[150px] py-2 border-r">CODE</TableHead>
+                  <TableHead className="w-[220px] py-2 border-r">CODE</TableHead>
                   <TableHead className="py-2 border-r">DESCRIPTION</TableHead>
                   <TableHead className="w-[90px] text-right py-2 border-r">QTY</TableHead>
                   <TableHead className="w-[90px] text-right py-2 border-r">PRICE</TableHead>
@@ -1730,6 +1731,7 @@ export default function PurchaseOrderDetailPage() {
                             }}
                             placeholder="Search items..."
                             showPrice
+                            supplierId={selectedSupplier?.id}
                             className="border-0 rounded-none shadow-none focus-visible:ring-0 flex-1"
                           />
                           {item.pricebook_item?.item_code && (
@@ -1771,12 +1773,20 @@ export default function PurchaseOrderDetailPage() {
                       </div>
                     </TableCell>
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>
-                      <Input
-                        value={item.description}
-                        onChange={(e) => updateLineItem(originalIndex, "description", e.target.value)}
-                        placeholder="Item description"
-                        className="border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 h-10"
-                        style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}
+                      <PricebookLineSearch
+                        value={item.description || ""}
+                        onChange={(val) => updateLineItem(originalIndex, "description", val)}
+                        supplierId={selectedSupplier?.id}
+                        autoFocus={false}
+                        onSelect={(pbItem) => {
+                          selectPricebookItem(originalIndex, {
+                            id: pbItem.pricebookItemId,
+                            item_code: pbItem.pricebookItemCode,
+                            item_name: pbItem.description,
+                            current_price: pbItem.unitPrice,
+                            gst_code: pbItem.gstCode,
+                          } as PricebookItem);
+                        }}
                       />
                     </TableCell>
                     <TableCell className="py-1 border-b border-r" style={rowBgColor ? { backgroundColor: rowBgColor } : undefined}>

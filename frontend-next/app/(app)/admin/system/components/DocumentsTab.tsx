@@ -3,11 +3,10 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, FileCode, FormInput, Landmark, Receipt, Mail } from "lucide-react";
+import { FileText, FileCode, FormInput, Landmark, Mail } from "lucide-react";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { DocumentTemplatesContent } from "./DocumentTemplatesTab";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
-import { InvoiceTemplatesTab } from "./InvoiceTemplatesTab";
 import { EmailSignaturesTab } from "./EmailSignaturesTab";
 import { PdfFieldsTab } from "./PdfFieldsTab";
 
@@ -17,22 +16,21 @@ import { PdfFieldsTab } from "./PdfFieldsTab";
  * SSoT: This is THE ONE location for document settings.
  * Contains:
  * - Document Types (categories for documents)
- * - Document Templates (Tekna document templates)
+ * - Document Templates (PO, Claims, SSoT templates)
  * - Bank Statements (bank statement parsing templates)
- * - Invoice Templates (invoice PDF templates)
  * - Email Signatures (signature style preferences)
  * - PDF Fields (field mappings for PDFs)
  *
  * Note: This was flattened from a nested structure in Jan 2026
  * Previously: Documents > Templates > (Doc Templates, Bank Statements, Invoice Templates)
- * Now: Documents > (Doc Types, Doc Templates, Bank Statements, Invoice Templates, Email Signatures, PDF Fields)
+ * Now: Documents > (Doc Types, Doc Templates, Bank Statements, Email Signatures, PDF Fields)
+ * Note: Invoice Templates merged into Document Templates > Claims tab (Feb 2026)
  */
 
 const DOCUMENTS_SUB_TABS = [
   { id: "types", label: "Document Types", icon: FileText },
   { id: "document-templates", label: "Document Templates", icon: FileCode },
   { id: "bank-statements", label: "Bank Statements", icon: Landmark },
-  { id: "invoice-templates", label: "Invoice Templates", icon: Receipt },
   { id: "email-signatures", label: "Email Signatures", icon: Mail },
   { id: "pdf-fields", label: "PDF Fields", icon: FormInput },
 ];
@@ -75,9 +73,6 @@ export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BAS
           </TabsContent>
           <TabsContent value="bank-statements">
             <BankStatementTemplatesTab />
-          </TabsContent>
-          <TabsContent value="invoice-templates">
-            <InvoiceTemplatesTab />
           </TabsContent>
           <TabsContent value="email-signatures">
             <EmailSignaturesTab />

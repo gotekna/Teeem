@@ -152,6 +152,31 @@ export function ComboboxDropdownMulti<T extends ComboboxItem>({
     [selectedItems, selectedIdSet, onSelectionChange, maxSelected]
   );
 
+  // Toggle all items in a group
+  const handleToggleGroup = React.useCallback(
+    (groupItems: T[]) => {
+      const enabledItems = groupItems.filter((item) => !item.disabled);
+      const allSelected = enabledItems.every((item) => selectedIdSet.has(item.id));
+
+      let newSelection: T[];
+      if (allSelected) {
+        // Remove all group items
+        const groupIds = new Set(enabledItems.map((item) => item.id));
+        newSelection = selectedItems.filter((s) => !groupIds.has(s.id));
+      } else {
+        // Add unselected group items
+        const toAdd = enabledItems.filter((item) => !selectedIdSet.has(item.id));
+        newSelection = [...selectedItems, ...toAdd];
+        if (maxSelected && newSelection.length > maxSelected) {
+          newSelection = newSelection.slice(0, maxSelected);
+        }
+      }
+
+      onSelectionChange(newSelection);
+    },
+    [selectedItems, selectedIdSet, onSelectionChange, maxSelected]
+  );
+
   // Remove a specific item
   const handleRemoveItem = React.useCallback(
     (item: T, e: React.MouseEvent) => {
@@ -273,11 +298,29 @@ export function ComboboxDropdownMulti<T extends ComboboxItem>({
     const elements: React.ReactNode[] = [];
 
     filteredGroups.forEach((group) => {
+      const enabledItems = group.items.filter((item) => !item.disabled);
+      const selectedCount = enabledItems.filter((item) => selectedIdSet.has(item.id)).length;
+      const allSelected = enabledItems.length > 0 && selectedCount === enabledItems.length;
+      const someSelected = selectedCount > 0 && !allSelected;
+
       elements.push(
         <div
           key={`header-${group.label}`}
-          className="sticky top-0 z-10 bg-muted backdrop-blur-sm px-2 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border"
+          className="sticky top-0 z-10 bg-muted backdrop-blur-sm px-2 py-1.5 text-xs font-semibold text-muted-foreground border-b border-border flex items-center gap-2"
         >
+          <button
+            type="button"
+            className="flex h-4 w-4 items-center justify-center rounded-sm border border-primary shrink-0 cursor-pointer hover:bg-primary/10"
+            style={allSelected ? { background: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))' } : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleToggleGroup(group.items);
+            }}
+          >
+            {allSelected && <Check className="h-3 w-3" />}
+            {someSelected && <div className="h-2 w-2 rounded-sm bg-primary" />}
+          </button>
           {group.label}
         </div>
       );

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_23_140000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_24_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -8812,6 +8812,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_23_140000) do
     t.string "sync_key"
     t.string "task_code", limit: 50
     t.integer "tender_id"
+    t.jsonb "plan_type_ids", default: []
+    t.jsonb "document_ref_type_ids", default: []
     t.index ["checklist_id"], name: "index_sm_schedule_masters_on_checklist_id"
     t.index ["claim_invoice_template_id"], name: "index_sm_schedule_masters_on_claim_invoice_template_id"
     t.index ["complete_workflow_id"], name: "index_sm_schedule_masters_on_complete_workflow_id"

@@ -1720,6 +1720,7 @@ export function PricebookLineSearch({
   supplierId,
   onSelect,
   onChange,
+  autoFocus: autoFocusProp = true,
 }: {
   value: string;
   supplierId?: number | null;
@@ -1731,6 +1732,7 @@ export function PricebookLineSearch({
     pricebookItemCode: string;
   }) => void;
   onChange: (value: string) => void;
+  autoFocus?: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [results, setResults] = useState<PricebookSearchResult[]>([]);
@@ -1843,7 +1845,7 @@ export function PricebookLineSearch({
           onFocus={handleFocus}
           placeholder="Search pricebook or type description..."
           className="h-7 text-sm"
-          autoFocus
+          autoFocus={autoFocusProp}
         />
         {supplierId && (
           <button
