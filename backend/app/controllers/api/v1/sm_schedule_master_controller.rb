@@ -291,7 +291,10 @@ module Api
           # PO line items with quantities
           po_line_items: [ :pricebook_item_id, :qty ],
           # Document types for GET task spawning
-          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ]
+          sm_schedule_master_document_types_attributes: [ :id, :document_type_id, :lag_days, :assigned_role, :_destroy ],
+          # Plan and document reference types (JSONB arrays)
+          plan_type_ids: [],
+          document_ref_type_ids: []
         )
       end
 
@@ -391,6 +394,11 @@ module Api
           },
           tags: row.tags,
           color: row.color,
+          # Plan and document reference types (JSONB arrays of document_type IDs)
+          plan_type_ids: row.plan_type_ids || [],
+          plan_type_names: plan_type_names_for(row),
+          document_ref_type_ids: row.document_ref_type_ids || [],
+          document_ref_type_names: document_ref_type_names_for(row),
           is_active: row.is_active,
           # Task group for PO/non-PO grouping
           sm_task_group_id: row.sm_task_group_id,
@@ -503,6 +511,26 @@ module Api
       # Memoized per request to avoid N+1 queries
       def header_map
         @header_map ||= @template.sm_schedule_master_rows.pluck(:id, :name).to_h
+      end
+
+      # SSoT: Resolve plan type IDs to names via DocumentType
+      # Memoized per request to avoid N+1 (batch all IDs across rows)
+      def plan_type_names_for(row)
+        ids = row.plan_type_ids || []
+        return [] if ids.empty?
+        ids.map { |id| document_type_names_map[id] }.compact
+      end
+
+      # SSoT: Resolve document reference type IDs to names via DocumentType
+      def document_ref_type_names_for(row)
+        ids = row.document_ref_type_ids || []
+        return [] if ids.empty?
+        ids.map { |id| document_type_names_map[id] }.compact
+      end
+
+      # SSoT: DocumentType ID → name map (memoized per request)
+      def document_type_names_map
+        @document_type_names_map ||= DocumentType.pluck(:id, :name).to_h
       end
     end
   end

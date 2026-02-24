@@ -178,6 +178,11 @@ class SmScheduleMaster < ApplicationRecord
     plan_type_ids || []
   end
 
+  # Document reference types to attach to this task
+  def document_ref_type_list
+    document_ref_type_ids || []
+  end
+
   # WarehouseFolders for documents sent on START
   def start_warehouse_folders
     return [] if start_entity_tab_ids.blank?

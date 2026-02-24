@@ -231,6 +231,11 @@ interface SmScheduleMaster {
   requires_document_to_complete?: boolean;
   completion_document_type_id?: number | null;
   completion_document_type_name?: string | null;
+  // Attached plan types and document reference types (JSONB arrays)
+  plan_type_ids?: number[];
+  plan_type_names?: string[];
+  document_ref_type_ids?: number[];
+  document_ref_type_names?: string[];
 }
 
 // Claim Invoice Template for selecting invoice styles
@@ -607,7 +612,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // SSoT: Checklists from Supervisor Checklist Template foundation
   const [availableChecklists, setAvailableChecklists] = React.useState<{ id: number; name: string }[]>([]);
   // SSoT: Job-scoped document types for spawn scan task dropdown
-  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string> }[]>([]);
+  const [availableDocumentTypes, setAvailableDocumentTypes] = React.useState<{ id: number; name: string; display_name?: string; form_number_mapping?: Record<string, string>; folder?: string; primary_folder_name?: string }[]>([]);
   // SSoT: Claim invoice templates for styling claim invoices
   const [claimInvoiceTemplates, setClaimInvoiceTemplates] = React.useState<ClaimInvoiceTemplate[]>([]);
   const [templatePreviewHtml, setTemplatePreviewHtml] = React.useState<string | null>(null);
@@ -1107,7 +1112,7 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
   // Fetch both "job" and "both" scoped document types
   const loadDocumentTypes = async () => {
     try {
-      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string }> }>(
+      const data = await api.get<{ success: boolean; data: Array<{ id: number; name: string; display_name?: string; scope?: string; folder?: string; primary_folder_name?: string; form_number_mapping?: Record<string, string> }> }>(
         "/api/v1/document_types"
       );
       if (data?.data) {
@@ -1541,6 +1546,11 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       linked_task_ids: row.linked_task_ids || [],
       // Completion linked tasks (cascade complete together)
       completion_linked_task_ids: row.completion_linked_task_ids || [],
+      // Plan and document reference types (JSONB arrays of document_type IDs)
+      plan_type_ids: row.plan_type_ids || [],
+      plan_type_names: row.plan_type_names || [],
+      document_ref_type_ids: row.document_ref_type_ids || [],
+      document_ref_type_names: row.document_ref_type_names || [],
     };
   }, []);
 
@@ -1599,6 +1609,9 @@ export function ScheduleMasterTab({ basePath = DEFAULT_SM_BASE_PATH }: ScheduleM
       linked_task_ids: data.linked_task_ids,
       // Completion linked tasks (cascade complete together)
       completion_linked_task_ids: data.completion_linked_task_ids,
+      // Plan and document reference types
+      plan_type_ids: data.plan_type_ids,
+      document_ref_type_ids: data.document_ref_type_ids,
     };
 
     // Transform document_types to Rails nested attributes format (SSoT: sm_schedule_master_document_types)
