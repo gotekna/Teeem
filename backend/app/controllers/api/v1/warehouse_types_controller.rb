@@ -15,9 +15,6 @@ module Api
 
       # GET /api/v1/warehouse_types
       def index
-        mem_before = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024  # MB
-        Rails.logger.info "[MEMORY] warehouse_types#index START: #{mem_before}MB (pid=#{Process.pid})"
-
         # SSoT (Feb 2026): Eager load document_types for warehouse_folders to avoid N+1
         @warehouse_types = WarehouseType.includes(warehouse_folders: [:document_types, :warehouse_folder_document_types, :parent]).visible
 
@@ -28,19 +25,11 @@ module Api
         @warehouse_types = @warehouse_types.system_types if params[:system_only] == "true"
         @warehouse_types = @warehouse_types.custom_types if params[:custom_only] == "true"
 
-        mem_after_load = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
-        Rails.logger.info "[MEMORY] warehouse_types#index AFTER_LOAD: #{mem_after_load}MB (+#{mem_after_load - mem_before}MB)"
-
-        result = {
+        render json: {
           success: true,
           data: @warehouse_types.ordered.map { |wt| serialize_warehouse_type(wt) },
           summary: warehouse_type_summary
         }
-
-        mem_after_serialize = `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
-        Rails.logger.info "[MEMORY] warehouse_types#index AFTER_SERIALIZE: #{mem_after_serialize}MB (+#{mem_after_serialize - mem_before}MB)"
-
-        render json: result
       end
 
       # GET /api/v1/warehouse_types/options

@@ -689,7 +689,7 @@ If yes, batch the changes and wait until tomorrow unless it's a critical hotfix.
 **Required values (all environments):**
 | Env Var | Value | Why |
 |---------|-------|-----|
-| `WEB_CONCURRENCY` | `1` | Single Puma worker (threads handle concurrency) |
+| `WEB_CONCURRENCY` | `0` | Single mode Puma (no forking, ~337MB baseline vs ~800MB in cluster mode) |
 | `MALLOC_ARENA_MAX` | `2` | Reduces Ruby memory fragmentation |
 
 **If staging/beta/production is in H10 crash loop, check this FIRST:**
