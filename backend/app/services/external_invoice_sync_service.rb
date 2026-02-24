@@ -113,45 +113,20 @@ class ExternalInvoiceSyncService
     tenant = @current_teeem_tenant_id ? Tenant.find_by(id: @current_teeem_tenant_id) : nil
 
     begin
-      # Fetch all invoices with pagination
-      # If @fetch_details is true, also fetch full details including line items
-      all_invoices = fetch_all_invoices(xero_tenant_id, fetch_details: @fetch_details)
-      @stats[:total_invoices] = all_invoices.length
+      # ⚠️ Memory fix (Feb 2026): Stream pages instead of accumulating all into arrays.
+      # Each fetch_and_process_* method fetches one page at a time, processes it
+      # within tenant scope, then releases it. GC.start between types ensures
+      # Ruby releases the page data before starting the next fetch cycle.
+      # Previous pattern held all invoices + credit notes + quotes simultaneously (~200MB+).
 
-      Rails.logger.info("Fetched #{all_invoices.length} invoices from #{@source}#{@fetch_details ? ' (with full details)' : ''}")
+      fetch_and_process_invoices(xero_tenant_id, tenant, fetch_details: @fetch_details)
+      GC.start
 
-      # Process each invoice within tenant scope
-      ActsAsTenant.with_tenant(tenant) do
-        all_invoices.each do |invoice_data|
-          process_invoice(invoice_data, xero_tenant_id)
-        end
-      end
+      fetch_and_process_credit_notes(xero_tenant_id, tenant)
+      GC.start
 
-      # Fetch all credit notes
-      all_credit_notes = fetch_all_credit_notes(xero_tenant_id)
-      @stats[:total_credit_notes] = all_credit_notes.length
-
-      Rails.logger.info("Fetched #{all_credit_notes.length} credit notes from #{@source}")
-
-      # Process each credit note within tenant scope
-      ActsAsTenant.with_tenant(tenant) do
-        all_credit_notes.each do |cn_data|
-          process_credit_note(cn_data, xero_tenant_id)
-        end
-      end
-
-      # Fetch all quotes
-      all_quotes = fetch_all_quotes(xero_tenant_id)
-      @stats[:total_quotes] = all_quotes.length
-
-      Rails.logger.info("Fetched #{all_quotes.length} quotes from #{@source}")
-
-      # Process each quote within tenant scope
-      ActsAsTenant.with_tenant(tenant) do
-        all_quotes.each do |quote_data|
-          process_quote(quote_data, xero_tenant_id)
-        end
-      end
+      fetch_and_process_quotes(xero_tenant_id, tenant)
+      GC.start
 
       Rails.logger.info("Full sync completed: #{@stats.inspect}")
 
@@ -364,13 +339,79 @@ class ExternalInvoiceSyncService
 
   private
 
-  # Fetch all invoices - supports two modes:
-  # - Summary mode (default): Fast paginated fetch, no line items
-  # - Detail mode (fetch_details: true): Fetches full details including line items for each invoice
-  def fetch_all_invoices(tenant_id, fetch_details: false)
+  # Stream invoices page-by-page: fetch a page, process it, release it.
+  # This keeps memory usage at ~one page (~100 invoices) instead of the entire dataset.
+  #
+  # For fetch_details mode (full warehouse sync), falls back to array-based fetch
+  # because each summary must be replaced with its detail record before processing.
+  #
+  # ⚠️ Memory fix (Feb 2026): Previous version accumulated ALL invoices into a single
+  # array before processing, causing R14 (Memory quota exceeded) on Standard-2X dynos.
+  def fetch_and_process_invoices(tenant_id, tenant, fetch_details: false)
+    if fetch_details
+      # Detail mode needs the full array to map summaries → details before processing
+      all_invoices = fetch_all_invoices_to_array(tenant_id, fetch_details: true)
+      @stats[:total_invoices] = all_invoices.length
+
+      Rails.logger.info("Fetched #{all_invoices.length} invoices with full details from #{@source}")
+
+      ActsAsTenant.with_tenant(tenant) do
+        all_invoices.each do |invoice_data|
+          process_invoice(invoice_data, tenant_id)
+        end
+      end
+      return
+    end
+
+    # Streaming mode: process each page immediately, then release it
+    page = 1
+    total = 0
+
+    loop do
+      Rails.logger.info("Fetching #{@source} invoices page #{page}")
+
+      result = @api_client.get("Invoices", {
+        page: page,
+        tenant_id: tenant_id
+      })
+
+      unless result[:success]
+        raise XeroApiClient::ApiError, "Failed to fetch invoices: #{result[:error]}"
+      end
+
+      invoices_page = result[:data]["Invoices"] || []
+      break if invoices_page.empty?
+
+      @stats[:pages_fetched] += 1
+      page_count = invoices_page.length
+      total += page_count
+
+      Rails.logger.info("Page #{page}: #{page_count} invoices (running total: #{total})")
+
+      # Process this page immediately within tenant scope, then release
+      ActsAsTenant.with_tenant(tenant) do
+        invoices_page.each do |invoice_data|
+          process_invoice(invoice_data, tenant_id)
+        end
+      end
+
+      page += 1
+      break if page > MAX_PAGES
+
+      # Rate limit protection
+      sleep(XERO_API_SLEEP_MS / 1000.0)
+    end
+
+    @stats[:total_invoices] = total
+    Rails.logger.info("Fetched and processed #{total} invoices from #{@source}")
+  end
+
+  # ⚠️ Memory-heavy: accumulates ALL invoices into an array.
+  # Only used for fetch_details mode where summaries must be replaced with details.
+  # For normal sync, use fetch_and_process_invoices (streaming).
+  def fetch_all_invoices_to_array(tenant_id, fetch_details: false)
     all_invoices = []
     page = 1
-    # SSoT: Use MAX_PAGES constant
 
     loop do
       Rails.logger.info("Fetching #{@source} invoices page #{page}")
@@ -395,11 +436,9 @@ class ExternalInvoiceSyncService
       page += 1
       break if page > MAX_PAGES
 
-      # Rate limit protection
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
-    # If we need full details (line items, payments, tracking), fetch each invoice individually
     if fetch_details
       Rails.logger.info("Fetching full details for #{all_invoices.length} invoices...")
       @stats[:details_fetched] = 0
@@ -408,7 +447,7 @@ class ExternalInvoiceSyncService
         detail = fetch_invoice_detail(summary["InvoiceID"], tenant_id)
         @stats[:details_fetched] += 1 if detail
         Rails.logger.info("Fetched details: #{@stats[:details_fetched]}/#{all_invoices.length}") if @stats[:details_fetched] % 50 == 0
-        detail || summary # Fall back to summary if detail fetch fails
+        detail || summary
       end
     end
 
@@ -1074,11 +1113,11 @@ class ExternalInvoiceSyncService
     { success: false, error: error_msg, stats: @stats }
   end
 
-  # Fetch all credit notes from Xero
-  def fetch_all_credit_notes(tenant_id)
-    all_credit_notes = []
+  # Stream credit notes page-by-page: fetch, process, release.
+  # ⚠️ Memory fix (Feb 2026): Same streaming pattern as invoices to prevent R14.
+  def fetch_and_process_credit_notes(tenant_id, tenant)
     page = 1
-    # SSoT: Use MAX_PAGES constant (safety limit for pagination)
+    total = 0
 
     loop do
       Rails.logger.info("Fetching #{@source} credit notes page #{page}")
@@ -1096,8 +1135,15 @@ class ExternalInvoiceSyncService
       credit_notes_page = result[:data]["CreditNotes"] || []
       break if credit_notes_page.empty?
 
-      all_credit_notes.concat(credit_notes_page)
       @stats[:pages_fetched] += 1
+      page_count = credit_notes_page.length
+      total += page_count
+
+      ActsAsTenant.with_tenant(tenant) do
+        credit_notes_page.each do |cn_data|
+          process_credit_note(cn_data, tenant_id)
+        end
+      end
 
       page += 1
       break if page > MAX_PAGES
@@ -1105,7 +1151,8 @@ class ExternalInvoiceSyncService
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
-    all_credit_notes
+    @stats[:total_credit_notes] = total
+    Rails.logger.info("Fetched and processed #{total} credit notes from #{@source}")
   end
 
   # Process a single credit note
@@ -1224,11 +1271,11 @@ class ExternalInvoiceSyncService
     Rails.logger.error("[CreditNote] Failed to apply credit to POs for #{credit_note_record.invoice_number}: #{e.message}")
   end
 
-  # Fetch all quotes from Xero
-  def fetch_all_quotes(tenant_id)
-    all_quotes = []
+  # Stream quotes page-by-page: fetch, process, release.
+  # ⚠️ Memory fix (Feb 2026): Same streaming pattern as invoices to prevent R14.
+  def fetch_and_process_quotes(tenant_id, tenant)
     page = 1
-    max_pages = 50
+    total = 0
 
     loop do
       Rails.logger.info("Fetching #{@source} quotes page #{page}")
@@ -1246,8 +1293,15 @@ class ExternalInvoiceSyncService
       quotes_page = result[:data]["Quotes"] || []
       break if quotes_page.empty?
 
-      all_quotes.concat(quotes_page)
       @stats[:pages_fetched] += 1
+      page_count = quotes_page.length
+      total += page_count
+
+      ActsAsTenant.with_tenant(tenant) do
+        quotes_page.each do |quote_data|
+          process_quote(quote_data, tenant_id)
+        end
+      end
 
       page += 1
       break if page > MAX_PAGES
@@ -1255,7 +1309,8 @@ class ExternalInvoiceSyncService
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
 
-    all_quotes
+    @stats[:total_quotes] = total
+    Rails.logger.info("Fetched and processed #{total} quotes from #{@source}")
   end
 
   # Process a single quote

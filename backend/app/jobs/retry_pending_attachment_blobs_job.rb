@@ -21,7 +21,7 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
 
   MAX_RUNTIME_SECONDS = 5 * 60 # 5 minutes
 
-  def perform(batch_size: 50)
+  def perform(batch_size: 20)
     @started_at = Time.current
     total_retried = 0
     total_errors = 0
