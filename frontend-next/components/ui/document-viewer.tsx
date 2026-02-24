@@ -1379,14 +1379,12 @@ export function DocumentViewer({
               <p className="text-gray-600 mb-4">
                 This file type cannot be previewed in the browser.
               </p>
-              <a
-                href={effectiveDownloadUrl}
-                download={fileName}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-              >
-                <Download className="h-5 w-5" />
-                Download {fileName}
-              </a>
+              <Button asChild size="lg">
+                <a href={effectiveDownloadUrl} download={fileName}>
+                  <Download className="h-5 w-5" />
+                  Download {fileName}
+                </a>
+              </Button>
             </div>
           )}
         </main>
