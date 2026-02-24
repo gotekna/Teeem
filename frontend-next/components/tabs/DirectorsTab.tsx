@@ -20,8 +20,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
+import { FileText, Plus, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Link from "next/link";
 
 import { format, formatDistanceToNow } from "date-fns";
@@ -55,6 +63,13 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
   const [loading, setLoading] = React.useState(true);
   const [startingWorkflow, setStartingWorkflow] = React.useState(false);
   const [workflowInstances, setWorkflowInstances] = React.useState<WorkflowInstance[]>([]);
+  const [showAddDirector, setShowAddDirector] = React.useState(false);
+  const [addSearch, setAddSearch] = React.useState("");
+  const [addResults, setAddResults] = React.useState<Array<{ id: number; display_name: string; email?: string }>>([]);
+  const [addSearching, setAddSearching] = React.useState(false);
+  const [addPosition, setAddPosition] = React.useState("director");
+  const [addingDirector, setAddingDirector] = React.useState(false);
+  const addDropdownRef = React.useRef<HTMLDivElement>(null);
 
   const loadOfficers = React.useCallback(async () => {
     try {
@@ -87,6 +102,52 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     loadOfficers();
     loadWorkflowInstances();
   }, [loadOfficers, loadWorkflowInstances]);
+
+  // Contact search for adding directors
+  React.useEffect(() => {
+    if (addSearch.length < 2) { setAddResults([]); return; }
+    const timer = setTimeout(async () => {
+      setAddSearching(true);
+      try {
+        const res = await api.get<{ contacts: Array<{ id: number; display_name: string; email?: string; entity_type?: string }> }>(
+          `/api/v1/contacts?search=${encodeURIComponent(addSearch)}&per_page=10`
+        );
+        setAddResults((res.contacts || []).filter(c => c.entity_type === "person" || c.entity_type === "sole_trader"));
+      } catch { setAddResults([]); }
+      finally { setAddSearching(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [addSearch]);
+
+  // Close add dropdown on click outside
+  React.useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (addDropdownRef.current && !addDropdownRef.current.contains(e.target as Node)) {
+        setAddResults([]);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const addDirector = React.useCallback(async (contactId: number) => {
+    setAddingDirector(true);
+    try {
+      await api.post(`/api/v1/companies/${effectiveCompanyId}/add_director`, {
+        contact_id: contactId,
+        position: addPosition,
+      });
+      setShowAddDirector(false);
+      setAddSearch("");
+      setAddResults([]);
+      setAddPosition("director");
+      loadOfficers();
+    } catch (err) {
+      console.error("Failed to add director:", err);
+    } finally {
+      setAddingDirector(false);
+    }
+  }, [effectiveCompanyId, addPosition, loadOfficers]);
 
   // Group officers by role type
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
@@ -235,24 +296,89 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-medium">Corporate Officers History</h3>
-        {company && (
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={startDirectorChangeWorkflow}
-            disabled={startingWorkflow}
+            onClick={() => setShowAddDirector(!showAddDirector)}
           >
-            {startingWorkflow ? (
-              <Spinner size={16} className="mr-1.5" />
-            ) : (
-              <FileText className="w-4 h-4 mr-1.5" />
-            )}
-            {workflowInstances.some(i => i.status === "active" || i.status === "suspended")
-              ? "Resume Director Change"
-              : "Director Changes"}
+            <Plus className="w-4 h-4 mr-1.5" />
+            Add Officer
           </Button>
-        )}
+          {company && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startDirectorChangeWorkflow}
+              disabled={startingWorkflow}
+            >
+              {startingWorkflow ? (
+                <Spinner size={16} className="mr-1.5" />
+              ) : (
+                <FileText className="w-4 h-4 mr-1.5" />
+              )}
+              {workflowInstances.some(i => i.status === "active" || i.status === "suspended")
+                ? "Resume Director Change"
+                : "Director Changes"}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Add Director Form */}
+      {showAddDirector && (
+        <Card className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="py-3 px-4 space-y-3">
+            <p className="text-sm font-medium">Add Officer</p>
+            <div className="flex items-center gap-3">
+              <Select value={addPosition} onValueChange={setAddPosition}>
+                <SelectTrigger className="w-40 h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="director">Director</SelectItem>
+                  <SelectItem value="secretary">Secretary</SelectItem>
+                  <SelectItem value="public_officer">Public Officer</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative flex-1" ref={addDropdownRef}>
+                <Input
+                  placeholder="Search contacts..."
+                  value={addSearch}
+                  onChange={(e) => setAddSearch(e.target.value)}
+                  className="h-8 text-sm"
+                  disabled={addingDirector}
+                />
+                {addSearching && (
+                  <div className="absolute right-2 top-1.5">
+                    <Spinner size={16} />
+                  </div>
+                )}
+                {addResults.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    {addResults.map((contact) => (
+                      <button
+                        key={contact.id}
+                        onClick={() => addDirector(contact.id)}
+                        disabled={addingDirector}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-accent disabled:opacity-50"
+                      >
+                        <p className="font-medium">{contact.display_name}</p>
+                        {contact.email && (
+                          <p className="text-xs text-muted-foreground">{contact.email}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => { setShowAddDirector(false); setAddSearch(""); setAddResults([]); }}>
+              Cancel
+            </Button>
+          </CardContent>
+        </Card>
+      )}
       {/* Active Workflow Instances */}
       {workflowInstances.length > 0 && (
         <div className="space-y-2">
