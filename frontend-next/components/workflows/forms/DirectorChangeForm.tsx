@@ -125,6 +125,8 @@ const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
   { value: "public_officer", label: "Public Officer" },
+  { value: "corporate_officer", label: "Corporate Officer" },
+  { value: "chairman", label: "Chairman" },
 ];
 
 // --- Date Picker ---

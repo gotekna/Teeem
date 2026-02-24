@@ -202,10 +202,27 @@ module Api
       # POST /api/v1/companies/:id/add_director
       def add_director
         contact = Contact.find(params[:contact_id])
+        new_position = params[:position] || "director"
+
+        # Check if contact already has a current record - merge positions if so
+        existing = @company.corporate_directors.current.find_by(contact_id: contact.id)
+        if existing
+          merged = [ existing.position, new_position ].compact.sort.join("_")
+          if existing.update(position: merged)
+            render json: {
+              success: true,
+              message: "Position updated to #{existing.formatted_position}",
+              director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
+            }
+          else
+            render_validation_errors(existing)
+          end
+          return
+        end
 
         director = @company.corporate_directors.build(
           contact: contact,
-          position: params[:position],
+          position: new_position,
           appointment_date: params[:appointment_date] || Date.current,
           is_current: true
         )

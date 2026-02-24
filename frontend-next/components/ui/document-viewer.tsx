@@ -1047,14 +1047,12 @@ export function DocumentViewer({
                 <MessageSquareText className="h-4 w-4" />
               </button>
             )}
-            <a
-              href={effectiveDownloadUrl}
-              download={fileName}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition-colors"
-            >
-              <Download className="h-4 w-4" />
-              <span className="hidden sm:inline">Download</span>
-            </a>
+            <Button asChild>
+              <a href={effectiveDownloadUrl} download={fileName}>
+                <Download className="h-4 w-4" />
+                <span className="hidden sm:inline">Download</span>
+              </a>
+            </Button>
             {hasMultipleFiles && (
               <button
                 onClick={handleDownloadAll}
@@ -1223,14 +1221,12 @@ export function DocumentViewer({
               <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h2 className={`text-xl font-semibold mb-2 ${isDark ? "text-white" : "text-gray-800"}`}>Unable to Preview</h2>
               <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>{error}</p>
-              <a
-                href={effectiveDownloadUrl}
-                download={fileName}
-                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-              >
-                <Download className="h-5 w-5" />
-                Download File
-              </a>
+              <Button asChild size="lg">
+                <a href={effectiveDownloadUrl} download={fileName}>
+                  <Download className="h-5 w-5" />
+                  Download File
+                </a>
+              </Button>
             </div>
           ) : fileType === "pdf" ? (
             pdfLoading ? (
@@ -1288,14 +1284,12 @@ export function DocumentViewer({
                 <p className={`mb-4 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
                   This document couldn&apos;t be loaded for preview.
                 </p>
-                <a
-                  href={effectiveDownloadUrl}
-                  download={fileName}
-                  className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
-                >
-                  <Download className="h-5 w-5" />
-                  Download File
-                </a>
+                <Button asChild size="lg">
+                  <a href={effectiveDownloadUrl} download={fileName}>
+                    <Download className="h-5 w-5" />
+                    Download File
+                  </a>
+                </Button>
               </div>
             )
           ) : fileType === "image" ? (
