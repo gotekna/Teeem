@@ -8,7 +8,7 @@ import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
-import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database } from "lucide-react";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -95,6 +95,16 @@ const scopes = [
     isEntityTab: true,
     showTabGroups: false,
   },
+  {
+    id: "library",
+    label: "Library",
+    icon: BookOpen,
+    showEntityFilters: false,
+    showSharePointPaths: true,
+    showDocumentTypes: true,
+    isEntityTab: true,
+    showTabGroups: false,
+  },
   // SSoT: Email, Warehouse, Task scopes are configured in Storage Config, not here
   {
     id: "email_config",
@@ -126,6 +136,7 @@ const SCOPE_LABELS: Record<string, string> = {
   document_types: "Document Types",
   warehouse_folders: "Warehouse Folders",
   warehouse_tables: "Warehouse Tables",
+  library: "Library",
   email_config: "Email Config",
   sync: "Sync",
 };
@@ -229,7 +240,7 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
             <TabsContent key={scope.id} value={scope.id} className="mt-0 h-full">
               {scope.isEntityTab ? (
                 <WarehouseFoldersConfig
-                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task"}
+                  scope={scope.id as "corporate" | "job" | "contact" | "email" | "warehouse" | "task" | "library"}
                   showEntityFilters={scope.showEntityFilters}
                   showSharePointPaths={scope.showSharePointPaths}
                   showDocumentTypes={scope.showDocumentTypes}
