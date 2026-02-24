@@ -6,6 +6,42 @@ import { cn } from "@/lib/utils";
 import { useSidebar } from "@/contexts/SidebarContext";
 import { Button } from "@/components/ui/button";
 
+// Module-level state that survives component remounts (e.g., Next.js tab navigation)
+// Each key maps to whether that section is expanded
+const expandedStates = new Map<string, boolean>();
+const listeners = new Map<string, Set<(v: boolean) => void>>();
+
+/**
+ * useExpandedState - Persistent expanded state that survives remounts
+ *
+ * Next.js App Router remounts page components on URL changes (tab switches).
+ * Regular useState(false) resets on every remount. This hook stores state
+ * in a module-level Map so it persists across remounts within the same session.
+ */
+export function useExpandedState(key: string): [boolean, () => void] {
+  const [expanded, setExpanded] = React.useState(() => expandedStates.get(key) ?? false);
+
+  // Subscribe to external updates (in case multiple instances share a key)
+  React.useEffect(() => {
+    if (!listeners.has(key)) listeners.set(key, new Set());
+    const set = listeners.get(key)!;
+    set.add(setExpanded);
+    // Sync on mount in case value changed while unmounted
+    const current = expandedStates.get(key) ?? false;
+    if (current !== expanded) setExpanded(current);
+    return () => { set.delete(setExpanded); };
+  }, [key]);
+
+  const toggle = React.useCallback(() => {
+    const next = !(expandedStates.get(key) ?? false);
+    expandedStates.set(key, next);
+    // Notify all listeners for this key
+    listeners.get(key)?.forEach(fn => fn(next));
+  }, [key]);
+
+  return [expanded, toggle];
+}
+
 /**
  * ExpandableSection - Renders children normally or as a fixed overlay
  *

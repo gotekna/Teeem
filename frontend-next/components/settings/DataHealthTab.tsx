@@ -15,7 +15,7 @@ import {
   AlertCircle,
   Users,
 } from "lucide-react";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -129,7 +129,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
   const [healthData, setHealthData] = React.useState<UnifiedHealthResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("data-health");
 
   // URL is SSoT for sub-tab state, default to "overview"
   const activeSubTab = subTab || "overview";
@@ -236,7 +236,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
   const summary = healthData?.data_health?.summary;
 
   return (
-    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
     <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
       {/* Header */}
       <div className={cn("flex items-center justify-between", expanded && "px-4 pt-3")}>
@@ -260,8 +260,8 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
       {/* Sub-tabs */}
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className={expanded ? "flex flex-col flex-1 min-h-0" : "space-y-4"}>
         <div className={expanded ? "px-4 pb-2 shrink-0" : ""}>
-          <div className="flex items-center gap-2">
-            <TabsList>
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-1 min-w-0">
               <TabsTrigger value="overview">
                 Overview
                 {summary && summary.total_issues > 0 && (
@@ -274,7 +274,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
                 Contacts
               </TabsTrigger>
             </TabsList>
-            <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
           </div>
         </div>
 

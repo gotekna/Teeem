@@ -228,8 +228,8 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Scope tabs */}
         <div className="px-4 pt-3 pb-2 shrink-0">
-          <div className="flex items-center gap-2">
-            <TabsList className="flex-wrap h-auto gap-1">
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
                 {scopes.map((s) => (
                     <TabsTrigger
                       key={s.id}

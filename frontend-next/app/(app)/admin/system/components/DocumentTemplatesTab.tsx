@@ -21,7 +21,7 @@ import {
   AlertCircle,
   Pencil,
 } from "lucide-react";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
@@ -99,7 +99,7 @@ const TABS = [
  */
 export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab }: DocumentTemplatesContentProps) {
   const router = useRouter();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("doc-templates");
   const activeTab = TABS.some(t => t.id === subTab) ? subTab! : "po-templates";
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -110,19 +110,19 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
   }, [router, basePath]);
 
   return (
-    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
       <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
         <Tabs value={activeTab} onValueChange={handleTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
           <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
-            <div className="flex items-center gap-2">
-              <TabsList>
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-1 min-w-0">
                 {TABS.map((tab) => (
                   <TabsTrigger key={tab.id} value={tab.id}>
                     {tab.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
             </div>
           </div>
 

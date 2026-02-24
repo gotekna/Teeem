@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabbedSettingsPage, ScrollablePage } from "@/components/ui/page-wrappers";
 import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import {
   User,
   Bell,
@@ -58,7 +58,7 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin } = useSettingsAccess();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("settings-l1");
 
   // Extract current tab from path
   // /settings/profile → "profile"
@@ -105,17 +105,20 @@ export default function SettingsLayout({
       {!expanded && (
         <TabbedSettingsPage.TabSection label="Personal">
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <TabsList data-tour="settings-nav">
-              {PERSONAL_TABS.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                    <Icon className="h-4 w-4" />
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+            <div className="flex items-start gap-2">
+              <TabsList data-tour="settings-nav" className="flex-1 min-w-0">
+                {PERSONAL_TABS.map((tab) => {
+                  const Icon = tab.icon;
+                  return (
+                    <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
+                      <Icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+            </div>
           </Tabs>
         </TabbedSettingsPage.TabSection>
       )}
@@ -124,8 +127,8 @@ export default function SettingsLayout({
       {!expanded && isAdmin && (
         <TabbedSettingsPage.TabSection label="Organization">
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <div className="flex items-center gap-2">
-              <TabsList className="flex-wrap h-auto gap-1">
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
                 {ORGANIZATION_TABS.map((tab) => {
                   const Icon = tab.icon;
                   const tourId = tab.id === "users" ? "settings-users"
@@ -140,7 +143,7 @@ export default function SettingsLayout({
                   );
                 })}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
             </div>
           </Tabs>
         </TabbedSettingsPage.TabSection>
@@ -148,7 +151,7 @@ export default function SettingsLayout({
 
       {/* Content */}
       <TabbedSettingsPage.Content>
-        <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+        <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
           <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
             {children}
           </div>

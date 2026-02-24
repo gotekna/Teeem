@@ -65,7 +65,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/contexts/ConfirmationContext";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import {
   Table,
   TableBody,
@@ -140,7 +140,7 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
   const router = useRouter();
   const { toast } = useToast();
   const { confirm } = useConfirm();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("job-setup");
 
   // Default to "lists" sub-tab
   const activeSubTab = JOB_SETUP_SUB_TABS.some((t) => t.id === subTab) ? subTab : "lists";
@@ -565,20 +565,20 @@ export function JobSetupTab({ subTab, basePath = DEFAULT_JOB_SETUP_BASE_PATH }: 
 
   return (
     <>
-    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
     <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
       {/* Sub-tab Navigation */}
       <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
         <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
-          <div className="flex items-center gap-2">
-            <TabsList>
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-1 min-w-0">
               {JOB_SETUP_SUB_TABS.map((tab) => (
                 <TabsTrigger key={tab.id} value={tab.id}>
                   {tab.label}
                 </TabsTrigger>
               ))}
             </TabsList>
-            <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
           </div>
         </div>
 

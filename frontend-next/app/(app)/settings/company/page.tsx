@@ -5,7 +5,7 @@ import { useMemo, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePathTabs } from "@/hooks/usePathTabs";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 
 // Import company-related tab components from admin
 // SSoT: Security & Permissions moved to /settings/roles (consolidated Access Control page)
@@ -56,7 +56,7 @@ const DEFAULT_TAB = "info";
 
 export default function CompanySettingsPage() {
   const router = useRouter();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("company");
 
   // URL is SSoT for tab state (path-based navigation)
   // redirectToDefault ensures URL always includes tab for breadcrumb visibility
@@ -107,12 +107,12 @@ export default function CompanySettingsPage() {
   }, [activeTab, router, pathname]);
 
   return (
-    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
       <div className={expanded ? "flex flex-col h-full" : "flex flex-col gap-6 pb-8"}>
         <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
           <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
-            <div className="flex items-center gap-2">
-              <TabsList className="flex-wrap h-auto gap-1">
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
                 {COMPANY_TABS.map((tab) => (
                   <TabsTrigger
                     key={tab.id}
@@ -123,7 +123,7 @@ export default function CompanySettingsPage() {
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
             </div>
           </div>
 

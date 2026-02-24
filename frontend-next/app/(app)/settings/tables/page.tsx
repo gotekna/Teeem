@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
 import { GstCodesTab } from "./components/GstCodesTab";
 import TeeemTableView from "@/components/table/TeeemTableView";
@@ -47,6 +48,7 @@ const DEFAULT_TAB = "pricebook";
 export default function TablesSettingsPage() {
   useSetLayoutMode("full-height");
   const router = useRouter();
+  const [expanded, toggleExpanded] = useExpandedState("tables");
 
   const [activeTab, , subTab] = usePathTabs(
     "/settings/tables",
@@ -93,17 +95,23 @@ export default function TablesSettingsPage() {
   }, [router, activeTab]);
 
   return (
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
     <div className="flex flex-col h-full">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <TabsList className="flex-wrap h-auto gap-1 shrink-0">
-          {TOP_TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"}>
+        <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+          <div className="flex items-start gap-2">
+            <TabsList className="flex-wrap h-auto gap-1 shrink-0 flex-1 min-w-0">
+              {TOP_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="text-sm">
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
+          </div>
+        </div>
 
-        <div className="flex-1 min-h-0 mt-4 relative">
+        <div className={expanded ? "flex-1 overflow-auto p-4" : "flex-1 min-h-0 mt-4 relative"}>
           {/* Pricebook Tab */}
           <TabsContent value="pricebook" className="absolute inset-0">
             <div className="flex flex-col h-full">
@@ -184,5 +192,6 @@ export default function TablesSettingsPage() {
         </div>
       </Tabs>
     </div>
+    </ExpandableSection>
   );
 }

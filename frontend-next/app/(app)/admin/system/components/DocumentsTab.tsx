@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, FileCode, FormInput, Landmark, Mail } from "lucide-react";
-import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
+import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { DocumentTemplatesContent } from "./DocumentTemplatesTab";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
@@ -46,7 +46,7 @@ interface DocumentsTabProps {
 
 export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }: DocumentsTabProps) {
   const router = useRouter();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, toggleExpanded] = useExpandedState("documents");
 
   // Default to "types" sub-tab
   const activeSubTab = DOCUMENTS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "types";
@@ -56,19 +56,19 @@ export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BAS
   };
 
   return (
-    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
       <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
         <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
           <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
-            <div className="flex items-center gap-2">
-              <TabsList className="flex-wrap h-auto gap-1">
+            <div className="flex items-start gap-2">
+              <TabsList className="flex-wrap h-auto gap-1 flex-1 min-w-0">
                 {DOCUMENTS_SUB_TABS.map((tab) => (
                   <TabsTrigger key={tab.id} value={tab.id}>
                     {tab.label}
                   </TabsTrigger>
                 ))}
               </TabsList>
-              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+              <ExpandButton expanded={expanded} onToggle={toggleExpanded} />
             </div>
           </div>
 
