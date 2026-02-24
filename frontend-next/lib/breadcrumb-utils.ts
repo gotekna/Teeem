@@ -46,6 +46,9 @@ const ROUTE_DISPLAY_NAMES: Record<string, string> = {
   "/whs/incidents": "Incidents",
   "/whs/inspections": "Inspections",
 
+  // Library
+  "/library": "Library",
+
   // File Warehouse
   "/warehouse": "File Warehouse",
   "/warehouse/tree": "Tree",
@@ -101,6 +104,7 @@ const ROUTE_ICONS: Record<string, string> = {
   "/financial": "DollarSign",
   "/corporate": "Building",
   "/whs": "Shield",
+  "/library": "BookOpen",
   "/warehouse": "Warehouse",
   "/admin": "Settings",
   "/settings": "Settings",
@@ -174,6 +178,12 @@ const TAB_DISPLAY_NAMES: Record<string, string> = {
   "site-presence": "Site Presence",
   "colours": "Colours",
   "specifications": "Specifications",
+
+  // Library tabs
+  "standards": "Standards",
+  "guidelines": "Guidelines",
+  "manuals": "Manuals",
+  "templates": "Templates",
 
   // Settings > Company tabs
   "info": "Info",

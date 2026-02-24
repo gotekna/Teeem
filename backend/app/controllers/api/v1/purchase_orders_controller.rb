@@ -905,6 +905,47 @@ module Api
         render_error("Failed to send email: #{e.message}", status: :internal_server_error)
       end
 
+      # GET /api/v1/purchase_orders/template_export?variant=classic
+      # Export a PO template variant as a rendered A4 HTML file for Figma workflow
+      # Renders with sample data at A4 proportions so designer sees the actual PDF layout,
+      # with a merge fields reference comment for re-adding dynamic tags after redesign
+      def template_export
+        variant = params[:variant] || TenantSetting.po_template_variant
+        valid_variants = %w[classic modern bold compact professional construction custom]
+        unless valid_variants.include?(variant)
+          return render json: { error: "Invalid variant: #{variant}" }, status: :bad_request
+        end
+
+        settings = TenantSetting.instance
+        sample_context = build_sample_context_for_export(settings, variant)
+        renderer = TeknaTemplateRenderer.new
+
+        # Render the template content with sample data (no layout yet)
+        if variant == "custom"
+          custom_html = TenantSetting.po_custom_template
+          unless custom_html.present?
+            return render json: { error: "No custom template saved" }, status: :not_found
+          end
+          template_content = renderer.render_from_string(
+            template_string: custom_html,
+            locals: sample_context
+          )
+        else
+          template_content = renderer.render(
+            template_path: "templates/purchase_order",
+            locals: sample_context
+          )
+        end
+
+        # Wrap in A4 export layout with merge fields comment
+        merge_fields_comment = build_merge_fields_comment(variant)
+        html = build_a4_export_html(template_content, merge_fields_comment, variant)
+
+        filename = "po-template-#{variant}.html"
+        response.headers["Content-Disposition"] = "attachment; filename=\"#{filename}\""
+        render html: html.html_safe, content_type: "text/html"
+      end
+
       # GET /api/v1/purchase_orders/template_variants
       # List all available PO template variants with names/descriptions
       def template_variants
@@ -943,14 +984,13 @@ module Api
         end
 
         if po
-          # Render real PO with variant override
+          # Render real PO with preview layout (lightweight, no A4 sizing or branded header/footer)
           generator = TeknaDocumentGenerator.new(:purchase_order)
-          result = generator.generate(
+          html = generator.preview_html(
             purchase_order: po,
-            html_only: true,
             extra_data: { po_template_variant: variant }
           )
-          render html: result[:html].html_safe
+          render html: html.html_safe
         else
           render html: build_sample_po_preview(variant).html_safe
         end
@@ -1146,6 +1186,188 @@ module Api
           header_line: "#{settings.company_name || 'ABC Construction'} | ABN #{abn_formatted} | QBCC #{settings.qbcc_license || '15344273'}",
           footer_line: "#{settings.phone || '(07) 3555 0000'} | #{settings.email || 'info@example.com.au'}"
         }
+      end
+
+      def build_sample_context_for_export(settings, variant)
+        {
+          purchase_order: {
+            purchase_order_number: "PO-2026-0042",
+            status: "approved",
+            description: "Supply and deliver materials for slab preparation",
+            required_date: (Date.current + 14.days).strftime("%d %B %Y"),
+            required_on_site_date: (Date.current + 12.days).strftime("%d %B %Y"),
+            ordered_date: Date.current.strftime("%d %B %Y"),
+            expected_delivery_date: (Date.current + 10.days).strftime("%d %B %Y"),
+            created_at: Date.current.strftime("%d %B %Y"),
+            delivery_address: "45 Example Avenue, Springfield QLD 4300",
+            special_instructions: "Deliver to rear of site. Contact supervisor on arrival.",
+            subtotal: "$12,450.00",
+            subtotal_raw: 12_450.0,
+            gst: "$1,245.00",
+            gst_raw: 1_245.0,
+            total: "$13,695.00",
+            total_raw: 13_695.0,
+            budget: "$15,000.00",
+            supplier: {
+              name: "Brisbane Building Supplies Pty Ltd",
+              email: "orders@brisbanebuilding.com.au",
+              phone: "07 3555 1234",
+              address: "Unit 4, 120 Industrial Drive, Rocklea QLD 4106",
+              payment_terms_days: 7
+            },
+            site_supervisor: {
+              name: "Mike Johnson",
+              phone: "0412 345 678",
+              email: "mike@example.com"
+            },
+            line_items: [
+              { description: "Concrete 32MPa - Ready Mix", quantity: 18, unit_price: 245.00, total: 4_410.0, total_formatted: "$4,410.00", unit_price_formatted: "$245.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "CON-32MPA" },
+              { description: "Steel Reinforcement N12 Bar 6m", quantity: 45, unit_price: 38.50, total: 1_732.5, total_formatted: "$1,732.50", unit_price_formatted: "$38.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "STL-N12" },
+              { description: "Timber Formwork LVL 200x45", quantity: 24, unit_price: 62.00, total: 1_488.0, total_formatted: "$1,488.00", unit_price_formatted: "$62.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "TIM-LVL200" },
+            ],
+            line_items_count: 3,
+            ted_task: "Slab Preparation"
+          },
+          job: {
+            name: "Smith Residence - New Home Build",
+            full_address: "45 Example Avenue, Springfield QLD 4300",
+            job_code: "J-2026-015",
+            suburb: "Springfield",
+            state: "QLD",
+            postcode: "4300",
+            contract_value: "$650,000.00",
+            contract_value_raw: 650_000
+          },
+          company: build_sample_company_context(settings),
+          colour_selections: { grouped: {}, formatted_string: "", has_selections: false },
+          po_template_variant: variant,
+          generated_date: Date.current.strftime("%d/%m/%Y"),
+          generated_date_long: Date.current.strftime("%d %B %Y"),
+          current_year: Date.current.year.to_s,
+          document_title: "Purchase Order",
+          is_qbcc_document: false
+        }
+      end
+
+      def build_a4_export_html(template_content, merge_fields_comment, variant)
+        # The PDF renderer (Grover/Puppeteer) sets viewport to exactly 210mm with 0 margins,
+        # so the template CSS is designed to fill 210mm. We replicate that here:
+        # - body is exactly 210mm wide (no extra padding stealing width)
+        # - .a4-page has no padding (template has its own internal spacing)
+        # - outer wrapper provides the gray background + centering
+        <<~HTML
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>PO Template: #{variant.titleize} (A4 Export)</title>
+            <style>
+              *, *::before, *::after { box-sizing: border-box; }
+              html { background: #e5e5e5; margin: 0; padding: 0; }
+              body { margin: 0; padding: 40px 0; display: flex; justify-content: center; font-family: Arial, sans-serif; }
+              .a4-page {
+                width: 210mm;
+                min-height: 297mm;
+                background: white;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+                overflow: hidden;
+                padding: 10px;
+              }
+              .a4-page img { max-width: 100%; height: auto; }
+              @media print {
+                html { background: white; }
+                body { padding: 0; }
+                .a4-page { box-shadow: none; width: 100%; }
+              }
+            </style>
+          </head>
+          <body>
+          #{merge_fields_comment}
+          <div class="a4-page">
+            #{template_content}
+          </div>
+          </body>
+          </html>
+        HTML
+      end
+
+      def build_merge_fields_comment(variant)
+        <<~COMMENT
+        <!--
+        ═══════════════════════════════════════════════════════════════════
+        TEEEM Purchase Order Template — #{variant.titleize} variant
+        Exported #{Date.current.strftime("%d %B %Y")}
+        ═══════════════════════════════════════════════════════════════════
+
+        HOW TO USE THIS FILE:
+        1. Open in browser to see the visual layout (sample data filled in)
+        2. Redesign in Figma using this as your visual reference
+        3. Export your Figma design as HTML
+        4. Add the merge fields below where you need dynamic data
+        5. Import back into TEEEM via Settings > Documents > PO Templates > Import
+
+        MERGE FIELDS REFERENCE
+        ──────────────────────
+        These ERB tags get replaced with real data when generating a PO PDF.
+
+        PURCHASE ORDER:
+          <%= purchase_order[:purchase_order_number] %>
+          <%= purchase_order[:status] %>
+          <%= purchase_order[:description] %>
+          <%= purchase_order[:required_date] %>
+          <%= purchase_order[:ordered_date] %>
+          <%= purchase_order[:expected_delivery_date] %>
+          <%= purchase_order[:delivery_address] %>
+          <%= purchase_order[:special_instructions] %>
+          <%= purchase_order[:subtotal] %>
+          <%= purchase_order[:gst] %>
+          <%= purchase_order[:total] %>
+          <%= purchase_order[:budget] %>
+          <%= purchase_order[:ted_task] %>  (linked Schedule Master task name)
+
+        SUPPLIER:
+          <%= purchase_order[:supplier][:name] %>
+          <%= purchase_order[:supplier][:email] %>
+          <%= purchase_order[:supplier][:phone] %>
+          <%= purchase_order[:supplier][:address] %>
+
+        SITE SUPERVISOR:
+          <%= purchase_order[:site_supervisor][:name] %>
+          <%= purchase_order[:site_supervisor][:email] %>
+          <%= purchase_order[:site_supervisor][:phone] %>
+
+        LINE ITEMS (loop):
+          <%  purchase_order[:line_items].each do |item| %>
+            <%= item[:description] %>
+            <%= item[:quantity] %>
+            <%= item[:unit_price_formatted] %>
+            <%= item[:total_formatted] %>
+            <%= item[:gst_code] %>
+            <%= item[:colour] %>
+            <%= item[:colour_code] %>
+            <%= item[:pricebook_code] %>
+          <%  end %>
+
+        COMPANY:
+          <%= company[:company_name] %>
+          <%= company[:abn_formatted] %>
+          <%= company[:qbcc_license] %>
+          <%= company[:email] %>
+          <%= company[:phone] %>
+          <%= company[:full_address] %>
+          <%= company[:logo_url] %>
+
+        JOB:
+          <%= job[:name] %>
+          <%= job[:job_code] %>
+          <%= job[:full_address] %>
+          <%= job[:suburb] %>
+          <%= job[:state] %>
+          <%= job[:postcode] %>
+
+        ═══════════════════════════════════════════════════════════════════
+        -->
+        COMMENT
       end
 
       def build_po_filename(job_name, po_number, task_name)

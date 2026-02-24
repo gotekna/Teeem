@@ -130,7 +130,7 @@ class WarehouseDocument < ApplicationRecord
 
   validates :ui_name, presence: true
   validates :source_type, presence: true, inclusion: {
-    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook],
+    in: %w[corporate job email email_attachment task people contact user template warehouse asset financial compliance xero notebook library],
     message: "%{value} is not a valid source type"
   }
   validates :version_number, numericality: { greater_than: 0 }, allow_nil: true

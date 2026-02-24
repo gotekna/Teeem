@@ -20,12 +20,13 @@
 import { api } from './api';
 
 export type UploadScope =
-  | 'documents'       // Corporate documents
-  | 'user_documents'  // Personal/user documents
-  | 'job_documents'   // Job-related documents
-  | 'imports'         // CSV/data imports (no record created)
-  | 'chat'            // Chat attachments (no record created)
-  | 'transactions';   // Transaction receipts
+  | 'documents'           // Corporate documents
+  | 'user_documents'      // Personal/user documents
+  | 'job_documents'       // Job-related documents
+  | 'library_documents'   // Library reference documents
+  | 'imports'             // CSV/data imports (no record created)
+  | 'chat'               // Chat attachments (no record created)
+  | 'transactions';       // Transaction receipts
 
 export interface UploadMetadata {
   job_id?: number | string;

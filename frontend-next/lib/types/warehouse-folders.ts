@@ -10,7 +10,7 @@ import type { TabType } from '@/lib/constants/tab-types';
 
 // SSoT: 'corporate' is THE ONE scope for corporate entities (Jan 2026 - 'corporate_entity' renamed)
 // SSoT: 'contact' is THE ONE scope for all individuals (Jan 2026 - 'people' merged into 'contact')
-export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero';
+export type WarehouseFolderScope = 'corporate' | 'job' | 'contact' | 'email' | 'warehouse' | 'task' | 'xero' | 'library';
 
 // Tab groups - matches backend WarehouseFolder::TAB_GROUPS
 // 'system' is for system-managed tabs (email storage, warehousing) - read-only in UI
@@ -172,6 +172,7 @@ export const SCOPE_LABELS: Record<WarehouseFolderScope, string> = {
   warehouse: 'Warehouse',
   task: 'Task',
   xero: 'Xero',
+  library: 'Library',
 };
 
 // Tab group display names for UI

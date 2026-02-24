@@ -956,6 +956,7 @@ Rails.application.routes.draw do
           post :match_xero_bills
           get :template_variants
           get :template_preview
+          get :template_export
           get :for_job
           get :supplier_coverage_gaps
         end

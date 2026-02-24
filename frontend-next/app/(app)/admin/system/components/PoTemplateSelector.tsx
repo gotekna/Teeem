@@ -21,6 +21,8 @@ import {
   HardHat,
   Code,
   RefreshCw,
+  Download,
+  Upload,
 } from "lucide-react";
 
 interface PoTemplateVariant {
@@ -106,6 +108,8 @@ export function PoTemplateSelector() {
   const [pos, setPos] = React.useState<PoOption[]>([]);
   const [selectedPoId, setSelectedPoId] = React.useState<number | null>(null);
   const [posLoading, setPosLoading] = React.useState(false);
+  const [importing, setImporting] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     loadVariants();
@@ -304,6 +308,82 @@ export function PoTemplateSelector() {
     }
   };
 
+  const handleExport = async () => {
+    const variant = selectedVariantKey || currentVariant;
+    try {
+      const html = await api.getText(
+        `/api/v1/purchase_orders/template_export?variant=${variant}`
+      );
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `po-template-${variant}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Template exported",
+        description: `Downloaded po-template-${variant}.html`,
+      });
+    } catch (error) {
+      console.error("Failed to export template:", error);
+      toast({
+        variant: "destructive",
+        title: "Export failed",
+        description: "Could not export template",
+      });
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Reset input so same file can be re-imported
+    event.target.value = "";
+
+    if (!file.name.endsWith(".html") && !file.name.endsWith(".htm")) {
+      toast({
+        variant: "destructive",
+        title: "Invalid file",
+        description: "Please select an .html file",
+      });
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const htmlContent = await file.text();
+
+      // Save as custom template and activate
+      const response = await api.put<{ success: boolean }>("/api/v1/tenant_settings/po_template", {
+        variant: "custom",
+        custom_html: htmlContent,
+      });
+
+      if (response?.success) {
+        setCurrentVariant("custom");
+        setCustomHtml(htmlContent);
+        setSelectedVariantKey("custom");
+        toast({
+          title: "Template imported",
+          description: `${file.name} saved as custom template and activated`,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to import template:", error);
+      toast({
+        variant: "destructive",
+        title: "Import failed",
+        description: "Could not import template",
+      });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Reload preview when POs load for the first time (auto-select first PO)
   const prevPosRef = React.useRef<PoOption[]>([]);
   React.useEffect(() => {
@@ -416,10 +496,38 @@ export function PoTemplateSelector() {
             </>
           )}
         </div>
-        <Button variant="outline" size="sm" onClick={loadVariants}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            title="Export current variant as HTML file"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            title="Import HTML file as custom template"
+          >
+            {importing ? <Spinner size={14} className="mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+            Import
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".html,.htm"
+            className="hidden"
+            onChange={handleImport}
+          />
+          <Button variant="outline" size="sm" onClick={loadVariants}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* List + Preview layout */}

@@ -212,6 +212,19 @@ class TeknaDocumentGenerator
     render_template(context)
   end
 
+  # Generate HTML for inline/iframe preview (uses lightweight preview layout instead of tekna A4 layout)
+  # This avoids A4 page sizing (210mm width, 297mm min-height, branded header/footer) that breaks iframe display
+  def preview_html(job: nil, contact: nil, purchase_order: nil, extra_data: {})
+    validate_requirements!(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
+    context = build_context(job: job, contact: contact, purchase_order: purchase_order, extra_data: extra_data)
+    renderer = TeknaTemplateRenderer.new
+    renderer.render(
+      template_path: template_config[:path],
+      layout: "layouts/preview",
+      locals: context
+    )
+  end
+
   private
 
   def validate_requirements!(job:, contact:, purchase_order:, extra_data:)

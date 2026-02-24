@@ -161,6 +161,9 @@ module Api
           }) || "Chat/#{Time.current.strftime('%Y/%m')}"
         when "transactions"
           "Transactions/#{Time.current.strftime('%Y/%m')}"
+        when "library_documents"
+          folder_path = metadata[:folder_path] || metadata["folder_path"]
+          folder_path.presence || "Library/Uploads"
         else
           "Uploads"
         end
@@ -183,6 +186,8 @@ module Api
         when "transactions"
           # Transaction receipts are handled by Transaction update
           { success: true, key: key, filename: filename, size: file_size }
+        when "library_documents"
+          create_library_document(key, filename, content_type, file_size, metadata, provider)
         else
           { success: false, error: "Unknown scope: #{scope}" }
         end
@@ -251,6 +256,26 @@ module Api
           warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
           metadata: {
             "document_type" => metadata[:document_type] || metadata["document_type"],
+            "source" => "manual"
+          },
+          user: current_user
+        )
+
+        { success: true, document: { id: doc.id, file_name: doc.ui_name, uiName: doc.ui_name } }
+      end
+
+      def create_library_document(key, filename, content_type, file_size, metadata, provider)
+        blob = find_or_create_blob(key, filename, content_type, file_size, provider)
+
+        doc = WarehouseDocumentCreator.create!(
+          filename: filename,
+          source_type: "library",
+          storage_blob: blob,
+          file_size: file_size,
+          content_type: content_type,
+          folder_path: metadata[:folder_path] || metadata["folder_path"],
+          metadata: {
+            "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
             "source" => "manual"
           },
           user: current_user

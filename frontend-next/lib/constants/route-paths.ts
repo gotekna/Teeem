@@ -76,6 +76,8 @@ export const ROUTES = {
   WORKFLOW_PROCESSES: "/workflows/processes",
   WORKFLOW_PROCESS_INSTANCES: "/workflows/processes/instances",
 
+  LIBRARY: "/library",
+
   CASES: "/cases",
   CASE_DETAIL: (id: string | number) => `/cases/${id}`,
   CASE_NEW: "/cases/new",

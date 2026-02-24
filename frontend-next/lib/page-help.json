@@ -258,6 +258,12 @@
       "tips": ["Track line item status", "Record deliveries received", "Link to invoices"],
       "tasks": ["View PO details", "Update line items", "Record delivery", "Mark as complete"]
     },
+    "/library": {
+      "title": "Library",
+      "description": "Company-wide reference documents including standards, guidelines, manuals, and specifications.",
+      "tips": ["Documents are organized into tabs by category", "Click a document to preview it", "Upload reference documents that apply across all jobs"],
+      "tasks": ["Browse reference standards", "Upload new documents", "Preview document details"]
+    },
     "/warehouse": {
       "title": "File Warehouse",
       "description": "Central document storage for all files across jobs, contacts, and emails.",
