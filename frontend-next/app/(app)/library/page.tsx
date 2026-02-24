@@ -379,11 +379,12 @@ export default function LibraryPage() {
       return;
     }
 
-    // If there are link docs, generate share links
+    // If there are link docs, generate share links and create a viewer context
     let bodyHtml = "";
     if (linkDocs.length > 0) {
       setPreparingEmail(true);
       try {
+        // Generate share links for all link docs in parallel
         const linkResults = await Promise.all(
           linkDocs.map(async (doc) => {
             const [dlRes, openRes] = await Promise.all([
@@ -398,25 +399,43 @@ export default function LibraryPage() {
           })
         );
 
-        // Build viewer URLs that open in the Teeem document viewer instead of raw S3
+        const validResults = linkResults.filter(r => r.downloadUrl || r.openUrl);
         const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
-        const linkLines = linkResults
-          .filter(r => r.downloadUrl || r.openUrl)
-          .map(r => {
-            const name = r.doc.displayName || r.doc.originalFilename || "Document";
-            const size = r.doc.fileSize > 0 ? ` (${formatFileSize(r.doc.fileSize)})` : "";
-            const parts: string[] = [];
-            if (r.downloadUrl) parts.push(`<a href="${r.downloadUrl}">Download</a>`);
-            if (r.openUrl) {
-              const viewerUrl = `${appOrigin}/view?url=${encodeURIComponent(r.openUrl)}&name=${encodeURIComponent(name)}${r.downloadUrl ? `&download=${encodeURIComponent(r.downloadUrl)}` : ""}`;
-              parts.push(`<a href="${viewerUrl}" target="_blank">Open</a>`);
-            }
-            return `<p>&#128206; <strong>${name}</strong>${size} &mdash; ${parts.join(" &middot; ")}</p>`;
-          });
+        // Build viewer context with all linked docs (same pattern as Tasks)
+        let viewerUrl = "";
+        if (validResults.length > 0) {
+          const viewerFiles = validResults.map(r => ({
+            name: r.doc.originalFilename || r.doc.displayName || "Document",
+            downloadUrl: r.downloadUrl || "",
+            openUrl: r.openUrl || r.downloadUrl || "",
+          }));
 
-        if (linkLines.length > 0) {
-          bodyHtml = `<p><strong>Shared Documents:</strong></p>${linkLines.join("")}<br/>`;
+          const ctxRes = await api.post<{ success: boolean; id?: string }>(
+            "/api/v1/viewer_contexts",
+            { context: { files: viewerFiles, currentIndex: 0 } }
+          );
+
+          if (ctxRes?.success && ctxRes.id) {
+            viewerUrl = `${appOrigin}/view/ctx/${ctxRes.id}`;
+          }
+        }
+
+        // Build email body with document list and viewer link
+        const docLines = validResults.map(r => {
+          const name = r.doc.originalFilename || r.doc.displayName || "Document";
+          const size = r.doc.fileSize > 0 ? ` (${formatFileSize(r.doc.fileSize)})` : "";
+          const parts: string[] = [];
+          if (r.downloadUrl) parts.push(`<a href="${r.downloadUrl}">Download</a>`);
+          return `<p>&#128206; <strong>${name}</strong>${size}${parts.length > 0 ? ` &mdash; ${parts.join(" &middot; ")}` : ""}</p>`;
+        });
+
+        if (docLines.length > 0) {
+          bodyHtml = `<p><strong>Shared Documents:</strong></p>`;
+          if (viewerUrl) {
+            bodyHtml += `<p><a href="${viewerUrl}" target="_blank">View All Documents</a></p>`;
+          }
+          bodyHtml += `${docLines.join("")}<br/>`;
         }
       } catch (error) {
         toast({
@@ -480,7 +499,7 @@ export default function LibraryPage() {
   // Handle document delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(`Delete "${doc.displayName || doc.originalFilename}"?`)) return;
+    if (!confirm(`Delete "${doc.originalFilename || doc.displayName}"?`)) return;
 
     try {
       const res = await api.delete<{ success: boolean }>(`/api/v1/documents/${doc.id}`);
@@ -652,7 +671,7 @@ export default function LibraryPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-medium truncate">
-                            {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
+                            {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
                           </p>
                           {doc.versionCount > 1 && (
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
@@ -768,7 +787,7 @@ export default function LibraryPage() {
                   <FileText className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
+                      {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
                     </p>
                     {doc.fileSize > 0 && (
                       <p className="text-xs text-muted-foreground">{formatFileSize(doc.fileSize)}</p>
@@ -899,7 +918,7 @@ export default function LibraryPage() {
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-medium truncate">
-                      {previewDoc.displayName || previewDoc.originalFilename}
+                      {previewDoc.originalFilename || previewDoc.displayName}
                     </p>
                     {previewDoc.versionCount > 1 && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
@@ -1041,6 +1060,24 @@ export default function LibraryPage() {
                 </div>
               )}
 
+              {/* Validation banner for unverified documents */}
+              {!previewDoc.verified && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
+                    <ShieldCheck className="h-4 w-4 shrink-0" />
+                    <span>This document has not been validated</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 shrink-0"
+                    onClick={() => handleVerify(previewDoc)}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                    Validate Document
+                  </Button>
+                </div>
+              )}
+
               {/* Preview content */}
               <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
                 {previewUrl ? (
@@ -1109,7 +1146,7 @@ export default function LibraryPage() {
           }}
           defaultSubject={
             emailDocs.length === 1
-              ? emailDocs[0].displayName || emailDocs[0].originalFilename || "Library Document"
+              ? emailDocs[0].originalFilename || emailDocs[0].displayName || "Library Document"
               : `${emailDocs.length} Library Documents`
           }
           defaultBody={emailBody}
