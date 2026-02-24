@@ -48,8 +48,10 @@ import {
   CheckCircle2,
   ShieldCheck,
   Mail,
+  History,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
@@ -76,6 +78,9 @@ interface LibraryDocument {
   verified: boolean;
   verifiedBy: string | null;
   verifiedAt: string | null;
+  versionNumber: number;
+  versionGroupId: string | null;
+  versionCount: number;
 }
 
 export default function LibraryPage() {
@@ -143,6 +148,28 @@ export default function LibraryPage() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [emailDoc, setEmailDoc] = useState<LibraryDocument | null>(null);
 
+  // Version history state
+  const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+
+  // Fetch version history for a document
+  const fetchVersionHistory = useCallback(async (docId: number) => {
+    setVersionsLoading(true);
+    try {
+      const res = await api.get<{ success: boolean; versions: LibraryDocument[] }>(
+        `/api/v1/documents/${docId}/versions`
+      );
+      if (res?.success) {
+        setVersionHistory(res.versions || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch version history:", error);
+    } finally {
+      setVersionsLoading(false);
+    }
+  }, []);
+
   // Fetch documents for active tab
   const fetchDocuments = useCallback(async (folderName?: string) => {
     setDocsLoading(true);
@@ -181,25 +208,57 @@ export default function LibraryPage() {
     }
   }, [resolvedTab, fetchDocuments]);
 
+  // Build inline preview URL (serves with Content-Disposition: inline)
+  const buildPreviewUrl = useCallback((docId: number) => {
+    const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
+    return `${getApiBaseUrl()}/api/v1/documents/${docId}/download?preview=true&token=${encodeURIComponent(token)}`;
+  }, []);
+
   // Build preview URL when document selected
   useEffect(() => {
-    if (!previewDoc?.fileUrl) {
+    if (!previewDoc?.id) {
       setPreviewUrl(null);
       return;
     }
-    setPreviewUrl(previewDoc.fileUrl);
-  }, [previewDoc]);
+    setPreviewUrl(buildPreviewUrl(previewDoc.id));
+  }, [previewDoc, buildPreviewUrl]);
 
   // Handle tab change via URL
   const handleTabChange = useCallback((tabKey: string) => {
     router.push(`/library/${tabKey}`, { scroll: false });
   }, [router]);
 
-  // Handle document click - open sheet preview
+  // Single click → sheet preview, double click → new window
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleDocumentClick = useCallback((doc: LibraryDocument) => {
-    setPreviewDoc(doc);
-    setIsSheetOpen(true);
-  }, []);
+    // Cancel any pending single-click
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    // Delay single-click to allow double-click to cancel it
+    clickTimer.current = setTimeout(() => {
+      clickTimer.current = null;
+      setPreviewDoc(doc);
+      setIsSheetOpen(true);
+      setShowVersions(false);
+      setVersionHistory([]);
+      if (doc.versionCount > 1) {
+        fetchVersionHistory(doc.id);
+      }
+    }, 250);
+  }, [fetchVersionHistory]);
+
+  const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
+    // Cancel pending single-click
+    if (clickTimer.current) {
+      clearTimeout(clickTimer.current);
+      clickTimer.current = null;
+    }
+    // Open inline preview in new window
+    window.open(buildPreviewUrl(doc.id), "_blank");
+  }, [buildPreviewUrl]);
 
   // Handle file selection - opens dialog instead of uploading directly
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -489,15 +548,29 @@ export default function LibraryPage() {
                       key={doc.id}
                       className="flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer"
                       onClick={() => handleDocumentClick(doc)}
+                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
                     >
                       <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">
+                            {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
+                          </p>
+                          {doc.versionCount > 1 && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
+                              v{doc.versionNumber}
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
                           {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
+                          {doc.versionCount > 1 && (
+                            <span className="inline-flex items-center gap-1">
+                              <History className="h-3 w-3" />
+                              {doc.versionCount} versions
+                            </span>
+                          )}
                           {doc.verified ? (
                             <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
                               <CheckCircle2 className="h-3 w-3" />
@@ -611,9 +684,16 @@ export default function LibraryPage() {
               {/* Sheet header */}
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <div className="flex-1 min-w-0 pr-4">
-                  <p className="text-sm font-medium truncate">
-                    {previewDoc.displayName || previewDoc.originalFilename}
-                  </p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium truncate">
+                      {previewDoc.displayName || previewDoc.originalFilename}
+                    </p>
+                    {previewDoc.versionCount > 1 && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
+                        v{previewDoc.versionNumber}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     {previewDoc.fileSize > 0 && (
                       <Badge variant="outline" className="text-xs">
@@ -634,6 +714,22 @@ export default function LibraryPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {previewDoc.versionCount > 1 && (
+                    <Button
+                      size="sm"
+                      variant={showVersions ? "default" : "outline"}
+                      className="text-xs h-7"
+                      onClick={() => {
+                        setShowVersions(!showVersions);
+                        if (!showVersions && versionHistory.length === 0) {
+                          fetchVersionHistory(previewDoc.id);
+                        }
+                      }}
+                    >
+                      <History className="h-3.5 w-3.5 mr-1" />
+                      {previewDoc.versionCount} versions
+                    </Button>
+                  )}
                   {!previewDoc.verified && (
                     <Button
                       size="sm"
@@ -654,17 +750,13 @@ export default function LibraryPage() {
                     <Mail className="h-3.5 w-3.5 mr-1" />
                     Email
                   </Button>
-                  {previewDoc.fileUrl && (
-                    <a
-                      href={previewDoc.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 hover:bg-muted rounded-md"
-                      title="Open in new tab"
-                    >
-                      <Maximize2 className="h-4 w-4" />
-                    </a>
-                  )}
+                  <button
+                    onClick={() => window.open(buildPreviewUrl(previewDoc.id), "_blank")}
+                    className="p-1.5 hover:bg-muted rounded-md"
+                    title="Open in new tab"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => setIsSheetOpen(false)}
                     className="p-1.5 hover:bg-muted rounded-md"
@@ -673,6 +765,68 @@ export default function LibraryPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Version history panel */}
+              {showVersions && previewDoc.versionCount > 1 && (
+                <div className="border-b bg-muted/20 px-4 py-2 max-h-48 overflow-auto">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Version History</p>
+                  {versionsLoading ? (
+                    <div className="flex items-center justify-center py-3">
+                      <Spinner className="h-4 w-4" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {versionHistory.map((ver) => {
+                        const isCurrent = ver.id === previewDoc.id;
+                        return (
+                          <button
+                            key={ver.id}
+                            className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
+                              isCurrent
+                                ? "bg-primary/10 text-primary font-medium"
+                                : "hover:bg-muted/50 text-muted-foreground"
+                            }`}
+                            onClick={() => {
+                              if (!isCurrent) {
+                                setPreviewDoc(ver);
+                                setPreviewUrl(buildPreviewUrl(ver.id));
+                              }
+                            }}
+                          >
+                            <Badge
+                              variant={isCurrent ? "default" : "secondary"}
+                              className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold"
+                            >
+                              v{ver.versionNumber}
+                            </Badge>
+                            <span className="truncate flex-1">
+                              {ver.originalFilename || ver.displayName}
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {formatFileSize(ver.fileSize)}
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {ver.createdAt && formatDate(ver.createdAt)}
+                            </span>
+                            {ver.fileUrl && (
+                              <a
+                                href={ver.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 p-0.5 hover:bg-muted rounded"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Download this version"
+                              >
+                                <Download className="h-3 w-3" />
+                              </a>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Preview content */}
               <div className="flex-1 min-h-0 overflow-auto bg-muted/30">

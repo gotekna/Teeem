@@ -137,6 +137,9 @@ class SendNameResolver
   # @param warehouse_document [WarehouseDocument]
   # @return [String, nil] The number string, or nil if no numbering needed
   def compute_auto_number(warehouse_document)
+    # Versioned documents don't get auto-numbered (versions track revisions instead)
+    return nil if warehouse_document.version_group_id.present?
+
     wfdt_id = warehouse_document.warehouse_folder_document_type_id
     return nil unless wfdt_id.present?
 

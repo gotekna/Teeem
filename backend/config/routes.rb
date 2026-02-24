@@ -525,6 +525,7 @@ Rails.application.routes.draw do
         member do
           get :download  # Human-readable download URL (redirects to S3)
           get :preview   # Universal document preview (Excel/Word/PDF)
+          get :versions  # List all versions of a versioned document
           patch :move    # Move file to different folder (File Warehouse action)
           patch :link_to_task  # Re-link orphaned document to a task
           post :verify   # Mark document as verified/validated

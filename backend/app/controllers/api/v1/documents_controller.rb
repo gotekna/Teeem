@@ -161,6 +161,11 @@ module Api
         # Filter by source_type
         if params[:source_type].present?
           documents = documents.where(source_type: params[:source_type])
+
+          # Library: only show latest versions (older versions accessible via version history)
+          if params[:source_type] == "library"
+            documents = documents.where(is_latest_version: true)
+          end
         end
 
         # Filter by documentable_type
@@ -216,9 +221,20 @@ module Api
                                          .group(:folder_path)
                                          .count
 
+        # Batch version counts for library docs (avoid N+1)
+        version_counts = {}
+        if params[:source_type] == "library"
+          group_ids = documents.map(&:version_group_id).compact.uniq
+          if group_ids.any?
+            version_counts = WarehouseDocument.where(version_group_id: group_ids)
+                                              .group(:version_group_id)
+                                              .count
+          end
+        end
+
         render json: {
           success: true,
-          documents: documents.map { |doc| warehouse_document_to_json(doc) },
+          documents: documents.map { |doc| warehouse_document_to_json(doc, version_counts: version_counts) },
           folders: folder_counts.keys.sort.map { |f| { name: f, count: folder_counts[f] } },
           pagination: {
             total: total_count,
@@ -960,6 +976,28 @@ module Api
         end
 
         redirect_to url, allow_other_host: true
+      end
+
+      # GET /api/v1/documents/:id/versions
+      # Returns all versions of a versioned document in descending order
+      def versions
+        doc = @document.is_a?(WarehouseDocument) ? @document : WarehouseDocument.find_by(id: @document.id)
+
+        unless doc&.version_group_id.present?
+          return render json: {
+            success: true,
+            versions: [warehouse_document_to_json(doc)]
+          }
+        end
+
+        all_versions = WarehouseDocument.where(version_group_id: doc.version_group_id)
+                                         .includes(:storage_blob)
+                                         .order(version_number: :desc)
+
+        render json: {
+          success: true,
+          versions: all_versions.map { |v| warehouse_document_to_json(v) }
+        }
       end
 
       # GET /api/v1/documents/:id/preview
@@ -2434,7 +2472,7 @@ module Api
 
       # Phase 3: Serialize WarehouseDocument (universal format)
       # SSoT: Uses WarehouseDocument metadata with documentable context
-      def warehouse_document_to_json(wd)
+      def warehouse_document_to_json(wd, version_counts: {})
         # SSoT (Jan 2026): Don't access wd.documentable - it triggers NameError for deleted models
         # (e.g., ContactDocument was deleted but records still reference it)
         # Use WarehouseDocument directly - it IS the SSoT with linkable/metadata pattern
@@ -2486,7 +2524,11 @@ module Api
           # Verification status (from metadata)
           verified: wd.metadata&.dig("verified") == true,
           verifiedBy: wd.metadata&.dig("verified_by"),
-          verifiedAt: wd.metadata&.dig("verified_at")
+          verifiedAt: wd.metadata&.dig("verified_at"),
+          # Version tracking
+          versionNumber: wd.version_number || 1,
+          versionGroupId: wd.version_group_id,
+          versionCount: wd.version_group_id ? (version_counts[wd.version_group_id] || 1) : 1
         }
       end
 
