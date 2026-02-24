@@ -228,37 +228,16 @@ export default function LibraryPage() {
     router.push(`/library/${tabKey}`, { scroll: false });
   }, [router]);
 
-  // Single click → sheet preview, double click → new window
-  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  // Single click → open sheet preview (instant, no delay)
   const handleDocumentClick = useCallback((doc: LibraryDocument) => {
-    // Cancel any pending single-click
-    if (clickTimer.current) {
-      clearTimeout(clickTimer.current);
-      clickTimer.current = null;
+    setPreviewDoc(doc);
+    setIsSheetOpen(true);
+    setShowVersions(false);
+    setVersionHistory([]);
+    if (doc.versionCount > 1) {
+      fetchVersionHistory(doc.id);
     }
-    // Delay single-click to allow double-click to cancel it
-    clickTimer.current = setTimeout(() => {
-      clickTimer.current = null;
-      setPreviewDoc(doc);
-      setIsSheetOpen(true);
-      setShowVersions(false);
-      setVersionHistory([]);
-      if (doc.versionCount > 1) {
-        fetchVersionHistory(doc.id);
-      }
-    }, 250);
   }, [fetchVersionHistory]);
-
-  const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
-    // Cancel pending single-click
-    if (clickTimer.current) {
-      clearTimeout(clickTimer.current);
-      clickTimer.current = null;
-    }
-    // Open inline preview in new window
-    window.open(buildPreviewUrl(doc.id), "_blank");
-  }, [buildPreviewUrl]);
 
   // Handle file selection - opens dialog instead of uploading directly
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -548,7 +527,6 @@ export default function LibraryPage() {
                       key={doc.id}
                       className="flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer"
                       onClick={() => handleDocumentClick(doc)}
-                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
                     >
                       <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
