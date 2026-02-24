@@ -45,6 +45,8 @@ import {
   File,
   Image as ImageIcon,
   Trash2,
+  CheckCircle2,
+  ShieldCheck,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -69,6 +71,9 @@ interface LibraryDocument {
   folder: string | null;
   createdAt: string;
   source: string;
+  verified: boolean;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
 }
 
 export default function LibraryPage() {
@@ -292,6 +297,23 @@ export default function LibraryPage() {
     setUploadDialogOpen(true);
   }, [resolvedTab]);
 
+  // Handle document verify
+  const handleVerify = useCallback(async (doc: LibraryDocument) => {
+    try {
+      const res = await api.post<{ success: boolean; document: LibraryDocument }>(`/api/v1/documents/${doc.id}/verify`);
+      if (res?.success) {
+        toast({ title: "Verified", description: "Document has been validated" });
+        // Update local state
+        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : d));
+        if (previewDoc?.id === doc.id) {
+          setPreviewDoc(prev => prev ? { ...prev, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : prev);
+        }
+      }
+    } catch (error) {
+      toast({ title: "Verify Failed", description: "Could not verify document", variant: "destructive" });
+    }
+  }, [previewDoc, toast]);
+
   // Handle document delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -464,6 +486,14 @@ export default function LibraryPage() {
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
                           {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
+                          {doc.verified ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                              <CheckCircle2 className="h-3 w-3" />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="text-amber-500 dark:text-amber-400">Unverified</span>
+                          )}
                         </div>
                       </div>
                       {doc.fileUrl && (
@@ -583,9 +613,26 @@ export default function LibraryPage() {
                         {previewDoc.mimeType.split("/").pop()?.toUpperCase()}
                       </Badge>
                     )}
+                    {previewDoc.verified ? (
+                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}
+                      </Badge>
+                    ) : null}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {!previewDoc.verified && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-xs h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                      onClick={() => handleVerify(previewDoc)}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5 mr-1" />
+                      Validate
+                    </Button>
+                  )}
                   {previewDoc.fileUrl && (
                     <a
                       href={previewDoc.fileUrl}

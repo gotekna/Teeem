@@ -527,6 +527,7 @@ Rails.application.routes.draw do
           get :preview   # Universal document preview (Excel/Word/PDF)
           patch :move    # Move file to different folder (File Warehouse action)
           patch :link_to_task  # Re-link orphaned document to a task
+          post :verify   # Mark document as verified/validated
         end
         collection do
           post :analyze

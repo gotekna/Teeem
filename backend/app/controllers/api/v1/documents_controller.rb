@@ -893,6 +893,22 @@ module Api
         end
       end
 
+      # POST /api/v1/documents/:id/verify
+      # Mark a document as verified (validated by user)
+      def verify
+        meta = @document.metadata || {}
+        meta["verified"] = true
+        meta["verified_by"] = current_user&.name || "Unknown"
+        meta["verified_by_id"] = current_user&.id
+        meta["verified_at"] = Time.current.iso8601
+
+        if @document.update(metadata: meta)
+          render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
       # DELETE /api/v1/documents/:id
       def destroy
         @document.destroy
@@ -2466,7 +2482,11 @@ module Api
           isImage: image_file?(wd.original_filename),
           # Blob deduplication info
           storageBlobId: blob&.id,
-          contentHash: blob&.content_hash
+          contentHash: blob&.content_hash,
+          # Verification status (from metadata)
+          verified: wd.metadata&.dig("verified") == true,
+          verifiedBy: wd.metadata&.dig("verified_by"),
+          verifiedAt: wd.metadata&.dig("verified_at")
         }
       end
 
