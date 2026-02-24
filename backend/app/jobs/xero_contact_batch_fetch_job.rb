@@ -66,22 +66,21 @@ class XeroContactBatchFetchJob < ApplicationJob
     # Update session progress
     session.increment_fetched!(contacts.size, page: page)
 
-    # Queue processing job for this batch
-    # FRC (Feb 2026): Pass contacts as JSON string, not raw Array<Hash>.
-    # ActiveJob/SolidQueue serialization fails with "undefined method
-    # to_global_id for an instance of Hash" when serializing nested Hashes
-    # from JSON.parse. JSON string is a primitive that serializes cleanly.
+    # FRC (Feb 2026): Process contacts inline instead of fanning out to ProcessJob.
+    # Root cause of R14: passing 10KB+ JSON as job args meant 4 threads each held
+    # full contact batches in memory simultaneously. Inline processing uses 1 thread
+    # per tenant (fetch → process → fetch next page sequentially).
     unless contacts.empty?
-      XeroContactBatchProcessJob.perform_later(
-        session_id: session.id,
-        xero_contacts_json: contacts.to_json,
+      XeroContactBatchProcessJob.new.process_inline(
+        session: session,
+        xero_contacts: contacts,
         page: page,
         xero_org_id: tenant_id,
         tenant_name: tenant_name
       )
     end
 
-    # Queue next page if more exist
+    # Fetch next page sequentially (same thread, contacts already GC-eligible)
     if contacts.size == BATCH_SIZE
       XeroContactBatchFetchJob.perform_later(
         session_id: session.id,

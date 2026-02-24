@@ -19,15 +19,26 @@ class XeroContactBatchProcessJob < ApplicationJob
   # ActiveJob/SolidQueue can't serialize nested Hashes from JSON.parse
   # (NoMethodError: undefined method 'to_global_id' for an instance of Hash).
   # We serialize to JSON string in fetch job and parse here.
+  #
+  # NOTE: perform is kept for backwards compatibility (retrying jobs in queue).
+  # New flow calls process_inline directly from FetchJob (no serialization).
   def perform(session_id:, xero_contacts_json:, page:, xero_org_id:, tenant_name: nil)
     xero_contacts = JSON.parse(xero_contacts_json)
     session = XeroSyncSession.find_by(id: session_id)
+    return unless session
 
-    unless session
-      Rails.logger.error("[XeroContactBatchProcess] Session #{session_id} not found")
-      return
-    end
+    process_inline(
+      session: session,
+      xero_contacts: xero_contacts,
+      page: page,
+      xero_org_id: xero_org_id,
+      tenant_name: tenant_name
+    )
+  end
 
+  # Called directly from FetchJob (no serialization overhead).
+  # FRC (Feb 2026): Eliminates 10KB+ JSON job args that caused R14 on shared worker.
+  def process_inline(session:, xero_contacts:, page:, xero_org_id:, tenant_name: nil)
     # Skip if session is failed
     if session.failed?
       Rails.logger.warn("[XeroContactBatchProcess] Skipping page #{page}: session already failed")
@@ -37,7 +48,7 @@ class XeroContactBatchProcessJob < ApplicationJob
     teeem_tenant_id = session.teeem_tenant_id
 
     unless teeem_tenant_id
-      Rails.logger.error("[XeroContactBatchProcess] No TEEEM tenant ID for session #{session_id}")
+      Rails.logger.error("[XeroContactBatchProcess] No TEEEM tenant ID for session #{session.id}")
       session.fail!("No TEEEM tenant associated with Xero credential")
       return
     end
