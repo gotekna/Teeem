@@ -4,11 +4,14 @@
  * Used by Library (document sharing) and Tasks (Q&A email responses).
  *
  * Exports (layered — use the highest-level function that fits):
- *   formatFileEmailBody  — full email: greeting + files + ZIP + closing (Library)
- *   formatZipAndClosing  — ZIP + expiry + closing tail (Tasks, after Q&A content)
+ *   formatFileEmailBody    — full email: greeting + files + ZIP + closing + sig + footer (Library)
+ *   formatTeeemFooter      — TEEEM marketing footer (logo + tagline)
+ *   formatZipAndClosing    — ZIP + expiry + closing tail (Tasks, after Q&A content)
  *   formatFileLinksSection — "File links:" header + <ul> (Tasks linked-files block)
- *   formatFileLink       — single line: "Name · Download · Open" (Tasks inline)
+ *   formatFileLink         — single line: "Name · Download · Open" (Tasks inline)
  */
+
+import { generateSimpleSignature, type SignatureUserData, type SignatureCompanyData } from '@/lib/email-signature';
 
 const LINK_STYLE = 'color: #666; font-size: 0.9em;';
 
@@ -65,17 +68,11 @@ export function formatFileLinksSection(files: FileLink[]): string {
  *   - ZIP link (if provided and > 1 file)
  *   - Expiry note
  *   - Closing line
- *
- * Used by Tasks after Q&A content + linked files block.
  */
 export function formatZipAndClosing(options: {
-  /** Total linked-file count (for expiry note even without ZIP) */
   linkedFileCount: number;
-  /** ZIP download URL (omit if not available) */
   zipUrl?: string;
-  /** File count shown in ZIP message (defaults to linkedFileCount) */
   zipFileCount?: number;
-  /** Days until links expire (default 7) */
   expiryDays?: number;
 }): string {
   const { linkedFileCount, zipUrl, expiryDays = 7 } = options;
@@ -95,6 +92,32 @@ export function formatZipAndClosing(options: {
   return html;
 }
 
+// ─── TEEEM marketing footer ─────────────────────────────────────────
+
+/**
+ * SSoT: TEEEM branded footer with logo and tagline.
+ * Used at the bottom of all outgoing emails (after signature).
+ */
+export function formatTeeemFooter(): string {
+  const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
+  const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
+
+  let html = '\n<br><br>\n';
+  html += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
+  html += '<td style="vertical-align: middle; padding-right: 8px;">';
+  html += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
+  html += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
+  html += '</td>';
+  html += '<td style="vertical-align: middle; padding-left: 12px;">';
+  html += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
+  html += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">\ud83d\udee1\ufe0f <strong>T</strong>rust \u00b7 \u26a1 <strong>E</strong>mpower \u00b7 \ud83d\udcc8 <strong>E</strong>volve \u00b7 \ud83d\ude0a <strong>E</strong>njoy \u00b7 \ud83c\udfaf <strong>M</strong>easure</p>';
+  html += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
+  html += '</td>';
+  html += '</tr></table>\n';
+
+  return html;
+}
+
 // ─── Full email body ─────────────────────────────────────────────────
 
 /**
@@ -105,22 +128,24 @@ export function formatZipAndClosing(options: {
  *   3. ZIP link   (optional, for multiple files)
  *   4. Expiry note
  *   5. Closing line
+ *   6. Signature  (from user/company data)
+ *   7. TEEEM footer
  *
- * Signature is NOT included — ComposeEmailModal adds it automatically.
+ * Caller should pass skipSignature={true} to ComposeEmailModal since
+ * the signature is embedded in the body.
  */
 export function formatFileEmailBody(options: {
-  /** Recipient first name for greeting. Omit for generic "Hi," */
   recipientName?: string;
-  /** Files to list with Download/Open links */
   files: FileLink[];
-  /** Optional ZIP download URL (shown when > 1 file) */
   zipUrl?: string;
-  /** Total file count for ZIP message (defaults to files.length) */
   zipFileCount?: number;
-  /** Days until links expire (default 7) */
   expiryDays?: number;
+  /** Current user for signature. Omit to skip signature. */
+  user?: SignatureUserData;
+  /** Company data for signature. */
+  company?: SignatureCompanyData;
 }): string {
-  const { recipientName, files, zipUrl, zipFileCount, expiryDays = 7 } = options;
+  const { recipientName, files, zipUrl, zipFileCount, expiryDays = 7, user, company } = options;
 
   // Greeting
   const name = recipientName || '';
@@ -137,6 +162,17 @@ export function formatFileEmailBody(options: {
     zipFileCount,
     expiryDays,
   });
+
+  // Signature
+  if (user) {
+    const signature = generateSimpleSignature(user, company);
+    if (signature) {
+      html += '\n' + signature + '\n';
+    }
+  }
+
+  // TEEEM footer
+  html += formatTeeemFooter();
 
   return html;
 }

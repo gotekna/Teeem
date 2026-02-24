@@ -124,7 +124,7 @@ import { EmailAttachmentLink } from '@/components/emails/EmailAttachmentLink';
 import { getOverdueColorClasses } from './TaskColorSettings';
 import { TASK_STATUS } from '@/lib/constants/task-status';
 import { Job } from '@/lib/types';
-import { formatFileLink, formatZipAndClosing } from '@/lib/formatters/email-file-links';
+import { formatFileLink, formatZipAndClosing, formatTeeemFooter } from '@/lib/formatters/email-file-links';
 
 // Type for rich text editor modal
 type EditModalType = 'question' | 'header' | 'answer' | 'action' | null;
@@ -4345,25 +4345,8 @@ export function TaskFullscreenView({ task, onClose }: TaskFullscreenViewProps) {
       }
     }
 
-    // Add Teeem marketing footer with spacing, logo, and TEEEM meaning
-    // NOTE: Using PNG for dark "t" logo matching app header branding (better email client compatibility than SVG)
-    body += '\n<br><br>\n';
-    body += '<table style="border-top: 1px solid #eee; padding-top: 12px; margin-top: 20px;"><tr>';
-    body += '<td style="vertical-align: middle; padding-right: 8px;">';
-    // Teeem logos - actual file sizes match display sizes (TipTap ignores CSS sizing)
-    // Main: 28px (matches app header), Inline: 10px (matches 10px text exactly)
-    const teeemLogoUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-28.png';
-    const teeemLogoSmallUrl = 'https://teeem-staging.vercel.app/icons/teeem-logo-10.png';
-    body += `<img src="${teeemLogoUrl}" alt="t" style="vertical-align:middle;">`;
-    // "teeem" text: Georgia serif (closest to Hedvig), normal weight, proportional to 28px logo
-    body += `<span style="font-family:Georgia,'Times New Roman',serif;font-size:22px;font-weight:normal;color:#18181b;margin-left:6px;vertical-align:middle;">teeem</span>`;
-    body += '</td>';
-    body += '<td style="vertical-align: middle; padding-left: 12px;">';
-    body += '<p style="font-size: 11px; color: #999; margin: 0;">Complete Business Solution</p>';
-    body += '<p style="font-size: 10px; color: #aaa; margin-top: 4px;">🛡️ <strong>T</strong>rust · ⚡ <strong>E</strong>mpower · 📈 <strong>E</strong>volve · 😊 <strong>E</strong>njoy · 🎯 <strong>M</strong>easure</p>';
-    body += `<p style="font-size: 10px; color: #aaa; margin-top: 6px;">This email was produced by <img src="${teeemLogoSmallUrl}" alt="t" style="vertical-align:middle;margin-right:2px;"><span style="font-family:Georgia,'Times New Roman',serif;font-size:10px;font-weight:normal;color:#18181b;vertical-align:middle;">teeem</span> <a href="https://www.teeem.com.au" style="font-size:10px;color:#666;margin-left:4px;">teeem.com.au</a></p>`;
-    body += '</td>';
-    body += '</tr></table>\n';
+    // SSoT: TEEEM marketing footer from shared utility
+    body += formatTeeemFooter();
 
     // Include original email as quoted reply if enabled
     if (includeOriginalEmail && originalEmailData) {

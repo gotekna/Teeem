@@ -67,6 +67,7 @@ import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
 import { formatFileEmailBody } from "@/lib/formatters/email-file-links";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Document shape from /api/v1/documents/warehouse
 interface LibraryDocument {
@@ -94,6 +95,15 @@ export default function LibraryPage() {
   const router = useRouter();
   const pathname = usePathname();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
+
+  // Company settings for email signature
+  const [companySettings, setCompanySettings] = useState<{ company_name?: string; address?: string; website?: string } | null>(null);
+  useEffect(() => {
+    api.get<{ success: boolean; data: { company_name?: string; address?: string; website?: string } }>("/api/v1/tenant_settings/company")
+      .then(res => { if (res?.success) setCompanySettings(res.data); })
+      .catch(() => {});
+  }, []);
 
   // Derive active tab from URL: /library/standards → "standards"
   const activeTab = React.useMemo(() => {
@@ -432,6 +442,17 @@ export default function LibraryPage() {
                 : r.openUrl || r.downloadUrl || "";
               return { name, downloadUrl: r.downloadUrl || undefined, openUrl: openHref || undefined };
             }),
+            user: currentUser ? {
+              name: currentUser.name,
+              email: currentUser.email,
+              mobile_phone: currentUser.mobile_phone,
+              job_title: currentUser.job_title,
+            } : undefined,
+            company: companySettings ? {
+              name: companySettings.company_name,
+              address: companySettings.address,
+              website: companySettings.website,
+            } : undefined,
           });
         }
       } catch (error) {
@@ -1147,6 +1168,7 @@ export default function LibraryPage() {
               : `${emailDocs.length} Library Documents`
           }
           defaultBody={emailBody}
+          skipSignature={true}
           initialPreUploadedAttachments={emailDocs
             .filter(d => d.storagePath && emailOptions[d.id] === "attach")
             .map(d => ({
