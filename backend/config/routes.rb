@@ -535,6 +535,7 @@ Rails.application.routes.draw do
           post :analyze
           post :preview_upload  # Preview uploaded file
           post :rename          # Rename file in S3 storage
+          post :bulk_zip        # POST /api/v1/documents/bulk_zip - ZIP multiple docs and return presigned URL
         end
       end
 

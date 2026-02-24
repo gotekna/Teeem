@@ -432,6 +432,38 @@ export default function LibraryPage() {
           }
         }
 
+        // Generate ZIP download URL for multiple files (same pattern as Tasks)
+        let zipUrl: string | undefined;
+        if (validResults.length > 1) {
+          try {
+            const zipRes = await api.post<{
+              success: boolean;
+              share_url?: string;
+              download_method?: string;
+              content?: string;
+              filename?: string;
+              content_type?: string;
+              expiry_days?: number;
+            }>("/api/v1/documents/bulk_zip", {
+              document_ids: validResults.map(r => r.doc.id),
+            });
+            if (zipRes?.success && zipRes.share_url) {
+              zipUrl = zipRes.share_url;
+            } else if (zipRes?.success && zipRes.download_method === "base64" && zipRes.content) {
+              // Base64 fallback (local dev without storage)
+              const byteCharacters = atob(zipRes.content);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const blob = new Blob([new Uint8Array(byteNumbers)], { type: "application/zip" });
+              zipUrl = URL.createObjectURL(blob);
+            }
+          } catch {
+            // Not critical - email works without ZIP link
+          }
+        }
+
         // Build email body using shared SSoT (lib/formatters/email-file-links.ts)
         if (validResults.length > 0) {
           bodyHtml = formatFileEmailBody({
@@ -442,6 +474,8 @@ export default function LibraryPage() {
                 : r.openUrl || r.downloadUrl || "";
               return { name, downloadUrl: r.downloadUrl || undefined, openUrl: openHref || undefined };
             }),
+            zipUrl,
+            zipFileCount: validResults.length,
             user: currentUser ? {
               name: currentUser.name,
               email: currentUser.email,

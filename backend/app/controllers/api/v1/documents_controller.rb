@@ -1297,6 +1297,98 @@ module Api
         end
       end
 
+      # POST /api/v1/documents/bulk_zip
+      # Creates a ZIP of multiple warehouse documents and returns a presigned download URL.
+      # Used by Library (and any page that emails multiple documents).
+      # Params: { document_ids: [1, 2, 3] }
+      def bulk_zip
+        require "zip"
+
+        ids = Array(params[:document_ids]).map(&:to_i).uniq
+        if ids.empty?
+          return render_error("No document IDs provided", status: :unprocessable_entity)
+        end
+
+        documents = WarehouseDocument.where(id: ids)
+        if documents.empty?
+          return render_error("No documents found", status: :unprocessable_entity)
+        end
+
+        # Build ZIP in memory
+        zip_data = Zip::OutputStream.write_buffer do |zip|
+          seen_names = {}
+          documents.each do |doc|
+            service = DocumentStorageService.new
+            result = service.download(doc)
+            next unless result[:success] && result[:content]
+
+            filename = doc.file_name || doc.ui_name || "document_#{doc.id}"
+            # Ensure unique filenames in zip
+            if seen_names[filename]
+              ext = File.extname(filename)
+              base = File.basename(filename, ext)
+              seen_names[filename] += 1
+              filename = "#{base}_#{seen_names[filename]}#{ext}"
+            else
+              seen_names[filename] = 0
+            end
+
+            zip.put_next_entry(filename)
+            zip.write(result[:content])
+          end
+        end
+        zip_data.rewind
+
+        zip_filename = "documents_#{ids.size}_files.zip"
+
+        # Upload to storage and return presigned URL
+        begin
+          provider = DocumentProviders.for_organization(current_organization)
+
+          unless provider
+            return render json: {
+              success: true,
+              download_method: "base64",
+              filename: zip_filename,
+              content: Base64.strict_encode64(zip_data.read),
+              content_type: "application/zip"
+            }
+          end
+
+          temp_folder_path = "Temp/LibraryZips"
+          timestamped_filename = "#{Time.current.strftime('%Y%m%d_%H%M%S')}_#{zip_filename}"
+          upload_result = provider.upload_file(temp_folder_path, zip_data.read, timestamped_filename, content_type: "application/zip")
+
+          if upload_result[:path]
+            download_url = provider.download_url(upload_result[:path], expires_in: TenantSetting.link_expiry_seconds)
+
+            render json: {
+              success: true,
+              download_method: "presigned_url",
+              share_url: download_url,
+              filename: zip_filename,
+              file_count: documents.size,
+              expiry_days: TenantSetting.link_expiry_days
+            }
+          else
+            render_error("Failed to upload zip file", status: :unprocessable_entity)
+          end
+        rescue DocumentProviders::NotConnectedError, ActiveRecord::Encryption::Errors::Decryption => e
+          Rails.logger.warn "[DocumentsController#bulk_zip] Storage unavailable (#{e.class.name}): #{e.message}"
+          zip_data.rewind
+          render json: {
+            success: true,
+            download_method: "base64",
+            filename: zip_filename,
+            content: Base64.strict_encode64(zip_data.read),
+            content_type: "application/zip"
+          }
+        rescue => e
+          Rails.logger.error "[DocumentsController#bulk_zip] Error: #{e.message}"
+          render_error("Failed to create zip file", status: :internal_server_error)
+        end
+      end
+
       private
 
       # Check if path corresponds to a mailbox-type warehouse folder under Emails

@@ -1383,6 +1383,26 @@ export default function EmailPage() {
 
     setLoadingFolders((prev: Set<string>) => new Set(prev).add(accountId));
 
+    // Polaris mailboxes have no IMAP/Graph connection - use default folders client-side
+    if (acct?.type === "polaris") {
+      const defaultFolders: EmailFolder[] = [
+        { id: "INBOX", name: "Inbox", display_name: "Inbox", displayName: "Inbox", unread_count: 0, total_items: 0, type: "inbox", depth: 0 },
+        { id: "Sent", name: "Sent", display_name: "Sent", displayName: "Sent", unread_count: 0, total_items: 0, type: "sent", depth: 0 },
+        { id: "Drafts", name: "Drafts", display_name: "Drafts", displayName: "Drafts", unread_count: 0, total_items: 0, type: "drafts", depth: 0 },
+        { id: "Trash", name: "Trash", display_name: "Trash", displayName: "Trash", unread_count: 0, total_items: 0, type: "trash", depth: 0 },
+        { id: "Junk", name: "Junk", display_name: "Junk", displayName: "Junk", unread_count: 0, total_items: 0, type: "junk", depth: 0 },
+        { id: "Archive", name: "Archive", display_name: "Archive", displayName: "Archive", unread_count: 0, total_items: 0, type: "archive", depth: 0 },
+      ];
+      setAccountFolders(prev => ({ ...prev, [accountId]: defaultFolders }));
+      setLoadingFolders((prev: Set<string>) => { const next = new Set(prev); next.delete(accountId); return next; });
+      const inboxFolder = defaultFolders[0];
+      if (forceSelectInbox && inboxFolder) {
+        setSelectedFolder(inboxFolder.name);
+        setSelectedFolderId(inboxFolder.id);
+      }
+      return;
+    }
+
     // Build URL with mailbox_email for ms365 accounts
     let foldersUrl = `/api/v1/imap_credentials/folders?account_id=${accountId}`;
     if (acct?.type === "ms365" && acct?.email_address) {
