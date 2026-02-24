@@ -29,6 +29,40 @@ class BackgroundJobProgress < ApplicationRecord
   self.table_name = "background_job_progress"
   self.primary_key = "id"
 
+  # ⚠️ DO NOT SIMPLIFY - Tenant scope bypass required (Feb 2026)
+  # ════════════════════════════════════════════════════════════════════
+  # Why: This table has NO tenant_id column. When created/updated inside
+  # ActsAsTenant.with_tenant, something adds WHERE "background_job_progress"."" = $3
+  # causing PG::UndefinedColumn errors. Wrapping all persistence in without_tenant
+  # ensures this tenant-free table is never affected by tenant scoping.
+  # ════════════════════════════════════════════════════════════════════
+  def save(**args, &block)
+    ActsAsTenant.without_tenant { super }
+  end
+
+  def save!(**args, &block)
+    ActsAsTenant.without_tenant { super }
+  end
+
+  def update(attributes)
+    ActsAsTenant.without_tenant { super }
+  end
+
+  def update!(attributes)
+    ActsAsTenant.without_tenant { super }
+  end
+
+  # Also wrap class-level create methods
+  class << self
+    def create(attributes = nil, &block)
+      ActsAsTenant.without_tenant { super }
+    end
+
+    def create!(attributes = nil, &block)
+      ActsAsTenant.without_tenant { super }
+    end
+  end
+
   # Status constants
   STATUSES = %w[pending running completed failed].freeze
 

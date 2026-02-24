@@ -108,6 +108,8 @@ export default function LibraryPage() {
   // Upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
 
   // Fetch documents for active tab
   const fetchDocuments = useCallback(async (folderName?: string) => {
@@ -208,6 +210,74 @@ export default function LibraryPage() {
     }
   }, [resolvedTab, fetchDocuments, toast]);
 
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    const files = e.dataTransfer.files;
+    if (!files?.length || !resolvedTab) return;
+
+    setUploading(true);
+    try {
+      let successCount = 0;
+      for (const file of Array.from(files)) {
+        const result = await uploadFile(file, "library_documents", {
+          metadata: {
+            folder_path: `Library/${resolvedTab.folder_segment || resolvedTab.display_name}`,
+          },
+        });
+        if (result.success) {
+          successCount++;
+        } else {
+          toast({
+            title: "Upload Failed",
+            description: `${file.name}: ${result.error || "Failed to upload"}`,
+            variant: "destructive",
+          });
+        }
+      }
+
+      if (successCount > 0) {
+        toast({ title: "Upload Complete", description: `${successCount} file(s) uploaded` });
+        fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
+      }
+    } catch (error) {
+      toast({
+        title: "Upload Error",
+        description: "An error occurred during upload",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  }, [resolvedTab, fetchDocuments, toast]);
+
   // Get file icon based on mime type
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith("image/")) return ImageIcon;
@@ -281,12 +351,28 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs with drag-and-drop */}
       <Tabs
         value={resolvedTab?.tab_key || ""}
         onValueChange={handleTabChange}
-        className="flex flex-col flex-1 min-h-0"
+        className="flex flex-col flex-1 min-h-0 relative"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
       >
+        {/* Drop overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg m-2 pointer-events-none">
+            <div className="flex flex-col items-center gap-2 text-primary">
+              <Upload className="h-10 w-10" />
+              <p className="text-lg font-medium">Drop files to upload</p>
+              <p className="text-sm text-muted-foreground">
+                to {resolvedTab?.display_name || "Library"}
+              </p>
+            </div>
+          </div>
+        )}
         <TabsList className="mx-4 mt-2 justify-start">
           {visibleTabs.map((tab) => {
             const TabIcon = tab.icon_name ? getIcon(tab.icon_name) : FileText;
