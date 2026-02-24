@@ -39,16 +39,15 @@ class DailyDigestJob < ApplicationJob
 
   def active_users
     # Users who've used the assistant OR have active alerts recently
-    User.where(id:
-      User.joins(:assistant_conversations)
-        .where("assistant_conversations.last_message_at > ?", 30.days.ago)
-        .select(:id)
-        .union(
-          User.joins("INNER JOIN assistant_alerts ON assistant_alerts.user_id = users.id")
-            .where("assistant_alerts.created_at > ?", 7.days.ago)
-            .select("users.id")
-        )
-    ).distinct
+    conversation_users = User.joins(:assistant_conversations)
+      .where("assistant_conversations.last_message_at > ?", 30.days.ago)
+
+    alert_users = User.joins("INNER JOIN assistant_alerts ON assistant_alerts.user_id = users.id")
+      .where("assistant_alerts.created_at > ?", 7.days.ago)
+
+    User.where(id: conversation_users.select(:id))
+      .or(User.where(id: alert_users.select(:id)))
+      .distinct
   end
 
   def deliver_digest(user, stats)

@@ -93,6 +93,7 @@ interface QueueStatusData {
     type: "worker" | "web";
     running: boolean | null;
     dynoSize: string | null;
+    bootedAt?: string | null;
     threads?: { total: number; used: number };
     queues?: string[];
     memory: { usedMb: number | null; maxMb: number; live: boolean } | null;
@@ -756,6 +757,13 @@ export function WorkerQueueStatus() {
                                   </button>
                                 </span>
                               </div>
+
+                              {/* Boot time (last restart) */}
+                              {app.bootedAt && (
+                                <div className="text-[10px] text-muted-foreground mt-0.5">
+                                  Booted {timeAgo(app.bootedAt)}
+                                </div>
+                              )}
 
                               {/* Threads + Memory bars (compact) */}
                               {(hasThreads || hasMem) && (

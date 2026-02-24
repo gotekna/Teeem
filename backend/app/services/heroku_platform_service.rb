@@ -239,15 +239,18 @@ class HerokuPlatformService
         Thread.new(app_name) do |app|
           formation = fetch_formation(key, app)
           addons = fetch_addons(key, app)
-          [app, formation, addons]
+          dynos = fetch_dyno_instances(key, app)
+          [app, formation, addons, nil, dynos]
         rescue => e
           Rails.logger.error("[HerokuPlatformService] Failed to fetch #{app}: #{e.message}")
-          [app, nil, nil, e.message]
+          [app, nil, nil, e.message, nil]
         end
       end
 
+      all_boot_times = {}
+
       threads.each do |t|
-        app, formation, addons, error = t.value
+        app, formation, addons, error, dynos = t.value
         meta = APP_METADATA[app] || { environment: app, description: "" }
 
         if error
@@ -294,11 +297,18 @@ class HerokuPlatformService
             }
           end
         end
+
+        # Extract latest boot time from dyno instances
+        if dynos.is_a?(Array) && dynos.any?
+          latest = dynos.map { |d| d["created_at"] }.compact.max
+          all_boot_times[app] = latest if latest
+        end
       end
 
       result = {
         dynos: all_dynos.sort_by { |d| [d[:environment], d[:dyno]] },
         addons: all_addons.sort_by { |a| [a[:addonServiceName], a[:app]] },
+        bootTimes: all_boot_times,
         externalServices: EXTERNAL_SERVICES,
         savingsHistory: SAVINGS_HISTORY,
         apiKeyStatus: fetch_api_key_status,
@@ -314,6 +324,10 @@ class HerokuPlatformService
 
     def fetch_addons(api_key, app_name)
       heroku_get(api_key, "/apps/#{app_name}/addons")
+    end
+
+    def fetch_dyno_instances(api_key, app_name)
+      heroku_get(api_key, "/apps/#{app_name}/dynos")
     end
 
     def heroku_get(api_key, path)

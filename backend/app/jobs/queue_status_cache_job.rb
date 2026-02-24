@@ -452,6 +452,9 @@ class QueueStatusCacheJob < ApplicationJob
     # Dyno info from shared Heroku API call
     dyno_info = compute_dyno_info_by_app
 
+    # Boot times from infrastructure cache (piggybacked on existing Heroku fetch)
+    boot_times = @heroku_infra[:bootTimes] || {}
+
     # Per-app memory from cache
     cached_memories = ALL_APPS.to_h { |a|
       [a[:name], Rails.cache.read("worker_memory:#{a[:name]}")]
@@ -489,6 +492,7 @@ class QueueStatusCacheJob < ApplicationJob
         type: app_type,
         running: running,
         dynoSize: dyno&.dig(:size),
+        bootedAt: boot_times[app_name],
         memory: {
           usedMb: cached_mem&.dig(:usedMb),
           maxMb: max_mb,
