@@ -35,6 +35,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
@@ -54,6 +60,7 @@ import {
   Paperclip,
   EyeOff,
   Settings,
+  MoreVertical,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
@@ -627,14 +634,6 @@ export default function LibraryPage() {
           />
           <Button
             size="sm"
-            variant="ghost"
-            onClick={() => router.push("/settings/company/warehouse-config/library")}
-            title="Configure Library document types"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
@@ -645,6 +644,23 @@ export default function LibraryPage() {
             )}
             Upload
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="px-1.5">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => router.push("/settings/company/warehouse-config/document_types")}>
+                <FileText className="h-4 w-4 mr-2" />
+                Document Types
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push("/settings/company/warehouse-config/library")}>
+                <BookOpen className="h-4 w-4 mr-2" />
+                Library Tabs
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
