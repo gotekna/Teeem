@@ -320,7 +320,7 @@ xero_invoice_data_sync:
 warehouse_xero_attachments:
   class: XeroAttachmentSyncJob
   queue: xero_bulk
-  args: [null, { limit: 50 }]
+  args: [null, { limit: 25 }]
   schedule: every 10 minutes
 
 # NOTE: XeroStorageUploadBackfillJob was removed in Jan 2026 refactor
@@ -407,7 +407,7 @@ email_health_monitor:
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: low
-  args: [{ batch_size: 100 }]
+  args: [{ batch_size: 50 }]
   schedule: every 5 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
@@ -426,7 +426,7 @@ imap_email_storage_upload:
 retry_pending_attachment_blobs:
   class: RetryPendingAttachmentBlobsJob
   queue: default
-  args: [{ batch_size: 50 }]
+  args: [{ batch_size: 20 }]
   schedule: every 15 minutes
 
 # Note: BackfillEmailAttachmentBlobsJob removed (Jan 2026) - EmailAttachment table dropped

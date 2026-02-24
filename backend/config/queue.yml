@@ -34,21 +34,21 @@
 
 production:
   workers:
-    # Priority worker: user-facing + critical operations
-    # Handles health monitors, BPMN workflows, recurring task scheduling.
-    - queues: [critical, default, solid_queue_recurring]
-      threads: 3
+    # Single worker process: all queues in priority order.
+    # SolidQueue polls queues left-to-right, so critical/default always
+    # get a thread before xero/low jobs.
+    #
+    # ⚠️ Memory fix (Feb 2026): Previously split into 2 worker groups (2 forked
+    # processes × ~450MB each = 1050MB baseline on a 1024MB dyno → instant R14).
+    # SolidQueue queue ordering already prevents starvation, so 2 processes was
+    # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
+    #
+    # 4 threads: sweet spot for I/O-bound work (API calls, DB queries).
+    # More threads = more concurrent jobs but higher peak memory.
+    - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
+      threads: 4
       processes: 1
       polling_interval: 0.1
-
-    # Background worker: Xero, analytics, maintenance
-    # FRC (Feb 2026): email_sync runs on dedicated teeem-email-worker app
-    # via SOLID_QUEUE_CONFIG=config/queue_email.yml (own 1GB dyno).
-    # Kept at 3 threads — IO-bound work, fits within 1GB memory budget.
-    - queues: [xero_sync, xero_bulk, low, low_priority]
-      threads: 3
-      processes: 1
-      polling_interval: 1
 
   dispatchers:
     - polling_interval: 1
