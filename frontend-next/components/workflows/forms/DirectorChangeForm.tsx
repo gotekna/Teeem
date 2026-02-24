@@ -925,7 +925,7 @@ export default function DirectorChangeForm({
                 </div>
               ))}
 
-              {/* Add ceasing director dropdown */}
+              {/* Available officers to add as ceasing */}
               {(() => {
                 const availableByContact = currentOfficers
                   .filter(
@@ -944,26 +944,47 @@ export default function DirectorChangeForm({
                     new Map<number, { officer: OfficerRecord; positions: string[] }>()
                   );
 
+                if (availableByContact.size === 0 && ceasingDirectors.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground py-2">
+                      No current officers found for this company.
+                    </p>
+                  );
+                }
+
                 if (availableByContact.size === 0) return null;
 
                 return (
-                  <Select
-                    onValueChange={(val) => {
-                      const officer = currentOfficers.find((o) => o.id === Number(val));
-                      if (officer) addCeasingDirector(officer);
-                    }}
-                  >
-                    <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Select officer to resign..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...availableByContact.values()].map(({ officer, positions }) => (
-                        <SelectItem key={officer.id} value={String(officer.id)}>
-                          {officer.contact?.display_name} - {positions.join(", ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Current officers — click to add as ceasing:</p>
+                    {[...availableByContact.values()].map(({ officer, positions }) => (
+                      <button
+                        key={officer.id}
+                        onClick={() => addCeasingDirector(officer)}
+                        className="w-full text-left p-2.5 border border-dashed rounded-lg hover:border-red-300 hover:bg-red-50/50 dark:hover:border-red-800 dark:hover:bg-red-950/20 transition-colors group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-medium">
+                              {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{officer.contact?.display_name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {positions.join(", ")}
+                                {officer.appointment_date && (
+                                  <> &bull; Appointed {format(new Date(officer.appointment_date + "T00:00:00"), DATE_DISPLAY)}</>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground group-hover:text-red-600 dark:group-hover:text-red-400">
+                            <Plus className="w-3.5 h-3.5" /> Add
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 );
               })()}
             </div>

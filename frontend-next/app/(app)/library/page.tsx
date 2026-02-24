@@ -50,7 +50,11 @@ import {
   ShieldCheck,
   Mail,
   History,
+  Link,
+  Paperclip,
+  EyeOff,
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
@@ -151,6 +155,10 @@ export default function LibraryPage() {
   // Email compose state
   const [composeOpen, setComposeOpen] = useState(false);
   const [emailDocs, setEmailDocs] = useState<LibraryDocument[]>([]);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailOptions, setEmailOptions] = useState<Record<number, "attach" | "link" | "skip">>({});
+  const [preparingEmail, setPreparingEmail] = useState(false);
+  const [emailBody, setEmailBody] = useState("");
 
   // Version history state
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
@@ -238,6 +246,13 @@ export default function LibraryPage() {
       fetchVersionHistory(doc.id);
     }
   }, [fetchVersionHistory]);
+
+  // Double click → open in new tab
+  const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
+    if (doc.fileUrl) {
+      window.open(doc.fileUrl, "_blank");
+    }
+  }, []);
 
   // Handle file selection - opens dialog instead of uploading directly
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -550,6 +565,7 @@ export default function LibraryPage() {
                       key={doc.id}
                       className={`flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
                       onClick={() => handleDocumentClick(doc)}
+                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
                     >
                       <Checkbox
                         checked={isSelected}

@@ -529,6 +529,7 @@ Rails.application.routes.draw do
           patch :move    # Move file to different folder (File Warehouse action)
           patch :link_to_task  # Re-link orphaned document to a task
           post :verify   # Mark document as verified/validated
+          post :share_link  # Generate shareable link (presigned URL)
         end
         collection do
           post :analyze

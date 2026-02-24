@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :share_link ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -922,6 +922,21 @@ module Api
           render json: { success: true, document: warehouse_document_to_json(@document) }
         else
           render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/documents/:id/share_link
+      # Generate a shareable link (presigned URL) for a document
+      # Params: open=true for inline disposition (view in browser), default is attachment (download)
+      def share_link
+        disposition = params[:open].to_s == "true" ? :inline : :attachment
+        service = DocumentStorageService.new
+        result = service.create_share_link(@document, disposition: disposition)
+
+        if result[:success]
+          render json: { success: true, shareUrl: result[:share_url] }
+        else
+          render json: { success: false, error: result[:error] }, status: :unprocessable_entity
         end
       end
 
