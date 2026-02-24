@@ -86,6 +86,11 @@ class MicrosoftCredential < ApplicationRecord
   validates :client_id, :client_secret, :azure_tenant_id, presence: true, if: :app_credential?
   validates :owner_type, inclusion: { in: ALLOWED_OWNER_TYPES }, allow_nil: true
 
+  # Callbacks
+  # Auto-set is_primary on first app credential for a tenant so users' own
+  # mailboxes are auto-included without manual configuration
+  before_create :auto_set_primary
+
   # Scopes
   scope :active, -> { where(is_active: true) }
   # SSoT: "configured" = has been connected (status field only)
@@ -639,5 +644,20 @@ class MicrosoftCredential < ApplicationRecord
   def extract_error_code(error_message)
     return nil if error_message.blank?
     DEAD_TOKEN_ERROR_CODES.find { |code| error_message.include?(code) }
+  end
+
+  # Auto-set is_primary if this is the first app credential for the tenant.
+  # This ensures new tenants auto-include users' own mailboxes (domain match)
+  # without requiring manual is_primary configuration.
+  def auto_set_primary
+    return unless app_credential?
+    return if is_primary # Already explicitly set
+
+    existing_primary = MicrosoftCredential.app_credentials
+                                          .active
+                                          .where(tenant_id: tenant_id)
+                                          .where(is_primary: true)
+                                          .exists?
+    self.is_primary = true unless existing_primary
   end
 end
