@@ -188,6 +188,18 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
   }, [router, basePath]);
   const [scopeCounts, setScopeCounts] = React.useState<Record<string, number>>({});
 
+  // Escape key navigates back to parent (exit fullscreen)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.push(basePath.replace(/\/warehouse-config.*/, ""), { scroll: false });
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [router, basePath]);
+
   // Fetch document type counts per scope
   React.useEffect(() => {
     const fetchCounts = async () => {
