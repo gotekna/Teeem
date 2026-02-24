@@ -137,6 +137,17 @@ function formatTimeAgo(dateStr: string): string {
   return date.toLocaleDateString();
 }
 
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString("en-AU", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Days after which resolved findings auto-hide from the Fixed tab */
+const RESOLVED_EXPIRY_DAYS = 7;
+
 export function QaFindingsTab() {
   const [findings, setFindings] = React.useState<QaFinding[]>([]);
   const [meta, setMeta] = React.useState<QaPrdJson["meta"] | null>(null);
@@ -205,13 +216,24 @@ export function QaFindingsTab() {
   }
 
   const isResolved = (f: QaFinding) => f.status === "fixed" || f.status === "false_positive";
-  const criticalCount = findings.filter((f) => f.severity === "critical" && !isResolved(f)).length;
-  const majorCount = findings.filter((f) => f.severity === "major" && !isResolved(f)).length;
-  const minorCount = findings.filter((f) => f.severity === "minor" && !isResolved(f)).length;
-  const fixedCount = findings.filter((f) => isResolved(f)).length;
-  const openFindings = findings.filter((f) => f.status === "open" || f.status === "in_progress");
+  const now = Date.now();
+  const expiryMs = RESOLVED_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+  // Auto-clear resolved findings older than RESOLVED_EXPIRY_DAYS
+  const isExpired = (f: QaFinding) => {
+    if (!isResolved(f)) return false;
+    const resolvedDate = f.resolved_at || f.found_at;
+    return (now - new Date(resolvedDate).getTime()) > expiryMs;
+  };
+  // Active findings = not expired
+  const activeFindings = findings.filter((f) => !isExpired(f));
+  const criticalCount = activeFindings.filter((f) => f.severity === "critical" && !isResolved(f)).length;
+  const majorCount = activeFindings.filter((f) => f.severity === "major" && !isResolved(f)).length;
+  const minorCount = activeFindings.filter((f) => f.severity === "minor" && !isResolved(f)).length;
+  const fixedCount = activeFindings.filter((f) => isResolved(f)).length;
+  const openFindings = activeFindings.filter((f) => f.status === "open" || f.status === "in_progress");
+  const expiredCount = findings.filter((f) => isExpired(f)).length;
 
-  const filteredFindings = findings.filter((f) => {
+  const filteredFindings = activeFindings.filter((f) => {
     if (filter === "all") return !isResolved(f);
     if (filter === "fixed") return isResolved(f);
     return f.severity === filter && !isResolved(f);
@@ -327,6 +349,13 @@ export function QaFindingsTab() {
         </div>
       </div>
 
+      {/* Expired findings hint */}
+      {expiredCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {expiredCount} resolved {expiredCount === 1 ? "finding" : "findings"} auto-cleared (older than {RESOLVED_EXPIRY_DAYS} days)
+        </p>
+      )}
+
       {/* Findings List */}
       {filteredFindings.length === 0 ? (
         <Card>
@@ -374,6 +403,9 @@ export function QaFindingsTab() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-muted-foreground" title={new Date(finding.found_at).toLocaleString()}>
+                        {formatDate(finding.found_at)}
+                      </span>
                       <span className="text-xs font-mono text-muted-foreground">{finding.page}</span>
                       {getStatusBadge(finding.status)}
                     </div>
