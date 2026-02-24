@@ -675,6 +675,30 @@ If yes, batch the changes and wait until tomorrow unless it's a critical hotfix.
 | New feature (testing) | Staging only first |
 | Database migration | One (shared DB) |
 
+### 🔴 CRITICAL: Never Remove Heroku Config Vars
+
+**`WEB_CONCURRENCY` and `MALLOC_ARENA_MAX` are REQUIRED on all Heroku apps.**
+
+- ❌ NEVER run `heroku config:unset WEB_CONCURRENCY` on ANY environment
+- ❌ NEVER run `heroku config:unset MALLOC_ARENA_MAX` on ANY environment
+
+**Why:** When `WEB_CONCURRENCY` is unset, Heroku's Ruby buildpack auto-calculates Puma workers based on RAM. It overestimates badly:
+- Standard-2X (1GB) → calculates 5 workers → 5×400MB = 2GB → **instant OOM crash loop (H10)**
+- Basic (512MB) → calculates 2-3 workers → same crash
+
+**Required values (all environments):**
+| Env Var | Value | Why |
+|---------|-------|-----|
+| `WEB_CONCURRENCY` | `1` | Single Puma worker (threads handle concurrency) |
+| `MALLOC_ARENA_MAX` | `2` | Reduces Ruby memory fragmentation |
+
+**If staging/beta/production is in H10 crash loop, check this FIRST:**
+```bash
+heroku config:get WEB_CONCURRENCY --app teeem-staging
+# If empty → that's the problem. Fix:
+heroku config:set WEB_CONCURRENCY=1 MALLOC_ARENA_MAX=2 --app teeem-staging
+```
+
 ### 🔴 CRITICAL: Heroku Backend Deploy Method
 
 **This is a monorepo. NEVER push directly to Heroku.**
