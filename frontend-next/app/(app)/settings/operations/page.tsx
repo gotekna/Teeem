@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { usePathTabs } from "@/hooks/usePathTabs";
 import { ExpandableSection, ExpandButton, useExpandedState } from "@/components/ui/expandable-section";
 
 // Import operations-related tab components from admin
+import { ScheduleMasterTab } from "@/app/(app)/admin/system/components/ScheduleMasterTab";
 import { ContactTypesTab } from "@/app/(app)/admin/system/components/ContactTypesTab";
 import { MeetingTypesTab } from "@/app/(app)/admin/system/components/MeetingTypesTab";
 import { SupervisorChecklistTab } from "@/app/(app)/admin/system/components/SupervisorChecklistTab";
@@ -31,8 +31,7 @@ import { TenderDocumentTemplatesTab } from "./components/TenderDocumentTemplates
  *
  * URL is SSoT for tab state: /settings/operations/[tab]
  *
- * Schedule Master and PO Templates open as full-page routes
- * (handled by fullPageRoutes in settings/layout.tsx).
+ * All tabs render inline with expand-to-fullscreen button.
  */
 
 const OPERATIONS_TABS = [
@@ -54,15 +53,7 @@ const OPERATIONS_TABS = [
 
 const DEFAULT_TAB = "sm-tasks";
 
-// Tabs that navigate to their own full-page route instead of rendering inline
-const FULL_PAGE_TABS: Record<string, string> = {
-  "schedule-master": "/settings/operations/schedule-master",
-  "po-templates": "/settings/operations/po-templates",
-  "quote-templates": "/settings/operations/quote-templates",
-};
-
 export default function OperationsSettingsPage() {
-  const router = useRouter();
   const [expanded, toggleExpanded] = useExpandedState("operations");
 
   // Tab panels use absolute inset-0 positioning, which requires full-height layout
@@ -77,19 +68,10 @@ export default function OperationsSettingsPage() {
     { redirectToDefault: true }
   );
 
-  const handleTabChange = React.useCallback((value: string) => {
-    const fullPageRoute = FULL_PAGE_TABS[value];
-    if (fullPageRoute) {
-      router.push(fullPageRoute);
-    } else {
-      setActiveTab(value);
-    }
-  }, [router, setActiveTab]);
-
   return (
     <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
-    <div className={expanded ? "flex flex-col h-full" : "flex flex-col h-full"}>
-      <Tabs value={activeTab} onValueChange={handleTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"}>
+    <div className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : "flex flex-col h-full"}>
         <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
           <div className="flex items-start gap-2">
             <TabsList className="flex-wrap h-auto gap-1 shrink-0 flex-1 min-w-0">
@@ -108,6 +90,9 @@ export default function OperationsSettingsPage() {
         </div>
 
         <div className={expanded ? "flex-1 overflow-auto p-4" : "flex-1 min-h-0 mt-4 relative"}>
+          <TabsContent value="schedule-master" className="absolute inset-0 overflow-auto">
+            <ScheduleMasterTab basePath="/settings/operations/schedule-master" />
+          </TabsContent>
           <TabsContent value="sm-tasks" className="absolute inset-0 overflow-auto">
             <SMTasksTab />
           </TabsContent>

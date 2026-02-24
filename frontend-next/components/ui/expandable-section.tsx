@@ -18,6 +18,17 @@ const listeners = new Map<string, Set<(v: boolean) => void>>();
  * Regular useState(false) resets on every remount. This hook stores state
  * in a module-level Map so it persists across remounts within the same session.
  */
+/**
+ * collapseExpandedState - Programmatically collapse a specific section
+ * Use when navigating away to a full-page route while expanded.
+ */
+export function collapseExpandedState(key: string) {
+  if (expandedStates.get(key)) {
+    expandedStates.set(key, false);
+    listeners.get(key)?.forEach(fn => fn(false));
+  }
+}
+
 export function useExpandedState(key: string): [boolean, () => void] {
   const [expanded, setExpanded] = React.useState(() => expandedStates.get(key) ?? false);
 
@@ -89,7 +100,8 @@ export function ExpandableSection({
   }, [expanded]);
 
   if (!expanded) {
-    return <div className={className}>{children}</div>;
+    // No wrapper when collapsed — must be transparent to preserve parent flex/height chains
+    return <>{children}</>;
   }
 
   return (

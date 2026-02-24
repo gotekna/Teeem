@@ -76,20 +76,9 @@ export default function SettingsLayout({
   const isViewPath = pathParts[1] === "view";
   const isDetailPage = pathParts.length >= 2 && !sectionsWithSubTabs.includes(pathParts[0]) && !isViewPath;
 
-  // Full-page routes that skip ALL settings chrome (including ScrollablePage wrapper)
-  // These pages handle their own layout completely
-  const fullPageRoutes = ["operations/po-templates", "operations/quote-templates", "operations/schedule-master"];
-  const pathKey = pathParts.slice(0, 2).join("/");
-  const isFullPage = fullPageRoutes.includes(pathKey);
-
   const handleTabChange = (value: string) => {
     router.push(`/settings/${value}`);
   };
-
-  // Full-page routes render children directly (page handles its own layout)
-  if (isFullPage) {
-    return <>{children}</>;
-  }
 
   // Detail pages show only their own content without settings navigation
   if (isDetailPage) {
@@ -152,9 +141,13 @@ export default function SettingsLayout({
       {/* Content */}
       <TabbedSettingsPage.Content>
         <ExpandableSection expanded={expanded} onToggle={toggleExpanded}>
-          <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
-            {children}
-          </div>
+          {expanded ? (
+            <div className="flex-1 overflow-auto p-4">
+              {children}
+            </div>
+          ) : (
+            children
+          )}
         </ExpandableSection>
       </TabbedSettingsPage.Content>
     </TabbedSettingsPage>
