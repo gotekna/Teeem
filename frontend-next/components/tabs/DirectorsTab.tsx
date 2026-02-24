@@ -95,6 +95,16 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
 
   const startDirectorChangeWorkflow = React.useCallback(async () => {
     if (!company) return;
+
+    // If an active workflow already exists for this company, navigate to it
+    const activeInstance = workflowInstances.find(
+      (i) => i.status === "active" || i.status === "suspended"
+    );
+    if (activeInstance) {
+      router.push("/workflows/tasks");
+      return;
+    }
+
     setStartingWorkflow(true);
     try {
       const res = await api.post<{
@@ -120,7 +130,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     } finally {
       setStartingWorkflow(false);
     }
-  }, [company, router]);
+  }, [company, router, workflowInstances]);
 
   const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
     const current = officerList.filter(o => o.is_current);

@@ -47,6 +47,7 @@ import {
   Trash2,
   CheckCircle2,
   ShieldCheck,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -55,6 +56,7 @@ import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { uploadFile } from "@/lib/upload-utils";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
+import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
 
@@ -136,6 +138,10 @@ export default function LibraryPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>("");
+
+  // Email compose state
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [emailDoc, setEmailDoc] = useState<LibraryDocument | null>(null);
 
   // Fetch documents for active tab
   const fetchDocuments = useCallback(async (folderName?: string) => {
@@ -296,6 +302,12 @@ export default function LibraryPage() {
     setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
     setUploadDialogOpen(true);
   }, [resolvedTab]);
+
+  // Handle email document
+  const handleEmail = useCallback((doc: LibraryDocument) => {
+    setEmailDoc(doc);
+    setComposeOpen(true);
+  }, []);
 
   // Handle document verify
   const handleVerify = useCallback(async (doc: LibraryDocument) => {
@@ -633,6 +645,15 @@ export default function LibraryPage() {
                       Validate
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-xs h-7"
+                    onClick={() => handleEmail(previewDoc)}
+                  >
+                    <Mail className="h-3.5 w-3.5 mr-1" />
+                    Email
+                  </Button>
                   {previewDoc.fileUrl && (
                     <a
                       href={previewDoc.fileUrl}
@@ -714,6 +735,21 @@ export default function LibraryPage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Email compose modal */}
+      {emailDoc && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={setComposeOpen}
+          defaultSubject={emailDoc.displayName || emailDoc.originalFilename || "Library Document"}
+          initialPreUploadedAttachments={emailDoc.storagePath ? [{
+            filename: emailDoc.originalFilename || emailDoc.displayName || "document",
+            storageKey: emailDoc.storagePath,
+            size: emailDoc.fileSize,
+            contentType: emailDoc.mimeType,
+          }] : []}
+        />
+      )}
     </div>
   );
 }

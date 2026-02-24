@@ -50,6 +50,28 @@ module Api
         process = find_process(params[:bpmn_process_id])
         subject = find_subject
 
+        # Idempotency: return existing active instance instead of creating duplicate
+        existing = BpmnProcessInstance
+          .where(bpmn_process_id: process.id, subject: subject)
+          .where(status: %w[active suspended])
+          .order(created_at: :desc)
+          .first
+
+        if existing
+          first_task = BpmnTaskInstance.joins(:bpmn_token)
+            .where(bpmn_tokens: { bpmn_process_instance_id: existing.id })
+            .where(task_type: "user_task")
+            .actionable
+            .first
+
+          return render json: {
+            success: true,
+            instance: serialize_instance(existing),
+            first_task_id: first_task&.id,
+            resumed: true
+          }
+        end
+
         @instance = Bpmn::EngineService.start_process(
           process_id: process.id,
           subject: subject,
