@@ -1055,9 +1055,12 @@ class ExternalInvoiceSyncService
   def sync_tenant_incremental(tenant_id, since)
     Rails.logger.info("Starting incremental sync for tenant #{tenant_id} since #{since}")
 
-    # Paginate with page parameter - Xero returns empty LineItems without it
-    all_invoices = []
+    teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(tenant_id)
+    tenant = teeem_tid ? Tenant.find_by(id: teeem_tid) : nil
+
+    # Stream pages: fetch, process, release (same pattern as fetch_and_process_invoices)
     page = 1
+    total = 0
 
     loop do
       result = @api_client.get("Invoices", {
@@ -1073,34 +1076,27 @@ class ExternalInvoiceSyncService
       invoices_page = result[:data]["Invoices"] || []
       break if invoices_page.empty?
 
-      all_invoices.concat(invoices_page)
-      Rails.logger.info("Incremental sync page #{page}: #{invoices_page.length} invoices (total: #{all_invoices.length})")
+      @stats[:pages_fetched] += 1
+      total += invoices_page.length
+
+      Rails.logger.info("Incremental sync page #{page}: #{invoices_page.length} invoices (total: #{total})")
+
+      # Process this page immediately within tenant scope, then release
+      ActsAsTenant.with_tenant(tenant) do
+        invoices_page.each do |invoice_data|
+          process_invoice(invoice_data, tenant_id)
+        end
+      end
 
       page += 1
       break if page > MAX_PAGES
-
       sleep(XERO_API_SLEEP_MS / 1000.0)
     end
-
-    Rails.logger.info("Found #{all_invoices.length} modified invoices since #{since}")
-
-    # Scope contact queries to correct tenant (see sync_tenant comment for details)
-    teeem_tid = @current_teeem_tenant_id || teeem_tenant_id_for(tenant_id)
-    tenant = teeem_tid ? Tenant.find_by(id: teeem_tid) : nil
-
-    ActsAsTenant.with_tenant(tenant) do
-      all_invoices.each do |invoice_data|
-        process_invoice(invoice_data, tenant_id)
-      end
-    end
-
-    # NOTE: XeroSyncStatus updates are handled by the Job, not the Service
-    # Services are pure business logic; Jobs own status tracking
 
     {
       success: true,
       tenant_id: tenant_id,
-      invoices_synced: all_invoices.length,
+      invoices_synced: total,
       stats: @stats
     }
   end
