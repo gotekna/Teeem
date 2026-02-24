@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Workflow, CheckCircle, ChevronRight } from "lucide-react";
+import { FileText, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 
@@ -132,6 +132,17 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [company, router, workflowInstances]);
 
+  const cancelWorkflow = React.useCallback(async (instanceId: number) => {
+    try {
+      await api.post(`/api/v1/bpmn_process_instances/${instanceId}/cancel`, {
+        reason: "Cancelled by user",
+      });
+      loadWorkflowInstances();
+    } catch (err) {
+      console.error("Failed to cancel workflow:", err);
+    }
+  }, [loadWorkflowInstances]);
+
   const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
     const current = officerList.filter(o => o.is_current);
     const former = officerList.filter(o => !o.is_current);
@@ -236,7 +247,9 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
             ) : (
               <FileText className="w-4 h-4 mr-1.5" />
             )}
-            Director Changes
+            {workflowInstances.some(i => i.status === "active" || i.status === "suspended")
+              ? "Resume Director Change"
+              : "Director Changes"}
           </Button>
         )}
       </div>
@@ -273,6 +286,15 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                         View <ChevronRight className="h-3 w-3 ml-1" />
                       </Button>
                     </Link>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => cancelWorkflow(instance.id)}
+                      title="Cancel workflow"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
