@@ -35,6 +35,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   FileText,
@@ -144,9 +145,12 @@ export default function LibraryPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>("");
 
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   // Email compose state
   const [composeOpen, setComposeOpen] = useState(false);
-  const [emailDoc, setEmailDoc] = useState<LibraryDocument | null>(null);
+  const [emailDocs, setEmailDocs] = useState<LibraryDocument[]>([]);
 
   // Version history state
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
@@ -200,8 +204,9 @@ export default function LibraryPage() {
     }
   }, []);
 
-  // Refetch when active tab changes
+  // Refetch when active tab changes (clear selection too)
   useEffect(() => {
+    setSelectedIds(new Set());
     if (resolvedTab) {
       // Use folder_segment as the folder filter (matches storage path)
       fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
@@ -341,11 +346,33 @@ export default function LibraryPage() {
     setUploadDialogOpen(true);
   }, [resolvedTab]);
 
-  // Handle email document
-  const handleEmail = useCallback((doc: LibraryDocument) => {
-    setEmailDoc(doc);
+  // Handle email - single doc or multiple selected
+  const handleEmail = useCallback((docs: LibraryDocument[]) => {
+    setEmailDocs(docs);
     setComposeOpen(true);
   }, []);
+
+  // Toggle selection
+  const toggleSelect = useCallback((docId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) {
+        next.delete(docId);
+      } else {
+        next.add(docId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Email selected documents
+  const handleEmailSelected = useCallback(() => {
+    const docs = documents.filter(d => selectedIds.has(d.id));
+    if (docs.length > 0) {
+      handleEmail(docs);
+    }
+  }, [documents, selectedIds, handleEmail]);
 
   // Handle document verify
   const handleVerify = useCallback(async (doc: LibraryDocument) => {
@@ -522,12 +549,18 @@ export default function LibraryPage() {
               <div className="divide-y">
                 {documents.map((doc) => {
                   const Icon = getFileIcon(doc.mimeType);
+                  const isSelected = selectedIds.has(doc.id);
                   return (
                     <button
                       key={doc.id}
-                      className="flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer"
+                      className={`flex items-center gap-3 px-3 py-3 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
                       onClick={() => handleDocumentClick(doc)}
                     >
+                      <Checkbox
+                        checked={isSelected}
+                        onClick={(e) => toggleSelect(doc.id, e)}
+                        className="shrink-0"
+                      />
                       <Icon className="h-5 w-5 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5">
@@ -584,6 +617,27 @@ export default function LibraryPage() {
             )}
           </TabsContent>
         ))}
+
+        {/* Floating action bar when documents selected */}
+        {selectedIds.size > 0 && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 bg-background border rounded-lg shadow-lg">
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <Button size="sm" variant="outline" onClick={handleEmailSelected}>
+              <Mail className="h-4 w-4 mr-1.5" />
+              Email
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs text-muted-foreground"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
       </Tabs>
 
       {/* Upload dialog - document type picker */}
@@ -723,7 +777,7 @@ export default function LibraryPage() {
                     size="sm"
                     variant="outline"
                     className="text-xs h-7"
-                    onClick={() => handleEmail(previewDoc)}
+                    onClick={() => handleEmail([previewDoc])}
                   >
                     <Mail className="h-3.5 w-3.5 mr-1" />
                     Email
@@ -869,17 +923,26 @@ export default function LibraryPage() {
       </Sheet>
 
       {/* Email compose modal */}
-      {emailDoc && (
+      {emailDocs.length > 0 && (
         <ComposeEmailModal
           open={composeOpen}
-          onOpenChange={setComposeOpen}
-          defaultSubject={emailDoc.displayName || emailDoc.originalFilename || "Library Document"}
-          initialPreUploadedAttachments={emailDoc.storagePath ? [{
-            filename: emailDoc.originalFilename || emailDoc.displayName || "document",
-            storageKey: emailDoc.storagePath,
-            fileSize: emailDoc.fileSize,
-            contentType: emailDoc.mimeType,
-          }] : []}
+          onOpenChange={(open) => {
+            setComposeOpen(open);
+            if (!open) setSelectedIds(new Set());
+          }}
+          defaultSubject={
+            emailDocs.length === 1
+              ? emailDocs[0].displayName || emailDocs[0].originalFilename || "Library Document"
+              : `${emailDocs.length} Library Documents`
+          }
+          initialPreUploadedAttachments={emailDocs
+            .filter(d => d.storagePath)
+            .map(d => ({
+              filename: d.originalFilename || d.displayName || "document",
+              storageKey: d.storagePath!,
+              fileSize: d.fileSize,
+              contentType: d.mimeType,
+            }))}
         />
       )}
     </div>
