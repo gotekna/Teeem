@@ -3448,6 +3448,7 @@ Rails.application.routes.draw do
           get :used_icons  # SSoT: Get icons used by root tabs (for icon picker)
           get :global_icon_usage  # SSoT: Get ALL icon usages across system for consistency
           get :tree  # SSoT: Full folder tree for File Warehouse page
+          get :all_scopes  # FRC (Feb 2026): Batch endpoint replacing 15 parallel scope requests
         end
         member do
           post :toggle

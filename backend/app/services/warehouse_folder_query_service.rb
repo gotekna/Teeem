@@ -22,6 +22,46 @@ class WarehouseFolderQueryService
     @include_counts = include_counts
   end
 
+  # Returns ALL scopes' nested tabs in a single query.
+  # FRC (Feb 2026): WarehouseProviderTab was firing 15 parallel requests (one per scope)
+  # causing H12 timeouts on staging. This method loads ALL folders once and groups by
+  # warehouse_type code, reducing 15 queries to 1.
+  def all_scopes_nested_tabs
+    # Step 1: Load ALL tabs across all warehouse types (single query)
+    all_tabs = WarehouseFolder
+      .includes(:warehouse_folder_document_types, :document_types, :parent)
+      .eager_load(:warehouse_type)
+    all_tabs = all_tabs.enabled unless @include_disabled
+    all_tabs = all_tabs.to_a
+
+    Rails.logger.info "[WarehouseFolderQueryService] all_scopes: loaded #{all_tabs.size} folders total"
+
+    # Step 2: Set up shared state for tree building
+    @children_by_parent_id = all_tabs.group_by(&:parent_id)
+    @document_counts_by_type = {}
+    @storage_config = load_storage_config
+    @document_types_json_by_tab = build_document_types_json(all_tabs)
+    @tabs_by_id = all_tabs.index_by(&:id)
+
+    # Step 3: Group by warehouse_type code and build nested structure per scope
+    tabs_by_type = all_tabs.group_by { |t| t.warehouse_type&.code }
+    result = {}
+
+    tabs_by_type.each do |type_code, _type_tabs|
+      next if type_code.blank?
+
+      # Find root tabs for this warehouse_type
+      root_tabs = (_type_tabs.select { |t| t.parent_id.nil? })
+        .select { |t| @include_disabled || t.enabled }
+        .sort_by(&:order_position)
+        .map { |tab| build_tab_json(tab) }
+
+      result[type_code] = root_tabs
+    end
+
+    result
+  end
+
   # Returns nested tabs JSON matching the expected format
   def nested_tabs
     # Step 1: Load all tabs for warehouse_type (single query with includes)

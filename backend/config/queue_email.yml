@@ -17,11 +17,11 @@
 
 production:
   workers:
-    # Email sync worker: processes AllOrgsEmailSyncJob + OrgEmailSyncJob
-    # 3 threads = max 3 orgs syncing simultaneously
-    # Each org sync uses ~200-400MB peak, so 3 threads fits in 1GB
+    # Email sync worker: processes AllOrgsEmailSyncJob + OrgEmailSyncJob ONLY
+    # FRC (Feb 2026): Reduced from 3 to 2 threads after moving BatchEmailEnrichmentJob
+    # to :low queue (shared-worker). 2 sync threads × ~300-400MB = fits in 1GB with headroom.
     - queues: [email_sync]
-      threads: 3
+      threads: 2
       processes: 1
       polling_interval: 0.1
 

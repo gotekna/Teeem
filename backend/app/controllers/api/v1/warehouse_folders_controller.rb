@@ -106,6 +106,26 @@ module Api
         }
       end
 
+      # GET /api/v1/warehouse_folders/all_scopes
+      # FRC (Feb 2026): Replaces 15 parallel GET /api/v1/warehouse_folders?scope=X requests
+      # that were causing H12 timeouts on staging (single dyno overwhelmed).
+      # Returns ALL scopes' nested tabs in a single query.
+      def all_scopes
+        service = WarehouseFolderQueryService.new(
+          include_disabled: params[:include_disabled] == "true"
+        )
+
+        tabs_by_scope = service.all_scopes_nested_tabs
+
+        render json: {
+          success: true,
+          data: {
+            tabs_by_scope: tabs_by_scope,
+            groups: WarehouseFolder::TAB_GROUPS
+          }
+        }
+      end
+
       # GET /api/v1/warehouse_folders/for_warehouse_type/:warehouse_type
       # Also accepts for_scope/:scope for backwards compatibility (route alias)
       # Returns flat list of all tabs for a warehouse type (for dropdowns)

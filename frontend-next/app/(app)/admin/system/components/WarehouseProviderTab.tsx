@@ -188,25 +188,8 @@ interface WarehouseTabConfig {
   document_types?: DocumentType[];
 }
 
-// Scope to API scope mapping
-const SCOPE_TO_API_SCOPE: Record<string, string> = {
-  corporate: 'corporate',
-  job: 'job',
-  contact: 'contact',
-  email: 'email',
-  warehouse: 'warehouse',
-  task: 'task',
-  user: 'user',
-  case: 'case',
-  asset: 'asset',
-  financial: 'financial',
-  compliance: 'compliance',
-  payment: 'payment',
-  bank_statement: 'bank_statement',
-  template: 'template',
-  esignature: 'esignature',
-  plan: 'plan',
-};
+// FRC (Feb 2026): SCOPE_TO_API_SCOPE removed - was firing 16 parallel requests (one per scope)
+// causing H12 timeouts on staging. Replaced with single GET /api/v1/warehouse_folders/all_scopes.
 
 interface StorageConfig {
   configured: boolean;
@@ -2014,47 +1997,26 @@ export function WarehouseProviderTab() {
     }
   };
 
-  // Fetch entity tabs for all scopes
-  // FRC (Jan 2026): Use per-scope error handling so one failing scope doesn't break all tabs
+  // Fetch entity tabs for all scopes in a SINGLE batch request
+  // FRC (Feb 2026): Was firing 15 parallel GET /api/v1/warehouse_folders?scope=X requests
+  // causing H12 timeouts on staging (single dyno overwhelmed by 15 concurrent queries).
+  // Fix: Single GET /api/v1/warehouse_folders/all_scopes returns all scopes at once.
   const loadWarehouseTabConfigs = async () => {
     setLoadingTabs(true);
     try {
-      const tabsByScope: Record<string, WarehouseTabConfig[]> = {};
+      const response = await api.get<{
+        success: boolean;
+        data: { tabs_by_scope: Record<string, WarehouseTabConfig[]>; groups: string[] };
+      }>('/api/v1/warehouse_folders/all_scopes');
 
-      // Fetch tabs for each scope in parallel with per-scope error handling
-      const scopeKeys = Object.keys(SCOPE_TO_API_SCOPE);
-      const results = await Promise.all(
-        scopeKeys.map(async (scopeKey) => {
-          try {
-            const apiScope = SCOPE_TO_API_SCOPE[scopeKey];
-            const response = await api.get<{ success: boolean; data: { tabs: WarehouseTabConfig[] } }>(
-              `/api/v1/warehouse_folders?scope=${apiScope}`
-            );
-            // Safely access nested properties
-            const tabs = response?.success && response?.data?.tabs ? response.data.tabs : [];
-            return { scopeKey, tabs };
-          } catch (scopeError) {
-            // Log but don't fail other scopes
-            return { scopeKey, tabs: [] };
-          }
-        })
-      );
-
-      results.forEach(({ scopeKey, tabs }) => {
-        // Include all tabs (no parent_id filter - warehouse tabs may have parent)
-        tabsByScope[scopeKey] = tabs;
-      });
-
-      // Debug: Log tabs with children for corporate scope
-      if (tabsByScope['corporate']) {
-        tabsByScope['corporate'].forEach(tab => {
-          if (tab.children && tab.children.length > 0) {
-          }
-        });
+      if (response?.success && response?.data?.tabs_by_scope) {
+        setWarehouseTabConfigs(response.data.tabs_by_scope);
+      } else {
+        setWarehouseTabConfigs({});
       }
-      setWarehouseTabConfigs(tabsByScope);
     } catch (error) {
       console.error("Failed to load entity tabs:", error);
+      setWarehouseTabConfigs({});
     } finally {
       setLoadingTabs(false);
     }
