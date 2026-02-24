@@ -18,8 +18,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Severity = "critical" | "major" | "minor" | "info";
-type FindingStatus = "open" | "fixed" | "wont_fix" | "in_progress";
+type Severity = "critical" | "major" | "minor" | "info" | "false_positive";
+type FindingStatus = "open" | "fixed" | "wont_fix" | "in_progress" | "false_positive";
 type FindingCategory =
   | "render-error"
   | "console-error"
@@ -44,6 +44,8 @@ interface QaFinding {
   breadcrumb_expected?: string;
   breadcrumb_actual?: string | null;
   fix_hint?: string;
+  resolution?: string;
+  resolved_at?: string;
   status: FindingStatus;
   found_at: string;
   found_iteration?: number;
@@ -111,6 +113,8 @@ function getStatusBadge(status: FindingStatus) {
       return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-[10px]">Fixed</Badge>;
     case "in_progress":
       return <Badge className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400 text-[10px]">In Progress</Badge>;
+    case "false_positive":
+      return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-[10px]">False Positive</Badge>;
     case "wont_fix":
       return <Badge variant="secondary" className="text-[10px]">Won&apos;t Fix</Badge>;
     default:
@@ -200,16 +204,17 @@ export function QaFindingsTab() {
     );
   }
 
-  const criticalCount = findings.filter((f) => f.severity === "critical" && f.status !== "fixed").length;
-  const majorCount = findings.filter((f) => f.severity === "major" && f.status !== "fixed").length;
-  const minorCount = findings.filter((f) => f.severity === "minor" && f.status !== "fixed").length;
-  const fixedCount = findings.filter((f) => f.status === "fixed").length;
+  const isResolved = (f: QaFinding) => f.status === "fixed" || f.status === "false_positive";
+  const criticalCount = findings.filter((f) => f.severity === "critical" && !isResolved(f)).length;
+  const majorCount = findings.filter((f) => f.severity === "major" && !isResolved(f)).length;
+  const minorCount = findings.filter((f) => f.severity === "minor" && !isResolved(f)).length;
+  const fixedCount = findings.filter((f) => isResolved(f)).length;
   const openFindings = findings.filter((f) => f.status === "open" || f.status === "in_progress");
 
   const filteredFindings = findings.filter((f) => {
-    if (filter === "all") return f.status !== "fixed";
-    if (filter === "fixed") return f.status === "fixed";
-    return f.severity === filter && f.status !== "fixed";
+    if (filter === "all") return !isResolved(f);
+    if (filter === "fixed") return isResolved(f);
+    return f.severity === filter && !isResolved(f);
   });
 
   return (
@@ -395,6 +400,17 @@ export function QaFindingsTab() {
                           <div>
                             <p className="text-xs text-muted-foreground">Fix Hint</p>
                             <p className="text-sm">{finding.fix_hint}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Resolution (for fixed/false_positive findings) */}
+                      {finding.resolution && (
+                        <div className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Resolution</p>
+                            <p className="text-sm">{finding.resolution}</p>
                           </div>
                         </div>
                       )}
