@@ -44,6 +44,7 @@ import {
   Download,
   File,
   Image as ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -291,6 +292,24 @@ export default function LibraryPage() {
     setUploadDialogOpen(true);
   }, [resolvedTab]);
 
+  // Handle document delete
+  const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete "${doc.displayName || doc.originalFilename}"?`)) return;
+
+    try {
+      const res = await api.delete<{ success: boolean }>(`/api/v1/documents/${doc.id}`);
+      if (res?.success) {
+        toast({ title: "Deleted", description: "Document removed" });
+        if (resolvedTab) {
+          fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
+        }
+      }
+    } catch (error) {
+      toast({ title: "Delete Failed", description: "Could not delete document", variant: "destructive" });
+    }
+  }, [resolvedTab, fetchDocuments, toast]);
+
   // Get file icon based on mime type
   const getFileIcon = (mimeType: string) => {
     if (mimeType.startsWith("image/")) return ImageIcon;
@@ -458,6 +477,13 @@ export default function LibraryPage() {
                           <Download className="h-4 w-4 text-muted-foreground" />
                         </a>
                       )}
+                      <button
+                        className="shrink-0 p-1.5 hover:bg-destructive/10 rounded-md"
+                        onClick={(e) => handleDelete(doc, e)}
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                      </button>
                     </button>
                   );
                 })}
