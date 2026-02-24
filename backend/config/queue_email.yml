@@ -17,10 +17,11 @@
 
 production:
   workers:
-    # Email sync worker: processes AllOrgsEmailSyncJob + OrgEmailSyncJob ONLY
-    # FRC (Feb 2026): Reduced from 3 to 2 threads after moving BatchEmailEnrichmentJob
-    # to :low queue (shared-worker). 2 sync threads × ~300-400MB = fits in 1GB with headroom.
-    - queues: [email_sync]
+    # Email worker: sync first, enrichment when idle.
+    # FRC (Feb 2026): Reduced from 3 to 2 threads. BatchEmailEnrichmentJob moved to
+    # :email_enrichment (lower priority than :email_sync). SolidQueue polls left-to-right,
+    # so sync always gets a thread before enrichment. 2 threads × ~400MB = fits in 1GB.
+    - queues: [email_sync, email_enrichment]
       threads: 2
       processes: 1
       polling_interval: 0.1
@@ -36,7 +37,7 @@ production:
 
 development:
   workers:
-    - queues: [email_sync]
+    - queues: [email_sync, email_enrichment]
       threads: 2
       processes: 1
       polling_interval: 0.1
@@ -47,7 +48,7 @@ development:
 
 test:
   workers:
-    - queues: [email_sync]
+    - queues: [email_sync, email_enrichment]
       threads: 1
       processes: 1
       polling_interval: 0.1

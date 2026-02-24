@@ -59,7 +59,7 @@ production:
 
 development:
   workers:
-    - queues: [critical, default, solid_queue_recurring, email_sync, xero_sync, xero_bulk, low, low_priority]
+    - queues: [critical, default, solid_queue_recurring, email_sync, email_enrichment, xero_sync, xero_bulk, low, low_priority]
       threads: 3
       processes: 1
       polling_interval: 0.1
@@ -73,7 +73,7 @@ development:
 
 test:
   workers:
-    - queues: [critical, default, solid_queue_recurring, email_sync, xero_sync, xero_bulk, low, low_priority]
+    - queues: [critical, default, solid_queue_recurring, email_sync, email_enrichment, xero_sync, xero_bulk, low, low_priority]
       threads: 1
       processes: 1
       polling_interval: 0.1
