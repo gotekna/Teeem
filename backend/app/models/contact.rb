@@ -290,8 +290,10 @@ class Contact < ApplicationRecord
   # These methods read from the SSoT table.
 
   # Primary email from contact_emails table (cached per request)
+  # FRC (Feb 2026): Use Ruby's Enumerable#find instead of ActiveRecord's find_by
+  # to leverage preloaded contact_emails data (avoids N+1 when eager-loaded)
   def primary_email
-    @primary_email ||= contact_emails.find_by(is_primary: true)&.email ||
+    @primary_email ||= contact_emails.find { |e| e.is_primary }&.email ||
                        contact_emails.first&.email
   end
 
