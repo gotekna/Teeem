@@ -1188,61 +1188,93 @@ module Api
         }
       end
 
+      # Build context with {{placeholder}} labels instead of sample data.
+      # Each placeholder shows the exact TEEEM field path so the designer/developer
+      # knows what dynamic content goes where and what ERB tag to use.
       def build_sample_context_for_export(settings, variant)
         {
           purchase_order: {
-            purchase_order_number: "PO-2026-0042",
-            status: "approved",
-            description: "Supply and deliver materials for slab preparation",
-            required_date: (Date.current + 14.days).strftime("%d %B %Y"),
-            required_on_site_date: (Date.current + 12.days).strftime("%d %B %Y"),
-            ordered_date: Date.current.strftime("%d %B %Y"),
-            expected_delivery_date: (Date.current + 10.days).strftime("%d %B %Y"),
-            created_at: Date.current.strftime("%d %B %Y"),
-            delivery_address: "45 Example Avenue, Springfield QLD 4300",
-            special_instructions: "Deliver to rear of site. Contact supervisor on arrival.",
-            subtotal: "$12,450.00",
-            subtotal_raw: 12_450.0,
-            gst: "$1,245.00",
-            gst_raw: 1_245.0,
-            total: "$13,695.00",
-            total_raw: 13_695.0,
-            budget: "$15,000.00",
+            purchase_order_number: "{{purchase_order.purchase_order_number}}",
+            status: "{{purchase_order.status}}",
+            description: "{{purchase_order.description}}",
+            required_date: "{{purchase_order.required_date}}",
+            required_on_site_date: "{{purchase_order.required_on_site_date}}",
+            ordered_date: "{{purchase_order.ordered_date}}",
+            expected_delivery_date: "{{purchase_order.expected_delivery_date}}",
+            created_at: "{{purchase_order.created_at}}",
+            delivery_address: "{{purchase_order.delivery_address}}",
+            special_instructions: "{{purchase_order.special_instructions}}",
+            subtotal: "{{purchase_order.subtotal}}",
+            subtotal_raw: 0,
+            gst: "{{purchase_order.gst}}",
+            gst_raw: 0,
+            total: "{{purchase_order.total}}",
+            total_raw: 0,
+            budget: "{{purchase_order.budget}}",
             supplier: {
-              name: "Brisbane Building Supplies Pty Ltd",
-              email: "orders@brisbanebuilding.com.au",
-              phone: "07 3555 1234",
-              address: "Unit 4, 120 Industrial Drive, Rocklea QLD 4106",
+              name: "{{supplier.name}}",
+              email: "{{supplier.email}}",
+              phone: "{{supplier.phone}}",
+              address: "{{supplier.address}}",
               payment_terms_days: 7
             },
             site_supervisor: {
-              name: "Mike Johnson",
-              phone: "0412 345 678",
-              email: "mike@example.com"
+              name: "{{supervisor.name}}",
+              phone: "{{supervisor.phone}}",
+              email: "{{supervisor.email}}"
             },
             line_items: [
-              { description: "Concrete 32MPa - Ready Mix", quantity: 18, unit_price: 245.00, total: 4_410.0, total_formatted: "$4,410.00", unit_price_formatted: "$245.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "CON-32MPA" },
-              { description: "Steel Reinforcement N12 Bar 6m", quantity: 45, unit_price: 38.50, total: 1_732.5, total_formatted: "$1,732.50", unit_price_formatted: "$38.50", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "STL-N12" },
-              { description: "Timber Formwork LVL 200x45", quantity: 24, unit_price: 62.00, total: 1_488.0, total_formatted: "$1,488.00", unit_price_formatted: "$62.00", gst_code: "GST", colour: nil, colour_code: nil, colour_brand: nil, pricebook_code: "TIM-LVL200" },
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
+              { description: "{{item.description}}", quantity: "{{item.qty}}", unit_price: 0, total: 0, total_formatted: "{{item.total}}", unit_price_formatted: "{{item.rate}}", gst_code: "{{item.tax}}", colour: "{{item.colour}}", colour_code: "{{item.colour_code}}", colour_brand: nil, pricebook_code: "{{item.code}}" },
             ],
             line_items_count: 3,
-            ted_task: "Slab Preparation"
+            ted_task: "{{purchase_order.task_name}}"
           },
           job: {
-            name: "Smith Residence - New Home Build",
-            full_address: "45 Example Avenue, Springfield QLD 4300",
-            job_code: "J-2026-015",
-            suburb: "Springfield",
-            state: "QLD",
-            postcode: "4300",
-            contract_value: "$650,000.00",
-            contract_value_raw: 650_000
+            name: "{{job.name}}",
+            full_address: "{{job.full_address}}",
+            job_code: "{{job.job_code}}",
+            suburb: "{{job.suburb}}",
+            state: "{{job.state}}",
+            postcode: "{{job.postcode}}",
+            contract_value: "{{job.contract_value}}",
+            contract_value_raw: 0,
+            lot_number: "{{job.lot_number}}",
+            plan_number: "{{job.plan_number}}"
           },
-          company: build_sample_company_context(settings),
-          colour_selections: { grouped: {}, formatted_string: "", has_selections: false },
+          company: {
+            name: "{{company.name}}",
+            company_name: "{{company.name}}",
+            abn: "{{company.abn}}",
+            abn_formatted: "{{company.abn}}",
+            qbcc: "{{company.qbcc}}",
+            qbcc_license: "{{company.qbcc}}",
+            email: "{{company.email}}",
+            phone: "{{company.phone}}",
+            phone_formatted: "{{company.phone}}",
+            address: "{{company.address}}",
+            address_line_1: "{{company.address}}",
+            suburb: "",
+            state: "",
+            postcode: "",
+            full_address: "{{company.full_address}}",
+            logo_url: settings.logo_url,
+            header_line: "{{company.name}} | ABN {{company.abn}} | QBCC {{company.qbcc}}",
+            footer_line: "{{company.phone}} | {{company.email}}"
+          },
+          colour_selections: {
+            grouped: {},
+            flat_list: [
+              { item: "walls", colour: "{{colour.name}}", brand: "{{colour.brand}}" },
+              { item: "roof", colour: "{{colour.name}}", brand: "{{colour.brand}}" },
+            ],
+            formatted_string: "",
+            has_selections: true
+          },
           po_template_variant: variant,
-          generated_date: Date.current.strftime("%d/%m/%Y"),
-          generated_date_long: Date.current.strftime("%d %B %Y"),
+          generated_date: "{{generated_date}}",
+          generated_date_long: "{{generated_date_long}}",
           current_year: Date.current.year.to_s,
           document_title: "Purchase Order",
           is_qbcc_document: false
@@ -1250,11 +1282,10 @@ module Api
       end
 
       def build_a4_export_html(template_content, merge_fields_comment, variant)
-        # The PDF renderer (Grover/Puppeteer) sets viewport to exactly 210mm with 0 margins,
-        # so the template CSS is designed to fill 210mm. We replicate that here:
-        # - body is exactly 210mm wide (no extra padding stealing width)
-        # - .a4-page has no padding (template has its own internal spacing)
-        # - outer wrapper provides the gray background + centering
+        # The PDF renderer (Grover/Puppeteer) sets viewport to exactly 210mm.
+        # Template CSS uses width:100% which resolves against the viewport.
+        # To replicate: set BODY itself to 210mm (not a wrapper div).
+        # This way all child width:100% resolves to 210mm — identical to PDF.
         <<~HTML
           <!DOCTYPE html>
           <html lang="en">
@@ -1264,28 +1295,26 @@ module Api
             <style>
               *, *::before, *::after { box-sizing: border-box; }
               html { background: #e5e5e5; margin: 0; padding: 0; }
-              body { margin: 0; padding: 40px 0; display: flex; justify-content: center; font-family: Arial, sans-serif; }
-              .a4-page {
+              body {
                 width: 210mm;
                 min-height: 297mm;
-                background: white;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-                overflow: hidden;
+                margin: 40px auto;
                 padding: 10px;
+                background: white;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                font-family: Arial, sans-serif;
+                overflow: hidden;
               }
-              .a4-page img { max-width: 100%; height: auto; }
+              img { max-width: 100%; height: auto; }
               @media print {
                 html { background: white; }
-                body { padding: 0; }
-                .a4-page { box-shadow: none; width: 100%; }
+                body { margin: 0; box-shadow: none; width: 100%; }
               }
             </style>
           </head>
           <body>
           #{merge_fields_comment}
-          <div class="a4-page">
-            #{template_content}
-          </div>
+          #{template_content}
           </body>
           </html>
         HTML
@@ -1300,70 +1329,80 @@ module Api
         ═══════════════════════════════════════════════════════════════════
 
         HOW TO USE THIS FILE:
-        1. Open in browser to see the visual layout (sample data filled in)
+        1. Open in browser — {{placeholders}} show where dynamic data goes
         2. Redesign in Figma using this as your visual reference
         3. Export your Figma design as HTML
-        4. Add the merge fields below where you need dynamic data
-        5. Import back into TEEEM via Settings > Documents > PO Templates > Import
+        4. Replace each {{placeholder}} with the ERB tag from the table below
+        5. Import back into TEEEM: Settings > Documents > PO Templates > Import
 
-        MERGE FIELDS REFERENCE
-        ──────────────────────
-        These ERB tags get replaced with real data when generating a PO PDF.
+        PLACEHOLDER → ERB TAG MAPPING
+        ──────────────────────────────
+        In your final HTML, replace each {{placeholder}} with the ERB tag.
 
         PURCHASE ORDER:
-          <%= purchase_order[:purchase_order_number] %>
-          <%= purchase_order[:status] %>
-          <%= purchase_order[:description] %>
-          <%= purchase_order[:required_date] %>
-          <%= purchase_order[:ordered_date] %>
-          <%= purchase_order[:expected_delivery_date] %>
-          <%= purchase_order[:delivery_address] %>
-          <%= purchase_order[:special_instructions] %>
-          <%= purchase_order[:subtotal] %>
-          <%= purchase_order[:gst] %>
-          <%= purchase_order[:total] %>
-          <%= purchase_order[:budget] %>
-          <%= purchase_order[:ted_task] %>  (linked Schedule Master task name)
+          {{purchase_order.purchase_order_number}}  →  <%%= purchase_order[:purchase_order_number] %>
+          {{purchase_order.status}}                 →  <%%= purchase_order[:status] %>
+          {{purchase_order.description}}            →  <%%= purchase_order[:description] %>
+          {{purchase_order.required_date}}          →  <%%= purchase_order[:required_date] %>
+          {{purchase_order.ordered_date}}           →  <%%= purchase_order[:ordered_date] %>
+          {{purchase_order.expected_delivery_date}} →  <%%= purchase_order[:expected_delivery_date] %>
+          {{purchase_order.delivery_address}}       →  <%%= purchase_order[:delivery_address] %>
+          {{purchase_order.special_instructions}}   →  <%%= purchase_order[:special_instructions] %>
+          {{purchase_order.subtotal}}               →  <%%= purchase_order[:subtotal] %>
+          {{purchase_order.gst}}                    →  <%%= purchase_order[:gst] %>
+          {{purchase_order.total}}                  →  <%%= purchase_order[:total] %>
+          {{purchase_order.budget}}                 →  <%%= purchase_order[:budget] %>
+          {{purchase_order.task_name}}              →  <%%= purchase_order[:ted_task] %>
 
         SUPPLIER:
-          <%= purchase_order[:supplier][:name] %>
-          <%= purchase_order[:supplier][:email] %>
-          <%= purchase_order[:supplier][:phone] %>
-          <%= purchase_order[:supplier][:address] %>
+          {{supplier.name}}     →  <%%= purchase_order[:supplier][:name] %>
+          {{supplier.email}}    →  <%%= purchase_order[:supplier][:email] %>
+          {{supplier.phone}}    →  <%%= purchase_order[:supplier][:phone] %>
+          {{supplier.address}}  →  <%%= purchase_order[:supplier][:address] %>
 
         SITE SUPERVISOR:
-          <%= purchase_order[:site_supervisor][:name] %>
-          <%= purchase_order[:site_supervisor][:email] %>
-          <%= purchase_order[:site_supervisor][:phone] %>
+          {{supervisor.name}}   →  <%%= purchase_order[:site_supervisor][:name] %>
+          {{supervisor.email}}  →  <%%= purchase_order[:site_supervisor][:email] %>
+          {{supervisor.phone}}  →  <%%= purchase_order[:site_supervisor][:phone] %>
 
-        LINE ITEMS (loop):
-          <%  purchase_order[:line_items].each do |item| %>
-            <%= item[:description] %>
-            <%= item[:quantity] %>
-            <%= item[:unit_price_formatted] %>
-            <%= item[:total_formatted] %>
-            <%= item[:gst_code] %>
-            <%= item[:colour] %>
-            <%= item[:colour_code] %>
-            <%= item[:pricebook_code] %>
-          <%  end %>
+        LINE ITEMS (repeating rows — wrap in loop):
+          Start loop:  <%%  purchase_order[:line_items].each do |item| %>
+          {{item.description}}  →  <%%= item[:description] %>
+          {{item.qty}}          →  <%%= item[:quantity] %>
+          {{item.rate}}         →  <%%= item[:unit_price_formatted] %>
+          {{item.total}}        →  <%%= item[:total_formatted] %>
+          {{item.tax}}          →  <%%= item[:gst_code] %>
+          {{item.code}}         →  <%%= item[:pricebook_code] %>
+          {{item.colour}}       →  <%%= item[:colour] %>
+          {{item.colour_code}}  →  <%%= item[:colour_code] %>
+          End loop:    <%%  end %>
 
         COMPANY:
-          <%= company[:company_name] %>
-          <%= company[:abn_formatted] %>
-          <%= company[:qbcc_license] %>
-          <%= company[:email] %>
-          <%= company[:phone] %>
-          <%= company[:full_address] %>
-          <%= company[:logo_url] %>
+          {{company.name}}          →  <%%= company[:company_name] %>
+          {{company.abn}}           →  <%%= company[:abn_formatted] %>
+          {{company.qbcc}}          →  <%%= company[:qbcc_license] %>
+          {{company.email}}         →  <%%= company[:email] %>
+          {{company.phone}}         →  <%%= company[:phone] %>
+          {{company.full_address}}  →  <%%= company[:full_address] %>
+          {{company.logo_url}}      →  <%%= company[:logo_url] %>  (use in <img src="...">)
 
         JOB:
-          <%= job[:name] %>
-          <%= job[:job_code] %>
-          <%= job[:full_address] %>
-          <%= job[:suburb] %>
-          <%= job[:state] %>
-          <%= job[:postcode] %>
+          {{job.name}}          →  <%%= job[:name] %>
+          {{job.job_code}}      →  <%%= job[:job_code] %>
+          {{job.full_address}}  →  <%%= job[:full_address] %>
+          {{job.suburb}}        →  <%%= job[:suburb] %>
+          {{job.state}}         →  <%%= job[:state] %>
+          {{job.postcode}}      →  <%%= job[:postcode] %>
+          {{job.lot_number}}    →  <%%= job[:lot_number] %>
+          {{job.plan_number}}   →  <%%= job[:plan_number] %>
+
+        COLOUR SELECTIONS (repeating — wrap in loop):
+          Start:  <%%  if defined?(colour_selections) && colour_selections[:has_selections] %>
+                  <%%  colour_selections[:flat_list].each do |selection| %>
+          {{colour.name}}   →  <%%= selection[:colour] %>
+          {{colour.brand}}  →  <%%= selection[:brand] %>
+          End:    <%%  end %>
+                  <%%  end %>
 
         ═══════════════════════════════════════════════════════════════════
         -->
