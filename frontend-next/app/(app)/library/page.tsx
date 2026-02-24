@@ -53,6 +53,7 @@ import {
   Link,
   Paperclip,
   EyeOff,
+  Settings,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { api } from "@/lib/api";
@@ -624,6 +625,14 @@ export default function LibraryPage() {
             className="hidden"
             onChange={handleFileSelect}
           />
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => router.push("/settings/company/warehouse-config/library")}
+            title="Configure Library document types"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
           <Button
             size="sm"
             onClick={() => fileInputRef.current?.click()}
