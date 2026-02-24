@@ -243,14 +243,15 @@ module Api
       end
 
       # DELETE /api/v1/companies/:id/directors/:director_id
+      # Pass ?hard_delete=true to permanently remove (for mistakes)
       def remove_director
         director = @company.corporate_directors.find(params[:director_id])
 
-        if director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
-          render json: {
-            success: true,
-            message: "Director removed successfully"
-          }
+        if params[:hard_delete] == "true"
+          director.destroy!
+          render json: { success: true, message: "Director permanently deleted" }
+        elsif director.update(resignation_date: params[:resignation_date] || Date.current, is_current: false)
+          render json: { success: true, message: "Director removed successfully" }
         else
           render_validation_errors(director)
         end

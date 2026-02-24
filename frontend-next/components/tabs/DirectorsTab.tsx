@@ -20,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Plus, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
+import { FileText, Plus, Trash2, Workflow, CheckCircle, ChevronRight, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -149,6 +149,16 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, addPosition, loadOfficers]);
 
+  const deleteDirector = React.useCallback(async (directorId: number) => {
+    if (!confirm("Permanently delete this officer record?")) return;
+    try {
+      await api.delete(`/api/v1/companies/${effectiveCompanyId}/directors/${directorId}?hard_delete=true`);
+      loadOfficers();
+    } catch (err) {
+      console.error("Failed to delete director:", err);
+    }
+  }, [effectiveCompanyId, loadOfficers]);
+
   // Group officers by role type
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
   const secretaries = officers.filter(o => o.position?.includes("secretary"));
@@ -223,6 +233,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                   <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</TableHead>
                   <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</TableHead>
                   <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y">
@@ -250,6 +261,15 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                     <TableCell className="px-4 py-3">
                       <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
                     </TableCell>
+                    <TableCell className="px-2 py-3">
+                      <button
+                        onClick={() => deleteDirector(officer.id)}
+                        className="text-muted-foreground hover:text-destructive p-1"
+                        title="Delete officer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </TableCell>
                   </TableRow>
                 ))}
                 {/* Former officers */}
@@ -273,6 +293,15 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                     <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-"}</TableCell>
                     <TableCell className="px-4 py-3">
                       <Badge variant="secondary">Former</Badge>
+                    </TableCell>
+                    <TableCell className="px-2 py-3">
+                      <button
+                        onClick={() => deleteDirector(officer.id)}
+                        className="text-muted-foreground hover:text-destructive p-1"
+                        title="Delete officer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </TableCell>
                   </TableRow>
                 ))}
