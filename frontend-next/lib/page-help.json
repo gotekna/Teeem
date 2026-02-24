@@ -24,6 +24,12 @@
       "tips": ["Use a valid business email", "Choose a strong password", "Check email for verification"],
       "tasks": ["Enter your details", "Verify email address", "Complete profile setup"]
     },
+    "/learn": {
+      "title": "TEEEM Academy",
+      "description": "Interactive tutorials to learn TEEEM features for your role. Joshua guides you through each chapter step by step.",
+      "tips": ["Chapters are filtered by your role — you only see what's relevant", "Complete chapters to track your progress", "Click 'Try It Now' to jump to the feature being explained", "You can return anytime from the Learn link in the sidebar"],
+      "tasks": ["Select a chapter from the sidebar", "Step through the tutorial with Joshua", "Mark chapters complete when done", "Try features in real-time with 'Try It Now' buttons"]
+    },
     "/dashboard": {
       "title": "Dashboard",
       "description": "Your home base showing key metrics, AI briefing, recent activity, and quick access to important items.",

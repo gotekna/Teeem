@@ -50,7 +50,7 @@ export function useTutorialProgress() {
   const reset = useMutation({
     mutationFn: async () => {
       const response = await api.post<TutorialProgressResponse>("/api/v1/tutorial/reset");
-      return response.data;
+      return response!.data;
     },
     onSuccess: (newData) => {
       queryClient.setQueryData(QUERY_KEY, newData);

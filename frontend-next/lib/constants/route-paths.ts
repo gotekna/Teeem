@@ -29,6 +29,7 @@ export const ROUTES = {
 
   // ===== Main Navigation =====
   DASHBOARD: "/dashboard",
+  LEARN: "/learn",
   JOBS: "/jobs",
   JOB_DETAIL: (id: string | number) => `/jobs/${id}`,
   JOB_NEW: "/jobs/new",

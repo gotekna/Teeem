@@ -47,7 +47,7 @@ import { Badge } from "./badge";
 import { api, getCurrentEnvironment } from "@/lib/api";
 import { COMPANY_TIMEZONE } from "@/lib/timezone-utils";
 import { useTenantOptional } from "@/contexts/TenantContext";
-import { Building2 } from "lucide-react";
+import { Building2, GraduationCap } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -277,8 +277,36 @@ function SidebarContent({
             Failed to load navigation
           </div>
         ) : apiNavigation?.items ? (
-          /* API-driven navigation with nested items */
-          apiNavigation.items.map((item) => renderNavItem(item, mobile))
+          <>
+            {/* API-driven navigation with nested items */}
+            {apiNavigation.items.map((item) => renderNavItem(item, mobile))}
+            {/* Learn link (TEEEM Academy) - always visible */}
+            <div className="mt-1 pt-1 border-t border-border/50">
+              <Link
+                href="/learn"
+                prefetch={false}
+                className={cn(
+                  "flex items-center gap-3 px-3 py-1.5 transition-colors relative group",
+                  "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
+                )}
+              >
+                <GraduationCap size={16} />
+                <span
+                  className={cn(
+                    "whitespace-nowrap transition-all duration-300 overflow-hidden text-sm",
+                    isExpanded || mobile ? "opacity-100 w-auto" : "opacity-0 w-0"
+                  )}
+                >
+                  Learn
+                </span>
+                {!isExpanded && !mobile && (
+                  <div className={`absolute left-full ml-2 px-2 py-1 bg-popover text-popover-foreground text-xs opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ${Z_TOOLTIP_CLASS} border shadow-sm whitespace-nowrap`}>
+                    Learn
+                  </div>
+                )}
+              </Link>
+            </div>
+          </>
         ) : null}
       </nav>
 

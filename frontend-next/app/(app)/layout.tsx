@@ -20,6 +20,7 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import consoleCapture from "@/utils/consoleCapture";
 import { POInvoiceModal } from "@/components/purchase-orders/POInvoiceModal";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+import { TutorialGate } from "@/components/tutorial/TutorialGate";
 import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
 import { AssistantChat } from "@/components/chat/AssistantChat";
 import { ROUTES } from "@/lib/constants/route-paths";
@@ -150,6 +151,9 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         currentPassword={tempPassword}
         onSuccess={onPasswordChanged}
       />
+
+      {/* Tutorial Welcome Dialog (Feb 2026) - shown to first-time users */}
+      {!forcePasswordChange && <TutorialGate />}
     </div>
   );
 }
