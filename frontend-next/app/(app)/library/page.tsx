@@ -421,21 +421,25 @@ export default function LibraryPage() {
           }
         }
 
-        // Build email body with document list and viewer link
-        const docLines = validResults.map(r => {
-          const name = r.doc.originalFilename || r.doc.displayName || "Document";
-          const size = r.doc.fileSize > 0 ? ` (${formatFileSize(r.doc.fileSize)})` : "";
-          const parts: string[] = [];
-          if (r.downloadUrl) parts.push(`<a href="${r.downloadUrl}">Download</a>`);
-          return `<p>&#128206; <strong>${name}</strong>${size}${parts.length > 0 ? ` &mdash; ${parts.join(" &middot; ")}` : ""}</p>`;
-        });
-
-        if (docLines.length > 0) {
-          bodyHtml = `<p><strong>Shared Documents:</strong></p>`;
-          if (viewerUrl) {
-            bodyHtml += `<p><a href="${viewerUrl}" target="_blank">View All Documents</a></p>`;
-          }
-          bodyHtml += `${docLines.join("")}<br/>`;
+        // Build email body - consistent with Task email format (SSoT)
+        if (validResults.length > 0) {
+          bodyHtml = `<p><strong>File links:</strong></p>\n<ul>\n`;
+          validResults.forEach((r, idx) => {
+            const name = r.doc.originalFilename || r.doc.displayName || "Document";
+            const downloadLink = r.downloadUrl ? `<a href="${r.downloadUrl}" style="color: #666; font-size: 0.9em;">Download</a>` : "";
+            // Open link: use viewer context with index for multi-file navigation
+            let openLink = "";
+            if (r.openUrl || r.downloadUrl) {
+              const openHref = viewerUrl && validResults.length > 1
+                ? `${viewerUrl}?idx=${idx}`
+                : r.openUrl || r.downloadUrl || "";
+              openLink = `<a href="${openHref}" target="_blank" style="color: #666; font-size: 0.9em;">Open</a>`;
+            }
+            const links = [downloadLink, openLink].filter(Boolean).join(" · ");
+            bodyHtml += `<li><a href="${r.downloadUrl || r.openUrl || ""}">${name}</a>${links ? ` · ${links}` : ""}</li>\n`;
+          });
+          bodyHtml += `</ul>\n`;
+          bodyHtml += `<p style="font-size: 12px; color: #666;"><em>Note: These download links expire in 7 days.</em></p>\n`;
         }
       } catch (error) {
         toast({
@@ -940,7 +944,7 @@ export default function LibraryPage() {
                     {previewDoc.verified ? (
                       <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}
+                        Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}{previewDoc.verifiedAt ? ` on ${new Date(previewDoc.verifiedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
                       </Badge>
                     ) : null}
                   </div>
