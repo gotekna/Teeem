@@ -894,7 +894,7 @@ export default function DirectorChangeForm({
                     <div>
                       <Label className="text-xs">Resigning From</Label>
                       <div className="flex flex-wrap gap-3 mt-1">
-                        {POSITION_OPTIONS.map((pos) => (
+                        {POSITION_OPTIONS.filter((pos) => cd.position?.includes(pos.value)).map((pos) => (
                           <label key={pos.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                             <input
                               type="checkbox"
