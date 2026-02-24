@@ -212,10 +212,13 @@ export default function DirectorChangeForm({
   const [searchLoading, setSearchLoading] = useState(false);
   const searchDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside (but not when clicking inside popovers like Calendar)
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(target)) {
+        // Don't close if clicking inside a Radix popover portal (e.g. Calendar date picker)
+        if ((target as HTMLElement).closest?.("[data-radix-popper-content-wrapper]")) return;
         setContactResults([]);
       }
     }
