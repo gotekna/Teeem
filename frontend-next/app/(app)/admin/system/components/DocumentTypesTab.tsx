@@ -76,8 +76,8 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
   // e.g. /admin/system/warehouse-config/document_types/job -> "job"
   const pathParts = pathname.split("/");
   const lastPart = pathParts[pathParts.length - 1];
-  const validScopes = ["company", "job", "contacts"];
-  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" : "all";
+  const validScopes = ["company", "job", "contacts", "library"];
+  const scopeFilter = validScopes.includes(lastPart) ? lastPart as "company" | "job" | "contacts" | "library" : "all";
 
   const { toast } = useToast();
   const { confirm } = useConfirm();
@@ -95,6 +95,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
     if (scopeFilter === "all") return documentTypes;
     if (scopeFilter === "contacts") {
       return documentTypes.filter(dt => dt.scope === "contacts");
+    }
+    if (scopeFilter === "library") {
+      return documentTypes.filter(dt => dt.scope === "library");
     }
     return documentTypes.filter(dt => dt.scope === scopeFilter || dt.scope === "both");
   }, [documentTypes, scopeFilter]);
@@ -446,13 +449,13 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       <div className="shrink-0 mb-4">
         <h2 className="text-lg font-semibold">Document Types & Naming Conventions</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Single source of truth for document types across Companies and Jobs. Click any cell to edit.
+          Single source of truth for document types across Companies, Jobs, Contacts, and Library. Click any cell to edit.
         </p>
       </div>
 
       {/* Scope Filter Tabs */}
       <Tabs value={scopeFilter} onValueChange={handleScopeChange} className="flex flex-col flex-1 min-h-0">
-        <TabsList className="grid w-full grid-cols-4 max-w-3xl shrink-0">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl shrink-0">
           <TabsTrigger value="all">
             All ({documentTypes.length})
           </TabsTrigger>
@@ -464,6 +467,9 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
           </TabsTrigger>
           <TabsTrigger value="contacts">
             Contacts ({documentTypes.filter(dt => dt.scope === "contacts").length})
+          </TabsTrigger>
+          <TabsTrigger value="library">
+            Library ({documentTypes.filter(dt => dt.scope === "library").length})
           </TabsTrigger>
         </TabsList>
 

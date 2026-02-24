@@ -271,7 +271,7 @@ export default function DocumentTypeDetailPage() {
   const [placeholderSearch, setPlaceholderSearch] = React.useState("");
   const [placeholderCategory, setPlaceholderCategory] = React.useState<TokenCategory>("all"); // SSoT: Category filter for placeholders
   const [tabSearch, setTabSearch] = React.useState(""); // Search filter for Primary/Secondary tab dropdowns
-  const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact'>('all'); // Filter tabs by scope
+  const [scopeFilter, setScopeFilter] = React.useState<'all' | 'corporate' | 'job' | 'contact' | 'library'>('all'); // Filter tabs by scope
   const [hidePlaceholderDescriptions, setHidePlaceholderDescriptions] = React.useState(false);
   const [folderOptions, setFolderOptions] = React.useState<string[]>([]); // Root folders only (for Folder/Primary Tab dropdowns)
   const [folderHierarchy, setFolderHierarchy] = React.useState<ScopeNode[]>([]); // SSoT: Scope-first hierarchy (Corporate > Job > Contact > tabs)
@@ -354,13 +354,14 @@ export default function DocumentTypeDetailPage() {
             .map(mapTabRecursive)
         });
 
-        // SSoT: Fetch ALL tabs from the THREE valid scopes for document types
-        // Document types can ONLY be linked to: corporate, job, or contact tabs
+        // SSoT: Fetch ALL tabs from the valid scopes for document types
+        // Document types can be linked to: corporate, job, contact, or library tabs
         // The "document" warehouse_type is for storage folders, not document type assignment
         const scopeConfig = [
           { apiScope: 'corporate', displayName: 'Corporate', icon: '🏢' },
           { apiScope: 'job', displayName: 'Job', icon: '📋' },
-          { apiScope: 'contact', displayName: 'Contact', icon: '👤' }
+          { apiScope: 'contact', displayName: 'Contact', icon: '👤' },
+          { apiScope: 'library', displayName: 'Library', icon: '📚' },
         ];
 
         const scopeGroupedHierarchy: ScopeNode[] = [];
@@ -1543,6 +1544,7 @@ export default function DocumentTypeDetailPage() {
                   { key: 'corporate', label: 'Corporate', icon: '🏢' },
                   { key: 'job', label: 'Job', icon: '📋' },
                   { key: 'contact', label: 'Contact', icon: '👤' },
+                  { key: 'library', label: 'Library', icon: '📚' },
                 ].map((scope) => (
                   <button
                     key={scope.key}
@@ -1785,6 +1787,7 @@ export default function DocumentTypeDetailPage() {
                         { key: 'corporate', label: 'Corporate', icon: '🏢' },
                         { key: 'job', label: 'Job', icon: '📋' },
                         { key: 'contact', label: 'Contact', icon: '👤' },
+                        { key: 'library', label: 'Library', icon: '📚' },
                       ].map((scope) => (
                         <button
                           key={scope.key}

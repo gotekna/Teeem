@@ -156,6 +156,20 @@ class HerokuPlatformService
       { success: true, data: { source: DEV_DB_SOURCE, targets: results } }
     end
 
+    def restart_dyno(app_name)
+      return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
+      return { success: false, error: "Unknown app" } unless app_name.in?(APPS)
+
+      result = heroku_delete(api_key, "/apps/#{app_name}/dynos")
+
+      if result
+        Rails.cache.delete(CACHE_KEY)
+        { success: true, data: { app: app_name, restarted: true } }
+      else
+        { success: false, error: "Heroku API call failed" }
+      end
+    end
+
     def scale_dyno(app_name, dyno_type, quantity)
       return { success: false, error: "HEROKU_API_KEY not configured" } unless api_key?
       return { success: false, error: "Only dev apps can be scaled from the dashboard" } unless app_name.in?(DEV_APPS)
@@ -346,6 +360,26 @@ class HerokuPlatformService
         JSON.parse(response.body)
       else
         Rails.logger.error("[HerokuPlatformService] PATCH #{path} failed (HTTP #{response.code}): #{response.body}")
+        nil
+      end
+    end
+
+    def heroku_delete(api_key, path)
+      uri = URI("https://api.heroku.com#{path}")
+      request = Net::HTTP::Delete.new(uri)
+      request["Authorization"] = "Bearer #{api_key}"
+      request["Accept"] = "application/vnd.heroku+json; version=3"
+
+      response = Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        http.open_timeout = 10
+        http.read_timeout = 30
+        http.request(request)
+      end
+
+      if response.code.to_i < 300
+        true
+      else
+        Rails.logger.error("[HerokuPlatformService] DELETE #{path} failed (HTTP #{response.code}): #{response.body}")
         nil
       end
     end

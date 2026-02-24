@@ -350,6 +350,7 @@ Rails.application.routes.draw do
       get "heroku/storage_billing", to: "heroku#storage_billing"
       patch "heroku/scale", to: "heroku#scale"
       post "heroku/share_dev_database", to: "heroku#share_dev_database"
+      post "heroku/restart", to: "heroku#restart"
 
       # System & Performance Monitoring
       get "system/health", to: "system#health"
