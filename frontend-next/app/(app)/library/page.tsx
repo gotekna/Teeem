@@ -745,7 +745,7 @@ export default function LibraryPage() {
           initialPreUploadedAttachments={emailDoc.storagePath ? [{
             filename: emailDoc.originalFilename || emailDoc.displayName || "document",
             storageKey: emailDoc.storagePath,
-            size: emailDoc.fileSize,
+            fileSize: emailDoc.fileSize,
             contentType: emailDoc.mimeType,
           }] : []}
         />
