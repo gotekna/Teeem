@@ -21,6 +21,21 @@ import {
   SheetContent,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
   Upload,
   FileText,
   BookOpen,
@@ -111,6 +126,11 @@ export default function LibraryPage() {
   const [isDragging, setIsDragging] = useState(false);
   const dragCounter = useRef(0);
 
+  // Upload dialog state
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [selectedDocType, setSelectedDocType] = useState<string>("");
+
   // Fetch documents for active tab
   const fetchDocuments = useCallback(async (folderName?: string) => {
     setDocsLoading(true);
@@ -169,32 +189,57 @@ export default function LibraryPage() {
     setIsSheetOpen(true);
   }, []);
 
-  // Handle upload
-  const handleUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle file selection - opens dialog instead of uploading directly
+  const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files?.length || !resolvedTab) return;
 
+    setPendingFiles(Array.from(files));
+    // Pre-select first document type if available
+    const docTypes = resolvedTab.document_types || [];
+    setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
+    setUploadDialogOpen(true);
+
+    // Reset file input so same file can be re-selected
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }, [resolvedTab]);
+
+  // Perform the actual upload after dialog confirmation
+  const handleConfirmUpload = useCallback(async () => {
+    if (!pendingFiles.length || !resolvedTab) return;
+
+    setUploadDialogOpen(false);
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      let successCount = 0;
+      const folderName = resolvedTab.folder_segment || resolvedTab.display_name;
+
+      for (const file of pendingFiles) {
         const result = await uploadFile(file, "library_documents", {
           metadata: {
-            folder_path: `Library/${resolvedTab.folder_segment || resolvedTab.display_name}`,
+            folder_path: folderName,
+            warehouse_folder_id: resolvedTab.id,
+            document_type: selectedDocType || undefined,
           },
         });
 
-        if (!result.success) {
+        if (result.success) {
+          successCount++;
+        } else {
           toast({
             title: "Upload Failed",
-            description: result.error || "Failed to upload file",
+            description: `${file.name}: ${result.error || "Failed to upload"}`,
             variant: "destructive",
           });
         }
       }
 
-      toast({ title: "Upload Complete", description: `${files.length} file(s) uploaded` });
-      // Refresh documents
-      fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
+      if (successCount > 0) {
+        toast({ title: "Upload Complete", description: `${successCount} file(s) uploaded` });
+        fetchDocuments(folderName);
+      }
     } catch (error) {
       toast({
         title: "Upload Error",
@@ -203,12 +248,9 @@ export default function LibraryPage() {
       });
     } finally {
       setUploading(false);
-      // Reset file input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      setPendingFiles([]);
     }
-  }, [resolvedTab, fetchDocuments, toast]);
+  }, [pendingFiles, resolvedTab, selectedDocType, fetchDocuments, toast]);
 
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -234,7 +276,7 @@ export default function LibraryPage() {
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
@@ -243,40 +285,11 @@ export default function LibraryPage() {
     const files = e.dataTransfer.files;
     if (!files?.length || !resolvedTab) return;
 
-    setUploading(true);
-    try {
-      let successCount = 0;
-      for (const file of Array.from(files)) {
-        const result = await uploadFile(file, "library_documents", {
-          metadata: {
-            folder_path: `Library/${resolvedTab.folder_segment || resolvedTab.display_name}`,
-          },
-        });
-        if (result.success) {
-          successCount++;
-        } else {
-          toast({
-            title: "Upload Failed",
-            description: `${file.name}: ${result.error || "Failed to upload"}`,
-            variant: "destructive",
-          });
-        }
-      }
-
-      if (successCount > 0) {
-        toast({ title: "Upload Complete", description: `${successCount} file(s) uploaded` });
-        fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
-      }
-    } catch (error) {
-      toast({
-        title: "Upload Error",
-        description: "An error occurred during upload",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
-  }, [resolvedTab, fetchDocuments, toast]);
+    setPendingFiles(Array.from(files));
+    const docTypes = resolvedTab.document_types || [];
+    setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
+    setUploadDialogOpen(true);
+  }, [resolvedTab]);
 
   // Get file icon based on mime type
   const getFileIcon = (mimeType: string) => {
@@ -334,7 +347,7 @@ export default function LibraryPage() {
             type="file"
             multiple
             className="hidden"
-            onChange={handleUpload}
+            onChange={handleFileSelect}
           />
           <Button
             size="sm"
@@ -453,6 +466,74 @@ export default function LibraryPage() {
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Upload dialog - document type picker */}
+      <Dialog open={uploadDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setUploadDialogOpen(false);
+          setPendingFiles([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Upload to {resolvedTab?.display_name || "Library"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* File list */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected
+              </Label>
+              <div className="max-h-32 overflow-auto space-y-1">
+                {pendingFiles.map((file, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{file.name}</span>
+                    <span className="text-xs shrink-0">({formatFileSize(file.size)})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Document type picker */}
+            {(resolvedTab?.document_types?.length ?? 0) > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="doc-type-select">Document Type</Label>
+                <Select value={selectedDocType} onValueChange={setSelectedDocType}>
+                  <SelectTrigger id="doc-type-select">
+                    <SelectValue placeholder="Select document type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {resolvedTab?.document_types?.map((dt) => (
+                      <SelectItem key={dt.id} value={dt.name}>
+                        {dt.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setUploadDialogOpen(false);
+              setPendingFiles([]);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmUpload} disabled={uploading}>
+              {uploading ? (
+                <Spinner className="h-4 w-4 mr-2" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              Upload
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Document preview sheet */}
       <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>

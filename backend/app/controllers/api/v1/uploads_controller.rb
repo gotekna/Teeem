@@ -163,7 +163,7 @@ module Api
           "Transactions/#{Time.current.strftime('%Y/%m')}"
         when "library_documents"
           folder_path = metadata[:folder_path] || metadata["folder_path"]
-          folder_path.presence || "Library/Uploads"
+          folder_path.present? ? "Library/#{folder_path}" : "Library/Uploads"
         else
           "Uploads"
         end
@@ -273,6 +273,7 @@ module Api
           storage_blob: blob,
           file_size: file_size,
           content_type: content_type,
+          warehouse_folder_id: metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"],
           folder_path: metadata[:folder_path] || metadata["folder_path"],
           metadata: {
             "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
