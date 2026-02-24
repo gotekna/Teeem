@@ -51,14 +51,14 @@ import {
   Mail,
   History,
 } from "lucide-react";
-import { api, getApiBaseUrl } from "@/lib/api";
-import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
 import { formatFileSize } from "@/utils/formatters";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { uploadFile } from "@/lib/upload-utils";
 import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
+import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
@@ -213,20 +213,15 @@ export default function LibraryPage() {
     }
   }, [resolvedTab, fetchDocuments]);
 
-  // Build inline preview URL (serves with Content-Disposition: inline)
-  const buildPreviewUrl = useCallback((docId: number) => {
-    const token = getStorageItem<string>(STORAGE_KEYS.TOKEN, "");
-    return `${getApiBaseUrl()}/api/v1/documents/${docId}/download?preview=true&token=${encodeURIComponent(token)}`;
-  }, []);
-
   // Build preview URL when document selected
+  // Uses fileUrl (S3 presigned) - PDFViewer handles fetch+blob internally
   useEffect(() => {
-    if (!previewDoc?.id) {
+    if (!previewDoc?.fileUrl) {
       setPreviewUrl(null);
       return;
     }
-    setPreviewUrl(buildPreviewUrl(previewDoc.id));
-  }, [previewDoc, buildPreviewUrl]);
+    setPreviewUrl(previewDoc.fileUrl);
+  }, [previewDoc]);
 
   // Handle tab change via URL
   const handleTabChange = useCallback((tabKey: string) => {
@@ -783,7 +778,7 @@ export default function LibraryPage() {
                     Email
                   </Button>
                   <button
-                    onClick={() => window.open(buildPreviewUrl(previewDoc.id), "_blank")}
+                    onClick={() => previewDoc.fileUrl && window.open(previewDoc.fileUrl, "_blank")}
                     className="p-1.5 hover:bg-muted rounded-md"
                     title="Open in new tab"
                   >
@@ -821,7 +816,7 @@ export default function LibraryPage() {
                             onClick={() => {
                               if (!isCurrent) {
                                 setPreviewDoc(ver);
-                                setPreviewUrl(buildPreviewUrl(ver.id));
+                                setPreviewUrl(ver.fileUrl);
                               }
                             }}
                           >
@@ -867,11 +862,7 @@ export default function LibraryPage() {
                     const fileType = getFileType(previewDoc.originalFilename || "");
                     if (fileType === "pdf") {
                       return (
-                        <iframe
-                          src={previewUrl}
-                          className="w-full h-full border-0"
-                          title="Document Preview"
-                        />
+                        <PDFViewer url={previewUrl} className="h-full" />
                       );
                     }
                     if (fileType === "image") {

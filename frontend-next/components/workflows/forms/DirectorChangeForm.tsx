@@ -377,6 +377,27 @@ export default function DirectorChangeForm({
     [ceasingDirectors, currentOfficers]
   );
 
+  // Auto-fill: if company has only one current director, add them as ceasing automatically
+  const autoFillTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoFillTriggeredRef.current || currentOfficers.length === 0 || ceasingDirectors.length > 0) return;
+
+    // Group current officers by contact to find unique directors
+    const uniqueContacts = new Map<number, OfficerRecord>();
+    currentOfficers.forEach((o) => {
+      if (o.contact?.id && !uniqueContacts.has(o.contact.id)) {
+        uniqueContacts.set(o.contact.id, o);
+      }
+    });
+
+    // If exactly one unique director, auto-add as ceasing
+    if (uniqueContacts.size === 1) {
+      const [, officer] = [...uniqueContacts.entries()][0];
+      autoFillTriggeredRef.current = true;
+      addCeasingDirector(officer);
+    }
+  }, [currentOfficers, ceasingDirectors.length, addCeasingDirector]);
+
   const removeCeasingDirector = (id: number) => {
     setCeasingDirectors((prev) => prev.filter((cd) => cd.corporate_director_id !== id));
   };
@@ -484,7 +505,16 @@ export default function DirectorChangeForm({
 
   // --- Submit ---
 
-  const canSubmit = ceasingDirectors.length > 0 || newAppointments.length > 0;
+  // Validation: all people must have DOB, address, and email before proceeding
+  const ceasingValid = ceasingDirectors.every(
+    (cd) => cd.has_dob && cd.has_address && !!cd.selected_email
+  );
+  const appointmentsValid = newAppointments.every(
+    (a) => a.has_dob && a.has_address && !!a.selected_email
+  );
+  const hasChanges = ceasingDirectors.length > 0 || newAppointments.length > 0;
+  const canProceedToReview = hasChanges && ceasingValid && appointmentsValid;
+  const canSubmit = canProceedToReview;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -574,50 +604,74 @@ export default function DirectorChangeForm({
         )}
 
         {/* Step 1: Company Details */}
-        {step === 1 && company && (
-          <div className="space-y-4">
-            <div className="p-4 border rounded-lg space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Company Name</Label>
-                <p className="font-medium">{company.name}</p>
-              </div>
-              {company.formatted_acn && (
+        {step === 1 && company && (() => {
+          const missingCompanyFields: string[] = [];
+          if (!company.formatted_acn) missingCompanyFields.push("ACN");
+          if (!company.registered_office_address) missingCompanyFields.push("Registered Office Address");
+          const canProceedStep1 = missingCompanyFields.length === 0;
+
+          return (
+            <div className="space-y-4">
+              <div className="p-4 border rounded-lg space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Company Name</Label>
+                  <p className="font-medium">{company.name}</p>
+                </div>
                 <div>
                   <Label className="text-xs text-muted-foreground">ACN</Label>
-                  <p>{company.formatted_acn}</p>
+                  {company.formatted_acn ? (
+                    <p>{company.formatted_acn}</p>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="w-3 h-3" /> Required — edit on company page
+                    </div>
+                  )}
                 </div>
-              )}
-              {company.formatted_abn && (
-                <div>
-                  <Label className="text-xs text-muted-foreground">ABN</Label>
-                  <p>{company.formatted_abn}</p>
-                </div>
-              )}
-              {company.registered_office_address && (
+                {company.formatted_abn && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">ABN</Label>
+                    <p>{company.formatted_abn}</p>
+                  </div>
+                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">Registered Office</Label>
-                  <p className="text-sm">{company.registered_office_address}</p>
+                  {company.registered_office_address ? (
+                    <p className="text-sm">{company.registered_office_address}</p>
+                  ) : (
+                    <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                      <AlertCircle className="w-3 h-3" /> Required — edit on company page
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {!canProceedStep1 && (
+                <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200 text-sm">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  Missing: {missingCompanyFields.join(", ")}. Update the company details before proceeding.
                 </div>
               )}
-            </div>
 
-            <div className="p-3 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                Confirm the company details above are correct before proceeding. If any details need
-                updating, edit them on the company page first.
-              </p>
-            </div>
+              {canProceedStep1 && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <p className="text-sm text-muted-foreground">
+                    Confirm the company details above are correct before proceeding. If any details need
+                    updating, edit them on the company page first.
+                  </p>
+                </div>
+              )}
 
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={onCancel}>
-                Cancel
-              </Button>
-              <Button onClick={() => setStep(2)}>
-                Next <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
+              <div className="flex justify-between">
+                <Button variant="outline" onClick={onCancel}>
+                  Cancel
+                </Button>
+                <Button onClick={() => setStep(2)} disabled={!canProceedStep1}>
+                  Next <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Step 2: Changes */}
         {step === 2 && (
@@ -1188,12 +1242,20 @@ export default function DirectorChangeForm({
               </div>
             </div>
 
+            {/* Validation message */}
+            {hasChanges && !canProceedToReview && (
+              <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-200 text-sm">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                All people must have a date of birth, residential address, and email before proceeding.
+              </div>
+            )}
+
             {/* Navigation */}
             <div className="flex justify-between pt-4 border-t">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Button>
-              <Button onClick={() => setStep(3)} disabled={!canSubmit}>
+              <Button onClick={() => setStep(3)} disabled={!canProceedToReview}>
                 Review <ArrowRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
