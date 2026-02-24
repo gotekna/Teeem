@@ -17,6 +17,13 @@ class AssistantMonitorJob < ApplicationJob
   def perform
     Rails.logger.info "[AssistantMonitor] Starting proactive monitoring scan"
 
+    # FRC (Feb 2026): Guard against missing table/association during migration rollout.
+    # The assistant_conversations table may not exist yet if migration hasn't run.
+    unless User.reflect_on_association(:assistant_conversations)
+      Rails.logger.info "[AssistantMonitor] Skipped - assistant_conversations association not found"
+      return
+    end
+
     # Run for each user who has used the assistant recently (active users)
     active_users = User.joins(:assistant_conversations)
                        .where("assistant_conversations.last_message_at > ?", 7.days.ago)
@@ -31,6 +38,9 @@ class AssistantMonitorJob < ApplicationJob
     end
 
     Rails.logger.info "[AssistantMonitor] Completed scan for #{active_users.count} users"
+  rescue ActiveRecord::ConfigurationError, ActiveRecord::StatementInvalid => e
+    # Gracefully handle missing table during deployment window
+    Rails.logger.warn "[AssistantMonitor] Skipped - #{e.message}"
   end
 
   private

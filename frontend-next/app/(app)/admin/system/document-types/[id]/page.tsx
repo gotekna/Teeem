@@ -1644,7 +1644,7 @@ export default function DocumentTypeDetailPage() {
                               {scopeIdx > 0 && <SelectSeparator />}
                               {/* Scope header */}
                               <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : scopeGroup.tab_key === 'library' ? '📚' : '👤'} {scopeGroup.name}
                               </SelectLabel>
                               {/* Tabs within this scope */}
                               {filteredTabs.map((tab: any, tabIdx: number) => {
@@ -1862,7 +1862,7 @@ export default function DocumentTypeDetailPage() {
                                 {scopeIdx > 0 && <SelectSeparator />}
                                 {/* Scope header */}
                                 <SelectLabel className="text-xs font-semibold text-foreground px-2 py-1.5 bg-muted/50">
-                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : '👤'} {scopeGroup.name}
+                                  {scopeGroup.tab_key === 'corporate' ? '🏢' : scopeGroup.tab_key === 'job' ? '📋' : scopeGroup.tab_key === 'library' ? '📚' : '👤'} {scopeGroup.name}
                                 </SelectLabel>
                                 {/* Tabs within this scope */}
                                 {availableTabs.map((tab: any, tabIdx: number) => {

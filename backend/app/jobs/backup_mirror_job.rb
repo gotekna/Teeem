@@ -26,7 +26,9 @@ class BackupMirrorJob < ApplicationJob
   #   :full_sync [Boolean] If true, sync ALL documents (ignore watermark)
   #   :key [String] Specific database backup key to mirror
   def perform(tenant_id, backup_type = "documents", options = {})
-    @tenant = Tenant.find(tenant_id)
+    # FRC (Feb 2026): Tenant.find inside acts_as_tenant scope adds WHERE "tenants"."true"
+    # because Tenant model itself is scoped. Use without_tenant to avoid the bogus column.
+    @tenant = ActsAsTenant.without_tenant { Tenant.find(tenant_id) }
     @tenant_slug = @tenant.slug
     @full_sync = options.fetch(:full_sync, false)
     @specific_key = options[:key]
