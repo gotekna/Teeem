@@ -423,8 +423,10 @@ export default function LibraryPage() {
         }
 
         // Build email body using shared SSoT utility (lib/formatters/email-file-links.ts)
+        // Matches Task email format: greeting + file links + closing (signature added by ComposeEmailModal)
         if (validResults.length > 0) {
-          bodyHtml = formatFileLinksSection(
+          bodyHtml = `<p>Hi,</p>\n<p>&nbsp;</p>\n`;
+          bodyHtml += formatFileLinksSection(
             validResults.map((r, idx) => {
               const name = r.doc.originalFilename || r.doc.displayName || "Document";
               const openHref = viewerUrl && validResults.length > 1
@@ -433,6 +435,7 @@ export default function LibraryPage() {
               return { name, downloadUrl: r.downloadUrl || undefined, openUrl: openHref || undefined };
             })
           );
+          bodyHtml += `<p>Please let me know if you have any further questions.</p>\n`;
         }
       } catch (error) {
         toast({

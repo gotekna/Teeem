@@ -1707,6 +1707,11 @@ Rails.application.routes.draw do
         end
       end
 
+      # Tutorial (TEEEM Academy - onboarding walkthroughs)
+      get "tutorial/progress", to: "tutorial#progress"
+      put "tutorial/progress", to: "tutorial#update_progress"
+      post "tutorial/reset", to: "tutorial#reset"
+
       # AI Assistant (smart construction manager assistant)
       post "assistant/chat", to: "assistant#chat"
       get "assistant/conversations", to: "assistant#conversations"
