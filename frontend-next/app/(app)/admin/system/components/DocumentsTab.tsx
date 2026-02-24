@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, FileCode, FormInput, Landmark, Mail } from "lucide-react";
+import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 import { DocumentTypesTab } from "./DocumentTypesTab";
 import { DocumentTemplatesContent } from "./DocumentTemplatesTab";
 import { BankStatementTemplatesTab } from "./BankStatementTemplatesTab";
@@ -45,6 +46,7 @@ interface DocumentsTabProps {
 
 export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BASE_PATH }: DocumentsTabProps) {
   const router = useRouter();
+  const [expanded, setExpanded] = React.useState(false);
 
   // Default to "types" sub-tab
   const activeSubTab = DOCUMENTS_SUB_TABS.some((t) => t.id === subTab) ? subTab : "types";
@@ -54,34 +56,41 @@ export function DocumentsTab({ subTab, deepTab, basePath = DEFAULT_DOCUMENTS_BAS
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeSubTab} onValueChange={handleSubTabChange}>
-        <TabsList className="flex-wrap h-auto gap-1">
-          {DOCUMENTS_SUB_TABS.map((tab) => (
-              <TabsTrigger key={tab.id} value={tab.id}>
-                {tab.label}
-              </TabsTrigger>
-          ))}
-        </TabsList>
+    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+      <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
+        <Tabs value={activeSubTab} onValueChange={handleSubTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
+          <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+            <div className="flex items-center gap-2">
+              <TabsList className="flex-wrap h-auto gap-1">
+                {DOCUMENTS_SUB_TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            </div>
+          </div>
 
-        <div className="mt-6">
-          <TabsContent value="types">
-            <DocumentTypesTab basePath={`${basePath}/types`} />
-          </TabsContent>
-          <TabsContent value="document-templates">
-            <DocumentTemplatesContent basePath={`${basePath}/document-templates`} subTab={activeSubTab === "document-templates" ? deepTab : undefined} />
-          </TabsContent>
-          <TabsContent value="bank-statements">
-            <BankStatementTemplatesTab />
-          </TabsContent>
-          <TabsContent value="email-signatures">
-            <EmailSignaturesTab />
-          </TabsContent>
-          <TabsContent value="pdf-fields">
-            <PdfFieldsTab />
-          </TabsContent>
-        </div>
-      </Tabs>
-    </div>
+          <div className={expanded ? "flex-1 overflow-auto p-4" : "mt-6"}>
+            <TabsContent value="types">
+              <DocumentTypesTab basePath={`${basePath}/types`} />
+            </TabsContent>
+            <TabsContent value="document-templates">
+              <DocumentTemplatesContent basePath={`${basePath}/document-templates`} subTab={activeSubTab === "document-templates" ? deepTab : undefined} />
+            </TabsContent>
+            <TabsContent value="bank-statements">
+              <BankStatementTemplatesTab />
+            </TabsContent>
+            <TabsContent value="email-signatures">
+              <EmailSignaturesTab />
+            </TabsContent>
+            <TabsContent value="pdf-fields">
+              <PdfFieldsTab />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+    </ExpandableSection>
   );
 }

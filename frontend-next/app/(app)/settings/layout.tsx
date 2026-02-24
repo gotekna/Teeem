@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TabbedSettingsPage, ScrollablePage } from "@/components/ui/page-wrappers";
 import { useSettingsAccess } from "@/lib/hooks/useSettingsAccess";
+import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 import {
   User,
   Bell,
@@ -57,6 +58,7 @@ export default function SettingsLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin } = useSettingsAccess();
+  const [expanded, setExpanded] = React.useState(false);
 
   // Extract current tab from path
   // /settings/profile → "profile"
@@ -99,37 +101,15 @@ export default function SettingsLayout({
       title="Settings"
       description="Manage your account and organization settings"
     >
-      {/* Personal Section */}
-      <TabbedSettingsPage.TabSection label="Personal">
-        <Tabs value={currentTab} onValueChange={handleTabChange}>
-          <TabsList data-tour="settings-nav">
-            {PERSONAL_TABS.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                </TabsTrigger>
-              );
-            })}
-          </TabsList>
-        </Tabs>
-      </TabbedSettingsPage.TabSection>
-
-      {/* Organization Section - Admin Only */}
-      {isAdmin && (
-        <TabbedSettingsPage.TabSection label="Organization">
+      {/* Personal Section - hidden when expanded */}
+      {!expanded && (
+        <TabbedSettingsPage.TabSection label="Personal">
           <Tabs value={currentTab} onValueChange={handleTabChange}>
-            <TabsList className="flex-wrap h-auto gap-1">
-              {ORGANIZATION_TABS.map((tab) => {
+            <TabsList data-tour="settings-nav">
+              {PERSONAL_TABS.map((tab) => {
                 const Icon = tab.icon;
-                // Add data-tour for specific tabs
-                const tourId = tab.id === "users" ? "settings-users"
-                  : tab.id === "company" ? "settings-company"
-                  : tab.id === "connections" ? "settings-integrations"
-                  : undefined;
                 return (
-                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2" data-tour={tourId}>
+                  <TabsTrigger key={tab.id} value={tab.id} className="gap-2">
                     <Icon className="h-4 w-4" />
                     <span className="hidden sm:inline">{tab.label}</span>
                   </TabsTrigger>
@@ -140,9 +120,39 @@ export default function SettingsLayout({
         </TabbedSettingsPage.TabSection>
       )}
 
+      {/* Organization Section - Admin Only - hidden when expanded */}
+      {!expanded && isAdmin && (
+        <TabbedSettingsPage.TabSection label="Organization">
+          <Tabs value={currentTab} onValueChange={handleTabChange}>
+            <div className="flex items-center gap-2">
+              <TabsList className="flex-wrap h-auto gap-1">
+                {ORGANIZATION_TABS.map((tab) => {
+                  const Icon = tab.icon;
+                  const tourId = tab.id === "users" ? "settings-users"
+                    : tab.id === "company" ? "settings-company"
+                    : tab.id === "connections" ? "settings-integrations"
+                    : undefined;
+                  return (
+                    <TabsTrigger key={tab.id} value={tab.id} className="gap-2" data-tour={tourId}>
+                      <Icon className="h-4 w-4" />
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </TabsTrigger>
+                  );
+                })}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            </div>
+          </Tabs>
+        </TabbedSettingsPage.TabSection>
+      )}
+
       {/* Content */}
       <TabbedSettingsPage.Content>
-        {children}
+        <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+          <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
+            {children}
+          </div>
+        </ExpandableSection>
       </TabbedSettingsPage.Content>
     </TabbedSettingsPage>
   );

@@ -21,6 +21,7 @@ import {
   AlertCircle,
   Pencil,
 } from "lucide-react";
+import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Spinner } from "@/components/ui/spinner";
@@ -98,6 +99,7 @@ const TABS = [
  */
 export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab }: DocumentTemplatesContentProps) {
   const router = useRouter();
+  const [expanded, setExpanded] = React.useState(false);
   const activeTab = TABS.some(t => t.id === subTab) ? subTab! : "po-templates";
 
   const handleTabChange = useCallback((tabId: string) => {
@@ -108,29 +110,38 @@ export function DocumentTemplatesContent({ basePath = DEFAULT_BASE_PATH, subTab 
   }, [router, basePath]);
 
   return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          {TABS.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+      <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
+          <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+            <div className="flex items-center gap-2">
+              <TabsList>
+                {TABS.map((tab) => (
+                  <TabsTrigger key={tab.id} value={tab.id}>
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            </div>
+          </div>
 
-        <TabsContent value="po-templates" className="mt-4">
-          <PoTemplateSelector />
-        </TabsContent>
+          <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
+            <TabsContent value="po-templates" className="mt-4">
+              <PoTemplateSelector />
+            </TabsContent>
 
-        <TabsContent value="claims" className="mt-4">
-          <InvoiceTemplatesTab />
-        </TabsContent>
+            <TabsContent value="claims" className="mt-4">
+              <InvoiceTemplatesTab />
+            </TabsContent>
 
-        <TabsContent value="ssot" className="mt-4">
-          <SsotTemplatesPanel />
-        </TabsContent>
-      </Tabs>
-    </div>
+            <TabsContent value="ssot" className="mt-4">
+              <SsotTemplatesPanel />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+    </ExpandableSection>
   );
 }
 

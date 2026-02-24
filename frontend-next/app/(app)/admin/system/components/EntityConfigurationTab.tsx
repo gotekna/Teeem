@@ -8,7 +8,7 @@ import { WarehouseProviderTab } from "./WarehouseProviderTab";
 import { WarehouseTablesTab } from "./WarehouseTablesTab";
 import { EmailConfigTab } from "./EmailConfigTab";
 import { ConfigSyncSection } from "./ConfigSyncSection";
-import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen } from "lucide-react";
+import { Building2, Briefcase, FileText, Settings, Contact2, Mail, RefreshCw, Database, BookOpen, Minimize2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useSidebar } from "@/contexts/SidebarContext";
@@ -216,22 +216,31 @@ export function EntityConfigurationTab({ onClose, scope, subTab, deepTab, basePa
       <Tabs value={activeScope} onValueChange={setActiveScope} className="flex flex-col h-full flex-1 min-h-0">
         {/* Scope tabs */}
         <div className="px-4 pt-3 pb-2 shrink-0">
-          <TabsList className="flex-wrap h-auto gap-1">
-              {scopes.map((s) => (
-                  <TabsTrigger
-                    key={s.id}
-                    value={s.id}
-                    className="text-xs sm:text-sm whitespace-nowrap"
-                  >
-                    {s.label}
-                    {scopeCounts[s.id] > 0 && (
-                      <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
-                        {scopeCounts[s.id]}
-                      </span>
-                    )}
-                  </TabsTrigger>
-              ))}
-          </TabsList>
+          <div className="flex items-center gap-2">
+            <TabsList className="flex-wrap h-auto gap-1">
+                {scopes.map((s) => (
+                    <TabsTrigger
+                      key={s.id}
+                      value={s.id}
+                      className="text-xs sm:text-sm whitespace-nowrap"
+                    >
+                      {s.label}
+                      {scopeCounts[s.id] > 0 && (
+                        <span className="ml-1 inline-flex items-center justify-center min-w-[18px] h-4 px-1 text-[10px] font-medium bg-muted-foreground/10 rounded">
+                          {scopeCounts[s.id]}
+                        </span>
+                      )}
+                    </TabsTrigger>
+                ))}
+            </TabsList>
+            <button
+              onClick={() => router.push(basePath.replace(/\/warehouse-config.*/, ""), { scroll: false })}
+              className="inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground shrink-0"
+              title="Exit fullscreen (Esc)"
+            >
+              <Minimize2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scope Content */}

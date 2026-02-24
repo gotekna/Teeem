@@ -5,6 +5,7 @@ import { useMemo, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePathTabs } from "@/hooks/usePathTabs";
+import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 
 // Import company-related tab components from admin
 // SSoT: Security & Permissions moved to /settings/roles (consolidated Access Control page)
@@ -55,6 +56,7 @@ const DEFAULT_TAB = "info";
 
 export default function CompanySettingsPage() {
   const router = useRouter();
+  const [expanded, setExpanded] = React.useState(false);
 
   // URL is SSoT for tab state (path-based navigation)
   // redirectToDefault ensures URL always includes tab for breadcrumb visibility
@@ -105,51 +107,58 @@ export default function CompanySettingsPage() {
   }, [activeTab, router, pathname]);
 
   return (
-    <div className="flex flex-col gap-6 pb-8">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="flex-wrap h-auto gap-1">
-          {COMPANY_TABS.map((tab) => (
-            <TabsTrigger
-              key={tab.id}
-              value={tab.id}
-              className="text-xs sm:text-sm whitespace-nowrap"
-            >
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+      <div className={expanded ? "flex flex-col h-full" : "flex flex-col gap-6 pb-8"}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className={expanded ? "flex flex-col h-full flex-1 min-h-0" : ""}>
+          <div className={expanded ? "px-4 pt-3 pb-2 shrink-0" : ""}>
+            <div className="flex items-center gap-2">
+              <TabsList className="flex-wrap h-auto gap-1">
+                {COMPANY_TABS.map((tab) => (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="text-xs sm:text-sm whitespace-nowrap"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+            </div>
+          </div>
 
-        <div className="mt-6">
-          <TabsContent value="info">
-            <CompanyInfoTab />
-          </TabsContent>
-          <TabsContent value="brand-colors">
-            <BrandColorsTab />
-          </TabsContent>
-          <TabsContent value="holidays">
-            <HolidaysTab />
-          </TabsContent>
-          <TabsContent value="workflows">
-            <WorkflowsTab />
-          </TabsContent>
-          {/* SSoT (Jan 2026): Connections moved to top-level /settings/connections */}
-          <TabsContent value="job-setup">
-            <JobSetupTab subTab={effectiveSubTab} basePath="/settings/company/job-setup" />
-          </TabsContent>
-          <TabsContent value="documents">
-            <DocumentsTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/documents" />
-          </TabsContent>
-          <TabsContent value="warehouse-config">
-            <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
-          </TabsContent>
-          <TabsContent value="data-health">
-            <DataHealthTab subTab={effectiveSubTab} basePath="/settings/company/data-health" />
-          </TabsContent>
-          <TabsContent value="offline">
-            <OfflineTab />
-          </TabsContent>
-        </div>
-      </Tabs>
-    </div>
+          <div className={expanded ? "flex-1 overflow-auto p-4" : "mt-6"}>
+            <TabsContent value="info">
+              <CompanyInfoTab />
+            </TabsContent>
+            <TabsContent value="brand-colors">
+              <BrandColorsTab />
+            </TabsContent>
+            <TabsContent value="holidays">
+              <HolidaysTab />
+            </TabsContent>
+            <TabsContent value="workflows">
+              <WorkflowsTab />
+            </TabsContent>
+            {/* SSoT (Jan 2026): Connections moved to top-level /settings/connections */}
+            <TabsContent value="job-setup">
+              <JobSetupTab subTab={effectiveSubTab} basePath="/settings/company/job-setup" />
+            </TabsContent>
+            <TabsContent value="documents">
+              <DocumentsTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/documents" />
+            </TabsContent>
+            <TabsContent value="warehouse-config">
+              <EntityConfigurationTab subTab={effectiveSubTab} deepTab={deepTab} basePath="/settings/company/warehouse-config" />
+            </TabsContent>
+            <TabsContent value="data-health">
+              <DataHealthTab subTab={effectiveSubTab} basePath="/settings/company/data-health" />
+            </TabsContent>
+            <TabsContent value="offline">
+              <OfflineTab />
+            </TabsContent>
+          </div>
+        </Tabs>
+      </div>
+    </ExpandableSection>
   );
 }

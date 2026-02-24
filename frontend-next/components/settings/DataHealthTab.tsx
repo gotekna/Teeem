@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Users,
 } from "lucide-react";
+import { ExpandableSection, ExpandButton } from "@/components/ui/expandable-section";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -128,6 +129,7 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
   const [healthData, setHealthData] = React.useState<UnifiedHealthResponse | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(false);
 
   // URL is SSoT for sub-tab state, default to "overview"
   const activeSubTab = subTab || "overview";
@@ -234,9 +236,10 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
   const summary = healthData?.data_health?.summary;
 
   return (
-    <div className="space-y-6">
+    <ExpandableSection expanded={expanded} onToggle={() => setExpanded(!expanded)}>
+    <div className={expanded ? "flex flex-col h-full" : "space-y-6"}>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className={cn("flex items-center justify-between", expanded && "px-4 pt-3")}>
         <div>
           <h2 className="text-2xl font-bold">Data Health</h2>
           <p className="text-muted-foreground mt-1">
@@ -255,21 +258,27 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
       </div>
 
       {/* Sub-tabs */}
-      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">
-            Overview
-            {summary && summary.total_issues > 0 && (
-              <Badge variant="destructive" className="ml-1">
-                {summary.total_issues}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="contacts">
-            Contacts
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className={expanded ? "flex flex-col flex-1 min-h-0" : "space-y-4"}>
+        <div className={expanded ? "px-4 pb-2 shrink-0" : ""}>
+          <div className="flex items-center gap-2">
+            <TabsList>
+              <TabsTrigger value="overview">
+                Overview
+                {summary && summary.total_issues > 0 && (
+                  <Badge variant="destructive" className="ml-1">
+                    {summary.total_issues}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="contacts">
+                Contacts
+              </TabsTrigger>
+            </TabsList>
+            <ExpandButton expanded={expanded} onToggle={() => setExpanded(!expanded)} />
+          </div>
+        </div>
 
+        <div className={expanded ? "flex-1 overflow-auto p-4" : ""}>
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
           {loading ? (
@@ -364,7 +373,9 @@ export function DataHealthTab({ subTab, basePath = "/settings/company/data-healt
         <TabsContent value="contacts">
           <DuplicateContactsTab />
         </TabsContent>
+        </div>
       </Tabs>
     </div>
+    </ExpandableSection>
   );
 }
