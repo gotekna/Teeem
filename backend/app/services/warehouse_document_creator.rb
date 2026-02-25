@@ -91,6 +91,7 @@ class WarehouseDocumentCreator
     linkable: nil,
     storage_blob: nil,
     warehouse_folder_id: nil,
+    warehouse_folder_document_type_id: nil,
     documentable: nil,
     file_size: nil,
     content_type: nil,
@@ -100,8 +101,12 @@ class WarehouseDocumentCreator
     folder_path: nil,
     expiry_date: nil
   )
-    # 1. Look up WFDT from warehouse_folder_id (if provided)
-    wfdt = resolve_wfdt(warehouse_folder_id)
+    # 1. Look up WFDT: use explicit WFDT if provided, else primary from folder
+    wfdt = if warehouse_folder_document_type_id.present?
+      WarehouseFolderDocumentType.find_by(id: warehouse_folder_document_type_id)
+    else
+      resolve_wfdt(warehouse_folder_id)
+    end
 
     # 2. Build metadata with document type info
     doc_metadata = build_metadata(

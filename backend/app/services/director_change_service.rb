@@ -54,7 +54,7 @@ class DirectorChangeService
     {
       pdf_content: combined_pdf,
       filename: generate_filename,
-      documents: documents.map { |d| { type: d[:type], name: d[:name] } },
+      documents: documents.map { |d| d.slice(:type, :name, :pdf_content) },
       generated_at: Time.current
     }
   end
@@ -498,25 +498,23 @@ class DirectorChangeService
     store_one(signed_blob, asic_folder, "F484", "Form 484 Record", base_metadata)
   end
 
-  def store_one(blob, asic_folder, abbreviation, display_name, metadata)
+  def store_one(blob, asic_folder, abbreviation, fallback_name, metadata)
     wfdt = asic_folder && WarehouseFolderDocumentType
       .joins(:document_type)
       .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
 
-    doc = WarehouseDocumentCreator.create!(
-      filename: display_name,
+    # Pass specific WFDT so materialize_ui_name uses the correct template.
+    # fallback_name used as original_filename if no template resolves.
+    WarehouseDocumentCreator.create!(
+      filename: fallback_name,
       source_type: "corporate",
       linkable: company,
       storage_blob: blob,
       warehouse_folder_id: asic_folder&.id,
+      warehouse_folder_document_type_id: wfdt&.id,
       metadata: metadata,
       user: user
     )
-    # Override WFDT and ui_name (creator applies primary WFDT's template, not ours)
-    updates = { ui_name: display_name }
-    updates[:warehouse_folder_document_type_id] = wfdt.id if wfdt
-    doc.update_columns(updates)
-    doc
   end
 
   # --- E-Signature ---

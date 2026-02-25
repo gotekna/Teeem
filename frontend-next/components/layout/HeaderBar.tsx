@@ -447,6 +447,13 @@ export function HeaderBar({ onMenuClick }: HeaderBarProps) {
                   New PDF
                 </a>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <a href={ROUTES.ADMIN.SYSTEM_DOCUMENT_TYPES} target="_blank" rel="noopener noreferrer" className="flex items-center">
+                  <Database className="mr-2 h-4 w-4 text-muted-foreground" />
+                  Document Types
+                </a>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 

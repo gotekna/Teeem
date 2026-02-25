@@ -332,8 +332,7 @@ function FolderTreeNode({
             >
               <Checkbox
                 checked={selectedSet.has(dt.id)}
-                onCheckedChange={() => onToggleItem(dt.id)}
-                className="h-3.5 w-3.5"
+                className="h-3.5 w-3.5 pointer-events-none"
               />
               <span className="text-xs">{dt.name}</span>
             </div>
