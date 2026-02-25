@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CustomQuoteSetup } from "./custom-quotes/CustomQuoteSetup";
 import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
-import { useCustomQuote } from "./custom-quotes/useCustomQuote";
+import { useCustomQuote, useCustomQuoteTemplates } from "./custom-quotes/useCustomQuote";
 import type { QuoteLevel } from "./custom-quotes/types";
 import {
   Dialog,
@@ -56,6 +56,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     refresh,
   } = useCustomQuote(jobId);
 
+  const { templates, loading: templatesLoading, fetchTemplates } = useCustomQuoteTemplates();
+
   // Dialog states
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
@@ -66,7 +68,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   // Initial load
   useEffect(() => {
     fetchQuotes();
-  }, [fetchQuotes]);
+    fetchTemplates();
+  }, [fetchQuotes, fetchTemplates]);
 
   // Auto-load first quote if exists
   useEffect(() => {
@@ -161,8 +164,9 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   const handleSaveTemplate = useCallback(async (name: string) => {
     if (activeQuote) {
       await saveAsTemplate(activeQuote.id, name);
+      await fetchTemplates();
     }
-  }, [activeQuote, saveAsTemplate]);
+  }, [activeQuote, saveAsTemplate, fetchTemplates]);
 
   if (loading && !activeQuote) {
     return (
@@ -178,6 +182,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
       <CustomQuoteSetup
         jobId={jobId}
         quotes={quotes}
+        templates={templates}
+        templatesLoading={templatesLoading}
         onApplyTemplate={handleApplyTemplate}
         onCreateBlank={handleCreateBlank}
         onPopulateFromSchedule={handlePopulateFromSchedule}

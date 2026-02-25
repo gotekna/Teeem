@@ -5,7 +5,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Paperclip } from "lucide-react";
+import { AttachmentBadge } from "@/components/ui/attachment-badge";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface TwoDescriptionEditorProps {
@@ -263,6 +264,26 @@ export function TwoDescriptionEditor({
             className={`mt-1 text-sm min-h-[36px] ${syncRfq ? "opacity-60" : ""}`}
             readOnly={readOnly || syncRfq}
           />
+        </div>
+      )}
+
+      {/* Attachments preview - shows what document types will be sent with the RFQ */}
+      {documentTypeNames.length > 0 && (
+        <div>
+          <Label className="text-xs flex items-center gap-1">
+            <Paperclip className="h-3 w-3" />
+            RFQ Attachments ({documentTypeNames.length})
+          </Label>
+          <div className="flex flex-wrap gap-1.5 mt-1.5">
+            {documentTypeNames.map((name) => (
+              <AttachmentBadge
+                key={name}
+                displayName={name}
+                size="xs"
+                variant="muted"
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

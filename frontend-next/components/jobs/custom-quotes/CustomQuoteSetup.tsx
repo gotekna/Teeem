@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
 import { Calendar, Plus, Save } from "lucide-react";
-import { useCustomQuoteTemplates } from "./useCustomQuote";
-import type { CustomQuoteSummary } from "./types";
+import type { CustomQuoteSummary, CustomQuoteTemplate } from "./types";
 
 interface CustomQuoteSetupProps {
   jobId: string | number;
   quotes: CustomQuoteSummary[];
+  templates: CustomQuoteTemplate[];
+  templatesLoading: boolean;
   onApplyTemplate: (templateId: number) => void;
   onCreateBlank: () => void;
   onPopulateFromSchedule: () => void;
@@ -21,6 +22,8 @@ interface CustomQuoteSetupProps {
 export function CustomQuoteSetup({
   jobId,
   quotes,
+  templates,
+  templatesLoading,
   onApplyTemplate,
   onCreateBlank,
   onPopulateFromSchedule,
@@ -28,12 +31,7 @@ export function CustomQuoteSetup({
   onSaveAsTemplate,
   hasActiveQuote,
 }: CustomQuoteSetupProps) {
-  const { templates, loading, fetchTemplates } = useCustomQuoteTemplates();
   const [selectedTemplate, setSelectedTemplate] = useState<ComboboxItem | undefined>();
-
-  useEffect(() => {
-    fetchTemplates();
-  }, [fetchTemplates]);
 
   const templateItems: ComboboxItem[] = templates.map((t) => ({
     id: String(t.id),
@@ -64,7 +62,7 @@ export function CustomQuoteSetup({
         onSelect={(item) => setSelectedTemplate(item)}
         placeholder="Template..."
         className="w-64"
-        disabled={loading}
+        disabled={templatesLoading}
       />
 
       <Button

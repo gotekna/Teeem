@@ -216,7 +216,7 @@ function SortableDocumentRow({
       >
         <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
         <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
-          {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
+          {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
         </p>
       </button>
       {showVersionBadge && doc.versionCount > 1 && (
