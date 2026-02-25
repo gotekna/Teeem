@@ -448,28 +448,73 @@ class DirectorChangeService
     )
   end
 
+  # Position → document type abbreviation mapping (matches ASIC warehouse folder)
+  RESIGNATION_DOC_TYPES = {
+    "director" => "RD",
+    "secretary" => "RS",
+    "public_officer" => "RPO"
+  }.freeze
+
+  CONSENT_DOC_TYPES = {
+    "director" => "CAD",
+    "secretary" => "CAS",
+    "public_officer" => "CAPO"
+  }.freeze
+
   def store_signed_document(e_signature_request)
-    # Link to the signed PDF blob from the e-signature system
     signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
-
-    # SSoT: Use "ASIC" folder (same as DirectorChangeTask)
     asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
+    base_metadata = {
+      form_type: "form_484",
+      e_signature_request_id: e_signature_request.id,
+      signed_at: e_signature_request.completed_at
+    }
 
-    WarehouseDocumentCreator.create!(
-      filename: generate_filename,
+    # One warehouse document per position-specific doc type
+    store_one(signed_blob, asic_folder, "DM", "Minutes of Meeting of Directors", base_metadata)
+
+    ceasing_directors.each do |cd|
+      name = cd[:corporate_director].contact.display_name
+      cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }.each do |pos|
+        abbr = RESIGNATION_DOC_TYPES[pos]
+        formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
+        store_one(signed_blob, asic_folder, abbr, "Resignation #{formatted} - #{name}",
+          base_metadata.merge(person: name, position: pos))
+      end
+    end
+
+    new_appointments.each do |appt|
+      name = appt[:contact].display_name
+      appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }.each do |pos|
+        abbr = CONSENT_DOC_TYPES[pos]
+        formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
+        store_one(signed_blob, asic_folder, abbr, "Consent to Act as #{formatted} - #{name}",
+          base_metadata.merge(person: name, position: pos))
+      end
+    end
+
+    store_one(signed_blob, asic_folder, "F484", "Form 484 Record", base_metadata)
+  end
+
+  def store_one(blob, asic_folder, abbreviation, display_name, metadata)
+    wfdt = asic_folder && WarehouseFolderDocumentType
+      .joins(:document_type)
+      .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
+
+    doc = WarehouseDocumentCreator.create!(
+      filename: display_name,
       source_type: "corporate",
       linkable: company,
-      storage_blob: signed_blob,
+      storage_blob: blob,
       warehouse_folder_id: asic_folder&.id,
-      metadata: {
-        form_type: "form_484",
-        e_signature_request_id: e_signature_request.id,
-        ceasing_directors: ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name },
-        new_appointments: new_appointments.map { |appt| appt[:contact].display_name },
-        signed_at: e_signature_request.completed_at
-      },
+      metadata: metadata,
       user: user
     )
+    # Override WFDT and ui_name (creator applies primary WFDT's template, not ours)
+    updates = { ui_name: display_name }
+    updates[:warehouse_folder_document_type_id] = wfdt.id if wfdt
+    doc.update_columns(updates)
+    doc
   end
 
   # --- E-Signature ---

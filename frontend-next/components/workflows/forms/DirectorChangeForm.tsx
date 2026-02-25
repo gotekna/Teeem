@@ -536,30 +536,40 @@ export default function DirectorChangeForm({
     const defaultResignation = { docType: "RD", docTypeName: "Resignation Director" };
     const defaultConsent = { docType: "CAD", docTypeName: "Consent to Act as Director" };
 
+    // Only include positions that have a known doc type — skip combined strings
+    // like "director_secretary_public_officer" that slip through dedup
+    const knownPositions = new Set(Object.keys(resignationByPosition));
+
     const docs: { key: string; label: string; docTypes: { code: string; name: string }[] }[] = [
       { key: "minutes", label: "Minutes of Meeting of Directors", docTypes: [{ code: "DM", name: "Directors Minutes" }] },
     ];
     ceasingDirectors.forEach((cd) => {
-      const types = cd.positions.map((pos) => {
-        const dt = resignationByPosition[pos] || defaultResignation;
+      const filtered = cd.positions.filter((pos) => knownPositions.has(pos));
+      const types = filtered.map((pos) => {
+        const dt = resignationByPosition[pos];
         return { code: dt.docType, name: dt.docTypeName };
       });
-      docs.push({
-        key: `res-${cd.corporate_director_id}`,
-        label: `Resignation Letter — ${cd.name}`,
-        docTypes: types,
-      });
+      if (types.length > 0) {
+        docs.push({
+          key: `res-${cd.corporate_director_id}`,
+          label: `Resignation Letter — ${cd.name}`,
+          docTypes: types,
+        });
+      }
     });
     newAppointments.forEach((appt) => {
-      const types = appt.positions.map((pos) => {
-        const dt = consentByPosition[pos] || defaultConsent;
+      const filtered = appt.positions.filter((pos) => knownPositions.has(pos));
+      const types = filtered.map((pos) => {
+        const dt = consentByPosition[pos];
         return { code: dt.docType, name: dt.docTypeName };
       });
-      docs.push({
-        key: `con-${appt.contact_id}`,
-        label: `Consent to Act — ${appt.name}`,
-        docTypes: types,
-      });
+      if (types.length > 0) {
+        docs.push({
+          key: `con-${appt.contact_id}`,
+          label: `Consent to Act — ${appt.name}`,
+          docTypes: types,
+        });
+      }
     });
     docs.push({ key: "form484", label: "Form 484 Record", docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }] });
     return docs;

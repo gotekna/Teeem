@@ -341,7 +341,7 @@ module Api
 
       def line_params
         params.permit(:name, :quote_level, :tender_description, :po_description,
-                       :rfq_instructions, :position, :budget_amount, :document_type_id)
+                       :rfq_instructions, :position, :budget_amount, document_type_ids: [])
       end
 
       # ═══════════════════════════════════════════════════════════════════════════

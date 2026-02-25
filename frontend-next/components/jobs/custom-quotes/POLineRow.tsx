@@ -4,13 +4,12 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
+import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
-import type { DocumentTypeOption } from "./useCustomQuote";
 
 interface POLineRowProps {
   line: CustomQuoteLineNode;
-  documentTypes: DocumentTypeOption[];
-  onUpdateLine: (lineId: number, field: string, value: string) => void;
+  onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onAddSupplier: (lineId: number) => void;
   onSendRfq: (supplierId: number) => void;
@@ -21,7 +20,6 @@ interface POLineRowProps {
 
 export function POLineRow({
   line,
-  documentTypes,
   onUpdateLine,
   onToggleQuoteLevel,
   onAddSupplier,
@@ -49,17 +47,10 @@ export function POLineRow({
           {isNotRequired ? "Not Required" : "N/R"}
         </Button>
 
-        {!isNotRequired && (
-          <select
-            value={line.documentTypeId || ""}
-            onChange={(e) => onUpdateLine(line.id, "document_type_id", e.target.value)}
-            className="h-5 px-1 text-[10px] border rounded bg-background text-foreground"
-          >
-            <option value="">Doc Type...</option>
-            {documentTypes.map((dt) => (
-              <option key={dt.id} value={String(dt.id)}>{dt.name}</option>
-            ))}
-          </select>
+        {!isNotRequired && line.documentTypeNames.length > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            {line.documentTypeNames.join(", ")}
+          </span>
         )}
 
         {!isNotRequired && line.budgetAmount != null && (
@@ -87,7 +78,16 @@ export function POLineRow({
         )}
       </div>
 
-      {/* Supplier cards + descriptions hidden when not required */}
+      {/* Document type, supplier cards, descriptions - hidden when not required */}
+      {!isNotRequired && (
+        <div className="mt-2">
+          <DocumentTypeTreePicker
+            selectedIds={line.documentTypeIds}
+            onChange={(ids) => onUpdateLine(line.id, "document_type_ids", ids)}
+          />
+        </div>
+      )}
+
       {!isNotRequired && line.suppliers.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-2">
           {line.suppliers.map((supplier) => (

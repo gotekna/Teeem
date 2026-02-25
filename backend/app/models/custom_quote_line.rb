@@ -24,7 +24,6 @@ class CustomQuoteLine < ApplicationRecord
   belongs_to :cost_centre, optional: true
   belongs_to :sm_schedule_master, optional: true
   belongs_to :sm_task, class_name: "SmTask", optional: true
-  belongs_to :document_type, optional: true
   has_many :children, class_name: "CustomQuoteLine",
            foreign_key: :parent_id, dependent: :destroy
   has_many :suppliers, class_name: "CustomQuoteSupplier",
@@ -65,7 +64,19 @@ class CustomQuoteLine < ApplicationRecord
     allocations.sum(:allocated_amount)
   end
 
-  def as_tree_node
+  # Returns document types for this line (from array column)
+  def document_types
+    return DocumentType.none if document_type_ids.blank?
+    DocumentType.where(id: document_type_ids)
+  end
+
+  def as_tree_node(doc_type_map: nil)
+    # Build map on first call if not provided (preloads for all lines)
+    if doc_type_map.nil?
+      all_ids = [document_type_ids, *children.map(&:document_type_ids)].flatten.compact.uniq
+      doc_type_map = all_ids.present? ? DocumentType.where(id: all_ids).pluck(:id, :name).to_h : {}
+    end
+
     {
       id: id,
       name: name,
@@ -73,15 +84,15 @@ class CustomQuoteLine < ApplicationRecord
       costCentreId: cost_centre_id,
       smScheduleMasterId: sm_schedule_master_id,
       smTaskId: sm_task_id,
-      documentTypeId: document_type_id,
-      documentTypeName: document_type&.name,
+      documentTypeIds: document_type_ids || [],
+      documentTypeNames: (document_type_ids || []).filter_map { |dtid| doc_type_map[dtid] },
       tenderDescription: tender_description,
       poDescription: po_description,
       rfqInstructions: rfq_instructions,
       budgetAmount: budget_amount&.to_f,
       position: position,
       suppliers: suppliers.includes(:supplier).order(:created_at).map(&:as_json_summary),
-      children: children.order(:position).includes(:document_type, suppliers: :supplier).map(&:as_tree_node)
+      children: children.order(:position).includes(suppliers: :supplier).map { |c| c.as_tree_node(doc_type_map: doc_type_map) }
     }
   end
 

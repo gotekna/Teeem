@@ -5,12 +5,10 @@ import { CostCentreSection } from "./CostCentreSection";
 import { AllocationDialog } from "./AllocationDialog";
 import { CustomQuoteSummaryBar } from "./CustomQuoteSummaryBar";
 import type { CustomQuoteData, CustomQuoteLineNode, QuoteLevel, AllocationData } from "./types";
-import type { DocumentTypeOption } from "./useCustomQuote";
 
 interface CustomQuoteTreeProps {
   quote: CustomQuoteData;
-  documentTypes: DocumentTypeOption[];
-  onUpdateLine: (lineId: number, field: string, value: string) => void;
+  onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onAddSupplier: (lineId: number) => void;
   onAddChildLine: (parentLineId: number) => void;
@@ -24,7 +22,6 @@ interface CustomQuoteTreeProps {
 
 export function CustomQuoteTree({
   quote,
-  documentTypes,
   onUpdateLine,
   onToggleQuoteLevel,
   onAddSupplier,
@@ -86,7 +83,6 @@ export function CustomQuoteTree({
           <CostCentreSection
             key={ccLine.id}
             line={ccLine}
-            documentTypes={documentTypes}
             onToggleQuoteLevel={onToggleQuoteLevel}
             onUpdateLine={onUpdateLine}
             onAddSupplier={onAddSupplier}

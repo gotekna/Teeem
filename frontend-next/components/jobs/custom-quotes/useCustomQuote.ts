@@ -119,9 +119,7 @@ export function useCustomQuote(jobId: string | number) {
 
   const updateLine = useCallback(async (lineId: number, updates: Record<string, unknown>) => {
     try {
-      console.log("[useCustomQuote] updateLine", lineId, updates);
-      const res = await api.patch(`/api/v1/custom_quote_lines/${lineId}`, updates);
-      console.log("[useCustomQuote] updateLine response", res);
+      await api.patch(`/api/v1/custom_quote_lines/${lineId}`, updates);
     } catch (err) {
       console.error("[useCustomQuote] update line error:", err);
       toast.error("Failed to update line");

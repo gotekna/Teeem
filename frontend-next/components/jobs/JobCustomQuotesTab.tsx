@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CustomQuoteSetup } from "./custom-quotes/CustomQuoteSetup";
 import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
-import { useCustomQuote, useDocumentTypes } from "./custom-quotes/useCustomQuote";
+import { useCustomQuote } from "./custom-quotes/useCustomQuote";
 import type { QuoteLevel } from "./custom-quotes/types";
 import {
   Dialog,
@@ -56,8 +56,6 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     refresh,
   } = useCustomQuote(jobId);
 
-  const { documentTypes, fetchDocumentTypes } = useDocumentTypes();
-
   // Dialog states
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
@@ -70,8 +68,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   // Initial load
   useEffect(() => {
     fetchQuotes();
-    fetchDocumentTypes();
-  }, [fetchQuotes, fetchDocumentTypes]);
+  }, [fetchQuotes]);
 
   // Auto-load first quote if exists
   useEffect(() => {
@@ -122,9 +119,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     await refresh();
   }, [updateLine, refresh]);
 
-  const handleUpdateLine = useCallback(async (lineId: number, field: string, value: string) => {
-    const parsedValue = field === "document_type_id" ? (value || null) : value;
-    await updateLine(lineId, { [field]: parsedValue });
+  const handleUpdateLine = useCallback(async (lineId: number, field: string, value: unknown) => {
+    await updateLine(lineId, { [field]: value });
   }, [updateLine]);
 
   const handleAddSupplierConfirm = useCallback(async (supplierId: string) => {
@@ -213,7 +209,6 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
       {activeQuote ? (
         <CustomQuoteTree
           quote={activeQuote}
-          documentTypes={documentTypes}
           onUpdateLine={handleUpdateLine}
           onToggleQuoteLevel={handleToggleQuoteLevel}
           onAddSupplier={(lineId) => setAddSupplierDialog({ lineId })}

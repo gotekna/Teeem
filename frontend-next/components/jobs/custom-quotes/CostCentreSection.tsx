@@ -2,20 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
 import { POLineRow } from "./POLineRow";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
-import { QUOTE_LEVEL_LABELS } from "./types";
+import { DocumentTypeTreePicker } from "./DocumentTypeTreePicker";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
-import type { DocumentTypeOption } from "./useCustomQuote";
 
 interface CostCentreSectionProps {
   line: CustomQuoteLineNode;
-  documentTypes: DocumentTypeOption[];
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
-  onUpdateLine: (lineId: number, field: string, value: string) => void;
+  onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onAddSupplier: (lineId: number) => void;
   onAddChildLine: (parentLineId: number) => void;
   onSendRfq: (supplierId: number) => void;
@@ -27,7 +24,6 @@ interface CostCentreSectionProps {
 
 export function CostCentreSection({
   line,
-  documentTypes,
   onToggleQuoteLevel,
   onUpdateLine,
   onAddSupplier,
@@ -94,22 +90,6 @@ export function CostCentreSection({
           </Button>
         </div>
 
-        {/* Document type selector */}
-        {!isNotRequired && (
-          <div onClick={(e) => e.stopPropagation()}>
-            <select
-              value={line.documentTypeId || ""}
-              onChange={(e) => onUpdateLine(line.id, "document_type_id", e.target.value)}
-              className="h-6 px-1 text-xs border rounded bg-background text-foreground"
-            >
-              <option value="">Doc Type...</option>
-              {documentTypes.map((dt) => (
-                <option key={dt.id} value={String(dt.id)}>{dt.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {ccTotal > 0 && (
           <span className="text-sm font-mono text-green-600 dark:text-green-400 ml-auto mr-2">
             ${ccTotal.toLocaleString()}
@@ -121,11 +101,25 @@ export function CostCentreSection({
             Budget: ${line.budgetAmount.toLocaleString()}
           </span>
         )}
+
+        {!isNotRequired && line.documentTypeNames.length > 0 && (
+          <span className="text-[10px] text-muted-foreground">
+            {line.documentTypeNames.length} doc type{line.documentTypeNames.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
       {/* Expanded content (hidden when not required) */}
       {expanded && !isNotRequired && (
         <div className="px-4 pb-3">
+          {/* Document type selector */}
+          <div className="mb-3">
+            <DocumentTypeTreePicker
+              selectedIds={line.documentTypeIds}
+              onChange={(ids) => onUpdateLine(line.id, "document_type_ids", ids)}
+            />
+          </div>
+
           {/* CC-level: suppliers on the CC line itself */}
           {isCCLevel && (
             <div className="mb-3">
@@ -175,7 +169,6 @@ export function CostCentreSection({
               <POLineRow
                 key={child.id}
                 line={child}
-                documentTypes={documentTypes}
                 onUpdateLine={onUpdateLine}
                 onToggleQuoteLevel={onToggleQuoteLevel}
                 onAddSupplier={onAddSupplier}
