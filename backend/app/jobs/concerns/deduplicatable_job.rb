@@ -46,46 +46,46 @@
 module DeduplicatableJob
   extend ActiveSupport::Concern
 
+  # ⚠️ DO NOT REPLACE pg_try_advisory_lock WITH ClaimedExecution CHECKS (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: When 2 threads claim the same job class simultaneously (e.g., after
+  # worker restart), both ClaimedExecution records exist but neither thread's
+  # before_perform can see the other's record due to transaction isolation.
+  # Advisory locks are atomic at the PostgreSQL level - no race possible.
+  # ❌ WRONG: Check ClaimedExecution.exists? — race condition on simultaneous claim
+  # ✅ CORRECT: pg_try_advisory_lock — atomic, one winner guaranteed
+  # ════════════════════════════════════════════
   included do
     before_perform do |job|
-      my_job_id = job.provider_job_id.to_i
-      other_claimed_id = self.class.lowest_claimed_job_id(excluding_job_id: my_job_id)
+      # Atomic lock: only ONE instance of this job class can hold the lock.
+      # pg_try_advisory_lock is session-scoped (released on connection close/return).
+      lock_key = Zlib.crc32(self.class.name).to_i & 0x7FFFFFFF # Positive int32
+      locked = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{lock_key})")
 
-      if other_claimed_id
-        # ⚠️ Race condition breaker: when 2 threads claim the same job class
-        # simultaneously (e.g., after worker restart), LOWEST job ID wins.
-        # Without this, both threads see the other as claimed and both abort,
-        # or neither sees the other (timing) and both proceed.
-        if other_claimed_id < my_job_id
-          Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} (job_id: #{my_job_id}) - lower instance #{other_claimed_id} already running"
-          throw :abort
-        else
-          Rails.logger.info "[DeduplicatableJob] Proceeding #{job.class.name} (job_id: #{my_job_id}) - this is the lowest claimed instance (other: #{other_claimed_id})"
-        end
+      unless locked
+        Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} (job_id: #{job.provider_job_id}) - another instance holds the lock"
+        throw :abort
       end
+
+      @_dedup_lock_key = lock_key
 
       # When this job starts executing, clear all other queued (Ready) copies.
       # The scheduler enqueues freely (avoiding SolidQueue bug), but when ANY copy
       # starts, it clears queued siblings. Net effect: at most 1 running + 1 queued.
-      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: my_job_id)
+      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: job.provider_job_id)
 
       # Clean up dead predecessors so they don't accumulate
       self.class.cleanup_dead_predecessors!
     end
+
+    after_perform do |_job|
+      if @_dedup_lock_key
+        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{@_dedup_lock_key})")
+      end
+    end
   end
 
   class_methods do
-    # Returns the lowest SolidQueue::Job ID that is currently claimed (running)
-    # for this job class, excluding the given job_id. Returns nil if none found.
-    def lowest_claimed_job_id(excluding_job_id: nil)
-      unfinished = SolidQueue::Job.where(finished_at: nil).where(class_name: name)
-      unfinished = unfinished.where.not(id: excluding_job_id) if excluding_job_id
-
-      SolidQueue::ClaimedExecution
-        .where(job_id: unfinished.select(:id))
-        .joins(:job)
-        .minimum("solid_queue_jobs.id")
-    end
 
     # Clear all queued (ReadyExecution) copies of this job class except the one running.
     # Prevents queue bloat when scheduler enqueues faster than worker processes.
