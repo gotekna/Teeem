@@ -9,13 +9,14 @@
 # quote_level:
 #   'cost_centre' → Suppliers assigned at CC level, allocate to PO children
 #   'po' (default) → Suppliers assigned to individual PO children
+#   'not_required' → CC excluded from quoting (no suppliers needed)
 #
 # SmTask resolution:
 #   sm_schedule_master_id = template-level PO Task (from template)
 #   sm_task_id = job-level task instance (resolved when applied to job)
 #
 class CustomQuoteLine < ApplicationRecord
-  QUOTE_LEVELS = %w[cost_centre po].freeze
+  QUOTE_LEVELS = %w[cost_centre po not_required].freeze
 
   # Associations
   belongs_to :custom_quote
@@ -90,8 +91,8 @@ class CustomQuoteLine < ApplicationRecord
   end
 
   def valid_tree_structure
-    if quote_level == 'cost_centre' && parent_id.present?
-      errors.add(:quote_level, "cost_centre level is only valid for root (CC) lines")
+    if quote_level.in?(%w[cost_centre not_required]) && parent_id.present?
+      errors.add(:quote_level, "#{quote_level} level is only valid for root (CC) lines")
     end
   end
 end

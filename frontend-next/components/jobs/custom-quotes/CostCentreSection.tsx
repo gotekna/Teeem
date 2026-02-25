@@ -53,14 +53,15 @@ export function CostCentreSection({
       }, 0);
 
   const isCCLevel = line.quoteLevel === "cost_centre";
+  const isNotRequired = line.quoteLevel === "not_required";
 
   return (
-    <div className="border rounded-lg mb-3 bg-card">
+    <div className={`border rounded-lg mb-3 ${isNotRequired ? "bg-muted/30 opacity-60" : "bg-card"}`}>
       {/* CC Header */}
       <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
         {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
 
-        <span className="font-semibold">{line.name}</span>
+        <span className={`font-semibold ${isNotRequired ? "line-through text-muted-foreground" : ""}`}>{line.name}</span>
 
         {/* Quote level toggle */}
         <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
@@ -74,11 +75,19 @@ export function CostCentreSection({
           </Button>
           <Button
             size="sm"
-            variant={!isCCLevel ? "default" : "outline"}
+            variant={!isCCLevel && !isNotRequired ? "default" : "outline"}
             className="h-6 px-2 text-xs"
             onClick={() => onToggleQuoteLevel(line.id, "po")}
           >
             PO Level
+          </Button>
+          <Button
+            size="sm"
+            variant={isNotRequired ? "destructive" : "outline"}
+            className="h-6 px-2 text-xs"
+            onClick={() => onToggleQuoteLevel(line.id, "not_required")}
+          >
+            Not Required
           </Button>
         </div>
 
@@ -95,8 +104,8 @@ export function CostCentreSection({
         )}
       </div>
 
-      {/* Expanded content */}
-      {expanded && (
+      {/* Expanded content (hidden when not required) */}
+      {expanded && !isNotRequired && (
         <div className="px-4 pb-3">
           {/* CC-level: suppliers on the CC line itself */}
           {isCCLevel && (

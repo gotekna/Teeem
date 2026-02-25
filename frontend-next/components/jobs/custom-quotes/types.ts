@@ -83,7 +83,7 @@ export interface AllocationData {
   purchaseOrderId: number | null;
 }
 
-export type QuoteLevel = "cost_centre" | "po";
+export type QuoteLevel = "cost_centre" | "po" | "not_required";
 export type QuoteStatus = "draft" | "in_progress" | "completed";
 export type SupplierStatus = "draft" | "sent" | "responded" | "accepted" | "rejected";
 
@@ -106,4 +106,5 @@ export const STATUS_LABELS: Record<SupplierStatus, string> = {
 export const QUOTE_LEVEL_LABELS: Record<QuoteLevel, string> = {
   cost_centre: "CC Level",
   po: "PO Level",
+  not_required: "Not Required",
 };
