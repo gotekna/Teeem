@@ -1011,6 +1011,8 @@ Rails.application.routes.draw do
           post :reject, action: 'reject_quote'
           get :allocations, action: 'supplier_allocations'
           post :allocations, action: 'create_allocation'
+          post :presign_upload
+          post :confirm_upload
         end
         collection do
           post :bulk_send_rfq

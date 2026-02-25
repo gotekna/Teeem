@@ -21,6 +21,8 @@ interface CustomQuoteTreeProps {
   onReject: (supplierId: number) => void;
   onCreateAllocations: (supplierId: number, allocations: Array<{ lineId: number; amount: number }>) => void;
   onFetchAllocations: (supplierId: number) => Promise<AllocationData[]>;
+  onDropFile?: (supplierId: number, file: File) => void;
+  uploading?: boolean;
 }
 
 export function CustomQuoteTree({
@@ -36,6 +38,8 @@ export function CustomQuoteTree({
   onReject,
   onCreateAllocations,
   onFetchAllocations,
+  onDropFile,
+  uploading,
 }: CustomQuoteTreeProps) {
   // Expand/collapse all CC sections
   const [expandedCCs, setExpandedCCs] = useState<Set<number>>(new Set());
@@ -162,6 +166,7 @@ export function CustomQuoteTree({
             onAccept={onAccept}
             onReject={onReject}
             onAllocate={handleAllocate}
+            onDropFile={onDropFile}
           />
         ))}
       </div>

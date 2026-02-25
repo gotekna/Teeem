@@ -18,6 +18,7 @@ interface POLineRowProps {
   onRecordResponse: (supplierId: number) => void;
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
+  onDropFile?: (supplierId: number, file: File) => void;
 }
 
 export function POLineRow({
@@ -30,6 +31,7 @@ export function POLineRow({
   onRecordResponse,
   onAccept,
   onReject,
+  onDropFile,
 }: POLineRowProps) {
   const [liveDocTypeNames, setLiveDocTypeNames] = useState<string[]>(line.documentTypeNames);
   const handleDocTypeNamesChange = useCallback((names: string[]) => {
@@ -108,6 +110,7 @@ export function POLineRow({
               onRecordResponse={onRecordResponse}
               onAccept={onAccept}
               onReject={onReject}
+              onDropFile={onDropFile}
             />
           ))}
         </div>

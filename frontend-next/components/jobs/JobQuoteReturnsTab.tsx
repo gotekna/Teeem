@@ -9,11 +9,12 @@ import {
   X,
   FileText,
   ClipboardCheck,
-  ExternalLink,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { QuoteConfirmDialog } from "./quote-returns/QuoteConfirmDialog";
+import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
+import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
 import type {
   QuoteReturn,
   QuoteReturnsData,
@@ -25,11 +26,27 @@ interface JobQuoteReturnsTabProps {
   jobId: string | number;
 }
 
+const ACCEPTED_DROP_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
+
 export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
   const [data, setData] = useState<QuoteReturnsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [confirmDialog, setConfirmDialog] = useState<QuoteReturn | null>(null);
   const [filter, setFilter] = useState<QuoteReturnStatus | "all">("all");
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
+  const [recordResponseDialog, setRecordResponseDialog] = useState<{
+    sourceId: number;
+    supplierName: string;
+    attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
+  } | null>(null);
+
+  const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
 
   const loadReturns = useCallback(async () => {
     try {
@@ -59,6 +76,50 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
       toast.error("Failed to reject quote");
     }
   };
+
+  const handleRowDrop = useCallback(async (qr: QuoteReturn, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverRowId(null);
+
+    if (qr.source !== "custom_quote" || qr.status !== "sent") return;
+
+    const files = Array.from(e.dataTransfer.files);
+    const validFile = files.find((f) => ACCEPTED_DROP_TYPES.has(f.type));
+    if (!validFile) return;
+
+    const result = await uploadForSupplier(qr.sourceId, validFile);
+    if (result) {
+      toast.success(`Uploaded ${result.filename}`);
+      setRecordResponseDialog({
+        sourceId: qr.sourceId,
+        supplierName: qr.supplierName || "Supplier",
+        attachedDocument: result,
+      });
+    }
+  }, [uploadForSupplier]);
+
+  const handleRecordResponseSubmit = useCallback(async (data: {
+    price_quoted: number;
+    quote_number?: string;
+    valid_to?: string;
+    response_notes?: string;
+    warehouse_document_id?: number;
+  }) => {
+    if (!recordResponseDialog) return;
+    try {
+      await api.post(
+        `/api/v1/custom_quote_suppliers/${recordResponseDialog.sourceId}/record_response`,
+        data
+      );
+      toast.success("Response recorded");
+      setRecordResponseDialog(null);
+      loadReturns();
+    } catch (err) {
+      console.error("[JobQuoteReturnsTab] Record response failed:", err);
+      toast.error("Failed to record response");
+    }
+  }, [recordResponseDialog, loadReturns]);
 
   const filteredReturns =
     data?.returns.filter((r) => filter === "all" || r.status === filter) ?? [];
@@ -166,12 +227,18 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
             </tr>
           </thead>
           <tbody>
-            {filteredReturns.map((qr) => (
+            {filteredReturns.map((qr) => {
+              const canDropOnRow = qr.source === "custom_quote" && qr.status === "sent";
+              const isRowDragOver = dragOverRowId === qr.id;
+              return (
               <tr
                 key={qr.id}
-                className={`border-b hover:bg-muted/30 ${
+                className={`border-b hover:bg-muted/30 transition-colors ${
                   qr.status === "rejected" ? "opacity-50" : ""
-                }`}
+                } ${isRowDragOver ? "bg-blue-50 dark:bg-blue-950/50" : ""}`}
+                onDragOver={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(qr.id); } : undefined}
+                onDragLeave={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(null); } : undefined}
+                onDrop={canDropOnRow ? (e) => handleRowDrop(qr, e) : undefined}
               >
                 <td className="px-4 py-2 font-medium truncate max-w-[160px]">
                   {qr.supplierName || "Unknown"}
@@ -291,7 +358,8 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
 
@@ -311,6 +379,15 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
           onAccepted={loadReturns}
         />
       )}
+
+      {/* Record Response Dialog (from drag-drop upload) */}
+      <RecordResponseDialog
+        open={!!recordResponseDialog}
+        onClose={() => setRecordResponseDialog(null)}
+        supplierName={recordResponseDialog?.supplierName || ""}
+        attachedDocument={recordResponseDialog?.attachedDocument}
+        onSubmit={handleRecordResponseSubmit}
+      />
     </div>
   );
 }

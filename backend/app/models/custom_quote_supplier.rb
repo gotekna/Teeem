@@ -48,8 +48,8 @@ class CustomQuoteSupplier < ApplicationRecord
   end
 
   # Record supplier's response
-  def record_response!(price:, quote_number: nil, timeframe: nil, notes: nil, valid_to: nil)
-    update!(
+  def record_response!(price:, quote_number: nil, timeframe: nil, notes: nil, valid_to: nil, warehouse_document_id: nil)
+    attrs = {
       status: 'responded',
       price_quoted: price,
       quote_number: quote_number,
@@ -57,7 +57,9 @@ class CustomQuoteSupplier < ApplicationRecord
       timeframe: timeframe,
       response_notes: notes,
       valid_to: valid_to
-    )
+    }
+    attrs[:warehouse_document_id] = warehouse_document_id if warehouse_document_id.present?
+    update!(attrs)
     recalculate_best_prices!
   end
 

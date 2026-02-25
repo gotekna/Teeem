@@ -7,18 +7,16 @@ import { CustomQuoteSetup } from "./custom-quotes/CustomQuoteSetup";
 import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
 import { SendCQRFQDialog } from "./custom-quotes/SendCQRFQDialog";
+import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
 import { useCustomQuote, useCustomQuoteTemplates } from "./custom-quotes/useCustomQuote";
+import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
 import type { QuoteLevel, CustomQuoteSupplierSummary } from "./custom-quotes/types";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
 
 interface JobCustomQuotesTabProps {
@@ -60,13 +58,17 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
 
   const { templates, loading: templatesLoading, fetchTemplates } = useCustomQuoteTemplates();
 
+  const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
+
   // Dialog states
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [sendRfqSuppliers, setSendRfqSuppliers] = useState<CustomQuoteSupplierSummary[] | null>(null);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
-  const [recordResponseDialog, setRecordResponseDialog] = useState<{ supplierId: number } | null>(null);
-  const [responsePrice, setResponsePrice] = useState("");
-  const [responseQuoteNumber, setResponseQuoteNumber] = useState("");
+  const [recordResponseDialog, setRecordResponseDialog] = useState<{
+    supplierId: number;
+    supplierName: string;
+    attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
+  } | null>(null);
 
   // Initial load
   useEffect(() => {
@@ -143,22 +145,52 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     if (result) await refresh();
   }, [markSent, refresh]);
 
-  const handleRecordResponse = useCallback((supplierId: number) => {
-    setRecordResponseDialog({ supplierId });
-    setResponsePrice("");
-    setResponseQuoteNumber("");
-  }, []);
-
-  const handleRecordResponseConfirm = useCallback(async () => {
-    if (recordResponseDialog && responsePrice) {
-      await recordResponse(recordResponseDialog.supplierId, {
-        price_quoted: parseFloat(responsePrice),
-        quote_number: responseQuoteNumber || undefined,
-      });
-      setRecordResponseDialog(null);
-      await refresh();
+  // Find supplier name from tree by ID
+  const findSupplierName = useCallback((supplierId: number): string => {
+    if (!activeQuote) return "Supplier";
+    for (const cc of activeQuote.tree) {
+      const found = cc.suppliers.find((s) => s.id === supplierId);
+      if (found) return found.supplierName || "Supplier";
+      for (const child of cc.children) {
+        const childFound = child.suppliers.find((s) => s.id === supplierId);
+        if (childFound) return childFound.supplierName || "Supplier";
+      }
     }
-  }, [recordResponseDialog, responsePrice, responseQuoteNumber, recordResponse, refresh]);
+    return "Supplier";
+  }, [activeQuote]);
+
+  const handleRecordResponse = useCallback((supplierId: number) => {
+    setRecordResponseDialog({
+      supplierId,
+      supplierName: findSupplierName(supplierId),
+    });
+  }, [findSupplierName]);
+
+  const handleRecordResponseSubmit = useCallback(async (data: {
+    price_quoted: number;
+    quote_number?: string;
+    valid_to?: string;
+    response_notes?: string;
+    warehouse_document_id?: number;
+  }) => {
+    if (!recordResponseDialog) return;
+    await recordResponse(recordResponseDialog.supplierId, data);
+    setRecordResponseDialog(null);
+    await refresh();
+  }, [recordResponseDialog, recordResponse, refresh]);
+
+  // Drag-drop: upload PDF then open Record Response dialog with doc attached
+  const handleDropFile = useCallback(async (supplierId: number, file: File) => {
+    const result = await uploadForSupplier(supplierId, file);
+    if (result) {
+      toast.success(`Uploaded ${result.filename}`);
+      setRecordResponseDialog({
+        supplierId,
+        supplierName: findSupplierName(supplierId),
+        attachedDocument: result,
+      });
+    }
+  }, [uploadForSupplier, findSupplierName]);
 
   const handleAccept = useCallback(async (supplierId: number) => {
     const ok = await acceptQuote(supplierId);
@@ -234,6 +266,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
           onReject={handleReject}
           onCreateAllocations={handleCreateAllocations}
           onFetchAllocations={fetchAllocations}
+          onDropFile={handleDropFile}
+          uploading={uploading}
         />
       ) : (
         <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
@@ -279,45 +313,13 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
       )}
 
       {/* Record Response Dialog */}
-      <Dialog open={!!recordResponseDialog} onOpenChange={(o) => !o && setRecordResponseDialog(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Record Supplier Response</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>Price Quoted</Label>
-              <div className="relative mt-1">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                <Input
-                  type="number"
-                  value={responsePrice}
-                  onChange={(e) => setResponsePrice(e.target.value)}
-                  className="pl-6"
-                  placeholder="0.00"
-                  step="0.01"
-                  autoFocus
-                />
-              </div>
-            </div>
-            <div>
-              <Label>Quote Number (optional)</Label>
-              <Input
-                value={responseQuoteNumber}
-                onChange={(e) => setResponseQuoteNumber(e.target.value)}
-                className="mt-1"
-                placeholder="Q-001"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRecordResponseDialog(null)}>Cancel</Button>
-            <Button onClick={handleRecordResponseConfirm} disabled={!responsePrice}>
-              Record Response
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RecordResponseDialog
+        open={!!recordResponseDialog}
+        onClose={() => setRecordResponseDialog(null)}
+        supplierName={recordResponseDialog?.supplierName || ""}
+        attachedDocument={recordResponseDialog?.attachedDocument}
+        onSubmit={handleRecordResponseSubmit}
+      />
     </div>
   );
 }

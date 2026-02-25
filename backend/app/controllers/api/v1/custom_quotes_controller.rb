@@ -7,7 +7,8 @@ module Api
       before_action :set_custom_quote, only: [:show, :update, :destroy, :save_as_template, :overwrite_template]
       before_action :set_line, only: [:update_line, :add_supplier, :add_child_line]
       before_action :set_supplier, only: [:send_rfq_single, :mark_sent, :record_response, :accept_quote,
-                                          :reject_quote, :supplier_allocations, :create_allocation]
+                                          :reject_quote, :supplier_allocations, :create_allocation,
+                                          :presign_upload, :confirm_upload]
 
       # ═══════════════════════════════════════════════════════════════════════════
       # Template endpoints
@@ -291,7 +292,8 @@ module Api
           quote_number: params[:quote_number],
           timeframe: params[:timeframe],
           notes: params[:response_notes],
-          valid_to: params[:valid_to]
+          valid_to: params[:valid_to],
+          warehouse_document_id: params[:warehouse_document_id]
         )
 
         render json: { success: true, data: @supplier.reload.as_json_summary }
@@ -335,6 +337,102 @@ module Api
         )
 
         render json: { success: true, data: allocation_json(allocation) }, status: :created
+      end
+
+      # ═══════════════════════════════════════════════════════════════════════════
+      # Document upload endpoints (presign → S3 PUT → confirm)
+      # ═══════════════════════════════════════════════════════════════════════════
+
+      # POST /api/v1/custom_quote_suppliers/:id/presign_upload
+      def presign_upload
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+
+        unless filename.present?
+          return render_error("Filename required", status: :bad_request)
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
+
+          safe_filename = filename.gsub(/[^a-zA-Z0-9._-]/, "_")
+          temp_key = "QuoteUploads/#{@supplier.id}/#{Time.current.to_i}_#{SecureRandom.hex(4)}_#{safe_filename}"
+
+          upload_url = provider.presigned_upload_url(
+            "",
+            temp_key,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT,
+            content_type: content_type
+          )
+
+          render json: {
+            success: true,
+            upload_url: upload_url,
+            key: temp_key,
+            filename: filename,
+            content_type: content_type,
+            expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT
+          }
+        rescue DocumentProviders::NotConnectedError => e
+          render_error("Storage not configured: #{e.message}", status: :service_unavailable)
+        rescue => e
+          Rails.logger.error "[CustomQuotesController#presign_upload] Failed: #{e.message}"
+          render_error("Failed to generate upload URL", status: :unprocessable_entity)
+        end
+      end
+
+      # POST /api/v1/custom_quote_suppliers/:id/confirm_upload
+      def confirm_upload
+        key = params[:key]
+        filename = params[:filename]
+        content_type = params[:content_type] || "application/octet-stream"
+
+        unless key.present? && filename.present?
+          return render_error("Key and filename required", status: :bad_request)
+        end
+
+        begin
+          provider = DocumentProviders::S3Compatible.for_tenant(current_tenant)
+
+          content = provider.download_file(key)
+
+          blob = StorageBlob.find_or_create_for_content!(
+            content,
+            filename: filename,
+            content_type: content_type
+          )
+          blob.increment_reference!
+
+          begin
+            provider.delete_file(key)
+          rescue StandardError => e
+            Rails.logger.warn "[CustomQuotes] Failed to delete temp file #{key}: #{e.message}"
+          end
+
+          job = @supplier.custom_quote_line.custom_quote.job
+
+          doc = WarehouseDocumentCreator.create!(
+            filename: filename,
+            source_type: "job",
+            storage_blob: blob,
+            linkable: job
+          )
+
+          @supplier.update!(warehouse_document: doc)
+
+          render json: {
+            success: true,
+            warehouseDocumentId: doc.id,
+            filename: filename
+          }
+        rescue DocumentProviders::NotFoundError
+          render_error("File not found in storage. Upload may have failed.", status: :not_found)
+        rescue DocumentProviders::NotConnectedError => e
+          render_error("Storage not configured: #{e.message}", status: :service_unavailable)
+        rescue => e
+          Rails.logger.error "[CustomQuotesController#confirm_upload] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}"
+          render_error("Failed to confirm upload: #{e.message}", status: :unprocessable_entity)
+        end
       end
 
       private

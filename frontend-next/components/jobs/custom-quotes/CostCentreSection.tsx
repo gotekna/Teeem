@@ -23,6 +23,7 @@ interface CostCentreSectionProps {
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
   onAllocate: (supplierId: number) => void;
+  onDropFile?: (supplierId: number, file: File) => void;
 }
 
 export function CostCentreSection({
@@ -39,6 +40,7 @@ export function CostCentreSection({
   onAccept,
   onReject,
   onAllocate,
+  onDropFile,
 }: CostCentreSectionProps) {
 
   // Total from accepted suppliers or PO children
@@ -160,6 +162,7 @@ export function CostCentreSection({
                       onAllocate(id);
                     }}
                     onReject={onReject}
+                    onDropFile={onDropFile}
                   />
                 ))}
               </div>
@@ -192,6 +195,7 @@ export function CostCentreSection({
                 onRecordResponse={onRecordResponse}
                 onAccept={onAccept}
                 onReject={onReject}
+                onDropFile={onDropFile}
               />
             ))}
 

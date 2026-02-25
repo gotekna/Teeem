@@ -162,7 +162,7 @@ export function useCustomQuote(jobId: string | number) {
 
   const recordResponse = useCallback(async (
     supplierId: number,
-    data: { price_quoted: number; quote_number?: string; timeframe?: string; response_notes?: string }
+    data: { price_quoted: number; quote_number?: string; timeframe?: string; response_notes?: string; valid_to?: string; warehouse_document_id?: number }
   ) => {
     try {
       const res = await api.post<{ success: boolean; data: CustomQuoteSupplierSummary }>(
