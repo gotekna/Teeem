@@ -210,14 +210,18 @@ class DirectorChangeService
     # Generate minutes of directors' meeting (first - it's the board resolution)
     documents << render_minutes
 
-    # Generate resignation letters
+    # Generate one resignation letter per position per ceasing director
     ceasing_directors.each do |cd|
-      documents << render_resignation(cd)
+      cd[:positions].each do |position|
+        documents << render_resignation(cd.merge(positions: [position]))
+      end
     end
 
-    # Generate consent forms
+    # Generate one consent form per position per new appointment
     new_appointments.each do |appt|
-      documents << render_consent(appt)
+      appt[:positions].each do |position|
+        documents << render_consent(appt.merge(positions: [position]))
+      end
     end
 
     # Generate Form 484 records (separate documents for cessation and appointment)
@@ -683,22 +687,25 @@ class DirectorChangeService
     end
   end
 
-  # Build document metadata without generating PDFs
+  # Build document metadata without generating PDFs.
+  # One entry per position per person (mirrors generate_all_documents).
   def build_document_metadata
     docs = [{ type: :minutes, name: resolve_doc_name("DM", "Minutes of Meeting of Directors") }]
 
     ceasing_directors.each do |cd|
-      primary_pos = cd[:positions]&.first || "director"
-      abbr = RESIGNATION_DOC_TYPES[primary_pos] || "RD"
-      doc_name = resolve_doc_name(abbr, "Resignation")
-      docs << { type: :resignation, name: "#{doc_name} - #{cd[:corporate_director].contact.display_name}" }
+      cd[:positions].each do |position|
+        abbr = RESIGNATION_DOC_TYPES[position] || "RD"
+        doc_name = resolve_doc_name(abbr, "Resignation")
+        docs << { type: :resignation, name: "#{doc_name} - #{cd[:corporate_director].contact.display_name}" }
+      end
     end
 
     new_appointments.each do |appt|
-      primary_pos = appt[:positions]&.first || "director"
-      abbr = CONSENT_DOC_TYPES[primary_pos] || "CAD"
-      doc_name = resolve_doc_name(abbr, "Consent to Act")
-      docs << { type: :consent, name: "#{doc_name} - #{appt[:contact].display_name}" }
+      appt[:positions].each do |position|
+        abbr = CONSENT_DOC_TYPES[position] || "CAD"
+        doc_name = resolve_doc_name(abbr, "Consent to Act")
+        docs << { type: :consent, name: "#{doc_name} - #{appt[:contact].display_name}" }
+      end
     end
 
     f484_name = resolve_doc_name("F484", "Form 484")

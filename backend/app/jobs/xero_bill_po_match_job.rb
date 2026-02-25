@@ -8,17 +8,39 @@
 class XeroBillPoMatchJob < ApplicationJob
   queue_as :xero_sync
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: PurchaseOrder and XeroJobTrackingLink have acts_as_tenant.
+  # Without tenant context (require_tenant=false), queries return ALL tenants' data,
+  # matching Tenant A's bills to Tenant B's POs (cross-tenant data corruption).
   def perform(_options = {})
     Rails.logger.info("[XeroBillPoMatchJob] Starting automatic Xero bill → PO matching")
 
     total_stats = { jobs_processed: 0, matched: 0, updated_xero: 0, errors: [] }
 
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        match_for_tenant(total_stats)
+      end
+    end
+
+    Rails.logger.info("[XeroBillPoMatchJob] Complete: #{total_stats.except(:errors).inspect}, errors=#{total_stats[:errors].length}")
+  rescue XeroApiClient::AuthenticationError => e
+    Rails.logger.error("[XeroBillPoMatchJob] Auth failed - Xero may need reconnection: #{e.message}")
+  rescue StandardError => e
+    Rails.logger.error("[XeroBillPoMatchJob] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+  end
+
+  private
+
+  def match_for_tenant(total_stats)
     # Find all jobs that have both: native POs AND a Xero tracking link
     job_ids_with_pos = PurchaseOrder.where(xero_invoice_id: [nil, ""]).distinct.pluck(:job_id)
     job_ids_with_tracking = XeroJobTrackingLink.distinct.pluck(:job_id)
     matchable_job_ids = job_ids_with_pos & job_ids_with_tracking
 
-    Rails.logger.info("[XeroBillPoMatchJob] #{matchable_job_ids.length} jobs have both native POs and Xero tracking")
+    return if matchable_job_ids.empty?
+
+    Rails.logger.info("[XeroBillPoMatchJob] #{ActsAsTenant.current_tenant.name}: #{matchable_job_ids.length} jobs have both native POs and Xero tracking")
 
     matchable_job_ids.each do |job_id|
       job = Job.find_by(id: job_id)
@@ -36,11 +58,5 @@ class XeroBillPoMatchJob < ApplicationJob
         total_stats[:errors] << "Job #{job.job_code}: #{e.message}"
       end
     end
-
-    Rails.logger.info("[XeroBillPoMatchJob] Complete: #{total_stats.except(:errors).inspect}, errors=#{total_stats[:errors].length}")
-  rescue XeroApiClient::AuthenticationError => e
-    Rails.logger.error("[XeroBillPoMatchJob] Auth failed - Xero may need reconnection: #{e.message}")
-  rescue StandardError => e
-    Rails.logger.error("[XeroBillPoMatchJob] Failed: #{e.message}\n#{e.backtrace.first(5).join("\n")}")
   end
 end

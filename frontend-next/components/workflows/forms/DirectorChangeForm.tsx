@@ -213,6 +213,7 @@ export default function DirectorChangeForm({
   const [docTypeNames, setDocTypeNames] = useState<Record<string, string>>({});
 
   // PDF preview state
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewMessage, setPreviewMessage] = useState("");
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
@@ -598,6 +599,22 @@ export default function DirectorChangeForm({
     }
     return docs;
   }, [ceasingDirectors, newAppointments, docTypeNames]);
+
+  // Signers who will receive e-signature emails
+  const signerList = useMemo(() => {
+    const signers: { name: string; email: string; role: string }[] = [];
+    ceasingDirectors.forEach((cd) => {
+      if (cd.selected_email) {
+        signers.push({ name: cd.name, email: cd.selected_email, role: "Resignation" });
+      }
+    });
+    newAppointments.forEach((appt) => {
+      if (appt.selected_email) {
+        signers.push({ name: appt.name, email: appt.selected_email, role: "Consent" });
+      }
+    });
+    return signers;
+  }, [ceasingDirectors, newAppointments]);
 
   // Generate PDF preview
   const generatePreview = async () => {
@@ -1559,20 +1576,63 @@ export default function DirectorChangeForm({
               </div>
             )}
 
+            {/* Confirmation Panel */}
+            {showConfirmation && (
+              <div className="p-4 border-2 border-primary/30 bg-primary/5 rounded-lg space-y-3">
+                <h4 className="text-sm font-semibold">Confirm Submission</h4>
+                <p className="text-sm text-muted-foreground">
+                  This will start the workflow and generate{" "}
+                  <span className="font-medium text-foreground">{documentList.length} documents</span> combined
+                  into a single PDF, then sent for e-signature.
+                </p>
+
+                {signerList.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Signers who will receive emails:</p>
+                    {signerList.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <Mail className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-medium">{s.name}</span>
+                        <span className="text-muted-foreground">{s.email}</span>
+                        <Badge variant="outline" className="text-[10px] ml-auto">{s.role}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowConfirmation(false)}
+                    disabled={submitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <><Spinner size={14} className="mr-1.5" /> Submitting...</>
+                    ) : (
+                      <><Check className="w-3.5 h-3.5 mr-1" /> Confirm & Start</>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between pt-4 border-t">
               <Button variant="outline" onClick={() => setStep(2)}>
                 <ArrowLeft className="w-4 h-4 mr-1" /> Back
               </Button>
-              <Button onClick={handleSubmit} disabled={submitting}>
-                {submitting ? (
-                  <>
-                    <Spinner size={16} className="mr-2" /> Submitting...
-                  </>
-                ) : (
-                  <>
-                    <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
-                  </>
-                )}
+              <Button
+                onClick={() => setShowConfirmation(true)}
+                disabled={submitting || showConfirmation}
+              >
+                <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
               </Button>
             </div>
           </div>

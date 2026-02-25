@@ -11,11 +11,40 @@
 class GenerateDailyProgressReportJob < ApplicationJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SmTaskPhoto and Job have acts_as_tenant. Without tenant context,
+  # queries return ALL tenants' photos, wasting API calls and mixing tenant data.
   def perform(date: nil)
     date ||= Date.current
 
     Rails.logger.info "[DailyProgressReport] Generating reports for #{date}"
 
+    total_jobs_analyzed = 0
+    total_reports_generated = 0
+    all_errors = []
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        result = generate_for_tenant(date)
+        total_jobs_analyzed += result[:jobs_analyzed]
+        total_reports_generated += result[:reports_generated]
+        all_errors.concat(result[:errors])
+      end
+    end
+
+    Rails.logger.info "[DailyProgressReport] Generated #{total_reports_generated} reports for #{total_jobs_analyzed} jobs"
+
+    {
+      date: date,
+      jobs_analyzed: total_jobs_analyzed,
+      reports_generated: total_reports_generated,
+      errors: all_errors
+    }
+  end
+
+  private
+
+  def generate_for_tenant(date)
     service = WorkProgressDetectionService.new
     reports_generated = 0
     errors = []
@@ -31,7 +60,6 @@ class GenerateDailyProgressReportJob < ApplicationJob
         report = service.generate_daily_report(job: job, date: date)
 
         if report[:photos_analyzed].positive?
-          # Store report (could save to DB or send notification)
           store_report(job, date, report)
           reports_generated += 1
         end
@@ -41,17 +69,8 @@ class GenerateDailyProgressReportJob < ApplicationJob
       end
     end
 
-    Rails.logger.info "[DailyProgressReport] Generated #{reports_generated} reports for #{job_ids.length} jobs"
-
-    {
-      date: date,
-      jobs_analyzed: job_ids.length,
-      reports_generated: reports_generated,
-      errors: errors
-    }
+    { jobs_analyzed: job_ids.length, reports_generated: reports_generated, errors: errors }
   end
-
-  private
 
   def store_report(job, date, report)
     # Store in job metadata or create a separate report record

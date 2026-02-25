@@ -7,11 +7,27 @@ class AssetInsuranceExpiryJob < ApplicationJob
   EXPIRING_SOON_DAYS = 30
   EXPIRING_VERY_SOON_DAYS = 7
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Asset has acts_as_tenant. AssetInsurance.joins(:asset) without tenant
+  # context returns ALL tenants' insurance records, sending cross-tenant notifications.
   def perform
     Rails.logger.info "[AssetInsuranceExpiryJob] Starting insurance expiry check"
 
     results = { expired: 0, expiring_very_soon: 0, expiring_soon: 0 }
 
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        check_expiry_for_tenant(results)
+      end
+    end
+
+    Rails.logger.info "[AssetInsuranceExpiryJob] Completed: #{results.inspect}"
+    results
+  end
+
+  private
+
+  def check_expiry_for_tenant(results)
     # Find expired insurance
     expired_insurances = AssetInsurance.joins(:asset)
                                         .where("renewal_date < ?", Date.current)
@@ -44,12 +60,7 @@ class AssetInsuranceExpiryJob < ApplicationJob
         results[:expiring_soon] += 1
       end
     end
-
-    Rails.logger.info "[AssetInsuranceExpiryJob] Completed: #{results.inspect}"
-    results
   end
-
-  private
 
   def create_expiry_notification(insurance, severity)
     asset = insurance.asset
