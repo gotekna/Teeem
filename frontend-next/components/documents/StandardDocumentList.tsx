@@ -293,7 +293,7 @@ function SortableDocumentRow({
 // SmTaskStatusBar
 // ============================================================================
 
-function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
+export function SmTaskStatusBar({ info }: { info: SmTaskInfo }) {
   const statusConfig = {
     not_started: {
       label: "Not Started",

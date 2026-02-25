@@ -22,6 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatFileSize } from "@/utils/formatters";
+import { SmTaskStatusBar } from "@/components/documents/StandardDocumentList";
 
 import type {
   TreeNode,

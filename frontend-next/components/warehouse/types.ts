@@ -194,12 +194,23 @@ export interface S3FileEntry {
   warehouse_document_id?: number;
 }
 
+export interface SmTaskInfo {
+  taskId: number;
+  taskName: string;
+  startDate: string | null;
+  endDate: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  status: string;
+}
+
 export interface S3FolderData {
   folders: S3FolderEntry[];
   files: S3FileEntry[];
   loading?: boolean;
   message?: string;
   progress?: { processed: number; total: number; percent: number; remaining_seconds?: number };
+  smTaskInfo?: SmTaskInfo;
 }
 
 // SSoT: Scope folder names from WarehouseProvider

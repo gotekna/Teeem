@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_26_000000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_26_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -9240,6 +9240,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_000000) do
     t.string "sync_key"
     t.string "task_code", limit: 50
     t.integer "tender_id"
+    t.bigint "warehouse_folder_id"
     t.index ["assigned_role", "assigned_user_id"], name: "idx_sm_tasks_role_user"
     t.index ["assigned_user_id"], name: "index_sm_tasks_on_assigned_user_id"
     t.index ["case_id"], name: "index_sm_tasks_on_case_id"
@@ -9279,6 +9280,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_26_000000) do
     t.index ["tender_id"], name: "index_sm_tasks_on_tender_id"
     t.index ["ticket_priority"], name: "index_sm_tasks_on_ticket_priority"
     t.index ["updated_by_id"], name: "index_sm_tasks_on_updated_by_id"
+    t.index ["warehouse_folder_id"], name: "index_sm_tasks_on_warehouse_folder_id"
   end
 
   create_table "sm_time_entries", force: :cascade do |t|

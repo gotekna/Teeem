@@ -10,6 +10,7 @@ import {
   ChevronsUpDown,
   Minus,
   Search,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
@@ -56,6 +57,16 @@ function collectAllFolderIds(nodes: FolderNode[]): number[] {
     }
   }
   return ids;
+}
+
+/** Collect all doc types {id, name} from tree (recursively) */
+function collectAllDocTypes(nodes: FolderNode[]): DocTypeLeaf[] {
+  const result: DocTypeLeaf[] = [];
+  for (const node of nodes) {
+    result.push(...node.documentTypes);
+    result.push(...collectAllDocTypes(node.children));
+  }
+  return result;
 }
 
 /** Count total doc types in a tree (recursively) */
@@ -187,6 +198,13 @@ export function DocumentTypeTreePicker({
 
   const selectedSet = useMemo(() => new Set(localIds), [localIds]);
 
+  // Build a map of all doc types for badge display
+  const allDocTypes = useMemo(() => collectAllDocTypes(treeData), [treeData]);
+  const selectedDocTypes = useMemo(
+    () => allDocTypes.filter((dt) => selectedSet.has(dt.id)),
+    [allDocTypes, selectedSet]
+  );
+
   const toggleItem = useCallback(
     (id: number) => {
       setLocalIds((prev) => {
@@ -301,16 +319,37 @@ export function DocumentTypeTreePicker({
         <button
           type="button"
           onClick={anyExpanded ? collapseAll : expandAll}
-          className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground"
+          className="shrink-0 h-7 w-7 flex items-center justify-center rounded border border-input bg-background hover:bg-muted text-muted-foreground"
           title={anyExpanded ? "Collapse all" : "Expand all"}
         >
           {anyExpanded ? (
-            <ChevronsDownUp className="h-4 w-4" />
+            <ChevronsDownUp className="h-3.5 w-3.5" />
           ) : (
-            <ChevronsUpDown className="h-4 w-4" />
+            <ChevronsUpDown className="h-3.5 w-3.5" />
           )}
         </button>
       </div>
+
+      {/* Selected badges */}
+      {selectedDocTypes.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {selectedDocTypes.map((dt) => (
+            <span
+              key={dt.id}
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full bg-primary/10 text-primary border border-primary/20"
+            >
+              {dt.name}
+              <button
+                type="button"
+                className="hover:text-destructive"
+                onClick={() => toggleItem(dt.id)}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tree */}
       <div className="border rounded max-h-48 overflow-y-auto">
