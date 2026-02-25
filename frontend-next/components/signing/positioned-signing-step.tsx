@@ -104,6 +104,10 @@ export function PositionedSigningStep({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const hasAutoOpened = useRef(false);
 
+  // Refs to avoid stale closures in navigateToField callbacks
+  const savedSignatureRef = useRef<string | null>(null);
+  const savedInitialsRef = useRef<string | null>(null);
+
   // Fields sorted in reading order for sequential navigation
   const sortedFields = React.useMemo(() => sortFieldsByReadingOrder(fields), [fields]);
 
@@ -134,25 +138,26 @@ export function PositionedSigningStep({
 
   // Navigate to a field: change page and open its dialog.
   // If we already have a saved signature/initials, show the quick-confirm dialog instead.
+  // Uses refs (not state) so the latest saved signature is always available even in stale closures.
   const navigateToField = useCallback(
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
       setSelectedField(field);
       if (field.field_type === "signature") {
-        if (savedSignature) {
+        if (savedSignatureRef.current) {
           setConfirmMode("signature");
         } else {
           setCaptureMode("signature");
         }
       } else if (field.field_type === "initials") {
-        if (savedInitials) {
+        if (savedInitialsRef.current) {
           setConfirmMode("initials");
         } else {
           setCaptureMode("initials");
         }
       }
     },
-    [savedSignature, savedInitials]
+    []
   );
 
   // Auto-open the first incomplete field once the PDF is loaded
@@ -203,13 +208,13 @@ export function PositionedSigningStep({
     setSelectedField(field);
 
     if (field.field_type === "signature") {
-      if (savedSignature) {
+      if (savedSignatureRef.current) {
         setConfirmMode("signature");
       } else {
         setCaptureMode("signature");
       }
     } else if (field.field_type === "initials") {
-      if (savedInitials) {
+      if (savedInitialsRef.current) {
         setConfirmMode("initials");
       } else {
         setCaptureMode("initials");
@@ -272,11 +277,14 @@ export function PositionedSigningStep({
   // Handle signature/initials capture - save for reuse at subsequent fields
   const handleSignatureCapture = async (signatureData: string) => {
     if (!selectedField) return;
-    // Save so we can reuse at subsequent fields with just a Confirm click
+    // Save to both state (for rendering) and ref (for callbacks) so we can
+    // reuse at subsequent fields with just a Confirm click
     if (selectedField.field_type === "signature") {
       setSavedSignature(signatureData);
+      savedSignatureRef.current = signatureData;
     } else if (selectedField.field_type === "initials") {
       setSavedInitials(signatureData);
+      savedInitialsRef.current = signatureData;
     }
     await completeField(selectedField.id, signatureData);
   };
@@ -284,7 +292,7 @@ export function PositionedSigningStep({
   // Handle quick-confirm: apply the saved signature/initials to the current field
   const handleConfirmSavedSignature = async () => {
     if (!selectedField) return;
-    const data = confirmMode === "initials" ? savedInitials : savedSignature;
+    const data = confirmMode === "initials" ? savedInitialsRef.current : savedSignatureRef.current;
     if (!data) return;
     await completeField(selectedField.id, data);
   };
@@ -635,9 +643,11 @@ export function PositionedSigningStep({
                   setConfirmMode(null);
                   if (confirmMode === "initials") {
                     setSavedInitials(null);
+                    savedInitialsRef.current = null;
                     setCaptureMode("initials");
                   } else {
                     setSavedSignature(null);
+                    savedSignatureRef.current = null;
                     setCaptureMode("signature");
                   }
                 }}
