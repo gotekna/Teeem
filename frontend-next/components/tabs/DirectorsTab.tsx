@@ -32,7 +32,8 @@ import {
 } from "@/components/ui/select";
 import Link from "next/link";
 
-import { format, formatDistanceToNow } from "date-fns";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { differenceInMonths, differenceInYears, format, formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Corporate, OfficerRecord } from "@/lib/types/corporate";
@@ -159,10 +160,13 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, loadOfficers]);
 
-  // Group officers by role type
+  // Group officers by role type - mutually exclusive to prevent same record appearing in multiple groups
+  // Combined positions (e.g. director_secretary) go to the first matching group only
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
-  const secretaries = officers.filter(o => o.position?.includes("secretary"));
-  const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
+  const directorIds = new Set(directors.map(o => o.id));
+  const secretaries = officers.filter(o => !directorIds.has(o.id) && o.position?.includes("secretary"));
+  const secretaryIds = new Set(secretaries.map(o => o.id));
+  const publicOfficers = officers.filter(o => !directorIds.has(o.id) && !secretaryIds.has(o.id) && o.position?.includes("public_officer"));
 
   const startDirectorChangeWorkflow = React.useCallback(async () => {
     if (!company) return;
@@ -214,15 +218,81 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [loadWorkflowInstances]);
 
-  const renderOfficerList = (title: string, officerList: OfficerRecord[]) => {
-    const current = officerList.filter(o => o.is_current);
-    const former = officerList.filter(o => !o.is_current);
+  const formatDuration = (appointmentDate?: string, resignationDate?: string) => {
+    if (!appointmentDate) return "-";
+    const start = new Date(appointmentDate);
+    const end = resignationDate ? new Date(resignationDate) : new Date();
+    const years = differenceInYears(end, start);
+    const months = differenceInMonths(end, start) % 12;
+    if (years === 0 && months === 0) return "< 1 month";
+    const parts: string[] = [];
+    if (years > 0) parts.push(`${years}y`);
+    if (months > 0) parts.push(`${months}m`);
+    return parts.join(" ");
+  };
+
+  const renderOfficerRow = (officer: OfficerRecord, showDelete = true) => {
+    const isCurrent = officer.is_current;
+    return (
+      <TableRow key={officer.id} className={isCurrent ? "hover:bg-muted/30" : "hover:bg-muted/30 opacity-60"}>
+        <TableCell className="px-4 py-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+              isCurrent
+                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                : "bg-muted dark:bg-card text-muted-foreground"
+            }`}>
+              {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+            </div>
+            <div>
+              <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+              {officer.contact?.email && (
+                isCurrent ? (
+                  <a href={`mailto:${officer.contact.email}`} className="text-xs text-muted-foreground hover:text-primary">
+                    {officer.contact.email}
+                  </a>
+                ) : (
+                  <span className="text-xs text-muted-foreground">{officer.contact.email}</span>
+                )
+              )}
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
+        <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
+        <TableCell className="px-4 py-3 text-sm">{isCurrent ? "-" : (officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-")}</TableCell>
+        <TableCell className="px-4 py-3">
+          {isCurrent ? (
+            <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+          ) : (
+            <Badge variant="secondary">Former</Badge>
+          )}
+        </TableCell>
+        {showDelete && (
+          <TableCell className="px-2 py-3">
+            <button
+              onClick={() => deleteDirector(officer.id)}
+              className="text-muted-foreground hover:text-destructive p-1"
+              title="Delete officer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </TableCell>
+        )}
+      </TableRow>
+    );
+  };
+
+  const renderOfficerList = (title: string, officerList: OfficerRecord[], currentOnly = false) => {
+    const filtered = currentOnly ? officerList.filter(o => o.is_current) : officerList;
+    const current = filtered.filter(o => o.is_current);
+    const former = filtered.filter(o => !o.is_current);
 
     return (
       <div className="space-y-3">
         <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">{title}</h4>
-        {officerList.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">No {title.toLowerCase()} recorded</p>
+        {filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">No {currentOnly ? "current " : ""}{title.toLowerCase()} recorded</p>
         ) : (
           <div className="border rounded-lg overflow-hidden">
             <Table>
@@ -237,78 +307,86 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                 </TableRow>
               </TableHeader>
               <TableBody className="divide-y">
-                {/* Current officers first */}
-                {current.map((officer) => (
-                  <TableRow key={officer.id} className="hover:bg-muted/30">
-                    <TableCell className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-green-700 dark:text-green-300 text-xs font-medium">
-                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
-                          {officer.contact?.email && (
-                            <a href={`mailto:${officer.contact.email}`} className="text-xs text-muted-foreground hover:text-primary">
-                              {officer.contact.email}
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">-</TableCell>
-                    <TableCell className="px-4 py-3">
-                      <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
-                    </TableCell>
-                    <TableCell className="px-2 py-3">
-                      <button
-                        onClick={() => deleteDirector(officer.id)}
-                        className="text-muted-foreground hover:text-destructive p-1"
-                        title="Delete officer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {/* Former officers */}
-                {former.map((officer) => (
-                  <TableRow key={officer.id} className="hover:bg-muted/30 opacity-60">
-                    <TableCell className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-muted dark:bg-card flex items-center justify-center text-muted-foreground text-xs font-medium">
-                          {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
-                          {officer.contact?.email && (
-                            <span className="text-xs text-muted-foreground">{officer.contact.email}</span>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
-                    <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-"}</TableCell>
-                    <TableCell className="px-4 py-3">
-                      <Badge variant="secondary">Former</Badge>
-                    </TableCell>
-                    <TableCell className="px-2 py-3">
-                      <button
-                        onClick={() => deleteDirector(officer.id)}
-                        className="text-muted-foreground hover:text-destructive p-1"
-                        title="Delete officer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {current.map((officer) => renderOfficerRow(officer))}
+                {former.map((officer) => renderOfficerRow(officer))}
               </TableBody>
             </Table>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderHistoryTable = () => {
+    const sorted = [...officers].sort((a, b) => {
+      if (!a.appointment_date && !b.appointment_date) return 0;
+      if (!a.appointment_date) return 1;
+      if (!b.appointment_date) return -1;
+      return new Date(b.appointment_date).getTime() - new Date(a.appointment_date).getTime();
+    });
+
+    if (sorted.length === 0) {
+      return <p className="text-sm text-muted-foreground py-4">No officer records found</p>;
+    }
+
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader className="bg-muted/50">
+            <TableRow>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Name</TableHead>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Position</TableHead>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Appointed</TableHead>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Resigned</TableHead>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Duration</TableHead>
+              <TableHead className="text-left px-4 py-2 text-xs font-medium text-muted-foreground">Status</TableHead>
+              <TableHead className="w-10" />
+            </TableRow>
+          </TableHeader>
+          <TableBody className="divide-y">
+            {sorted.map((officer) => (
+              <TableRow key={officer.id} className={officer.is_current ? "hover:bg-muted/30" : "hover:bg-muted/30 opacity-60"}>
+                <TableCell className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                      officer.is_current
+                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                        : "bg-muted dark:bg-card text-muted-foreground"
+                    }`}>
+                      {officer.contact?.display_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{officer.contact?.display_name || "Unknown"}</p>
+                      {officer.contact?.email && (
+                        <span className="text-xs text-muted-foreground">{officer.contact.email}</span>
+                      )}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="px-4 py-3 text-sm">{officer.formatted_position}</TableCell>
+                <TableCell className="px-4 py-3 text-sm">{officer.appointment_date ? format(new Date(officer.appointment_date), DATE_DISPLAY) : "-"}</TableCell>
+                <TableCell className="px-4 py-3 text-sm">{officer.resignation_date ? format(new Date(officer.resignation_date), DATE_DISPLAY) : "-"}</TableCell>
+                <TableCell className="px-4 py-3 text-sm">{formatDuration(officer.appointment_date, officer.resignation_date)}</TableCell>
+                <TableCell className="px-4 py-3">
+                  {officer.is_current ? (
+                    <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300">Current</Badge>
+                  ) : (
+                    <Badge variant="secondary">Former</Badge>
+                  )}
+                </TableCell>
+                <TableCell className="px-2 py-3">
+                  <button
+                    onClick={() => deleteDirector(officer.id)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    title="Delete officer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     );
   };
@@ -324,7 +402,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium">Corporate Officers History</h3>
+        <h3 className="text-lg font-medium">Corporate Officers</h3>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -368,8 +446,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                   <SelectItem value="director">Director</SelectItem>
                   <SelectItem value="secretary">Secretary</SelectItem>
                   <SelectItem value="public_officer">Public Officer</SelectItem>
-                  <SelectItem value="corporate_officer">Corporate Officer</SelectItem>
-                  <SelectItem value="chairman">Chairman</SelectItem>
+                  <SelectItem value="director_secretary">Director Secretary</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative flex-1" ref={addDropdownRef}>
@@ -467,9 +544,22 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
         </div>
       )}
 
-      {renderOfficerList("Directors", directors)}
-      {renderOfficerList("Secretaries", secretaries)}
-      {renderOfficerList("Public Officers", publicOfficers)}
+      <Tabs defaultValue="current">
+        <TabsList>
+          <TabsTrigger value="current">Current Officers</TabsTrigger>
+          <TabsTrigger value="history">Officers History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="current" className="space-y-6 mt-4">
+          {renderOfficerList("Directors", directors, true)}
+          {renderOfficerList("Secretaries", secretaries, true)}
+          {renderOfficerList("Public Officers", publicOfficers, true)}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          {renderHistoryTable()}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
