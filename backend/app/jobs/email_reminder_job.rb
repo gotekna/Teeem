@@ -7,7 +7,7 @@
 #
 class EmailReminderJob < ApplicationJob
   include DeduplicatableJob
-  queue_as :default
+  queue_as :email_sync
 
   # Don't retry on failure - runs every minute, next run will try again
   # Prevents queue clog from failed jobs piling up

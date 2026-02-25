@@ -443,14 +443,14 @@ retry_pending_attachment_blobs:
 # FRC (Feb 2026): Reduced from 5 to 15 min - 15-min snooze granularity is fine
 email_snooze_wakeup:
   class: EmailSnoozeWakeupJob
-  queue: default
+  queue: email_sync
   schedule: every 15 minutes
 
 # Process email reminders that are due
 # FRC (Feb 2026): Reduced from 5 to 15 min - email reminder granularity is fine
 email_reminders:
   class: EmailReminderJob
-  queue: default
+  queue: email_sync
   schedule: every 15 minutes
 
 # ============================================
@@ -694,7 +694,7 @@ assistant_monitor:
 # Processes up to 50 emails per tenant per run
 email_intelligence:
   class: EmailIntelligenceJob
-  queue: low
+  queue: email_sync
   schedule: every 10 minutes
 
 # Morning briefing delivery - personalized daily digest for active users

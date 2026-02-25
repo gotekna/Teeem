@@ -12,7 +12,7 @@
 #
 class EmailIntelligenceJob < ApplicationJob
   include DeduplicatableJob
-  queue_as :low
+  queue_as :email_sync
 
   def perform
     Rails.logger.info "[EmailIntelligenceJob] Starting email intelligence processing"
