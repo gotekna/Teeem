@@ -155,6 +155,7 @@ export function CostCentreSection({
                 key={child.id}
                 line={child}
                 onUpdateLine={onUpdateLine}
+                onToggleQuoteLevel={onToggleQuoteLevel}
                 onAddSupplier={onAddSupplier}
                 onSendRfq={onSendRfq}
                 onRecordResponse={onRecordResponse}

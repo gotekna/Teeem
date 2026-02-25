@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_25_170000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_25_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2197,6 +2197,132 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_170000) do
     t.datetime "updated_at", null: false
     t.index ["contact_id"], name: "index_custom_pricings_on_contact_id", unique: true
     t.index ["pricing_type"], name: "index_custom_pricings_on_pricing_type"
+  end
+
+  create_table "custom_quote_allocations", force: :cascade do |t|
+    t.bigint "custom_quote_supplier_id", null: false
+    t.bigint "custom_quote_line_id", null: false
+    t.decimal "allocated_amount", precision: 12, scale: 2, null: false
+    t.text "notes"
+    t.bigint "purchase_order_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["custom_quote_line_id"], name: "index_custom_quote_allocations_on_custom_quote_line_id"
+    t.index ["custom_quote_supplier_id", "custom_quote_line_id"], name: "idx_cqa_supplier_line", unique: true
+    t.index ["custom_quote_supplier_id"], name: "index_custom_quote_allocations_on_custom_quote_supplier_id"
+    t.index ["purchase_order_id"], name: "index_custom_quote_allocations_on_purchase_order_id"
+  end
+
+  create_table "custom_quote_lines", force: :cascade do |t|
+    t.bigint "custom_quote_id", null: false
+    t.bigint "parent_id"
+    t.bigint "cost_centre_id"
+    t.bigint "sm_schedule_master_id"
+    t.bigint "sm_task_id"
+    t.string "name", null: false
+    t.string "quote_level", default: "po", null: false
+    t.integer "position", default: 0, null: false
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "rfq_instructions"
+    t.decimal "budget_amount", precision: 12, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cost_centre_id"], name: "index_custom_quote_lines_on_cost_centre_id"
+    t.index ["custom_quote_id", "position"], name: "idx_cql_quote_position"
+    t.index ["custom_quote_id"], name: "index_custom_quote_lines_on_custom_quote_id"
+    t.index ["parent_id"], name: "index_custom_quote_lines_on_parent_id"
+    t.index ["sm_schedule_master_id"], name: "index_custom_quote_lines_on_sm_schedule_master_id"
+    t.index ["sm_task_id"], name: "index_custom_quote_lines_on_sm_task_id"
+  end
+
+  create_table "custom_quote_suppliers", force: :cascade do |t|
+    t.bigint "custom_quote_line_id", null: false
+    t.bigint "supplier_id", null: false
+    t.bigint "contact_person_id"
+    t.string "contact_email"
+    t.string "status", default: "draft", null: false
+    t.decimal "price_quoted", precision: 12, scale: 2
+    t.string "quote_number"
+    t.date "date_sent"
+    t.date "date_received"
+    t.date "valid_to"
+    t.text "response_notes"
+    t.string "timeframe"
+    t.boolean "is_best_price", default: false, null: false
+    t.bigint "sent_by_id"
+    t.datetime "sent_at"
+    t.string "email_message_id"
+    t.bigint "purchase_order_id"
+    t.bigint "warehouse_document_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_person_id"], name: "index_custom_quote_suppliers_on_contact_person_id"
+    t.index ["custom_quote_line_id", "supplier_id"], name: "idx_cqs_line_supplier", unique: true
+    t.index ["custom_quote_line_id"], name: "index_custom_quote_suppliers_on_custom_quote_line_id"
+    t.index ["purchase_order_id"], name: "index_custom_quote_suppliers_on_purchase_order_id"
+    t.index ["sent_by_id"], name: "index_custom_quote_suppliers_on_sent_by_id"
+    t.index ["status"], name: "index_custom_quote_suppliers_on_status"
+    t.index ["supplier_id"], name: "index_custom_quote_suppliers_on_supplier_id"
+    t.index ["warehouse_document_id"], name: "index_custom_quote_suppliers_on_warehouse_document_id"
+  end
+
+  create_table "custom_quote_template_lines", force: :cascade do |t|
+    t.bigint "custom_quote_template_id", null: false
+    t.bigint "parent_id"
+    t.bigint "cost_centre_id"
+    t.bigint "sm_schedule_master_id"
+    t.string "name", null: false
+    t.string "quote_level", default: "po", null: false
+    t.integer "position", default: 0, null: false
+    t.text "tender_description"
+    t.text "po_description"
+    t.text "default_instructions"
+    t.jsonb "default_supplier_ids", default: []
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["cost_centre_id"], name: "index_custom_quote_template_lines_on_cost_centre_id"
+    t.index ["custom_quote_template_id", "position"], name: "idx_cqtl_template_position"
+    t.index ["custom_quote_template_id"], name: "index_custom_quote_template_lines_on_custom_quote_template_id"
+    t.index ["parent_id"], name: "index_custom_quote_template_lines_on_parent_id"
+    t.index ["sm_schedule_master_id"], name: "index_custom_quote_template_lines_on_sm_schedule_master_id"
+  end
+
+  create_table "custom_quote_templates", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.boolean "is_active", default: true, null: false
+    t.integer "position", default: 0, null: false
+    t.bigint "po_template_pack_id"
+    t.bigint "created_by_id"
+    t.bigint "updated_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_custom_quote_templates_on_created_by_id"
+    t.index ["po_template_pack_id"], name: "index_custom_quote_templates_on_po_template_pack_id"
+    t.index ["tenant_id", "name"], name: "index_custom_quote_templates_on_tenant_id_and_name", unique: true
+    t.index ["tenant_id"], name: "index_custom_quote_templates_on_tenant_id"
+    t.index ["updated_by_id"], name: "index_custom_quote_templates_on_updated_by_id"
+  end
+
+  create_table "custom_quotes", force: :cascade do |t|
+    t.bigint "tenant_id", null: false
+    t.bigint "job_id", null: false
+    t.bigint "custom_quote_template_id"
+    t.string "name", null: false
+    t.string "status", default: "draft", null: false
+    t.decimal "total_quoted", precision: 12, scale: 2, default: "0.0"
+    t.decimal "total_allocated", precision: 12, scale: 2, default: "0.0"
+    t.bigint "created_by_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_by_id"], name: "index_custom_quotes_on_created_by_id"
+    t.index ["custom_quote_template_id"], name: "index_custom_quotes_on_custom_quote_template_id"
+    t.index ["job_id"], name: "index_custom_quotes_on_job_id"
+    t.index ["status"], name: "index_custom_quotes_on_status"
+    t.index ["tenant_id", "job_id"], name: "index_custom_quotes_on_tenant_id_and_job_id"
+    t.index ["tenant_id"], name: "index_custom_quotes_on_tenant_id"
   end
 
   create_table "data_quality_issues", force: :cascade do |t|
@@ -11655,6 +11781,32 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_170000) do
   add_foreign_key "cost_centres", "cost_centres", column: "parent_id", on_delete: :nullify
   add_foreign_key "cost_centres", "tenants", on_delete: :cascade
   add_foreign_key "custom_pricings", "contacts"
+  add_foreign_key "custom_quote_allocations", "custom_quote_lines"
+  add_foreign_key "custom_quote_allocations", "custom_quote_suppliers"
+  add_foreign_key "custom_quote_allocations", "purchase_orders"
+  add_foreign_key "custom_quote_lines", "cost_centres"
+  add_foreign_key "custom_quote_lines", "custom_quote_lines", column: "parent_id"
+  add_foreign_key "custom_quote_lines", "custom_quotes"
+  add_foreign_key "custom_quote_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_lines", "sm_tasks"
+  add_foreign_key "custom_quote_suppliers", "contact_persons"
+  add_foreign_key "custom_quote_suppliers", "contacts", column: "supplier_id"
+  add_foreign_key "custom_quote_suppliers", "custom_quote_lines"
+  add_foreign_key "custom_quote_suppliers", "purchase_orders"
+  add_foreign_key "custom_quote_suppliers", "users", column: "sent_by_id"
+  add_foreign_key "custom_quote_suppliers", "warehouse_documents"
+  add_foreign_key "custom_quote_template_lines", "cost_centres"
+  add_foreign_key "custom_quote_template_lines", "custom_quote_template_lines", column: "parent_id"
+  add_foreign_key "custom_quote_template_lines", "custom_quote_templates"
+  add_foreign_key "custom_quote_template_lines", "sm_schedule_masters"
+  add_foreign_key "custom_quote_templates", "po_template_packs"
+  add_foreign_key "custom_quote_templates", "tenants"
+  add_foreign_key "custom_quote_templates", "users", column: "created_by_id"
+  add_foreign_key "custom_quote_templates", "users", column: "updated_by_id"
+  add_foreign_key "custom_quotes", "custom_quote_templates"
+  add_foreign_key "custom_quotes", "jobs"
+  add_foreign_key "custom_quotes", "tenants"
+  add_foreign_key "custom_quotes", "users", column: "created_by_id"
   add_foreign_key "desktop_clients", "tenants", on_delete: :cascade
   add_foreign_key "desktop_clients", "users"
   add_foreign_key "director_onboarding_requests", "contacts"

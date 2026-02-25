@@ -91,8 +91,8 @@ class CustomQuoteLine < ApplicationRecord
   end
 
   def valid_tree_structure
-    if quote_level.in?(%w[cost_centre not_required]) && parent_id.present?
-      errors.add(:quote_level, "#{quote_level} level is only valid for root (CC) lines")
+    if quote_level == 'cost_centre' && parent_id.present?
+      errors.add(:quote_level, "cost_centre level is only valid for root (CC) lines")
     end
   end
 end
