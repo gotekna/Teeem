@@ -444,7 +444,6 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                   <SelectItem value="director">Director</SelectItem>
                   <SelectItem value="secretary">Secretary</SelectItem>
                   <SelectItem value="public_officer">Public Officer</SelectItem>
-                  <SelectItem value="director_secretary">Director Secretary</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative flex-1" ref={addDropdownRef}>
