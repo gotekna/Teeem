@@ -23,6 +23,7 @@ class CustomQuote < ApplicationRecord
   # Validations
   validates :name, presence: true, length: { maximum: 200 }
   validates :status, inclusion: { in: STATUSES }
+  validates :job_id, uniqueness: { scope: :tenant_id, message: "already has a custom quote" }
 
   # Scopes
   scope :for_job, ->(job_id) { where(job_id: job_id) }

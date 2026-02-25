@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
-import { api } from "@/lib/api";
 
 interface JobCustomQuotesTabProps {
   jobId: string | number;
@@ -30,8 +29,8 @@ interface JobCustomQuotesTabProps {
  *
  * Location: Estimating > Custom Quotes tab
  *
- * Workflow:
- * 1. Apply template or create blank quote
+ * One custom quote per job. Workflow:
+ * 1. Apply template, create blank, or populate from schedule
  * 2. Configure CC/PO tree with quote level per CC
  * 3. Add suppliers, send RFQs, record responses
  * 4. Accept quotes (PO-level → direct PO, CC-level → allocate to POs)
@@ -72,7 +71,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     fetchTemplates();
   }, [fetchQuotes, fetchTemplates]);
 
-  // Auto-load first quote if exists
+  // Auto-load the single quote for this job
   useEffect(() => {
     if (quotes.length > 0 && !activeQuote) {
       fetchQuoteTree(quotes[0].id);
@@ -94,10 +93,6 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     await createQuote(undefined, undefined, 'schedule_master');
     await fetchQuotes();
   }, [createQuote, fetchQuotes]);
-
-  const handleSelectQuote = useCallback((quoteId: number) => {
-    fetchQuoteTree(quoteId);
-  }, [fetchQuoteTree]);
 
   const handleToggleQuoteLevel = useCallback(async (lineId: number, level: QuoteLevel) => {
     await updateLine(lineId, { quote_level: level });
@@ -186,16 +181,14 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
 
   return (
     <div className="flex flex-col h-full -mx-4">
-      {/* Setup bar: template picker, existing quotes, save */}
+      {/* Setup bar: template picker / save options */}
       <CustomQuoteSetup
         jobId={jobId}
-        quotes={quotes}
         templates={templates}
         templatesLoading={templatesLoading}
         onApplyTemplate={handleApplyTemplate}
         onCreateBlank={handleCreateBlank}
         onPopulateFromSchedule={handlePopulateFromSchedule}
-        onSelectQuote={handleSelectQuote}
         onSaveAsTemplate={() => setSaveTemplateOpen(true)}
         onOverwriteTemplate={handleOverwriteTemplate}
         activeTemplateName={activeQuote?.templateName ?? null}
@@ -219,8 +212,9 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
           onFetchAllocations={fetchAllocations}
         />
       ) : (
-        <div className="flex items-center justify-center h-48 text-muted-foreground">
-          Select an existing quote or apply a template to get started.
+        <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
+          <p className="text-lg font-medium">No cost centres yet.</p>
+          <p className="text-sm mt-1">Apply a template or add lines manually.</p>
         </div>
       )}
 

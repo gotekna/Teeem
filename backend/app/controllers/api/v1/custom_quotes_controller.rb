@@ -89,8 +89,18 @@ module Api
       end
 
       # POST /api/v1/jobs/:job_id/custom_quotes
+      # One custom quote per job - returns existing if already present
       def create
         job = Job.find(params[:job_id])
+
+        # Return existing quote if one already exists for this job
+        existing = CustomQuote.for_job(job.id).first
+        if existing
+          return render json: {
+            success: true,
+            data: quote_tree_json(existing)
+          }
+        end
 
         if params[:template_id].present?
           template = CustomQuoteTemplate.find(params[:template_id])
