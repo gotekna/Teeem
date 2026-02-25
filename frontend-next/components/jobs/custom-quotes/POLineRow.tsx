@@ -14,6 +14,7 @@ interface POLineRowProps {
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onAddSupplier: (lineId: number) => void;
   onSendRfq: (supplierId: number) => void;
+  onMarkSent: (supplierId: number) => void;
   onRecordResponse: (supplierId: number) => void;
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
@@ -25,6 +26,7 @@ export function POLineRow({
   onToggleQuoteLevel,
   onAddSupplier,
   onSendRfq,
+  onMarkSent,
   onRecordResponse,
   onAccept,
   onReject,
@@ -102,6 +104,7 @@ export function POLineRow({
               key={supplier.id}
               supplier={supplier}
               onSendRfq={onSendRfq}
+              onMarkSent={onMarkSent}
               onRecordResponse={onRecordResponse}
               onAccept={onAccept}
               onReject={onReject}

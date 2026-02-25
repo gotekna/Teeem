@@ -15,6 +15,7 @@ interface CustomQuoteTreeProps {
   onAddSupplier: (lineId: number) => void;
   onAddChildLine: (parentLineId: number) => void;
   onSendRfq: (supplierId: number) => void;
+  onMarkSent: (supplierId: number) => void;
   onRecordResponse: (supplierId: number) => void;
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
@@ -29,6 +30,7 @@ export function CustomQuoteTree({
   onAddSupplier,
   onAddChildLine,
   onSendRfq,
+  onMarkSent,
   onRecordResponse,
   onAccept,
   onReject,
@@ -155,6 +157,7 @@ export function CustomQuoteTree({
             onAddSupplier={onAddSupplier}
             onAddChildLine={onAddChildLine}
             onSendRfq={onSendRfq}
+            onMarkSent={onMarkSent}
             onRecordResponse={onRecordResponse}
             onAccept={onAccept}
             onReject={onReject}

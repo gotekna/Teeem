@@ -18,6 +18,7 @@ interface CostCentreSectionProps {
   onAddSupplier: (lineId: number) => void;
   onAddChildLine: (parentLineId: number) => void;
   onSendRfq: (supplierId: number) => void;
+  onMarkSent: (supplierId: number) => void;
   onRecordResponse: (supplierId: number) => void;
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
@@ -33,6 +34,7 @@ export function CostCentreSection({
   onAddSupplier,
   onAddChildLine,
   onSendRfq,
+  onMarkSent,
   onRecordResponse,
   onAccept,
   onReject,
@@ -151,6 +153,7 @@ export function CostCentreSection({
                     key={supplier.id}
                     supplier={supplier}
                     onSendRfq={onSendRfq}
+                    onMarkSent={onMarkSent}
                     onRecordResponse={onRecordResponse}
                     onAccept={(id) => {
                       // For CC-level, accepted supplier needs allocation
@@ -185,6 +188,7 @@ export function CostCentreSection({
                 onToggleQuoteLevel={onToggleQuoteLevel}
                 onAddSupplier={onAddSupplier}
                 onSendRfq={onSendRfq}
+                onMarkSent={onMarkSent}
                 onRecordResponse={onRecordResponse}
                 onAccept={onAccept}
                 onReject={onReject}

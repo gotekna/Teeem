@@ -1005,6 +1005,7 @@ Rails.application.routes.draw do
       resources :custom_quote_suppliers, only: [], controller: 'custom_quotes' do
         member do
           post :send_rfq, action: 'send_rfq_single'
+          post :mark_sent
           post :record_response
           post :accept, action: 'accept_quote'
           post :reject, action: 'reject_quote'

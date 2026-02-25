@@ -2,13 +2,14 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Check, X, Send } from "lucide-react";
+import { Check, X, Send, CheckSquare } from "lucide-react";
 import { STATUS_COLORS, STATUS_LABELS } from "./types";
 import type { CustomQuoteSupplierSummary } from "./types";
 
 interface SupplierQuoteCellProps {
   supplier: CustomQuoteSupplierSummary;
   onSendRfq: (supplierId: number) => void;
+  onMarkSent: (supplierId: number) => void;
   onRecordResponse: (supplierId: number) => void;
   onAccept: (supplierId: number) => void;
   onReject: (supplierId: number) => void;
@@ -17,6 +18,7 @@ interface SupplierQuoteCellProps {
 export function SupplierQuoteCell({
   supplier,
   onSendRfq,
+  onMarkSent,
   onRecordResponse,
   onAccept,
   onReject,
@@ -39,9 +41,14 @@ export function SupplierQuoteCell({
 
       <div className="flex items-center gap-1 ml-auto">
         {supplier.status === "draft" && (
-          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSendRfq(supplier.id)}>
-            <Send className="h-3 w-3" />
-          </Button>
+          <>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onSendRfq(supplier.id)} title="Send RFQ email">
+              <Send className="h-3 w-3" />
+            </Button>
+            <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onMarkSent(supplier.id)} title="Mark as sent (no email)">
+              <CheckSquare className="h-3 w-3" />
+            </Button>
+          </>
         )}
         {supplier.status === "sent" && (
           <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => onRecordResponse(supplier.id)}>

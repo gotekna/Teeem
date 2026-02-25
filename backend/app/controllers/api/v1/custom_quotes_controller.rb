@@ -6,7 +6,7 @@ module Api
       before_action :set_template, only: [:show_template, :update_template, :destroy_template, :duplicate_template]
       before_action :set_custom_quote, only: [:show, :update, :destroy, :save_as_template, :overwrite_template]
       before_action :set_line, only: [:update_line, :add_supplier, :add_child_line]
-      before_action :set_supplier, only: [:send_rfq_single, :record_response, :accept_quote,
+      before_action :set_supplier, only: [:send_rfq_single, :mark_sent, :record_response, :accept_quote,
                                           :reject_quote, :supplier_allocations, :create_allocation]
 
       # ═══════════════════════════════════════════════════════════════════════════
@@ -250,6 +250,12 @@ module Api
         else
           render json: { success: false, error: result.error }, status: :unprocessable_entity
         end
+      end
+
+      # POST /api/v1/custom_quote_suppliers/:id/mark_sent
+      def mark_sent
+        @supplier.mark_sent!(current_user)
+        render json: { success: true, data: @supplier.as_json_summary }
       end
 
       # POST /api/v1/custom_quote_suppliers/bulk_send_rfq

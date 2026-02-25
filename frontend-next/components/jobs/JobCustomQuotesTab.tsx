@@ -6,8 +6,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { CustomQuoteSetup } from "./custom-quotes/CustomQuoteSetup";
 import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
+import { SendCQRFQDialog } from "./custom-quotes/SendCQRFQDialog";
 import { useCustomQuote, useCustomQuoteTemplates } from "./custom-quotes/useCustomQuote";
-import type { QuoteLevel } from "./custom-quotes/types";
+import type { QuoteLevel, CustomQuoteSupplierSummary } from "./custom-quotes/types";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     addSupplier,
     addChildLine,
     recordResponse,
+    markSent,
     acceptQuote,
     rejectQuote,
     saveAsTemplate,
@@ -60,6 +62,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
 
   // Dialog states
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
+  const [sendRfqSuppliers, setSendRfqSuppliers] = useState<CustomQuoteSupplierSummary[] | null>(null);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
   const [recordResponseDialog, setRecordResponseDialog] = useState<{ supplierId: number } | null>(null);
   const [responsePrice, setResponsePrice] = useState("");
@@ -116,9 +119,29 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     if (success) await refresh();
   }, [addChildLine, refresh]);
 
-  const handleSendRfq = useCallback(async (supplierId: number) => {
-    toast.info("RFQ sending will open the Send RFQ dialog (coming in Phase 3)");
-  }, []);
+  const handleSendRfq = useCallback((supplierId: number) => {
+    if (!activeQuote) return;
+    // Find the supplier in the tree
+    for (const ccLine of activeQuote.tree) {
+      const found = ccLine.suppliers.find((s) => s.id === supplierId);
+      if (found) {
+        setSendRfqSuppliers([found]);
+        return;
+      }
+      for (const child of ccLine.children) {
+        const foundChild = child.suppliers.find((s) => s.id === supplierId);
+        if (foundChild) {
+          setSendRfqSuppliers([foundChild]);
+          return;
+        }
+      }
+    }
+  }, [activeQuote]);
+
+  const handleMarkSent = useCallback(async (supplierId: number) => {
+    const result = await markSent(supplierId);
+    if (result) await refresh();
+  }, [markSent, refresh]);
 
   const handleRecordResponse = useCallback((supplierId: number) => {
     setRecordResponseDialog({ supplierId });
@@ -205,6 +228,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
           onAddSupplier={(lineId) => setAddSupplierDialog({ lineId })}
           onAddChildLine={handleAddChildLine}
           onSendRfq={handleSendRfq}
+          onMarkSent={handleMarkSent}
           onRecordResponse={handleRecordResponse}
           onAccept={handleAccept}
           onReject={handleReject}
@@ -239,6 +263,20 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Send RFQ Dialog */}
+      {sendRfqSuppliers && (
+        <SendCQRFQDialog
+          open={true}
+          onOpenChange={(o) => !o && setSendRfqSuppliers(null)}
+          suppliers={sendRfqSuppliers}
+          jobId={jobId}
+          onSent={async () => {
+            setSendRfqSuppliers(null);
+            await refresh();
+          }}
+        />
+      )}
 
       {/* Record Response Dialog */}
       <Dialog open={!!recordResponseDialog} onOpenChange={(o) => !o && setRecordResponseDialog(null)}>

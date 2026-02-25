@@ -208,6 +208,22 @@ export function useCustomQuote(jobId: string | number) {
     return false;
   }, []);
 
+  const markSent = useCallback(async (supplierId: number) => {
+    try {
+      const res = await api.post<{ success: boolean; data: CustomQuoteSupplierSummary }>(
+        `/api/v1/custom_quote_suppliers/${supplierId}/mark_sent`
+      );
+      if (res?.data) {
+        toast.success("Marked as sent");
+        return res.data;
+      }
+    } catch (err) {
+      console.error("[useCustomQuote] mark sent error:", err);
+      toast.error("Failed to mark as sent");
+    }
+    return null;
+  }, []);
+
   const saveAsTemplate = useCallback(async (quoteId: number, name: string) => {
     try {
       const res = await api.post<{ success: boolean; data: CustomQuoteTemplate }>(
@@ -292,6 +308,7 @@ export function useCustomQuote(jobId: string | number) {
     addSupplier,
     addChildLine,
     recordResponse,
+    markSent,
     acceptQuote,
     rejectQuote,
     saveAsTemplate,

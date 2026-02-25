@@ -317,31 +317,9 @@ class DirectorChangeService
     end
 
     # Determine chairperson for signing badge
-    # Priority: 1) first ceasing director (outgoing director chairs the transition meeting),
-    # 2) remaining director with "chair" position, 3) first remaining director,
-    # 4) first new appointment (last resort)
-    chairperson_contact = nil
-    chairperson_selected_email = nil
-
-    # Outgoing director chairs the meeting - they are the current officeholder
-    cd = ceasing_directors.first
-    if cd
-      chairperson_contact = cd[:corporate_director]&.contact
-      chairperson_selected_email = cd[:email]
-    end
-
-    # Fallback to remaining directors if no one is ceasing
-    unless chairperson_contact
-      remaining.each do |dir|
-        if dir.position&.downcase&.include?("chair")
-          chairperson_contact = dir.contact
-          break
-        end
-      end
-      chairperson_contact ||= remaining.first&.contact
-    end
-
-    chairperson_contact ||= new_appointments.first&.dig(:contact)
+    chair = determine_chairperson(remaining)
+    chairperson_contact = chair[:contact]
+    chairperson_selected_email = chair[:selected_email]
 
     context = {
       company: build_company_context,
@@ -377,7 +355,11 @@ class DirectorChangeService
       name: resolve_doc_name("DM", "Minutes of Meeting of Directors"),
       abbreviation: "DM",
       html: html,
-      pdf_content: pdf
+      pdf_content: pdf,
+      signer_name: chairperson_contact&.display_name,
+      signer_email: chairperson_selected_email.presence || chairperson_contact&.primary_email,
+      signer_contact: chairperson_contact,
+      signer_role: "chairperson"
     }
   end
 
@@ -540,6 +522,17 @@ class DirectorChangeService
     "public_officer" => "CAPO"
   }.freeze
 
+  # Fixed badge position matching the flex-pushed signature section in ASIC templates.
+  # With margin-top: auto on the signature block and flexbox on .page, the badge
+  # always renders at a consistent position regardless of content length.
+  # Values are percentages of the PDF page dimensions.
+  BADGE_POSITION = {
+    x_percent: 7.5,      # Left margin + table cell padding
+    y_percent: 77.0,     # ~77% from top of page (signature section pushed to bottom)
+    width_percent: 40.0,  # Left 50% column minus padding
+    height_percent: 7.0   # Badge height
+  }.freeze
+
   def store_signed_document(e_signature_request)
     signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
     asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
@@ -624,8 +617,8 @@ class DirectorChangeService
     # Add signers from input data (no need to regenerate PDFs for signer metadata)
     add_signers_to_request(request)
 
-    # Create positioned signature fields by detecting blue badges in the PDF
-    ESignatureBadgeDetector.create_fields_from_pdf!(request, package[:pdf_content])
+    # Create positioned signature fields from metadata (deterministic document order)
+    create_fields_from_metadata(request)
 
     request
   end
@@ -647,8 +640,8 @@ class DirectorChangeService
 
     add_signers_to_request(request)
 
-    # Create positioned signature fields by detecting blue badges in the PDF
-    ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
+    # Create positioned signature fields from metadata (deterministic document order)
+    create_fields_from_metadata(request)
 
     request
   end
@@ -723,6 +716,123 @@ class DirectorChangeService
   def resolve_doc_name(abbreviation, fallback = nil)
     @doc_name_cache ||= {}
     @doc_name_cache[abbreviation] ||= DocumentType.find_by(abbreviation: abbreviation)&.name || fallback
+  end
+
+  # --- Chairperson Resolution ---
+
+  # Determine the chairperson contact for minutes signing.
+  # Priority: 1) first ceasing director (outgoing director chairs the transition meeting),
+  # 2) remaining director with "chair" position, 3) first remaining director,
+  # 4) first new appointment (last resort)
+  def determine_chairperson(remaining_directors_relation = nil)
+    chairperson_contact = nil
+    chairperson_selected_email = nil
+
+    # Outgoing director chairs the meeting
+    cd = ceasing_directors.first
+    if cd
+      chairperson_contact = cd[:corporate_director]&.contact
+      chairperson_selected_email = cd[:email]
+    end
+
+    # Fallback to remaining directors
+    unless chairperson_contact
+      remaining = remaining_directors_relation || begin
+        ceasing_contact_ids = ceasing_directors.map { |cd_data| cd_data[:corporate_director].contact_id }
+        company.corporate_directors.where(is_current: true).where.not(contact_id: ceasing_contact_ids).includes(:contact)
+      end
+      remaining.each do |dir|
+        if dir.position&.downcase&.include?("chair")
+          chairperson_contact = dir.contact
+          break
+        end
+      end
+      chairperson_contact ||= remaining.first&.contact
+    end
+
+    chairperson_contact ||= new_appointments.first&.dig(:contact)
+
+    { contact: chairperson_contact, selected_email: chairperson_selected_email }
+  end
+
+  # --- Metadata-Based Field Creation ---
+
+  # Create ESignatureField records from the deterministic document order.
+  # System-generated PDFs have a known page-to-signer mapping, so we can
+  # place signature fields without parsing the PDF content stream.
+  #
+  # Document order (matches generate_all_documents):
+  #   Page 1: Minutes → chairperson signs
+  #   Page 2+: Resignations → one per position per ceasing director
+  #   After resignations: Consents → one per position per new appointment
+  #   Final pages: Form 484 records → no signature (informational only)
+  def create_fields_from_metadata(request)
+    signers = request.signers.order(:signing_order).to_a
+    return if signers.empty?
+
+    # Build page-to-contact mapping from deterministic document order
+    # Each signing page has exactly one signer (the person whose badge is on it)
+    page_signer_map = build_page_signer_map(signers)
+
+    page_signer_map.each do |page_number, signer|
+      request.fields.create!(
+        e_signature_signer: signer,
+        field_type: "signature",
+        page_number: page_number,
+        x_percent: BADGE_POSITION[:x_percent],
+        y_percent: BADGE_POSITION[:y_percent],
+        width_percent: BADGE_POSITION[:width_percent],
+        height_percent: BADGE_POSITION[:height_percent],
+        label: "Signature - #{signer.name}",
+        required: true
+      )
+    end
+  end
+
+  # Map each signing page to its signer based on the deterministic document order.
+  # The minutes chairperson is the first ceasing director (or fallback chain),
+  # which is also the first signer on the request.
+  def build_page_signer_map(signers)
+    page_map = {}
+    current_page = 1
+
+    # Build a contact_id → signer lookup
+    signer_by_contact_id = {}
+    signers.each { |s| signer_by_contact_id[s.contact_id] = s }
+
+    # Page 1: Minutes - chairperson signs (first signer = first ceasing director)
+    chair = determine_chairperson
+    chairperson_signer = signer_by_contact_id[chair[:contact]&.id] || signers.first
+    page_map[current_page] = chairperson_signer
+    current_page += 1
+
+    # Resignations: one page per position per ceasing director
+    ceasing_directors.each do |cd|
+      contact = cd[:corporate_director].contact
+      signer = signer_by_contact_id[contact.id]
+      next unless signer
+
+      cd[:positions].each do |_position|
+        page_map[current_page] = signer
+        current_page += 1
+      end
+    end
+
+    # Consents: one page per position per new appointment
+    new_appointments.each do |appt|
+      contact = appt[:contact]
+      signer = signer_by_contact_id[contact.id]
+      next unless signer
+
+      appt[:positions].each do |_position|
+        page_map[current_page] = signer
+        current_page += 1
+      end
+    end
+
+    # Form 484 pages follow but have no signature fields
+
+    page_map
   end
 
   # --- Helpers ---

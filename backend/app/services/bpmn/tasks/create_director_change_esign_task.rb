@@ -58,9 +58,12 @@ module Bpmn
           )
         end
 
-        # Draft request created - user will manually place signature fields
-        # using the PDF editor on the e-signature detail page, then send.
-        log_info("E-signature draft created: #{request.request_number} with #{signers_data.size} signers (awaiting field placement)")
+        # Create signature fields from metadata (deterministic page order)
+        create_fields_from_metadata(request, form_data)
+
+        # Auto-send for signing (system-generated PDFs have known field positions)
+        request.send_for_signing!
+        log_info("E-signature request sent: #{request.request_number} with #{signers_data.size} signers")
 
         # Store result for WaitForSignaturesTask
         result = {
@@ -82,6 +85,69 @@ module Bpmn
       end
 
       private
+
+      # Create ESignatureField records at known positions for each signing page.
+      # Uses the same deterministic document order as DirectorChangeService.
+      def create_fields_from_metadata(request, form_data)
+        signers = request.signers.order(:signing_order).to_a
+        return if signers.empty?
+
+        # Build contact_id → signer lookup
+        signer_by_contact_id = {}
+        signers.each { |s| signer_by_contact_id[s.contact_id] = s }
+
+        page_map = {}
+        current_page = 1
+
+        # Page 1: Minutes → chairperson (first ceasing director = first signer)
+        page_map[current_page] = signers.first
+        current_page += 1
+
+        # Resignations: one page per position per ceasing director
+        (form_data["ceasing_directors"] || []).each do |cd|
+          director = CorporateDirector.find_by(id: cd["corporate_director_id"])
+          next unless director
+
+          signer = signer_by_contact_id[director.contact_id]
+          next unless signer
+
+          positions = cd["positions"] || []
+          positions.each do |_pos|
+            page_map[current_page] = signer
+            current_page += 1
+          end
+        end
+
+        # Consents: one page per position per new appointment
+        (form_data["new_appointments"] || []).each do |appt|
+          contact = Contact.find_by(id: appt["contact_id"])
+          next unless contact
+
+          signer = signer_by_contact_id[contact.id]
+          next unless signer
+
+          positions = appt["positions"] || []
+          positions.each do |_pos|
+            page_map[current_page] = signer
+            current_page += 1
+          end
+        end
+
+        # Create fields at the fixed badge position
+        page_map.each do |page_number, signer|
+          request.fields.create!(
+            e_signature_signer: signer,
+            field_type: "signature",
+            page_number: page_number,
+            x_percent: DirectorChangeService::BADGE_POSITION[:x_percent],
+            y_percent: DirectorChangeService::BADGE_POSITION[:y_percent],
+            width_percent: DirectorChangeService::BADGE_POSITION[:width_percent],
+            height_percent: DirectorChangeService::BADGE_POSITION[:height_percent],
+            label: "Signature - #{signer.name}",
+            required: true
+          )
+        end
+      end
 
       def build_signers_from_form(form_data)
         signers = []
