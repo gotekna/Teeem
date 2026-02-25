@@ -12,21 +12,22 @@
 # SYSTEM MAINTENANCE
 # ============================================
 
-# Pre-compute queue_status payload on shared worker (1024 MB headroom)
-# instead of the web dyno (448/512 MB). Reduces web endpoint from
-# 59 queries/4.7s to a single cache read (<50ms).
+# Pre-compute queue_status payload on shared worker
+# instead of the web dyno. Reduces web endpoint from 59 queries/4.7s to cache read.
+# FRC (Feb 2026): 30s → 60s. 30s was excessive - dashboard poll is 60s anyway.
+# Each run takes 2-4s of heavy DB queries. On 1-thread worker, 30s = 10% of time in this job.
 queue_status_cache:
   class: QueueStatusCacheJob
   queue: default
-  schedule: every 30 seconds
+  schedule: every 60 seconds
 
 # Push badge counts to all connected WebSocket users
 # Replaces 7 HTTP polling endpoints (notifications, chat, proposals, bills, plans, emails)
-# FRC (Feb 2026): 8 polls/30-60s per tab caused R14 memory on Basic web dyno (512MB)
+# FRC (Feb 2026): 30s → 60s. Badge counts don't need sub-minute freshness.
 badge_counts_broadcast:
   class: BadgeCountsBroadcastJob
   queue: default
-  schedule: every 30 seconds
+  schedule: every 60 seconds
 
 clear_solid_queue_finished_jobs:
   command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
@@ -703,7 +704,10 @@ daily_digest:
   queue: default
   schedule: every day at 6:30am Australia/Brisbane
 
-signal_poll:
-  class: SignalPollJob
-  queue: low
-  schedule: every 30 seconds
+# FRC (Feb 2026): Disabled - Signal not configured on production (no SIGNAL_CLI_PATH).
+# Was running every 30s for nothing, wasting a job slot on 1-thread worker.
+# Re-enable when Signal is actually deployed.
+# signal_poll:
+#   class: SignalPollJob
+#   queue: low
+#   schedule: every 30 seconds
