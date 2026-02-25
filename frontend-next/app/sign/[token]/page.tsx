@@ -107,11 +107,17 @@ export default function SigningCeremonyPage() {
   const [request, setRequest] = useState<RequestInfo | null>(null);
   const [fields, setFields] = useState<SignatureField[]>([]);
   const [requestCompleted, setRequestCompleted] = useState(false);
+  // Debug log visible on screen (temporary - remove after fixing)
+  const [debugLog, setDebugLog] = useState<string[]>(() => [`[${new Date().toISOString().slice(11,19)}] Component mounted`]);
+  const addLog = useCallback((msg: string) => {
+    setDebugLog(prev => [...prev, `[${new Date().toISOString().slice(11,19)}] ${msg}`]);
+  }, []);
 
   const apiUrl = getSigningApiUrl();
 
   // Verify token and get session info
   const verifyToken = useCallback(async () => {
+    addLog(`Fetching: ${apiUrl}/api/v1/sign/${token?.slice(0, 8)}...`);
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15000);
@@ -120,12 +126,15 @@ export default function SigningCeremonyPage() {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      addLog(`Response: ${response.status} ${response.statusText}`);
       const data = await response.json();
+      addLog(`Data keys: ${Object.keys(data).join(", ")}`);
 
       if (!response.ok) {
         if (response.status === 410) {
           setError(data.errors?.[0] || "This signing request is no longer active");
           setStep("error");
+          addLog("Step → error (410)");
           return;
         }
         throw new Error(data.errors?.[0] || "Invalid signing link");
@@ -134,34 +143,45 @@ export default function SigningCeremonyPage() {
       setSigner(data.signer);
       setRequest(data.request);
       setFields(data.fields || []);
+      addLog(`Signer: ${data.signer?.name}, status: ${data.signer?.status}, can_sign: ${data.signer?.can_sign}`);
 
       if (data.signer.status === "signed") {
         setStep("already_signed");
+        addLog("Step → already_signed");
       } else if (data.signer.status === "declined") {
         setStep("declined");
+        addLog("Step → declined");
       } else if (data.signer.email_verification_required && !data.signer.email_verified) {
         setStep("verify_email");
+        addLog("Step → verify_email");
       } else if (!data.signer.can_sign) {
         setError("It's not your turn to sign yet. Please wait for other signers.");
         setStep("error");
+        addLog("Step → error (can't sign yet)");
       } else {
         setStep("view_document");
+        addLog("Step → view_document");
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setError("Connection timed out. Please check your internet connection and refresh the page.");
+        addLog("TIMEOUT after 15s");
       } else {
-        setError(err instanceof Error ? err.message : "Failed to verify signing link");
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        setError(msg);
+        addLog(`ERROR: ${msg}`);
       }
       setStep("error");
     }
-  }, [token, apiUrl]);
+  }, [token, apiUrl, addLog]);
 
   useEffect(() => {
+    addLog(`useEffect fired, token: ${token ? token.slice(0, 8) + "..." : "none"}`);
     if (token) {
       verifyToken();
     }
-  }, [token, verifyToken]);
+    return () => { addLog("useEffect CLEANUP (unmounting)"); };
+  }, [token, verifyToken, addLog]);
 
   const markViewed = async () => {
     try {
@@ -351,6 +371,18 @@ export default function SigningCeremonyPage() {
           </div>
         )}
       </main>
+
+      {/* Debug panel - TEMPORARY, remove after fixing */}
+      <div className="max-w-4xl mx-auto px-4 mt-4">
+        <details open className="bg-gray-900 text-green-400 rounded-lg p-3 text-xs font-mono">
+          <summary className="cursor-pointer text-yellow-400 mb-2">Debug Log (step: {step})</summary>
+          <div className="space-y-0.5 max-h-48 overflow-y-auto">
+            {debugLog.map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </div>
+        </details>
+      </div>
 
       <footer className="border-t py-3 mt-8">
         <div className="max-w-4xl mx-auto px-4 text-center text-xs text-gray-400">
