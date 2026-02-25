@@ -22,7 +22,7 @@ module Api
 
         # ─── QuoteTracker returns ───────────────────────────────────────
         qt_scope = QuoteTracker.where(job_id: @job.id)
-          .where(status: %w[responded accepted rejected])
+          .where(status: %w[sent responded accepted rejected])
           .includes(:supplier, :sm_schedule_master, :sm_task, :sent_by, :purchase_order)
 
         # Load confirmed_by if column exists (after migration)
@@ -36,9 +36,9 @@ module Api
         cqs_scope = CustomQuoteSupplier
           .joins(custom_quote_line: :custom_quote)
           .where(custom_quotes: { job_id: @job.id })
-          .where(status: %w[responded accepted rejected])
+          .where(status: %w[sent responded accepted rejected])
           .includes(
-            :supplier, :purchase_order, :warehouse_document,
+            :supplier, :purchase_order, :warehouse_document, :sent_by,
             custom_quote_line: [:parent, { custom_quote: :job }]
           )
 
@@ -49,12 +49,11 @@ module Api
           rows << cqs_return_json(cqs)
         end
 
-        # Sort by date_received DESC (newest first), nulls last
-        rows.sort_by! { |r| r[:dateReceived] || "1900-01-01" }.reverse!
+        # Sort by most recent date DESC (dateReceived, then dateSent as fallback), nulls last
+        rows.sort_by! { |r| r[:dateReceived] || r[:dateSent] || "1900-01-01" }.reverse!
 
         # Summary stats
         total_value = rows.select { |r| r[:status] == 'accepted' }.sum { |r| r[:priceQuoted] || 0 }
-        accepted_count = rows.count { |r| r[:status] == 'accepted' }
 
         render json: {
           success: true,
@@ -63,7 +62,8 @@ module Api
             returns: rows,
             summary: {
               totalReturns: rows.size,
-              acceptedCount: accepted_count,
+              sentCount: rows.count { |r| r[:status] == 'sent' },
+              acceptedCount: rows.count { |r| r[:status] == 'accepted' },
               rejectedCount: rows.count { |r| r[:status] == 'rejected' },
               respondedCount: rows.count { |r| r[:status] == 'responded' },
               totalAcceptedValue: total_value.to_f
@@ -237,6 +237,8 @@ module Api
           itemName: qt.task_name,
           parentName: qt.sm_schedule_master&.cost_centre,
           priceQuoted: qt.price_quoted&.to_f,
+          dateSent: qt.date_sent&.iso8601,
+          sentByName: qt.sent_by&.name,
           dateReceived: qt.date_received&.iso8601,
           quoteNumber: qt.quote_number,
           validTo: qt.valid_to&.iso8601,
@@ -264,6 +266,8 @@ module Api
           itemName: line.name,
           parentName: parent&.name,
           priceQuoted: cqs.price_quoted&.to_f,
+          dateSent: cqs.date_sent&.iso8601,
+          sentByName: cqs.sent_by&.name,
           dateReceived: cqs.date_received&.iso8601,
           quoteNumber: cqs.quote_number,
           validTo: cqs.valid_to&.iso8601,

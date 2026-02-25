@@ -10,6 +10,8 @@ export interface QuoteReturn {
   itemName: string | null;
   parentName: string | null; // Cost Centre or Trade grouping
   priceQuoted: number | null;
+  dateSent: string | null;
+  sentByName: string | null;
   dateReceived: string | null;
   quoteNumber: string | null;
   validTo: string | null;
@@ -24,10 +26,11 @@ export interface QuoteReturn {
   confirmedAt: string | null;
 }
 
-export type QuoteReturnStatus = "responded" | "accepted" | "rejected";
+export type QuoteReturnStatus = "sent" | "responded" | "accepted" | "rejected";
 
 export interface QuoteReturnsSummary {
   totalReturns: number;
+  sentCount: number;
   acceptedCount: number;
   rejectedCount: number;
   respondedCount: number;
@@ -64,12 +67,14 @@ export interface ConfirmDetails {
 }
 
 export const STATUS_COLORS: Record<QuoteReturnStatus, string> = {
+  sent: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   responded: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300",
   accepted: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
   rejected: "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-300",
 };
 
 export const STATUS_LABELS: Record<QuoteReturnStatus, string> = {
+  sent: "Sent",
   responded: "Responded",
   accepted: "Accepted",
   rejected: "Rejected",

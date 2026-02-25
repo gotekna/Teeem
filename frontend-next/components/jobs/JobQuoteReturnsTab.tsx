@@ -98,19 +98,25 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
       {/* Summary Bar */}
       <div className="flex items-center gap-4 px-4 py-3 border-b bg-muted/30">
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Total Returns</span>
+          <span className="text-sm text-muted-foreground">Total</span>
           <Badge variant="secondary">{data.summary.totalReturns}</Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Sent</span>
+          <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+            {data.summary.sentCount}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Responded</span>
+          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+            {data.summary.respondedCount}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Accepted</span>
           <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
             {data.summary.acceptedCount}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Pending</span>
-          <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">
-            {data.summary.respondedCount}
           </Badge>
         </div>
         <div className="ml-auto text-sm">
@@ -123,7 +129,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
 
       {/* Filter Tabs */}
       <div className="flex items-center gap-1 px-4 py-2 border-b">
-        {(["all", "responded", "accepted", "rejected"] as const).map((f) => (
+        {(["all", "sent", "responded", "accepted", "rejected"] as const).map((f) => (
           <Button
             key={f}
             variant={filter === f ? "default" : "ghost"}
@@ -150,6 +156,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
               <th className="text-left px-3 py-2 font-medium">Item / Task</th>
               <th className="text-left px-3 py-2 font-medium">CC / Trade</th>
               <th className="text-right px-3 py-2 font-medium">Price</th>
+              <th className="text-left px-3 py-2 font-medium">Sent</th>
               <th className="text-left px-3 py-2 font-medium">Received</th>
               <th className="text-left px-3 py-2 font-medium">Quote #</th>
               <th className="text-left px-3 py-2 font-medium">Valid To</th>
@@ -185,6 +192,13 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                   >
                     {formatCurrency(qr.priceQuoted)}
                   </span>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {qr.dateSent ? (
+                    <span title={qr.sentByName ? `by ${qr.sentByName}` : ""}>
+                      {new Date(qr.dateSent).toLocaleDateString()}
+                    </span>
+                  ) : "—"}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {qr.dateReceived
@@ -227,6 +241,9 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex items-center justify-center gap-1">
+                    {qr.status === "sent" && (
+                      <span className="text-xs text-muted-foreground">Awaiting response</span>
+                    )}
                     {qr.status === "responded" && (
                       <>
                         <Button
