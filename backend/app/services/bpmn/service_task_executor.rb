@@ -66,7 +66,7 @@ module Bpmn
         Rails.logger.info("BPMN: Service task '#{@node.display_name}' completed successfully")
       rescue Bpmn::Tasks::WaitForSignaturesTask::WaitingError => e
         # Special handling for wait tasks - pause the token and schedule retry
-        task_instance.update!(status: "waiting", result: { message: e.message })
+        task_instance.update!(status: "in_progress", execution_result: { message: e.message })
         @token.update!(status: "waiting")
 
         retry_interval = @config["retry_interval_minutes"] || 60
