@@ -10,7 +10,12 @@ require "hexapdf"
 #
 # The badge is a light-blue rectangle (#e8f4fd background, #2196F3 border)
 # rendered by the HTML templates. This service parses the PDF content stream
-# to find those rectangles and matches them to signers by email text.
+# to find those rectangles.
+#
+# Matching strategy (in order):
+#   1. Email text match: signer's email found on same page as badge
+#   2. Order-based fallback: badges assigned to signers by page order
+#      (works when PDF fonts use glyph encoding instead of raw ASCII)
 #
 class ESignatureBadgeDetector
   # Badge background color: #e8f4fd = RGB(0.91, 0.957, 0.992)
@@ -36,8 +41,28 @@ class ESignatureBadgeDetector
 
   def create_fields!
     document = HexaPDF::Document.new(io: StringIO.new(@pdf_content))
+    signers = @request.signers.order(:signing_order).to_a
 
-    @request.signers.order(:signing_order).each do |signer|
+    # First pass: try email-based matching (original strategy)
+    email_matched = try_email_matching(document, signers)
+    return if email_matched
+
+    # Second pass: find all badges and assign by page order
+    # This handles PDFs where fonts use glyph encoding (emails not in raw stream)
+    Rails.logger.info("[ESignatureBadgeDetector] Email matching failed, using order-based matching")
+    try_order_matching(document, signers)
+  rescue => e
+    Rails.logger.warn("[ESignatureBadgeDetector] Badge detection failed: #{e.message}")
+  end
+
+  private
+
+  # Try to match badges to signers by finding signer email on the same page.
+  # Returns true if at least one field was created.
+  def try_email_matching(document, signers)
+    fields_created = 0
+
+    signers.each do |signer|
       badge_info = find_badge_for_signer(document, signer.email)
       next unless badge_info
 
@@ -52,13 +77,67 @@ class ESignatureBadgeDetector
         required: true,
         label: "Signature"
       )
+      fields_created += 1
     end
-  rescue => e
-    # Don't fail the request if field detection fails - legacy stamper handles it
-    Rails.logger.warn("[ESignatureBadgeDetector] Badge detection failed: #{e.message}")
+
+    fields_created > 0
   end
 
-  private
+  # Find all badge rectangles across all pages, then assign to signers in order.
+  # The document generation order matches signer signing_order:
+  #   - Minutes page (first signer/chairperson)
+  #   - Resignation pages (ceasing directors in order)
+  #   - Consent pages (new appointments in order)
+  def try_order_matching(document, signers)
+    all_badges = find_all_badges(document)
+    return if all_badges.empty?
+
+    Rails.logger.info("[ESignatureBadgeDetector] Found #{all_badges.size} badges for #{signers.size} signers")
+
+    # Assign badges to signers in order (skip extras if more badges than signers)
+    signers.each_with_index do |signer, idx|
+      badge_info = all_badges[idx]
+      break unless badge_info
+
+      @request.fields.create!(
+        e_signature_signer: signer,
+        field_type: "signature",
+        page_number: badge_info[:page_number],
+        x_percent: badge_info[:x_percent],
+        y_percent: badge_info[:y_percent],
+        width_percent: badge_info[:width_percent],
+        height_percent: badge_info[:height_percent],
+        required: true,
+        label: "Signature"
+      )
+    end
+  end
+
+  # Find all badge positions across all pages, sorted by page number.
+  def find_all_badges(document)
+    badges = []
+
+    document.pages.each_with_index do |page, index|
+      stream = extract_page_stream(page)
+      next unless stream
+
+      badge_rect = find_badge_rect_in_stream(stream)
+      next unless badge_rect
+
+      box = page.box
+      badge_top = badge_rect[:y] + badge_rect[:height]
+
+      badges << {
+        page_number: index + 1,
+        x_percent: ((badge_rect[:x] - 5) / box.width * 100).clamp(1.0, 90.0).round(1),
+        y_percent: ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1),
+        width_percent: ((badge_rect[:width] + 20) / box.width * 100).clamp(10.0, 50.0).round(1),
+        height_percent: ((badge_rect[:height] + 20) / box.height * 100).clamp(5.0, 20.0).round(1)
+      }
+    end
+
+    badges
+  end
 
   # Find the page and position of a signer's signature badge.
   # Searches each page for both the signer's email AND a blue badge rectangle.
