@@ -120,7 +120,7 @@ module Bpmn
         end.compact
       end
 
-      # Position → document type abbreviation mapping (matches ASIC warehouse folder)
+      # Position → document type abbreviation mapping (matches ASIC warehouse folder WFDTs)
       RESIGNATION_DOC_TYPES = {
         "director" => "RD",
         "secretary" => "RS",

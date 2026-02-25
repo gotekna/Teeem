@@ -2,8 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 
 interface DocTypeRaw {
@@ -39,6 +40,7 @@ export function DocumentTypeTreePicker({
   const [allDocTypes, setAllDocTypes] = useState<DocTypeRaw[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
+  const [search, setSearch] = useState("");
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -60,12 +62,19 @@ export function DocumentTypeTreePicker({
   }, []);
 
   const scopeFiltered = useMemo(() => {
-    if (scopeFilter === "all") return allDocTypes;
-    return allDocTypes.filter((dt) => {
-      if (dt.scope === "both") return true;
-      return dt.scope === scopeFilter;
-    });
-  }, [allDocTypes, scopeFilter]);
+    let filtered = allDocTypes;
+    if (scopeFilter !== "all") {
+      filtered = filtered.filter((dt) => dt.scope === "both" || dt.scope === scopeFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter((dt) =>
+        dt.name.toLowerCase().includes(q) ||
+        (dt.folder || "").toLowerCase().includes(q)
+      );
+    }
+    return filtered;
+  }, [allDocTypes, scopeFilter, search]);
 
   // Group by folder
   const folderGroups = useMemo(() => {
@@ -96,10 +105,8 @@ export function DocumentTypeTreePicker({
     const folderIds = items.map((dt) => dt.id);
     const allSelected = folderIds.every((id) => selectedSet.has(id));
     if (allSelected) {
-      // Deselect all in folder
       onChange(selectedIds.filter((id) => !folderIds.includes(id)));
     } else {
-      // Select all in folder
       const merged = new Set([...selectedIds, ...folderIds]);
       onChange(Array.from(merged));
     }
@@ -121,7 +128,7 @@ export function DocumentTypeTreePicker({
   return (
     <div className="space-y-1.5">
       {/* Scope tabs */}
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex gap-1 flex-wrap items-center">
         {SCOPE_TABS.map((tab) => (
           <button
             key={tab.key}
@@ -149,8 +156,24 @@ export function DocumentTypeTreePicker({
         )}
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search document types..."
+          className="h-7 pl-7 text-xs"
+        />
+      </div>
+
       {/* Tree */}
       <div className="border rounded max-h-48 overflow-y-auto">
+        {folderGroups.length === 0 && (
+          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+            No document types found
+          </div>
+        )}
         {folderGroups.map(({ folder, items }) => {
           const folderIds = items.map((dt) => dt.id);
           const allSelected = folderIds.length > 0 && folderIds.every((id) => selectedSet.has(id));
@@ -160,32 +183,38 @@ export function DocumentTypeTreePicker({
           return (
             <div key={folder}>
               {/* Folder header */}
-              <div
-                className="flex items-center gap-2 px-2 py-1 bg-muted/50 hover:bg-muted cursor-pointer sticky top-0"
-                onClick={() => toggleFolderCollapse(folder)}
-              >
-                {isCollapsed
-                  ? <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
-                  : <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-                }
-                <div
-                  onClick={(e) => { e.stopPropagation(); toggleFolder(items); }}
-                  className="flex items-center"
+              <div className="flex items-center gap-2 px-2 py-1 bg-muted/50 hover:bg-muted">
+                <button
+                  type="button"
+                  onClick={() => toggleFolderCollapse(folder)}
+                  className="shrink-0"
                 >
-                  <Checkbox
-                    checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                    className="h-3.5 w-3.5"
-                  />
-                </div>
-                <span className="text-xs font-medium text-muted-foreground">{folder}</span>
-                <span className="text-[10px] text-muted-foreground ml-auto">{items.length}</span>
+                  {isCollapsed
+                    ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    : <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  }
+                </button>
+                <Checkbox
+                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                  onCheckedChange={() => toggleFolder(items)}
+                  className="h-3.5 w-3.5"
+                />
+                <button
+                  type="button"
+                  onClick={() => toggleFolder(items)}
+                  className="text-xs font-medium text-muted-foreground flex-1 text-left"
+                >
+                  {folder}
+                </button>
+                <span className="text-[10px] text-muted-foreground">{items.length}</span>
               </div>
 
               {/* Children */}
               {!isCollapsed && items.map((dt) => (
-                <label
+                <div
                   key={dt.id}
                   className="flex items-center gap-2 px-2 py-1 pl-8 hover:bg-muted/30 cursor-pointer"
+                  onClick={() => toggleItem(dt.id)}
                 >
                   <Checkbox
                     checked={selectedSet.has(dt.id)}
@@ -193,7 +222,7 @@ export function DocumentTypeTreePicker({
                     className="h-3.5 w-3.5"
                   />
                   <span className="text-xs">{dt.name}</span>
-                </label>
+                </div>
               ))}
             </div>
           );

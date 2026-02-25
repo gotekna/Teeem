@@ -82,6 +82,7 @@ export interface WarehouseFolderDocumentType {
   abbreviation?: string;
   download_name?: string;
   is_primary?: boolean;  // SSoT: true = this tab is the primary home, false = secondary ("also show in")
+  is_system?: boolean;  // SSoT: System-managed doc type (can't remove from folder)
 }
 
 export interface WarehouseFoldersResponse {
