@@ -187,14 +187,14 @@ class CreateCustomQuoteSystem < ActiveRecord::Migration[8.0]
 
       execute(<<-SQL.squish)
         INSERT INTO warehouse_folders (
-          tenant_id, warehouse_type, tab_key, display_name, parent_id, tab_group,
-          order_position, enabled, is_system_tab, icon_name, component_name,
+          tenant_id, warehouse_type_id, tab_key, display_name, parent_id, tab_group,
+          order_position, enabled, is_system, icon_name, component_name,
           warehouse_enabled,
           created_at, updated_at
         )
         VALUES (
           #{tenant_id},
-          'job',
+          1,
           'custom-quotes',
           'Custom Quotes',
           #{estimating_id},
