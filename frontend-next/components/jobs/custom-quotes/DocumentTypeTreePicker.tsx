@@ -7,22 +7,81 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 
-interface DocTypeRaw {
+interface DocTypeLeaf {
   id: number;
   name: string;
-  folder?: string | null;
-  scope?: string | null;
 }
 
-type ScopeFilter = "all" | "job" | "company" | "contacts" | "library";
+interface FolderNode {
+  id: number;
+  name: string;
+  warehouseTypeCode: string;
+  documentTypes: DocTypeLeaf[];
+  children: FolderNode[];
+}
+
+type ScopeFilter = "all" | "job" | "corporate" | "contact" | "library";
 
 const SCOPE_TABS: { key: ScopeFilter; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "company", label: "Corporate" },
+  { key: "corporate", label: "Corporate" },
   { key: "job", label: "Job" },
-  { key: "contacts", label: "Contact" },
+  { key: "contact", label: "Contact" },
   { key: "library", label: "Library" },
 ];
+
+/** Collect all document type IDs under a folder node (recursively) */
+function collectAllDocTypeIds(node: FolderNode): number[] {
+  const ids = node.documentTypes.map((dt) => dt.id);
+  for (const child of node.children) {
+    ids.push(...collectAllDocTypeIds(child));
+  }
+  return ids;
+}
+
+/** Count total doc types in a tree (recursively) */
+function countDocTypes(nodes: FolderNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    count += node.documentTypes.length;
+    count += countDocTypes(node.children);
+  }
+  return count;
+}
+
+/** Filter tree by search term - returns nodes that match (or have matching descendants) */
+function filterTree(nodes: FolderNode[], query: string): FolderNode[] {
+  if (!query) return nodes;
+  const q = query.toLowerCase();
+  return nodes
+    .map((node) => {
+      const matchingDts = node.documentTypes.filter((dt) =>
+        dt.name.toLowerCase().includes(q)
+      );
+      const matchingChildren = filterTree(node.children, query);
+      const folderMatches = node.name.toLowerCase().includes(q);
+
+      if (folderMatches) {
+        // If folder name matches, show all its doc types and children
+        return node;
+      }
+      if (matchingDts.length > 0 || matchingChildren.length > 0) {
+        return {
+          ...node,
+          documentTypes: matchingDts,
+          children: matchingChildren,
+        };
+      }
+      return null;
+    })
+    .filter(Boolean) as FolderNode[];
+}
+
+/** Filter tree by scope (warehouse type code) */
+function filterByScope(nodes: FolderNode[], scope: ScopeFilter): FolderNode[] {
+  if (scope === "all") return nodes;
+  return nodes.filter((node) => node.warehouseTypeCode === scope);
+}
 
 interface DocumentTypeTreePickerProps {
   selectedIds: number[];
@@ -30,96 +89,96 @@ interface DocumentTypeTreePickerProps {
 }
 
 /**
- * Multi-select document type picker with collapsible folder sections.
- * Clicking a folder header checkbox selects/deselects all children.
+ * Multi-select document type picker with collapsible multi-level folder tree.
+ * Uses WarehouseFolder hierarchy for full cascading structure.
+ * Clicking a folder checkbox selects/deselects all nested document types.
  */
 export function DocumentTypeTreePicker({
   selectedIds,
   onChange,
 }: DocumentTypeTreePickerProps) {
-  const [allDocTypes, setAllDocTypes] = useState<DocTypeRaw[]>([]);
+  const [treeData, setTreeData] = useState<FolderNode[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [search, setSearch] = useState("");
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<number>>(
+    new Set()
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.get<{ success: boolean; data: DocTypeRaw[] }>(
-          "/api/v1/document_types"
+        const res = await api.get<{ success: boolean; data: FolderNode[] }>(
+          "/api/v1/document_types/tree"
         );
         if (!cancelled) {
-          setAllDocTypes(res?.data || []);
+          setTreeData(res?.data || []);
           setLoaded(true);
         }
       } catch (err) {
         console.error("[DocumentTypeTreePicker] fetch error:", err);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const scopeFiltered = useMemo(() => {
-    let filtered = allDocTypes;
-    if (scopeFilter !== "all") {
-      filtered = filtered.filter((dt) => dt.scope === "both" || dt.scope === scopeFilter);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      filtered = filtered.filter((dt) =>
-        dt.name.toLowerCase().includes(q) ||
-        (dt.folder || "").toLowerCase().includes(q)
-      );
-    }
-    return filtered;
-  }, [allDocTypes, scopeFilter, search]);
-
-  // Group by folder
-  const folderGroups = useMemo(() => {
-    const groupMap: Record<string, DocTypeRaw[]> = {};
-    for (const dt of scopeFiltered) {
-      const folder = dt.folder || "Other";
-      if (!groupMap[folder]) groupMap[folder] = [];
-      groupMap[folder].push(dt);
-    }
-    return Object.entries(groupMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([folder, items]) => ({
-        folder,
-        items: items.sort((a, b) => a.name.localeCompare(b.name)),
-      }));
-  }, [scopeFiltered]);
+  // Filter by scope then search
+  const filteredTree = useMemo(() => {
+    const scoped = filterByScope(treeData, scopeFilter);
+    return filterTree(scoped, search.trim());
+  }, [treeData, scopeFilter, search]);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
-  const toggleItem = useCallback((id: number) => {
-    const next = selectedSet.has(id)
-      ? selectedIds.filter((x) => x !== id)
-      : [...selectedIds, id];
-    onChange(next);
-  }, [selectedIds, selectedSet, onChange]);
+  const toggleItem = useCallback(
+    (id: number) => {
+      const next = selectedSet.has(id)
+        ? selectedIds.filter((x) => x !== id)
+        : [...selectedIds, id];
+      onChange(next);
+    },
+    [selectedIds, selectedSet, onChange]
+  );
 
-  const toggleFolder = useCallback((items: DocTypeRaw[]) => {
-    const folderIds = items.map((dt) => dt.id);
-    const allSelected = folderIds.every((id) => selectedSet.has(id));
-    if (allSelected) {
-      onChange(selectedIds.filter((id) => !folderIds.includes(id)));
-    } else {
-      const merged = new Set([...selectedIds, ...folderIds]);
-      onChange(Array.from(merged));
-    }
-  }, [selectedIds, selectedSet, onChange]);
+  const toggleFolder = useCallback(
+    (node: FolderNode) => {
+      const folderIds = collectAllDocTypeIds(node);
+      if (folderIds.length === 0) return;
+      const allSelected = folderIds.every((id) => selectedSet.has(id));
+      if (allSelected) {
+        const removeSet = new Set(folderIds);
+        onChange(selectedIds.filter((id) => !removeSet.has(id)));
+      } else {
+        const merged = new Set([...selectedIds, ...folderIds]);
+        onChange(Array.from(merged));
+      }
+    },
+    [selectedIds, selectedSet, onChange]
+  );
 
-  const toggleFolderCollapse = useCallback((folder: string) => {
+  const toggleFolderCollapse = useCallback((folderId: number) => {
     setCollapsedFolders((prev) => {
       const next = new Set(prev);
-      if (next.has(folder)) next.delete(folder);
-      else next.add(folder);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
       return next;
     });
   }, []);
+
+  // Scope counts
+  const scopeCounts = useMemo(() => {
+    const counts: Record<ScopeFilter, number> = {
+      all: countDocTypes(treeData),
+      job: countDocTypes(filterByScope(treeData, "job")),
+      corporate: countDocTypes(filterByScope(treeData, "corporate")),
+      contact: countDocTypes(filterByScope(treeData, "contact")),
+      library: countDocTypes(filterByScope(treeData, "library")),
+    };
+    return counts;
+  }, [treeData]);
 
   if (!loaded) return null;
 
@@ -143,9 +202,7 @@ export function DocumentTypeTreePicker({
           >
             {tab.label}
             <span className="ml-1 text-[10px] opacity-70">
-              {tab.key === "all"
-                ? allDocTypes.length
-                : allDocTypes.filter((dt) => dt.scope === tab.key || dt.scope === "both").length}
+              {scopeCounts[tab.key]}
             </span>
           </button>
         ))}
@@ -169,65 +226,134 @@ export function DocumentTypeTreePicker({
 
       {/* Tree */}
       <div className="border rounded max-h-48 overflow-y-auto">
-        {folderGroups.length === 0 && (
+        {filteredTree.length === 0 && (
           <div className="px-3 py-4 text-xs text-muted-foreground text-center">
             No document types found
           </div>
         )}
-        {folderGroups.map(({ folder, items }) => {
-          const folderIds = items.map((dt) => dt.id);
-          const allSelected = folderIds.length > 0 && folderIds.every((id) => selectedSet.has(id));
-          const someSelected = !allSelected && folderIds.some((id) => selectedSet.has(id));
-          const isCollapsed = collapsedFolders.has(folder);
-
-          return (
-            <div key={folder}>
-              {/* Folder header */}
-              <div className="flex items-center gap-2 px-2 py-1 bg-muted/50 hover:bg-muted">
-                <button
-                  type="button"
-                  onClick={() => toggleFolderCollapse(folder)}
-                  className="shrink-0"
-                >
-                  {isCollapsed
-                    ? <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                    : <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                  }
-                </button>
-                <Checkbox
-                  checked={allSelected ? true : someSelected ? "indeterminate" : false}
-                  onCheckedChange={() => toggleFolder(items)}
-                  className="h-3.5 w-3.5"
-                />
-                <button
-                  type="button"
-                  onClick={() => toggleFolder(items)}
-                  className="text-xs font-medium text-muted-foreground flex-1 text-left"
-                >
-                  {folder}
-                </button>
-                <span className="text-[10px] text-muted-foreground">{items.length}</span>
-              </div>
-
-              {/* Children */}
-              {!isCollapsed && items.map((dt) => (
-                <div
-                  key={dt.id}
-                  className="flex items-center gap-2 px-2 py-1 pl-8 hover:bg-muted/30 cursor-pointer"
-                  onClick={() => toggleItem(dt.id)}
-                >
-                  <Checkbox
-                    checked={selectedSet.has(dt.id)}
-                    onCheckedChange={() => toggleItem(dt.id)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span className="text-xs">{dt.name}</span>
-                </div>
-              ))}
-            </div>
-          );
-        })}
+        {filteredTree.map((node) => (
+          <FolderTreeNode
+            key={node.id}
+            node={node}
+            depth={0}
+            selectedSet={selectedSet}
+            collapsedFolders={collapsedFolders}
+            onToggleItem={toggleItem}
+            onToggleFolder={toggleFolder}
+            onToggleCollapse={toggleFolderCollapse}
+          />
+        ))}
       </div>
+    </div>
+  );
+}
+
+interface FolderTreeNodeProps {
+  node: FolderNode;
+  depth: number;
+  selectedSet: Set<number>;
+  collapsedFolders: Set<number>;
+  onToggleItem: (id: number) => void;
+  onToggleFolder: (node: FolderNode) => void;
+  onToggleCollapse: (folderId: number) => void;
+}
+
+function FolderTreeNode({
+  node,
+  depth,
+  selectedSet,
+  collapsedFolders,
+  onToggleItem,
+  onToggleFolder,
+  onToggleCollapse,
+}: FolderTreeNodeProps) {
+  const allIds = useMemo(() => collectAllDocTypeIds(node), [node]);
+  const totalCount = allIds.length;
+
+  // Skip folders with no doc types at all (empty branches)
+  if (totalCount === 0) return null;
+
+  const allSelected = totalCount > 0 && allIds.every((id) => selectedSet.has(id));
+  const someSelected = !allSelected && allIds.some((id) => selectedSet.has(id));
+  const isCollapsed = collapsedFolders.has(node.id);
+  const hasChildren = node.children.length > 0 || node.documentTypes.length > 0;
+  const paddingLeft = 8 + depth * 16; // px
+
+  return (
+    <div>
+      {/* Folder header */}
+      <div
+        className="flex items-center gap-2 py-1 bg-muted/50 hover:bg-muted"
+        style={{ paddingLeft: `${paddingLeft}px`, paddingRight: "8px" }}
+      >
+        <button
+          type="button"
+          onClick={() => onToggleCollapse(node.id)}
+          className="shrink-0"
+        >
+          {hasChildren ? (
+            isCollapsed ? (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            )
+          ) : (
+            <span className="w-3" />
+          )}
+        </button>
+        <Checkbox
+          checked={allSelected ? true : someSelected ? "indeterminate" : false}
+          onCheckedChange={() => onToggleFolder(node)}
+          className="h-3.5 w-3.5"
+        />
+        <button
+          type="button"
+          onClick={() => onToggleFolder(node)}
+          className="text-xs font-medium text-muted-foreground flex-1 text-left"
+        >
+          {node.name}
+        </button>
+        <span className="text-[10px] text-muted-foreground">{totalCount}</span>
+      </div>
+
+      {/* Expanded content */}
+      {!isCollapsed && (
+        <>
+          {/* Direct document types */}
+          {node.documentTypes.map((dt) => (
+            <div
+              key={dt.id}
+              className="flex items-center gap-2 py-1 hover:bg-muted/30 cursor-pointer"
+              style={{
+                paddingLeft: `${paddingLeft + 24}px`,
+                paddingRight: "8px",
+              }}
+              onClick={() => onToggleItem(dt.id)}
+            >
+              <Checkbox
+                checked={selectedSet.has(dt.id)}
+                onCheckedChange={() => onToggleItem(dt.id)}
+                className="h-3.5 w-3.5"
+              />
+              <span className="text-xs">{dt.name}</span>
+            </div>
+          ))}
+
+          {/* Child folders (recursive) */}
+          {node.children.map((child) => (
+            <FolderTreeNode
+              key={child.id}
+              node={child}
+              depth={depth + 1}
+              selectedSet={selectedSet}
+              collapsedFolders={collapsedFolders}
+              onToggleItem={onToggleItem}
+              onToggleFolder={onToggleFolder}
+              onToggleCollapse={onToggleCollapse}
+            />
+          ))}
+        </>
+      )}
     </div>
   );
 }

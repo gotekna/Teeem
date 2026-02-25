@@ -3472,6 +3472,7 @@ Rails.application.routes.draw do
       resources :document_types do
         collection do
           get :tabs
+          get :tree     # WarehouseFolder hierarchy with document types (for tree picker)
           get :dwelling_types
           get :suggest  # Smart filename-to-type matching with confidence scores
         end

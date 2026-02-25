@@ -53,6 +53,33 @@ module Api
         end
       end
 
+      # GET /api/v1/document_types/tree
+      # Returns WarehouseFolder hierarchy with document types for tree picker.
+      # Params:
+      #   scope: "job" | "corporate" | "contact" | "library" (optional, returns all if blank)
+      def tree
+        scope_codes = if params[:scope].present?
+          Array(params[:scope].split(","))
+        else
+          %w[job corporate contact library]
+        end
+
+        all_folders = WarehouseFolder
+          .joins(:warehouse_type)
+          .where(warehouse_types: { code: scope_codes })
+          .where(enabled: true)
+          .includes(:warehouse_type, warehouse_folder_document_types: :document_type)
+          .order(:order_position, :name)
+
+        all_folders_arr = all_folders.to_a
+        roots = all_folders_arr.select { |f| f.parent_id.nil? }
+
+        render json: {
+          success: true,
+          data: roots.sort_by { |f| [f.order_position || 999, f.name || ""] }.map { |f| serialize_folder_tree(f, all_folders_arr) }
+        }
+      end
+
       # GET /api/v1/document_types/tabs
       def tabs
         render json: {
@@ -301,6 +328,31 @@ module Api
 
       def set_document_type
         @document_type = DocumentType.includes(warehouse_folder_document_types: { warehouse_folder: [:parent, :warehouse_type] }).find(params[:id])
+      end
+
+      # Recursively serialize a WarehouseFolder with its children and document types
+      def serialize_folder_tree(folder, all_folders)
+        children = all_folders.select { |f| f.parent_id == folder.id }
+          .sort_by { |f| [f.order_position || 999, f.name || ""] }
+
+        doc_types = folder.warehouse_folder_document_types
+          .select { |wfdt| wfdt.document_type&.active }
+          .sort_by { |wfdt| wfdt.document_type&.name || "" }
+          .map { |wfdt|
+            dt = wfdt.document_type
+            {
+              id: dt.id,
+              name: dt.name
+            }
+          }
+
+        {
+          id: folder.id,
+          name: folder.display_name || folder.name,
+          warehouseTypeCode: folder.warehouse_type&.code,
+          documentTypes: doc_types,
+          children: children.map { |c| serialize_folder_tree(c, all_folders) }
+        }
       end
 
       def document_type_params
