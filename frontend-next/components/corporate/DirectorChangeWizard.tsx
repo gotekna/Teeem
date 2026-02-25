@@ -190,6 +190,8 @@ const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
   { value: "public_officer", label: "Public Officer" },
+  { value: "corporate_officer", label: "Corporate Officer" },
+  { value: "chairman", label: "Chairman" },
 ];
 
 // --- Component ---
@@ -550,13 +552,18 @@ export function DirectorChangeWizard({
       // If fetch fails, keep search-level values
     }
 
+    // Default positions to match ceasing directors' positions (if any)
+    const defaultPositions = ceasingDirectors.length > 0
+      ? [...new Set(ceasingDirectors.flatMap((cd) => cd.positions))]
+      : ["director"];
+
     setNewAppointments((prev) => [
       ...prev,
       {
         contact_id: contact.id,
         name: contact.display_name,
         email: contact.email || "",
-        positions: ["director"],
+        positions: defaultPositions,
         appointment_date: defaultDate,
         has_dob: hasDob,
         has_address: hasAddress,

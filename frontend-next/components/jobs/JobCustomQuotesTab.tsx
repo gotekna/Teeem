@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
+import { SupplierPicker, type Supplier } from "@/components/ui/supplier-picker";
 import { api } from "@/lib/api";
 
 interface JobCustomQuotesTabProps {
@@ -81,12 +81,13 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   const searchSuppliers = useCallback(async (search: string) => {
     if (search.length < 2) return;
     try {
-      const res = await api.get<{ success: boolean; records: Array<{ id: number; name: string }> }>(
+      const res = await api.get<{ success: boolean; data: { records: Array<{ id: number; display_name: string; name?: string }> } }>(
         `/api/v1/foundations/contacts/records?search=${encodeURIComponent(search)}&limit=20`
       );
-      if (res?.records) {
+      const records = res?.data?.records || [];
+      if (records.length > 0) {
         setSupplierItems(
-          res.records.map((c) => ({ id: String(c.id), label: c.name }))
+          records.map((c) => ({ id: String(c.id), label: c.display_name || c.name || `Contact #${c.id}` }))
         );
       }
     } catch {

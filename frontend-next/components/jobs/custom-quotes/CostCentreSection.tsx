@@ -162,6 +162,8 @@ export function CostCentreSection({
               poDescription={line.poDescription}
               rfqInstructions={line.rfqInstructions}
               onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+              documentTypeNames={line.documentTypeNames}
+              poLineNames={line.children.filter((c) => c.quoteLevel !== "not_required").map((c) => c.name)}
             />
           )}
 

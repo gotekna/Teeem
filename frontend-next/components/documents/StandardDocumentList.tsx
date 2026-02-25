@@ -127,6 +127,8 @@ export interface StandardDocumentListProps {
   onSelectionChange?: (docs: Map<number, LibraryDocument>) => void;
   /** Hide the built-in floating action bar (parent renders its own) */
   hideFloatingBar?: boolean;
+  /** Override double-click behavior (default: open fileUrl in new tab) */
+  onDocumentDoubleClick?: (doc: LibraryDocument) => void;
 }
 
 // ============================================================================
@@ -377,6 +379,7 @@ export function StandardDocumentList({
   selectedDocs: controlledSelectedDocs,
   onSelectionChange,
   hideFloatingBar = false,
+  onDocumentDoubleClick: customDoubleClick,
 }: StandardDocumentListProps) {
   const { toast } = useToast();
 
@@ -435,12 +438,14 @@ export function StandardDocumentList({
     }
   }, []);
 
-  // Double click -> open in new tab
+  // Double click -> custom handler or open in new tab
   const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
-    if (doc.fileUrl) {
+    if (customDoubleClick) {
+      customDoubleClick(doc);
+    } else if (doc.fileUrl) {
       window.open(doc.fileUrl, "_blank");
     }
-  }, []);
+  }, [customDoubleClick]);
 
   // Fetch version history
   const fetchVersionHistory = useCallback(async (docId: number) => {

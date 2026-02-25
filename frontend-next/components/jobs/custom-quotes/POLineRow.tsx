@@ -109,6 +109,7 @@ export function POLineRow({
           poDescription={line.poDescription}
           rfqInstructions={line.rfqInstructions}
           onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+          documentTypeNames={line.documentTypeNames}
         />
       )}
     </div>

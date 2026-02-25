@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TwoDescriptionEditorProps {
   tenderDescription: string | null;
@@ -13,6 +14,10 @@ interface TwoDescriptionEditorProps {
   rfqInstructions?: string | null;
   onUpdate: (field: string, value: string) => void;
   readOnly?: boolean;
+  /** Document type names selected on this line (for RFQ context) */
+  documentTypeNames?: string[];
+  /** PO child line names (for RFQ quote breakdown) */
+  poLineNames?: string[];
 }
 
 function useDebouncedSave(onUpdate: (field: string, value: string) => void, delay = 500) {
@@ -34,13 +39,67 @@ function useDebouncedSave(onUpdate: (field: string, value: string) => void, dela
   return save;
 }
 
+/** Wrap tender text with RFQ greeting, attached docs, quote breakdown, and sender signature */
+function wrapAsRfq(
+  tenderText: string,
+  opts: {
+    senderName?: string;
+    senderTitle?: string;
+    senderPhone?: string;
+    senderEmail?: string;
+    documentTypeNames?: string[];
+    poLineNames?: string[];
+  }
+): string {
+  const parts: string[] = [];
+
+  // Greeting
+  parts.push("Hi {Name},\n");
+
+  // Body from tender
+  if (tenderText.trim()) {
+    parts.push(tenderText.trim() + "\n");
+  }
+
+  // Attached documents
+  if (opts.documentTypeNames && opts.documentTypeNames.length > 0) {
+    parts.push("Please find the following documents attached for quoting:");
+    for (const name of opts.documentTypeNames) {
+      parts.push(`  - ${name}`);
+    }
+    parts.push("");
+  }
+
+  // Quote breakdown by PO tasks
+  if (opts.poLineNames && opts.poLineNames.length > 0) {
+    parts.push("Please provide your quote broken down as follows:");
+    for (const name of opts.poLineNames) {
+      parts.push(`  - ${name}`);
+    }
+    parts.push("");
+  }
+
+  // Signature
+  const sigParts: string[] = ["Kind regards,"];
+  if (opts.senderName) sigParts.push(opts.senderName);
+  if (opts.senderTitle) sigParts.push(opts.senderTitle);
+  if (opts.senderPhone) sigParts.push(opts.senderPhone);
+  if (opts.senderEmail) sigParts.push(opts.senderEmail);
+  parts.push(sigParts.join("\n"));
+
+  return parts.join("\n");
+}
+
 export function TwoDescriptionEditor({
   tenderDescription,
   poDescription,
   rfqInstructions,
   onUpdate,
   readOnly = false,
+  documentTypeNames = [],
+  poLineNames = [],
 }: TwoDescriptionEditorProps) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [syncPo, setSyncPo] = useState(false);
   const [syncRfq, setSyncRfq] = useState(false);
@@ -57,6 +116,17 @@ export function TwoDescriptionEditor({
 
   const debouncedSave = useDebouncedSave(onUpdate);
 
+  const buildRfqText = useCallback((tenderText: string) => {
+    return wrapAsRfq(tenderText, {
+      senderName: user?.name,
+      senderTitle: user?.job_title || undefined,
+      senderPhone: user?.mobile_phone || undefined,
+      senderEmail: user?.email,
+      documentTypeNames,
+      poLineNames,
+    });
+  }, [user, documentTypeNames, poLineNames]);
+
   const handleTenderChange = useCallback((value: string) => {
     setLocalTender(value);
     debouncedSave("tender_description", value);
@@ -65,10 +135,11 @@ export function TwoDescriptionEditor({
       debouncedSave("po_description", value);
     }
     if (syncRfq) {
-      setLocalRfq(value);
-      debouncedSave("rfq_instructions", value);
+      const rfqText = buildRfqText(value);
+      setLocalRfq(rfqText);
+      debouncedSave("rfq_instructions", rfqText);
     }
-  }, [debouncedSave, syncPo, syncRfq]);
+  }, [debouncedSave, syncPo, syncRfq, buildRfqText]);
 
   const handlePoChange = useCallback((value: string) => {
     setLocalPo(value);
@@ -93,10 +164,11 @@ export function TwoDescriptionEditor({
     const on = checked === true;
     setSyncRfq(on);
     if (on) {
-      setLocalRfq(localTender);
-      debouncedSave("rfq_instructions", localTender);
+      const rfqText = buildRfqText(localTender);
+      setLocalRfq(rfqText);
+      debouncedSave("rfq_instructions", rfqText);
     }
-  }, [localTender, debouncedSave]);
+  }, [localTender, debouncedSave, buildRfqText]);
 
   if (!expanded) {
     const hasContent = localTender || localPo || localRfq;
