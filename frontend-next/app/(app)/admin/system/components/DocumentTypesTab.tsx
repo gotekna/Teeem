@@ -461,7 +461,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       <div className="shrink-0 mb-4">
         <h2 className="text-lg font-semibold">Document Types & Naming Conventions</h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Single source of truth for document types across Companies, Jobs, Contacts, and Library. Click any cell to edit.
+          Single source of truth for document types across Corporate, Jobs, Contacts, and Library. Click any cell to edit.
         </p>
       </div>
 

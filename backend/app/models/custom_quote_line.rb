@@ -76,7 +76,7 @@ class CustomQuoteLine < ApplicationRecord
       rfq_instructions: rfq_instructions,
       budget_amount: budget_amount&.to_f,
       position: position,
-      suppliers: suppliers.includes(:supplier).order(:position).map(&:as_json_summary),
+      suppliers: suppliers.includes(:supplier).order(:created_at).map(&:as_json_summary),
       children: children.order(:position).includes(suppliers: :supplier).map(&:as_tree_node)
     }
   end
