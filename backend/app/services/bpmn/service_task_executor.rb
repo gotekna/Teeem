@@ -74,6 +74,12 @@ module Bpmn
 
         # Schedule a retry job (SolidQueue)
         BpmnRetryWaitingTaskJob.set(wait: retry_interval.minutes).perform_later(@token.id)
+      rescue Bpmn::Tasks::PermanentError => e
+        # Non-transient error: fail immediately without retrying.
+        # Examples: referenced record deleted, invalid configuration.
+        task_instance.fail!(e.message)
+        Rails.logger.error("BPMN: Service task '#{@node.display_name}' permanently failed: #{e.message}")
+        @instance.fail!("Service task '#{@node.display_name}' permanently failed: #{e.message}")
       rescue StandardError => e
         task_instance.fail!(e.message)
         Rails.logger.error("BPMN: Service task '#{@node.display_name}' failed: #{e.message}")
