@@ -1,9 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Calendar, Plus, Save } from "lucide-react";
+import { Calendar, Plus, Save, Upload } from "lucide-react";
 import type { CustomQuoteSummary, CustomQuoteTemplate } from "./types";
 
 interface CustomQuoteSetupProps {
@@ -16,11 +15,13 @@ interface CustomQuoteSetupProps {
   onPopulateFromSchedule: () => void;
   onSelectQuote: (quoteId: number) => void;
   onSaveAsTemplate: () => void;
+  onOverwriteTemplate: () => void;
+  activeTemplateName: string | null;
   hasActiveQuote: boolean;
+  hasLinkedTemplate: boolean;
 }
 
 export function CustomQuoteSetup({
-  jobId,
   quotes,
   templates,
   templatesLoading,
@@ -29,10 +30,10 @@ export function CustomQuoteSetup({
   onPopulateFromSchedule,
   onSelectQuote,
   onSaveAsTemplate,
+  onOverwriteTemplate,
   hasActiveQuote,
+  hasLinkedTemplate,
 }: CustomQuoteSetupProps) {
-  const [selectedTemplate, setSelectedTemplate] = useState<ComboboxItem | undefined>();
-
   const templateItems: ComboboxItem[] = templates.map((t) => ({
     id: String(t.id),
     label: `${t.name} (${t.lineCount} lines)`,
@@ -55,27 +56,14 @@ export function CustomQuoteSetup({
         />
       )}
 
-      {/* Template picker */}
+      {/* Template picker - auto-applies on select */}
       <ComboboxDropdown
         items={templateItems}
-        selectedItem={selectedTemplate}
-        onSelect={(item) => setSelectedTemplate(item)}
-        placeholder="Template..."
+        onSelect={(item) => onApplyTemplate(Number(item.id))}
+        placeholder="Apply template..."
         className="w-64"
         disabled={templatesLoading}
       />
-
-      <Button
-        size="sm"
-        onClick={() => {
-          if (selectedTemplate) {
-            onApplyTemplate(Number(selectedTemplate.id));
-          }
-        }}
-        disabled={!selectedTemplate}
-      >
-        Apply Template
-      </Button>
 
       <Button size="sm" variant="outline" onClick={onCreateBlank}>
         <Plus className="h-4 w-4 mr-1" />
@@ -86,6 +74,13 @@ export function CustomQuoteSetup({
         <Calendar className="h-4 w-4 mr-1" />
         From Schedule
       </Button>
+
+      {hasActiveQuote && hasLinkedTemplate && (
+        <Button size="sm" variant="outline" onClick={onOverwriteTemplate}>
+          <Upload className="h-4 w-4 mr-1" />
+          Save to Template
+        </Button>
+      )}
 
       {hasActiveQuote && (
         <Button size="sm" variant="outline" onClick={onSaveAsTemplate}>

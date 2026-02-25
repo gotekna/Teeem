@@ -35,11 +35,17 @@ class XeroAttachmentSyncJob < ApplicationJob
   SAFE_MINUTE_LIMIT = 55
   SAFE_DAILY_LIMIT = 4800
 
-  # FRC (Feb 2026): Xero allows 5 concurrent API calls per org.
-  # Was 2 due to bandwidth contention with 60s timeout, raised to 4 now that
-  # timeout is 120s. 4 of 5 slots leaves 1 for webhooks/other API calls.
-  # Source: https://developer.xero.com/faq/limits
-  CONCURRENT_DOWNLOADS = 4
+  # FRC (Feb 2026): Reduced from 4 to 2 for memory safety.
+  # Each concurrent download creates a Tempfile + S3 upload stream.
+  # With 4 threads × multipart chunk buffers, memory spikes on the 1024MB dyno.
+  # 2 threads still gives good throughput for IO-bound work while keeping
+  # peak memory ~535MB (489MB headroom). 3 remaining Xero slots for webhooks/other.
+  CONCURRENT_DOWNLOADS = 2
+
+  # Memory threshold (MB) — if RSS exceeds this, force GC before next batch
+  MEMORY_WARNING_MB = 800
+  # Hard abort threshold — if RSS exceeds this after GC, stop processing
+  MEMORY_ABORT_MB = 900
 
   # Per-tenant lock TTL (must exceed MAX_RUNTIME to prevent overlap)
   TENANT_LOCK_TTL = 12.minutes
@@ -181,6 +187,20 @@ class XeroAttachmentSyncJob < ApplicationJob
             break
           end
           Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: Rate limit cleared, resuming")
+        end
+
+        # ⚠️ MEMORY GUARD (Feb 2026): Check RSS before each batch.
+        # On 1024MB Heroku dyno, R14 triggers at 1024MB. We stop early to prevent crash.
+        rss = current_rss_mb
+        if rss > MEMORY_WARNING_MB
+          Rails.logger.warn("[XeroAttachmentSync] #{tenant_name}: Memory high (#{rss}MB > #{MEMORY_WARNING_MB}MB), forcing GC")
+          GC.start(full_mark: true, immediate_sweep: true)
+          rss = current_rss_mb
+          if rss > MEMORY_ABORT_MB
+            Rails.logger.error("[XeroAttachmentSync] #{tenant_name}: Memory still high after GC (#{rss}MB > #{MEMORY_ABORT_MB}MB), aborting")
+            break
+          end
+          Rails.logger.info("[XeroAttachmentSync] #{tenant_name}: GC freed memory to #{rss}MB, continuing")
         end
 
         batch_results = process_tenant_batch(tenant_id, options)
@@ -368,8 +388,20 @@ class XeroAttachmentSyncJob < ApplicationJob
         end
       end
 
+      # ⚠️ MEMORY-SAFE (Feb 2026): Nil out references and GC between thread batches.
+      # Without this, completed thread objects and their closures (holding Tempfile refs,
+      # service instances, API response data) accumulate across all 13+ batches.
+      # GC.start is ~10-50ms — negligible compared to 0.3s sleep below.
+      threads = nil
+      thread_results = nil
+
       # Brief pause between batches to avoid burst-hammering Xero
       sleep(0.3)
+
+      # Periodic GC every 3 batches to prevent memory creep
+      if results[:processed] > 0 && results[:processed] % (CONCURRENT_DOWNLOADS * 3) == 0
+        GC.start
+      end
     end
 
     results
@@ -620,5 +652,27 @@ class XeroAttachmentSyncJob < ApplicationJob
     end
 
     active
+  end
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # MEMORY MONITORING
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # Get current RSS (Resident Set Size) in MB.
+  # Linux (Heroku): reads /proc/self/status (instant, no subprocess).
+  # macOS (dev): falls back to `ps` command.
+  # Returns 0 on error (fail-open: never block processing due to monitoring failure).
+  def current_rss_mb
+    if File.exist?("/proc/self/status")
+      # Linux (Heroku): Parse VmRSS from /proc/self/status — no subprocess needed
+      status = File.read("/proc/self/status")
+      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
+      return match[1].to_i / 1024 if match
+    end
+
+    # macOS fallback: use ps command
+    `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+  rescue StandardError
+    0
   end
 end

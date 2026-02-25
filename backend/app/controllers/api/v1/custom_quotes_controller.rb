@@ -4,7 +4,7 @@ module Api
   module V1
     class CustomQuotesController < ApplicationController
       before_action :set_template, only: [:show_template, :update_template, :destroy_template, :duplicate_template]
-      before_action :set_custom_quote, only: [:show, :update, :destroy, :save_as_template]
+      before_action :set_custom_quote, only: [:show, :update, :destroy, :save_as_template, :overwrite_template]
       before_action :set_line, only: [:update_line, :add_supplier, :add_child_line]
       before_action :set_supplier, only: [:send_rfq_single, :record_response, :accept_quote,
                                           :reject_quote, :supplier_allocations, :create_allocation]
@@ -150,6 +150,22 @@ module Api
         )
 
         render json: { success: true, data: template_json(template) }, status: :created
+      end
+
+      # POST /api/v1/custom_quotes/:id/overwrite_template
+      def overwrite_template
+        template = @custom_quote.custom_quote_template
+        unless template
+          return render json: { success: false, error: "Quote has no associated template" }, status: :unprocessable_entity
+        end
+
+        CustomQuoteTemplateService.overwrite_from_job!(
+          @custom_quote,
+          template: template,
+          user: current_user
+        )
+
+        render json: { success: true, data: template_json(template.reload) }
       end
 
       # ═══════════════════════════════════════════════════════════════════════════
@@ -368,6 +384,7 @@ module Api
           id: quote.id,
           name: quote.name,
           status: quote.status,
+          templateId: quote.custom_quote_template_id,
           templateName: quote.custom_quote_template&.name,
           totalQuoted: quote.total_quoted&.to_f,
           totalAllocated: quote.total_allocated&.to_f,
@@ -384,6 +401,7 @@ module Api
           jobId: quote.job_id,
           name: quote.name,
           status: quote.status,
+          templateId: quote.custom_quote_template_id,
           templateName: quote.custom_quote_template&.name,
           totalQuoted: quote.total_quoted&.to_f,
           totalAllocated: quote.total_allocated&.to_f,

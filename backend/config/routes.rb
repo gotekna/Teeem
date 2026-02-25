@@ -969,6 +969,7 @@ Rails.application.routes.draw do
         end
         member do
           post :save_as_template
+          post :overwrite_template
         end
       end
 

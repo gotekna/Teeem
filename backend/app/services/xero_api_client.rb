@@ -818,6 +818,189 @@ class XeroApiClient
     { success: false, error: e.message }
   end
 
+  # ============================================
+  # MEMORY-SAFE DOWNLOAD METHODS (Feb 2026)
+  # Stream Xero API responses to Tempfile — O(1) heap memory
+  # ============================================
+
+  # Download a Xero API binary response to a Tempfile using streaming Net::HTTP.
+  # Returns { success: true, tempfile: Tempfile, filename:, mime_type: }
+  # Caller MUST close tempfile in ensure block: tempfile&.close! rescue nil
+  #
+  # Uses same auth, token refresh, rate limiting, and timeout retry logic
+  # as make_binary_request, but writes chunks to disk instead of accumulating in memory.
+  #
+  # ⚠️ MEMORY-SAFE (Feb 2026): Replaces HTTParty.get (loads full response into heap)
+  # with Net::HTTP streaming (writes 16KB chunks to Tempfile on disk).
+  # Peak memory: ~16KB buffer vs ~5MB String for a typical invoice PDF.
+  def download_to_tempfile(method, endpoint, options = {})
+    tenant_id = options[:tenant_id]
+    accept_type = options[:accept] || "application/octet-stream"
+    attempts = 0
+    max_attempts = 2
+    timeout_retried = false
+
+    credential = nil
+    if tenant_id.present?
+      credential = CorporateXeroConnection.find_by(xero_tenant_id: tenant_id)
+      credential ||= XeroCredential.find_by(tenant_id: tenant_id)
+    end
+    credential ||= current_credential
+
+    unless credential
+      raise AuthenticationError, "Not authenticated with Xero"
+    end
+
+    if credential.is_a?(CorporateXeroConnection)
+      credential.refresh_tokens! if credential.needs_refresh?
+    else
+      unless XeroTokenManager.ensure_valid_token(credential)
+        raise AuthenticationError, "Xero credential is disconnected or token refresh failed"
+      end
+    end
+
+    credential.reload
+    request_tenant_id = credential.respond_to?(:xero_tenant_id) ? credential.xero_tenant_id : credential.tenant_id
+    url = "#{BASE_URL}/#{endpoint}"
+    uri = URI.parse(url)
+
+    loop do
+      attempts += 1
+      XeroRateLimitTracker.throttle_before_request!(request_tenant_id)
+
+      tempfile = Tempfile.new(["xero_download", ".bin"], binmode: true)
+      tempfile.binmode
+
+      begin
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = (uri.scheme == "https")
+        http.read_timeout = XERO_FILE_TIMEOUT
+        http.open_timeout = 30
+
+        request = Net::HTTP::Get.new(uri.request_uri)
+        request["Authorization"] = "Bearer #{credential.access_token}"
+        request["Xero-tenant-id"] = request_tenant_id
+        request["Accept"] = accept_type
+
+        response_code = nil
+        response_headers = {}
+        filename = nil
+        mime_type = nil
+
+        http.request(request) do |response|
+          response_code = response.code.to_i
+          response.each_header { |k, v| response_headers[k] = v }
+
+          # Only stream body for success responses
+          if response_code >= 200 && response_code < 300
+            response.read_body do |chunk|
+              tempfile.write(chunk)
+            end
+
+            # Extract filename from Content-Disposition
+            content_disposition = response["content-disposition"]
+            if content_disposition.present?
+              match = content_disposition.match(/filename="?([^";\s]+)"?/)
+              filename = match[1] if match
+            end
+            mime_type = response["content-type"]
+          end
+        end
+
+        # Sync rate limits from response headers
+        XeroRateLimitTracker.record_request(request_tenant_id, response_headers: response_headers)
+
+        case response_code
+        when 200..299
+          tempfile.rewind
+          return {
+            success: true,
+            tempfile: tempfile,
+            filename: filename,
+            mime_type: mime_type,
+            content_length: tempfile.size
+          }
+        when 401
+          tempfile.close! rescue nil
+          if attempts < max_attempts
+            Rails.logger.info("[Xero] Got 401, attempting token refresh and retry...")
+            if credential.is_a?(CorporateXeroConnection)
+              credential.refresh_tokens!
+            else
+              refresh_access_token_for(credential)
+            end
+            credential.reload
+            next
+          else
+            raise AuthenticationError, "Authentication failed after token refresh"
+          end
+        when 404
+          tempfile.close! rescue nil
+          return { success: false, error: "Not found" }
+        when 429
+          tempfile.close! rescue nil
+          raise RateLimitError, "Rate limit exceeded"
+        else
+          tempfile.close! rescue nil
+          return { success: false, error: "Request failed with status #{response_code}" }
+        end
+      rescue Net::ReadTimeout, Net::OpenTimeout => e
+        tempfile.close! rescue nil
+        if !timeout_retried
+          timeout_retried = true
+          Rails.logger.warn("[Xero] Streaming download timeout for #{endpoint}, retrying once...")
+          next
+        end
+        Rails.logger.error("[Xero] Streaming download timeout for #{endpoint} after retry: #{e.message}")
+        return { success: false, error: "Download timeout (#{XERO_FILE_TIMEOUT}s)" }
+      rescue StandardError => e
+        tempfile.close! rescue nil
+        raise
+      end
+    end
+  end
+
+  # Get an invoice PDF as a Tempfile (memory-safe)
+  # Returns { success: true, tempfile: Tempfile, filename: "INV-XXX.pdf", mime_type: "application/pdf" }
+  # Caller MUST close tempfile: tempfile&.close! rescue nil
+  def get_invoice_pdf_to_tempfile(invoice_id, options = {})
+    result = download_to_tempfile(:get, "Invoices/#{invoice_id}", options.merge(accept: "application/pdf"))
+    if result[:success]
+      result[:filename] ||= "Invoice-#{invoice_id[0..7]}.pdf"
+      result[:mime_type] = "application/pdf"
+    end
+    result
+  end
+
+  # Get a quote PDF as a Tempfile (memory-safe)
+  def get_quote_pdf_to_tempfile(quote_id, options = {})
+    result = download_to_tempfile(:get, "Quotes/#{quote_id}", options.merge(accept: "application/pdf"))
+    if result[:success]
+      result[:filename] ||= "Quote-#{quote_id[0..7]}.pdf"
+      result[:mime_type] = "application/pdf"
+    end
+    result
+  end
+
+  # Get a credit note PDF as a Tempfile (memory-safe)
+  def get_credit_note_pdf_to_tempfile(credit_note_id, options = {})
+    result = download_to_tempfile(:get, "CreditNotes/#{credit_note_id}", options.merge(accept: "application/pdf"))
+    if result[:success]
+      result[:filename] ||= "CreditNote-#{credit_note_id[0..7]}.pdf"
+      result[:mime_type] = "application/pdf"
+    end
+    result
+  end
+
+  # Download a specific attachment to a Tempfile (memory-safe)
+  def download_attachment_to_tempfile(entity_type, entity_id, filename, options = {})
+    endpoint = "#{entity_type}/#{entity_id}/Attachments/#{ERB::Util.url_encode(filename)}"
+    download_to_tempfile(:get, endpoint, options)
+  rescue StandardError => e
+    Rails.logger.error("[Xero] Error downloading attachment #{filename} to tempfile: #{e.message}")
+    { success: false, error: e.message }
+  end
+
   # Upload an attachment to a Xero entity (invoice, contact, etc.)
   # Requires accounting.attachments scope (not just .read)
   #

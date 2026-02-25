@@ -55,6 +55,7 @@ export interface CustomQuoteData {
   jobId: number;
   name: string;
   status: QuoteStatus;
+  templateId: number | null;
   templateName: string | null;
   totalQuoted: number;
   totalAllocated: number;
@@ -67,6 +68,7 @@ export interface CustomQuoteSummary {
   id: number;
   name: string;
   status: QuoteStatus;
+  templateId: number | null;
   templateName: string | null;
   totalQuoted: number;
   totalAllocated: number;

@@ -51,6 +51,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     acceptQuote,
     rejectQuote,
     saveAsTemplate,
+    overwriteTemplate,
     fetchAllocations,
     createAllocation,
     refresh,
@@ -168,6 +169,13 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     }
   }, [activeQuote, saveAsTemplate, fetchTemplates]);
 
+  const handleOverwriteTemplate = useCallback(async () => {
+    if (activeQuote) {
+      const ok = await overwriteTemplate(activeQuote.id);
+      if (ok) await fetchTemplates();
+    }
+  }, [activeQuote, overwriteTemplate, fetchTemplates]);
+
   if (loading && !activeQuote) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -189,7 +197,10 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         onPopulateFromSchedule={handlePopulateFromSchedule}
         onSelectQuote={handleSelectQuote}
         onSaveAsTemplate={() => setSaveTemplateOpen(true)}
+        onOverwriteTemplate={handleOverwriteTemplate}
+        activeTemplateName={activeQuote?.templateName ?? null}
         hasActiveQuote={!!activeQuote}
+        hasLinkedTemplate={!!activeQuote?.templateId}
       />
 
       {/* Tree view */}

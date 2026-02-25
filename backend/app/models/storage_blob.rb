@@ -66,6 +66,66 @@ class StorageBlob < ApplicationRecord
     where(id: ids).update_all(verified_at: Time.current)
   end
 
+  # Find or create blob from a file on disk (O(1) memory)
+  # Uses Digest::SHA256.file() which reads in 4KB chunks — never loads file into heap.
+  # Upload uses File.open IO which AWS SDK streams in MULTIPART_CHUNK_SIZE chunks.
+  #
+  # ⚠️ MEMORY-SAFE (Feb 2026): This is the preferred method for large files (PDFs, attachments).
+  # Use find_or_create_for_content! only for small in-memory content (<1MB).
+  #
+  # Same race-condition retry logic as find_or_create_for_content!
+  # Caller is responsible for Tempfile cleanup (use ensure block).
+  #
+  # @param file_path [String] Path to file on disk (Tempfile or regular file)
+  # @param filename [String] Original filename for storage path and content type detection
+  # @param content_type [String] MIME type (auto-detected from filename if nil)
+  # @return [StorageBlob] The found or created blob
+  def self.find_or_create_from_file!(file_path, filename: nil, content_type: nil)
+    hash = Digest::SHA256.file(file_path).hexdigest
+    file_size = File.size(file_path)
+    was_new = false
+
+    blob = find_or_create_by!(content_hash: hash) do |b|
+      was_new = true
+      b.file_size = file_size
+      b.original_filename = filename
+      b.content_type = ensure_correct_content_type(
+        content_type || detect_content_type_from_file(file_path, filename),
+        filename
+      )
+      b.storage_path = generate_storage_path(hash, filename)
+      b.reference_count = 0
+
+      # Upload to storage provider from file IO (memory-safe)
+      upload_from_file!(b, file_path)
+    end
+
+    # FRC: For existing blobs, verify file actually exists and re-upload from disk if missing
+    unless was_new
+      ensure_file_exists_from_path!(blob, file_path)
+    end
+
+    blob.mark_verified! if blob.verified_at.nil?
+    blob
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+    if e.message.downcase.include?("content hash") || e.message.downcase.include?("storage path")
+      3.times do |attempt|
+        sleep(0.1 * (attempt + 1))
+        Rails.logger.info "[StorageBlob] Race condition on hash #{hash[0..7]}..., retry find attempt #{attempt + 1} (unscoped)"
+        retry_blob = unscoped.find_by(content_hash: hash)
+        if retry_blob
+          if retry_blob.tenant_id.nil? && ActsAsTenant.current_tenant
+            retry_blob.update_column(:tenant_id, ActsAsTenant.current_tenant.id)
+            Rails.logger.info "[StorageBlob] Adopted orphan blob #{retry_blob.id} into tenant #{ActsAsTenant.current_tenant.id}"
+          end
+          return retry_blob
+        end
+      end
+      Rails.logger.error "[StorageBlob] Race condition on hash #{hash[0..7]}... but blob not found after 3 retries"
+    end
+    raise
+  end
+
   # Find or create blob for content
   # Returns existing blob if content_hash matches, otherwise creates new
   #
@@ -297,6 +357,55 @@ class StorageBlob < ApplicationRecord
     # Update with actual storage path if different
     # SSoT: Strip leading slash - paths should be relative (e.g., "Blobs/00/hash.eml" not "/Blobs/...")
     blob.storage_path = result[:path].to_s.sub(%r{^/+}, "") if result[:path].present?
+  end
+
+  # Upload from file IO — memory-safe, AWS SDK streams from disk
+  # ⚠️ MEMORY-SAFE (Feb 2026): Never loads file content into Ruby heap.
+  # Opens file as IO and passes directly to provider — AWS SDK reads in chunks.
+  def self.upload_from_file!(blob, file_path)
+    provider = storage_provider
+    io = File.open(file_path, "rb")
+    begin
+      result = provider.upload_file(
+        File.dirname(blob.storage_path),
+        io,
+        File.basename(blob.storage_path),
+        content_type: blob.content_type
+      )
+      blob.storage_path = result[:path].to_s.sub(%r{^/+}, "") if result[:path].present?
+    ensure
+      io.close
+    end
+  end
+
+  # Verify file exists in storage, re-upload from disk if missing
+  # Like ensure_file_exists! but uses file path instead of in-memory content
+  def self.ensure_file_exists_from_path!(blob, file_path)
+    return if blob.verified_at.present?
+
+    provider = storage_provider
+    if provider.file_exists?(blob.storage_path)
+      Rails.logger.debug "[StorageBlob] File verified for blob #{blob.id}"
+    else
+      Rails.logger.warn "[StorageBlob] File missing for blob #{blob.id}, re-uploading from disk..."
+      upload_from_file!(blob, file_path)
+      Rails.logger.info "[StorageBlob] File recovered for blob #{blob.id}"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[StorageBlob] File verification failed for blob #{blob.id}: #{e.message}"
+  end
+
+  # Detect content type from file on disk (without loading into memory)
+  def self.detect_content_type_from_file(file_path, filename)
+    return nil unless defined?(Marcel)
+
+    # Marcel can detect from IO (reads magic bytes only) + filename
+    File.open(file_path, "rb") do |f|
+      Marcel::MimeType.for(f, name: filename)
+    end
+  rescue StandardError => e
+    Rails.logger.warn "[StorageBlob] Failed to detect content type for file '#{filename}': #{e.message}"
+    nil
   end
 
   # SSoT: Get storage provider for a tenant (Jan 2026 fix)

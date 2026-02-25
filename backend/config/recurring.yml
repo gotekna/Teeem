@@ -400,25 +400,28 @@ email_health_monitor:
 # Upload synced emails to Wasabi storage (self-healing)
 # FRC (Jan 2026): Auto-recovers from queue DB connection failures
 # Auto-discovers all tenants with pending emails (no manual tenant_id needed)
-# FRC (Feb 2026): batch_size 500→100. 500 MIME contents in memory (50MB+)
-# plus OrgEmailSync running concurrently = 1.9GB on 1GB dyno (R14 crash).
-# 100 per iteration × auto-continue loop = same throughput, 5x less peak memory.
+# FRC (Feb 2026): batch_size 500→100→50. Memory safety on 1024MB dyno.
 # FRC (Feb 2026): Moved to :low - blob uploads are background work, frees :default for sync
+# FRC (Feb 2026): Changed from every 5 min → every 10 min to stagger with
+# warehouse_xero_attachments (also every 10 min). Both are memory-heavy
+# (download + hash + S3 upload). Running simultaneously caused R14 OOM.
+# Internal auto-continue loop maintains throughput at 10-min intervals.
 email_storage_upload:
   class: UploadEmailsToStorageJob
   queue: low
   args: [{ batch_size: 50 }]
-  schedule: every 5 minutes
+  schedule: every 10 minutes
 
 # Upload IMAP emails to Wasabi storage (parallel to MS365 upload above)
 # IMAP emails use uid + folder_name to fetch raw .eml from IMAP server
 # FRC (Feb 2026): Was a one-off backfill job, now recurring to handle new IMAP emails
 # FRC (Feb 2026): Moved to :low - blob backfill is background work, frees :default for sync
+# FRC (Feb 2026): Changed from every 5 min → every 10 min for memory staggering
 imap_email_storage_upload:
   class: BackfillImapEmailBlobsJob
   queue: low
   args: [{ batch_size: 100 }]
-  schedule: every 5 minutes
+  schedule: every 10 minutes
 
 # Retry pending attachment blob downloads (self-healing)
 # FRC (Feb 2026): Two-step sync creates metadata in step 1 but step 2 (blob download)

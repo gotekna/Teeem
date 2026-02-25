@@ -225,6 +225,22 @@ export function useCustomQuote(jobId: string | number) {
     return null;
   }, []);
 
+  const overwriteTemplate = useCallback(async (quoteId: number) => {
+    try {
+      const res = await api.post<{ success: boolean; data: CustomQuoteTemplate }>(
+        `/api/v1/custom_quotes/${quoteId}/overwrite_template`
+      );
+      if (res?.data) {
+        toast.success(`Template "${res.data.name}" updated`);
+        return true;
+      }
+    } catch (err) {
+      console.error("[useCustomQuote] overwrite template error:", err);
+      toast.error("Failed to update template");
+    }
+    return false;
+  }, []);
+
   const fetchAllocations = useCallback(async (supplierId: number) => {
     try {
       const res = await api.get<{ success: boolean; data: AllocationData[] }>(
@@ -279,6 +295,7 @@ export function useCustomQuote(jobId: string | number) {
     acceptQuote,
     rejectQuote,
     saveAsTemplate,
+    overwriteTemplate,
     fetchAllocations,
     createAllocation,
     refresh,

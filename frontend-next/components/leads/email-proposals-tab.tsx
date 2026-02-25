@@ -20,6 +20,9 @@ import {
   RefreshCw,
   MapPin,
   DollarSign,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/use-toast";
@@ -100,6 +103,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | null>(null);
+  const [collapsedCards, setCollapsedCards] = useState<Set<number>>(new Set());
+  const [allCollapsed, setAllCollapsed] = useState(false);
 
   useEffect(() => {
     loadProposals();
@@ -112,10 +117,18 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
       const response = await api.get<{ proposals: EmailProposal[] }>(
         "/api/v1/email_job_proposals?status="
       );
-      setProposals(response.proposals || []);
+      const loadedProposals = response.proposals || [];
+      setProposals(loadedProposals);
+
+      // Auto-collapse non-pending proposals so the list is scannable
+      const nonPendingIds = new Set(
+        loadedProposals.filter(p => p.status !== "pending").map(p => p.id)
+      );
+      setCollapsedCards(nonPendingIds);
+      setAllCollapsed(false);
 
       // Notify parent of pending count
-      const pendingCount = (response.proposals || []).filter(p => p.status === "pending").length;
+      const pendingCount = loadedProposals.filter(p => p.status === "pending").length;
       onPendingCountChange?.(pendingCount);
     } catch (error) {
       console.error("Failed to load proposals:", error);
@@ -228,6 +241,30 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
     );
   };
 
+  const toggleCard = (id: number) => {
+    setCollapsedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllCards = () => {
+    if (allCollapsed) {
+      // Expand all
+      setCollapsedCards(new Set());
+      setAllCollapsed(false);
+    } else {
+      // Collapse all
+      setCollapsedCards(new Set(proposals.map(p => p.id)));
+      setAllCollapsed(true);
+    }
+  };
+
   const pendingProposals = proposals.filter((p) => p.status === "pending");
   const otherProposals = proposals.filter((p) => p.status !== "pending");
 
@@ -249,10 +286,16 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
             <code className="text-xs bg-muted px-1.5 py-0.5 rounded">newjob@teeem.com.au</code>
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadProposals}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={toggleAllCards}>
+            <ChevronsUpDown className="h-4 w-4 mr-2" />
+            {allCollapsed ? "Expand All" : "Collapse All"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadProposals}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Stats - clickable to filter */}
@@ -354,6 +397,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
                 getStatusBadge={getStatusBadge}
                 getConfidenceBadge={getConfidenceBadge}
                 readonly={proposal.status !== "pending" && proposal.status !== "error"}
+                collapsed={collapsedCards.has(proposal.id)}
+                onToggle={() => toggleCard(proposal.id)}
               />
             ))}
           </div>
@@ -383,6 +428,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
                     processing={processing}
                     getStatusBadge={getStatusBadge}
                     getConfidenceBadge={getConfidenceBadge}
+                    collapsed={collapsedCards.has(proposal.id)}
+                    onToggle={() => toggleCard(proposal.id)}
                   />
                 ))}
               </div>
@@ -405,6 +452,8 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
                     getStatusBadge={getStatusBadge}
                     getConfidenceBadge={getConfidenceBadge}
                     readonly
+                    collapsed={collapsedCards.has(proposal.id)}
+                    onToggle={() => toggleCard(proposal.id)}
                   />
                 ))}
               </div>
@@ -435,6 +484,8 @@ interface ProposalCardProps {
   getStatusBadge: (status: string) => React.ReactNode;
   getConfidenceBadge: (score: number) => React.ReactNode;
   readonly?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
 function ProposalCard({
@@ -446,30 +497,44 @@ function ProposalCard({
   getStatusBadge,
   getConfidenceBadge,
   readonly = false,
+  collapsed = false,
+  onToggle,
 }: ProposalCardProps) {
   const email = proposal.email || { from_email: "", subject: "", has_attachments: false };
   const data = proposal.extracted_data || {};
   const customer = data.customer || {};
 
+  const CollapseIcon = collapsed ? ChevronRight : ChevronDown;
+
   return (
     <Card>
       <CardContent className="pt-6">
-        {/* Header */}
+        {/* Header - clickable to toggle collapse */}
         <div className="flex items-start justify-between">
-          <div className="flex-1">
+          <div
+            className="flex-1 cursor-pointer select-none"
+            onClick={onToggle}
+          >
             <div className="flex items-center gap-3 flex-wrap">
+              <CollapseIcon className="w-4 h-4 text-muted-foreground shrink-0 mt-1" />
               <h4 className="text-lg font-medium">
                 {data.job_title || email.subject || "Untitled"}
               </h4>
               {getStatusBadge(proposal.status)}
               {getConfidenceBadge(data.confidence_score || 0)}
             </div>
-            <div className="mt-2 flex items-center text-sm text-muted-foreground gap-4 flex-wrap">
+            <div className="mt-2 ml-7 flex items-center text-sm text-muted-foreground gap-4 flex-wrap">
               <div className="flex items-center">
                 <Mail className="w-4 h-4 mr-1" />
                 From: {email.from_email}
               </div>
               <div>{new Date(proposal.created_at).toLocaleString()}</div>
+              {collapsed && data.property_address && (
+                <div className="flex items-center">
+                  <MapPin className="w-4 h-4 mr-1" />
+                  {data.property_address}
+                </div>
+              )}
             </div>
           </div>
 
@@ -524,162 +589,167 @@ function ProposalCard({
           )}
         </div>
 
-        {/* Client Section */}
-        <div className="mt-4 pt-4 border-t">
-          <div className="flex items-center gap-2 mb-2">
-            <Building2 className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">Client</span>
-            <Badge variant="secondary" className="text-xs">
-              {customer.name ? "1" : "0"}
-            </Badge>
-          </div>
-          {customer.name ? (
-            <div className="pl-6">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">{customer.name}</span>
-                {customer.contact_exists ? (
-                  <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 text-xs">
-                    Existing
-                  </Badge>
-                ) : (
-                  <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
-                    Create New
-                  </Badge>
-                )}
+        {/* Details - hidden when collapsed */}
+        {!collapsed && (
+          <>
+            {/* Client Section */}
+            <div className="mt-4 pt-4 border-t">
+              <div className="flex items-center gap-2 mb-2">
+                <Building2 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Client</span>
+                <Badge variant="secondary" className="text-xs">
+                  {customer.name ? "1" : "0"}
+                </Badge>
               </div>
-              {customer.email && <div className="ml-6 text-sm text-muted-foreground">{customer.email}</div>}
-              {customer.phone && <div className="ml-6 text-sm text-muted-foreground">{customer.phone}</div>}
-              {customer.company && (
-                <div className="ml-6 text-sm text-muted-foreground">Company: {customer.company}</div>
-              )}
-            </div>
-          ) : (
-            <div className="pl-6 text-sm text-muted-foreground italic">No client detected</div>
-          )}
-        </div>
-
-        {/* Job Details */}
-        <div className="mt-4 pt-4 border-t">
-          <span className="text-sm font-medium">Job Details</span>
-          <div className="pl-6 mt-2 space-y-1 text-sm">
-            {data.property_address && (
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-                {data.property_address}
-              </div>
-            )}
-            {data.job_type && (
-              <div>
-                <span className="text-muted-foreground">Type:</span> {data.job_type}
-              </div>
-            )}
-            {data.urgency && (
-              <div>
-                <span className="text-muted-foreground">Urgency:</span> {data.urgency}
-              </div>
-            )}
-            {data.contract_value && (
-              <div className="flex items-center gap-1">
-                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                ${data.contract_value.toLocaleString()}
-              </div>
-            )}
-            {email.has_attachments && (
-              <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
-                <Paperclip className="w-4 h-4" />
-                {email.pdf_count && email.attachment_count && email.attachment_count > email.pdf_count
-                  ? `${email.pdf_count} PDF${email.pdf_count !== 1 ? "s" : ""} / ${email.attachment_count} total`
-                  : `${email.attachment_count || 1} attachment${(email.attachment_count || 1) !== 1 ? "s" : ""}`}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Referral */}
-        {data.referral_contact && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center gap-2 mb-2">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Referral</span>
-            </div>
-            <div className="pl-6">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">{data.referral_contact.name}</span>
-                {data.referral_contact.contact_exists ? (
-                  <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
-                ) : (
-                  <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* External Sales */}
-        {data.external_sales && data.external_sales.length > 0 && (
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">External Sales</span>
-              <Badge variant="secondary" className="text-xs">{data.external_sales.length}</Badge>
-            </div>
-            <div className="pl-6 space-y-2">
-              {data.external_sales.map((sales, idx) => (
-                <div key={idx} className="flex items-center gap-2">
-                  <span className="text-sm">{sales.name}</span>
-                  {sales.contact_exists ? (
-                    <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
-                  ) : (
-                    <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
+              {customer.name ? (
+                <div className="pl-6">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{customer.name}</span>
+                    {customer.contact_exists ? (
+                      <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-400 text-xs">
+                        Existing
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 dark:bg-orange-900/30 dark:text-orange-400 text-xs">
+                        Create New
+                      </Badge>
+                    )}
+                  </div>
+                  {customer.email && <div className="ml-6 text-sm text-muted-foreground">{customer.email}</div>}
+                  {customer.phone && <div className="ml-6 text-sm text-muted-foreground">{customer.phone}</div>}
+                  {customer.company && (
+                    <div className="ml-6 text-sm text-muted-foreground">Company: {customer.company}</div>
                   )}
                 </div>
-              ))}
+              ) : (
+                <div className="pl-6 text-sm text-muted-foreground italic">No client detected</div>
+              )}
             </div>
-          </div>
-        )}
 
-        {/* Missing Info Warning */}
-        {data.missing_info && data.missing_info.length > 0 && (
-          <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-md">
-            <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-400 text-sm font-medium mb-1">
-              <AlertTriangle className="w-4 h-4" />
-              Missing Information
+            {/* Job Details */}
+            <div className="mt-4 pt-4 border-t">
+              <span className="text-sm font-medium">Job Details</span>
+              <div className="pl-6 mt-2 space-y-1 text-sm">
+                {data.property_address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                    {data.property_address}
+                  </div>
+                )}
+                {data.job_type && (
+                  <div>
+                    <span className="text-muted-foreground">Type:</span> {data.job_type}
+                  </div>
+                )}
+                {data.urgency && (
+                  <div>
+                    <span className="text-muted-foreground">Urgency:</span> {data.urgency}
+                  </div>
+                )}
+                {data.contract_value && (
+                  <div className="flex items-center gap-1">
+                    <DollarSign className="w-4 h-4 text-muted-foreground" />
+                    ${data.contract_value.toLocaleString()}
+                  </div>
+                )}
+                {email.has_attachments && (
+                  <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                    <Paperclip className="w-4 h-4" />
+                    {email.pdf_count && email.attachment_count && email.attachment_count > email.pdf_count
+                      ? `${email.pdf_count} PDF${email.pdf_count !== 1 ? "s" : ""} / ${email.attachment_count} total`
+                      : `${email.attachment_count || 1} attachment${(email.attachment_count || 1) !== 1 ? "s" : ""}`}
+                  </div>
+                )}
+              </div>
             </div>
-            <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400">
-              {data.missing_info.map((item, idx) => (
-                <li key={idx}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        )}
 
-        {/* Error Message */}
-        {proposal.error_message && (
-          <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-md">
-            <div className="text-sm font-medium text-red-800 dark:text-red-400 mb-1">Error</div>
-            <p className="text-sm text-red-700 dark:text-red-400">{proposal.error_message}</p>
-          </div>
-        )}
+            {/* Referral */}
+            {data.referral_contact && (
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Referral</span>
+                </div>
+                <div className="pl-6">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{data.referral_contact.name}</span>
+                    {data.referral_contact.contact_exists ? (
+                      <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
+                    ) : (
+                      <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-        {/* Rejection Reason */}
-        {proposal.rejection_reason && (
-          <div className="mt-4 p-3 bg-muted rounded-md">
-            <div className="text-sm font-medium mb-1">Rejection Reason</div>
-            <p className="text-sm text-muted-foreground">{proposal.rejection_reason}</p>
-          </div>
-        )}
+            {/* External Sales */}
+            {data.external_sales && data.external_sales.length > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">External Sales</span>
+                  <Badge variant="secondary" className="text-xs">{data.external_sales.length}</Badge>
+                </div>
+                <div className="pl-6 space-y-2">
+                  {data.external_sales.map((sales, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-sm">{sales.name}</span>
+                      {sales.contact_exists ? (
+                        <Badge className="bg-status-success text-status-success-foreground text-xs">Existing</Badge>
+                      ) : (
+                        <Badge className="bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs">Create New</Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Job Link */}
-        {proposal.job_id && (
-          <div className="mt-4 pt-4 border-t">
-            <a
-              href={`/jobs/${proposal.job_id}`}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
-            >
-              View Job #{proposal.job_id}
-            </a>
-          </div>
+            {/* Missing Info Warning */}
+            {data.missing_info && data.missing_info.length > 0 && (
+              <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-400 text-sm font-medium mb-1">
+                  <AlertTriangle className="w-4 h-4" />
+                  Missing Information
+                </div>
+                <ul className="list-disc list-inside text-sm text-yellow-700 dark:text-yellow-400">
+                  {data.missing_info.map((item, idx) => (
+                    <li key={idx}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {proposal.error_message && (
+              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-md">
+                <div className="text-sm font-medium text-red-800 dark:text-red-400 mb-1">Error</div>
+                <p className="text-sm text-red-700 dark:text-red-400">{proposal.error_message}</p>
+              </div>
+            )}
+
+            {/* Rejection Reason */}
+            {proposal.rejection_reason && (
+              <div className="mt-4 p-3 bg-muted rounded-md">
+                <div className="text-sm font-medium mb-1">Rejection Reason</div>
+                <p className="text-sm text-muted-foreground">{proposal.rejection_reason}</p>
+              </div>
+            )}
+
+            {/* Job Link */}
+            {proposal.job_id && (
+              <div className="mt-4 pt-4 border-t">
+                <a
+                  href={`/jobs/${proposal.job_id}`}
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline"
+                >
+                  View Job #{proposal.job_id}
+                </a>
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>
