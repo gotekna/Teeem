@@ -73,11 +73,11 @@ export function useCustomQuote(jobId: string | number) {
     }
   }, []);
 
-  const createQuote = useCallback(async (templateId?: number, name?: string) => {
+  const createQuote = useCallback(async (templateId?: number, name?: string, populateFrom?: string) => {
     try {
       const res = await api.post<{ success: boolean; data: CustomQuoteData }>(
         `/api/v1/jobs/${jobId}/custom_quotes`,
-        { template_id: templateId, name }
+        { template_id: templateId, name, populate_from: populateFrom }
       );
       if (res?.data) {
         setActiveQuote(res.data);

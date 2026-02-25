@@ -105,6 +105,11 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     await fetchQuotes();
   }, [createQuote, fetchQuotes]);
 
+  const handlePopulateFromSchedule = useCallback(async () => {
+    await createQuote(undefined, undefined, 'schedule_master');
+    await fetchQuotes();
+  }, [createQuote, fetchQuotes]);
+
   const handleSelectQuote = useCallback((quoteId: number) => {
     fetchQuoteTree(quoteId);
   }, [fetchQuoteTree]);
@@ -194,6 +199,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
         quotes={quotes}
         onApplyTemplate={handleApplyTemplate}
         onCreateBlank={handleCreateBlank}
+        onPopulateFromSchedule={handlePopulateFromSchedule}
         onSelectQuote={handleSelectQuote}
         onSaveAsTemplate={() => setSaveTemplateOpen(true)}
         hasActiveQuote={!!activeQuote}

@@ -100,6 +100,12 @@ module Api
             user: current_user,
             name: params[:name]
           )
+        elsif params[:populate_from] == 'schedule_master'
+          custom_quote = CustomQuoteApplyService.populate_from_job_tasks!(
+            job: job,
+            user: current_user,
+            name: params[:name]
+          )
         else
           custom_quote = CustomQuote.create!(
             job: job,

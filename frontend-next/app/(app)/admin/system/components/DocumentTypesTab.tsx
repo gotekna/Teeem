@@ -23,6 +23,7 @@ import { SignatureFieldConfigModal, type SignatureFieldConfig } from "@/componen
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { FOUNDATION_SLUGS } from "@/lib/constants/foundation-slugs";
+import { getScopeLabel } from "@/lib/constants/document-types";
 import { useToast } from "@/components/ui/use-toast";
 import TeeemTableView from "@/components/table/TeeemTableView";
 import type { TableColumn, TableRow } from "@/components/table/types";
@@ -141,8 +142,11 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
       });
       const types = response.data || [];
       // Transform for table display
+      // API returns camelCase (uiName, downloadName) but Foundation columns use snake_case (ui_name, download_name)
       const transformed = types.map(dt => ({
         ...dt,
+        ui_name: (dt as Record<string, unknown>).uiName as string | undefined || dt.ui_name,
+        download_name: (dt as Record<string, unknown>).downloadName as string | undefined || dt.download_name,
         file_extensions_display: dt.file_extensions?.join(", ") || ""
       }));
       setDocumentTypes(transformed);
@@ -299,7 +303,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
               await handleRowUpdate(entry.id!, "scope", newScope);
               toast({
                 title: "Scope updated",
-                description: `Moved to ${newScope} tab`,
+                description: `Moved to ${getScopeLabel(newScope)} tab`,
               });
             } catch (error) {
               toast({
@@ -314,9 +318,10 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="company">Company</SelectItem>
+            <SelectItem value="company">Corporate</SelectItem>
             <SelectItem value="job">Job</SelectItem>
             <SelectItem value="contacts">Contacts</SelectItem>
+            <SelectItem value="library">Library</SelectItem>
             <SelectItem value="both">Both</SelectItem>
           </SelectContent>
         </Select>
@@ -418,6 +423,13 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
         <span className="font-mono font-bold text-primary">{value}</span>
       );
     }
+    if (columnKey === "ui_name") {
+      const value = entry.ui_name;
+      if (!value) return <span className="text-muted-foreground italic">Not set</span>;
+      return (
+        <span className="font-mono text-xs text-muted-foreground">{value}</span>
+      );
+    }
     if (columnKey === "download_name") {
       const value = entry.download_name;
       if (!value) return <span className="text-muted-foreground italic">Not set</span>;
@@ -460,7 +472,7 @@ export function DocumentTypesTab({ basePath = DEFAULT_DOC_TYPES_BASE_PATH }: Doc
             All ({documentTypes.length})
           </TabsTrigger>
           <TabsTrigger value="company">
-            Company ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
+            Corporate ({documentTypes.filter(dt => dt.scope === "company" || dt.scope === "both").length})
           </TabsTrigger>
           <TabsTrigger value="job">
             Job ({documentTypes.filter(dt => dt.scope === "job" || dt.scope === "both").length})

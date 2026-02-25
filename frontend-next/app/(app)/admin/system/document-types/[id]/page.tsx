@@ -77,7 +77,7 @@ import {
   getShortToLongMap,
   PLACEHOLDER_COLOR_CLASSES,
 } from "@/lib/placeholders";
-import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS } from "@/lib/constants/document-types";
+import { DOCUMENT_TYPE_SCOPES, DOCUMENT_FOLDER_OPTIONS, getScopeLabel } from "@/lib/constants/document-types";
 import { PAGE_SIZE_LIST } from "@/lib/constants/pagination-constants";
 import { getInitials as getInitialsSSoT } from "@/utils/formatters";
 
@@ -1435,7 +1435,7 @@ export default function DocumentTypeDetailPage() {
               )}
               {!isNew && scopeFilteredTypes.length > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  {currentIndex + 1} of {scopeFilteredTypes.length} {currentScope}
+                  {currentIndex + 1} of {scopeFilteredTypes.length} {getScopeLabel(currentScope)}
                 </span>
               )}
             </div>

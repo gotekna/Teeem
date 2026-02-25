@@ -77,6 +77,97 @@ class CustomQuoteApplyService
       end
     end
 
+    # Populate a custom quote from the job's existing Schedule Master tasks
+    #
+    # Groups tasks by cost centre, creating a CC → PO tree.
+    # Tasks with no cost centre go under an "Unassigned" group.
+    #
+    # @param job [Job]
+    # @param user [User]
+    # @param name [String] optional name override
+    # @return [CustomQuote]
+    def populate_from_job_tasks!(job:, user:, name: nil)
+      quote_name = name || "Schedule Master Quote - #{job.name}"
+
+      # Fetch all SmTasks for this job that have a schedule master reference
+      job_tasks = SmTask.where(job_id: job.id)
+                        .where.not(sm_schedule_master_id: nil)
+                        .includes(:cost_centre_ref, :sm_schedule_master)
+                        .order(:cost_centre, :task_number)
+
+      # Group by cost_centre (integer FK column)
+      grouped = job_tasks.group_by(&:cost_centre)
+
+      ActiveRecord::Base.transaction do
+        custom_quote = CustomQuote.create!(
+          job: job,
+          name: quote_name,
+          status: 'draft',
+          created_by: user
+        )
+
+        position = 0
+
+        # Process tasks WITH a cost centre first (sorted by CC code)
+        cc_ids = grouped.keys.compact
+        cost_centres = CostCentre.where(id: cc_ids).index_by(&:id)
+        sorted_cc_ids = cc_ids.sort_by { |id| cost_centres[id]&.code || "" }
+
+        sorted_cc_ids.each do |cc_id|
+          tasks = grouped[cc_id]
+          cc = cost_centres[cc_id]
+          cc_name = cc ? "#{cc.code} - #{cc.name}" : "Cost Centre #{cc_id}"
+
+          cc_line = custom_quote.lines.create!(
+            parent_id: nil,
+            cost_centre_id: cc_id,
+            name: cc_name,
+            quote_level: 'po',
+            position: position,
+            budget_amount: lookup_budget(job, cc_id)
+          )
+          position += 1
+
+          tasks.each_with_index do |task, task_pos|
+            custom_quote.lines.create!(
+              parent_id: cc_line.id,
+              cost_centre_id: cc_id,
+              sm_schedule_master_id: task.sm_schedule_master_id,
+              sm_task_id: task.id,
+              name: task.name,
+              quote_level: 'po',
+              position: task_pos
+            )
+          end
+        end
+
+        # Process tasks with NO cost centre (nil key)
+        unassigned_tasks = grouped[nil]
+        if unassigned_tasks.present?
+          cc_line = custom_quote.lines.create!(
+            parent_id: nil,
+            cost_centre_id: nil,
+            name: "Unassigned",
+            quote_level: 'po',
+            position: position
+          )
+
+          unassigned_tasks.each_with_index do |task, task_pos|
+            custom_quote.lines.create!(
+              parent_id: cc_line.id,
+              sm_schedule_master_id: task.sm_schedule_master_id,
+              sm_task_id: task.id,
+              name: task.name,
+              quote_level: 'po',
+              position: task_pos
+            )
+          end
+        end
+
+        custom_quote
+      end
+    end
+
     private
 
     def resolve_task(template_line, task_by_master_id)

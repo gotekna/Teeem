@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ComboboxDropdown, type ComboboxItem } from "@/components/ui/combobox-dropdown";
-import { Plus, Save } from "lucide-react";
+import { Calendar, Plus, Save } from "lucide-react";
 import { useCustomQuoteTemplates } from "./useCustomQuote";
 import type { CustomQuoteSummary } from "./types";
 
@@ -12,6 +12,7 @@ interface CustomQuoteSetupProps {
   quotes: CustomQuoteSummary[];
   onApplyTemplate: (templateId: number) => void;
   onCreateBlank: () => void;
+  onPopulateFromSchedule: () => void;
   onSelectQuote: (quoteId: number) => void;
   onSaveAsTemplate: () => void;
   hasActiveQuote: boolean;
@@ -22,6 +23,7 @@ export function CustomQuoteSetup({
   quotes,
   onApplyTemplate,
   onCreateBlank,
+  onPopulateFromSchedule,
   onSelectQuote,
   onSaveAsTemplate,
   hasActiveQuote,
@@ -80,6 +82,11 @@ export function CustomQuoteSetup({
       <Button size="sm" variant="outline" onClick={onCreateBlank}>
         <Plus className="h-4 w-4 mr-1" />
         Blank Quote
+      </Button>
+
+      <Button size="sm" variant="outline" onClick={onPopulateFromSchedule}>
+        <Calendar className="h-4 w-4 mr-1" />
+        From Schedule
       </Button>
 
       {hasActiveQuote && (
