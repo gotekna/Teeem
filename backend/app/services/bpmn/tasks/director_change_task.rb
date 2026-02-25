@@ -6,7 +6,7 @@ module Bpmn
     #
     # Reads form_data from the preceding user task (director selections, dates, positions)
     # and delegates to DirectorChangeService to generate the 4-document PDF package.
-    # Stores the combined PDF via WarehouseDocumentCreator in the "ASIC Forms" folder.
+    # Stores the combined PDF via WarehouseDocumentCreator in the "ASIC" folder.
     #
     # Process variables set:
     #   director_change_blob_id - StorageBlob ID of the combined PDF
@@ -43,8 +43,8 @@ module Bpmn
           content_type: "application/pdf"
         )
 
-        # Store in warehouse via configured ASIC Forms folder
-        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC Forms")
+        # Store in warehouse via ASIC folder
+        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
 
         WarehouseDocumentCreator.create!(
           filename: package[:filename],

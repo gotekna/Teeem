@@ -97,7 +97,8 @@ class WarehouseDocumentCreator
     metadata: {},
     user: nil,
     parent_document: nil,
-    folder_path: nil
+    folder_path: nil,
+    expiry_date: nil
   )
     # 1. Look up WFDT from warehouse_folder_id (if provided)
     wfdt = resolve_wfdt(warehouse_folder_id)
@@ -127,6 +128,7 @@ class WarehouseDocumentCreator
       metadata: doc_metadata
     }
     attrs[:folder_path] = folder_path if folder_path.present?
+    attrs[:expiry_date] = expiry_date if expiry_date.present?
 
     WarehouseDocument.create!(attrs)
   end

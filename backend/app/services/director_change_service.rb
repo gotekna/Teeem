@@ -160,6 +160,13 @@ class DirectorChangeService
 
   private
 
+  # Resolve the Form 484 document type from the "ASIC" warehouse folder.
+  # This ensures the e-signature request (and its stored signed PDF) gets the
+  # correct document type for folder routing and metadata.
+  def resolve_form484_document_type
+    DocumentType.find_by(abbreviation: "F484")
+  end
+
   def validate!
     raise GenerationError, "Company is required" unless company
     raise GenerationError, "User is required" unless user
@@ -445,18 +452,17 @@ class DirectorChangeService
     # Link to the signed PDF blob from the e-signature system
     signed_blob = StorageBlob.find_by(id: e_signature_request.signed_storage_reference)
 
-    # Find the "Officers" warehouse folder (corporate doc type for director changes)
-    officers_folder = WarehouseFolder.find_by_type_and_name("corporate", "Officers")
+    # SSoT: Use "ASIC" folder (same as DirectorChangeTask)
+    asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
 
     WarehouseDocumentCreator.create!(
       filename: generate_filename,
       source_type: "corporate",
       linkable: company,
       storage_blob: signed_blob,
-      warehouse_folder_id: officers_folder&.id,
+      warehouse_folder_id: asic_folder&.id,
       metadata: {
         form_type: "form_484",
-        document_type: "Officers",
         e_signature_request_id: e_signature_request.id,
         ceasing_directors: ceasing_directors.map { |cd| cd[:corporate_director].contact.display_name },
         new_appointments: new_appointments.map { |appt| appt[:contact].display_name },
@@ -473,6 +479,7 @@ class DirectorChangeService
       title: "Director Change - #{company.name}",
       documentable: company,
       created_by: user,
+      document_type: resolve_form484_document_type,
       signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
       send_reminders: true,
       original_document_hash: Digest::SHA256.hexdigest(package[:pdf_content])
@@ -497,6 +504,7 @@ class DirectorChangeService
       title: "Director Change - #{company.name}",
       documentable: company,
       created_by: user,
+      document_type: resolve_form484_document_type,
       signing_order: ESignatureRequest::SIGNING_ORDERS[:sequential],
       send_reminders: true,
       original_document_hash: Digest::SHA256.hexdigest(pdf_content)

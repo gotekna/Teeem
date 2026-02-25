@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_25_160000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_25_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -10704,6 +10704,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_160000) do
     t.integer "path_template_version", default: 0
     t.string "warehouse_type"
     t.integer "sort_order", default: 0
+    t.date "expiry_date"
     t.index ["documentable_type", "documentable_id"], name: "idx_warehouse_docs_documentable_unique_partial", unique: true, where: "(documentable_id IS NOT NULL)"
     t.index ["documentable_type", "documentable_id"], name: "index_warehouse_documents_on_documentable"
     t.index ["linkable_type", "linkable_id", "folder_path"], name: "idx_wd_linkable_folder_path"
@@ -10714,6 +10715,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_160000) do
     t.index ["source_type"], name: "index_warehouse_documents_on_source_type"
     t.index ["storage_blob_id", "source_type"], name: "idx_warehouse_docs_blob_source"
     t.index ["storage_blob_id"], name: "index_warehouse_documents_on_storage_blob_id"
+    t.index ["tenant_id", "expiry_date"], name: "idx_warehouse_docs_tenant_expiry", where: "(expiry_date IS NOT NULL)"
     t.index ["tenant_id", "folder_path"], name: "idx_wd_tenant_folder_path"
     t.index ["tenant_id", "warehouse_type"], name: "idx_wd_tenant_warehouse_type"
     t.index ["tenant_id"], name: "idx_warehouse_docs_tenant"

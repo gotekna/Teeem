@@ -231,6 +231,9 @@ class SendNameResolver
     # Metadata fallback for doc type
     context[:doc_type_name] ||= meta["document_type"] if meta["document_type"].present?
 
+    # Expiry date from warehouse document
+    context[:expiry_date] = warehouse_document.expiry_date if warehouse_document.expiry_date.present?
+
     # Auto-numbering: count existing docs with same linkable + WFDT, set {Number} token
     context[:number] = compute_auto_number(warehouse_document)
 
@@ -379,6 +382,15 @@ class SendNameResolver
     replace_token(result, "DocTypeName", context[:doc_type_name]) if context[:doc_type_name]
     replace_token(result, "DocTypeCode", context[:doc_type_code]) if context[:doc_type_code]
     replace_token(result, "Category", context[:category]) if context[:category]
+
+    # Expiry date tokens (matches placeholders.ts: {EX} → "EX dd/mm/yy", {Expiry} → "Expiry dd MMMM yyyy")
+    if context[:expiry_date]
+      exp = context[:expiry_date].to_date rescue nil
+      if exp
+        replace_token(result, "EX", "EX #{exp.strftime('%d/%m/%y')}")
+        replace_token(result, "Expiry", "Expiry #{exp.strftime('%-d %B %Y')}")
+      end
+    end
 
     # Generic tokens
     replace_token(result, "Description", context[:description]) if context[:description]

@@ -270,6 +270,10 @@ module Api
         wf_id = metadata[:warehouse_folder_id] || metadata["warehouse_folder_id"]
         f_path = metadata[:folder_path] || metadata["folder_path"]
 
+        # Parse expiry_date from metadata (ISO date string "YYYY-MM-DD")
+        raw_expiry = metadata[:expiry_date] || metadata["expiry_date"]
+        parsed_expiry = raw_expiry.present? ? Date.parse(raw_expiry.to_s) : nil rescue nil
+
         # Version detection: check for existing doc with same filename in same folder
         existing = WarehouseDocument.where(
           original_filename: filename,
@@ -286,7 +290,8 @@ module Api
             content_type: content_type,
             original_filename: filename,
             warehouse_folder_id: wf_id,
-            folder_path: f_path
+            folder_path: f_path,
+            expiry_date: parsed_expiry
           )
         else
           doc = WarehouseDocumentCreator.create!(
@@ -297,6 +302,7 @@ module Api
             content_type: content_type,
             warehouse_folder_id: wf_id,
             folder_path: f_path,
+            expiry_date: parsed_expiry,
             metadata: {
               "document_type" => metadata[:document_type] || metadata["document_type"] || "library",
               "source" => "manual"

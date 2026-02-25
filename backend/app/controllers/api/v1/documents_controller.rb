@@ -3,7 +3,7 @@
 module Api
   module V1
     class DocumentsController < ApplicationController
-      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :share_link ]
+      before_action :set_document, only: [ :show, :update, :destroy, :download, :preview, :move, :link_to_task, :verify, :share_link, :set_expiry ]
 
       # GET /api/v1/documents/all
       # Returns file counts for the entire warehouse (fast)
@@ -938,6 +938,24 @@ module Api
         meta["verified_at"] = Time.current.iso8601
 
         if @document.update(metadata: meta)
+          render json: { success: true, document: warehouse_document_to_json(@document) }
+        else
+          render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # PATCH /api/v1/documents/:id/set_expiry
+      # Set or clear expiry date on a document
+      # Params: { expiry_date: "2026-12-15" } or { expiry_date: null } to clear
+      def set_expiry
+        raw_date = params[:expiry_date]
+        parsed_date = raw_date.present? ? Date.parse(raw_date.to_s) : nil rescue nil
+
+        if raw_date.present? && parsed_date.nil?
+          return render json: { success: false, error: "Invalid date format" }, status: :unprocessable_entity
+        end
+
+        if @document.update(expiry_date: parsed_date)
           render json: { success: true, document: warehouse_document_to_json(@document) }
         else
           render json: { success: false, errors: @document.errors.full_messages }, status: :unprocessable_entity
@@ -2654,7 +2672,13 @@ module Api
           # Version tracking
           versionNumber: wd.version_number || 1,
           versionGroupId: wd.version_group_id,
-          versionCount: wd.version_group_id ? (version_counts[wd.version_group_id] || 1) : 1
+          versionCount: wd.version_group_id ? (version_counts[wd.version_group_id] || 1) : 1,
+          # Expiry date
+          expiryDate: wd.expiry_date&.iso8601,
+          isExpired: wd.expired?,
+          isExpiringSoon: wd.expiring_soon?,
+          expiryStatus: wd.expiry_status&.to_s,
+          daysUntilExpiry: wd.days_until_expiry
         }
       end
 

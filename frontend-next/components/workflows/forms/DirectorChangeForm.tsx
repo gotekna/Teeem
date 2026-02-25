@@ -1324,10 +1324,13 @@ export default function DirectorChangeForm({
               )}
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1">
               <p className="text-sm text-blue-800 dark:text-blue-200">
                 Submitting will generate the ASIC document package (Form 484, Resignation Letters,
                 Consent to Act, Directors Minutes) and send them for e-signature automatically.
+              </p>
+              <p className="text-xs text-blue-600 dark:text-blue-300">
+                Document type: ASIC Form 484 - Director Changes &bull; Folder: ASIC
               </p>
             </div>
 

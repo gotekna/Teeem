@@ -81,6 +81,13 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from "@dnd-kit/utilities";
 import { createDndSensors, defaultCollisionDetection } from "@/components/ui/dnd/dnd-config";
 import { DragHandle } from "@/components/ui/dnd";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarDays, AlertTriangle } from "lucide-react";
 
 // Document shape from /api/v1/documents/warehouse
 interface LibraryDocument {
@@ -101,6 +108,11 @@ interface LibraryDocument {
   versionNumber: number;
   versionGroupId: string | null;
   versionCount: number;
+  expiryDate: string | null;
+  isExpired: boolean;
+  isExpiringSoon: boolean;
+  expiryStatus: string | null;
+  daysUntilExpiry: number | null;
 }
 
 /** Sortable wrapper for a document row - provides drag handle + useSortable transform */
@@ -168,6 +180,25 @@ function SortableDocumentRow({
       {doc.versionCount > 1 && (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
           v{doc.versionNumber}
+        </Badge>
+      )}
+      {doc.expiryDate && (
+        <Badge
+          variant="outline"
+          className={`text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold border-0 ${
+            doc.isExpired
+              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+              : doc.isExpiringSoon
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+          }`}
+        >
+          {doc.isExpired
+            ? "Expired"
+            : doc.isExpiringSoon
+              ? `${doc.daysUntilExpiry}d left`
+              : `EX ${new Date(doc.expiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`
+          }
         </Badge>
       )}
       <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
@@ -278,6 +309,17 @@ export default function LibraryPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [selectedDocType, setSelectedDocType] = useState<string>("");
+  const [expiryDate, setExpiryDate] = useState<Date | undefined>(undefined);
+
+  // Check if selected document type's template needs an expiry date
+  const templateNeedsExpiry = React.useMemo(() => {
+    if (!resolvedTab?.document_types?.length || !selectedDocType) return false;
+    const dt = resolvedTab.document_types.find(d => d.name === selectedDocType);
+    if (!dt) return false;
+    // Check both ui_name and download_name templates for {EX} or {Expiry}
+    const templates = [dt.ui_name, dt.download_name].filter(Boolean).join(" ");
+    return /\{EX\}|\{Expiry\}/i.test(templates);
+  }, [resolvedTab, selectedDocType]);
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -451,6 +493,7 @@ export default function LibraryPage() {
             folder_path: folderName,
             warehouse_folder_id: resolvedTab.id,
             document_type: selectedDocType || undefined,
+            expiry_date: expiryDate ? expiryDate.toISOString().split("T")[0] : undefined,
           },
         });
 
@@ -478,8 +521,9 @@ export default function LibraryPage() {
     } finally {
       setUploading(false);
       setPendingFiles([]);
+      setExpiryDate(undefined);
     }
-  }, [pendingFiles, resolvedTab, selectedDocType, fetchDocuments, toast]);
+  }, [pendingFiles, resolvedTab, selectedDocType, expiryDate, fetchDocuments, toast]);
 
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -698,6 +742,27 @@ export default function LibraryPage() {
       }
     } catch (error) {
       toast({ title: "Verify Failed", description: "Could not verify document", variant: "destructive" });
+    }
+  }, [previewDoc, toast]);
+
+  // Handle set/update expiry date
+  const handleSetExpiry = useCallback(async (doc: LibraryDocument, date: Date | null) => {
+    try {
+      const res = await api.patch<{ success: boolean; document: LibraryDocument }>(
+        `/api/v1/documents/${doc.id}/set_expiry`,
+        { expiry_date: date ? date.toISOString().split("T")[0] : null }
+      );
+      if (res?.success && res.document) {
+        const updated = res.document;
+        // Update local state
+        setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, expiryDate: updated.expiryDate, isExpired: updated.isExpired, isExpiringSoon: updated.isExpiringSoon, expiryStatus: updated.expiryStatus, daysUntilExpiry: updated.daysUntilExpiry, displayName: updated.displayName, sendName: updated.sendName } : d));
+        if (previewDoc?.id === doc.id) {
+          setPreviewDoc(prev => prev ? { ...prev, expiryDate: updated.expiryDate, isExpired: updated.isExpired, isExpiringSoon: updated.isExpiringSoon, expiryStatus: updated.expiryStatus, daysUntilExpiry: updated.daysUntilExpiry, displayName: updated.displayName, sendName: updated.sendName } : prev);
+        }
+        toast({ title: date ? "Expiry Date Set" : "Expiry Date Removed", description: date ? `Expires ${date.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}` : "Expiry date has been cleared" });
+      }
+    } catch (error) {
+      toast({ title: "Failed", description: "Could not update expiry date", variant: "destructive" });
     }
   }, [previewDoc, toast]);
 
@@ -1068,11 +1133,41 @@ export default function LibraryPage() {
                 </Select>
               </div>
             )}
+
+            {/* Expiry date picker - shown when doc type template contains {EX}/{Expiry} */}
+            {templateNeedsExpiry && (
+              <div className="space-y-1.5">
+                <Label>Expiry Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${!expiryDate ? "text-muted-foreground" : ""}`}
+                    >
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      {expiryDate
+                        ? expiryDate.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })
+                        : "Select expiry date..."
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={expiryDate}
+                      onSelect={setExpiryDate}
+                      disabled={(date) => date < new Date()}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setUploadDialogOpen(false);
               setPendingFiles([]);
+              setExpiryDate(undefined);
             }}>
               Cancel
             </Button>
@@ -1117,6 +1212,25 @@ export default function LibraryPage() {
                         {previewDoc.mimeType.split("/").pop()?.toUpperCase()}
                       </Badge>
                     )}
+                    {previewDoc.expiryDate && (
+                      <Badge
+                        className={`text-xs border-0 ${
+                          previewDoc.isExpired
+                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            : previewDoc.isExpiringSoon
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                        }`}
+                      >
+                        <CalendarDays className="h-3 w-3 mr-1" />
+                        {previewDoc.isExpired
+                          ? "Expired"
+                          : previewDoc.isExpiringSoon
+                            ? `Expires in ${previewDoc.daysUntilExpiry} days`
+                            : `Expires ${new Date(previewDoc.expiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`
+                        }
+                      </Badge>
+                    )}
                     {previewDoc.verified ? (
                       <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
                         <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -1142,6 +1256,39 @@ export default function LibraryPage() {
                       {previewDoc.versionCount} versions
                     </Button>
                   )}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-7"
+                      >
+                        <CalendarDays className="h-3.5 w-3.5 mr-1" />
+                        {previewDoc.expiryDate ? "Edit Expiry" : "Set Expiry"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="end">
+                      <Calendar
+                        mode="single"
+                        selected={previewDoc.expiryDate ? new Date(previewDoc.expiryDate) : undefined}
+                        onSelect={(date) => {
+                          if (date) handleSetExpiry(previewDoc, date);
+                        }}
+                      />
+                      {previewDoc.expiryDate && (
+                        <div className="px-3 pb-3">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-xs text-destructive hover:text-destructive"
+                            onClick={() => handleSetExpiry(previewDoc, null)}
+                          >
+                            Remove Expiry Date
+                          </Button>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
                   {!previewDoc.verified && (
                     <Button
                       size="sm"
@@ -1237,6 +1384,28 @@ export default function LibraryPage() {
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Expiry banner - red for expired, amber for expiring soon */}
+              {previewDoc.isExpired && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
+                  <div className="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>
+                      This document expired on {new Date(previewDoc.expiryDate!).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}
+                    </span>
+                  </div>
+                </div>
+              )}
+              {previewDoc.isExpiringSoon && !previewDoc.isExpired && (
+                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>
+                      This document expires in {previewDoc.daysUntilExpiry} day{previewDoc.daysUntilExpiry !== 1 ? "s" : ""}
+                    </span>
+                  </div>
                 </div>
               )}
 
