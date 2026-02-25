@@ -76,6 +76,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
 import { formatFileEmailBody } from "@/lib/formatters/email-file-links";
 import { useAuth } from "@/contexts/AuthContext";
+import { DndContext, type DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { createDndSensors, defaultCollisionDetection } from "@/components/ui/dnd/dnd-config";
+import { DragHandle } from "@/components/ui/dnd";
 
 // Document shape from /api/v1/documents/warehouse
 interface LibraryDocument {
@@ -96,6 +101,112 @@ interface LibraryDocument {
   versionNumber: number;
   versionGroupId: string | null;
   versionCount: number;
+}
+
+/** Sortable wrapper for a document row - provides drag handle + useSortable transform */
+function SortableDocumentRow({
+  doc,
+  isSelected,
+  canDrag,
+  onToggleSelect,
+  onClick,
+  onDoubleClick,
+  onDelete,
+  getFileIcon,
+  formatDate,
+}: {
+  doc: LibraryDocument;
+  isSelected: boolean;
+  canDrag: boolean;
+  onToggleSelect: (docId: number, e: React.MouseEvent) => void;
+  onClick: (doc: LibraryDocument) => void;
+  onDoubleClick: (doc: LibraryDocument) => void;
+  onDelete: (doc: LibraryDocument, e: React.MouseEvent) => void;
+  getFileIcon: (mimeType: string) => React.ComponentType<{ className?: string }>;
+  formatDate: (dateStr: string) => string;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: doc.id, disabled: !canDrag });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  const Icon = getFileIcon(doc.mimeType);
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors ${isSelected ? "bg-primary/5" : ""} ${isDragging ? "opacity-50 shadow-lg z-50" : ""}`}
+    >
+      {canDrag && (
+        <DragHandle {...attributes} {...listeners} size="sm" />
+      )}
+      <Checkbox
+        checked={isSelected}
+        onClick={(e) => onToggleSelect(doc.id, e)}
+        className="shrink-0"
+      />
+      <button
+        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+        onClick={() => onClick(doc)}
+        onDoubleClick={() => onDoubleClick(doc)}
+      >
+        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+        <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
+          {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
+        </p>
+      </button>
+      {doc.versionCount > 1 && (
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
+          v{doc.versionNumber}
+        </Badge>
+      )}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+        {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
+        {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
+        {doc.versionCount > 1 && (
+          <span className="inline-flex items-center gap-1">
+            <History className="h-3 w-3" />
+            {doc.versionCount}
+          </span>
+        )}
+        {doc.verified ? (
+          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+            <CheckCircle2 className="h-3 w-3" />
+          </span>
+        ) : (
+          <span className="text-amber-500 dark:text-amber-400 text-[10px]">!</span>
+        )}
+      </div>
+      {doc.fileUrl && (
+        <a
+          href={doc.fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 p-1.5 hover:bg-muted rounded-md"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Download className="h-4 w-4 text-muted-foreground" />
+        </a>
+      )}
+      <button
+        className="shrink-0 p-1.5 hover:bg-destructive/10 rounded-md"
+        onClick={(e) => onDelete(doc, e)}
+        title="Delete"
+      >
+        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+      </button>
+    </div>
+  );
 }
 
 export default function LibraryPage() {
@@ -183,6 +294,40 @@ export default function LibraryPage() {
   const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
   const [versionsLoading, setVersionsLoading] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+
+  // Admin check for drag-and-drop reordering
+  const isAdmin = Array.isArray(currentUser?.role_names) &&
+    currentUser.role_names.some((r: string) => ["admin", "super_admin"].includes(r?.toLowerCase()));
+
+  // DnD sensors (must be called unconditionally - hooks rule)
+  const sensors = createDndSensors();
+
+  // DnD drag end handler - reorder documents optimistically + persist
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    setDocuments(prev => {
+      const oldIndex = prev.findIndex(d => d.id === active.id);
+      const newIndex = prev.findIndex(d => d.id === over.id);
+      if (oldIndex === -1 || newIndex === -1) return prev;
+
+      const reordered = arrayMove(prev, oldIndex, newIndex);
+
+      // Persist new order to backend
+      api.post("/api/v1/documents/reorder", {
+        document_ids: reordered.map(d => d.id),
+      }).catch(() => {
+        toast({
+          title: "Reorder Failed",
+          description: "Could not save document order",
+          variant: "destructive",
+        });
+      });
+
+      return reordered;
+    });
+  }, [toast]);
 
   // Fetch version history for a document
   const fetchVersionHistory = useCallback(async (docId: number) => {
@@ -651,11 +796,11 @@ export default function LibraryPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => router.push("/settings/company/warehouse-config/document_types")}>
+              <DropdownMenuItem onClick={() => window.open("/settings/company/warehouse-config/document_types", "_blank")}>
                 <FileText className="h-4 w-4 mr-2" />
                 Document Types
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/settings/company/warehouse-config/library")}>
+              <DropdownMenuItem onClick={() => window.open("/settings/company/warehouse-config/library", "_blank")}>
                 <BookOpen className="h-4 w-4 mr-2" />
                 Library Tabs
               </DropdownMenuItem>
@@ -728,70 +873,33 @@ export default function LibraryPage() {
                 </Button>
               </div>
             ) : (
-              <div className="divide-y">
-                {documents.map((doc) => {
-                  const Icon = getFileIcon(doc.mimeType);
-                  const isSelected = selectedIds.has(doc.id);
-                  return (
-                    <button
-                      key={doc.id}
-                      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
-                      onClick={() => handleDocumentClick(doc)}
-                      onDoubleClick={() => handleDocumentDoubleClick(doc)}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onClick={(e) => toggleSelect(doc.id, e)}
-                        className="shrink-0"
+              <DndContext
+                sensors={sensors}
+                collisionDetection={defaultCollisionDetection}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={documents.map(d => d.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="divide-y">
+                    {documents.map((doc) => (
+                      <SortableDocumentRow
+                        key={doc.id}
+                        doc={doc}
+                        isSelected={selectedIds.has(doc.id)}
+                        canDrag={isAdmin}
+                        onToggleSelect={toggleSelect}
+                        onClick={handleDocumentClick}
+                        onDoubleClick={handleDocumentDoubleClick}
+                        onDelete={handleDelete}
+                        getFileIcon={getFileIcon}
+                        formatDate={formatDate}
                       />
-                      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <p className="text-sm font-medium truncate flex-1 min-w-0">
-                        {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
-                      </p>
-                      {doc.versionCount > 1 && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-                          v{doc.versionNumber}
-                        </Badge>
-                      )}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                        {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
-                        {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
-                        {doc.versionCount > 1 && (
-                          <span className="inline-flex items-center gap-1">
-                            <History className="h-3 w-3" />
-                            {doc.versionCount}
-                          </span>
-                        )}
-                        {doc.verified ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                            <CheckCircle2 className="h-3 w-3" />
-                          </span>
-                        ) : (
-                          <span className="text-amber-500 dark:text-amber-400 text-[10px]">!</span>
-                        )}
-                      </div>
-                      {doc.fileUrl && (
-                        <a
-                          href={doc.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="shrink-0 p-1.5 hover:bg-muted rounded-md"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Download className="h-4 w-4 text-muted-foreground" />
-                        </a>
-                      )}
-                      <button
-                        className="shrink-0 p-1.5 hover:bg-destructive/10 rounded-md"
-                        onClick={(e) => handleDelete(doc, e)}
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                      </button>
-                    </button>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </TabsContent>
         ))}

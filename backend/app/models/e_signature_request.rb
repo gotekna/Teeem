@@ -334,11 +334,18 @@ class ESignatureRequest < ApplicationRecord
       end
       return if content.blank?
 
+      # Stamp signatures onto the PDF before storing.
+      # The stamper overlays actual signature images, timestamps, metadata,
+      # and a certificate of completion page onto the original PDF.
+      stamper = ESignaturePdfStamper.new(self)
+      stamped_content = stamper.stamp!
+      content = stamped_content if stamped_content.present?
+
       filename = generate_signed_filename
       source_type = resolve_source_type
 
-      # Reuse existing blob if available, otherwise create new with deduplication
-      blob = blob_source || StorageBlob.find_or_create_for_content!(
+      # Always create a new blob for the stamped content (don't reuse original)
+      blob = StorageBlob.find_or_create_for_content!(
         content,
         filename: filename,
         content_type: "application/pdf"

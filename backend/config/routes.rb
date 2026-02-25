@@ -519,6 +519,7 @@ Rails.application.routes.draw do
       # Benefits: Instant template changes, always accurate, single GROUP BY query
       # Params: scope (email, corporate, job, contact, people, task), path (drill down)
       get "documents/live_folder_tree", to: "documents#live_folder_tree"
+      post "documents/reorder", to: "documents#reorder"
 
       # Documents (simple alias for company documents)
       resources :documents, only: [ :index, :create, :show, :update, :destroy ] do
@@ -940,6 +941,56 @@ Rails.application.routes.draw do
       get :rfq_email_templates, controller: 'job_quote', action: 'email_templates'
       get :rfq_email_accounts, controller: 'job_quote', action: 'email_accounts'
       post :rfq_email_preview, controller: 'job_quote', action: 'email_preview'
+
+      # Custom Quote Templates - reusable templates for CC-level quoting
+      resources :custom_quote_templates, only: [:index, :create], controller: 'custom_quotes' do
+        collection do
+          get '/', action: 'index_templates'
+          post '/', action: 'create_template'
+        end
+      end
+      resources :custom_quote_templates, only: [], controller: 'custom_quotes' do
+        member do
+          get '/', action: 'show_template'
+          patch '/', action: 'update_template'
+          delete '/', action: 'destroy_template'
+          post :duplicate, action: 'duplicate_template'
+        end
+      end
+
+      # Custom Quotes - job-level custom quoting (CC → PO tree)
+      resources :jobs, only: [] do
+        resources :custom_quotes, only: [:index, :create], controller: 'custom_quotes'
+      end
+      resources :custom_quotes, only: [:show, :update, :destroy], controller: 'custom_quotes' do
+        member do
+          post :save_as_template
+        end
+      end
+
+      # Custom Quote Lines
+      resources :custom_quote_lines, only: [], controller: 'custom_quotes' do
+        member do
+          patch '/', action: 'update_line'
+          post :add_supplier
+          post :add_child, action: 'add_child_line'
+        end
+      end
+
+      # Custom Quote Suppliers
+      resources :custom_quote_suppliers, only: [], controller: 'custom_quotes' do
+        member do
+          post :send_rfq, action: 'send_rfq_single'
+          post :record_response
+          post :accept, action: 'accept_quote'
+          post :reject, action: 'reject_quote'
+          get :allocations, action: 'supplier_allocations'
+          post :allocations, action: 'create_allocation'
+        end
+        collection do
+          post :bulk_send_rfq
+        end
+      end
 
       # Claim Stage Templates - define reusable claim stage configurations
       resources :claim_stage_templates do

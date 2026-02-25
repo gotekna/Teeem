@@ -156,7 +156,7 @@ module Api
       #   offset: Pagination offset
       def warehouse
         documents = WarehouseDocument.includes(:documentable, :storage_blob)
-                                     .order(created_at: :desc)
+                                     .order(sort_order: :asc, created_at: :desc)
 
         # Filter by source_type
         if params[:source_type].present?
@@ -243,6 +243,25 @@ module Api
             has_more: (offset + limit) < total_count
           }
         }
+      end
+
+      # POST /api/v1/documents/reorder
+      # Reorder library documents within a folder tab
+      # Accepts { document_ids: [3, 1, 2] } - ordered array of IDs
+      # Sets sort_order = index for each document
+      def reorder
+        document_ids = params[:document_ids]
+        unless document_ids.is_a?(Array) && document_ids.present?
+          return render json: { success: false, error: "document_ids array required" }, status: :unprocessable_entity
+        end
+
+        ActiveRecord::Base.transaction do
+          document_ids.each_with_index do |doc_id, index|
+            WarehouseDocument.where(id: doc_id).update_all(sort_order: index)
+          end
+        end
+
+        render json: { success: true, message: "Documents reordered successfully" }
       end
 
       # GET /api/v1/documents/live_folder_tree
