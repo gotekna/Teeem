@@ -15,26 +15,28 @@ export function InspiringBanner() {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    loadDailyQuote();
+    let mounted = true;
 
-    // Refresh quote every hour
-    const interval = setInterval(loadDailyQuote, POLLING_QUOTE_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadDailyQuote = async () => {
-    try {
-      const response = await api.get<{ success: boolean; data: Quote }>("/api/v1/inspiring_quotes/daily");
-      if (response?.success && response?.data) {
-        setQuote(response.data);
+    const loadDailyQuote = async () => {
+      try {
+        const response = await api.get<{ success: boolean; data: Quote }>("/api/v1/inspiring_quotes/daily");
+        if (mounted && response?.success && response?.data) {
+          setQuote(response.data);
+        }
+      } catch (error) {
+        console.debug("Daily quote unavailable:", error);
+      } finally {
+        if (mounted) setLoading(false);
       }
-    } catch (error) {
-      // Silently fail - daily quote is not critical to app functionality
-      console.debug("Daily quote unavailable:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    loadDailyQuote();
+    const interval = setInterval(loadDailyQuote, POLLING_QUOTE_REFRESH_MS);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   if (loading || !quote) {
     return null;

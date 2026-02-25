@@ -107,13 +107,19 @@ function InternalMessagesSection({ jobId }: { jobId: string | number }) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadMessages();
+    let mounted = true;
+    const load = async () => {
+      await loadMessages();
+    };
+    load();
     // Poll for new messages every 5 seconds
     const interval = setInterval(() => {
-      loadMessages();
+      if (mounted) loadMessages();
     }, POLLING_FAST_MS);
-    return () => clearInterval(interval);
-     
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [jobId]);
 
   useEffect(() => {

@@ -249,6 +249,7 @@ export default function SigningCeremonyPage() {
             signerName={signer?.name || ""}
             onComplete={(completed) => handleSignatureSubmitted(completed)}
             onBack={() => setStep("view_document")}
+            apiUrl={apiUrl}
           />
         );
 
@@ -261,6 +262,7 @@ export default function SigningCeremonyPage() {
             signerName={signer?.name || ""}
             onComplete={handleSignatureSubmitted}
             onDecline={handleDecline}
+            apiUrl={apiUrl}
           />
         );
 

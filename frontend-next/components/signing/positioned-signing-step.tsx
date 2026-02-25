@@ -72,6 +72,8 @@ interface PositionedSigningStepProps {
   signerName: string;
   onComplete: (completed: boolean) => void;
   onDecline: (reason: string) => void;
+  /** API base URL - passed from parent to ensure consistent URL across signing flow */
+  apiUrl?: string;
 }
 
 const FIELD_ICONS = {
@@ -88,6 +90,7 @@ export function PositionedSigningStep({
   signerName,
   onComplete,
   onDecline,
+  apiUrl: apiUrlProp,
 }: PositionedSigningStepProps) {
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,6 +104,8 @@ export function PositionedSigningStep({
   const [savedSignature, setSavedSignature] = useState<string | null>(null);
   const [savedInitials, setSavedInitials] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const [captureLoading, setCaptureLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const hasAutoOpened = useRef(false);
 
@@ -111,7 +116,7 @@ export function PositionedSigningStep({
   // Fields sorted in reading order for sequential navigation
   const sortedFields = React.useMemo(() => sortFieldsByReadingOrder(fields), [fields]);
 
-  const apiUrl = getApiBaseUrl();
+  const apiUrl = apiUrlProp || getApiBaseUrl();
   const pdfUrl = `${apiUrl}/api/v1/sign/${token}/document`;
 
   // Find the next incomplete required field in reading order
@@ -143,6 +148,8 @@ export function PositionedSigningStep({
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
       setSelectedField(field);
+      setCaptureError(null);
+      setCaptureLoading(false);
       if (field.field_type === "signature") {
         if (savedSignatureRef.current) {
           setConfirmMode("signature");
@@ -224,6 +231,8 @@ export function PositionedSigningStep({
 
   // Complete a field
   const completeField = async (fieldId: number, value: string) => {
+    setCaptureError(null);
+    setCaptureLoading(true);
     try {
       const response = await fetch(`${apiUrl}/api/v1/sign/${token}/fields/${fieldId}/complete`, {
         method: "POST",
@@ -248,6 +257,7 @@ export function PositionedSigningStep({
       setSelectedField(null);
       setCaptureMode(null);
       setConfirmMode(null);
+      setCaptureLoading(false);
 
       // Check if all required fields are complete
       if (data.all_fields_complete) {
@@ -270,7 +280,10 @@ export function PositionedSigningStep({
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to complete field");
+      const msg = err instanceof Error ? err.message : "Failed to complete field";
+      setCaptureError(msg);
+      setError(msg);
+      setCaptureLoading(false);
     }
   };
 
@@ -563,7 +576,7 @@ export function PositionedSigningStep({
       )}
 
       {/* Signature capture dialog (first time - draw/type/upload) */}
-      <Dialog open={captureMode === "signature"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); }}>
+      <Dialog open={captureMode === "signature"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); setCaptureError(null); setCaptureLoading(false); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Draw your signature</DialogTitle>
@@ -571,22 +584,34 @@ export function PositionedSigningStep({
               Use your mouse or finger to draw your signature below
             </DialogDescription>
           </DialogHeader>
-          <SignatureCaptureStep
-            token={token}
-            signerName={signerName}
-            onComplete={(_, signatureData) => {
-              if (signatureData) {
-                handleSignatureCapture(signatureData);
-              }
-            }}
-            onBack={() => { setCaptureMode(null); setSelectedField(null); }}
-            embedded
-          />
+          {captureError && (
+            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+              {captureError}
+            </div>
+          )}
+          {captureLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Spinner size={32} />
+              <p className="text-sm text-muted-foreground mt-3">Applying signature...</p>
+            </div>
+          ) : (
+            <SignatureCaptureStep
+              token={token}
+              signerName={signerName}
+              onComplete={(_, signatureData) => {
+                if (signatureData) {
+                  handleSignatureCapture(signatureData);
+                }
+              }}
+              onBack={() => { setCaptureMode(null); setSelectedField(null); setCaptureError(null); }}
+              embedded
+            />
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Initials capture dialog (first time - draw/type/upload) */}
-      <Dialog open={captureMode === "initials"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); }}>
+      <Dialog open={captureMode === "initials"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); setCaptureError(null); setCaptureLoading(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add your initials</DialogTitle>
@@ -594,23 +619,35 @@ export function PositionedSigningStep({
               Draw or type your initials below
             </DialogDescription>
           </DialogHeader>
-          <SignatureCaptureStep
-            token={token}
-            signerName={signerName}
-            onComplete={(_, signatureData) => {
-              if (signatureData) {
-                handleSignatureCapture(signatureData);
-              }
-            }}
-            onBack={() => { setCaptureMode(null); setSelectedField(null); }}
-            embedded
-            initialsMode
-          />
+          {captureError && (
+            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+              {captureError}
+            </div>
+          )}
+          {captureLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Spinner size={32} />
+              <p className="text-sm text-muted-foreground mt-3">Applying initials...</p>
+            </div>
+          ) : (
+            <SignatureCaptureStep
+              token={token}
+              signerName={signerName}
+              onComplete={(_, signatureData) => {
+                if (signatureData) {
+                  handleSignatureCapture(signatureData);
+                }
+              }}
+              onBack={() => { setCaptureMode(null); setSelectedField(null); setCaptureError(null); }}
+              embedded
+              initialsMode
+            />
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Quick-confirm dialog (subsequent signature/initials - just confirm placement) */}
-      <Dialog open={confirmMode !== null} onOpenChange={() => { setConfirmMode(null); setSelectedField(null); }}>
+      <Dialog open={confirmMode !== null} onOpenChange={() => { setConfirmMode(null); setSelectedField(null); setCaptureError(null); setCaptureLoading(false); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -622,48 +659,60 @@ export function PositionedSigningStep({
                 : `Apply your ${confirmMode === "initials" ? "initials" : "signature"} at this location`}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            {/* Signature preview */}
-            <div className="border rounded-lg p-4 bg-white dark:bg-muted flex items-center justify-center min-h-[80px]">
-              {(confirmMode === "initials" ? savedInitials : savedSignature) && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={confirmMode === "initials" ? savedInitials! : savedSignature!}
-                  alt={confirmMode === "initials" ? "Your initials" : "Your signature"}
-                  className="max-h-[60px] max-w-full object-contain"
-                />
-              )}
+          {captureError && (
+            <div className="p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+              {captureError}
             </div>
-            <div className="flex justify-between gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  // Let them redraw
-                  setConfirmMode(null);
-                  if (confirmMode === "initials") {
-                    setSavedInitials(null);
-                    savedInitialsRef.current = null;
-                    setCaptureMode("initials");
-                  } else {
-                    setSavedSignature(null);
-                    savedSignatureRef.current = null;
-                    setCaptureMode("signature");
-                  }
-                }}
-              >
-                Redraw
-              </Button>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setConfirmMode(null); setSelectedField(null); }}>
-                  Skip
+          )}
+          {captureLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Spinner size={32} />
+              <p className="text-sm text-muted-foreground mt-3">Applying...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Signature preview */}
+              <div className="border rounded-lg p-4 bg-white dark:bg-muted flex items-center justify-center min-h-[80px]">
+                {(confirmMode === "initials" ? savedInitials : savedSignature) && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={confirmMode === "initials" ? savedInitials! : savedSignature!}
+                    alt={confirmMode === "initials" ? "Your initials" : "Your signature"}
+                    className="max-h-[60px] max-w-full object-contain"
+                  />
+                )}
+              </div>
+              <div className="flex justify-between gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Let them redraw
+                    setConfirmMode(null);
+                    if (confirmMode === "initials") {
+                      setSavedInitials(null);
+                      savedInitialsRef.current = null;
+                      setCaptureMode("initials");
+                    } else {
+                      setSavedSignature(null);
+                      savedSignatureRef.current = null;
+                      setCaptureMode("signature");
+                    }
+                  }}
+                >
+                  Redraw
                 </Button>
-                <Button onClick={handleConfirmSavedSignature}>
-                  Confirm
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => { setConfirmMode(null); setSelectedField(null); }}>
+                    Skip
+                  </Button>
+                  <Button onClick={handleConfirmSavedSignature}>
+                    Confirm
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 

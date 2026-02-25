@@ -2894,10 +2894,13 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
     if (storageFolderStatus !== "pending" && storageFolderStatus !== "processing") {
       return;
     }
+    let mounted = true;
 
     const pollInterval = setInterval(async () => {
+      if (!mounted) return;
       try {
         const response = await api.get<{ storage_folder_status: string }>(`/api/v1/jobs/${jobId}`);
+        if (!mounted) return;
         if (response?.storage_folder_status === "completed") {
           // Folders are ready - reload to show documents
           window.location.reload();
@@ -2910,7 +2913,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
     }, POLLING_DELAY_MS); // Poll every 3 seconds
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      mounted = false;
+      clearInterval(pollInterval);
+    };
   }, [storageFolderStatus, jobId]);
 
   // Handle creating storage folders

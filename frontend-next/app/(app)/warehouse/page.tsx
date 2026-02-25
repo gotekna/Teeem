@@ -312,6 +312,8 @@ export default function AllDocumentsPage() {
 
   // Poll for active background jobs (folder reorganization)
   useEffect(() => {
+    let mounted = true;
+
     const pollJobProgress = async () => {
       try {
         const response = await api.get<{
@@ -320,6 +322,7 @@ export default function AllDocumentsPage() {
           data: typeof activeJob;
         }>("/api/v1/background_jobs/progress/folder_reorganization");
 
+        if (!mounted) return;
         if (response?.success && response.active && response.data) {
           setActiveJob(response.data);
         } else {
@@ -342,7 +345,10 @@ export default function AllDocumentsPage() {
     const intervalMs = activeJob ? 2000 : 10000;
     const interval = setInterval(pollJobProgress, intervalMs);
 
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [activeJob, fetchDocuments]);
 
   // Drag-and-drop upload handlers

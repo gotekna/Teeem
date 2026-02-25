@@ -23,6 +23,8 @@ interface SignatureCaptureStepProps {
   embedded?: boolean;
   /** When true, shows as initials capture with smaller canvas */
   initialsMode?: boolean;
+  /** API base URL - passed from parent to ensure consistent URL across signing flow */
+  apiUrl?: string;
 }
 
 type SignatureType = "drawn" | "typed" | "uploaded";
@@ -41,6 +43,7 @@ export function SignatureCaptureStep({
   onBack,
   embedded = false,
   initialsMode = false,
+  apiUrl: apiUrlProp,
 }: SignatureCaptureStepProps) {
   const [signatureType, setSignatureType] = useState<SignatureType>("drawn");
   const [signatureData, setSignatureData] = useState<string | null>(null);
@@ -54,7 +57,7 @@ export function SignatureCaptureStep({
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
 
-  const apiUrl = getApiBaseUrl();
+  const apiUrl = apiUrlProp || getApiBaseUrl();
 
   // Load Google Fonts for typed signatures
   useEffect(() => {

@@ -106,6 +106,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
   // Once we have tenant_id, load the PDF sync status
   React.useEffect(() => {
     if (!tenantId) return;
+    let mounted = true;
 
     const fetchStatus = async () => {
       try {
@@ -113,6 +114,7 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
           `/api/v1/xero/pdf_sync_status?tenant_id=${tenantId}`
         );
 
+        if (!mounted) return;
         if (response.success) {
           setData(response.data);
           setError(null);
@@ -121,16 +123,19 @@ export function XeroCompanyDocSyncCard({ companyId }: XeroCompanyDocSyncCardProp
         }
       } catch (err) {
         console.error("Failed to fetch PDF sync status:", err);
-        setError("Failed to load sync status");
+        if (mounted) setError("Failed to load sync status");
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     fetchStatus();
     // Auto-refresh every 10 seconds
     const refreshInterval = setInterval(fetchStatus, POLLING_XERO_SYNC_MS);
-    return () => clearInterval(refreshInterval);
+    return () => {
+      mounted = false;
+      clearInterval(refreshInterval);
+    };
   }, [tenantId]);
 
   if (loading) {
