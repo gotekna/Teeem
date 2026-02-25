@@ -248,12 +248,22 @@ class EmailStorageUploadService
     # Attachments are already stored as separate StorageBlobs
     stripped_content = EmailContentStripper.strip_attachments(mime_content)
 
-    # Upload to StorageBlob (content-addressed)
-    blob = StorageBlob.find_or_create_for_content!(
-      stripped_content,
-      filename: "#{email.id}.eml",
-      content_type: "message/rfc822"
-    )
+    # Memory-safe: write to Tempfile, use disk-backed hash+upload
+    tempfile = Tempfile.new(["email_#{email.id}", ".eml"], binmode: true)
+    begin
+      tempfile.write(stripped_content)
+      tempfile.flush
+      tempfile.rewind
+      stripped_content = nil # Release String from heap
+
+      blob = StorageBlob.find_or_create_from_file!(
+        tempfile.path,
+        filename: "#{email.id}.eml",
+        content_type: "message/rfc822"
+      )
+    ensure
+      tempfile.close! rescue nil
+    end
 
     email.update_columns(
       storage_path: blob.storage_path,
@@ -343,15 +353,25 @@ class EmailStorageUploadService
     # Attachments are already stored as separate StorageBlobs
     stripped_content = EmailContentStripper.strip_attachments(mime_content)
 
+    # Memory-safe: write to Tempfile, use disk-backed hash+upload
     # SSoT: Use StorageBlob for content-addressed storage (Jan 2026 fix)
-    # Files stored at Blobs/{hash-prefix}/{hash}.eml for deduplication
-    # Virtual folders in WarehouseDocument.folder_path enable UI organization
-    blob = ActsAsTenant.with_tenant(@tenant) do
-      StorageBlob.find_or_create_for_content!(
-        stripped_content,
-        filename: "#{email.id}.eml",
-        content_type: "message/rfc822"
-      )
+    tempfile = Tempfile.new(["email_#{email.id}", ".eml"], binmode: true)
+    begin
+      tempfile.write(stripped_content)
+      tempfile.flush
+      tempfile.rewind
+      stripped_content = nil # Release String from heap
+      mime_content = nil     # Release original content from heap
+
+      blob = ActsAsTenant.with_tenant(@tenant) do
+        StorageBlob.find_or_create_from_file!(
+          tempfile.path,
+          filename: "#{email.id}.eml",
+          content_type: "message/rfc822"
+        )
+      end
+    ensure
+      tempfile.close! rescue nil
     end
 
     # Update email record with content-addressed path

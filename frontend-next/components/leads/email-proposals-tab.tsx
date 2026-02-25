@@ -115,7 +115,7 @@ export function EmailProposalsTab({ onPendingCountChange }: EmailProposalsTabPro
     try {
       setLoading(true);
       const response = await api.get<{ proposals: EmailProposal[] }>(
-        "/api/v1/email_job_proposals?status="
+        "/api/v1/email_job_proposals?status=&per_page=100"
       );
       const loadedProposals = response.proposals || [];
       setProposals(loadedProposals);

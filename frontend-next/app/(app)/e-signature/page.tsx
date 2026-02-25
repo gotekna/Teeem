@@ -99,6 +99,7 @@ export default function ESignaturePage() {
       const response = await api.get<ESignatureResponse>(`/api/v1/e_signature_requests${params}`);
       return response;
     },
+    refetchOnMount: "always",
   });
 
   const deleteMutation = useMutation({

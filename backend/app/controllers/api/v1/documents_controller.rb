@@ -2623,11 +2623,15 @@ module Api
         blob = wd.storage_blob
 
         # Build download URL using WarehouseDocument.download_filename for Send Name
+        # FRC (Feb 2026): Use :inline disposition for viewable content types (PDF, images)
+        # so double-click opens in browser tab instead of downloading
+        content_type = wd.content_type || blob&.content_type || ""
+        viewable = content_type.start_with?("image/") || content_type == "application/pdf" || content_type == "text/plain"
         download_url = if blob&.storage_path.present?
           begin
             # SSoT (Jan 2026): Use tenant for storage provider
             provider = DocumentProviders.for_tenant(current_tenant)
-            provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename)
+            provider&.download_url(blob.storage_path, expires_in: DocumentStorageConstants::PRESIGNED_URL_EXPIRY_DEFAULT, filename: wd.download_filename, disposition: viewable ? :inline : :attachment)
           rescue StandardError => e
             Rails.logger.warn "[Documents] Failed to generate download URL for doc #{wd.id}: #{e.message}"
             nil
@@ -2901,11 +2905,14 @@ module Api
 
       # Generate a download URL for a document
       # SSoT: Delegates to DocumentStorageService for all storage providers
+      # FRC (Feb 2026): Use :inline for viewable types so browser opens instead of downloading
       def generate_download_url(doc)
         return nil unless doc.present?
 
+        mime = doc.respond_to?(:mime_type) ? doc.mime_type : doc.respond_to?(:content_type) ? doc.content_type : nil
+        viewable = mime.present? && (mime.start_with?("image/") || mime == "application/pdf" || mime == "text/plain")
         service = DocumentStorageService.new
-        result = service.download_url(doc)
+        result = service.download_url(doc, disposition: viewable ? :inline : :attachment)
         result[:success] ? result[:url] : nil
       end
     end

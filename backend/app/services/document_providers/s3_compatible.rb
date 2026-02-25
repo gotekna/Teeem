@@ -314,6 +314,28 @@ module DocumentProviders
       raise NotFoundError, "File not found: #{path_or_id}"
     end
 
+    # Memory-safe: streams S3 object to Tempfile instead of loading into heap.
+    # Returns Tempfile. Caller must close! the Tempfile when done.
+    def download_to_tempfile(path_or_id)
+      key = resolve_key(path_or_id)
+      ext = File.extname(key)
+      tempfile = Tempfile.new(["s3_download", ext], binmode: true)
+
+      @client.get_object(bucket: @bucket, key: key) do |chunk|
+        tempfile.write(chunk)
+      end
+
+      tempfile.flush
+      tempfile.rewind
+      tempfile
+    rescue Aws::S3::Errors::NoSuchKey
+      tempfile&.close! rescue nil
+      raise NotFoundError, "File not found: #{path_or_id}"
+    rescue => e
+      tempfile&.close! rescue nil
+      raise e
+    end
+
     # Generate presigned download URL
     # @param path_or_id [String] File path or S3 key
     # @param options [Hash] Options
