@@ -48,15 +48,26 @@ module DeduplicatableJob
 
   included do
     before_perform do |job|
-      if self.class.already_running?(excluding_job_id: job.provider_job_id)
-        Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} (job_id: #{job.provider_job_id}) - another instance already running"
-        throw :abort
+      my_job_id = job.provider_job_id.to_i
+      other_claimed_id = self.class.lowest_claimed_job_id(excluding_job_id: my_job_id)
+
+      if other_claimed_id
+        # ⚠️ Race condition breaker: when 2 threads claim the same job class
+        # simultaneously (e.g., after worker restart), LOWEST job ID wins.
+        # Without this, both threads see the other as claimed and both abort,
+        # or neither sees the other (timing) and both proceed.
+        if other_claimed_id < my_job_id
+          Rails.logger.info "[DeduplicatableJob] Skipping #{job.class.name} (job_id: #{my_job_id}) - lower instance #{other_claimed_id} already running"
+          throw :abort
+        else
+          Rails.logger.info "[DeduplicatableJob] Proceeding #{job.class.name} (job_id: #{my_job_id}) - this is the lowest claimed instance (other: #{other_claimed_id})"
+        end
       end
 
       # When this job starts executing, clear all other queued (Ready) copies.
       # The scheduler enqueues freely (avoiding SolidQueue bug), but when ANY copy
       # starts, it clears queued siblings. Net effect: at most 1 running + 1 queued.
-      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: job.provider_job_id)
+      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: my_job_id)
 
       # Clean up dead predecessors so they don't accumulate
       self.class.cleanup_dead_predecessors!
@@ -64,16 +75,16 @@ module DeduplicatableJob
   end
 
   class_methods do
-    def already_running?(excluding_job_id: nil)
-      # Only block if another job is currently executing (ClaimedExecution).
-      # ReadyExecution means it's in queue but not running yet - that's fine,
-      # the worker will pick them up sequentially.
+    # Returns the lowest SolidQueue::Job ID that is currently claimed (running)
+    # for this job class, excluding the given job_id. Returns nil if none found.
+    def lowest_claimed_job_id(excluding_job_id: nil)
       unfinished = SolidQueue::Job.where(finished_at: nil).where(class_name: name)
       unfinished = unfinished.where.not(id: excluding_job_id) if excluding_job_id
 
       SolidQueue::ClaimedExecution
         .where(job_id: unfinished.select(:id))
-        .exists?
+        .joins(:job)
+        .minimum("solid_queue_jobs.id")
     end
 
     # Clear all queued (ReadyExecution) copies of this job class except the one running.
