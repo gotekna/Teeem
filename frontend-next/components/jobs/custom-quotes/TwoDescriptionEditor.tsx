@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type TextareaHTMLAttributes } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -88,6 +88,29 @@ function wrapAsRfq(
   parts.push(sigParts.join("\n"));
 
   return parts.join("\n");
+}
+
+/** Textarea that auto-grows with content */
+function AutoTextarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const resize = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  useEffect(() => { resize(); }, [props.value, resize]);
+
+  return (
+    <Textarea
+      {...props}
+      ref={ref}
+      onInput={resize}
+      style={{ ...props.style, overflow: "hidden", resize: "none" }}
+    />
+  );
 }
 
 export function TwoDescriptionEditor({
@@ -194,11 +217,11 @@ export function TwoDescriptionEditor({
 
       <div>
         <Label className="text-xs">Tender Description (client-facing)</Label>
-        <Textarea
+        <AutoTextarea
           value={localTender}
           onChange={(e) => handleTenderChange(e.target.value)}
           placeholder="Description for client tender documents..."
-          className="mt-1 text-sm min-h-[60px]"
+          className="mt-1 text-sm min-h-[36px]"
           readOnly={readOnly}
         />
       </div>
@@ -213,11 +236,11 @@ export function TwoDescriptionEditor({
             </label>
           )}
         </div>
-        <Textarea
+        <AutoTextarea
           value={localPo}
           onChange={(e) => handlePoChange(e.target.value)}
           placeholder="Description for purchase order to supplier..."
-          className={`mt-1 text-sm min-h-[60px] ${syncPo ? "opacity-60" : ""}`}
+          className={`mt-1 text-sm min-h-[36px] ${syncPo ? "opacity-60" : ""}`}
           readOnly={readOnly || syncPo}
         />
       </div>
@@ -233,11 +256,11 @@ export function TwoDescriptionEditor({
               </label>
             )}
           </div>
-          <Textarea
+          <AutoTextarea
             value={localRfq}
             onChange={(e) => handleRfqChange(e.target.value)}
             placeholder="Special instructions for this RFQ..."
-            className={`mt-1 text-sm min-h-[60px] ${syncRfq ? "opacity-60" : ""}`}
+            className={`mt-1 text-sm min-h-[36px] ${syncRfq ? "opacity-60" : ""}`}
             readOnly={readOnly || syncRfq}
           />
         </div>

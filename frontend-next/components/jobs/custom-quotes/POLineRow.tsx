@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
@@ -28,6 +29,11 @@ export function POLineRow({
   onAccept,
   onReject,
 }: POLineRowProps) {
+  const [liveDocTypeNames, setLiveDocTypeNames] = useState<string[]>(line.documentTypeNames);
+  const handleDocTypeNamesChange = useCallback((names: string[]) => {
+    setLiveDocTypeNames(names);
+  }, []);
+
   const isNotRequired = line.quoteLevel === "not_required";
   const allocated = line.suppliers
     .filter((s) => s.status === "accepted")
@@ -84,6 +90,7 @@ export function POLineRow({
           <DocumentTypeTreePicker
             selectedIds={line.documentTypeIds}
             onChange={(ids) => onUpdateLine(line.id, "document_type_ids", ids)}
+            onSelectedNamesChange={handleDocTypeNamesChange}
           />
         </div>
       )}
@@ -109,7 +116,7 @@ export function POLineRow({
           poDescription={line.poDescription}
           rfqInstructions={line.rfqInstructions}
           onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
-          documentTypeNames={line.documentTypeNames}
+          documentTypeNames={liveDocTypeNames}
         />
       )}
     </div>

@@ -60,8 +60,6 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
   const [recordResponseDialog, setRecordResponseDialog] = useState<{ supplierId: number } | null>(null);
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [supplierItems, setSupplierItems] = useState<ComboboxItem[]>([]);
   const [responsePrice, setResponsePrice] = useState("");
   const [responseQuoteNumber, setResponseQuoteNumber] = useState("");
 
@@ -76,24 +74,6 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
       fetchQuoteTree(quotes[0].id);
     }
   }, [quotes, activeQuote, fetchQuoteTree]);
-
-  // Supplier search
-  const searchSuppliers = useCallback(async (search: string) => {
-    if (search.length < 2) return;
-    try {
-      const res = await api.get<{ success: boolean; data: { records: Array<{ id: number; display_name: string; name?: string }> } }>(
-        `/api/v1/foundations/contacts/records?search=${encodeURIComponent(search)}&limit=20`
-      );
-      const records = res?.data?.records || [];
-      if (records.length > 0) {
-        setSupplierItems(
-          records.map((c) => ({ id: String(c.id), label: c.display_name || c.name || `Contact #${c.id}` }))
-        );
-      }
-    } catch {
-      // ignore search errors
-    }
-  }, []);
 
   // Handlers
   const handleApplyTemplate = useCallback(async (templateId: number) => {
@@ -124,9 +104,9 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     await updateLine(lineId, { [field]: value });
   }, [updateLine]);
 
-  const handleAddSupplierConfirm = useCallback(async (supplierId: string) => {
-    if (addSupplierDialog) {
-      await addSupplier(addSupplierDialog.lineId, Number(supplierId));
+  const handleAddSupplierConfirm = useCallback(async (supplier: Supplier | null) => {
+    if (addSupplierDialog && supplier) {
+      await addSupplier(addSupplierDialog.lineId, supplier.id);
       setAddSupplierDialog(null);
       await refresh();
     }
@@ -241,15 +221,10 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
           <DialogHeader>
             <DialogTitle>Add Supplier</DialogTitle>
           </DialogHeader>
-          <ComboboxDropdown
-            items={supplierItems}
-            onSelect={(item) => handleAddSupplierConfirm(item.id)}
+          <SupplierPicker
+            value={null}
+            onSelect={handleAddSupplierConfirm}
             placeholder="Search suppliers..."
-            onInputChange={(search: string) => {
-              setSupplierSearch(search);
-              searchSuppliers(search);
-            }}
-            disableInternalFilter
           />
         </DialogContent>
       </Dialog>

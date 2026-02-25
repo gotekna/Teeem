@@ -5,13 +5,17 @@ require "grover"
 
 # DirectorChangeService generates ASIC Form 484 director change packages.
 #
-# Generates 4 documents:
+# Generates up to 5 documents:
 # 1. Minutes of Meeting of Directors (board resolution)
 # 2. Director Resignation Letter (for outgoing director to sign)
 # 3. Consent to Act as Director (for incoming director to sign)
-# 4. Form 484 Record Copy (internal record for ASIC filing)
+# 4. Form 484 Record - Cessation (internal record for ASIC filing)
+# 5. Form 484 Record - Appointment (internal record for ASIC filing)
 #
-# All three are combined into a single PDF package and optionally sent
+# Document names are resolved from DocumentType records (SSoT) via abbreviation,
+# so renaming in settings is reflected in generated documents.
+#
+# All documents are combined into a single PDF package and optionally sent
 # for e-signature via TEEEM's e-signature system.
 #
 # Usage:
@@ -49,12 +53,17 @@ class DirectorChangeService
   # Generate combined PDF package without sending
   def generate_package
     documents = generate_all_documents
-    combined_pdf = combine_pdfs(documents)
+    combined_pdf, page_offsets = combine_pdfs_with_offsets(documents)
+
+    # Attach 1-based page offset to each document for frontend navigation
+    doc_metadata = documents.each_with_index.map do |d, i|
+      d.slice(:type, :name).merge(page: page_offsets[i] || 1)
+    end
 
     {
       pdf_content: combined_pdf,
       filename: generate_filename,
-      documents: documents.map { |d| d.slice(:type, :name, :pdf_content) },
+      documents: doc_metadata,
       generated_at: Time.current
     }
   end
@@ -151,8 +160,12 @@ class DirectorChangeService
     when "consent"
       raise GenerationError, "No new appointments to preview" if new_appointments.empty?
       render_consent(new_appointments.first)[:html]
-    when "form_484"
-      render_form_484[:html]
+    when "form_484", "form_484_cessation"
+      raise GenerationError, "No ceasing directors to preview" if ceasing_directors.empty?
+      render_form_484_cessation[:html]
+    when "form_484_appointment"
+      raise GenerationError, "No new appointments to preview" if new_appointments.empty?
+      render_form_484_appointment[:html]
     else
       raise GenerationError, "Unknown document type: #{document_type}"
     end
@@ -205,8 +218,12 @@ class DirectorChangeService
       documents << render_consent(appt)
     end
 
-    # Generate Form 484 record
-    documents << render_form_484
+    # Generate Form 484 records (separate documents for cessation and appointment)
+    form_484_cessation = render_form_484_cessation
+    documents << form_484_cessation if form_484_cessation
+
+    form_484_appointment = render_form_484_appointment
+    documents << form_484_appointment if form_484_appointment
 
     documents
   end
@@ -227,9 +244,14 @@ class DirectorChangeService
     html = render_template("director_resignation", context)
     pdf = convert_to_pdf(html)
 
+    # Resolve name from DocumentType by primary position abbreviation
+    primary_pos = cd_data[:positions]&.first || "director"
+    resignation_abbr = RESIGNATION_DOC_TYPES[primary_pos] || "RD"
+    doc_name = resolve_doc_name(resignation_abbr, "Resignation")
+
     {
       type: :resignation,
-      name: "Resignation - #{contact.display_name}",
+      name: "#{doc_name} - #{contact.display_name}",
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -254,9 +276,14 @@ class DirectorChangeService
     html = render_template("consent_to_act", context)
     pdf = convert_to_pdf(html)
 
+    # Resolve name from DocumentType by primary position abbreviation
+    primary_pos = appt_data[:positions]&.first || "director"
+    consent_abbr = CONSENT_DOC_TYPES[primary_pos] || "CAD"
+    doc_name = resolve_doc_name(consent_abbr, "Consent to Act")
+
     {
       type: :consent,
-      name: "Consent to Act - #{contact.display_name}",
+      name: "#{doc_name} - #{contact.display_name}",
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -337,14 +364,17 @@ class DirectorChangeService
 
     {
       type: :minutes,
-      name: "Minutes of Meeting of Directors",
+      name: resolve_doc_name("DM", "Minutes of Meeting of Directors"),
       html: html,
       pdf_content: pdf
     }
   end
 
-  def render_form_484
+  def render_form_484_cessation
+    return nil if ceasing_directors.empty?
+
     lodgement_date = Date.current
+    base_name = resolve_doc_name("F484", "Form 484")
 
     context = {
       company: build_company_context,
@@ -358,6 +388,31 @@ class DirectorChangeService
           cessation_date_formatted: cd[:cessation_date].strftime("%d/%m/%Y")
         }
       end,
+      new_appointments: [],
+      lodgement_date: lodgement_date,
+      lodgement_date_formatted: lodgement_date.strftime("%d/%m/%Y")
+    }
+
+    html = render_template("form_484_record", context)
+    pdf = convert_to_pdf(html)
+
+    {
+      type: :form_484_cessation,
+      name: "#{base_name} - Cessation",
+      html: html,
+      pdf_content: pdf
+    }
+  end
+
+  def render_form_484_appointment
+    return nil if new_appointments.empty?
+
+    lodgement_date = Date.current
+    base_name = resolve_doc_name("F484", "Form 484")
+
+    context = {
+      company: build_company_context,
+      ceasing_directors: [],
       new_appointments: new_appointments.map do |appt|
         contact = appt[:contact]
         {
@@ -376,8 +431,8 @@ class DirectorChangeService
     pdf = convert_to_pdf(html)
 
     {
-      type: :form_484,
-      name: "Form 484 Record",
+      type: :form_484_appointment,
+      name: "#{base_name} - Appointment",
       html: html,
       pdf_content: pdf
     }
@@ -428,19 +483,25 @@ class DirectorChangeService
 
   # --- PDF Combination ---
 
-  def combine_pdfs(documents)
+  # Combine individual document PDFs into one, tracking where each starts.
+  # Returns [combined_pdf_binary, page_offsets_array] where offsets are 1-based.
+  def combine_pdfs_with_offsets(documents)
     combined = HexaPDF::Document.new
+    page_offsets = []
+    current_page = 1
 
     documents.each do |doc|
       next unless doc[:pdf_content]
 
+      page_offsets << current_page
       source = HexaPDF::Document.new(io: StringIO.new(doc[:pdf_content]))
       source.pages.each { |page| combined.pages << combined.import(page) }
+      current_page += source.pages.count
     end
 
     output = StringIO.new
     combined.write(output)
-    output.string
+    [output.string, page_offsets]
   end
 
   # --- Storage ---
@@ -476,31 +537,39 @@ class DirectorChangeService
     }
 
     # One warehouse document per position-specific doc type
-    store_one(signed_blob, asic_folder, "DM", "Minutes of Meeting of Directors", base_metadata)
+    minutes_name = resolve_doc_name("DM", "Minutes of Meeting of Directors")
+    store_one(signed_blob, asic_folder, "DM", minutes_name, base_metadata)
 
     ceasing_directors.each do |cd|
-      name = cd[:corporate_director].contact.display_name
+      person_name = cd[:corporate_director].contact.display_name
       date_str = cd[:cessation_date].strftime("%d/%m/%Y")
       cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }.each do |pos|
         abbr = RESIGNATION_DOC_TYPES[pos]
-        formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-        store_one(signed_blob, asic_folder, abbr, "Resignation #{formatted} - #{name} #{date_str}",
-          base_metadata.merge(person: name, position: pos, date: cd[:cessation_date].iso8601))
+        doc_name = resolve_doc_name(abbr, "Resignation #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
+        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
+          base_metadata.merge(person: person_name, position: pos, date: cd[:cessation_date].iso8601))
       end
     end
 
     new_appointments.each do |appt|
-      name = appt[:contact].display_name
+      person_name = appt[:contact].display_name
       date_str = appt[:appointment_date].strftime("%d/%m/%Y")
       appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }.each do |pos|
         abbr = CONSENT_DOC_TYPES[pos]
-        formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-        store_one(signed_blob, asic_folder, abbr, "Consent to Act as #{formatted} - #{name} #{date_str}",
-          base_metadata.merge(person: name, position: pos, date: appt[:appointment_date].iso8601))
+        doc_name = resolve_doc_name(abbr, "Consent to Act as #{pos.tr('_', ' ').split.map(&:capitalize).join(' ')}")
+        store_one(signed_blob, asic_folder, abbr, "#{doc_name} - #{person_name} #{date_str}",
+          base_metadata.merge(person: person_name, position: pos, date: appt[:appointment_date].iso8601))
       end
     end
 
-    store_one(signed_blob, asic_folder, "F484", "Form 484 Record", base_metadata)
+    # Store separate Form 484 records for cessation and appointment
+    f484_name = resolve_doc_name("F484", "Form 484")
+    if ceasing_directors.any?
+      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Cessation", base_metadata.merge(form_subtype: "cessation"))
+    end
+    if new_appointments.any?
+      store_one(signed_blob, asic_folder, "F484", "#{f484_name} - Appointment", base_metadata.merge(form_subtype: "appointment"))
+    end
   end
 
   def store_one(blob, asic_folder, abbreviation, fallback_name, metadata)
@@ -609,15 +678,35 @@ class DirectorChangeService
 
   # Build document metadata without generating PDFs
   def build_document_metadata
-    docs = [{ type: :minutes, name: "Minutes of Meeting of Directors" }]
+    docs = [{ type: :minutes, name: resolve_doc_name("DM", "Minutes of Meeting of Directors") }]
+
     ceasing_directors.each do |cd|
-      docs << { type: :resignation, name: "Resignation - #{cd[:corporate_director].contact.display_name}" }
+      primary_pos = cd[:positions]&.first || "director"
+      abbr = RESIGNATION_DOC_TYPES[primary_pos] || "RD"
+      doc_name = resolve_doc_name(abbr, "Resignation")
+      docs << { type: :resignation, name: "#{doc_name} - #{cd[:corporate_director].contact.display_name}" }
     end
+
     new_appointments.each do |appt|
-      docs << { type: :consent, name: "Consent to Act - #{appt[:contact].display_name}" }
+      primary_pos = appt[:positions]&.first || "director"
+      abbr = CONSENT_DOC_TYPES[primary_pos] || "CAD"
+      doc_name = resolve_doc_name(abbr, "Consent to Act")
+      docs << { type: :consent, name: "#{doc_name} - #{appt[:contact].display_name}" }
     end
-    docs << { type: :form_484, name: "Form 484 Record" }
+
+    f484_name = resolve_doc_name("F484", "Form 484")
+    docs << { type: :form_484_cessation, name: "#{f484_name} - Cessation" } if ceasing_directors.any?
+    docs << { type: :form_484_appointment, name: "#{f484_name} - Appointment" } if new_appointments.any?
     docs
+  end
+
+  # --- Document Name Resolution (SSoT: DocumentType records) ---
+
+  # Look up document name from DocumentType by abbreviation, with fallback.
+  # Caches results for the lifetime of this service instance.
+  def resolve_doc_name(abbreviation, fallback = nil)
+    @doc_name_cache ||= {}
+    @doc_name_cache[abbreviation] ||= DocumentType.find_by(abbreviation: abbreviation)&.name || fallback
   end
 
   # --- Helpers ---

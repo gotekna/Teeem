@@ -146,6 +146,8 @@ function VisualCheckbox({
 interface DocumentTypeTreePickerProps {
   selectedIds: number[];
   onChange: (ids: number[]) => void;
+  /** Called with the names of currently selected doc types (for display elsewhere) */
+  onSelectedNamesChange?: (names: string[]) => void;
 }
 
 /**
@@ -157,6 +159,7 @@ interface DocumentTypeTreePickerProps {
 export function DocumentTypeTreePicker({
   selectedIds,
   onChange,
+  onSelectedNamesChange,
 }: DocumentTypeTreePickerProps) {
   const [treeData, setTreeData] = useState<FolderNode[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -209,6 +212,11 @@ export function DocumentTypeTreePicker({
     () => allDocTypes.filter((dt) => selectedSet.has(dt.id)),
     [allDocTypes, selectedSet]
   );
+
+  // Report selected names to parent
+  useEffect(() => {
+    onSelectedNamesChange?.(selectedDocTypes.map((dt) => dt.name));
+  }, [selectedDocTypes, onSelectedNamesChange]);
 
   const toggleItem = useCallback(
     (id: number) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
@@ -52,6 +53,12 @@ export function CostCentreSection({
           }, null as number | null);
         return sum + (best || 0);
       }, 0);
+
+  // Track live doc type names from the picker (avoids stale line.documentTypeNames)
+  const [liveDocTypeNames, setLiveDocTypeNames] = useState<string[]>(line.documentTypeNames);
+  const handleDocTypeNamesChange = useCallback((names: string[]) => {
+    setLiveDocTypeNames(names);
+  }, []);
 
   const isCCLevel = line.quoteLevel === "cost_centre";
   const isNotRequired = line.quoteLevel === "not_required";
@@ -119,6 +126,7 @@ export function CostCentreSection({
             <DocumentTypeTreePicker
               selectedIds={line.documentTypeIds}
               onChange={(ids) => onUpdateLine(line.id, "document_type_ids", ids)}
+              onSelectedNamesChange={handleDocTypeNamesChange}
             />
           </div>
 
@@ -162,7 +170,7 @@ export function CostCentreSection({
               poDescription={line.poDescription}
               rfqInstructions={line.rfqInstructions}
               onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
-              documentTypeNames={line.documentTypeNames}
+              documentTypeNames={liveDocTypeNames}
               poLineNames={line.children.filter((c) => c.quoteLevel !== "not_required").map((c) => c.name)}
             />
           )}
