@@ -380,6 +380,11 @@ class ESignatureRequest < ApplicationRecord
         content_type: "application/pdf"
       )
 
+      # Store the signed blob reference so downstream consumers
+      # (e.g. DirectorChangeService#complete_signing!) can find it
+      set_signed_storage_reference(blob.id.to_s)
+      save!
+
       # Create WarehouseDocument via standard service (SSoT: WarehouseDocumentCreator)
       metadata = {
         "version_status" => "signed",

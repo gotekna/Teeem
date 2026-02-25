@@ -2,12 +2,14 @@
 
 module Bpmn
   module Tasks
-    # DirectorChangeTask - Generate ASIC director change package and store in warehouse
+    # DirectorChangeTask - Generate ASIC director change package for e-signature
     #
     # Reads form_data from the preceding user task (director selections, dates, positions)
-    # and delegates to DirectorChangeService to generate individual document PDFs.
-    # Stores each document individually via WarehouseDocumentCreator in the "ASIC" folder,
-    # linked to its correct document type (DM, RD, RS, CAD, CAS, F484, etc.).
+    # and delegates to DirectorChangeService to generate the combined PDF package.
+    # Stores the combined PDF blob for e-signature; individual warehouse documents
+    # are created AFTER signing completes (via CompleteDirectorChangeTask →
+    # DirectorChangeService#complete_signing! → store_signed_document) so they
+    # contain actual signatures instead of placeholder badges.
     #
     # Process variables set:
     #   director_change_blob_id - StorageBlob ID of the combined PDF
@@ -37,38 +39,13 @@ module Bpmn
 
         package = service.generate_package
 
-        # Upload combined PDF for overall reference (e-signature, process variable)
+        # Upload combined PDF for e-signature (individual warehouse docs are
+        # created after signing in CompleteDirectorChangeTask, not here)
         combined_blob = StorageBlob.find_or_create_for_content!(
           package[:pdf_content],
           filename: package[:filename],
           content_type: "application/pdf"
         )
-
-        # Store each document individually in the warehouse so they appear as
-        # separate documents, each linked to its correct document type via WFDT.
-        asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
-        current_user = resolve_user
-        base_metadata = {
-          workflow_instance_id: @instance.id,
-          form_type: "form_484",
-          generated_at: Time.current.iso8601
-        }
-
-        package[:documents].each do |doc|
-          next unless doc[:pdf_content].present?
-
-          doc_blob = StorageBlob.find_or_create_for_content!(
-            doc[:pdf_content],
-            filename: "#{doc[:name]}.pdf",
-            content_type: "application/pdf"
-          )
-
-          create_one_warehouse_doc(
-            doc_blob, asic_folder, current_user,
-            doc[:abbreviation], doc[:name],
-            base_metadata.merge(document_type: doc[:type].to_s)
-          )
-        end
 
         # Set process variables for subsequent tasks
         set_variable("director_change_blob_id", combined_blob.id)
@@ -133,25 +110,6 @@ module Bpmn
             address: appt["address"]
           }
         end.compact
-      end
-
-      def create_one_warehouse_doc(blob, asic_folder, current_user, abbreviation, fallback_name, metadata)
-        wfdt = asic_folder && WarehouseFolderDocumentType
-          .joins(:document_type)
-          .find_by(warehouse_folder: asic_folder, document_types: { abbreviation: abbreviation })
-
-        # Pass specific WFDT so materialize_ui_name uses the correct template
-        # (not the folder's primary WFDT). fallback_name used if no template resolves.
-        WarehouseDocumentCreator.create!(
-          filename: fallback_name,
-          source_type: "corporate",
-          linkable: @subject,
-          storage_blob: blob,
-          warehouse_folder_id: asic_folder&.id,
-          warehouse_folder_document_type_id: wfdt&.id,
-          metadata: metadata,
-          user: current_user
-        )
       end
 
       def resolve_user
