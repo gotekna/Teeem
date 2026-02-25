@@ -55,7 +55,8 @@ import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } 
 import { CSS } from "@dnd-kit/utilities";
 import { createDndSensors, defaultCollisionDetection } from "@/components/ui/dnd/dnd-config";
 import { DragHandle } from "@/components/ui/dnd";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { useToast } from "@/components/ui/use-toast";
 
 // ============================================================================
@@ -161,7 +162,7 @@ function SortableDocumentRow({
   isSelected,
   canDrag,
   onToggleSelect,
-  onClick,
+  onRowClick,
   onDelete,
   showVersionBadge = true,
   showExpiryBadge = true,
@@ -171,7 +172,7 @@ function SortableDocumentRow({
   isSelected: boolean;
   canDrag: boolean;
   onToggleSelect: (docId: number, e: React.MouseEvent) => void;
-  onClick: (doc: LibraryDocument) => void;
+  onRowClick: (doc: LibraryDocument, e: React.MouseEvent) => void;
   onDelete?: (doc: LibraryDocument, e: React.MouseEvent) => void;
   showVersionBadge?: boolean;
   showExpiryBadge?: boolean;
@@ -197,25 +198,21 @@ function SortableDocumentRow({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors ${isSelected ? "bg-primary/5" : ""} ${isDragging ? "opacity-50 shadow-lg z-50" : ""}`}
+      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors cursor-pointer ${isSelected ? "bg-primary/5" : ""} ${isDragging ? "opacity-50 shadow-lg z-50" : ""}`}
+      onClick={(e) => onRowClick(doc, e)}
     >
       {canDrag && (
         <DragHandle {...attributes} {...listeners} size="sm" />
       )}
       <Checkbox
         checked={isSelected}
-        onClick={(e) => onToggleSelect(doc.id, e)}
+        onClick={(e) => { e.stopPropagation(); onToggleSelect(doc.id, e); }}
         className="shrink-0"
       />
-      <button
-        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-        onClick={() => onClick(doc)}
-      >
-        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
-          {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
-        </p>
-      </button>
+      <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+      <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
+        {doc.displayName || doc.originalFilename || `Document ${doc.id}`}
+      </p>
       {showVersionBadge && doc.versionCount > 1 && (
         <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
           v{doc.versionNumber}
@@ -271,7 +268,7 @@ function SortableDocumentRow({
       {onDelete && (
         <button
           className="shrink-0 p-1.5 hover:bg-destructive/10 rounded-md"
-          onClick={(e) => onDelete(doc, e)}
+          onClick={(e) => { e.stopPropagation(); onDelete(doc, e); }}
           title="Delete"
         >
           <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
@@ -426,27 +423,39 @@ export function StandardDocumentList({
 
   // ⚠️ DO NOT SIMPLIFY - Click-count detection for single vs double click (Feb 2026)
   // ════════════════════════════════════════════
-  // Why: Single click opens Sheet (modal overlay). Browser dblclick event is
-  //      unreliable because the overlay can capture the 2nd click.
-  // ❌ WRONG: Separate onClick + onDoubleClick handlers
-  // ✅ CORRECT: Single onClick with timer — 2nd click within 300ms = double-click
+  // Why: Single click opens Sheet preview. Double click opens in new tab.
+  //      Uses event.detail (native click count) + 300ms delay on single click
+  //      so double-click can cancel the pending preview open.
   // ════════════════════════════════════════════
   const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const handleDocumentClick = useCallback((doc: LibraryDocument) => {
-    if (clickTimeoutRef.current) {
-      // Second click within timeout = double-click
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
+  const handleRowClick = useCallback((doc: LibraryDocument, e: React.MouseEvent) => {
+    console.log("[SDL] click", { detail: e.detail, docId: doc.id, name: doc.displayName, fileUrl: doc.fileUrl?.substring(0, 60), hasPendingTimeout: !!clickTimeoutRef.current, customDoubleClick: !!customDoubleClick });
+
+    // event.detail === 2 means browser detected a double-click
+    if (e.detail >= 2) {
+      console.log("[SDL] DOUBLE CLICK detected via e.detail", e.detail);
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current);
+        clickTimeoutRef.current = null;
+      }
       if (customDoubleClick) {
+        console.log("[SDL] calling customDoubleClick");
         customDoubleClick(doc);
-      } else if (doc.fileUrl) {
-        window.open(doc.fileUrl, "_blank");
+      } else {
+        // Open document in new tab — use fileUrl or build download endpoint fallback
+        const url = doc.fileUrl || `${getApiBaseUrl()}/api/v1/documents/${doc.id}/download?token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "") || "")}`;
+        console.log("[SDL] opening in new tab:", url.substring(0, 80));
+        window.open(url, "_blank");
       }
       return;
     }
-    // First click — wait to see if a second click follows
+    // Single click — delay to allow double-click to cancel
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
     clickTimeoutRef.current = setTimeout(() => {
+      console.log("[SDL] single click confirmed — opening preview sheet");
       clickTimeoutRef.current = null;
       setPreviewDoc(doc);
       setIsSheetOpen(true);
@@ -500,7 +509,10 @@ export function StandardDocumentList({
   }, [selectedDocs, onEmail]);
 
   // Build preview URL
-  const previewUrl = previewDoc?.fileUrl || null;
+  // Build preview URL — use fileUrl if available, otherwise fall back to download endpoint
+  const previewUrl = previewDoc
+    ? (previewDoc.fileUrl || `${getApiBaseUrl()}/api/v1/documents/${previewDoc.id}/download?preview=1&token=${encodeURIComponent(getStorageItem<string>(STORAGE_KEYS.TOKEN, "") || "")}`)
+    : null;
 
   // Loading state
   if (loading) {
@@ -579,7 +591,7 @@ export function StandardDocumentList({
                 isSelected={selectedDocs.has(doc.id)}
                 canDrag={canDrag}
                 onToggleSelect={toggleSelect}
-                onClick={handleDocumentClick}
+                onRowClick={handleRowClick}
                 onDelete={onDelete}
                 showVersionBadge={showVersionBadge}
                 showExpiryBadge={showExpiryBadge}

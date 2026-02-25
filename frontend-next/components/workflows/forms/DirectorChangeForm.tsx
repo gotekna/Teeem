@@ -34,6 +34,7 @@ import {
   ArrowRight,
   CalendarIcon,
   Check,
+  Eye,
   Mail,
   Pencil,
   Plus,
@@ -43,7 +44,9 @@ import {
   X,
 } from "lucide-react";
 import { format } from "date-fns";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
+import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
+import { pollPdfGeneration } from "@/lib/pdf-generation";
 import type { TaskFormProps } from "@/lib/workflow-task-forms";
 import { DATE_DISPLAY, DATE_ISO } from "@/lib/constants/date-formats";
 
@@ -209,6 +212,13 @@ export default function DirectorChangeForm({
   // Document type names from DB (SSoT - not hardcoded)
   const [docTypeNames, setDocTypeNames] = useState<Record<string, string>>({});
 
+  // PDF preview state
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewMessage, setPreviewMessage] = useState("");
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [previewPage, setPreviewPage] = useState<number | null>(null);
+  const [generatedDocs, setGeneratedDocs] = useState<Array<{ type: string; name: string; page?: number }>>([]);
+
   // Contact search
   const [contactSearch, setContactSearch] = useState("");
   const [contactResults, setContactResults] = useState<ContactSearchResult[]>([]);
@@ -311,20 +321,12 @@ export default function DirectorChangeForm({
       const contactId = officer.contact?.id;
       if (contactId && ceasingDirectors.some((cd) => cd.contact_id === contactId)) return;
 
+      const knownPositionValues = new Set(POSITION_OPTIONS.map((p) => p.value));
       const allPositions = currentOfficers
         .filter((o) => o.contact?.id === contactId && o.is_current)
-        .map((o) => o.position);
-      const deduped = [...new Set(allPositions)];
-      const uniquePositions = deduped.filter((pos) => {
-        const others = deduped.filter(
-          (p) => p !== pos && pos.toLowerCase().includes(p.toLowerCase())
-        );
-        return others.length < 2;
-      });
-      // Normalize to lowercase snake_case to match POSITION_OPTIONS values
-      const normalizedPositions = uniquePositions.map((p) =>
-        p.toLowerCase().trim().replace(/\s+/g, "_")
-      );
+        .map((o) => o.position.toLowerCase().trim().replace(/\s+/g, "_"));
+      // Filter to only known positions (drops compound strings like "director_secretary_public_officer")
+      const normalizedPositions = [...new Set(allPositions)].filter((p) => knownPositionValues.has(p));
 
       const officerIds = currentOfficers
         .filter((o) => o.contact?.id === contactId && o.is_current)
@@ -381,7 +383,7 @@ export default function DirectorChangeForm({
           officer_ids: officerIds,
           name: officer.contact?.display_name || "Unknown",
           position: officer.position,
-          positions: normalizedPositions.length > 0 ? normalizedPositions : [officer.position.toLowerCase().trim().replace(/\s+/g, "_")],
+          positions: normalizedPositions.length > 0 ? normalizedPositions : ["director"],
           cessation_date: format(new Date(), DATE_ISO),
           has_dob: hasDob,
           has_address: hasAddress,
@@ -596,6 +598,72 @@ export default function DirectorChangeForm({
     }
     return docs;
   }, [ceasingDirectors, newAppointments, docTypeNames]);
+
+  // Generate PDF preview
+  const generatePreview = async () => {
+    setPreviewLoading(true);
+    setPreviewMessage("Starting PDF generation...");
+    setError(null);
+    try {
+      const response = await api.post<{
+        success: boolean;
+        data: { pdfGenerationId: number };
+        error?: string;
+      }>(`/api/v1/companies/${subject.id}/director_changes`, {
+        ceasing_directors: ceasingDirectors.map((cd) => ({
+          corporate_director_id: cd.corporate_director_id,
+          positions: cd.positions,
+          cessation_date: cd.cessation_date,
+          email: cd.selected_email,
+          address: cd.address,
+        })),
+        new_appointments: newAppointments.map((a) => ({
+          contact_id: a.contact_id,
+          positions: a.positions,
+          appointment_date: a.appointment_date,
+          email: a.selected_email,
+          address: a.address,
+        })),
+      });
+
+      if (!response?.success || !response.data?.pdfGenerationId) {
+        setError("Failed to start PDF generation");
+        return;
+      }
+
+      setPreviewMessage("Generating PDF documents...");
+      const result = await pollPdfGeneration(response.data.pdfGenerationId, {
+        intervalMs: 1500,
+        maxWaitMs: 120_000,
+        onProgress: (status) => {
+          if (status.status === "processing") setPreviewMessage("Generating PDF documents...");
+          else if (status.status === "pending") setPreviewMessage("Queued — waiting for worker...");
+        },
+      });
+
+      if (result.status === "completed" && result.downloadUrl) {
+        setPreviewMessage("Downloading preview...");
+        const baseUrl = getApiBaseUrl();
+        const token = getStorageItem<string | null>(STORAGE_KEYS.TOKEN, null);
+        const resp = await fetch(`${baseUrl}${result.downloadUrl}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (resp.ok) {
+          const blob = await resp.blob();
+          setPdfBlobUrl(URL.createObjectURL(blob));
+        }
+        const docs = result.result?.documents as Array<{ type: string; name: string; page?: number }> | undefined;
+        if (docs) setGeneratedDocs(docs);
+      } else {
+        setError(result.error || "PDF generation failed");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to generate preview");
+    } finally {
+      setPreviewLoading(false);
+      setPreviewMessage("");
+    }
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -1405,31 +1473,91 @@ export default function DirectorChangeForm({
               )}
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                Documents to be generated ({documentList.length}):
-              </p>
-              <div className="space-y-0.5">
-                {documentList.map((doc) => (
-                  <div key={doc.key} className="flex items-start justify-between text-sm py-1">
-                    <span className="text-blue-700 dark:text-blue-300">{doc.label}</span>
-                    <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
-                      {doc.docTypes.map((dt) => (
-                        <span key={dt.code} className="flex items-center gap-1">
-                          <span className="text-xs text-blue-500 dark:text-blue-400">{dt.name}</span>
-                          <Badge variant="outline" className="text-[10px] font-mono border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400">
+            {/* Document list - clickable when preview is loaded */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">
+                  Documents ({documentList.length}):
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={generatePreview}
+                  disabled={previewLoading}
+                >
+                  {previewLoading ? (
+                    <><Spinner size={14} className="mr-1.5" /> {previewMessage}</>
+                  ) : pdfBlobUrl ? (
+                    <><Eye className="w-3.5 h-3.5 mr-1.5" /> Regenerate Preview</>
+                  ) : (
+                    <><Eye className="w-3.5 h-3.5 mr-1.5" /> Preview PDF</>
+                  )}
+                </Button>
+              </div>
+
+              {generatedDocs.length > 0 ? (
+                // Show generated docs with page navigation
+                <div className="space-y-1">
+                  {generatedDocs.map((doc, i) => {
+                    const isSelected = previewPage === (doc.page || 1);
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          "flex items-center gap-2 p-2 rounded text-sm cursor-pointer transition-colors",
+                          isSelected
+                            ? "bg-primary/10 border border-primary/30"
+                            : "bg-muted/50 hover:bg-muted",
+                        )}
+                        onClick={() => doc.page && setPreviewPage(doc.page)}
+                      >
+                        <Eye className={cn("w-4 h-4 shrink-0", isSelected ? "text-primary" : "text-muted-foreground")} />
+                        <span className="flex-1 select-none">{doc.name}</span>
+                        {doc.page && (
+                          <span className="text-[10px] text-muted-foreground shrink-0">p.{doc.page}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Show planned document list before generation
+                <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-0.5">
+                  {documentList.map((doc) => (
+                    <div key={doc.key} className="flex items-start justify-between text-sm py-1">
+                      <span className="text-blue-700 dark:text-blue-300">{doc.label}</span>
+                      <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
+                        {doc.docTypes.map((dt) => (
+                          <Badge key={dt.code} variant="outline" className="text-[10px] font-mono border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400">
                             {dt.code}
                           </Badge>
-                        </span>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-blue-600 dark:text-blue-300 pt-1 border-t border-blue-200 dark:border-blue-700">
+                  ))}
+                </div>
+              )}
+
+              <p className="text-xs text-muted-foreground">
                 Combined into a single PDF &bull; Folder: ASIC &bull; Sent for e-signature automatically.
               </p>
             </div>
+
+            {/* PDF Preview */}
+            {pdfBlobUrl && (
+              <div className="border rounded-lg overflow-hidden" style={{ height: "500px" }}>
+                <object
+                  key={previewPage || 0}
+                  data={`${pdfBlobUrl}#toolbar=1&navpanes=0${previewPage ? `&page=${previewPage}` : ""}`}
+                  type="application/pdf"
+                  className="w-full h-full"
+                >
+                  <p className="p-4 text-center text-muted-foreground">
+                    PDF preview not available in this browser.
+                  </p>
+                </object>
+              </div>
+            )}
 
             <div className="flex justify-between pt-4 border-t">
               <Button variant="outline" onClick={() => setStep(2)}>
