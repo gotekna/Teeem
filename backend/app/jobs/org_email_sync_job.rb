@@ -87,7 +87,16 @@ class OrgEmailSyncJob < ApplicationJob
   # Re-checking all 60 folders every 15-min cycle wasted API calls and consumed the time budget.
   # Fix: Track per-folder results. Skip folders that returned 0 new emails within this interval.
   # 1 hour = skip for ~4 cycles, then re-check. Max 1-hour delay for inactive folders.
+  # NOTE: Inbox and Sent Items are NEVER skipped (see PRIMARY_FOLDER_NAMES below).
   FOLDER_SKIP_INTERVAL = 1.hour
+
+  # ⚠️ FRC (Feb 2026): Primary folders that should NEVER be skipped
+  # Root cause: newjob@tekna.com.au Inbox was skipped for 1+ hour because email_count=0.
+  # A forwarded email arrived 37 seconds before sync ran, MS365 hadn't indexed it yet,
+  # so the folder reported 0 emails and was skipped for the full FOLDER_SKIP_INTERVAL.
+  # Fix: Inbox and Sent Items always get checked - they're the only folders that receive
+  # new emails. Archive/Deleted/Junk/Drafts/subfolders can safely wait 1 hour.
+  PRIMARY_FOLDER_NAMES = %w[Inbox Sent\ Items].freeze
   # ⚠️ FRC (Feb 2026): Toxic Mailbox Classification
   # Root cause: All errors were treated the same. Permanent errors (deleted user, no license)
   # were retried every cycle, consuming the entire time budget and starving valid mailboxes.
@@ -743,10 +752,17 @@ class OrgEmailSyncJob < ApplicationJob
     # Root cause: accounts@bypilgrim.co had 60+ folders but only Inbox/Sent had new emails.
     # Re-checking all 60 folders every cycle wasted API calls and consumed the time budget.
     # Fix: Skip folders that returned 0 new emails within FOLDER_SKIP_INTERVAL.
+    # ⚠️ FRC (Feb 2026): NEVER skip primary folders (Inbox, Sent Items)
+    # Root cause: newjob@tekna.com.au Inbox missed a forwarded email by 37 seconds (MS365
+    # indexing delay), then was skipped for 1+ hour because email_count=0.
+    # Fix: Primary folders always get checked. Only secondary folders use skip optimization.
     active_folders = folders
     skipped_count = 0
     if existing_folder_stats.present? && !@is_initial_sync
       active_folders = folders.select do |folder|
+        # Never skip primary folders - they're where new emails arrive
+        next true if PRIMARY_FOLDER_NAMES.include?(folder[:name])
+
         stats = existing_folder_stats[folder[:id]]
         if stats
           last_synced = Time.parse(stats["synced_at"]) rescue nil
