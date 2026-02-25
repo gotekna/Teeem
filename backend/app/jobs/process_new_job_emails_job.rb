@@ -9,9 +9,22 @@ class ProcessNewJobEmailsJob < ApplicationJob
   # Legacy folder name (kept for backwards compatibility)
   NEW_JOB_FOLDER_NAME = "A - New Job".freeze
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SyncedEmail has acts_as_tenant. Without tenant context,
+  # TenantSetting.monitored_mailbox_newjob returns nil and SyncedEmail
+  # queries return nothing. Job silently did nothing for multi-tenant setups.
   def perform
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        process_tenant_emails
+      end
+    end
+  end
+
+  def process_tenant_emails
     # SSoT: Get the monitored mailbox from configuration
     newjob_address = TenantSetting.monitored_mailbox_newjob
+    return if newjob_address.blank?
 
     # Find emails sent to newjob@ mailbox OR in "A - New Job" folder
     # that don't have proposals yet
@@ -24,7 +37,7 @@ class ProcessNewJobEmailsJob < ApplicationJob
 
     return if new_job_emails.empty?
 
-    Rails.logger.info "[ProcessNewJobEmails] Found #{new_job_emails.count} emails to process (sent to #{newjob_address} or in '#{NEW_JOB_FOLDER_NAME}' folder)"
+    Rails.logger.info "[ProcessNewJobEmails] Found #{new_job_emails.count} emails to process for #{ActsAsTenant.current_tenant.name} (sent to #{newjob_address} or in '#{NEW_JOB_FOLDER_NAME}' folder)"
 
     new_job_emails.each do |email|
       process_email(email)

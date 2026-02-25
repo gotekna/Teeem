@@ -2,9 +2,22 @@
 class ProcessNewCaseEmailsJob < ApplicationJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SyncedEmail has acts_as_tenant. Without tenant context,
+  # TenantSetting.monitored_mailbox_newcase returns nil and SyncedEmail
+  # queries return nothing. Job silently did nothing for multi-tenant setups.
   def perform
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        process_tenant_emails
+      end
+    end
+  end
+
+  def process_tenant_emails
     # SSoT: Get the monitored mailbox from configuration
     newcase_address = TenantSetting.monitored_mailbox_newcase
+    return if newcase_address.blank?
 
     # Find emails sent to newcase@ mailbox that don't have proposals yet
     new_case_emails = SyncedEmail
@@ -15,7 +28,7 @@ class ProcessNewCaseEmailsJob < ApplicationJob
 
     return if new_case_emails.empty?
 
-    Rails.logger.info "[ProcessNewCaseEmails] Found #{new_case_emails.count} emails to process (sent to #{newcase_address})"
+    Rails.logger.info "[ProcessNewCaseEmails] Found #{new_case_emails.count} emails to process for #{ActsAsTenant.current_tenant.name} (sent to #{newcase_address})"
 
     new_case_emails.each do |email|
       process_email(email)
