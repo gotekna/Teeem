@@ -176,6 +176,16 @@ class CreateCustomQuoteSystem < ActiveRecord::Migration[8.0]
 
       next if existing.count.positive?
 
+      # Look up the correct warehouse_type_id for 'job' in THIS tenant
+      # (warehouse_types are tenant-scoped, so id differs per tenant)
+      wt_result = execute(<<-SQL.squish)
+        SELECT id FROM warehouse_types
+        WHERE tenant_id = #{tenant_id} AND code = 'job'
+        LIMIT 1
+      SQL
+      next unless wt_result.count.positive?
+      wt_id = wt_result.first['id']
+
       # Get max order_position among Estimating's children for this tenant
       max_pos = execute(<<-SQL.squish)
         SELECT COALESCE(MAX(order_position), 0) as max_pos
@@ -194,7 +204,7 @@ class CreateCustomQuoteSystem < ActiveRecord::Migration[8.0]
         )
         VALUES (
           #{tenant_id},
-          1,
+          #{wt_id},
           'Custom Quotes',
           'custom-quotes',
           'Custom Quotes',
