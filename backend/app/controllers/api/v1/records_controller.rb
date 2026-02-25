@@ -1813,7 +1813,7 @@ module Api
         # Associations to skip globally (heavy or problematic)
         skip_associations = [
           :po_supplier,       # Contact model with 81+ associations - load lazily
-          :photo_entity_tab   # WarehouseFolder has recursive parent/children
+          :warehouse_folder   # WarehouseFolder has recursive parent/children
         ]
 
         model.reflect_on_all_associations(:belongs_to).each do |reflection|

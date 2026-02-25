@@ -43,8 +43,9 @@ class SmScheduleMaster < ApplicationRecord
   # SmTasks created from this template - nullify on delete so tasks remain but lose template link
   has_many :sm_tasks, dependent: :nullify
 
-  # Photo storage WarehouseFolder (SSoT - Feb 2026)
-  belongs_to :photo_entity_tab, class_name: "WarehouseFolder", optional: true
+  # Photo storage WarehouseFolder
+  # NOTE: photo_entity_tab_id column was removed (migration 20251227010022).
+  # SmTask now uses warehouse_folder_id instead.
 
   # Auto-PO supplier - for create_po_on_job_start feature
   belongs_to :po_supplier, class_name: "Contact", optional: true

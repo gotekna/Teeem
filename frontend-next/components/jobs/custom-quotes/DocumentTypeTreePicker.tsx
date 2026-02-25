@@ -2,8 +2,15 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Minus,
+  Search,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 
@@ -39,6 +46,18 @@ function collectAllDocTypeIds(node: FolderNode): number[] {
   return ids;
 }
 
+/** Collect all folder IDs in a tree (recursively) */
+function collectAllFolderIds(nodes: FolderNode[]): number[] {
+  const ids: number[] = [];
+  for (const node of nodes) {
+    if (collectAllDocTypeIds(node).length > 0) {
+      ids.push(node.id);
+      ids.push(...collectAllFolderIds(node.children));
+    }
+  }
+  return ids;
+}
+
 /** Count total doc types in a tree (recursively) */
 function countDocTypes(nodes: FolderNode[]): number {
   let count = 0;
@@ -62,7 +81,6 @@ function filterTree(nodes: FolderNode[], query: string): FolderNode[] {
       const folderMatches = node.name.toLowerCase().includes(q);
 
       if (folderMatches) {
-        // If folder name matches, show all its doc types and children
         return node;
       }
       if (matchingDts.length > 0 || matchingChildren.length > 0) {
@@ -78,9 +96,35 @@ function filterTree(nodes: FolderNode[], query: string): FolderNode[] {
 }
 
 /** Filter tree by scope (warehouse type code) */
-function filterByScope(nodes: FolderNode[], scope: ScopeFilter): FolderNode[] {
+function filterByScope(
+  nodes: FolderNode[],
+  scope: ScopeFilter
+): FolderNode[] {
   if (scope === "all") return nodes;
   return nodes.filter((node) => node.warehouseTypeCode === scope);
+}
+
+/** Simple visual checkbox - no Radix, no button, no event conflicts */
+function VisualCheckbox({
+  checked,
+  indeterminate,
+}: {
+  checked: boolean;
+  indeterminate?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "h-3.5 w-3.5 shrink-0 rounded-sm border flex items-center justify-center",
+        checked || indeterminate
+          ? "border-primary bg-primary text-primary-foreground"
+          : "border-input bg-background"
+      )}
+    >
+      {checked && <Check className="h-2.5 w-2.5" />}
+      {indeterminate && !checked && <Minus className="h-2.5 w-2.5" />}
+    </div>
+  );
 }
 
 interface DocumentTypeTreePickerProps {
@@ -92,6 +136,7 @@ interface DocumentTypeTreePickerProps {
  * Multi-select document type picker with collapsible multi-level folder tree.
  * Uses WarehouseFolder hierarchy for full cascading structure.
  * Clicking a folder checkbox selects/deselects all nested document types.
+ * Defaults to all folders collapsed.
  */
 export function DocumentTypeTreePicker({
   selectedIds,
@@ -101,7 +146,8 @@ export function DocumentTypeTreePicker({
   const [loaded, setLoaded] = useState(false);
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
   const [search, setSearch] = useState("");
-  const [collapsedFolders, setCollapsedFolders] = useState<Set<number>>(
+  // Tracks which folders are expanded (default: all collapsed)
+  const [expandedFolders, setExpandedFolders] = useState<Set<number>>(
     new Set()
   );
 
@@ -125,47 +171,74 @@ export function DocumentTypeTreePicker({
     };
   }, []);
 
+  // Local optimistic state for instant UI feedback
+  const [localIds, setLocalIds] = useState<number[]>(selectedIds);
+
+  // Sync when parent props change (e.g., after refresh)
+  useEffect(() => {
+    setLocalIds(selectedIds);
+  }, [selectedIds]);
+
   // Filter by scope then search
   const filteredTree = useMemo(() => {
     const scoped = filterByScope(treeData, scopeFilter);
     return filterTree(scoped, search.trim());
   }, [treeData, scopeFilter, search]);
 
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedSet = useMemo(() => new Set(localIds), [localIds]);
 
   const toggleItem = useCallback(
     (id: number) => {
-      const next = selectedSet.has(id)
-        ? selectedIds.filter((x) => x !== id)
-        : [...selectedIds, id];
-      onChange(next);
+      setLocalIds((prev) => {
+        const set = new Set(prev);
+        const next = set.has(id)
+          ? prev.filter((x) => x !== id)
+          : [...prev, id];
+        onChange(next);
+        return next;
+      });
     },
-    [selectedIds, selectedSet, onChange]
+    [onChange]
   );
 
   const toggleFolder = useCallback(
     (node: FolderNode) => {
       const folderIds = collectAllDocTypeIds(node);
       if (folderIds.length === 0) return;
-      const allSelected = folderIds.every((id) => selectedSet.has(id));
-      if (allSelected) {
-        const removeSet = new Set(folderIds);
-        onChange(selectedIds.filter((id) => !removeSet.has(id)));
-      } else {
-        const merged = new Set([...selectedIds, ...folderIds]);
-        onChange(Array.from(merged));
-      }
+      setLocalIds((prev) => {
+        const prevSet = new Set(prev);
+        const allSelected = folderIds.every((id) => prevSet.has(id));
+        let next: number[];
+        if (allSelected) {
+          const removeSet = new Set(folderIds);
+          next = prev.filter((id) => !removeSet.has(id));
+        } else {
+          const merged = new Set([...prev, ...folderIds]);
+          next = Array.from(merged);
+        }
+        onChange(next);
+        return next;
+      });
     },
-    [selectedIds, selectedSet, onChange]
+    [onChange]
   );
 
-  const toggleFolderCollapse = useCallback((folderId: number) => {
-    setCollapsedFolders((prev) => {
+  const toggleExpand = useCallback((folderId: number) => {
+    setExpandedFolders((prev) => {
       const next = new Set(prev);
       if (next.has(folderId)) next.delete(folderId);
       else next.add(folderId);
       return next;
     });
+  }, []);
+
+  const expandAll = useCallback(() => {
+    const allIds = collectAllFolderIds(filteredTree);
+    setExpandedFolders(new Set(allIds));
+  }, [filteredTree]);
+
+  const collapseAll = useCallback(() => {
+    setExpandedFolders(new Set());
   }, []);
 
   // Scope counts
@@ -182,7 +255,8 @@ export function DocumentTypeTreePicker({
 
   if (!loaded) return null;
 
-  const totalSelected = selectedIds.length;
+  const totalSelected = localIds.length;
+  const anyExpanded = expandedFolders.size > 0;
 
   return (
     <div className="space-y-1.5">
@@ -213,15 +287,29 @@ export function DocumentTypeTreePicker({
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search document types..."
-          className="h-7 pl-7 text-xs"
-        />
+      {/* Search + expand/collapse */}
+      <div className="flex gap-1 items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search document types..."
+            className="h-7 pl-7 text-xs"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={anyExpanded ? collapseAll : expandAll}
+          className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground"
+          title={anyExpanded ? "Collapse all" : "Expand all"}
+        >
+          {anyExpanded ? (
+            <ChevronsDownUp className="h-4 w-4" />
+          ) : (
+            <ChevronsUpDown className="h-4 w-4" />
+          )}
+        </button>
       </div>
 
       {/* Tree */}
@@ -237,10 +325,10 @@ export function DocumentTypeTreePicker({
             node={node}
             depth={0}
             selectedSet={selectedSet}
-            collapsedFolders={collapsedFolders}
+            expandedFolders={expandedFolders}
             onToggleItem={toggleItem}
             onToggleFolder={toggleFolder}
-            onToggleCollapse={toggleFolderCollapse}
+            onToggleExpand={toggleExpand}
           />
         ))}
       </div>
@@ -252,20 +340,20 @@ interface FolderTreeNodeProps {
   node: FolderNode;
   depth: number;
   selectedSet: Set<number>;
-  collapsedFolders: Set<number>;
+  expandedFolders: Set<number>;
   onToggleItem: (id: number) => void;
   onToggleFolder: (node: FolderNode) => void;
-  onToggleCollapse: (folderId: number) => void;
+  onToggleExpand: (folderId: number) => void;
 }
 
 function FolderTreeNode({
   node,
   depth,
   selectedSet,
-  collapsedFolders,
+  expandedFolders,
   onToggleItem,
   onToggleFolder,
-  onToggleCollapse,
+  onToggleExpand,
 }: FolderTreeNodeProps) {
   const allIds = useMemo(() => collectAllDocTypeIds(node), [node]);
   const totalCount = allIds.length;
@@ -273,67 +361,62 @@ function FolderTreeNode({
   // Skip folders with no doc types at all (empty branches)
   if (totalCount === 0) return null;
 
-  const allSelected = totalCount > 0 && allIds.every((id) => selectedSet.has(id));
-  const someSelected = !allSelected && allIds.some((id) => selectedSet.has(id));
-  const isCollapsed = collapsedFolders.has(node.id);
-  const hasChildren = node.children.length > 0 || node.documentTypes.length > 0;
-  const paddingLeft = 8 + depth * 16; // px
+  const allSelected =
+    totalCount > 0 && allIds.every((id) => selectedSet.has(id));
+  const someSelected =
+    !allSelected && allIds.some((id) => selectedSet.has(id));
+  const isExpanded = expandedFolders.has(node.id);
+  const hasChildren =
+    node.children.length > 0 || node.documentTypes.length > 0;
+  const paddingLeft = 8 + depth * 16;
 
   return (
     <div>
       {/* Folder header */}
       <div
-        className="flex items-center gap-2 py-1 bg-muted/50 hover:bg-muted"
+        className="flex items-center gap-2 py-1 bg-muted/50 hover:bg-muted cursor-pointer select-none"
         style={{ paddingLeft: `${paddingLeft}px`, paddingRight: "8px" }}
+        onClick={() => onToggleFolder(node)}
       >
-        <button
-          type="button"
-          onClick={() => onToggleCollapse(node.id)}
+        <div
           className="shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleExpand(node.id);
+          }}
         >
           {hasChildren ? (
-            isCollapsed ? (
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            ) : (
+            isExpanded ? (
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
             )
           ) : (
             <span className="w-3" />
           )}
-        </button>
-        <Checkbox
-          checked={allSelected ? true : someSelected ? "indeterminate" : false}
-          onCheckedChange={() => onToggleFolder(node)}
-          className="h-3.5 w-3.5"
-        />
-        <button
-          type="button"
-          onClick={() => onToggleFolder(node)}
-          className="text-xs font-medium text-muted-foreground flex-1 text-left"
-        >
+        </div>
+        <VisualCheckbox checked={allSelected} indeterminate={someSelected} />
+        <span className="text-xs font-medium text-muted-foreground flex-1 text-left">
           {node.name}
-        </button>
+        </span>
         <span className="text-[10px] text-muted-foreground">{totalCount}</span>
       </div>
 
       {/* Expanded content */}
-      {!isCollapsed && (
+      {isExpanded && (
         <>
           {/* Direct document types */}
           {node.documentTypes.map((dt) => (
             <div
               key={dt.id}
-              className="flex items-center gap-2 py-1 hover:bg-muted/30 cursor-pointer"
+              className="flex items-center gap-2 py-1 hover:bg-muted/30 cursor-pointer select-none"
               style={{
                 paddingLeft: `${paddingLeft + 24}px`,
                 paddingRight: "8px",
               }}
               onClick={() => onToggleItem(dt.id)}
             >
-              <Checkbox
-                checked={selectedSet.has(dt.id)}
-                className="h-3.5 w-3.5 pointer-events-none"
-              />
+              <VisualCheckbox checked={selectedSet.has(dt.id)} />
               <span className="text-xs">{dt.name}</span>
             </div>
           ))}
@@ -345,10 +428,10 @@ function FolderTreeNode({
               node={child}
               depth={depth + 1}
               selectedSet={selectedSet}
-              collapsedFolders={collapsedFolders}
+              expandedFolders={expandedFolders}
               onToggleItem={onToggleItem}
               onToggleFolder={onToggleFolder}
-              onToggleCollapse={onToggleCollapse}
+              onToggleExpand={onToggleExpand}
             />
           ))}
         </>

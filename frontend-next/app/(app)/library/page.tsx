@@ -7,7 +7,9 @@
  * not linked to any specific job or contact. Tabs auto-generated from
  * warehouse folders assigned to the "library" warehouse type.
  *
- * Pattern: useWarehouseFolders for tabs + fetch docs per folder + Sheet preview
+ * Uses StandardDocumentList (THE ONE) for document rendering, preview sheet,
+ * and per-row selection. Library-specific logic (tabs, upload, email compose
+ * with share links, cross-tab selection bar) stays here.
  */
 
 import * as React from "react";
@@ -16,10 +18,6 @@ import { useRouter, usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Sheet,
-  SheetContent,
-} from "@/components/ui/sheet";
 import {
   Dialog,
   DialogContent,
@@ -41,25 +39,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Upload,
   FileText,
   BookOpen,
-  Maximize2,
-  X,
-  Download,
-  File,
-  Image as ImageIcon,
-  Trash2,
-  CheckCircle2,
-  ShieldCheck,
   Mail,
-  History,
   Link,
   Paperclip,
   EyeOff,
-  Settings,
   MoreVertical,
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -69,176 +56,22 @@ import { formatFileSize } from "@/utils/formatters";
 import { useSetLayoutMode } from "@/contexts/LayoutModeContext";
 import { useWarehouseFolders } from "@/lib/hooks/useWarehouseFolders";
 import { uploadFile } from "@/lib/upload-utils";
-import { DocumentViewer, getFileType } from "@/components/ui/document-viewer";
-import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
 import { Spinner } from "@/components/ui/spinner";
 import { getIcon } from "@/lib/icon-map";
 import { formatFileEmailBody } from "@/lib/formatters/email-file-links";
 import { useAuth } from "@/contexts/AuthContext";
-import { DndContext, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { createDndSensors, defaultCollisionDetection } from "@/components/ui/dnd/dnd-config";
-import { DragHandle } from "@/components/ui/dnd";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarDays, AlertTriangle } from "lucide-react";
-
-// Document shape from /api/v1/documents/warehouse
-interface LibraryDocument {
-  id: number;
-  displayName: string;
-  sendName: string;
-  originalFilename: string;
-  mimeType: string;
-  fileSize: number;
-  fileUrl: string | null;
-  storagePath: string | null;
-  folder: string | null;
-  createdAt: string;
-  source: string;
-  verified: boolean;
-  verifiedBy: string | null;
-  verifiedAt: string | null;
-  versionNumber: number;
-  versionGroupId: string | null;
-  versionCount: number;
-  expiryDate: string | null;
-  isExpired: boolean;
-  isExpiringSoon: boolean;
-  expiryStatus: string | null;
-  daysUntilExpiry: number | null;
-}
-
-/** Sortable wrapper for a document row - provides drag handle + useSortable transform */
-function SortableDocumentRow({
-  doc,
-  isSelected,
-  canDrag,
-  onToggleSelect,
-  onClick,
-  onDoubleClick,
-  onDelete,
-  getFileIcon,
-  formatDate,
-}: {
-  doc: LibraryDocument;
-  isSelected: boolean;
-  canDrag: boolean;
-  onToggleSelect: (docId: number, e: React.MouseEvent) => void;
-  onClick: (doc: LibraryDocument) => void;
-  onDoubleClick: (doc: LibraryDocument) => void;
-  onDelete: (doc: LibraryDocument, e: React.MouseEvent) => void;
-  getFileIcon: (mimeType: string) => React.ComponentType<{ className?: string }>;
-  formatDate: (dateStr: string) => string;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: doc.id, disabled: !canDrag });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-
-  const Icon = getFileIcon(doc.mimeType);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center gap-3 px-3 py-2 w-full text-left hover:bg-muted/50 rounded-md transition-colors ${isSelected ? "bg-primary/5" : ""} ${isDragging ? "opacity-50 shadow-lg z-50" : ""}`}
-    >
-      {canDrag && (
-        <DragHandle {...attributes} {...listeners} size="sm" />
-      )}
-      <Checkbox
-        checked={isSelected}
-        onClick={(e) => onToggleSelect(doc.id, e)}
-        className="shrink-0"
-      />
-      <button
-        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
-        onClick={() => onClick(doc)}
-        onDoubleClick={() => onDoubleClick(doc)}
-      >
-        <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
-        <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
-          {doc.originalFilename || doc.displayName || `Document ${doc.id}`}
-        </p>
-      </button>
-      {doc.versionCount > 1 && (
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-          v{doc.versionNumber}
-        </Badge>
-      )}
-      {doc.expiryDate && (
-        <Badge
-          variant="outline"
-          className={`text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold border-0 ${
-            doc.isExpired
-              ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-              : doc.isExpiringSoon
-                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-          }`}
-        >
-          {doc.isExpired
-            ? "Expired"
-            : doc.isExpiringSoon
-              ? `${doc.daysUntilExpiry}d left`
-              : `EX ${new Date(doc.expiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}`
-          }
-        </Badge>
-      )}
-      <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-        {doc.fileSize > 0 && <span>{formatFileSize(doc.fileSize)}</span>}
-        {doc.createdAt && <span>{formatDate(doc.createdAt)}</span>}
-        {doc.versionCount > 1 && (
-          <span className="inline-flex items-center gap-1">
-            <History className="h-3 w-3" />
-            {doc.versionCount}
-          </span>
-        )}
-        {doc.verified ? (
-          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-            <CheckCircle2 className="h-3 w-3" />
-          </span>
-        ) : (
-          <span className="text-amber-500 dark:text-amber-400 text-[10px]">!</span>
-        )}
-      </div>
-      {doc.fileUrl && (
-        <a
-          href={doc.fileUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 p-1.5 hover:bg-muted rounded-md"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Download className="h-4 w-4 text-muted-foreground" />
-        </a>
-      )}
-      <button
-        className="shrink-0 p-1.5 hover:bg-destructive/10 rounded-md"
-        onClick={(e) => onDelete(doc, e)}
-        title="Delete"
-      >
-        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-      </button>
-    </div>
-  );
-}
+import { CalendarDays } from "lucide-react";
+import {
+  StandardDocumentList,
+  type LibraryDocument,
+} from "@/components/documents/StandardDocumentList";
 
 export default function LibraryPage() {
   useSetLayoutMode("full-height");
@@ -258,7 +91,7 @@ export default function LibraryPage() {
   // Derive active tab from URL: /library/standards → "standards"
   const activeTab = React.useMemo(() => {
     const parts = (pathname ?? "").replace("/library", "").split("/").filter(Boolean);
-    return parts[0] || null; // null means use first tab
+    return parts[0] || null;
   }, [pathname]);
 
   // Fetch library folder tabs from warehouse folders API
@@ -267,7 +100,6 @@ export default function LibraryPage() {
   // Get visible child tabs (skip root system folder, show children)
   const visibleTabs = React.useMemo(() => {
     if (!libraryTabs?.length) return [];
-    // If there's a root system folder, return its children; otherwise all root-level tabs
     const root = libraryTabs.find(t => t.tab_type === "system" && t.children?.length > 0);
     return root ? root.children.filter(c => c.enabled) : libraryTabs.filter(t => t.enabled && t.tab_type !== "system");
   }, [libraryTabs]);
@@ -294,11 +126,6 @@ export default function LibraryPage() {
   const [docsLoading, setDocsLoading] = useState(false);
   const [totalDocs, setTotalDocs] = useState(0);
 
-  // Sheet preview state
-  const [previewDoc, setPreviewDoc] = useState<LibraryDocument | null>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
   // Upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -316,7 +143,6 @@ export default function LibraryPage() {
     if (!resolvedTab?.document_types?.length || !selectedDocType) return false;
     const dt = resolvedTab.document_types.find(d => d.name === selectedDocType);
     if (!dt) return false;
-    // Check both ui_name and download_name templates for {EX} or {Expiry}
     const templates = [dt.ui_name, dt.download_name].filter(Boolean).join(" ");
     return /\{EX\}|\{Expiry\}/i.test(templates);
   }, [resolvedTab, selectedDocType]);
@@ -332,61 +158,9 @@ export default function LibraryPage() {
   const [preparingEmail, setPreparingEmail] = useState(false);
   const [emailBody, setEmailBody] = useState("");
 
-  // Version history state
-  const [versionHistory, setVersionHistory] = useState<LibraryDocument[]>([]);
-  const [versionsLoading, setVersionsLoading] = useState(false);
-  const [showVersions, setShowVersions] = useState(false);
-
   // Admin check for drag-and-drop reordering
   const isAdmin = Array.isArray(currentUser?.role_names) &&
     currentUser.role_names.some((r: string) => ["admin", "super_admin"].includes(r?.toLowerCase()));
-
-  // DnD sensors (must be called unconditionally - hooks rule)
-  const sensors = createDndSensors();
-
-  // DnD drag end handler - reorder documents optimistically + persist
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    setDocuments(prev => {
-      const oldIndex = prev.findIndex(d => d.id === active.id);
-      const newIndex = prev.findIndex(d => d.id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-
-      const reordered = arrayMove(prev, oldIndex, newIndex);
-
-      // Persist new order to backend
-      api.post("/api/v1/documents/reorder", {
-        document_ids: reordered.map(d => d.id),
-      }).catch(() => {
-        toast({
-          title: "Reorder Failed",
-          description: "Could not save document order",
-          variant: "destructive",
-        });
-      });
-
-      return reordered;
-    });
-  }, [toast]);
-
-  // Fetch version history for a document
-  const fetchVersionHistory = useCallback(async (docId: number) => {
-    setVersionsLoading(true);
-    try {
-      const res = await api.get<{ success: boolean; versions: LibraryDocument[] }>(
-        `/api/v1/documents/${docId}/versions`
-      );
-      if (res?.success) {
-        setVersionHistory(res.versions || []);
-      }
-    } catch (error) {
-      console.error("Failed to fetch version history:", error);
-    } finally {
-      setVersionsLoading(false);
-    }
-  }, []);
 
   // Fetch documents for active tab
   const fetchDocuments = useCallback(async (folderName?: string) => {
@@ -421,43 +195,14 @@ export default function LibraryPage() {
   // Refetch when active tab changes (selections persist across tabs)
   useEffect(() => {
     if (resolvedTab) {
-      // Use folder_segment as the folder filter (matches storage path)
       fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
     }
   }, [resolvedTab, fetchDocuments]);
-
-  // Build preview URL when document selected
-  // Uses fileUrl (S3 presigned) - PDFViewer handles fetch+blob internally
-  useEffect(() => {
-    if (!previewDoc?.fileUrl) {
-      setPreviewUrl(null);
-      return;
-    }
-    setPreviewUrl(previewDoc.fileUrl);
-  }, [previewDoc]);
 
   // Handle tab change via URL
   const handleTabChange = useCallback((tabKey: string) => {
     router.push(`/library/${tabKey}`, { scroll: false });
   }, [router]);
-
-  // Single click → open sheet preview (instant, no delay)
-  const handleDocumentClick = useCallback((doc: LibraryDocument) => {
-    setPreviewDoc(doc);
-    setIsSheetOpen(true);
-    setShowVersions(false);
-    setVersionHistory([]);
-    if (doc.versionCount > 1) {
-      fetchVersionHistory(doc.id);
-    }
-  }, [fetchVersionHistory]);
-
-  // Double click → open in new tab
-  const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
-    if (doc.fileUrl) {
-      window.open(doc.fileUrl, "_blank");
-    }
-  }, []);
 
   // Handle file selection - opens dialog instead of uploading directly
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -465,12 +210,10 @@ export default function LibraryPage() {
     if (!files?.length || !resolvedTab) return;
 
     setPendingFiles(Array.from(files));
-    // Pre-select first document type if available
     const docTypes = resolvedTab.document_types || [];
     setSelectedDocType(docTypes.length > 0 ? docTypes[0].name : "");
     setUploadDialogOpen(true);
 
-    // Reset file input so same file can be re-selected
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -524,7 +267,7 @@ export default function LibraryPage() {
     }
   }, [pendingFiles, resolvedTab, selectedDocType, expiryDate, fetchDocuments, toast]);
 
-  // Drag and drop handlers
+  // File drag-and-drop handlers (for upload, not reorder)
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -566,7 +309,6 @@ export default function LibraryPage() {
   // Handle email - opens options dialog for attach/link/skip choice
   const handleEmail = useCallback((docs: LibraryDocument[]) => {
     setEmailDocs(docs);
-    // Default all docs to "attach"
     const defaults: Record<number, "attach" | "link" | "skip"> = {};
     docs.forEach(d => { defaults[d.id] = "attach"; });
     setEmailOptions(defaults);
@@ -579,19 +321,16 @@ export default function LibraryPage() {
     const attachDocs = emailDocs.filter(d => emailOptions[d.id] === "attach");
     const linkDocs = emailDocs.filter(d => emailOptions[d.id] === "link");
 
-    // If no docs selected (all skipped), just open compose with no attachments
     if (attachDocs.length === 0 && linkDocs.length === 0) {
       setEmailDialogOpen(false);
       setComposeOpen(true);
       return;
     }
 
-    // If there are link docs, generate share links and create a viewer context
     let bodyHtml = "";
     if (linkDocs.length > 0) {
       setPreparingEmail(true);
       try {
-        // Generate share links for all link docs in parallel
         const linkResults = await Promise.all(
           linkDocs.map(async (doc) => {
             const [dlRes, openRes] = await Promise.all([
@@ -609,7 +348,6 @@ export default function LibraryPage() {
         const validResults = linkResults.filter(r => r.downloadUrl || r.openUrl);
         const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
 
-        // Build viewer context with all linked docs (same pattern as Tasks)
         let viewerUrl = "";
         if (validResults.length > 0) {
           const viewerFiles = validResults.map(r => ({
@@ -628,7 +366,6 @@ export default function LibraryPage() {
           }
         }
 
-        // Generate ZIP download URL for multiple files (same pattern as Tasks)
         let zipUrl: string | undefined;
         if (validResults.length > 1) {
           try {
@@ -646,7 +383,6 @@ export default function LibraryPage() {
             if (zipRes?.success && zipRes.share_url) {
               zipUrl = zipRes.share_url;
             } else if (zipRes?.success && zipRes.download_method === "base64" && zipRes.content) {
-              // Base64 fallback (local dev without storage)
               const byteCharacters = atob(zipRes.content);
               const byteNumbers = new Array(byteCharacters.length);
               for (let i = 0; i < byteCharacters.length; i++) {
@@ -660,7 +396,6 @@ export default function LibraryPage() {
           }
         }
 
-        // Build email body using shared SSoT (lib/formatters/email-file-links.ts)
         if (validResults.length > 0) {
           bodyHtml = formatFileEmailBody({
             files: validResults.map((r, idx) => {
@@ -691,7 +426,6 @@ export default function LibraryPage() {
           description: "Could not generate share links. Documents will be attached instead.",
           variant: "destructive",
         });
-        // Fallback: move link docs to attach
         linkDocs.forEach(d => {
           emailOptions[d.id] = "attach";
         });
@@ -703,22 +437,7 @@ export default function LibraryPage() {
     setEmailBody(bodyHtml);
     setEmailDialogOpen(false);
     setComposeOpen(true);
-  }, [emailDocs, emailOptions, toast]);
-
-  // Toggle selection - stores full doc object so selections persist across tab switches
-  const toggleSelect = useCallback((docId: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const doc = documents.find(d => d.id === docId);
-    setSelectedDocs(prev => {
-      const next = new Map(prev);
-      if (next.has(docId)) {
-        next.delete(docId);
-      } else if (doc) {
-        next.set(docId, doc);
-      }
-      return next;
-    });
-  }, [documents]);
+  }, [emailDocs, emailOptions, toast, currentUser, companySettings]);
 
   // Email selected documents (works across tabs since selectedDocs stores full objects)
   const handleEmailSelected = useCallback(() => {
@@ -734,16 +453,12 @@ export default function LibraryPage() {
       const res = await api.post<{ success: boolean; document: LibraryDocument }>(`/api/v1/documents/${doc.id}/verify`);
       if (res?.success) {
         toast({ title: "Verified", description: "Document has been validated" });
-        // Update local state
         setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : d));
-        if (previewDoc?.id === doc.id) {
-          setPreviewDoc(prev => prev ? { ...prev, verified: true, verifiedBy: res.document?.verifiedBy || "You", verifiedAt: new Date().toISOString() } : prev);
-        }
       }
     } catch (error) {
       toast({ title: "Verify Failed", description: "Could not verify document", variant: "destructive" });
     }
-  }, [previewDoc, toast]);
+  }, [toast]);
 
   // Handle set/update expiry date
   const handleSetExpiry = useCallback(async (doc: LibraryDocument, date: Date | null) => {
@@ -754,17 +469,13 @@ export default function LibraryPage() {
       );
       if (res?.success && res.document) {
         const updated = res.document;
-        // Update local state
         setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, expiryDate: updated.expiryDate, isExpired: updated.isExpired, isExpiringSoon: updated.isExpiringSoon, expiryStatus: updated.expiryStatus, daysUntilExpiry: updated.daysUntilExpiry, displayName: updated.displayName, sendName: updated.sendName } : d));
-        if (previewDoc?.id === doc.id) {
-          setPreviewDoc(prev => prev ? { ...prev, expiryDate: updated.expiryDate, isExpired: updated.isExpired, isExpiringSoon: updated.isExpiringSoon, expiryStatus: updated.expiryStatus, daysUntilExpiry: updated.daysUntilExpiry, displayName: updated.displayName, sendName: updated.sendName } : prev);
-        }
         toast({ title: date ? "Expiry Date Set" : "Expiry Date Removed", description: date ? `Expires ${date.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}` : "Expiry date has been cleared" });
       }
     } catch (error) {
       toast({ title: "Failed", description: "Could not update expiry date", variant: "destructive" });
     }
-  }, [previewDoc, toast]);
+  }, [toast]);
 
   // Handle document delete
   const handleDelete = useCallback(async (doc: LibraryDocument, e: React.MouseEvent) => {
@@ -784,24 +495,18 @@ export default function LibraryPage() {
     }
   }, [resolvedTab, fetchDocuments, toast]);
 
-  // Get file icon based on mime type
-  const getFileIcon = (mimeType: string) => {
-    if (mimeType.startsWith("image/")) return ImageIcon;
-    return FileText;
-  };
-
-  // Format date for display
-  const formatDate = (dateStr: string) => {
-    try {
-      return new Date(dateStr).toLocaleDateString("en-AU", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
+  // Handle reorder - persist to backend
+  const handleReorder = useCallback((docIds: number[]) => {
+    api.post("/api/v1/documents/reorder", {
+      document_ids: docIds,
+    }).catch(() => {
+      toast({
+        title: "Reorder Failed",
+        description: "Could not save document order",
+        variant: "destructive",
       });
-    } catch {
-      return dateStr;
-    }
-  };
+    });
+  }, [toast]);
 
   // Loading state
   if (tabsLoading) {
@@ -874,7 +579,7 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* Tabs with drag-and-drop */}
+      {/* Tabs with file drag-and-drop */}
       <Tabs
         value={resolvedTab?.tab_key || ""}
         onValueChange={handleTabChange}
@@ -912,22 +617,27 @@ export default function LibraryPage() {
           })}
         </TabsList>
 
-        {/* Tab content - document list */}
+        {/* Tab content - StandardDocumentList */}
         {visibleTabs.map((tab) => (
           <TabsContent
             key={tab.tab_key}
             value={tab.tab_key}
             className="flex-1 min-h-0 overflow-auto px-4 mt-0"
           >
-            {docsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Spinner className="h-6 w-6" />
-              </div>
-            ) : documents.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-muted-foreground gap-3">
-                <File className="h-10 w-10" />
-                <p className="font-medium">No documents yet</p>
-                <p className="text-sm">Upload reference documents to this category.</p>
+            <StandardDocumentList
+              documents={documents}
+              loading={docsLoading}
+              onDelete={handleDelete}
+              onReorder={handleReorder}
+              canDrag={isAdmin}
+              onEmail={handleEmail}
+              onVerify={handleVerify}
+              onSetExpiry={handleSetExpiry}
+              selectedDocs={selectedDocs}
+              onSelectionChange={setSelectedDocs}
+              hideFloatingBar={true}
+              emptyMessage="No documents yet"
+              emptyAction={
                 <Button
                   variant="outline"
                   size="sm"
@@ -936,42 +646,13 @@ export default function LibraryPage() {
                   <Upload className="h-4 w-4 mr-2" />
                   Upload Documents
                 </Button>
-              </div>
-            ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={defaultCollisionDetection}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={documents.map(d => d.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <div className="divide-y">
-                    {documents.map((doc) => (
-                      <SortableDocumentRow
-                        key={doc.id}
-                        doc={doc}
-                        isSelected={selectedDocs.has(doc.id)}
-                        canDrag={isAdmin}
-                        onToggleSelect={toggleSelect}
-                        onClick={handleDocumentClick}
-                        onDoubleClick={handleDocumentDoubleClick}
-                        onDelete={handleDelete}
-                        getFileIcon={getFileIcon}
-                        formatDate={formatDate}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
+              }
+            />
           </TabsContent>
         ))}
 
-        {/* Floating action bar when documents selected (persists across tabs) */}
+        {/* Floating action bar - cross-tab selection (persists across tabs) */}
         {selectedDocs.size > 0 && (() => {
-          // Count how many selected docs are on the current tab vs other tabs
           const currentTabCount = documents.filter(d => selectedDocs.has(d.id)).length;
           const otherTabCount = selectedDocs.size - currentTabCount;
           return (
@@ -1109,7 +790,6 @@ export default function LibraryPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            {/* File list */}
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">
                 {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""} selected
@@ -1125,7 +805,6 @@ export default function LibraryPage() {
               </div>
             </div>
 
-            {/* Document type picker */}
             {(resolvedTab?.document_types?.length ?? 0) > 0 && (
               <div className="space-y-1.5">
                 <Label htmlFor="doc-type-select">Document Type</Label>
@@ -1144,7 +823,6 @@ export default function LibraryPage() {
               </div>
             )}
 
-            {/* Expiry date picker - shown when doc type template contains {EX}/{Expiry} */}
             {templateNeedsExpiry && (
               <div className="space-y-1.5">
                 <Label>Expiry Date</Label>
@@ -1192,308 +870,6 @@ export default function LibraryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Document preview sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
-        <SheetContent side="right" className="w-[600px] sm:max-w-[600px] p-0 flex flex-col">
-          {previewDoc && (
-            <>
-              {/* Sheet header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b">
-                <div className="flex-1 min-w-0 pr-4">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium truncate">
-                      {previewDoc.originalFilename || previewDoc.displayName}
-                    </p>
-                    {previewDoc.versionCount > 1 && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
-                        v{previewDoc.versionNumber}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    {previewDoc.fileSize > 0 && (
-                      <Badge variant="outline" className="text-xs">
-                        {formatFileSize(previewDoc.fileSize)}
-                      </Badge>
-                    )}
-                    {previewDoc.mimeType && (
-                      <Badge variant="outline" className="text-xs">
-                        {previewDoc.mimeType.split("/").pop()?.toUpperCase()}
-                      </Badge>
-                    )}
-                    {previewDoc.expiryDate && (
-                      <Badge
-                        className={`text-xs border-0 ${
-                          previewDoc.isExpired
-                            ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                            : previewDoc.isExpiringSoon
-                              ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                              : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                        }`}
-                      >
-                        <CalendarDays className="h-3 w-3 mr-1" />
-                        {previewDoc.isExpired
-                          ? "Expired"
-                          : previewDoc.isExpiringSoon
-                            ? `Expires in ${previewDoc.daysUntilExpiry} days`
-                            : `Expires ${new Date(previewDoc.expiryDate).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`
-                        }
-                      </Badge>
-                    )}
-                    {previewDoc.verified ? (
-                      <Badge className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Verified{previewDoc.verifiedBy ? ` by ${previewDoc.verifiedBy}` : ""}{previewDoc.verifiedAt ? ` on ${new Date(previewDoc.verifiedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}
-                      </Badge>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  {previewDoc.versionCount > 1 && (
-                    <Button
-                      size="sm"
-                      variant={showVersions ? "default" : "outline"}
-                      className="text-xs h-7"
-                      onClick={() => {
-                        setShowVersions(!showVersions);
-                        if (!showVersions && versionHistory.length === 0) {
-                          fetchVersionHistory(previewDoc.id);
-                        }
-                      }}
-                    >
-                      <History className="h-3.5 w-3.5 mr-1" />
-                      {previewDoc.versionCount} versions
-                    </Button>
-                  )}
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-7"
-                      >
-                        <CalendarDays className="h-3.5 w-3.5 mr-1" />
-                        {previewDoc.expiryDate ? "Edit Expiry" : "Set Expiry"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="end">
-                      <Calendar
-                        mode="single"
-                        selected={previewDoc.expiryDate ? new Date(previewDoc.expiryDate) : undefined}
-                        onSelect={(date) => {
-                          if (date) handleSetExpiry(previewDoc, date);
-                        }}
-                      />
-                      {previewDoc.expiryDate && (
-                        <div className="px-3 pb-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs text-destructive hover:text-destructive"
-                            onClick={() => handleSetExpiry(previewDoc, null)}
-                          >
-                            Remove Expiry Date
-                          </Button>
-                        </div>
-                      )}
-                    </PopoverContent>
-                  </Popover>
-                  {!previewDoc.verified && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-                      onClick={() => handleVerify(previewDoc)}
-                    >
-                      <ShieldCheck className="h-3.5 w-3.5 mr-1" />
-                      Validate
-                    </Button>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="text-xs h-7"
-                    onClick={() => handleEmail([previewDoc])}
-                  >
-                    <Mail className="h-3.5 w-3.5 mr-1" />
-                    Email
-                  </Button>
-                  <button
-                    onClick={() => previewDoc.fileUrl && window.open(previewDoc.fileUrl, "_blank")}
-                    className="p-1.5 hover:bg-muted rounded-md"
-                    title="Open in new tab"
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => setIsSheetOpen(false)}
-                    className="p-1.5 hover:bg-muted rounded-md"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Version history panel */}
-              {showVersions && previewDoc.versionCount > 1 && (
-                <div className="border-b bg-muted/20 px-4 py-2 max-h-48 overflow-auto">
-                  <p className="text-xs font-medium text-muted-foreground mb-2">Version History</p>
-                  {versionsLoading ? (
-                    <div className="flex items-center justify-center py-3">
-                      <Spinner className="h-4 w-4" />
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      {versionHistory.map((ver) => {
-                        const isCurrent = ver.id === previewDoc.id;
-                        return (
-                          <button
-                            key={ver.id}
-                            className={`flex items-center gap-2 w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                              isCurrent
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "hover:bg-muted/50 text-muted-foreground"
-                            }`}
-                            onClick={() => {
-                              if (!isCurrent) {
-                                setPreviewDoc(ver);
-                                setPreviewUrl(ver.fileUrl);
-                              }
-                            }}
-                          >
-                            <Badge
-                              variant={isCurrent ? "default" : "secondary"}
-                              className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold"
-                            >
-                              v{ver.versionNumber}
-                            </Badge>
-                            <span className="truncate flex-1">
-                              {ver.originalFilename || ver.displayName}
-                            </span>
-                            <span className="shrink-0 tabular-nums">
-                              {formatFileSize(ver.fileSize)}
-                            </span>
-                            <span className="shrink-0 tabular-nums">
-                              {ver.createdAt && formatDate(ver.createdAt)}
-                            </span>
-                            {ver.fileUrl && (
-                              <a
-                                href={ver.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="shrink-0 p-0.5 hover:bg-muted rounded"
-                                onClick={(e) => e.stopPropagation()}
-                                title="Download this version"
-                              >
-                                <Download className="h-3 w-3" />
-                              </a>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Expiry banner - red for expired, amber for expiring soon */}
-              {previewDoc.isExpired && (
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-800">
-                  <div className="flex items-center gap-2 text-red-700 dark:text-red-400 text-sm">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>
-                      This document expired on {new Date(previewDoc.expiryDate!).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" })}
-                    </span>
-                  </div>
-                </div>
-              )}
-              {previewDoc.isExpiringSoon && !previewDoc.isExpired && (
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
-                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    <span>
-                      This document expires in {previewDoc.daysUntilExpiry} day{previewDoc.daysUntilExpiry !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Validation banner for unverified documents */}
-              {!previewDoc.verified && (
-                <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
-                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
-                    <ShieldCheck className="h-4 w-4 shrink-0" />
-                    <span>This document has not been validated</span>
-                  </div>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 shrink-0"
-                    onClick={() => handleVerify(previewDoc)}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Validate Document
-                  </Button>
-                </div>
-              )}
-
-              {/* Preview content */}
-              <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
-                {previewUrl ? (
-                  (() => {
-                    const fileType = getFileType(previewDoc.originalFilename || "");
-                    if (fileType === "pdf") {
-                      return (
-                        <PDFViewer url={previewUrl} className="h-full" />
-                      );
-                    }
-                    if (fileType === "image") {
-                      return (
-                        <div className="flex items-center justify-center h-full p-4">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={previewUrl}
-                            alt={previewDoc.displayName || "Preview"}
-                            className="max-w-full max-h-full object-contain rounded-md"
-                          />
-                        </div>
-                      );
-                    }
-                    if (fileType === "eml") {
-                      return (
-                        <DocumentViewer
-                          url={previewUrl}
-                          fileName={previewDoc.originalFilename || ""}
-                        />
-                      );
-                    }
-                    // Fallback - download link
-                    return (
-                      <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-                        <FileText className="h-12 w-12" />
-                        <p className="text-sm">Preview not available for this file type</p>
-                        <a
-                          href={previewUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline"
-                        >
-                          Download to view
-                        </a>
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
-                    <FileText className="h-10 w-10" />
-                    <p className="text-sm">No preview available</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
 
       {/* Email compose modal */}
       {emailDocs.length > 0 && (

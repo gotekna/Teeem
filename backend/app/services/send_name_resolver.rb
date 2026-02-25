@@ -221,6 +221,7 @@ class SendNameResolver
     context[:contact_name] ||= meta["contact_name"] if meta["contact_name"].present?
     context[:company_code] ||= meta["company_code"] if meta["company_code"].present?
     context[:director_name] ||= meta["person"] if meta["person"].present?
+    context[:person_name] ||= meta["person_name"] if meta["person_name"].present?
     # Override document_date with metadata date (e.g., cessation/appointment date from director change)
     if meta["date"].present?
       context[:document_date] = Date.parse(meta["date"]) rescue context[:document_date]

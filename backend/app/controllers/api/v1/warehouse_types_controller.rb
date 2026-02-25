@@ -254,12 +254,30 @@ module Api
           }
         end
 
+        # SM Task info: if this folder has a linked Schedule Master task for this entity
+        sm_task_info = nil
+        if linkable_type == "Job" && linkable_id.present?
+          sm_task = SmTask.find_by(warehouse_folder_id: folder_id, job_id: linkable_id)
+          if sm_task
+            sm_task_info = {
+              taskId: sm_task.id,
+              taskName: sm_task.name,
+              startDate: sm_task.start_date&.iso8601,
+              endDate: sm_task.end_date&.iso8601,
+              startedAt: sm_task.started_at&.iso8601,
+              completedAt: sm_task.completed_at&.iso8601,
+              status: sm_task.status
+            }
+          end
+        end
+
         render json: {
           success: true,
           data: {
             folders: folders,
             files: files,
-            count: { folders: folders.size, files: files.size, total: folders.size + files.size }
+            count: { folders: folders.size, files: files.size, total: folders.size + files.size },
+            smTaskInfo: sm_task_info
           }
         }
       end

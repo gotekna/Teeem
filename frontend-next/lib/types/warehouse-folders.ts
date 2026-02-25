@@ -69,6 +69,16 @@ export interface WarehouseFolder {
   can_delete: boolean;
   children: WarehouseFolder[];
   document_types: WarehouseFolderDocumentType[];
+  // SM Task link: populated when folder is linked to a Schedule Master task
+  sm_task_info?: {
+    taskId: number;
+    taskName: string;
+    startDate: string | null;
+    endDate: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    status: string; // "not_started" | "started" | "waiting_for_response" | "waiting_for_info" | "completed"
+  };
   /** @deprecated Use tab_type === 'photo' instead */
   is_photo_category: boolean;
   /** @deprecated Use tab_type === 'revit' instead */
