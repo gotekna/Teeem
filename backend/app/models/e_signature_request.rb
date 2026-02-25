@@ -266,6 +266,22 @@ class ESignatureRequest < ApplicationRecord
     }
   end
 
+  # Generate a stateless signed download token for the completed document.
+  # Uses Rails MessageVerifier so no DB column needed - token encodes the request ID
+  # and is cryptographically signed with an expiry.
+  def generate_download_token(expires_in: 30.days)
+    Rails.application.message_verifier(:esign_download).generate(
+      { request_id: id },
+      expires_at: expires_in.from_now
+    )
+  end
+
+  def download_url
+    token = generate_download_token
+    api_url = InfrastructureUrls.backend_url
+    "#{api_url}/api/v1/esign_download?token=#{CGI.escape(token)}"
+  end
+
   # Provider-agnostic storage references (SSoT: original/signed_storage_item_id)
   # SSoT: Uses storage_file_id columns
   def original_storage_reference
@@ -282,6 +298,19 @@ class ESignatureRequest < ApplicationRecord
 
   def set_signed_storage_reference(item_id)
     self.signed_storage_item_id = item_id
+  end
+
+  # Generate filename for the signed document.
+  # Uses document type naming template if available, otherwise falls back to title.
+  # Public because used by download_signed_document controller action.
+  def generate_signed_filename
+    if document_type&.download_name.present? && documentable.is_a?(Job)
+      document_type.generate_proposed_name(job: documentable, file_extension: "pdf", description: "Signed")
+    else
+      date = CompanySetting.in_company_timezone { Date.current }.strftime("%d-%m-%Y")
+      sanitized_title = title.to_s.gsub(/[<>:"\/\\|?*]/, "_").strip[0..60]
+      "#{sanitized_title} - Signed #{date}.pdf"
+    end
   end
 
   private
@@ -380,18 +409,6 @@ class ESignatureRequest < ApplicationRecord
     rescue => e
       # Don't fail the completion if document storage fails
       Rails.logger.error "[ESignature] Failed to store signed document for #{request_number}: #{e.message}"
-    end
-  end
-
-  # Generate filename for the signed document.
-  # Uses document type naming template if available, otherwise falls back to title.
-  def generate_signed_filename
-    if document_type&.download_name.present? && documentable.is_a?(Job)
-      document_type.generate_proposed_name(job: documentable, file_extension: "pdf", description: "Signed")
-    else
-      date = CompanySetting.in_company_timezone { Date.current }.strftime("%d-%m-%Y")
-      sanitized_title = title.to_s.gsub(/[<>:"\/\\|?*]/, "_").strip[0..60]
-      "#{sanitized_title} - Signed #{date}.pdf"
     end
   end
 

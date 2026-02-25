@@ -894,6 +894,10 @@ Rails.application.routes.draw do
         post ":token/fields/:field_id/complete", to: "signing_ceremony#complete_field"
       end
 
+      # Public signed document download (stateless signed token, no auth)
+      # Token passed as query param (?token=xxx) because MessageVerifier tokens contain base64 chars (+/=)
+      get "esign_download", to: "signing_ceremony#download_signed_document"
+
       # PO Template Packs - template collections for stamping POs onto jobs
       resources :po_template_packs do
         collection do
