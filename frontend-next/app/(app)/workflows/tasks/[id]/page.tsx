@@ -11,6 +11,7 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getFormComponent, type TaskFormProps } from "@/lib/workflow-task-forms";
 import { Button } from "@/components/ui/button";
@@ -48,11 +49,13 @@ export default function WorkflowTaskDetailPage() {
   const router = useRouter();
   const taskId = params?.id as string;
 
+  const queryClient = useQueryClient();
   const [task, setTask] = useState<TaskDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [workflowProcessing, setWorkflowProcessing] = useState(false);
 
   const fetchTask = useCallback(async () => {
     if (!taskId) return;
@@ -90,7 +93,13 @@ export default function WorkflowTaskDetailPage() {
           { form_data: formData }
         );
         if (res?.success) {
+          // Brief processing state while background jobs execute (PDF generation, e-signature creation)
+          setWorkflowProcessing(true);
+          await new Promise((r) => setTimeout(r, 3000));
+          setWorkflowProcessing(false);
           setCompleted(true);
+          // Invalidate e-signature cache so the list page shows fresh data
+          queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
         } else {
           setError(res?.error || "Failed to complete task");
         }
@@ -135,6 +144,24 @@ export default function WorkflowTaskDetailPage() {
 
   if (!task) return null;
 
+  // Processing state - brief wait while background jobs run
+  if (workflowProcessing) {
+    return (
+      <div className="p-6 space-y-4">
+        <BackButton fallbackHref="/workflows" label="Back to Workflows" />
+        <Card>
+          <CardContent className="py-12 text-center">
+            <Spinner className="h-10 w-10 mx-auto mb-4" />
+            <p className="text-lg font-medium">Processing Workflow...</p>
+            <p className="text-muted-foreground mt-1">
+              Generating documents and sending for e-signature.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Completed state
   if (completed) {
     return (
@@ -160,7 +187,10 @@ export default function WorkflowTaskDetailPage() {
                   View Company
                 </Button>
               )}
-              <Button onClick={() => router.push("/e-signature")}>
+              <Button onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["e-signature-requests"] });
+                router.push("/e-signature");
+              }}>
                 <Pen className="w-4 h-4 mr-1.5" />
                 E-Signature
               </Button>

@@ -485,61 +485,70 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
         </Card>
       )}
       {/* Active Workflow Instances */}
-      {workflowInstances.length > 0 && (
-        <div className="space-y-2">
-          {workflowInstances
-            .filter(i => i.status === "active" || i.status === "suspended")
-            .map((instance) => (
-            <Card key={instance.id} className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Workflow className="h-4 w-4 text-blue-500 dark:text-blue-400" />
-                    <div>
-                      <p className="text-sm font-medium">{instance.process_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {instance.current_node && <span>At: {instance.current_node} &bull; </span>}
-                        {instance.pending_tasks > 0 && (
-                          <span className="text-blue-600 dark:text-blue-400">
-                            {instance.pending_tasks} pending task{instance.pending_tasks !== 1 ? "s" : ""} &bull;{" "}
-                          </span>
-                        )}
-                        Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="bg-blue-500 text-xs">
-                      {Math.round(instance.progress)}%
-                    </Badge>
-                    <Link href="/workflows/tasks">
-                      <Button variant="ghost" size="sm" className="h-7 px-2">
-                        View <ChevronRight className="h-3 w-3 ml-1" />
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => cancelWorkflow(instance.id)}
-                      title="Cancel workflow"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
+      {workflowInstances.filter(i => i.status === "active" || i.status === "suspended").map((instance) => (
+        <Card key={instance.id} className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Workflow className="h-4 w-4 text-blue-500 dark:text-blue-400" />
+                <div>
+                  <p className="text-sm font-medium">{instance.process_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {instance.current_node && <span>At: {instance.current_node} &bull; </span>}
+                    {instance.pending_tasks > 0 && (
+                      <span className="text-blue-600 dark:text-blue-400">
+                        {instance.pending_tasks} pending task{instance.pending_tasks !== 1 ? "s" : ""} &bull;{" "}
+                      </span>
+                    )}
+                    Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}
+                  </p>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-          {workflowInstances.filter(i => i.status === "completed").length > 0 && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <CheckCircle className="h-3 w-3 text-green-500 dark:text-green-400" />
-              {workflowInstances.filter(i => i.status === "completed").length} completed workflow
-              {workflowInstances.filter(i => i.status === "completed").length !== 1 ? "s" : ""}
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="default" className="bg-blue-500 text-xs">
+                  {Math.round(instance.progress)}%
+                </Badge>
+                <Link href="/workflows/tasks">
+                  <Button variant="ghost" size="sm" className="h-7 px-2">
+                    View <ChevronRight className="h-3 w-3 ml-1" />
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => cancelWorkflow(instance.id)}
+                  title="Cancel workflow"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          </CardContent>
+        </Card>
+      ))}
+      {/* Completed Workflow Instances */}
+      {workflowInstances.filter(i => i.status === "completed").map((instance) => (
+        <Card key={instance.id} className="border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20">
+          <CardContent className="py-3 px-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-4 w-4 text-green-500 dark:text-green-400" />
+                <div>
+                  <p className="text-sm font-medium">{instance.process_name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Completed {instance.completed_at ? formatDistanceToNow(new Date(instance.completed_at), { addSuffix: true }) : ""} &bull;{" "}
+                    Started {formatDistanceToNow(new Date(instance.started_at), { addSuffix: true })}
+                  </p>
+                </div>
+              </div>
+              <Badge className="bg-status-success text-status-success-foreground dark:bg-green-900/30 dark:text-green-300 text-xs">
+                Completed
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
 
       <Tabs defaultValue="current">
         <TabsList>

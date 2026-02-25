@@ -58,58 +58,65 @@ class ESignatureBadgeDetector
   private
 
   # Try to match badges to signers by finding signer email on the same page.
+  # A signer may have badges on MULTIPLE pages (e.g. one per position in director change).
   # Returns true if at least one field was created.
   def try_email_matching(document, signers)
     fields_created = 0
 
     signers.each do |signer|
-      badge_info = find_badge_for_signer(document, signer.email)
-      next unless badge_info
+      badges = find_all_badges_for_signer(document, signer.email)
+      next if badges.empty?
 
-      @request.fields.create!(
-        e_signature_signer: signer,
-        field_type: "signature",
-        page_number: badge_info[:page_number],
-        x_percent: badge_info[:x_percent],
-        y_percent: badge_info[:y_percent],
-        width_percent: badge_info[:width_percent],
-        height_percent: badge_info[:height_percent],
-        required: true,
-        label: "Signature"
-      )
-      fields_created += 1
+      badges.each do |badge_info|
+        @request.fields.create!(
+          e_signature_signer: signer,
+          field_type: "signature",
+          page_number: badge_info[:page_number],
+          x_percent: badge_info[:x_percent],
+          y_percent: badge_info[:y_percent],
+          width_percent: badge_info[:width_percent],
+          height_percent: badge_info[:height_percent],
+          required: true,
+          label: "Signature — Page #{badge_info[:page_number]}"
+        )
+        fields_created += 1
+      end
     end
 
     fields_created > 0
   end
 
-  # Find all badge rectangles across all pages, then assign to signers in order.
+  # Find all badge rectangles across all pages, then distribute to signers in order.
   # The document generation order matches signer signing_order:
   #   - Minutes page (first signer/chairperson)
   #   - Resignation pages (ceasing directors in order)
   #   - Consent pages (new appointments in order)
+  # Badges are distributed evenly: with 6 badges and 2 signers, each gets 3.
   def try_order_matching(document, signers)
     all_badges = find_all_badges(document)
     return if all_badges.empty?
 
     Rails.logger.info("[ESignatureBadgeDetector] Found #{all_badges.size} badges for #{signers.size} signers")
 
-    # Assign badges to signers in order (skip extras if more badges than signers)
-    signers.each_with_index do |signer, idx|
-      badge_info = all_badges[idx]
-      break unless badge_info
+    # Distribute badges evenly across signers in page order
+    badges_per_signer = (all_badges.size.to_f / signers.size).ceil
+    signers.each_with_index do |signer, signer_idx|
+      start_idx = signer_idx * badges_per_signer
+      signer_badges = all_badges[start_idx, badges_per_signer] || []
 
-      @request.fields.create!(
-        e_signature_signer: signer,
-        field_type: "signature",
-        page_number: badge_info[:page_number],
-        x_percent: badge_info[:x_percent],
-        y_percent: badge_info[:y_percent],
-        width_percent: badge_info[:width_percent],
-        height_percent: badge_info[:height_percent],
-        required: true,
-        label: "Signature"
-      )
+      signer_badges.each do |badge_info|
+        @request.fields.create!(
+          e_signature_signer: signer,
+          field_type: "signature",
+          page_number: badge_info[:page_number],
+          x_percent: badge_info[:x_percent],
+          y_percent: badge_info[:y_percent],
+          width_percent: badge_info[:width_percent],
+          height_percent: badge_info[:height_percent],
+          required: true,
+          label: "Signature — Page #{badge_info[:page_number]}"
+        )
+      end
     end
   end
 
@@ -139,9 +146,12 @@ class ESignatureBadgeDetector
     badges
   end
 
-  # Find the page and position of a signer's signature badge.
-  # Searches each page for both the signer's email AND a blue badge rectangle.
-  def find_badge_for_signer(document, signer_email)
+  # Find ALL badge positions for a signer across all pages.
+  # A signer may appear on multiple pages (e.g. minutes + 3 resignation documents).
+  # Returns an array of badge info hashes, one per page where signer's email + badge found.
+  def find_all_badges_for_signer(document, signer_email)
+    badges = []
+
     document.pages.each_with_index do |page, index|
       stream = extract_page_stream(page)
       next unless stream
@@ -155,7 +165,7 @@ class ESignatureBadgeDetector
       box = page.box
       badge_top = badge_rect[:y] + badge_rect[:height]
 
-      return {
+      badges << {
         page_number: index + 1,
         x_percent: ((badge_rect[:x] - 5) / box.width * 100).clamp(1.0, 90.0).round(1),
         y_percent: ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1),
@@ -164,7 +174,7 @@ class ESignatureBadgeDetector
       }
     end
 
-    nil
+    badges
   end
 
   # Extract the decompressed content stream from a PDF page
