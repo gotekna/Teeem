@@ -503,6 +503,7 @@ export class GanttCanvas {
 
   // Undo/Redo manager
   private undoManager: UndoManager;
+  private undoUnsubscribe: (() => void) | null = null;
 
   // Working days calendar
   private calendar: WorkingDaysCalendar;
@@ -643,7 +644,7 @@ export class GanttCanvas {
 
     // Create undo manager with listener
     this.undoManager = new UndoManager(10);
-    this.undoManager.subscribe((canUndo, canRedo) => {
+    this.undoUnsubscribe = this.undoManager.subscribe((canUndo, canRedo) => {
       this.onUndoStateChange?.(canUndo, canRedo);
     });
 
@@ -2471,6 +2472,12 @@ export class GanttCanvas {
     }
 
     this.canvas.remove();
+
+    // Clean up undo manager subscription
+    if (this.undoUnsubscribe) {
+      this.undoUnsubscribe();
+      this.undoUnsubscribe = null;
+    }
 
     // Clean up managers (Day 2-3 Refactor)
     this.selectionManager.dispose();

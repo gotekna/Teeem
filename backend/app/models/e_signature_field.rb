@@ -70,11 +70,9 @@ class ESignatureField < ApplicationRecord
 
     # Log the field completion event
     e_signature_request.log_event(
-      event_type: "field_completed",
-      actor_type: "signer",
-      actor_name: e_signature_signer.name || e_signature_signer.email,
-      actor_email: e_signature_signer.email,
-      metadata: {
+      "field_completed",
+      signer: e_signature_signer,
+      event_data: {
         field_id: id,
         field_type: field_type,
         page_number: page_number,

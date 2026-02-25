@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { PdfFrame } from "@/components/ui/pdf-chrome";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -285,6 +285,14 @@ export function BillsInvoiceViewer({
   const [mismatchDetailsOpen, setMismatchDetailsOpen] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "rate_limited" | "error">("idle");
   const [rateLimitInfo, setRateLimitInfo] = useState<{ daily_used: number; daily_limit: number; resets_at: string } | null>(null);
+  const syncPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup sync polling on unmount
+  useEffect(() => {
+    return () => {
+      if (syncPollRef.current) clearInterval(syncPollRef.current);
+    };
+  }, []);
 
   // Load PDF when bill changes
   useEffect(() => {
@@ -338,22 +346,23 @@ export function BillsInvoiceViewer({
       // Queued - poll for completion
       const maxPolls = 10; // 10 * 3s = 30s timeout
       let polls = 0;
-      const interval = setInterval(async () => {
+      if (syncPollRef.current) clearInterval(syncPollRef.current);
+      syncPollRef.current = setInterval(async () => {
         polls++;
         try {
           const billData = await api.get(`/api/v1/bill_inbox/${billId}`) as { "has_invoice_file?"?: boolean };
           if (billData?.["has_invoice_file?"]) {
-            clearInterval(interval);
+            if (syncPollRef.current) clearInterval(syncPollRef.current);
             setSyncStatus("idle");
             onRefresh?.();
           } else if (polls >= maxPolls) {
-            clearInterval(interval);
+            if (syncPollRef.current) clearInterval(syncPollRef.current);
             setSyncStatus("idle");
             // Timeout - PDF may still be downloading, refresh to check
             onRefresh?.();
           }
         } catch {
-          clearInterval(interval);
+          if (syncPollRef.current) clearInterval(syncPollRef.current);
           setSyncStatus("error");
         }
       }, 3000);
