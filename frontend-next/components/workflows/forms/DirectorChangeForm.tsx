@@ -125,8 +125,6 @@ const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
   { value: "public_officer", label: "Public Officer" },
-  { value: "corporate_officer", label: "Corporate Officer" },
-  { value: "chairman", label: "Chairman" },
 ];
 
 // --- Date Picker ---
@@ -305,6 +303,10 @@ export default function DirectorChangeForm({
         );
         return others.length < 2;
       });
+      // Normalize to lowercase snake_case to match POSITION_OPTIONS values
+      const normalizedPositions = uniquePositions.map((p) =>
+        p.toLowerCase().trim().replace(/\s+/g, "_")
+      );
 
       const officerIds = currentOfficers
         .filter((o) => o.contact?.id === contactId && o.is_current)
@@ -361,7 +363,7 @@ export default function DirectorChangeForm({
           officer_ids: officerIds,
           name: officer.contact?.display_name || "Unknown",
           position: officer.position,
-          positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
+          positions: normalizedPositions.length > 0 ? normalizedPositions : [officer.position.toLowerCase().trim().replace(/\s+/g, "_")],
           cessation_date: format(new Date(), DATE_ISO),
           has_dob: hasDob,
           has_address: hasAddress,
@@ -463,13 +465,18 @@ export default function DirectorChangeForm({
         /* keep search-level values */
       }
 
+      // Default positions from ceasing directors (new person takes over same roles)
+      const defaultPositions = ceasingDirectors.length > 0
+        ? [...new Set(ceasingDirectors.flatMap((cd) => cd.positions))]
+        : ["director"];
+
       setNewAppointments((prev) => [
         ...prev,
         {
           contact_id: contact.id,
           name: contact.display_name,
           email: contact.email || "",
-          positions: ["director"],
+          positions: defaultPositions,
           appointment_date: defaultDate,
           has_dob: hasDob,
           has_address: hasAddress,
@@ -541,7 +548,7 @@ export default function DirectorChangeForm({
     const knownPositions = new Set(Object.keys(resignationByPosition));
 
     const docs: { key: string; label: string; docTypes: { code: string; name: string }[] }[] = [
-      { key: "minutes", label: "Minutes of Meeting of Directors", docTypes: [{ code: "DM", name: "Directors Minutes" }] },
+      { key: "minutes", label: "Directors Minutes", docTypes: [{ code: "DM", name: "Directors Minutes" }] },
     ];
     ceasingDirectors.forEach((cd) => {
       const filtered = cd.positions.filter((pos) => knownPositions.has(pos));
@@ -552,7 +559,7 @@ export default function DirectorChangeForm({
       if (types.length > 0) {
         docs.push({
           key: `res-${cd.corporate_director_id}`,
-          label: `Resignation Letter — ${cd.name}`,
+          label: `${types.map((t) => t.name).join(", ")} — ${cd.name}`,
           docTypes: types,
         });
       }
@@ -566,12 +573,26 @@ export default function DirectorChangeForm({
       if (types.length > 0) {
         docs.push({
           key: `con-${appt.contact_id}`,
-          label: `Consent to Act — ${appt.name}`,
+          label: `${types.map((t) => t.name).join(", ")} — ${appt.name}`,
           docTypes: types,
         });
       }
     });
-    docs.push({ key: "form484", label: "Form 484 Record", docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }] });
+    // Split Form 484 into cessation and appointment (matches backend service)
+    if (ceasingDirectors.length > 0) {
+      docs.push({
+        key: "form484_cessation",
+        label: "ASIC Form 484 — Cessation",
+        docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }],
+      });
+    }
+    if (newAppointments.length > 0) {
+      docs.push({
+        key: "form484_appointment",
+        label: "ASIC Form 484 — Appointment",
+        docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }],
+      });
+    }
     return docs;
   }, [ceasingDirectors, newAppointments]);
 
@@ -951,7 +972,7 @@ export default function DirectorChangeForm({
                     <div>
                       <Label className="text-xs">Resigning From</Label>
                       <div className="flex flex-wrap gap-3 mt-1">
-                        {POSITION_OPTIONS.filter((pos) => cd.position?.includes(pos.value)).map((pos) => (
+                        {POSITION_OPTIONS.map((pos) => (
                           <label key={pos.value} className="flex items-center gap-1.5 text-sm cursor-pointer">
                             <input
                               type="checkbox"

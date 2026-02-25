@@ -191,8 +191,6 @@ const POSITION_OPTIONS = [
   { value: "director", label: "Director" },
   { value: "secretary", label: "Secretary" },
   { value: "public_officer", label: "Public Officer" },
-  { value: "corporate_officer", label: "Corporate Officer" },
-  { value: "chairman", label: "Chairman" },
 ];
 
 // --- Component ---
@@ -432,6 +430,10 @@ export function DirectorChangeWizard({
       );
       return others.length < 2;
     });
+    // Normalize to lowercase snake_case to match POSITION_OPTIONS values
+    const normalizedPositions = uniquePositions.map((p) =>
+      p.toLowerCase().trim().replace(/\s+/g, "_")
+    );
 
     // Collect all officer record IDs for this contact
     const officerIds = currentOfficers
@@ -480,7 +482,7 @@ export function DirectorChangeWizard({
         officer_ids: officerIds,
         name: officer.contact?.display_name || "Unknown",
         position: officer.position,
-        positions: uniquePositions.length > 0 ? uniquePositions : [officer.position],
+        positions: normalizedPositions.length > 0 ? normalizedPositions : [officer.position.toLowerCase().trim().replace(/\s+/g, "_")],
         cessation_date: format(new Date(), DATE_ISO),
         has_dob: hasDob,
         has_address: hasAddress,

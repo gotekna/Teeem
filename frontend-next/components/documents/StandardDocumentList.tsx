@@ -582,7 +582,7 @@ export function StandardDocumentList({
                 <div className="flex-1 min-w-0 pr-4">
                   <div className="flex items-center gap-1.5">
                     <p className="text-sm font-medium truncate">
-                      {previewDoc.originalFilename || previewDoc.displayName}
+                      {previewDoc.displayName || previewDoc.originalFilename}
                     </p>
                     {showVersionBadge && previewDoc.versionCount > 1 && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 shrink-0 font-semibold">
@@ -802,20 +802,22 @@ export function StandardDocumentList({
               )}
 
               {/* Validation banner */}
-              {showVerifyActions && !previewDoc.verified && onVerify && (
+              {showVerifyActions && !previewDoc.verified && (
                 <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 dark:bg-amber-950/30 border-b border-amber-200 dark:border-amber-800">
                   <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm">
                     <ShieldCheck className="h-4 w-4 shrink-0" />
                     <span>This document has not been validated</span>
                   </div>
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 shrink-0"
-                    onClick={() => onVerify(previewDoc)}
-                  >
-                    <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                    Validate Document
-                  </Button>
+                  {onVerify && (
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 shrink-0"
+                      onClick={() => onVerify(previewDoc)}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      Validate Document
+                    </Button>
+                  )}
                 </div>
               )}
 
