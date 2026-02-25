@@ -69,8 +69,11 @@ export function proxy(request: NextRequest) {
     tenantSubdomain = subdomain;
   }
 
-  // Helper to create response with tenant context
+  // Helper to create response with tenant context + pathname header
   const createResponse = (response: NextResponse): NextResponse => {
+    // Pass pathname to root layout (Server Component) via header
+    // Used to conditionally skip heavy providers for lightweight public pages like /sign
+    response.headers.set("x-pathname", pathname);
     if (tenantSubdomain) {
       response.headers.set("x-tenant-subdomain", tenantSubdomain);
       response.cookies.set("tenant-subdomain", tenantSubdomain, {
