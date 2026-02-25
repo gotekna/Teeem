@@ -1,6 +1,7 @@
 # World-Class Asset Register - Monthly Depreciation Calculation Job
 # Calculates depreciation for all assets for the current financial year
 class AssetDepreciationMonthlyJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

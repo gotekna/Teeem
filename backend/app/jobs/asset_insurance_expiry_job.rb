@@ -1,6 +1,7 @@
 # World-Class Asset Register - Insurance Expiry Check Job
 # Checks for expiring and expired insurance policies and creates notifications
 class AssetInsuranceExpiryJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Alert thresholds in days

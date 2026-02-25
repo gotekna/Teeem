@@ -6,6 +6,7 @@
 # Runs daily at 7am Brisbane time. Safe to re-run (idempotent - skips already-matched).
 # See XeroBillPoMatcherService for matching logic.
 class XeroBillPoMatchJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :xero_sync
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

@@ -11,6 +11,7 @@
 #   - Preserves folder structure in backup storage
 #
 class TenantDocumentBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Maximum files per batch to avoid timeout

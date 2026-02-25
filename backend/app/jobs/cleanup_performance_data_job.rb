@@ -9,6 +9,7 @@
 # - performance_slow_queries: 30 days (more frequent, keep shorter)
 #
 class CleanupPerformanceDataJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Don't retry on failure - next scheduled run will handle it

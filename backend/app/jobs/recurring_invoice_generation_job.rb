@@ -1,4 +1,5 @@
 class RecurringInvoiceGenerationJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform

@@ -9,6 +9,7 @@
 # Uses secondary_credential (B2) for upload and retention_count for cleanup.
 #
 class TenantDatabaseBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Heroku app name for production database

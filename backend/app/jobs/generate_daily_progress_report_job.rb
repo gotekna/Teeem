@@ -9,6 +9,7 @@
 # Uses Claude Vision to detect work completed.
 #
 class GenerateDailyProgressReportJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

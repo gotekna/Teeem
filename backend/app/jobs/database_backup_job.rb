@@ -16,6 +16,7 @@
 #   4. Cleans up old backups (keeps last 12 = ~3 months)
 #
 class DatabaseBackupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Number of weekly backups to keep (12 = ~3 months)

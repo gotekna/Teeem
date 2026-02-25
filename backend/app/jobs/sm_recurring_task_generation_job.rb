@@ -6,6 +6,7 @@
 # See: SmRecurringTaskDefinition model for generation logic
 #
 class SmRecurringTaskGenerationJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

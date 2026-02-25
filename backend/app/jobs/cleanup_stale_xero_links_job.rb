@@ -1,4 +1,5 @@
 class CleanupStaleXeroLinksJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Remove external links marked as stale for more than 7 days

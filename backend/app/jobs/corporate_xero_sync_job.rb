@@ -16,6 +16,7 @@
 # Schedule: Daily at 6:00 AM Brisbane time (via recurring.yml)
 #
 class CorporateXeroSyncJob < ApplicationJob
+  include DeduplicatableJob
   include XeroJobBase
   queue_as :low
 

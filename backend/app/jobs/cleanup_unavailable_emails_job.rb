@@ -13,6 +13,7 @@
 #   CleanupUnavailableEmailsJob.perform_later(dry_run: false)  # Actually delete
 #
 class CleanupUnavailableEmailsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform(dry_run: true, batch_size: 100)

@@ -3,6 +3,7 @@
 # Clean up temporary files from storage
 # Runs daily to remove old TaskResponseZips (7+ days old)
 class CleanupTempFilesJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Keep temp files for 7 days (links expire but users may re-request)

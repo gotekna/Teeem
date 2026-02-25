@@ -9,6 +9,7 @@
 # Scheduled via solid_queue recurring tasks.
 #
 class GenerateAiTimesheetSuggestionsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

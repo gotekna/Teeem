@@ -9,6 +9,7 @@
 # - Notify the assigned user
 #
 class TaskOverdueNotificationJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # ⚠️ FRC (Feb 2026): Must iterate over tenants

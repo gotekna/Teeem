@@ -7,6 +7,7 @@
 # Now auto-syncs safe foundations and only alerts on failures.
 
 class FoundationSyncMonitorJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Foundations that need manual review (skip auto-sync)

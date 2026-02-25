@@ -14,6 +14,7 @@
 #
 # Run via solid_queue recurring schedule
 class DailyHealthCheckJob < ApplicationJob
+  include DeduplicatableJob
   include CacheConstants
 
   queue_as :low

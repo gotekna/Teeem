@@ -10,6 +10,7 @@
 # - BalanceSheetReport model (balance_sheet_reports table)
 #
 class CorporateFinancialReportsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # @param options [Hash] Optional configuration

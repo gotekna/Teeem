@@ -2,6 +2,7 @@
 # Designed to run once per day (overnight via recurring job)
 # Uses mv_job_summary and mv_job_document_status materialized views for efficiency
 class DailyJobSnapshotJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Capture snapshots for all active jobs (or specific job)

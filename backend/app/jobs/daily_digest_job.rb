@@ -16,6 +16,7 @@
 # Cost: $0/month (pure SQL aggregation)
 #
 class DailyDigestJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   def perform
