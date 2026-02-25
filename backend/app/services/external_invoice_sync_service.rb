@@ -1001,6 +1001,9 @@ class ExternalInvoiceSyncService
       @stats[:pos_auto_created] ||= 0
       @stats[:pos_auto_created] += 1
 
+    rescue ActiveRecord::RecordNotUnique
+      # Race condition safety: another thread already created PO for this invoice
+      Rails.logger.debug("PO already created for invoice #{invoice.invoice_number} (concurrent)")
     rescue StandardError => e
       Rails.logger.error("Failed to auto-create PO for invoice #{invoice.invoice_number}: #{e.message}")
     end

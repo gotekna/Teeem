@@ -619,9 +619,10 @@ class PurchaseOrder < ApplicationRecord
   # SSoT: PurchaseOrder.sm_task_id is THE ONE link - no reverse column to sync
 
   # Activity logging
+  # Note: current_activity_user is nil in background jobs (no Current class defined)
   def log_po_created
     return unless job
-    JobActivity.log_po_created(job, purchase_order: self, user: Current.user)
+    JobActivity.log_po_created(job, purchase_order: self, user: current_activity_user)
   rescue StandardError => e
     Rails.logger.error "Failed to log PO creation activity: #{e.message}"
   end
@@ -631,16 +632,20 @@ class PurchaseOrder < ApplicationRecord
 
     case action
     when :approved
-      JobActivity.log_po_approved(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_approved(job, purchase_order: self, user: current_activity_user)
     when :sent
-      JobActivity.log_po_sent(job, purchase_order: self, document_url: document_url, user: Current.user)
+      JobActivity.log_po_sent(job, purchase_order: self, document_url: document_url, user: current_activity_user)
     when :received
-      JobActivity.log_po_received(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_received(job, purchase_order: self, user: current_activity_user)
     when :cancelled
-      JobActivity.log_po_cancelled(job, purchase_order: self, user: Current.user)
+      JobActivity.log_po_cancelled(job, purchase_order: self, user: current_activity_user)
     end
   rescue StandardError => e
     Rails.logger.error "Failed to log PO activity (#{action}): #{e.message}"
+  end
+
+  def current_activity_user
+    defined?(Current) ? Current.user : nil
   end
 
   # SSoT: Refresh contact's is_supplier_cached flag
