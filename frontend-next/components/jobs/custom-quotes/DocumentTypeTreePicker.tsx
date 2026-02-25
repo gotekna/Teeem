@@ -204,6 +204,14 @@ export function DocumentTypeTreePicker({
     return filterTree(scoped, search.trim());
   }, [treeData, scopeFilter, search]);
 
+  // Auto-expand all folders when searching so results are visible
+  useEffect(() => {
+    if (search.trim()) {
+      const allIds = collectAllFolderIds(filteredTree);
+      setExpandedFolders(new Set(allIds));
+    }
+  }, [search, filteredTree]);
+
   const selectedSet = useMemo(() => new Set(localIds), [localIds]);
 
   // Build a map of all doc types for badge display

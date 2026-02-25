@@ -43,7 +43,8 @@ module Bpmn
           content_type: "application/pdf"
         )
 
-        # Store individual WarehouseDocuments, each with its OWN PDF (not the combined)
+        # Store the combined PDF as a single WarehouseDocument (individual docs are
+        # rendered inside the combined PDF - we don't have separate PDFs from generate_package)
         asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
         current_user = resolve_user
         base_metadata = {
@@ -52,7 +53,7 @@ module Bpmn
           generated_at: Time.current.iso8601
         }
 
-        create_warehouse_documents(package[:documents], asic_folder, current_user, base_metadata, ceasing, appointments)
+        create_warehouse_document(combined_blob, asic_folder, current_user, base_metadata)
 
         # Set process variables for subsequent tasks
         set_variable("director_change_blob_id", combined_blob.id)
@@ -119,73 +120,9 @@ module Bpmn
         end.compact
       end
 
-      # Position → document type abbreviation mapping (matches ASIC warehouse folder WFDTs)
-      RESIGNATION_DOC_TYPES = {
-        "director" => "RD",
-        "secretary" => "RS",
-        "public_officer" => "RPO"
-      }.freeze
-
-      CONSENT_DOC_TYPES = {
-        "director" => "CAD",
-        "secretary" => "CAS",
-        "public_officer" => "CAPO"
-      }.freeze
-
-      def create_warehouse_documents(documents, asic_folder, current_user, base_metadata, ceasing, appointments)
-        # Extract individual PDFs by type (each render_* method produces its own PDF)
-        minutes_pdf = documents.find { |d| d[:type] == :minutes }&.dig(:pdf_content)
-        resignation_pdfs = documents.select { |d| d[:type] == :resignation }.map { |d| d[:pdf_content] }
-        consent_pdfs = documents.select { |d| d[:type] == :consent }.map { |d| d[:pdf_content] }
-        form484_pdf = documents.find { |d| d[:type] == :form_484 }&.dig(:pdf_content)
-
-        # 1. Minutes of Meeting of Directors → DM (own blob)
-        minutes_blob = create_individual_blob(minutes_pdf, "Minutes of Meeting of Directors.pdf")
-        create_one_warehouse_doc(minutes_blob, asic_folder, current_user, "DM",
-          "Minutes of Meeting of Directors", base_metadata)
-
-        # 2. One resignation per ceasing director (one PDF per director, shared across their positions)
-        ceasing.each_with_index do |cd, idx|
-          name = cd[:corporate_director].contact.display_name
-          date_str = cd[:cessation_date].strftime("%d/%m/%Y")
-          resignation_blob = create_individual_blob(resignation_pdfs[idx], "Resignation - #{name}.pdf")
-          known_positions = cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }
-          known_positions.each do |pos|
-            abbr = RESIGNATION_DOC_TYPES[pos]
-            formatted_pos = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-            create_one_warehouse_doc(resignation_blob, asic_folder, current_user, abbr,
-              "Resignation #{formatted_pos} - #{name} #{date_str}",
-              base_metadata.merge(person: name, position: pos, date: cd[:cessation_date].iso8601))
-          end
-        end
-
-        # 3. One consent per new appointment (one PDF per appointment, shared across their positions)
-        appointments.each_with_index do |appt, idx|
-          name = appt[:contact].display_name
-          date_str = appt[:appointment_date].strftime("%d/%m/%Y")
-          consent_blob = create_individual_blob(consent_pdfs[idx], "Consent to Act - #{name}.pdf")
-          known_positions = appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }
-          known_positions.each do |pos|
-            abbr = CONSENT_DOC_TYPES[pos]
-            formatted_pos = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-            create_one_warehouse_doc(consent_blob, asic_folder, current_user, abbr,
-              "Consent to Act as #{formatted_pos} - #{name} #{date_str}",
-              base_metadata.merge(person: name, position: pos, date: appt[:appointment_date].iso8601))
-          end
-        end
-
-        # 4. Form 484 Record → F484 (own blob)
-        form484_blob = create_individual_blob(form484_pdf, "Form 484 Record.pdf")
-        create_one_warehouse_doc(form484_blob, asic_folder, current_user, "F484",
-          "Form 484 Record", base_metadata)
-      end
-
-      def create_individual_blob(pdf_content, filename)
-        StorageBlob.find_or_create_for_content!(
-          pdf_content,
-          filename: filename,
-          content_type: "application/pdf"
-        )
+      def create_warehouse_document(blob, asic_folder, current_user, base_metadata)
+        create_one_warehouse_doc(blob, asic_folder, current_user, "F484",
+          "Director Change Package - #{@subject.name}", base_metadata)
       end
 
       def create_one_warehouse_doc(blob, asic_folder, current_user, abbreviation, fallback_name, metadata)
