@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { BackButton } from "@/components/ui/back-button";
-import { AlertCircle, CheckCircle, Workflow } from "lucide-react";
+import { AlertCircle, CheckCircle, Pen, Workflow } from "lucide-react";
 import { WorkflowProgress } from "@/components/workflows/WorkflowProgress";
 
 interface TaskDetail {
@@ -154,11 +154,16 @@ export default function WorkflowTaskDetailPage() {
               </Button>
               {task.subject_type === "Corporate" && (
                 <Button
-                  onClick={() => router.push(`/corporate/${task.subject_id}`)}
+                  variant="outline"
+                  onClick={() => router.push(`/corporate/companies/${task.subject_id}`)}
                 >
                   View Company
                 </Button>
               )}
+              <Button onClick={() => router.push("/e-signature")}>
+                <Pen className="w-4 h-4 mr-1.5" />
+                E-Signature
+              </Button>
             </div>
           </CardContent>
         </Card>
