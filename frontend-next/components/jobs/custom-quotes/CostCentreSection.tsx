@@ -35,7 +35,7 @@ export function CostCentreSection({
   onReject,
   onAllocate,
 }: CostCentreSectionProps) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   // Total from accepted suppliers or PO children
   const ccTotal = line.quoteLevel === "cost_centre"
