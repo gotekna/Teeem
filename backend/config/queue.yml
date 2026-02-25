@@ -43,14 +43,12 @@ production:
     # SolidQueue queue ordering already prevents starvation, so 2 processes was
     # unnecessary. Single process baseline: ~520MB → 504MB headroom for jobs.
     #
-    # 1 thread: reduced from 4 (Feb 2026) to stay under 1024MB Standard-2X quota.
-    # Ruby process baseline is ~500MB. Each concurrent job adds 200-500MB working memory.
-    # 4 threads → 1170MB baseline + 2.4GB peak → instant R15 crash.
-    # 2 threads → 1105MB baseline → still over 1024MB quota.
-    # 1 thread → ~500-700MB baseline → fits in 1024MB with headroom for job memory.
-    # TODO: Upgrade to Performance-M (2.5GB) when budget allows, then increase threads.
+    # 2 threads: with jemalloc (Feb 2026) we have ~25% less memory usage.
+    # Without jemalloc: 4 threads → 1170MB, 2 threads → 1105MB (both over 1024MB quota).
+    # With jemalloc: 1 thread stable at ~700MB. Testing 2 threads for better throughput.
+    # If R14 returns, drop back to 1 thread.
     - queues: [critical, default, solid_queue_recurring, xero_sync, xero_bulk, low, low_priority]
-      threads: 1
+      threads: 2
       processes: 1
       polling_interval: 0.1
 

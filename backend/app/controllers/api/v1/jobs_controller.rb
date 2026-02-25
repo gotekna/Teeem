@@ -451,23 +451,14 @@ module Api
       # GET /api/v1/jobs/:id/documentation_tabs
       # SSoT: Now uses WarehouseFolder (warehouse_type: 'job', tab_group: 'documents')
       def documentation_tabs
-        # First check for job-specific tabs, fall back to global job document tabs
+        # FRC (Feb 2026): warehouse_folders has no job_id column - folders are
+        # tenant-scoped (via acts_as_tenant), not per-job. Previous code queried
+        # .where(job_id: @job.id) which raised PG::UndefinedColumn.
         job_tabs = WarehouseFolder.for_warehouse_type('job')
-                            .where(job_id: @job.id, tab_group: 'documents')
-                            .where(parent_id: nil)
+                            .where(tab_group: 'documents', parent_id: nil)
                             .enabled
                             .ordered
                             .includes(:children)
-
-        # If no job-specific tabs, use global job document tabs
-        if job_tabs.empty?
-          job_tabs = WarehouseFolder.for_warehouse_type('job')
-                              .where(job_id: nil, tab_group: 'documents')
-                              .where(parent_id: nil)
-                              .enabled
-                              .ordered
-                              .includes(:children)
-        end
 
         render json: { success: true, data: job_tabs.map(&:as_nested_json) }
       end
@@ -1273,8 +1264,8 @@ module Api
             # Attachments
             secondary_job.attachments.update_all(attachable_id: @job.id) if secondary_job.respond_to?(:attachments)
 
-            # Job-specific WarehouseFolders (SSoT: replaces job_documentation_tabs)
-            WarehouseFolder.for_warehouse_type('job').where(job_id: secondary_job.id).update_all(job_id: @job.id)
+            # FRC (Feb 2026): Removed dead code that queried warehouse_folders.job_id
+            # (column doesn't exist - warehouse_folders are tenant-scoped, not per-job)
 
             # Fill in any blank fields on primary job from secondary job
             Job.column_names.each do |col|

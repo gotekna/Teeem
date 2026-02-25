@@ -16,6 +16,8 @@ class BpmnTaskInstance < ApplicationRecord
   # Validations
   validates :status, inclusion: { in: STATUSES }
   validates :task_type, inclusion: { in: TASK_TYPES }
+  validates :bpmn_node_id, uniqueness: { scope: :bpmn_token_id, message: "already has a task for this token" },
+            if: -> { bpmn_token_id.present? && bpmn_node_id.present? }
 
   # Scopes
   scope :pending, -> { where(status: "pending") }

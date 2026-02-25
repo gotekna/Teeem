@@ -83,8 +83,8 @@ export default function LibraryPage() {
   // Company settings for email signature
   const [companySettings, setCompanySettings] = useState<{ company_name?: string; address?: string; website?: string } | null>(null);
   useEffect(() => {
-    api.get<{ success: boolean; data: { company_name?: string; address?: string; website?: string } }>("/api/v1/tenant_settings/company")
-      .then(res => { if (res?.success) setCompanySettings(res.data); })
+    api.get<{ company_name?: string; address?: string; website?: string }>("/api/v1/tenant_settings")
+      .then(res => { if (res) setCompanySettings(res); })
       .catch(() => {});
   }, []);
 

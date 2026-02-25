@@ -123,8 +123,10 @@ module Bpmn
       end
 
       def execute_service_task(token)
-        # Check if task already exists and is completed
-        existing_task = BpmnTaskInstance.find_by(bpmn_token: token, bpmn_node: token.current_node)
+        # Look for existing tasks - prefer completed over in_progress over pending
+        # This prevents infinite loops when duplicate task instances exist for the same (token, node)
+        existing_tasks = BpmnTaskInstance.where(bpmn_token: token, bpmn_node: token.current_node)
+        existing_task = existing_tasks.completed.first || existing_tasks.in_progress.first || existing_tasks.first
 
         if existing_task&.completed?
           # Task is done, advance to next node

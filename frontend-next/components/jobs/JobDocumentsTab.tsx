@@ -932,8 +932,8 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         categories = propCategories;
       } else {
         // Fallback to API for standalone usage (e.g., Documents tab)
-        const response = await api.get<DocumentCategory[]>(`/api/v1/jobs/${jobId}/documentation_tabs`);
-        categories = response || [];
+        const response = await api.get<{ success: boolean; data: DocumentCategory[] }>(`/api/v1/jobs/${jobId}/documentation_tabs`);
+        categories = response?.data || [];
       }
 
       setDocumentCategories(categories);

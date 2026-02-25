@@ -96,6 +96,14 @@ module Bpmn
     end
 
     def create_task_instance
+      # Reuse existing task instance if one exists for this (token, node) to prevent duplicates.
+      # This can happen when service tasks are manually re-enqueued or retried.
+      existing = BpmnTaskInstance.find_by(bpmn_token: @token, bpmn_node: @node, task_type: "service_task")
+      if existing
+        existing.update!(status: "in_progress", started_at: Time.current, error_message: nil) unless existing.completed?
+        return existing
+      end
+
       BpmnTaskInstance.create!(
         bpmn_token: @token,
         bpmn_node: @node,
