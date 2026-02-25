@@ -59,14 +59,19 @@ function collectAllFolderIds(nodes: FolderNode[]): number[] {
   return ids;
 }
 
-/** Collect all doc types {id, name} from tree (recursively) */
+/** Collect all unique doc types {id, name} from tree (deduplicated by id) */
 function collectAllDocTypes(nodes: FolderNode[]): DocTypeLeaf[] {
-  const result: DocTypeLeaf[] = [];
-  for (const node of nodes) {
-    result.push(...node.documentTypes);
-    result.push(...collectAllDocTypes(node.children));
+  const map = new Map<number, DocTypeLeaf>();
+  function walk(list: FolderNode[]) {
+    for (const node of list) {
+      for (const dt of node.documentTypes) {
+        if (!map.has(dt.id)) map.set(dt.id, dt);
+      }
+      walk(node.children);
+    }
   }
-  return result;
+  walk(nodes);
+  return Array.from(map.values());
 }
 
 /** Count total doc types in a tree (recursively) */
@@ -306,20 +311,18 @@ export function DocumentTypeTreePicker({
       </div>
 
       {/* Search + expand/collapse */}
-      <div className="flex gap-1 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search document types..."
-            className="h-7 pl-7 text-xs"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search document types..."
+          className="h-7 pl-7 pr-8 text-xs"
+        />
         <button
           type="button"
           onClick={anyExpanded ? collapseAll : expandAll}
-          className="shrink-0 h-7 w-7 flex items-center justify-center rounded border border-input bg-background hover:bg-muted text-muted-foreground"
+          className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted text-muted-foreground"
           title={anyExpanded ? "Collapse all" : "Expand all"}
         >
           {anyExpanded ? (

@@ -88,16 +88,9 @@ export interface LibraryDocument {
   daysUntilExpiry: number | null;
 }
 
-/** SM task info for linked warehouse folders */
-export interface SmTaskInfo {
-  taskId: number;
-  taskName: string;
-  startDate: string | null;
-  endDate: string | null;
-  startedAt: string | null;
-  completedAt: string | null;
-  status: string;
-}
+// SSoT: SmTaskInfo type defined in warehouse/types.ts, re-exported here
+import type { SmTaskInfo } from "@/components/warehouse/types";
+export type { SmTaskInfo };
 
 export interface StandardDocumentListProps {
   documents: LibraryDocument[];
