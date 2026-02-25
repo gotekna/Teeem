@@ -519,6 +519,37 @@ export function StandardDocumentList({
       {/* SM Task status bar */}
       {smTaskInfo && <SmTaskStatusBar info={smTaskInfo} />}
 
+      {/* Select All header */}
+      <div className="flex items-center gap-3 px-3 py-1.5 border-b bg-muted/30">
+        {canDrag && <div className="w-5" />}
+        <Checkbox
+          checked={selectedDocs.size === documents.length && documents.length > 0}
+          ref={(el) => {
+            if (el) {
+              const input = el as unknown as HTMLButtonElement;
+              input.dataset.indeterminate = String(selectedDocs.size > 0 && selectedDocs.size < documents.length);
+            }
+          }}
+          className={selectedDocs.size > 0 && selectedDocs.size < documents.length ? "opacity-60" : ""}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selectedDocs.size === documents.length) {
+              updateSelection(new Map());
+            } else {
+              const all = new Map<number, LibraryDocument>();
+              documents.forEach(d => all.set(d.id, d));
+              updateSelection(all);
+            }
+          }}
+        />
+        <span className="text-xs text-muted-foreground">
+          {selectedDocs.size > 0
+            ? `${selectedDocs.size} of ${documents.length} selected`
+            : `Select all ${documents.length}`
+          }
+        </span>
+      </div>
+
       {/* Document list with DnD */}
       <DndContext
         sensors={sensors}
