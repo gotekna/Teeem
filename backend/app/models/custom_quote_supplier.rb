@@ -18,6 +18,7 @@ class CustomQuoteSupplier < ApplicationRecord
   belongs_to :supplier, class_name: "Contact"
   belongs_to :contact_person, class_name: "ContactPerson", optional: true
   belongs_to :sent_by, class_name: "User", optional: true
+  belongs_to :confirmed_by, class_name: "User", optional: true
   belongs_to :purchase_order, optional: true
   belongs_to :warehouse_document, optional: true
   has_many :allocations, class_name: "CustomQuoteAllocation",

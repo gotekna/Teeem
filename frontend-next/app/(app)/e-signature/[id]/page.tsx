@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,12 +34,28 @@ import {
   Download,
   RefreshCw,
   Eye,
+  PenLine,
+  Save,
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { format, formatDistanceToNow } from "date-fns";
 import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
+import type {
+  Signer as EditorSigner,
+  SignatureField,
+} from "@/components/ui/pdf-editor/types";
+import { SIGNER_COLORS } from "@/components/ui/pdf-editor/types";
 
-interface Signer {
+// Dynamic import for ESignaturePdfEditor (uses react-pdf which needs browser APIs)
+const ESignaturePdfEditor = dynamic(
+  () =>
+    import("@/components/e-signature/e-signature-pdf-editor").then(
+      (mod) => mod.ESignaturePdfEditor
+    ),
+  { ssr: false, loading: () => <div className="flex items-center justify-center h-96"><Spinner size={32} /></div> }
+);
+
+interface BackendSigner {
   id: number;
   name: string;
   email: string;
@@ -50,6 +67,23 @@ interface Signer {
   signed_at: string | null;
   declined_at: string | null;
   can_sign: boolean;
+}
+
+interface BackendField {
+  id: number;
+  field_type: string;
+  page_number: number;
+  x_percent: number;
+  y_percent: number;
+  width_percent: number;
+  height_percent: number;
+  label: string | null;
+  required: boolean;
+  date_format: string | null;
+  placeholder: string | null;
+  completed: boolean;
+  signer_id: number;
+  signer_email: string;
 }
 
 interface ESignatureRequest {
@@ -67,7 +101,8 @@ interface ESignatureRequest {
   completed_at: string | null;
   created_at: string;
   created_by: string;
-  signers: Signer[];
+  signers: BackendSigner[];
+  fields: BackendField[];
   has_positioned_fields: boolean;
   has_certificate: boolean;
   has_document: boolean;
@@ -80,6 +115,61 @@ interface ESignatureRequest {
 interface ESignatureResponse {
   success: boolean;
   e_signature_request: ESignatureRequest;
+}
+
+/** Map backend signers to the Signer type expected by ESignaturePdfEditor */
+function mapSignersToEditor(signers: BackendSigner[]): EditorSigner[] {
+  return signers.map((s, i) => ({
+    id: String(s.id),
+    email: s.email,
+    name: s.name,
+    color: SIGNER_COLORS[i % SIGNER_COLORS.length],
+    order: s.signing_order,
+  }));
+}
+
+/** Map backend fields to the SignatureField type expected by ESignaturePdfEditor */
+function mapFieldsToEditor(fields: BackendField[], editorSigners: EditorSigner[]): SignatureField[] {
+  return fields.map((f) => {
+    const signer = editorSigners.find((s) => s.id === String(f.signer_id));
+    return {
+      id: `field-${f.id}`,
+      type: f.field_type as SignatureField["type"],
+      pageId: `page-${f.page_number}`,
+      pageNumber: f.page_number,
+      signerId: String(f.signer_id),
+      signerEmail: f.signer_email,
+      signerColor: signer?.color || SIGNER_COLORS[0],
+      xPercent: f.x_percent,
+      yPercent: f.y_percent,
+      widthPercent: f.width_percent,
+      heightPercent: f.height_percent,
+      label: f.label || undefined,
+      required: f.required,
+      dateFormat: f.date_format || undefined,
+      placeholder: f.placeholder || undefined,
+    };
+  });
+}
+
+/** Convert editor fields to the format expected by the backend PUT /fields endpoint */
+function mapFieldsToBackend(fields: SignatureField[], editorSigners: EditorSigner[]): any[] {
+  return fields.map((f) => {
+    const signerIndex = editorSigners.findIndex((s) => s.id === f.signerId);
+    return {
+      field_type: f.type,
+      page_number: f.pageNumber,
+      x_percent: f.xPercent,
+      y_percent: f.yPercent,
+      width_percent: f.widthPercent,
+      height_percent: f.heightPercent,
+      label: f.label || null,
+      required: f.required,
+      date_format: f.dateFormat || null,
+      placeholder: f.placeholder || null,
+      signer_index: signerIndex >= 0 ? signerIndex : 0,
+    };
+  });
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -109,6 +199,13 @@ export default function ESignatureDetailPage() {
   const [showCancelDialog, setShowCancelDialog] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
 
+  // Field editor state
+  const [editingFields, setEditingFields] = React.useState(false);
+  const [pdfUrl, setPdfUrl] = React.useState<string | null>(null);
+  const [loadingPdf, setLoadingPdf] = React.useState(false);
+  const [editorFields, setEditorFields] = React.useState<SignatureField[]>([]);
+  const [selectedEditorSigner, setSelectedEditorSigner] = React.useState<EditorSigner | null>(null);
+
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["e-signature-request", id],
     queryFn: async () => {
@@ -136,6 +233,23 @@ export default function ESignatureDetailPage() {
     },
   });
 
+  const saveFieldsMutation = useMutation({
+    mutationFn: async (fields: SignatureField[]) => {
+      const editorSigners = mapSignersToEditor(data?.e_signature_request?.signers || []);
+      const backendFields = mapFieldsToBackend(fields, editorSigners);
+      return api.put(`/api/v1/e_signature_requests/${id}/fields`, { fields: backendFields });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["e-signature-request", id] });
+      setEditingFields(false);
+      // Clean up blob URL
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+        setPdfUrl(null);
+      }
+    },
+  });
+
   const handleViewDocument = async () => {
     try {
       const blob = await api.getBlob(`/api/v1/e_signature_requests/${id}/document`);
@@ -143,12 +257,58 @@ export default function ESignatureDetailPage() {
       window.open(url, "_blank");
     } catch (err) {
       console.error("[ESignatureDetail] view document error:", err);
-      // Silently fail - button only shows when document exists
     }
   };
 
+  const handleOpenEditor = async () => {
+    if (!data?.e_signature_request) return;
+    setLoadingPdf(true);
+    try {
+      const blob = await api.getBlob(`/api/v1/e_signature_requests/${id}/document`);
+      const url = URL.createObjectURL(blob);
+      setPdfUrl(url);
+
+      // Initialize editor fields from existing backend fields
+      const editorSigners = mapSignersToEditor(data.e_signature_request.signers);
+      const existingFields = mapFieldsToEditor(
+        data.e_signature_request.fields || [],
+        editorSigners
+      );
+      setEditorFields(existingFields);
+
+      // Auto-select first signer
+      if (editorSigners.length > 0) {
+        setSelectedEditorSigner(editorSigners[0]);
+      }
+
+      setEditingFields(true);
+    } catch (err) {
+      console.error("[ESignatureDetail] open editor error:", err);
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleCloseEditor = () => {
+    setEditingFields(false);
+    if (pdfUrl) {
+      URL.revokeObjectURL(pdfUrl);
+      setPdfUrl(null);
+    }
+    setEditorFields([]);
+    setSelectedEditorSigner(null);
+  };
+
+  // Clean up blob URL on unmount
+  React.useEffect(() => {
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    };
+  }, [pdfUrl]);
+
   const request = data?.e_signature_request;
   const statusConfig = request ? STATUS_CONFIG[request.status] || STATUS_CONFIG.draft : null;
+  const editorSigners = request ? mapSignersToEditor(request.signers) : [];
 
   if (isLoading) {
     return (
@@ -162,6 +322,58 @@ export default function ESignatureDetailPage() {
         <AlertCircle className="h-8 w-8 mb-2" />
         <p>Failed to load e-signature request</p>
         <BackButton fallbackHref="/e-signature" label="Back to List" variant="outline" className="mt-4" />
+      </div>
+    );
+  }
+
+  // If editing fields, show the full-page editor
+  if (editingFields && pdfUrl) {
+    return (
+      <div className="flex flex-col h-full -mx-4">
+        {/* Editor Header */}
+        <div className="px-6 py-3 border-b shrink-0 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={handleCloseEditor}>
+                Cancel
+              </Button>
+              <div>
+                <h2 className="text-lg font-semibold">Place Signature Fields</h2>
+                <p className="text-sm text-muted-foreground">
+                  Select a signer, choose a field type, then click on the PDF to place it
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {editorFields.length} field{editorFields.length !== 1 ? "s" : ""} placed
+              </span>
+              <Button
+                onClick={() => saveFieldsMutation.mutate(editorFields)}
+                disabled={saveFieldsMutation.isPending || editorFields.length === 0}
+              >
+                {saveFieldsMutation.isPending ? (
+                  <Spinner size={16} className="mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Save Fields
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Editor Content */}
+        <div className="flex-1 overflow-hidden">
+          <ESignaturePdfEditor
+            url={pdfUrl}
+            signers={editorSigners}
+            selectedSigner={selectedEditorSigner}
+            onSelectSigner={setSelectedEditorSigner}
+            fields={editorFields}
+            onFieldsChange={setEditorFields}
+          />
+        </div>
       </div>
     );
   }
@@ -191,10 +403,25 @@ export default function ESignatureDetailPage() {
               Refresh
             </Button>
 
+            {request.status === "draft" && request.has_document && (
+              <Button
+                variant="outline"
+                onClick={handleOpenEditor}
+                disabled={loadingPdf}
+              >
+                {loadingPdf ? (
+                  <Spinner size={16} className="mr-2" />
+                ) : (
+                  <PenLine className="h-4 w-4 mr-2" />
+                )}
+                {request.has_positioned_fields ? "Edit Fields" : "Place Fields"}
+              </Button>
+            )}
+
             {request.status === "draft" && (
               <Button
                 onClick={() => sendMutation.mutate()}
-                disabled={sendMutation.isPending || request.signers.length === 0}
+                disabled={sendMutation.isPending || request.signers.length === 0 || !request.has_positioned_fields}
               >
                 {sendMutation.isPending ? (
                   <Spinner size={16} className="mr-2" />
@@ -232,6 +459,32 @@ export default function ESignatureDetailPage() {
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
         <div className="max-w-4xl mx-auto space-y-6">
+
+          {/* Place Fields Prompt - shown for draft requests without fields */}
+          {request.status === "draft" && !request.has_positioned_fields && request.has_document && (
+            <Card className="border-dashed border-2 border-primary/30">
+              <CardContent className="flex flex-col items-center justify-center py-8 gap-4">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <PenLine className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold">Place Signature Fields</h3>
+                  <p className="text-muted-foreground mt-1 max-w-md">
+                    Open the PDF editor to place signature, initials, and date fields where each signer needs to sign.
+                  </p>
+                </div>
+                <Button onClick={handleOpenEditor} disabled={loadingPdf}>
+                  {loadingPdf ? (
+                    <Spinner size={16} className="mr-2" />
+                  ) : (
+                    <PenLine className="h-4 w-4 mr-2" />
+                  )}
+                  Open Editor
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Progress */}
           <Card>
             <CardHeader>

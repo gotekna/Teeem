@@ -58,13 +58,9 @@ module Bpmn
           )
         end
 
-        # Create positioned signature fields by detecting blue badges in the PDF
-        ESignatureBadgeDetector.create_fields_from_pdf!(request, pdf_content)
-
-        # Send for signing
-        request.send_for_signing!
-
-        log_info("E-signature request created: #{request.request_number} with #{signers_data.size} signers")
+        # Draft request created - user will manually place signature fields
+        # using the PDF editor on the e-signature detail page, then send.
+        log_info("E-signature draft created: #{request.request_number} with #{signers_data.size} signers (awaiting field placement)")
 
         # Store result for WaitForSignaturesTask
         result = {

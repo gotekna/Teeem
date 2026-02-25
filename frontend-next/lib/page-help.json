@@ -156,6 +156,12 @@
       "tips": ["Assign team members and equipment", "Track resource availability", "View resource utilization"],
       "tasks": ["Assign resources", "View availability", "Track utilization", "Manage allocations"]
     },
+    "/jobs/[id]/quote-returns": {
+      "title": "Quote Returns",
+      "description": "Unified view of all supplier quote responses from both Quote Tracker and Custom Quotes. Select winning quotes and create purchase orders.",
+      "tips": ["Green prices indicate the best price for that item", "Click 'Select' to open the side-by-side confirmation dialog", "Expired quotes are highlighted in red in the Valid To column", "Use filters to focus on responded quotes needing action"],
+      "tasks": ["Review supplier responses", "Select winning quote and create PO", "Reject unsuitable quotes", "View attached quote documents"]
+    },
     "/jobs/[id]/purchase-orders": {
       "title": "Job Purchase Orders",
       "description": "Purchase orders linked to this job.",

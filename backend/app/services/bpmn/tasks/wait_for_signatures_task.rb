@@ -36,7 +36,7 @@ module Bpmn
           handle_expired(request)
         when "cancelled"
           handle_cancelled(request)
-        when "sent", "in_progress"
+        when "draft", "sent", "in_progress"
           handle_waiting(request)
         else
           raise "Unknown request status: #{request.status}"

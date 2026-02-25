@@ -868,6 +868,7 @@ Rails.application.routes.draw do
         member do
           post :send_for_signing, path: "send"
           post :cancel
+          put :update_fields, path: "fields"
           get :audit_trail
           get :certificate
           get :download_document, path: "document"
@@ -939,6 +940,20 @@ Rails.application.routes.draw do
         end
         collection do
           post :bulk_send_rfq, controller: 'job_quote'
+        end
+      end
+
+      # Quote Returns - unified view of all supplier quote responses
+      resources :jobs, only: [] do
+        member do
+          get :quote_returns, controller: 'quote_returns', action: 'index'
+        end
+      end
+      resources :quote_returns, only: [], controller: 'quote_returns' do
+        member do
+          get :confirm_details
+          post :accept
+          post :reject
         end
       end
 

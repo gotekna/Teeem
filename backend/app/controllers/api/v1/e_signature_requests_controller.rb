@@ -1,7 +1,7 @@
 class Api::V1::ESignatureRequestsController < ApplicationController
   include PresignedUploadHandler
 
-  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate, :download_document ]
+  before_action :set_request, only: [ :show, :update, :destroy, :send_for_signing, :cancel, :audit_trail, :certificate, :download_document, :update_fields ]
 
   # GET /api/v1/e_signature_requests
   def index
@@ -150,6 +150,42 @@ class Api::V1::ESignatureRequestsController < ApplicationController
         errors: [ "Failed to cancel request" ]
       }, status: :unprocessable_entity
     end
+  end
+
+  # PUT /api/v1/e_signature_requests/:id/fields
+  # Batch replace all fields for a draft request.
+  # Accepts fields with signer_index (0-based) to map to signers by signing order.
+  def update_fields
+    unless @request.status == "draft"
+      render json: {
+        success: false,
+        errors: [ "Cannot update fields after request has been sent" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    fields_data = params[:fields] || []
+
+    ActiveRecord::Base.transaction do
+      # Delete all existing fields
+      @request.fields.destroy_all
+
+      # Create new fields with signer mapping
+      if fields_data.present?
+        create_fields_with_signer_mapping(@request, fields_data)
+      end
+    end
+
+    render json: {
+      success: true,
+      e_signature_request: request_json(@request.reload, include_details: true),
+      message: "#{@request.fields.count} fields saved"
+    }
+  rescue ActiveRecord::RecordInvalid => e
+    render json: {
+      success: false,
+      errors: [ "Failed to save fields: #{e.message}" ]
+    }, status: :unprocessable_entity
   end
 
   # GET /api/v1/e_signature_requests/:id/audit_trail

@@ -30,6 +30,7 @@ class QuoteTracker < ApplicationRecord
   belongs_to :contact, class_name: 'ContactPerson', optional: true  # Employee at supplier
   belongs_to :quote_template, optional: true  # Which template created this row
   belongs_to :sent_by, class_name: 'User', optional: true
+  belongs_to :confirmed_by, class_name: 'User', optional: true
   belongs_to :purchase_order, optional: true  # Created when quote is accepted
 
   # Validations
