@@ -17,6 +17,10 @@ class CorporateFinancialReportsJob < ApplicationJob
   #   - :report_types [Array<String>] Which reports to generate: ['profit_loss', 'balance_sheet']
   #   - :financial_year [String] Override FY (default: current FY based on date)
   #   - :dry_run [Boolean] If true, logs what would be done without generating
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Corporate has acts_as_tenant. Without tenant context (require_tenant=false),
+  # Corporate queries return ALL tenants' companies, generating cross-tenant financial reports.
+  # TenantSetting.in_company_timezone also needs tenant context for correct FY calculation.
   def perform(options = {})
     options = options.with_indifferent_access
     dry_run = options[:dry_run] || false
@@ -32,17 +36,22 @@ class CorporateFinancialReportsJob < ApplicationJob
       errors: []
     }
 
-    # Get companies to process
-    companies = fetch_companies(options[:company_ids])
-    Rails.logger.info("[CorporateFinancialReportsJob] Found #{companies.count} companies to process")
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        companies = fetch_companies(options[:company_ids])
+        next if companies.empty?
 
-    companies.each do |company|
-      begin
-        process_company(company, report_types, options, result, dry_run)
-        result[:companies_processed] += 1
-      rescue StandardError => e
-        result[:errors] << { company_id: company.id, company_name: company.name, error: e.message }
-        Rails.logger.error("[CorporateFinancialReportsJob] Error processing #{company.name}: #{e.message}")
+        Rails.logger.info("[CorporateFinancialReportsJob] #{tenant.name}: #{companies.count} companies to process")
+
+        companies.each do |company|
+          begin
+            process_company(company, report_types, options, result, dry_run)
+            result[:companies_processed] += 1
+          rescue StandardError => e
+            result[:errors] << { company_id: company.id, company_name: company.name, error: e.message }
+            Rails.logger.error("[CorporateFinancialReportsJob] Error processing #{company.name}: #{e.message}")
+          end
+        end
       end
     end
 

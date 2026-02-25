@@ -1,68 +1,90 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { api } from "@/lib/api";
 
-interface JoshuaMascotProps {
-  alertCount: number;
-  hasItems: boolean;
-  sections: Array<{ type: string; title: string; count: number }>;
-  isLoading: boolean;
+interface BriefingSection {
+  type: string;
+  title: string;
+  count: number;
+}
+
+interface BriefingData {
+  sections: BriefingSection[];
+  has_items: boolean;
+  alert_count: number;
 }
 
 type Phase = "hidden" | "entering" | "greeting" | "touring" | "idle";
 
+const CHARACTER_SIZE = 56;
+
 const MESSAGES: Record<string, string[]> = {
   overdue: [
-    "Oi! Overdue tasks need sorting, mate!",
-    "These are past due — time to crack on!",
-    "Red alert! Let's clear the overdue list!",
+    "Overdue tasks here — time to sort 'em!",
+    "These need attention, boss!",
   ],
   tasks_due: [
-    "Tasks on the board today — let's go!",
-    "Got a few things to knock out today.",
-    "Your to-do list is ready, boss!",
+    "Today's tasks — let's knock 'em out.",
+    "Here's what's on the board today.",
   ],
   follow_ups: [
-    "Emails need a follow-up, boss!",
-    "Don't leave 'em hanging — reply time!",
     "Follow-ups waiting on ya!",
+    "Don't leave 'em hanging!",
   ],
   unanswered: [
-    "People are waiting for your reply!",
+    "People waiting for your reply!",
     "Inbox needs some love, mate!",
-    "Unanswered emails piling up!",
   ],
   pending_pos: [
-    "POs waiting for the green light!",
-    "Purchase orders need your tick!",
-    "Approve those POs, legend!",
+    "POs need the green light!",
+    "Purchase orders to approve!",
   ],
   all_clear: [
-    "Ripper! All caught up today!",
-    "Nothing to stress about — you legend!",
-    "Clean slate! Go grab a coffee!",
-    "All done! Site's running smooth!",
+    "All caught up — legend!",
+    "Clean slate! Grab a coffee.",
   ],
-  loading: [
-    "Checking the site report...",
-    "Pulling up today's brief...",
-    "Just a tick...",
+  metrics: [
+    "Here's your numbers at a glance.",
+    "Key metrics right here.",
+  ],
+  activity: [
+    "Latest from the team.",
+    "Here's what's been happening.",
+  ],
+  tasks: [
+    "Upcoming deadlines this week.",
+    "Keep an eye on these dates.",
+  ],
+  greeting: [
+    "G'day! Let me show you around.",
+    "Morning! Here's today's rundown.",
   ],
 };
 
-const SECTION_STOPS = ["18vh", "38vh", "56vh"];
-const GREETING_POS = "8vh";
-const IDLE_POS = "calc(100vh - 280px)";
-const OFFSCREEN = "calc(100vh + 100px)";
+// Tour stops reference data-tour attributes in the Overview tab
+const TOUR_STOPS = [
+  { selector: '[data-tour="metrics-cards"]', msgKey: "metrics" },
+  { selector: '[data-tour="recent-items"]', msgKey: "activity" },
+  { selector: '[data-tour="tasks-widget"]', msgKey: "tasks" },
+];
 
-export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading }: JoshuaMascotProps) {
+function pick(arr: string[]): string {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function getElRect(selector: string): DOMRect | null {
+  return document.querySelector(selector)?.getBoundingClientRect() ?? null;
+}
+
+export default function JoshuaMascot() {
   const [phase, setPhase] = useState<Phase>("hidden");
-  const [posTop, setPosTop] = useState(OFFSCREEN);
-  const [isWalking, setIsWalking] = useState(false);
-  const [armPose, setArmPose] = useState<"rest" | "wave" | "point">("rest");
+  const [pos, setPos] = useState({ top: -200, left: -200 });
   const [message, setMessage] = useState("");
   const [showBubble, setShowBubble] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+  const [briefing, setBriefing] = useState<BriefingData | null>(null);
   const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const addTimeout = useCallback((fn: () => void, ms: number) => {
@@ -71,250 +93,238 @@ export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading
     return t;
   }, []);
 
-  const clearTimeouts = useCallback(() => {
+  const clearAllTimeouts = useCallback(() => {
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
   }, []);
 
-  const getTopMessage = useCallback(() => {
-    if (isLoading) return MESSAGES.loading[0];
-    if (!hasItems) return MESSAGES.all_clear[Math.floor(Math.random() * MESSAGES.all_clear.length)];
+  // Fetch briefing data for contextual messages
+  useEffect(() => {
+    api.get<{ success: boolean; data: BriefingData }>("/api/v1/assistant/briefing")
+      .then(res => { if (res?.data) setBriefing(res.data); })
+      .catch(() => {}); // Non-critical, Joshua works without it
+  }, []);
+
+  // Position to the right of an element, near its top
+  const moveToElement = useCallback((selector: string): boolean => {
+    const rect = getElRect(selector);
+    if (!rect) return false;
+
+    setPos({
+      top: rect.top + window.scrollY + 8,
+      left: Math.min(rect.right + 8, window.innerWidth - CHARACTER_SIZE - 12),
+    });
+    setHighlightRect(rect);
+    return true;
+  }, []);
+
+  // Bottom-right idle spot
+  const moveToIdle = useCallback(() => {
+    setPos({
+      top: window.innerHeight - CHARACTER_SIZE - 90 + window.scrollY,
+      left: window.innerWidth - CHARACTER_SIZE - 16,
+    });
+    setHighlightRect(null);
+  }, []);
+
+  // Build contextual alert message from briefing data
+  const getAlertMessage = useCallback(() => {
+    if (!briefing?.has_items) return pick(MESSAGES.all_clear);
     const priority = ["overdue", "tasks_due", "follow_ups", "unanswered", "pending_pos"];
     for (const type of priority) {
-      if (sections.find(s => s.type === type && s.count > 0)) {
-        const msgs = MESSAGES[type];
-        return msgs[Math.floor(Math.random() * msgs.length)];
+      const sec = briefing.sections.find(s => s.type === type && s.count > 0);
+      if (sec) {
+        const msgs = MESSAGES[type] || MESSAGES.all_clear;
+        return `${sec.count} ${sec.title.toLowerCase()} — ${pick(msgs)}`;
       }
     }
-    return MESSAGES.all_clear[0];
-  }, [isLoading, hasItems, sections]);
+    return pick(MESSAGES.all_clear);
+  }, [briefing]);
 
-  const getSectionMessage = useCallback((index: number) => {
-    const active = sections.filter(s => s.count > 0);
-    if (index < active.length) {
-      const msgs = MESSAGES[active[index].type] || MESSAGES.all_clear;
-      return msgs[Math.floor(Math.random() * msgs.length)];
-    }
-    return null;
-  }, [sections]);
-
-  // Main entrance + tour sequence
+  // Main tour sequence - runs once on mount
   useEffect(() => {
-    clearTimeouts();
+    clearAllTimeouts();
+    if (minimized) return;
 
-    addTimeout(() => {
-      setPhase("entering");
-      setIsWalking(true);
-      setPosTop(GREETING_POS);
-    }, 600);
+    let d = 1000;
 
+    // Enter
+    addTimeout(() => { setPhase("entering"); moveToIdle(); }, d);
+    d += 800;
+
+    // Greet
     addTimeout(() => {
-      setIsWalking(false);
       setPhase("greeting");
-      setArmPose("wave");
-      setMessage(getTopMessage());
+      setMessage(pick(MESSAGES.greeting));
       setShowBubble(true);
-    }, 3200);
+    }, d);
+    d += 2800;
+    addTimeout(() => setShowBubble(false), d);
+    d += 400;
 
-    addTimeout(() => setArmPose("rest"), 5200);
-
-    addTimeout(() => {
-      setShowBubble(false);
-      setPhase("touring");
-      setIsWalking(true);
-      setPosTop(SECTION_STOPS[0]);
-    }, 6500);
-
-    addTimeout(() => {
-      setIsWalking(false);
-      setArmPose("point");
-      const msg = getSectionMessage(0);
-      if (msg) { setMessage(msg); setShowBubble(true); }
-    }, 8700);
-
-    addTimeout(() => {
-      setShowBubble(false);
-      setArmPose("rest");
-      setIsWalking(true);
-      setPosTop(SECTION_STOPS[1]);
-    }, 11700);
-
-    addTimeout(() => {
-      setIsWalking(false);
-      setArmPose("point");
-      const msg = getSectionMessage(1);
-      if (msg) { setMessage(msg); setShowBubble(true); }
-    }, 13900);
-
-    addTimeout(() => {
-      setShowBubble(false);
-      setArmPose("rest");
-      setIsWalking(true);
-      setPosTop(IDLE_POS);
-    }, 16900);
-
-    addTimeout(() => {
-      setIsWalking(false);
-      setPhase("idle");
-    }, 19200);
-
-    return clearTimeouts;
-  }, [getTopMessage, getSectionMessage, addTimeout, clearTimeouts]);
-
-  // Periodic roaming when idle
-  useEffect(() => {
-    if (phase !== "idle") return;
-    const interval = setInterval(() => {
-      const active = sections.filter(s => s.count > 0);
-      if (active.length === 0) return;
-
-      const idx = Math.floor(Math.random() * Math.min(active.length, SECTION_STOPS.length));
-      const msgs = MESSAGES[active[idx].type] || MESSAGES.all_clear;
-      const msg = msgs[Math.floor(Math.random() * msgs.length)];
-
-      setIsWalking(true);
-      setPosTop(SECTION_STOPS[idx]);
-
+    // Tour each visible data-tour element
+    for (const stop of TOUR_STOPS) {
+      const stopRef = stop; // capture for closure
       addTimeout(() => {
-        setIsWalking(false);
-        setArmPose("point");
-        setMessage(msg);
-        setShowBubble(true);
-      }, 2200);
+        setPhase("touring");
+        if (moveToElement(stopRef.selector)) {
+          addTimeout(() => {
+            setMessage(pick(MESSAGES[stopRef.msgKey] || MESSAGES.all_clear));
+            setShowBubble(true);
+          }, 700);
+          addTimeout(() => { setShowBubble(false); setHighlightRect(null); }, 3200);
+        }
+      }, d);
+      d += 4000;
+    }
 
+    // Show most urgent alert if briefing loaded
+    addTimeout(() => {
+      if (briefing?.has_items) {
+        setMessage(getAlertMessage());
+        setShowBubble(true);
+        addTimeout(() => setShowBubble(false), 3000);
+      }
+    }, d);
+    d += 3500;
+
+    // Settle to idle
+    addTimeout(() => { setPhase("idle"); moveToIdle(); }, d);
+
+    return clearAllTimeouts;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [minimized, briefing]);
+
+  // Keep highlight position correct on scroll
+  useEffect(() => {
+    if (!highlightRect) return;
+    const onScroll = () => {
+      // Find which tour stop is currently targeted
+      for (const stop of TOUR_STOPS) {
+        const rect = getElRect(stop.selector);
+        if (rect) {
+          setHighlightRect(rect);
+          break;
+        }
+      }
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [highlightRect]);
+
+  // Periodic idle visits
+  useEffect(() => {
+    if (phase !== "idle" || minimized) return;
+
+    const interval = setInterval(() => {
+      const validStops = TOUR_STOPS.filter(s => getElRect(s.selector));
+      if (validStops.length === 0) return;
+      const stop = validStops[Math.floor(Math.random() * validStops.length)];
+
+      moveToElement(stop.selector);
+      addTimeout(() => {
+        setMessage(pick(MESSAGES[stop.msgKey] || MESSAGES.all_clear));
+        setShowBubble(true);
+      }, 700);
       addTimeout(() => {
         setShowBubble(false);
-        setArmPose("rest");
-        setIsWalking(true);
-        setPosTop(IDLE_POS);
-      }, 5500);
-
-      addTimeout(() => setIsWalking(false), 7700);
-    }, 14000);
+        setHighlightRect(null);
+        moveToIdle();
+      }, 4000);
+    }, 15000);
 
     return () => clearInterval(interval);
-  }, [phase, sections, addTimeout]);
+  }, [phase, minimized, moveToElement, moveToIdle, addTimeout]);
 
+  // Minimized state: small avatar button
   if (minimized) {
     return (
       <button
-        onClick={() => setMinimized(false)}
+        onClick={() => { setMinimized(false); setPhase("hidden"); }}
         className="fixed bottom-4 right-4 z-50 group hidden md:block"
         title="Bring Joshua back"
       >
-        <div className="w-14 h-14 rounded-full bg-amber-400 dark:bg-amber-500 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center border-2 border-amber-500 dark:border-amber-400">
+        <div className="w-11 h-11 rounded-full bg-amber-400 dark:bg-amber-500 shadow-lg group-hover:scale-110 transition-transform flex items-center justify-center border-2 border-amber-500 dark:border-amber-400">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/joshua.png" alt="Joshua" width={40} height={40} className="rounded-full" />
+          <img src="/images/joshua.png" alt="Joshua" width={32} height={32} className="rounded-full" />
         </div>
       </button>
     );
   }
 
-  const isCelebrating = !hasItems && !isLoading;
-
-  const characterAnim = phase === "entering"
-    ? "josh-wobble 0.8s ease-in-out 3"
-    : isWalking
-    ? "josh-walk-bounce 0.5s ease-in-out infinite"
-    : phase === "idle" && !isWalking
-    ? "josh-bob 3s ease-in-out infinite"
-    : isCelebrating && phase === "greeting"
-    ? "josh-celebrate 0.8s ease-in-out 2"
-    : undefined;
-
   return (
     <>
-      <JoshuaStyles />
+      <style>{`
+        @keyframes josh-bob {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-3px); }
+        }
+        @keyframes josh-bubble-in {
+          0% { opacity: 0; transform: scale(0.85) translateY(4px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes josh-highlight {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(245,158,11,0.3), 0 0 8px rgba(245,158,11,0.1); }
+          50% { box-shadow: 0 0 0 2px rgba(245,158,11,0.5), 0 0 16px rgba(245,158,11,0.25); }
+        }
+      `}</style>
 
+      {/* Highlight glow on the target section */}
+      {highlightRect && (
+        <div
+          className="fixed z-40 pointer-events-none rounded-lg"
+          style={{
+            top: highlightRect.top - 3,
+            left: highlightRect.left - 3,
+            width: highlightRect.width + 6,
+            height: highlightRect.height + 6,
+            animation: "josh-highlight 1.5s ease-in-out infinite",
+            transition: "all 0.4s ease",
+          }}
+        />
+      )}
+
+      {/* Joshua container */}
       <div
-        className="fixed z-50 pointer-events-none hidden md:flex flex-col items-end"
+        className="absolute z-50 pointer-events-none hidden md:block"
         style={{
-          right: "20px",
-          top: posTop,
-          transition: "top 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.5s ease",
+          top: pos.top,
+          left: pos.left,
+          transition: "top 1s cubic-bezier(0.25,0.46,0.45,0.94), left 1s cubic-bezier(0.25,0.46,0.45,0.94), opacity 0.4s ease",
           opacity: phase === "hidden" ? 0 : 1,
         }}
       >
         {/* Speech bubble */}
         {showBubble && message && (
           <div
-            className="pointer-events-auto mb-2 max-w-[220px]"
-            style={{ animation: "josh-bubble-in 0.4s ease-out forwards" }}
+            className="pointer-events-auto absolute"
+            style={{
+              bottom: CHARACTER_SIZE + 4,
+              right: -4,
+              animation: "josh-bubble-in 0.25s ease-out forwards",
+              maxWidth: 190,
+            }}
           >
-            <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-2.5 shadow-xl border border-border/60 dark:border-slate-700 relative">
-              <p className="text-xs font-semibold text-foreground leading-relaxed">{message}</p>
-              {isCelebrating && (
-                <p className="text-[10px] text-amber-500 mt-0.5 font-medium">— Joshua AI</p>
-              )}
-              <div className="absolute -bottom-[6px] right-10 w-3 h-3 bg-white dark:bg-slate-800 border-b border-r border-border/60 dark:border-slate-700 transform rotate-45" />
+            <div className="bg-white dark:bg-slate-800 rounded-xl px-2.5 py-1.5 shadow-lg border border-border/60 dark:border-slate-700 relative">
+              <p className="text-[10px] font-medium text-foreground leading-snug">{message}</p>
+              <div className="absolute -bottom-[4px] right-3 w-2 h-2 bg-white dark:bg-slate-800 border-b border-r border-border/60 dark:border-slate-700 transform rotate-45" />
             </div>
           </div>
         )}
 
         {/* Character */}
-        <div className="pointer-events-auto relative">
-          <button
-            onClick={() => setMinimized(true)}
-            className="absolute -top-1 -left-1 z-10 w-5 h-5 rounded-full bg-muted/80 hover:bg-red-500 hover:text-white text-muted-foreground text-[10px] flex items-center justify-center opacity-0 hover:opacity-100 transition-all duration-200"
-            title="Minimize Joshua"
-          >
-            &times;
-          </button>
-
-          <div style={{ animation: characterAnim }}>
+        <div className="pointer-events-auto relative group cursor-pointer" onClick={() => setMinimized(true)}>
+          <div style={{ width: CHARACTER_SIZE, height: CHARACTER_SIZE, animation: phase === "idle" ? "josh-bob 3s ease-in-out infinite" : undefined }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/joshua.png"
-              alt="Joshua - AI Construction Assistant"
-              width={140}
-              height={140}
-              className="drop-shadow-lg"
-              draggable={false}
-            />
-
-            {/* Name plate */}
-            <div className="flex justify-center -mt-1">
-              <div className="bg-gradient-to-r from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-700 text-white text-[9px] font-bold tracking-[0.15em] uppercase px-4 py-0.5 rounded-full shadow-md border border-amber-400/30">
-                Joshua
-              </div>
+            <img src="/images/joshua.png" alt="Joshua AI" width={CHARACTER_SIZE} height={CHARACTER_SIZE} className="drop-shadow-md rounded-full" draggable={false} />
+          </div>
+          <div className="flex justify-center -mt-0.5">
+            <div className="bg-amber-500 dark:bg-amber-600 text-white text-[7px] font-bold tracking-wider uppercase px-2 py-px rounded-full shadow-sm">
+              Joshua
             </div>
           </div>
         </div>
       </div>
     </>
-  );
-}
-
-function JoshuaStyles() {
-  return (
-    <style>{`
-      @keyframes josh-bob {
-        0%, 100% { transform: translateY(0); }
-        50% { transform: translateY(-4px); }
-      }
-      @keyframes josh-walk-bounce {
-        0%, 100% { transform: translateY(0); }
-        25% { transform: translateY(-3px); }
-        50% { transform: translateY(0); }
-        75% { transform: translateY(-3px); }
-      }
-      @keyframes josh-bubble-in {
-        0% { opacity: 0; transform: scale(0.7) translateY(8px); }
-        100% { opacity: 1; transform: scale(1) translateY(0); }
-      }
-      @keyframes josh-celebrate {
-        0%, 100% { transform: translateY(0) rotate(0deg); }
-        25% { transform: translateY(-15px) rotate(-5deg); }
-        50% { transform: translateY(-20px) rotate(5deg); }
-        75% { transform: translateY(-8px) rotate(-3deg); }
-      }
-      @keyframes josh-wobble {
-        0%, 100% { transform: rotate(0deg) translateX(0); }
-        20% { transform: rotate(-4deg) translateX(-3px); }
-        40% { transform: rotate(3deg) translateX(3px); }
-        60% { transform: rotate(-2deg) translateX(-2px); }
-        80% { transform: rotate(1deg) translateX(1px); }
-      }
-    `}</style>
   );
 }

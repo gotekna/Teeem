@@ -33,6 +33,7 @@ import FeaturesTrackingTable from "./components/FeaturesTrackingTable";
 import ArchitectureMap from "./components/ArchitectureMap";
 import BriefingWidget from "./components/BriefingWidget";
 import AIJoshuaTab from "./components/AIJoshuaTab";
+import JoshuaMascot from "./components/JoshuaMascot";
 
 interface DashboardStats {
   activeJobs: number;
@@ -224,7 +225,10 @@ export default function DashboardPage() {
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6 relative">
+          {/* Joshua AI Guide - climbs around the page */}
+          <JoshuaMascot />
+
           {/* AI Briefing */}
           <BriefingWidget />
 

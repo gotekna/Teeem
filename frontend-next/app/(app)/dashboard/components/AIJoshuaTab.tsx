@@ -433,13 +433,8 @@ export default function AIJoshuaTab() {
 
   return (
     <div className="space-y-6 pb-48">
-      {/* Joshua Mascot */}
-      <JoshuaMascot
-        alertCount={briefing?.alert_count || 0}
-        hasItems={briefing?.has_items || false}
-        sections={briefing?.sections.map(s => ({ type: s.type, title: s.title, count: s.count })) || []}
-        isLoading={loading}
-      />
+      {/* Joshua Mascot - now self-contained, fetches its own data */}
+      <JoshuaMascot />
 
       {/* Header */}
       <div className="flex items-start justify-between">

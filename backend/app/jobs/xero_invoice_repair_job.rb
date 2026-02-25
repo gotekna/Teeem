@@ -27,10 +27,14 @@ class XeroInvoiceRepairJob < ApplicationJob
   # Pilgrim's 1,067 remaining = repaired in under 1 day
   BATCH_SIZE = 30
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: ExternalInvoice has acts_as_tenant. Without tenant context,
+  # the service uses wrong Xero credentials and mixes tenant data during repair.
+  # The without_tenant global check is kept for fast no-op detection.
   def perform(options = {})
     options = options.with_indifferent_access if options.is_a?(Hash)
 
-    # Quick check: anything to repair?
+    # Quick check: anything to repair across all tenants?
     needs_repair = ActsAsTenant.without_tenant do
       ExternalInvoice.where(invoice_type: "bill")
                      .where("line_items = '[]'::jsonb")
@@ -44,14 +48,21 @@ class XeroInvoiceRepairJob < ApplicationJob
     end
 
     batch_size = options[:batch_size] || BATCH_SIZE
-    tenant_id = options[:tenant_id]
+    total_repaired = 0
+    total_errors = 0
 
-    service = ExternalInvoiceSyncService.new(
-      source: "xero",
-      tenant_id: tenant_id
-    )
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        service = ExternalInvoiceSyncService.new(
+          source: "xero",
+          tenant_id: tenant.id
+        )
 
-    result = service.repair_empty_line_items(batch_size: batch_size)
+        result = service.repair_empty_line_items(batch_size: batch_size)
+        total_repaired += (result[:repaired] || 0)
+        total_errors += (result[:errors]&.size || 0)
+      end
+    end
 
     # Log summary for monitoring
     remaining = ActsAsTenant.without_tenant do
@@ -63,11 +74,11 @@ class XeroInvoiceRepairJob < ApplicationJob
 
     Rails.logger.info(
       "XeroInvoiceRepairJob complete: " \
-      "repaired=#{result[:repaired]}, " \
+      "repaired=#{total_repaired}, " \
       "remaining=#{remaining}, " \
-      "errors=#{result[:errors]&.size || 0}"
+      "errors=#{total_errors}"
     )
 
-    result
+    { success: true, repaired: total_repaired, remaining: remaining, errors: total_errors }
   end
 end
