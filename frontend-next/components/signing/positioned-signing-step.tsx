@@ -243,7 +243,35 @@ export function PositionedSigningStep({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.errors?.[0] || "Failed to complete field");
+        // If field is already completed, treat as success - mark it done and move on
+        const errorMsg = data.errors?.[0] || "";
+        if (response.status === 422 && errorMsg.toLowerCase().includes("already been completed")) {
+          // Field was saved by a previous attempt that returned 500
+          const updatedFields = fields.map((f) =>
+            f.id === fieldId ? { ...f, completed: true } : f
+          );
+          setFields(updatedFields);
+          setSelectedField(null);
+          setCaptureMode(null);
+          setConfirmMode(null);
+          setCaptureLoading(false);
+
+          // Auto-navigate to next incomplete field
+          const sorted = sortFieldsByReadingOrder(updatedFields);
+          const required = sorted.filter((f) => f.required && !f.completed);
+          if (required.length > 0) {
+            const currentIndex = sorted.findIndex((f) => f.id === fieldId);
+            const remaining = currentIndex >= 0
+              ? sorted.slice(currentIndex + 1).filter((f) => f.required && !f.completed)
+              : required;
+            const nextField = remaining.length > 0 ? remaining[0] : required[0];
+            setTimeout(() => navigateToField(nextField), 300);
+          } else {
+            await submitSignature();
+          }
+          return;
+        }
+        throw new Error(errorMsg || "Failed to complete field");
       }
 
       // Update local state
