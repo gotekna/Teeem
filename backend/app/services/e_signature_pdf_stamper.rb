@@ -204,12 +204,16 @@ class ESignaturePdfStamper
       canvas.text(signer.name, at: [ x, y + height - 18 ])
     end
 
-    # Signed by line with timestamp (DocuSign style)
-    canvas.font("Helvetica", size: 7)
+    # Signed by line with timestamp, method, IP, and legal reference
+    ip_display = masked_ip(signer)
+    type_label = signature_type_label(signer)
+    canvas.font("Helvetica", size: 5.5)
     canvas.fill_color("666666")
+    canvas.text("Signed by: #{signer.name} (#{type_label})", at: [ x, y + 12 ])
+    ip_suffix = ip_display ? " | IP: #{ip_display}" : ""
     signed_time = signer.signed_at&.strftime("%d/%m/%Y %H:%M AEST")
-    canvas.text("Signed by: #{signer.name}", at: [ x, y + 8 ])
-    canvas.text("Date: #{signed_time}", at: [ x, y ])
+    canvas.text("#{signed_time}#{ip_suffix}", at: [ x, y + 6 ])
+    canvas.text("Electronic Transactions Act 1999 (Cth) s.10", at: [ x, y ])
   end
 
   # Stamp all positioned fields onto the document
@@ -297,12 +301,16 @@ class ESignaturePdfStamper
       stamp_fallback_text(canvas, signer.name, x, y, width, height)
     end
 
-    # Add signature metadata below the signature
+    # Add signature metadata below the signature (3 lines)
     timestamp = field.completed_at || signer&.signed_at
-    canvas.font("Helvetica", size: 6)
+    ip_display = masked_ip(signer)
+    type_label = signature_type_label(signer)
+    canvas.font("Helvetica", size: 5.5)
     canvas.fill_color("666666")
-    canvas.text("Signed by: #{signer.name}", at: [ x + 4, y + 8 ])
-    canvas.text("Date: #{timestamp&.strftime('%d/%m/%Y %H:%M AEST')}", at: [ x + 4, y + 1 ])
+    canvas.text("Signed by: #{signer.name} (#{type_label})", at: [ x + 4, y + 12 ])
+    ip_suffix = ip_display ? " | IP: #{ip_display}" : ""
+    canvas.text("#{timestamp&.strftime('%d/%m/%Y %H:%M AEST')}#{ip_suffix}", at: [ x + 4, y + 6 ])
+    canvas.text("Electronic Transactions Act 1999 (Cth) s.10", at: [ x + 4, y ])
   end
 
   # Stamp a date field
@@ -411,6 +419,27 @@ class ESignaturePdfStamper
     canvas.text("IP: #{signer.ip_address}", at: [ x + 5, y - 22 ])
   end
 
+  def signature_type_label(signer)
+    case signer&.signature_type
+    when "drawn" then "Drawn signature"
+    when "typed" then "Typed signature"
+    when "uploaded" then "Uploaded signature"
+    else "Electronic signature"
+    end
+  end
+
+  def masked_ip(signer)
+    ip = signer&.ip_address
+    return nil unless ip.present?
+
+    parts = ip.split(".")
+    if parts.length == 4
+      "#{parts[0]}.#{parts[1]}.xx.xx"
+    else
+      ip
+    end
+  end
+
   def add_certificate_page(document)
     # Add a new page for the completion certificate
     page = document.pages.add
@@ -476,8 +505,9 @@ class ESignaturePdfStamper
       y -= 12
       canvas.font("Helvetica", size: 8)
       canvas.fill_color("666666")
+      type_label = signature_type_label(signer)
       canvas.text(
-        "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S UTC')} | IP: #{signer.ip_address}",
+        "Signed: #{signer.signed_at&.strftime('%Y-%m-%d %H:%M:%S AEST')} | Method: #{type_label} | IP: #{signer.ip_address}",
         at: [ MARGIN + 20, y ]
       )
       canvas.fill_color("000000")

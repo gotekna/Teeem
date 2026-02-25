@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
@@ -11,6 +10,8 @@ import type { CustomQuoteLineNode, QuoteLevel } from "./types";
 
 interface CostCentreSectionProps {
   line: CustomQuoteLineNode;
+  expanded: boolean;
+  onToggleExpanded: () => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onUpdateLine: (lineId: number, field: string, value: unknown) => void;
   onAddSupplier: (lineId: number) => void;
@@ -24,6 +25,8 @@ interface CostCentreSectionProps {
 
 export function CostCentreSection({
   line,
+  expanded,
+  onToggleExpanded,
   onToggleQuoteLevel,
   onUpdateLine,
   onAddSupplier,
@@ -34,7 +37,6 @@ export function CostCentreSection({
   onReject,
   onAllocate,
 }: CostCentreSectionProps) {
-  const [expanded, setExpanded] = useState(false);
 
   // Total from accepted suppliers or PO children
   const ccTotal = line.quoteLevel === "cost_centre"
@@ -57,7 +59,7 @@ export function CostCentreSection({
   return (
     <div className={`border rounded-lg mb-3 ${isNotRequired ? "bg-muted/30 opacity-60" : "bg-card"}`}>
       {/* CC Header */}
-      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50" onClick={() => setExpanded(!expanded)}>
+      <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-muted/50" onClick={onToggleExpanded}>
         {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
 
         <span className={`font-semibold ${isNotRequired ? "line-through text-muted-foreground" : ""}`}>{line.name}</span>

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -34,6 +34,15 @@ import {
 import { SignatureCaptureStep } from "./signature-capture-step";
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api";
+
+// Sort fields in natural reading order: by page, then top-to-bottom, then left-to-right
+function sortFieldsByReadingOrder(fields: SignatureField[]): SignatureField[] {
+  return [...fields].sort((a, b) => {
+    if (a.page_number !== b.page_number) return a.page_number - b.page_number;
+    if (Math.abs(a.y_percent - b.y_percent) > 3) return a.y_percent - b.y_percent;
+    return a.x_percent - b.x_percent;
+  });
+}
 
 // Initialize pdf.js worker
 if (typeof window !== "undefined") {
@@ -88,16 +97,81 @@ export function PositionedSigningStep({
   const [selectedField, setSelectedField] = useState<SignatureField | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [captureMode, setCaptureMode] = useState<"signature" | "initials" | null>(null);
+  const [confirmMode, setConfirmMode] = useState<"signature" | "initials" | null>(null);
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const [savedInitials, setSavedInitials] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const hasAutoOpened = useRef(false);
+
+  // Fields sorted in reading order for sequential navigation
+  const sortedFields = React.useMemo(() => sortFieldsByReadingOrder(fields), [fields]);
 
   const apiUrl = getApiBaseUrl();
   const pdfUrl = `${apiUrl}/api/v1/sign/${token}/document`;
 
-  const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
-    setNumPages(numPages);
+  // Find the next incomplete required field in reading order
+  const findNextIncompleteField = useCallback(
+    (afterFieldId?: number): SignatureField | null => {
+      const sorted = sortFieldsByReadingOrder(fields);
+      const required = sorted.filter((f) => f.required && !f.completed);
+      if (required.length === 0) return null;
+
+      if (afterFieldId !== undefined) {
+        // Find fields that come after the given field in reading order
+        const currentIndex = sorted.findIndex((f) => f.id === afterFieldId);
+        if (currentIndex >= 0) {
+          const remaining = sorted.slice(currentIndex + 1).filter((f) => f.required && !f.completed);
+          if (remaining.length > 0) return remaining[0];
+        }
+        // Wrap around: return first incomplete
+        return required[0];
+      }
+      return required[0];
+    },
+    [fields]
+  );
+
+  // Navigate to a field: change page and open its dialog.
+  // If we already have a saved signature/initials, show the quick-confirm dialog instead.
+  const navigateToField = useCallback(
+    (field: SignatureField) => {
+      setCurrentPage(field.page_number);
+      setSelectedField(field);
+      if (field.field_type === "signature") {
+        if (savedSignature) {
+          setConfirmMode("signature");
+        } else {
+          setCaptureMode("signature");
+        }
+      } else if (field.field_type === "initials") {
+        if (savedInitials) {
+          setConfirmMode("initials");
+        } else {
+          setCaptureMode("initials");
+        }
+      }
+    },
+    [savedSignature, savedInitials]
+  );
+
+  // Auto-open the first incomplete field once the PDF is loaded
+  const onDocumentLoadSuccess = useCallback(({ numPages: pages }: { numPages: number }) => {
+    setNumPages(pages);
     setPdfError(null);
-  }, []);
+
+    // Auto-navigate to first incomplete field after PDF loads
+    if (!hasAutoOpened.current) {
+      hasAutoOpened.current = true;
+      // Small delay so PDF dimensions are available
+      setTimeout(() => {
+        const firstIncomplete = findNextIncompleteField();
+        if (firstIncomplete) {
+          navigateToField(firstIncomplete);
+        }
+      }, 500);
+    }
+  }, [findNextIncompleteField, navigateToField]);
 
   const onDocumentLoadError = useCallback((error: Error) => {
     console.error("Failed to load PDF:", error);
@@ -123,15 +197,23 @@ export function PositionedSigningStep({
   const completedRequired = requiredFields.filter((f) => f.completed);
   const allRequiredComplete = completedRequired.length === requiredFields.length;
 
-  // Handle field click
+  // Handle field click - if signature already captured, show confirm; otherwise full capture
   const handleFieldClick = (field: SignatureField) => {
     if (field.completed) return;
     setSelectedField(field);
 
     if (field.field_type === "signature") {
-      setCaptureMode("signature");
+      if (savedSignature) {
+        setConfirmMode("signature");
+      } else {
+        setCaptureMode("signature");
+      }
     } else if (field.field_type === "initials") {
-      setCaptureMode("initials");
+      if (savedInitials) {
+        setConfirmMode("initials");
+      } else {
+        setCaptureMode("initials");
+      }
     }
   };
 
@@ -151,31 +233,60 @@ export function PositionedSigningStep({
       }
 
       // Update local state
-      setFields((prev) =>
-        prev.map((f) =>
-          f.id === fieldId
-            ? { ...f, completed: true, value: data.field.value }
-            : f
-        )
+      const updatedFields = fields.map((f) =>
+        f.id === fieldId
+          ? { ...f, completed: true, value: data.field.value }
+          : f
       );
+      setFields(updatedFields);
 
       setSelectedField(null);
       setCaptureMode(null);
+      setConfirmMode(null);
 
       // Check if all required fields are complete
       if (data.all_fields_complete) {
         // All fields done, submit the signature
         await submitSignature();
+      } else {
+        // Auto-navigate to the next incomplete field after a brief pause
+        const sorted = sortFieldsByReadingOrder(updatedFields);
+        const required = sorted.filter((f) => f.required && !f.completed);
+        if (required.length > 0) {
+          // Find next field after current one in reading order
+          const currentIndex = sorted.findIndex((f) => f.id === fieldId);
+          const remaining = currentIndex >= 0
+            ? sorted.slice(currentIndex + 1).filter((f) => f.required && !f.completed)
+            : required;
+          const nextField = remaining.length > 0 ? remaining[0] : required[0];
+          setTimeout(() => {
+            navigateToField(nextField);
+          }, 300);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to complete field");
     }
   };
 
-  // Handle signature/initials capture
+  // Handle signature/initials capture - save for reuse at subsequent fields
   const handleSignatureCapture = async (signatureData: string) => {
     if (!selectedField) return;
+    // Save so we can reuse at subsequent fields with just a Confirm click
+    if (selectedField.field_type === "signature") {
+      setSavedSignature(signatureData);
+    } else if (selectedField.field_type === "initials") {
+      setSavedInitials(signatureData);
+    }
     await completeField(selectedField.id, signatureData);
+  };
+
+  // Handle quick-confirm: apply the saved signature/initials to the current field
+  const handleConfirmSavedSignature = async () => {
+    if (!selectedField) return;
+    const data = confirmMode === "initials" ? savedInitials : savedSignature;
+    if (!data) return;
+    await completeField(selectedField.id, data);
   };
 
   // Handle text/date field submission
@@ -210,12 +321,16 @@ export function PositionedSigningStep({
     }
   };
 
+  // Determine which field is "next" for visual highlighting
+  const nextField = findNextIncompleteField();
+
   // Render a field overlay on the PDF
   const renderFieldOverlay = (field: SignatureField) => {
     if (!pdfDimensions) return null;
 
     const Icon = FIELD_ICONS[field.field_type];
     const isCompleted = field.completed;
+    const isNext = nextField?.id === field.id;
 
     const style: React.CSSProperties = {
       position: "absolute",
@@ -234,7 +349,9 @@ export function PositionedSigningStep({
           "absolute border-2 rounded transition-all flex items-center justify-center gap-1",
           isCompleted
             ? "bg-green-500/20 border-green-500 cursor-default"
-            : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer animate-pulse"
+            : isNext
+              ? "bg-blue-500/30 border-blue-600 border-solid hover:bg-blue-500/40 cursor-pointer animate-pulse ring-2 ring-blue-400 ring-offset-1"
+              : "bg-blue-500/20 border-blue-500 border-dashed hover:bg-blue-500/30 cursor-pointer"
         )}
         style={style}
         onClick={() => handleFieldClick(field)}
@@ -383,16 +500,18 @@ export function PositionedSigningStep({
         </CardHeader>
         <CardContent className="pb-3">
           <div className="flex flex-wrap gap-2">
-            {fields.map((field) => {
+            {sortedFields.map((field) => {
               const Icon = FIELD_ICONS[field.field_type];
+              const isNext = nextField?.id === field.id;
               return (
                 <Button
                   key={field.id}
-                  variant={field.completed ? "secondary" : "outline"}
+                  variant={field.completed ? "secondary" : isNext ? "default" : "outline"}
                   size="sm"
                   className={cn(
                     "text-xs",
-                    field.completed && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:bg-green-900/30 dark:text-green-400"
+                    field.completed && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-400",
+                    isNext && !field.completed && "ring-2 ring-blue-400"
                   )}
                   onClick={() => {
                     setCurrentPage(field.page_number);
@@ -435,8 +554,8 @@ export function PositionedSigningStep({
         </div>
       )}
 
-      {/* Signature capture dialog */}
-      <Dialog open={captureMode === "signature"} onOpenChange={() => setCaptureMode(null)}>
+      {/* Signature capture dialog (first time - draw/type/upload) */}
+      <Dialog open={captureMode === "signature"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Draw your signature</DialogTitle>
@@ -452,14 +571,14 @@ export function PositionedSigningStep({
                 handleSignatureCapture(signatureData);
               }
             }}
-            onBack={() => setCaptureMode(null)}
+            onBack={() => { setCaptureMode(null); setSelectedField(null); }}
             embedded
           />
         </DialogContent>
       </Dialog>
 
-      {/* Initials capture dialog */}
-      <Dialog open={captureMode === "initials"} onOpenChange={() => setCaptureMode(null)}>
+      {/* Initials capture dialog (first time - draw/type/upload) */}
+      <Dialog open={captureMode === "initials"} onOpenChange={() => { setCaptureMode(null); setSelectedField(null); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add your initials</DialogTitle>
@@ -475,16 +594,72 @@ export function PositionedSigningStep({
                 handleSignatureCapture(signatureData);
               }
             }}
-            onBack={() => setCaptureMode(null)}
+            onBack={() => { setCaptureMode(null); setSelectedField(null); }}
             embedded
             initialsMode
           />
         </DialogContent>
       </Dialog>
 
+      {/* Quick-confirm dialog (subsequent signature/initials - just confirm placement) */}
+      <Dialog open={confirmMode !== null} onOpenChange={() => { setConfirmMode(null); setSelectedField(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {confirmMode === "initials" ? "Confirm your initials" : "Confirm your signature"}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedField?.label
+                ? `Apply to: ${selectedField.label}`
+                : `Apply your ${confirmMode === "initials" ? "initials" : "signature"} at this location`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Signature preview */}
+            <div className="border rounded-lg p-4 bg-white dark:bg-muted flex items-center justify-center min-h-[80px]">
+              {(confirmMode === "initials" ? savedInitials : savedSignature) && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={confirmMode === "initials" ? savedInitials! : savedSignature!}
+                  alt={confirmMode === "initials" ? "Your initials" : "Your signature"}
+                  className="max-h-[60px] max-w-full object-contain"
+                />
+              )}
+            </div>
+            <div className="flex justify-between gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  // Let them redraw
+                  setConfirmMode(null);
+                  if (confirmMode === "initials") {
+                    setSavedInitials(null);
+                    setCaptureMode("initials");
+                  } else {
+                    setSavedSignature(null);
+                    setCaptureMode("signature");
+                  }
+                }}
+              >
+                Redraw
+              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setConfirmMode(null); setSelectedField(null); }}>
+                  Skip
+                </Button>
+                <Button onClick={handleConfirmSavedSignature}>
+                  Confirm
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Text/Date field dialog */}
       <Dialog
-        open={selectedField !== null && !["signature", "initials"].includes(selectedField?.field_type || "")}
+        open={selectedField !== null && !["signature", "initials"].includes(selectedField?.field_type || "") && confirmMode === null && captureMode === null}
         onOpenChange={() => setSelectedField(null)}
       >
         <DialogContent>

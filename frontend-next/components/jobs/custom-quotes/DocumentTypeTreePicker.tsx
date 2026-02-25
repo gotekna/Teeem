@@ -276,6 +276,9 @@ export function DocumentTypeTreePicker({
     return counts;
   }, [treeData]);
 
+  // Picker open/closed state - default closed
+  const [pickerOpen, setPickerOpen] = useState(false);
+
   if (!loaded) return null;
 
   const totalSelected = localIds.length;
@@ -283,59 +286,29 @@ export function DocumentTypeTreePicker({
 
   return (
     <div className="space-y-1.5">
-      {/* Scope tabs */}
-      <div className="flex gap-1 flex-wrap items-center">
-        {SCOPE_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setScopeFilter(tab.key)}
-            className={cn(
-              "px-2 py-0.5 text-[10px] rounded border transition-colors",
-              scopeFilter === tab.key
-                ? "bg-primary text-primary-foreground font-medium border-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-          >
-            {tab.label}
-            <span className="ml-1 text-[10px] opacity-70">
-              {scopeCounts[tab.key]}
-            </span>
-          </button>
-        ))}
-        {totalSelected > 0 && (
-          <span className="px-2 py-0.5 text-[10px] text-green-600 dark:text-green-400 font-medium">
-            {totalSelected} selected
+      {/* Collapsed view: clickable summary with badges */}
+      <div
+        className="flex items-center gap-1.5 cursor-pointer group"
+        onClick={() => setPickerOpen(!pickerOpen)}
+      >
+        {pickerOpen ? (
+          <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0" />
+        )}
+        <span className="text-[10px] text-muted-foreground group-hover:text-foreground">
+          Document Types
+        </span>
+        {!pickerOpen && totalSelected > 0 && (
+          <span className="text-[10px] text-green-600 dark:text-green-400 font-medium">
+            ({totalSelected})
           </span>
         )}
       </div>
 
-      {/* Search + expand/collapse */}
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search document types..."
-          className="h-7 pl-7 pr-8 text-xs"
-        />
-        <button
-          type="button"
-          onClick={anyExpanded ? collapseAll : expandAll}
-          className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-muted text-muted-foreground"
-          title={anyExpanded ? "Collapse all" : "Expand all"}
-        >
-          {anyExpanded ? (
-            <ChevronsDownUp className="h-3.5 w-3.5" />
-          ) : (
-            <ChevronsUpDown className="h-3.5 w-3.5" />
-          )}
-        </button>
-      </div>
-
-      {/* Selected badges */}
-      {selectedDocTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+      {/* Collapsed badges - show selected when picker is closed */}
+      {!pickerOpen && selectedDocTypes.length > 0 && (
+        <div className="flex flex-wrap gap-1 ml-4">
           {selectedDocTypes.map((dt) => (
             <span
               key={dt.id}
@@ -345,7 +318,7 @@ export function DocumentTypeTreePicker({
               <button
                 type="button"
                 className="hover:text-destructive"
-                onClick={() => toggleItem(dt.id)}
+                onClick={(e) => { e.stopPropagation(); toggleItem(dt.id); }}
               >
                 <X className="h-2.5 w-2.5" />
               </button>
@@ -354,26 +327,112 @@ export function DocumentTypeTreePicker({
         </div>
       )}
 
-      {/* Tree */}
-      <div className="border rounded max-h-48 overflow-y-auto">
-        {filteredTree.length === 0 && (
-          <div className="px-3 py-4 text-xs text-muted-foreground text-center">
-            No document types found
+      {/* Expanded picker */}
+      {pickerOpen && (
+        <>
+          {/* Scope tabs */}
+          <div className="flex gap-1 flex-wrap items-center">
+            {SCOPE_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setScopeFilter(tab.key)}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] rounded border transition-colors",
+                  scopeFilter === tab.key
+                    ? "bg-primary text-primary-foreground font-medium border-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+                )}
+              >
+                {tab.label}
+                <span className="ml-1 text-[10px] opacity-70">
+                  {scopeCounts[tab.key]}
+                </span>
+              </button>
+            ))}
+            {totalSelected > 0 && (
+              <span className="px-2 py-0.5 text-[10px] text-green-600 dark:text-green-400 font-medium">
+                {totalSelected} selected
+              </span>
+            )}
           </div>
-        )}
-        {filteredTree.map((node) => (
-          <FolderTreeNode
-            key={node.id}
-            node={node}
-            depth={0}
-            selectedSet={selectedSet}
-            expandedFolders={expandedFolders}
-            onToggleItem={toggleItem}
-            onToggleFolder={toggleFolder}
-            onToggleExpand={toggleExpand}
-          />
-        ))}
-      </div>
+
+          {/* Search + expand/collapse */}
+          <div className="flex gap-1 items-center">
+            <button
+              type="button"
+              onClick={anyExpanded ? collapseAll : expandAll}
+              className={cn(
+                "shrink-0 px-2 py-0.5 text-[10px] rounded border transition-colors",
+                "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+              )}
+            >
+              {anyExpanded ? (
+                <>
+                  <ChevronsDownUp className="h-3 w-3 inline mr-0.5" />
+                  Collapse
+                </>
+              ) : (
+                <>
+                  <ChevronsUpDown className="h-3 w-3 inline mr-0.5" />
+                  Expand
+                </>
+              )}
+            </button>
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search document types..."
+                className="h-7 pl-7 text-xs"
+              />
+            </div>
+          </div>
+
+          {/* Selected badges */}
+          {selectedDocTypes.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {selectedDocTypes.map((dt) => (
+                <span
+                  key={dt.id}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full bg-primary/10 text-primary border border-primary/20"
+                >
+                  {dt.name}
+                  <button
+                    type="button"
+                    className="hover:text-destructive"
+                    onClick={() => toggleItem(dt.id)}
+                  >
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Tree */}
+          <div className="border rounded max-h-48 overflow-y-auto">
+            {filteredTree.length === 0 && (
+              <div className="px-3 py-4 text-xs text-muted-foreground text-center">
+                No document types found
+              </div>
+            )}
+            {filteredTree.map((node) => (
+              <FolderTreeNode
+                key={node.id}
+                node={node}
+                depth={0}
+                selectedSet={selectedSet}
+                expandedFolders={expandedFolders}
+                onToggleItem={toggleItem}
+                onToggleFolder={toggleFolder}
+                onToggleExpand={toggleExpand}
+              />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
