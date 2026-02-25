@@ -5,7 +5,6 @@
  *
  * Uses StandardDocumentList (THE ONE document list component) to render
  * documents in a clean flat list with preview sheet, checkboxes, and actions.
- * Double-click opens DocumentEditModal for AI verification and metadata editing.
  */
 
 import * as React from "react";
@@ -18,7 +17,6 @@ import { getStorageItem, STORAGE_KEYS } from "@/lib/storage-utils";
 import { Spinner } from "@/components/ui/spinner";
 import type { Corporate } from "@/lib/types/corporate";
 import { useConfirm } from "@/contexts/ConfirmationContext";
-import DocumentEditModal from "@/components/corporate/DocumentEditModal";
 import {
   StandardDocumentList,
   type LibraryDocument,
@@ -112,28 +110,13 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   const { confirm } = useConfirm();
   const [documents, setDocuments] = React.useState<CompanyDocument[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [companies, setCompanies] = React.useState<Corporate[]>([]);
 
   // Cascade mode - shows documents from folder AND all subfolders
   const [cascadeMode, setCascadeMode] = React.useState(true);
 
-  // DocumentEditModal state (double-click to edit)
-  const [selectedDocument, setSelectedDocument] = React.useState<CompanyDocument | null>(null);
-  const [isEditOpen, setIsEditOpen] = React.useState(false);
-
   React.useEffect(() => {
     loadDocuments();
-    loadCompanies();
   }, [companyId, category, cascadeMode]);
-
-  const loadCompanies = async () => {
-    try {
-      const response = await api.get<{ companies: Corporate[] }>("/api/v1/companies");
-      setCompanies(response.companies || []);
-    } catch (error) {
-      console.error("Failed to load companies:", error);
-    }
-  };
 
   const loadDocuments = async () => {
     try {
@@ -169,15 +152,6 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
       await loadDocuments();
     } catch (error) {
       console.error("Failed to delete document:", error);
-    }
-  };
-
-  // Double-click → open DocumentEditModal
-  const handleDoubleClick = (doc: LibraryDocument) => {
-    const companyDoc = documents.find(d => String(d.id) === String(doc.id));
-    if (companyDoc) {
-      setSelectedDocument(companyDoc);
-      setIsEditOpen(true);
     }
   };
 
@@ -218,30 +192,10 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           documents={libraryDocs}
           loading={loading}
           onDelete={handleDelete}
-          onDocumentDoubleClick={handleDoubleClick}
-          showVerifiedBadge={true}
-          showVersionBadge={false}
-          showExpiryBadge={false}
           emptyMessage="No documents in this folder"
         />
       </div>
 
-      {/* Document Edit Modal - Double click for AI verification and metadata editing */}
-      {selectedDocument && (
-        <DocumentEditModal
-          open={isEditOpen}
-          onOpenChange={(open) => {
-            setIsEditOpen(open);
-            if (!open) {
-              setSelectedDocument(null);
-              loadDocuments(); // Refresh after edit
-            }
-          }}
-          document={selectedDocument}
-          onDocumentUpdate={loadDocuments}
-          companies={companies}
-        />
-      )}
     </div>
   );
 }

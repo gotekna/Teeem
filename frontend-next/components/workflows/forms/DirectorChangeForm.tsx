@@ -206,6 +206,9 @@ export default function DirectorChangeForm({
   const [ceasingDirectors, setCeasingDirectors] = useState<CeasingDirector[]>([]);
   const [newAppointments, setNewAppointments] = useState<NewAppointment[]>([]);
 
+  // Document type names from DB (SSoT - not hardcoded)
+  const [docTypeNames, setDocTypeNames] = useState<Record<string, string>>({});
+
   // Contact search
   const [contactSearch, setContactSearch] = useState("");
   const [contactResults, setContactResults] = useState<ContactSearchResult[]>([]);
@@ -247,6 +250,21 @@ export default function DirectorChangeForm({
           directors: OfficerRecord[];
         }>(`/api/v1/companies/${subject.id}/directors`);
         setOfficers(officerRes.directors || []);
+
+        // Fetch document type names by abbreviation (SSoT from DB, not hardcoded)
+        try {
+          const dtRes = await api.get<{
+            success: boolean;
+            data: Array<{ abbreviation: string; name: string }>;
+          }>(`/api/v1/document_types?abbreviations=DM,RD,RS,RPO,CAD,CAS,CAPO,F484`);
+          const nameMap: Record<string, string> = {};
+          (dtRes.data || []).forEach((dt) => {
+            if (dt.abbreviation) nameMap[dt.abbreviation] = dt.name;
+          });
+          setDocTypeNames(nameMap);
+        } catch {
+          // Non-critical - falls back to hardcoded names
+        }
 
         // Restore form data if resuming
         if (existingFormData && Object.keys(existingFormData).length > 0) {
@@ -524,77 +542,60 @@ export default function DirectorChangeForm({
   const canSubmit = canProceedToReview;
 
   // SSoT: Document list mirrors DirectorChangeService (backend)
-  // Each position maps to its own document type (from ASIC warehouse folder)
+  // Names come from DocumentType DB records (fetched at load), not hardcoded
   const documentList = useMemo(() => {
-    const formatPosition = (pos: string) =>
-      pos.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-
-    // Position → document type mapping (matches warehouse ASIC folder doc types)
-    const resignationByPosition: Record<string, { docType: string; docTypeName: string }> = {
-      director: { docType: "RD", docTypeName: "Resignation Director" },
-      secretary: { docType: "RS", docTypeName: "Resignation Secretary" },
-      public_officer: { docType: "RPO", docTypeName: "Resignation Public Officer" },
+    // Position → abbreviation mapping
+    const resignationCodes: Record<string, string> = {
+      director: "RD", secretary: "RS", public_officer: "RPO",
     };
-    const consentByPosition: Record<string, { docType: string; docTypeName: string }> = {
-      director: { docType: "CAD", docTypeName: "Consent to Act as Director" },
-      secretary: { docType: "CAS", docTypeName: "Consent to Act as Secretary" },
-      public_officer: { docType: "CAPO", docTypeName: "Consent to Act as Public Officer" },
+    const consentCodes: Record<string, string> = {
+      director: "CAD", secretary: "CAS", public_officer: "CAPO",
     };
-    const defaultResignation = { docType: "RD", docTypeName: "Resignation Director" };
-    const defaultConsent = { docType: "CAD", docTypeName: "Consent to Act as Director" };
-
-    // Only include positions that have a known doc type — skip combined strings
-    // like "director_secretary_public_officer" that slip through dedup
-    const knownPositions = new Set(Object.keys(resignationByPosition));
+    const knownPositions = new Set(Object.keys(resignationCodes));
+    const dn = (code: string) => docTypeNames[code] || code;
 
     const docs: { key: string; label: string; docTypes: { code: string; name: string }[] }[] = [
-      { key: "minutes", label: "Directors Minutes", docTypes: [{ code: "DM", name: "Directors Minutes" }] },
+      { key: "minutes", label: dn("DM"), docTypes: [{ code: "DM", name: dn("DM") }] },
     ];
+    // One resignation document per position per ceasing director
     ceasingDirectors.forEach((cd) => {
-      const filtered = cd.positions.filter((pos) => knownPositions.has(pos));
-      const types = filtered.map((pos) => {
-        const dt = resignationByPosition[pos];
-        return { code: dt.docType, name: dt.docTypeName };
-      });
-      if (types.length > 0) {
+      cd.positions.filter((pos) => knownPositions.has(pos)).forEach((pos) => {
+        const code = resignationCodes[pos];
         docs.push({
-          key: `res-${cd.corporate_director_id}`,
-          label: `${types.map((t) => t.name).join(", ")} — ${cd.name}`,
-          docTypes: types,
+          key: `res-${cd.corporate_director_id}-${pos}`,
+          label: `${dn(code)} — ${cd.name}`,
+          docTypes: [{ code, name: dn(code) }],
         });
-      }
+      });
     });
+    // One consent document per position per new appointment
     newAppointments.forEach((appt) => {
-      const filtered = appt.positions.filter((pos) => knownPositions.has(pos));
-      const types = filtered.map((pos) => {
-        const dt = consentByPosition[pos];
-        return { code: dt.docType, name: dt.docTypeName };
-      });
-      if (types.length > 0) {
+      appt.positions.filter((pos) => knownPositions.has(pos)).forEach((pos) => {
+        const code = consentCodes[pos];
         docs.push({
-          key: `con-${appt.contact_id}`,
-          label: `${types.map((t) => t.name).join(", ")} — ${appt.name}`,
-          docTypes: types,
+          key: `con-${appt.contact_id}-${pos}`,
+          label: `${dn(code)} — ${appt.name}`,
+          docTypes: [{ code, name: dn(code) }],
         });
-      }
+      });
     });
     // Split Form 484 into cessation and appointment (matches backend service)
     if (ceasingDirectors.length > 0) {
       docs.push({
         key: "form484_cessation",
-        label: "ASIC Form 484 — Cessation",
-        docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }],
+        label: `${dn("F484")} — Cessation`,
+        docTypes: [{ code: "F484", name: dn("F484") }],
       });
     }
     if (newAppointments.length > 0) {
       docs.push({
         key: "form484_appointment",
-        label: "ASIC Form 484 — Appointment",
-        docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }],
+        label: `${dn("F484")} — Appointment`,
+        docTypes: [{ code: "F484", name: dn("F484") }],
       });
     }
     return docs;
-  }, [ceasingDirectors, newAppointments]);
+  }, [ceasingDirectors, newAppointments, docTypeNames]);
 
   const handleSubmit = async () => {
     setSubmitting(true);

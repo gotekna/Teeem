@@ -162,7 +162,6 @@ function SortableDocumentRow({
   canDrag,
   onToggleSelect,
   onClick,
-  onDoubleClick,
   onDelete,
   showVersionBadge = true,
   showExpiryBadge = true,
@@ -173,7 +172,6 @@ function SortableDocumentRow({
   canDrag: boolean;
   onToggleSelect: (docId: number, e: React.MouseEvent) => void;
   onClick: (doc: LibraryDocument) => void;
-  onDoubleClick: (doc: LibraryDocument) => void;
   onDelete?: (doc: LibraryDocument, e: React.MouseEvent) => void;
   showVersionBadge?: boolean;
   showExpiryBadge?: boolean;
@@ -212,7 +210,6 @@ function SortableDocumentRow({
       <button
         className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
         onClick={() => onClick(doc)}
-        onDoubleClick={() => onDoubleClick(doc)}
       >
         <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
         <p className="text-sm font-medium truncate flex-1 min-w-0 text-left">
@@ -427,24 +424,38 @@ export function StandardDocumentList({
     updateSelection(next);
   }, [documents, selectedDocs, updateSelection]);
 
-  // Single click -> preview
-  const handleDocumentClick = useCallback((doc: LibraryDocument) => {
-    setPreviewDoc(doc);
-    setIsSheetOpen(true);
-    setShowVersions(false);
-    setVersionHistory([]);
-    if (doc.versionCount > 1) {
-      fetchVersionHistory(doc.id);
-    }
-  }, []);
+  // ⚠️ DO NOT SIMPLIFY - Click-count detection for single vs double click (Feb 2026)
+  // ════════════════════════════════════════════
+  // Why: Single click opens Sheet (modal overlay). Browser dblclick event is
+  //      unreliable because the overlay can capture the 2nd click.
+  // ❌ WRONG: Separate onClick + onDoubleClick handlers
+  // ✅ CORRECT: Single onClick with timer — 2nd click within 300ms = double-click
+  // ════════════════════════════════════════════
+  const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  // Double click -> custom handler or open in new tab
-  const handleDocumentDoubleClick = useCallback((doc: LibraryDocument) => {
-    if (customDoubleClick) {
-      customDoubleClick(doc);
-    } else if (doc.fileUrl) {
-      window.open(doc.fileUrl, "_blank");
+  const handleDocumentClick = useCallback((doc: LibraryDocument) => {
+    if (clickTimeoutRef.current) {
+      // Second click within timeout = double-click
+      clearTimeout(clickTimeoutRef.current);
+      clickTimeoutRef.current = null;
+      if (customDoubleClick) {
+        customDoubleClick(doc);
+      } else if (doc.fileUrl) {
+        window.open(doc.fileUrl, "_blank");
+      }
+      return;
     }
+    // First click — wait to see if a second click follows
+    clickTimeoutRef.current = setTimeout(() => {
+      clickTimeoutRef.current = null;
+      setPreviewDoc(doc);
+      setIsSheetOpen(true);
+      setShowVersions(false);
+      setVersionHistory([]);
+      if (doc.versionCount > 1) {
+        fetchVersionHistory(doc.id);
+      }
+    }, 300);
   }, [customDoubleClick]);
 
   // Fetch version history
@@ -569,7 +580,6 @@ export function StandardDocumentList({
                 canDrag={canDrag}
                 onToggleSelect={toggleSelect}
                 onClick={handleDocumentClick}
-                onDoubleClick={handleDocumentDoubleClick}
                 onDelete={onDelete}
                 showVersionBadge={showVersionBadge}
                 showExpiryBadge={showExpiryBadge}

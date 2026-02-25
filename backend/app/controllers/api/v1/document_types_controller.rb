@@ -23,6 +23,12 @@ module Api
           @document_types = @document_types.by_folder(params[:folder])
         end
 
+        # Filter by abbreviation(s)
+        if params[:abbreviations].present?
+          codes = params[:abbreviations].split(",").map(&:strip)
+          @document_types = @document_types.where(abbreviation: codes)
+        end
+
         # Filter by active status
         @document_types = @document_types.active unless params[:include_inactive] == "true"
 
