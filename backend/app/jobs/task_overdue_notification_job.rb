@@ -11,11 +11,29 @@
 class TaskOverdueNotificationJob < ApplicationJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SmTask has acts_as_tenant. Without tenant context (require_tenant=false),
+  # queries return ALL tenants' tasks, sending cross-tenant notifications.
   def perform
     Rails.logger.info "[TaskOverdueNotification] Starting overdue check..."
 
-    today = Date.current
     notified_count = 0
+
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        notified_count += check_overdue_for_tenant
+      end
+    end
+
+    Rails.logger.info "[TaskOverdueNotification] Complete. Sent #{notified_count} notifications."
+    { notified: notified_count }
+  end
+
+  private
+
+  def check_overdue_for_tenant
+    today = Date.current
+    notified = 0
 
     # Find overdue tasks that:
     # - Have an end_date before today
@@ -47,13 +65,12 @@ class TaskOverdueNotificationJob < ApplicationJob
         message: "The task \"#{task.name}\" on job \"#{job_name}\" is #{days_overdue} day#{'s' if days_overdue != 1} overdue."
       )
 
-      notified_count += 1
+      notified += 1
       Rails.logger.info "[TaskOverdueNotification] Notified #{task.assigned_user.name} about overdue task: #{task.name}"
     rescue StandardError => e
       Rails.logger.error "[TaskOverdueNotification] Failed to notify for task #{task.id}: #{e.message}"
     end
 
-    Rails.logger.info "[TaskOverdueNotification] Complete. Sent #{notified_count} notifications."
-    { notified: notified_count }
+    notified
   end
 end

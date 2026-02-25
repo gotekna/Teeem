@@ -9,14 +9,31 @@ class BillInboxSyncJob < ApplicationJob
 
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: BillInboxSyncService reads TenantSetting.monitored_mailbox_pay
+  # which returns nil without tenant context. Job silently did nothing.
   def perform(since: nil)
     Rails.logger.info "[BillInboxSyncJob] Starting..."
 
-    results = BillInboxSyncService.new(since: since).sync!
-
-    Rails.logger.info "[BillInboxSyncJob] Complete: #{results[:created]} bills created, #{results[:skipped]} skipped"
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        sync_for_tenant(since)
+      end
+    end
   rescue StandardError => e
     Rails.logger.error "[BillInboxSyncJob] Failed: #{e.message}"
     raise
+  end
+
+  private
+
+  def sync_for_tenant(since)
+    results = BillInboxSyncService.new(since: since).sync!
+
+    if results[:created] > 0 || results[:skipped] > 0
+      Rails.logger.info "[BillInboxSyncJob] #{ActsAsTenant.current_tenant.name}: #{results[:created]} bills created, #{results[:skipped]} skipped"
+    end
+  rescue StandardError => e
+    Rails.logger.error "[BillInboxSyncJob] Error for #{ActsAsTenant.current_tenant.name}: #{e.message}"
   end
 end

@@ -8,6 +8,10 @@
 class SmRecurringTaskGenerationJob < ApplicationJob
   queue_as :default
 
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: SmRecurringTaskDefinition and SmTask have tenant context requirements.
+  # Without tenant, created SmTask records get nil tenant_id and definition queries
+  # return cross-tenant data (require_tenant=false).
   def perform
     Rails.logger.info "[RecurringTasks] Starting task generation job"
 
@@ -18,10 +22,24 @@ class SmRecurringTaskGenerationJob < ApplicationJob
       errors: 0
     }
 
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        generate_for_tenant(stats)
+      end
+    end
+
+    Rails.logger.info "[RecurringTasks] Job complete. Stats: #{stats.inspect}"
+    stats
+  end
+
+  private
+
+  def generate_for_tenant(stats)
     # Find all definitions due for generation
     definitions = SmRecurringTaskDefinition.due_for_generation
+    return if definitions.empty?
 
-    Rails.logger.info "[RecurringTasks] Found #{definitions.count} definitions due for generation"
+    Rails.logger.info "[RecurringTasks] Found #{definitions.count} definitions due for #{ActsAsTenant.current_tenant.name}"
 
     definitions.find_each do |definition|
       begin
@@ -45,8 +63,5 @@ class SmRecurringTaskGenerationJob < ApplicationJob
         Sentry.capture_exception(e, extra: { definition_id: definition.id, definition_name: definition.name }) if defined?(Sentry)
       end
     end
-
-    Rails.logger.info "[RecurringTasks] Job complete. Stats: #{stats.inspect}"
-    stats
   end
 end

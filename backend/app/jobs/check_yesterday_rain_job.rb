@@ -4,19 +4,43 @@ class CheckYesterdayRainJob < ApplicationJob
 
   # Check yesterday's weather for all active jobs
   # Auto-creates rain log entries if rainfall detected
+  #
+  # ⚠️ FRC (Feb 2026): Must iterate over tenants
+  # Root cause: Job has acts_as_tenant. Without tenant context (require_tenant=false),
+  # Job.active returns ALL tenants' jobs, creating cross-tenant rain logs.
   def perform(job_id: nil, date: nil)
     target_date = date || Date.yesterday
 
-    # If specific job_id provided, only check that job
+    # If specific job_id provided, only check that job (caller provides tenant context)
     if job_id
       job = Job.find(job_id)
       return check_rain_for_job(job, target_date)
     end
 
-    # Otherwise check all active jobs
-    weather_client = WeatherApiClient.new
+    # Otherwise check all active jobs across all tenants
+    all_results = { date: target_date, active_jobs_checked: 0, rain_logs_created: 0, errors: [] }
 
-    Rails.logger.info("Checking rain for all active jobs (#{target_date})")
+    Tenant.find_each do |tenant|
+      ActsAsTenant.with_tenant(tenant) do
+        result = check_rain_for_tenant(target_date)
+        all_results[:active_jobs_checked] += result[:active_jobs_checked]
+        all_results[:rain_logs_created] += result[:rain_logs_created]
+        all_results[:errors].concat(result[:errors])
+      end
+    end
+
+    Rails.logger.info(
+      "Rain check complete: #{all_results[:active_jobs_checked]} jobs checked, " \
+      "#{all_results[:rain_logs_created]} rain logs created, #{all_results[:errors].count} errors"
+    )
+
+    all_results
+  end
+
+  private
+
+  def check_rain_for_tenant(target_date)
+    weather_client = WeatherApiClient.new
 
     active_jobs_checked = 0
     rain_logs_created = 0
@@ -71,15 +95,7 @@ class CheckYesterdayRainJob < ApplicationJob
       end
     end
 
-    # Log summary
-    Rails.logger.info(
-      "Rain check complete: #{active_jobs_checked} jobs checked, " \
-      "#{rain_logs_created} rain logs created, #{errors.count} errors"
-    )
-
-    # Return summary
     {
-      date: target_date,
       active_jobs_checked: active_jobs_checked,
       rain_logs_created: rain_logs_created,
       errors: errors

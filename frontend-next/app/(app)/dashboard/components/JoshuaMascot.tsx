@@ -283,67 +283,105 @@ export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading
           </button>
 
           <div style={{ animation: characterAnim }}>
-            <svg viewBox="0 0 120 200" width="115" height="192" className="drop-shadow-lg">
+            <svg viewBox="0 0 140 220" width="120" height="188" className="drop-shadow-lg">
               <defs>
-                <linearGradient id="jh-hat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#fcd34d" />
-                  <stop offset="40%" stopColor="#fbbf24" />
+                {/* Refined gradients for depth */}
+                <linearGradient id="jh-hat" x1="0" y1="0" x2="0.15" y2="1">
+                  <stop offset="0%" stopColor="#fde68a" />
+                  <stop offset="25%" stopColor="#fbbf24" />
+                  <stop offset="70%" stopColor="#f59e0b" />
                   <stop offset="100%" stopColor="#d97706" />
                 </linearGradient>
-                <radialGradient id="jh-skin" cx="0.4" cy="0.3">
+                <linearGradient id="jh-hat-shade" x1="1" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f59e0b" />
+                  <stop offset="100%" stopColor="#b45309" />
+                </linearGradient>
+                <radialGradient id="jh-skin" cx="0.38" cy="0.28" r="0.65">
                   <stop offset="0%" stopColor="#fde8d0" />
-                  <stop offset="70%" stopColor="#f5d4b3" />
-                  <stop offset="100%" stopColor="#e8b48a" />
-                </radialGradient>
-                <radialGradient id="jh-skin-shadow" cx="0.5" cy="0.5">
-                  <stop offset="0%" stopColor="#f5d4b3" />
+                  <stop offset="45%" stopColor="#f5d4b3" />
+                  <stop offset="80%" stopColor="#e8b48a" />
                   <stop offset="100%" stopColor="#d4a574" />
                 </radialGradient>
-                <linearGradient id="jh-vest" x1="0" y1="0" x2="0.3" y2="1">
-                  <stop offset="0%" stopColor="#fb923c" />
-                  <stop offset="60%" stopColor="#f97316" />
-                  <stop offset="100%" stopColor="#ea580c" />
+                <radialGradient id="jh-skin-hi" cx="0.3" cy="0.2" r="0.5">
+                  <stop offset="0%" stopColor="#fff5eb" />
+                  <stop offset="100%" stopColor="#fde8d0" stopOpacity="0" />
+                </radialGradient>
+                <linearGradient id="jh-vest" x1="0" y1="0" x2="0.2" y2="1">
+                  <stop offset="0%" stopColor="#fdba74" />
+                  <stop offset="30%" stopColor="#fb923c" />
+                  <stop offset="70%" stopColor="#f97316" />
+                  <stop offset="100%" stopColor="#c2410c" />
                 </linearGradient>
-                <linearGradient id="jh-shirt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#60a5fa" />
-                  <stop offset="100%" stopColor="#3b82f6" />
+                <linearGradient id="jh-vest-shade" x1="1" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#ea580c" />
+                  <stop offset="100%" stopColor="#9a3412" />
                 </linearGradient>
-                <linearGradient id="jh-jeans" x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id="jh-shirt" x1="0.2" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#93c5fd" />
+                  <stop offset="40%" stopColor="#60a5fa" />
+                  <stop offset="100%" stopColor="#2563eb" />
+                </linearGradient>
+                <linearGradient id="jh-shirt-shade" x1="1" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#3b82f6" />
-                  <stop offset="40%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#1d4ed8" />
+                </linearGradient>
+                <linearGradient id="jh-jeans" x1="0.2" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#60a5fa" />
+                  <stop offset="30%" stopColor="#3b82f6" />
                   <stop offset="100%" stopColor="#1e40af" />
                 </linearGradient>
-                <linearGradient id="jh-wood" x1="0" y1="0" x2="1" y2="1">
+                <linearGradient id="jh-jeans-shade" x1="1" y1="0" x2="0" y2="0.8">
+                  <stop offset="0%" stopColor="#2563eb" />
+                  <stop offset="100%" stopColor="#1e3a8a" />
+                </linearGradient>
+                <linearGradient id="jh-wood" x1="0" y1="0" x2="0.8" y2="1">
                   <stop offset="0%" stopColor="#d4a056" />
-                  <stop offset="50%" stopColor="#b8860b" />
+                  <stop offset="30%" stopColor="#c08430" />
+                  <stop offset="60%" stopColor="#b8860b" />
                   <stop offset="100%" stopColor="#8B6914" />
                 </linearGradient>
-                <linearGradient id="jh-steel" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#e2e8f0" />
-                  <stop offset="30%" stopColor="#cbd5e1" />
-                  <stop offset="70%" stopColor="#94a3b8" />
-                  <stop offset="100%" stopColor="#64748b" />
+                <linearGradient id="jh-steel" x1="0.1" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f1f5f9" />
+                  <stop offset="20%" stopColor="#cbd5e1" />
+                  <stop offset="50%" stopColor="#94a3b8" />
+                  <stop offset="80%" stopColor="#64748b" />
+                  <stop offset="100%" stopColor="#475569" />
                 </linearGradient>
-                <linearGradient id="jh-boot" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#57534e" />
-                  <stop offset="100%" stopColor="#292524" />
+                <linearGradient id="jh-boot" x1="0.2" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#78716c" />
+                  <stop offset="30%" stopColor="#57534e" />
+                  <stop offset="100%" stopColor="#1c1917" />
                 </linearGradient>
                 <linearGradient id="jh-belt" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#92400e" />
-                  <stop offset="100%" stopColor="#78350f" />
+                  <stop offset="0%" stopColor="#a16207" />
+                  <stop offset="50%" stopColor="#854d0e" />
+                  <stop offset="100%" stopColor="#713f12" />
                 </linearGradient>
-                <linearGradient id="jh-hair" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#8B6914" />
+                <linearGradient id="jh-hair" x1="0.3" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#a0764a" />
+                  <stop offset="50%" stopColor="#7c5b34" />
                   <stop offset="100%" stopColor="#5D4037" />
                 </linearGradient>
+                {/* Soft shadow filter */}
+                <filter id="jh-softshadow" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+                  <feOffset dx="1" dy="2" />
+                  <feComposite in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" />
+                  <feFlood floodColor="#000" floodOpacity="0.12" />
+                  <feComposite in2="SourceGraphic" operator="in" />
+                  <feMerge>
+                    <feMergeNode />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
               </defs>
 
-              {/* Ground shadow */}
+              {/* Ground shadow - soft ellipse */}
               <ellipse
-                cx="60" cy="194" rx="32" ry="5" fill="#000" opacity="0.1"
+                cx="70" cy="214" rx="34" ry="5" fill="#000" opacity="0.12"
                 style={{
                   animation: phase === "idle" && !isWalking ? "josh-shadow-pulse 3s ease-in-out infinite" : undefined,
-                  transformOrigin: "60px 194px",
+                  transformOrigin: "70px 214px",
                 }}
               />
 
@@ -351,285 +389,394 @@ export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading
               <g>
                 {/* Left leg */}
                 <g style={{
-                  transformOrigin: "51px 133px",
+                  transformOrigin: "58px 148px",
                   animation: isWalking ? "josh-walk-left-leg 0.5s ease-in-out infinite" : undefined,
                 }}>
-                  {/* Thigh */}
-                  <path d="M44 133 L42 157 Q42 159 44 159 L54 159 Q56 159 56 157 L55 133 Z" fill="url(#jh-jeans)" />
+                  {/* Full leg shape - organic contour */}
+                  <path d="M50 148 C49 155 48 162 47 170 C46 175 46 178 47 180 L47 188 C47 190 48 191 50 191 L62 191 C64 191 65 190 65 188 L65 180 C66 178 66 175 65 170 C64 162 63 155 62 148 Z" fill="url(#jh-jeans)" />
+                  {/* Inner leg shadow */}
+                  <path d="M60 148 C60 158 60 168 60 178 L62 148 Z" fill="url(#jh-jeans-shade)" opacity="0.3" />
                   {/* Knee highlight */}
-                  <ellipse cx="49" cy="150" rx="5" ry="3" fill="white" opacity="0.04" />
-                  {/* Shin */}
-                  <path d="M42 157 L41 172 Q41 174 43 174 L55 174 Q57 174 57 172 L56 157 Z" fill="url(#jh-jeans)" />
-                  {/* Boot */}
-                  <path d="M39 172 L38 183 Q38 188 43 188 L55 188 Q60 188 60 184 L58 172 Z" fill="url(#jh-boot)" />
-                  {/* Boot sole */}
-                  <rect x="37" y="186" width="24" height="3.5" rx="1.5" fill="#1c1917" />
-                  {/* Boot details - lace area */}
-                  <path d="M40 178 Q40 174 47 174 L53 174 Q57 174 57 177" fill="none" stroke="#78716c" strokeWidth="0.6" />
-                  <line x1="47" y1="174" x2="52" y2="174" stroke="#a8a29e" strokeWidth="0.4" />
-                  <line x1="46" y1="176" x2="53" y2="176" stroke="#a8a29e" strokeWidth="0.4" />
-                  {/* Boot steel toe cap */}
-                  <path d="M38 184 Q38 181 45 180 L54 180 Q59 181 59 184" fill="#44403c" opacity="0.3" />
+                  <ellipse cx="55" cy="168" rx="5" ry="4" fill="white" opacity="0.06" />
+                  {/* Knee crease */}
+                  <path d="M50 166 Q55 168 61 166" fill="none" stroke="#1e40af" strokeWidth="0.6" opacity="0.25" />
+                  {/* Jean hem fold */}
+                  <path d="M47 186 Q55 189 63 186" fill="none" stroke="#1e40af" strokeWidth="0.8" opacity="0.15" />
+
+                  {/* Boot - organic shape */}
+                  <path d="M45 188 C44 192 43 196 43 200 C43 205 46 208 51 208 L63 208 C68 208 70 206 70 202 C70 198 68 194 66 188 Z" fill="url(#jh-boot)" />
+                  {/* Boot sole - thick rubber */}
+                  <path d="M42 205 C42 209 45 211 50 211 L64 211 C69 211 71 209 71 206 L71 205 C71 204 70 204 69 205 L44 205 C43 205 42 205 42 205 Z" fill="#0c0a09" />
+                  {/* Boot tongue */}
+                  <path d="M49 188 C49 190 50 191 53 191 L60 191 C62 191 63 190 63 188" fill="#44403c" opacity="0.5" />
+                  {/* Boot lace details */}
+                  <line x1="53" y1="190" x2="59" y2="190" stroke="#a8a29e" strokeWidth="0.5" />
+                  <line x1="52" y1="192" x2="60" y2="192" stroke="#a8a29e" strokeWidth="0.5" />
+                  <line x1="52" y1="194" x2="60" y2="194" stroke="#a8a29e" strokeWidth="0.5" />
+                  {/* Steel toe cap shine */}
+                  <path d="M44 202 C45 199 50 198 58 198 C64 198 68 199 69 201" fill="none" stroke="white" strokeWidth="0.6" opacity="0.12" />
                 </g>
+
                 {/* Right leg */}
                 <g style={{
-                  transformOrigin: "65px 133px",
+                  transformOrigin: "78px 148px",
                   animation: isWalking ? "josh-walk-right-leg 0.5s ease-in-out infinite" : undefined,
                 }}>
-                  <path d="M59 133 L57 157 Q57 159 59 159 L69 159 Q71 159 71 157 L70 133 Z" fill="url(#jh-jeans)" />
-                  <ellipse cx="64" cy="150" rx="5" ry="3" fill="white" opacity="0.04" />
-                  <path d="M57 157 L56 172 Q56 174 58 174 L70 174 Q72 174 72 172 L71 157 Z" fill="url(#jh-jeans)" />
-                  <path d="M54 172 L53 183 Q53 188 58 188 L70 188 Q75 188 75 184 L73 172 Z" fill="url(#jh-boot)" />
-                  <rect x="52" y="186" width="24" height="3.5" rx="1.5" fill="#1c1917" />
-                  <path d="M55 178 Q55 174 62 174 L68 174 Q72 174 72 177" fill="none" stroke="#78716c" strokeWidth="0.6" />
-                  <line x1="62" y1="174" x2="67" y2="174" stroke="#a8a29e" strokeWidth="0.4" />
-                  <line x1="61" y1="176" x2="68" y2="176" stroke="#a8a29e" strokeWidth="0.4" />
-                  <path d="M53 184 Q53 181 60 180 L69 180 Q74 181 74 184" fill="#44403c" opacity="0.3" />
+                  <path d="M72 148 C71 155 70 162 69 170 C68 175 68 178 69 180 L69 188 C69 190 70 191 72 191 L84 191 C86 191 87 190 87 188 L87 180 C88 178 88 175 87 170 C86 162 85 155 84 148 Z" fill="url(#jh-jeans)" />
+                  <path d="M82 148 C82 158 82 168 82 178 L84 148 Z" fill="url(#jh-jeans-shade)" opacity="0.3" />
+                  <ellipse cx="77" cy="168" rx="5" ry="4" fill="white" opacity="0.06" />
+                  <path d="M72 166 Q77 168 83 166" fill="none" stroke="#1e40af" strokeWidth="0.6" opacity="0.25" />
+                  <path d="M69 186 Q77 189 85 186" fill="none" stroke="#1e40af" strokeWidth="0.8" opacity="0.15" />
+
+                  <path d="M67 188 C66 192 65 196 65 200 C65 205 68 208 73 208 L85 208 C90 208 92 206 92 202 C92 198 90 194 88 188 Z" fill="url(#jh-boot)" />
+                  <path d="M64 205 C64 209 67 211 72 211 L86 211 C91 211 93 209 93 206 L93 205 C93 204 92 204 91 205 L66 205 C65 205 64 205 64 205 Z" fill="#0c0a09" />
+                  <path d="M71 188 C71 190 72 191 75 191 L82 191 C84 191 85 190 85 188" fill="#44403c" opacity="0.5" />
+                  <line x1="75" y1="190" x2="81" y2="190" stroke="#a8a29e" strokeWidth="0.5" />
+                  <line x1="74" y1="192" x2="82" y2="192" stroke="#a8a29e" strokeWidth="0.5" />
+                  <line x1="74" y1="194" x2="82" y2="194" stroke="#a8a29e" strokeWidth="0.5" />
+                  <path d="M66 202 C67 199 72 198 80 198 C86 198 90 199 91 201" fill="none" stroke="white" strokeWidth="0.6" opacity="0.12" />
                 </g>
               </g>
 
               {/* === LEFT ARM (wave/point) === */}
-              <g style={{ transformOrigin: "38px 82px", animation: leftArmAnim }}>
-                {/* Upper arm */}
-                <path d="M38 82 Q32 92 28 100" stroke="url(#jh-vest)" strokeWidth="12" strokeLinecap="round" fill="none" />
-                {/* Hi-vis stripe on sleeve */}
-                <line x1="34" y1="90" x2="30" y2="96" stroke="#fde047" strokeWidth="2" opacity="0.7" strokeLinecap="round" />
+              <g style={{ transformOrigin: "44px 94px", animation: leftArmAnim }}>
+                {/* Upper arm - shaped */}
+                <path d="M44 94 C40 100 36 106 33 113" stroke="url(#jh-vest)" strokeWidth="14" strokeLinecap="round" fill="none" />
+                {/* Arm shadow */}
+                <path d="M44 94 C40 100 36 106 33 113" stroke="url(#jh-vest-shade)" strokeWidth="14" strokeLinecap="round" fill="none" opacity="0.15" />
+                {/* Sleeve cuff / hi-vis */}
+                <path d="M38 103 C36 106 34 109 33 111" stroke="#fde047" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.7" />
+
                 {/* Forearm */}
-                <path d="M28 100 Q24 108 20 115" stroke="url(#jh-shirt)" strokeWidth="10" strokeLinecap="round" fill="none" />
-                {/* Wrist/hand */}
-                <ellipse cx="19" cy="117" rx="6" ry="5.5" fill="url(#jh-skin)" />
+                <path d="M33 113 C29 121 25 128 22 134" stroke="url(#jh-shirt)" strokeWidth="12" strokeLinecap="round" fill="none" />
+                <path d="M33 113 C29 121 25 128 22 134" stroke="url(#jh-shirt-shade)" strokeWidth="12" strokeLinecap="round" fill="none" opacity="0.1" />
+
+                {/* Wrist + hand base */}
+                <path d="M18 131 C14 133 12 136 14 139 C16 142 20 143 24 141 C28 139 29 136 27 133 C26 131 22 130 18 131 Z" fill="url(#jh-skin)" />
+                {/* Skin highlight */}
+                <ellipse cx="20" cy="135" rx="4" ry="3" fill="url(#jh-skin-hi)" opacity="0.4" />
+
                 {/* Thumb */}
-                <ellipse cx="14" cy="115" rx="2.8" ry="2.2" fill="#f0c9a0" transform="rotate(-15, 14, 115)" />
-                {/* Fingers for wave */}
+                <path d="M14 133 C11 131 10 133 11 136 C12 138 14 139 15 137" fill="#f0c9a0" stroke="#d4a574" strokeWidth="0.5" />
+
+                {/* Fingers when waving - naturally spread */}
                 {armPose === "wave" && (
                   <g>
-                    <path d="M15 114 Q13 108 12 105" stroke="#f0c9a0" strokeWidth="3" strokeLinecap="round" fill="none" />
-                    <path d="M17 113 Q16 107 15 103" stroke="#f0c9a0" strokeWidth="3" strokeLinecap="round" fill="none" />
-                    <path d="M19 113 Q19 107 19 103" stroke="#f0c9a0" strokeWidth="3" strokeLinecap="round" fill="none" />
-                    <path d="M22 114 Q22 108 23 104" stroke="#f0c9a0" strokeWidth="3" strokeLinecap="round" fill="none" />
+                    <path d="M16 132 C14 126 12 122 11 119" stroke="#f0c9a0" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                    <path d="M18 131 C17 125 16 120 15 116" stroke="#f0c9a0" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                    <path d="M21 131 C21 125 21 120 21 116" stroke="#f0c9a0" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                    <path d="M24 132 C25 126 26 121 27 118" stroke="#f0c9a0" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                    {/* Fingertip highlights */}
+                    <circle cx="11" cy="119" r="2" fill="#fde8d0" />
+                    <circle cx="15" cy="116" r="2" fill="#fde8d0" />
+                    <circle cx="21" cy="116" r="2" fill="#fde8d0" />
+                    <circle cx="27" cy="118" r="2" fill="#fde8d0" />
                   </g>
                 )}
                 {/* Pointing finger */}
                 {armPose === "point" && (
-                  <path d="M15 115 Q9 110 4 105" stroke="#f0c9a0" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+                  <g>
+                    <path d="M16 133 C10 127 6 122 2 118" stroke="#f0c9a0" strokeWidth="4" strokeLinecap="round" fill="none" />
+                    <circle cx="2" cy="118" r="2.2" fill="#fde8d0" />
+                  </g>
                 )}
               </g>
 
               {/* === BODY (torso) === */}
-              <g style={{ animation: bodyAnim, transformOrigin: "60px 107px" }}>
-                {/* Shirt base */}
-                <path d="M36 80 Q34 80 34 84 L33 128 Q33 132 37 132 L79 132 Q83 132 83 128 L82 84 Q82 80 80 80 Z" fill="url(#jh-shirt)" />
-                {/* Shirt wrinkle details */}
-                <path d="M55 90 Q58 95 55 100" stroke="#2563eb" strokeWidth="0.5" fill="none" opacity="0.2" />
-                <path d="M65 88 Q62 94 65 99" stroke="#2563eb" strokeWidth="0.5" fill="none" opacity="0.15" />
+              <g style={{ animation: bodyAnim, transformOrigin: "70px 120px" }}>
+                {/* Torso base - shirt with natural contour */}
+                <path d="M42 91 C40 91 38 93 38 96 L37 142 C37 146 40 148 44 148 L92 148 C96 148 99 146 99 142 L98 96 C98 93 96 91 94 91 Z" fill="url(#jh-shirt)" />
+                {/* Shirt shadow - right side */}
+                <path d="M80 91 L94 91 C96 91 98 93 98 96 L99 142 C99 146 96 148 92 148 L80 148 Z" fill="url(#jh-shirt-shade)" opacity="0.12" />
 
-                {/* Hi-vis vest - left panel */}
-                <path d="M35 80 L53 80 L53 132 L35 132 Q32 132 32 128 L32 84 Q32 80 35 80 Z" fill="url(#jh-vest)" />
+                {/* Shirt wrinkle folds - subtle curves */}
+                <path d="M62 100 C64 108 62 116 64 124" stroke="#2563eb" strokeWidth="0.6" fill="none" opacity="0.12" />
+                <path d="M76 98 C74 106 76 114 74 122" stroke="#2563eb" strokeWidth="0.6" fill="none" opacity="0.1" />
+                <path d="M55 95 C57 100 55 105 57 110" stroke="#2563eb" strokeWidth="0.5" fill="none" opacity="0.08" />
+
+                {/* Hi-vis vest - left panel with shape */}
+                <path d="M42 91 C40 91 38 92 38 95 L38 142 C38 146 40 148 44 148 L60 148 L60 91 Z" fill="url(#jh-vest)" />
+                {/* Vest left shadow */}
+                <path d="M38 91 L44 91 L44 148 L38 148 C36 148 36 146 36 142 L36 96 C36 93 38 91 38 91 Z" fill="url(#jh-vest-shade)" opacity="0.15" />
+
                 {/* Hi-vis vest - right panel */}
-                <path d="M63 80 L81 80 Q84 80 84 84 L84 128 Q84 132 81 132 L63 132 Z" fill="url(#jh-vest)" />
-                {/* Vest V-neck opening showing shirt */}
-                <path d="M53 80 L58 94 L63 80" fill="url(#jh-shirt)" />
+                <path d="M76 91 L98 91 C100 93 100 96 100 96 L100 142 C100 146 98 148 94 148 L76 148 Z" fill="url(#jh-vest)" />
+                <path d="M94 91 L98 91 C100 93 100 96 100 96 L100 142 C100 146 98 148 94 148 Z" fill="url(#jh-vest-shade)" opacity="0.15" />
 
-                {/* Hi-vis reflective stripes */}
-                <rect x="32" y="100" width="52" height="3" rx="1" fill="#fde047" opacity="0.85" />
-                <rect x="32" y="112" width="52" height="3" rx="1" fill="#fde047" opacity="0.85" />
+                {/* V-neck opening showing shirt */}
+                <path d="M60 91 L68 108 L76 91" fill="url(#jh-shirt)" />
+                {/* V shadow */}
+                <path d="M62 91 L68 105 L74 91" fill="none" stroke="#1d4ed8" strokeWidth="0.5" opacity="0.15" />
 
-                {/* Vest pocket (right) */}
-                <rect x="66" y="88" width="12" height="8" rx="2" fill="#c2410c" opacity="0.2" />
-                <rect x="66" y="88" width="12" height="2.5" rx="1" fill="#c2410c" opacity="0.3" />
-                {/* Pen in pocket */}
-                <line x1="69" y1="87" x2="69" y2="93" stroke="#2563eb" strokeWidth="1.5" strokeLinecap="round" />
+                {/* Hi-vis reflective tape bands */}
+                <path d="M38 114 L100 114" stroke="#fde047" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                <path d="M38 114 L100 114" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.15" />
+                <path d="M38 128 L100 128" stroke="#fde047" strokeWidth="4" strokeLinecap="round" opacity="0.8" />
+                <path d="M38 128 L100 128" stroke="white" strokeWidth="1" strokeLinecap="round" opacity="0.15" />
 
-                {/* Tool belt */}
-                <rect x="31" y="128" width="54" height="6" rx="2" fill="url(#jh-belt)" />
-                {/* Belt buckle */}
-                <rect x="54" y="128.5" width="8" height="5" rx="1.5" fill="#b45309" stroke="#92400e" strokeWidth="0.5" />
-                {/* Belt loops */}
-                <rect x="73" y="126" width="3.5" height="10" rx="1" fill="#78716c" />
-                <rect x="39" y="127" width="3" height="8" rx="1" fill="#9ca3af" />
-                {/* Tape measure on belt */}
-                <circle cx="78" cy="134" r="4" fill="#fbbf24" stroke="#d97706" strokeWidth="0.8" />
-                <circle cx="78" cy="134" r="2" fill="#fcd34d" />
+                {/* Vest pocket - right chest */}
+                <path d="M80 98 L92 98 C93 98 94 99 94 100 L94 108 C94 109 93 110 92 110 L80 110 C79 110 78 109 78 108 L78 100 C78 99 79 98 80 98 Z" fill="#c2410c" opacity="0.18" />
+                <path d="M80 98 L92 98 C93 98 94 99 94 100 L94 101 L78 101 L78 100 C78 99 79 98 80 98 Z" fill="#c2410c" opacity="0.28" />
+                {/* Pen clip */}
+                <line x1="84" y1="96" x2="84" y2="105" stroke="#2563eb" strokeWidth="1.8" strokeLinecap="round" />
+                <circle cx="84" cy="96" r="1" fill="#3b82f6" />
+
+                {/* Tool belt with depth */}
+                <path d="M37 143 L99 143 C100 143 101 144 101 145 L101 150 C101 151 100 152 99 152 L37 152 C36 152 35 151 35 150 L35 145 C35 144 36 143 37 143 Z" fill="url(#jh-belt)" />
+                {/* Belt highlight */}
+                <path d="M37 143 L99 143" stroke="#b45309" strokeWidth="1" opacity="0.3" />
+                {/* Belt buckle - metallic */}
+                <rect x="62" y="143.5" width="12" height="8" rx="2" fill="#d97706" stroke="#92400e" strokeWidth="0.8" />
+                <rect x="64" y="145" width="8" height="5" rx="1" fill="#fbbf24" opacity="0.4" />
+                <circle cx="68" cy="147.5" r="1.5" fill="#92400e" opacity="0.4" />
+
+                {/* Belt loop left */}
+                <rect x="44" y="141" width="4" height="12" rx="1.5" fill="#a16207" opacity="0.6" />
+                {/* Belt loop right */}
+                <rect x="88" y="141" width="4" height="12" rx="1.5" fill="#a16207" opacity="0.6" />
+
+                {/* Tape measure on belt - 3D-ish */}
+                <circle cx="94" cy="152" r="5" fill="#fbbf24" stroke="#b45309" strokeWidth="1" />
+                <circle cx="94" cy="152" r="3" fill="#fcd34d" />
+                <circle cx="94" cy="152" r="1.2" fill="#f59e0b" />
+                <path d="M92 149 C93 148 95 148 96 149" fill="none" stroke="white" strokeWidth="0.5" opacity="0.4" />
               </g>
 
-              {/* === RIGHT ARM + HAMMER (human grip) === */}
-              <g style={{ transformOrigin: "78px 82px", animation: rightArmAnim }}>
+              {/* === RIGHT ARM + HAMMER (natural human grip) === */}
+              <g style={{ transformOrigin: "92px 94px", animation: rightArmAnim }}>
                 {/* Upper arm */}
-                <path d="M78 82 Q84 92 88 100" stroke="url(#jh-vest)" strokeWidth="12" strokeLinecap="round" fill="none" />
-                {/* Hi-vis stripe on sleeve */}
-                <line x1="82" y1="90" x2="86" y2="96" stroke="#fde047" strokeWidth="2" opacity="0.7" strokeLinecap="round" />
-                {/* Forearm */}
-                <path d="M88 100 Q91 108 93 115" stroke="url(#jh-shirt)" strokeWidth="10" strokeLinecap="round" fill="none" />
-                {/* Hand - closed fist gripping hammer handle */}
-                <g>
-                  {/* Hammer handle - passes THROUGH the fist (human grip) */}
-                  <rect x="90" y="108" width="3.5" height="32" rx="1.5" fill="url(#jh-wood)" transform="rotate(5, 92, 124)" />
-                  {/* Wood grain lines */}
-                  <line x1="90.8" y1="112" x2="93" y2="112" stroke="#92400e" strokeWidth="0.4" opacity="0.3" transform="rotate(5, 92, 124)" />
-                  <line x1="90.8" y1="116" x2="93" y2="116" stroke="#92400e" strokeWidth="0.4" opacity="0.3" transform="rotate(5, 92, 124)" />
-                  <line x1="90.8" y1="120" x2="93" y2="120" stroke="#92400e" strokeWidth="0.4" opacity="0.3" transform="rotate(5, 92, 124)" />
-                  <line x1="90.8" y1="128" x2="93" y2="128" stroke="#92400e" strokeWidth="0.4" opacity="0.3" transform="rotate(5, 92, 124)" />
+                <path d="M92 94 C96 100 100 106 103 113" stroke="url(#jh-vest)" strokeWidth="14" strokeLinecap="round" fill="none" />
+                <path d="M92 94 C96 100 100 106 103 113" stroke="url(#jh-vest-shade)" strokeWidth="14" strokeLinecap="round" fill="none" opacity="0.12" />
+                {/* Sleeve cuff / hi-vis */}
+                <path d="M98 103 C100 106 102 109 103 111" stroke="#fde047" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.7" />
 
-                  {/* Hammer head */}
-                  <g transform="rotate(5, 92, 124)">
-                    {/* Main head block */}
-                    <rect x="84" y="138" width="18" height="8" rx="2" fill="url(#jh-steel)" />
-                    {/* Steel highlight */}
-                    <rect x="85" y="139" width="16" height="2.5" rx="1" fill="white" opacity="0.2" />
-                    {/* Claw end */}
-                    <path d="M84 140 L80 135 M85 142 L81 137" stroke="#64748b" strokeWidth="2" strokeLinecap="round" />
-                    {/* Strike face */}
-                    <rect x="100" y="138" width="3.5" height="8" rx="0.8" fill="#475569" />
-                    {/* Steel texture */}
-                    <line x1="86" y1="144" x2="100" y2="144" stroke="#64748b" strokeWidth="0.5" opacity="0.3" />
+                {/* Forearm */}
+                <path d="M103 113 C106 121 108 128 110 134" stroke="url(#jh-shirt)" strokeWidth="12" strokeLinecap="round" fill="none" />
+
+                {/* Hammer assembly - handle through fist */}
+                <g>
+                  {/* Handle below hand */}
+                  <path d="M108 130 L112 168" stroke="url(#jh-wood)" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+                  {/* Wood grain texture */}
+                  <line x1="108.5" y1="140" x2="110.5" y2="140" stroke="#92400e" strokeWidth="0.4" opacity="0.25" />
+                  <line x1="109" y1="145" x2="111" y2="145" stroke="#92400e" strokeWidth="0.4" opacity="0.25" />
+                  <line x1="109.5" y1="150" x2="111.5" y2="150" stroke="#92400e" strokeWidth="0.4" opacity="0.25" />
+                  <line x1="109.8" y1="155" x2="111.8" y2="155" stroke="#92400e" strokeWidth="0.4" opacity="0.2" />
+                  <line x1="110.2" y1="160" x2="112.2" y2="160" stroke="#92400e" strokeWidth="0.4" opacity="0.2" />
+                  {/* Handle highlight */}
+                  <path d="M108.5 132 L112 166" stroke="#d4a056" strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.3" />
+
+                  {/* Hammer head - forged steel look */}
+                  <g transform="rotate(3, 112, 168)">
+                    {/* Head body */}
+                    <path d="M102 165 C101 163 101 162 103 162 L122 162 C124 162 125 163 125 165 L125 173 C125 175 124 176 122 176 L103 176 C101 176 101 175 102 173 Z" fill="url(#jh-steel)" />
+                    {/* Top bevel highlight */}
+                    <path d="M103 162 L122 162 C124 162 125 163 125 164 L101 164 C101 163 102 162 103 162 Z" fill="white" opacity="0.2" />
+                    {/* Bottom edge shadow */}
+                    <path d="M103 175 L122 175" stroke="#334155" strokeWidth="0.8" opacity="0.3" />
+                    {/* Claw fork - V shape */}
+                    <path d="M103 165 L97 158 C96 157 97 156 98 157 L103 163" fill="url(#jh-steel)" stroke="#475569" strokeWidth="0.8" />
+                    <path d="M103 168 L98 162 C97 161 96 161 97 162 L103 169" fill="url(#jh-steel)" stroke="#475569" strokeWidth="0.8" />
+                    {/* Claw gap */}
+                    <path d="M98 158 L97.5 162" stroke="#1e293b" strokeWidth="1.2" strokeLinecap="round" />
+                    {/* Strike face (right side) */}
+                    <rect x="123" y="162" width="4" height="14" rx="1.5" fill="#475569" />
+                    <rect x="123.5" y="163" width="1" height="12" rx="0.5" fill="white" opacity="0.08" />
+                    {/* Side face bevel */}
+                    <path d="M125 163 L127 163 L127 175 L125 175" fill="#334155" opacity="0.5" />
                   </g>
 
-                  {/* Fist wrapping around handle (drawn ON TOP of handle) */}
-                  {/* Back of hand */}
-                  <ellipse cx="93" cy="117" rx="6.5" ry="5.5" fill="url(#jh-skin)" />
-                  {/* Curled fingers gripping handle */}
-                  <path d="M88 113 Q86 115 87 118 Q88 120 90 119" fill="#f0c9a0" stroke="#e0a87c" strokeWidth="0.4" />
-                  <path d="M88 116 Q86 118 87 121 Q88 123 90 122" fill="#f0c9a0" stroke="#e0a87c" strokeWidth="0.4" />
-                  <path d="M89 119 Q87 121 88 124 Q89 126 91 125" fill="#f0c9a0" stroke="#e0a87c" strokeWidth="0.4" />
-                  {/* Thumb wrapping from other side */}
-                  <path d="M97 114 Q99 116 98 119 Q97 121 95 120" fill="#f0c9a0" stroke="#e0a87c" strokeWidth="0.4" />
-                  {/* Knuckle highlights */}
-                  <circle cx="89" cy="114" r="1.2" fill="#fde8d0" opacity="0.5" />
-                  <circle cx="89" cy="117" r="1.2" fill="#fde8d0" opacity="0.5" />
-                  <circle cx="89" cy="120" r="1.2" fill="#fde8d0" opacity="0.4" />
+                  {/* HAND gripping handle - drawn ON TOP */}
+                  {/* Hand back/palm */}
+                  <path d="M104 130 C100 131 98 134 99 138 C100 142 104 144 108 143 C112 142 114 139 113 135 C112 132 108 130 104 130 Z" fill="url(#jh-skin)" />
+                  {/* Skin highlight on hand */}
+                  <ellipse cx="106" cy="135" rx="4" ry="3" fill="url(#jh-skin-hi)" opacity="0.35" />
+
+                  {/* Fingers curling around handle from front */}
+                  <path d="M101 132 C99 134 99 137 100 139 C101 140 103 139 103 137 L103 134 C103 133 102 132 101 132 Z" fill="#f0c9a0" stroke="#d4a574" strokeWidth="0.4" />
+                  <path d="M101 136 C99 138 99 140 100 142 C101 143 103 142 103 140 L103 138 C103 137 102 136 101 136 Z" fill="#f0c9a0" stroke="#d4a574" strokeWidth="0.4" />
+                  <path d="M102 139 C100 141 100 143 101 145 C102 146 104 145 104 143 L104 141 C104 140 103 139 102 139 Z" fill="#f0c9a0" stroke="#d4a574" strokeWidth="0.4" />
+
+                  {/* Thumb wrapping from far side */}
+                  <path d="M112 133 C114 135 114 138 113 140 C112 141 110 140 111 138 L111 135 C111 134 112 133 112 133 Z" fill="#f0c9a0" stroke="#d4a574" strokeWidth="0.4" />
+
+                  {/* Knuckle bumps */}
+                  <circle cx="102" cy="133" r="1.5" fill="#fde8d0" opacity="0.4" />
+                  <circle cx="102" cy="137" r="1.5" fill="#fde8d0" opacity="0.35" />
+                  <circle cx="103" cy="141" r="1.5" fill="#fde8d0" opacity="0.3" />
                 </g>
               </g>
 
-              {/* === HEAD === */}
+              {/* === HEAD + FACE === */}
               <g>
-                {/* Neck */}
-                <path d="M53 68 L53 82 Q53 84 55 84 L65 84 Q67 84 67 82 L67 68 Z" fill="url(#jh-skin)" />
-                {/* Neck shadow */}
-                <path d="M53 76 Q60 80 67 76" fill="#d4a574" opacity="0.15" />
-                {/* Shirt collar */}
-                <path d="M50 80 L55 74 L60 80" fill="url(#jh-shirt)" />
-                <path d="M60 80 L65 74 L70 80" fill="url(#jh-shirt)" />
+                {/* Neck - tapered cylinder */}
+                <path d="M61 78 C61 82 60 86 60 90 L60 94 C60 96 62 97 65 97 L73 97 C76 97 78 96 78 94 L78 90 C78 86 77 82 77 78 Z" fill="url(#jh-skin)" />
+                {/* Neck shadow under chin */}
+                <path d="M62 80 C66 83 72 83 76 80" fill="#c8956c" opacity="0.15" />
+                {/* Adam's apple subtle */}
+                <ellipse cx="69" cy="86" rx="1.5" ry="2" fill="#d4a574" opacity="0.08" />
 
-                {/* Head shape - more realistic oval */}
-                <ellipse cx="60" cy="50" rx="22" ry="24" fill="url(#jh-skin)" />
-                {/* Jaw definition */}
-                <path d="M40 56 Q50 72 60 72 Q70 72 80 56" fill="url(#jh-skin)" />
-                {/* Chin */}
-                <ellipse cx="60" cy="69" rx="8" ry="4" fill="url(#jh-skin)" />
+                {/* Collar - folded shirt collar */}
+                <path d="M57 92 L63 84 L69 93" fill="url(#jh-shirt)" />
+                <path d="M69 93 L75 84 L81 92" fill="url(#jh-shirt)" />
+                {/* Collar shadow */}
+                <path d="M58 92 L63 86 L68 92" fill="none" stroke="#1d4ed8" strokeWidth="0.5" opacity="0.2" />
+                <path d="M70 92 L75 86 L80 92" fill="none" stroke="#1d4ed8" strokeWidth="0.5" opacity="0.2" />
+
+                {/* Head - organic face shape with jaw */}
+                <path d="M44 54 C44 36 53 26 69 26 C85 26 94 36 94 54 C94 62 92 68 88 73 C84 78 78 81 69 81 C60 81 54 78 50 73 C46 68 44 62 44 54 Z" fill="url(#jh-skin)" />
+                {/* Face highlight - top left forehead area */}
+                <path d="M52 38 C55 32 64 29 72 30 C78 31 82 34 83 38 C78 34 66 32 55 36 Z" fill="url(#jh-skin-hi)" opacity="0.25" />
                 {/* Jaw shadow */}
-                <path d="M42 58 Q50 70 60 70 Q70 70 78 58" fill="#d4a574" opacity="0.08" />
+                <path d="M52 70 C58 78 69 80 80 76 C86 73 90 68 90 65 C88 72 80 77 69 77 C58 77 52 72 52 70 Z" fill="#c8956c" opacity="0.1" />
+                {/* Chin definition */}
+                <path d="M63 78 C66 80 72 80 75 78" fill="none" stroke="#c8956c" strokeWidth="0.5" opacity="0.12" />
 
-                {/* Ears */}
-                <ellipse cx="37" cy="52" rx="4" ry="7" fill="#f0c9a0" />
-                <ellipse cx="37" cy="52" rx="2.5" ry="5" fill="#e8a882" opacity="0.25" />
-                <path d="M36 48 Q35 52 36 55" fill="none" stroke="#d4a574" strokeWidth="0.5" opacity="0.3" />
-                <ellipse cx="83" cy="52" rx="4" ry="7" fill="#f0c9a0" />
-                <ellipse cx="83" cy="52" rx="2.5" ry="5" fill="#e8a882" opacity="0.25" />
-                <path d="M84 48 Q85 52 84 55" fill="none" stroke="#d4a574" strokeWidth="0.5" opacity="0.3" />
+                {/* Ears - more anatomical */}
+                {/* Left ear */}
+                <path d="M44 50 C40 48 38 50 38 55 C38 60 40 63 44 62" fill="#f0c9a0" />
+                <path d="M42 51 C40 52 39 54 39 57 C39 59 40 61 42 61" fill="#e8a882" opacity="0.3" />
+                <path d="M41 53 C40 55 40 57 41 59" fill="none" stroke="#d4a574" strokeWidth="0.6" opacity="0.25" />
 
-                {/* Hair visible under hat - sideburns and back */}
-                <path d="M38 35 Q40 30 39 38" fill="url(#jh-hair)" opacity="0.8" />
-                <path d="M82 35 Q80 30 81 38" fill="url(#jh-hair)" opacity="0.8" />
-                <path d="M40 37 Q42 33 41 40" fill="url(#jh-hair)" opacity="0.6" />
-                <path d="M80 37 Q78 33 79 40" fill="url(#jh-hair)" opacity="0.6" />
-                {/* Stubble hint on jaw */}
-                <ellipse cx="60" cy="65" rx="12" ry="5" fill="#8B6914" opacity="0.04" />
+                {/* Right ear */}
+                <path d="M94 50 C98 48 100 50 100 55 C100 60 98 63 94 62" fill="#f0c9a0" />
+                <path d="M96 51 C98 52 99 54 99 57 C99 59 98 61 96 61" fill="#e8a882" opacity="0.3" />
+                <path d="M97 53 C98 55 98 57 97 59" fill="none" stroke="#d4a574" strokeWidth="0.6" opacity="0.25" />
 
-                {/* Eyes - more detailed and natural */}
-                <g style={{ animation: "josh-blink 4s ease-in-out infinite", transformOrigin: "60px 48px" }}>
-                  {/* Left eye */}
-                  <ellipse cx="51" cy="48" rx="5.5" ry="5" fill="white" />
-                  <ellipse cx="51" cy="48" rx="5.5" ry="5" fill="none" stroke="#c8a882" strokeWidth="0.5" opacity="0.4" />
-                  {/* Upper eyelid crease */}
-                  <path d="M46 44 Q51 42 56 44" fill="none" stroke="#c8a882" strokeWidth="0.6" opacity="0.3" />
-                  {/* Iris */}
-                  <circle cx="52" cy="48.5" r="3.8" fill="#5D4037" />
+                {/* Hair - sideburns and under hat */}
+                <path d="M45 38 C44 34 46 32 45 40" fill="url(#jh-hair)" opacity="0.7" />
+                <path d="M47 36 C46 33 48 31 47 38" fill="url(#jh-hair)" opacity="0.5" />
+                <path d="M93 38 C94 34 92 32 93 40" fill="url(#jh-hair)" opacity="0.7" />
+                <path d="M91 36 C92 33 90 31 91 38" fill="url(#jh-hair)" opacity="0.5" />
+
+                {/* Eyes - detailed with depth */}
+                <g style={{ animation: "josh-blink 4s ease-in-out infinite", transformOrigin: "69px 52px" }}>
+                  {/* Left eye socket shadow */}
+                  <ellipse cx="59" cy="52" rx="8" ry="7" fill="#d4a574" opacity="0.06" />
+                  {/* Left eyeball */}
+                  <ellipse cx="59" cy="52" rx="6.5" ry="6" fill="white" />
+                  <ellipse cx="59" cy="52" rx="6.5" ry="6" fill="none" stroke="#c8a882" strokeWidth="0.6" opacity="0.35" />
+                  {/* Upper lid weight */}
+                  <path d="M53 48 C56 45 62 45 65 48" fill="none" stroke="#8B6914" strokeWidth="1.2" opacity="0.3" strokeLinecap="round" />
+                  {/* Iris - rich brown with rings */}
+                  <circle cx="60" cy="52.5" r="4.2" fill="#6D4C2E" />
+                  <circle cx="60" cy="52.5" r="3.5" fill="#5D4037" />
                   {/* Pupil */}
-                  <circle cx="52" cy="48.5" r="2.3" fill="#2C1810" />
-                  {/* Eye highlights */}
-                  <circle cx="53.5" cy="47" r="1.5" fill="white" />
-                  <circle cx="51" cy="50" r="0.7" fill="white" opacity="0.4" />
-                  {/* Lower lash line */}
-                  <path d="M46 51 Q51 53 56 51" fill="none" stroke="#c8a882" strokeWidth="0.3" opacity="0.3" />
+                  <circle cx="60" cy="52.5" r="2.2" fill="#1a0f0a" />
+                  {/* Iris ring detail */}
+                  <circle cx="60" cy="52.5" r="3.8" fill="none" stroke="#8B6914" strokeWidth="0.3" opacity="0.3" />
+                  {/* Eye sparkle */}
+                  <circle cx="62" cy="50.5" r="1.8" fill="white" />
+                  <circle cx="58" cy="54" r="0.8" fill="white" opacity="0.5" />
+                  {/* Lower lid */}
+                  <path d="M53 55 C56 57 62 57 65 55" fill="none" stroke="#c8a882" strokeWidth="0.4" opacity="0.25" />
 
                   {/* Right eye */}
-                  <ellipse cx="69" cy="48" rx="5.5" ry="5" fill="white" />
-                  <ellipse cx="69" cy="48" rx="5.5" ry="5" fill="none" stroke="#c8a882" strokeWidth="0.5" opacity="0.4" />
-                  <path d="M64 44 Q69 42 74 44" fill="none" stroke="#c8a882" strokeWidth="0.6" opacity="0.3" />
-                  <circle cx="68" cy="48.5" r="3.8" fill="#5D4037" />
-                  <circle cx="68" cy="48.5" r="2.3" fill="#2C1810" />
-                  <circle cx="69.5" cy="47" r="1.5" fill="white" />
-                  <circle cx="67" cy="50" r="0.7" fill="white" opacity="0.4" />
-                  <path d="M64 51 Q69 53 74 51" fill="none" stroke="#c8a882" strokeWidth="0.3" opacity="0.3" />
+                  <ellipse cx="79" cy="52" rx="8" ry="7" fill="#d4a574" opacity="0.06" />
+                  <ellipse cx="79" cy="52" rx="6.5" ry="6" fill="white" />
+                  <ellipse cx="79" cy="52" rx="6.5" ry="6" fill="none" stroke="#c8a882" strokeWidth="0.6" opacity="0.35" />
+                  <path d="M73 48 C76 45 82 45 85 48" fill="none" stroke="#8B6914" strokeWidth="1.2" opacity="0.3" strokeLinecap="round" />
+                  <circle cx="78" cy="52.5" r="4.2" fill="#6D4C2E" />
+                  <circle cx="78" cy="52.5" r="3.5" fill="#5D4037" />
+                  <circle cx="78" cy="52.5" r="2.2" fill="#1a0f0a" />
+                  <circle cx="78" cy="52.5" r="3.8" fill="none" stroke="#8B6914" strokeWidth="0.3" opacity="0.3" />
+                  <circle cx="80" cy="50.5" r="1.8" fill="white" />
+                  <circle cx="76" cy="54" r="0.8" fill="white" opacity="0.5" />
+                  <path d="M73 55 C76 57 82 57 85 55" fill="none" stroke="#c8a882" strokeWidth="0.4" opacity="0.25" />
                 </g>
 
-                {/* Eyebrows - thicker, more natural */}
+                {/* Eyebrows - full shaped brows */}
                 {alertCount > 3 ? (
                   <>
-                    <path d="M45 38 Q51 34 57 39" stroke="#5D4037" strokeWidth="2.8" fill="none" strokeLinecap="round" />
-                    <path d="M63 39 Q69 34 75 38" stroke="#5D4037" strokeWidth="2.8" fill="none" strokeLinecap="round" />
+                    <path d="M52 42 C56 37 62 37 66 41" stroke="#5D4037" strokeWidth="3" fill="none" strokeLinecap="round" />
+                    <path d="M72 41 C76 37 82 37 86 42" stroke="#5D4037" strokeWidth="3" fill="none" strokeLinecap="round" />
                   </>
                 ) : (
                   <>
-                    <path d="M45 40 Q51 36 57 40" stroke="#5D4037" strokeWidth="2.5" fill="none" strokeLinecap="round" />
-                    <path d="M63 40 Q69 36 75 40" stroke="#5D4037" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+                    <path d="M52 44 C56 39 63 39 66 43" stroke="#5D4037" strokeWidth="2.8" fill="none" strokeLinecap="round" />
+                    <path d="M72 43 C76 39 83 39 86 44" stroke="#5D4037" strokeWidth="2.8" fill="none" strokeLinecap="round" />
                   </>
                 )}
 
-                {/* Nose - more defined */}
-                <path d="M59 43 Q60 50 60 55" stroke="#d4a574" strokeWidth="1.2" fill="none" opacity="0.2" />
-                <path d="M56 56 Q60 60 64 56" fill="#e0a87c" opacity="0.6" />
-                <ellipse cx="60" cy="57" rx="4" ry="2" fill="#e0a87c" opacity="0.4" />
-                {/* Nostril hints */}
-                <circle cx="57" cy="57" r="1.2" fill="#d4a574" opacity="0.2" />
-                <circle cx="63" cy="57" r="1.2" fill="#d4a574" opacity="0.2" />
+                {/* Nose bridge + tip */}
+                <path d="M68 44 C68 50 67 56 67 60" stroke="#c8956c" strokeWidth="1.2" fill="none" opacity="0.15" />
+                <path d="M63 62 C65 65 69 66 73 65 C75 64 76 63 75 62" fill="#d4a574" opacity="0.35" />
+                {/* Nose bridge highlight */}
+                <path d="M68 46 C69 50 69 54 68 58" stroke="white" strokeWidth="0.8" fill="none" opacity="0.08" />
+                {/* Nostrils */}
+                <ellipse cx="65" cy="63" rx="1.8" ry="1.2" fill="#c8956c" opacity="0.2" />
+                <ellipse cx="73" cy="63" rx="1.8" ry="1.2" fill="#c8956c" opacity="0.2" />
+                {/* Nose tip roundness */}
+                <ellipse cx="69" cy="62" rx="5" ry="2.5" fill="#e0a87c" opacity="0.15" />
 
                 {/* Mouth */}
                 {isCelebrating ? (
                   <g>
-                    <path d="M52 62 Q60 73 68 62" stroke="#b91c1c" strokeWidth="2" fill="#fecaca" strokeLinecap="round" />
-                    <path d="M54 62 Q60 66 66 62" fill="white" />
+                    {/* Big open smile */}
+                    <path d="M59 68 C64 79 74 79 79 68" stroke="#991b1b" strokeWidth="1.5" fill="#fecaca" strokeLinecap="round" />
+                    {/* Teeth */}
+                    <path d="M61 68 C66 72 72 72 77 68" fill="white" />
+                    {/* Tongue hint */}
+                    <ellipse cx="69" cy="74" rx="4" ry="2" fill="#ef4444" opacity="0.4" />
                   </g>
                 ) : alertCount > 3 ? (
-                  <path d="M54 64 Q60 61 66 64" stroke="#b91c1c" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                  <g>
+                    {/* Concerned frown */}
+                    <path d="M62 70 C66 67 72 67 76 70" stroke="#991b1b" strokeWidth="2" fill="none" strokeLinecap="round" />
+                  </g>
                 ) : (
                   <g>
-                    {/* Upper lip */}
-                    <path d="M54 62 Q57 60 60 61 Q63 60 66 62" stroke="#c0392b" strokeWidth="1" fill="none" opacity="0.6" />
-                    {/* Smile */}
-                    <path d="M53 62 Q60 70 67 62" stroke="#c0392b" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                    {/* Natural friendly smile */}
+                    {/* Upper lip with cupid's bow */}
+                    <path d="M62 68 C65 66 67 67 69 66 C71 67 73 66 76 68" stroke="#b45309" strokeWidth="0.8" fill="none" opacity="0.35" />
+                    {/* Lower lip / smile curve */}
+                    <path d="M60 68 C64 76 74 76 78 68" stroke="#b91c1c" strokeWidth="1.8" fill="none" strokeLinecap="round" />
+                    {/* Lower lip fullness */}
+                    <path d="M63 71 C66 74 72 74 75 71" fill="#e0a87c" opacity="0.12" />
                   </g>
                 )}
 
-                {/* Cheek blush - subtle */}
-                <ellipse cx="43" cy="56" rx="5" ry="3.5" fill="#fca5a5" opacity="0.15" />
-                <ellipse cx="77" cy="56" rx="5" ry="3.5" fill="#fca5a5" opacity="0.15" />
+                {/* Cheek blush - soft warm glow */}
+                <ellipse cx="50" cy="62" rx="6" ry="4" fill="#fca5a5" opacity="0.12" />
+                <ellipse cx="88" cy="62" rx="6" ry="4" fill="#fca5a5" opacity="0.12" />
 
-                {/* Nasolabial folds (smile lines) - very subtle */}
-                <path d="M47 54 Q48 58 52 63" fill="none" stroke="#d4a574" strokeWidth="0.4" opacity="0.15" />
-                <path d="M73 54 Q72 58 68 63" fill="none" stroke="#d4a574" strokeWidth="0.4" opacity="0.15" />
+                {/* Smile lines - very subtle nasolabial */}
+                <path d="M54 58 C56 63 59 68 61 70" fill="none" stroke="#c8956c" strokeWidth="0.4" opacity="0.1" />
+                <path d="M84 58 C82 63 79 68 77 70" fill="none" stroke="#c8956c" strokeWidth="0.4" opacity="0.1" />
 
-                {/* Hard hat */}
+                {/* Hard hat - detailed with ridges and depth */}
                 <g style={{
                   animation: phase === "idle" && !isWalking ? "josh-hat-wobble 3s ease-in-out infinite" : undefined,
-                  transformOrigin: "60px 25px",
+                  transformOrigin: "69px 28px",
                 }}>
-                  {/* Hat dome */}
-                  <path d="M34 34 Q34 8 60 5 Q86 8 86 34 Z" fill="url(#jh-hat)" />
-                  {/* Hat ridge/keel */}
-                  <path d="M52 6 Q60 3 68 6" fill="none" stroke="#d97706" strokeWidth="2" opacity="0.4" />
-                  {/* Highlight reflection */}
-                  <path d="M42 28 Q48 12 62 10" fill="none" stroke="white" strokeWidth="2" opacity="0.15" strokeLinecap="round" />
-                  {/* Brim */}
-                  <rect x="27" y="32" width="66" height="6" rx="3" fill="#b45309" />
-                  <rect x="29" y="32" width="62" height="2.8" rx="1.2" fill="#d97706" opacity="0.5" />
-                  <rect x="30" y="36.5" width="60" height="1.5" rx="0.7" fill="#92400e" opacity="0.3" />
-                  {/* Front light/logo */}
-                  <circle cx="60" cy="18" r="5.5" fill="#fef9c3" opacity="0.75" />
-                  <circle cx="60" cy="18" r="3.5" fill="#fde68a" />
-                  <circle cx="60" cy="18" r="1.8" fill="white" opacity="0.85" />
-                  {/* Suspension band visible inside brim */}
-                  <rect x="38" y="27" width="44" height="4" rx="2" fill="#92400e" opacity="0.3" />
+                  {/* Hat dome - smooth curved shell */}
+                  <path d="M40 37 C40 18 50 8 69 6 C88 8 98 18 98 37 Z" fill="url(#jh-hat)" />
+                  {/* Right shadow on dome */}
+                  <path d="M82 10 C90 14 96 22 98 37 L90 37 C90 24 86 16 80 12 Z" fill="url(#jh-hat-shade)" opacity="0.2" />
+
+                  {/* Central ridge/keel line */}
+                  <path d="M69 6 C69 10 69 20 69 30" stroke="#d97706" strokeWidth="2" opacity="0.2" strokeLinecap="round" />
+
+                  {/* Glossy highlight across dome */}
+                  <path d="M50 30 C56 14 68 10 78 12" fill="none" stroke="white" strokeWidth="2.5" opacity="0.12" strokeLinecap="round" />
+                  <path d="M48 26 C52 16 62 12 70 12" fill="none" stroke="white" strokeWidth="1.5" opacity="0.08" strokeLinecap="round" />
+
+                  {/* Brim - thick with curvature */}
+                  <path d="M32 35 C32 32 35 30 40 30 L98 30 C103 30 106 32 106 35 L106 40 C106 42 104 43 100 43 L38 43 C34 43 32 42 32 40 Z" fill="#b45309" />
+                  {/* Brim top highlight */}
+                  <path d="M34 32 L104 32" stroke="#d97706" strokeWidth="2" opacity="0.4" strokeLinecap="round" />
+                  {/* Brim underside shadow */}
+                  <path d="M36 42 L102 42" stroke="#78350f" strokeWidth="1.5" opacity="0.3" strokeLinecap="round" />
+
+                  {/* Front headlamp/logo circle */}
+                  <circle cx="69" cy="20" r="6" fill="#fef9c3" opacity="0.7" />
+                  <circle cx="69" cy="20" r="4" fill="#fde68a" />
+                  <circle cx="69" cy="20" r="2" fill="white" opacity="0.8" />
+                  {/* Lamp ring */}
+                  <circle cx="69" cy="20" r="5" fill="none" stroke="#d97706" strokeWidth="0.8" opacity="0.4" />
+
+                  {/* Inner suspension band */}
+                  <path d="M44 33 L94 33" stroke="#92400e" strokeWidth="3" opacity="0.25" strokeLinecap="round" />
                 </g>
               </g>
 
@@ -639,15 +786,15 @@ export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading
                   {["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#ec4899", "#06b6d4", "#f97316"].map((color, i) => (
                     <rect
                       key={i}
-                      x={10 + i * 13}
+                      x={12 + i * 14}
                       y={-5}
-                      width={i % 2 === 0 ? "4" : "3"}
-                      height={i % 2 === 0 ? "4" : "5"}
+                      width={i % 2 === 0 ? "5" : "4"}
+                      height={i % 2 === 0 ? "5" : "6"}
                       rx="1"
                       fill={color}
                       style={{
                         animation: `josh-confetti 2s ease-in ${0.15 * i}s infinite`,
-                        transformOrigin: `${12 + i * 13}px 0px`,
+                        transformOrigin: `${14 + i * 14}px 0px`,
                       }}
                     />
                   ))}
@@ -657,7 +804,7 @@ export default function JoshuaMascot({ alertCount, hasItems, sections, isLoading
 
             {/* Name plate */}
             <div className="flex justify-center -mt-1">
-              <div className="bg-amber-500 dark:bg-amber-600 text-white text-[9px] font-bold tracking-[0.15em] uppercase px-3.5 py-0.5 rounded-full shadow-sm">
+              <div className="bg-gradient-to-r from-amber-500 to-amber-600 dark:from-amber-600 dark:to-amber-700 text-white text-[9px] font-bold tracking-[0.15em] uppercase px-4 py-0.5 rounded-full shadow-md border border-amber-400/30">
                 Joshua
               </div>
             </div>
