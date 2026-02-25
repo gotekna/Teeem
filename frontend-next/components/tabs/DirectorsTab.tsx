@@ -150,8 +150,9 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, addPosition, loadOfficers]);
 
-  const deleteDirector = React.useCallback(async (directorId: number) => {
-    if (!confirm("Permanently delete this officer record?")) return;
+  const deleteDirector = React.useCallback(async (directorId: number, position?: string) => {
+    const posLabel = position ? ` (${position})` : "";
+    if (!confirm(`Permanently delete this officer record${posLabel}? This removes them from all role groups.`)) return;
     try {
       await api.delete(`/api/v1/companies/${effectiveCompanyId}/directors/${directorId}?hard_delete=true`);
       loadOfficers();
@@ -160,13 +161,10 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
     }
   }, [effectiveCompanyId, loadOfficers]);
 
-  // Group officers by role type - mutually exclusive to prevent same record appearing in multiple groups
-  // Combined positions (e.g. director_secretary) go to the first matching group only
+  // Group officers by role type - combined positions (e.g. director_secretary) appear in each matching group
   const directors = officers.filter(o => o.position?.includes("director") || o.position === "chairman");
-  const directorIds = new Set(directors.map(o => o.id));
-  const secretaries = officers.filter(o => !directorIds.has(o.id) && o.position?.includes("secretary"));
-  const secretaryIds = new Set(secretaries.map(o => o.id));
-  const publicOfficers = officers.filter(o => !directorIds.has(o.id) && !secretaryIds.has(o.id) && o.position?.includes("public_officer"));
+  const secretaries = officers.filter(o => o.position?.includes("secretary"));
+  const publicOfficers = officers.filter(o => o.position?.includes("public_officer"));
 
   const startDirectorChangeWorkflow = React.useCallback(async () => {
     if (!company) return;
@@ -271,7 +269,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
         {showDelete && (
           <TableCell className="px-2 py-3">
             <button
-              onClick={() => deleteDirector(officer.id)}
+              onClick={() => deleteDirector(officer.id, officer.formatted_position)}
               className="text-muted-foreground hover:text-destructive p-1"
               title="Delete officer"
             >
@@ -376,7 +374,7 @@ export function DirectorsTab({ companyId, entityId, company, onUpdate }: Directo
                 </TableCell>
                 <TableCell className="px-2 py-3">
                   <button
-                    onClick={() => deleteDirector(officer.id)}
+                    onClick={() => deleteDirector(officer.id, officer.formatted_position)}
                     className="text-muted-foreground hover:text-destructive p-1"
                     title="Delete officer"
                   >

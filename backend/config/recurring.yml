@@ -383,10 +383,13 @@ cleanup_unavailable_emails:
   schedule: at 3:30am every day
 
 # Sync IMAP email accounts (unified inbox)
-# FRC (Feb 2026): Increased from 2 to 5 min - IMAP doesn't need 2-min polling
+# FRC (Feb 2026): Must be :email_sync queue, NOT :default.
+# IMAP sync is long-running (60s+) and memory-heavy. On :default it ran on
+# teeem-shared-worker (1GB), causing R14/R15 crashes. The email worker
+# (teeem-email-worker) listens to :email_sync and has dedicated memory.
 imap_email_sync:
   class: ImapSyncJob
-  queue: default
+  queue: email_sync
   schedule: every 5 minutes
 
 # SELF-HEALING: Email health monitor
