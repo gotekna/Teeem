@@ -5,8 +5,9 @@ module Bpmn
     # DirectorChangeTask - Generate ASIC director change package and store in warehouse
     #
     # Reads form_data from the preceding user task (director selections, dates, positions)
-    # and delegates to DirectorChangeService to generate the 4-document PDF package.
-    # Stores the combined PDF via WarehouseDocumentCreator in the "ASIC" folder.
+    # and delegates to DirectorChangeService to generate individual document PDFs.
+    # Stores each document individually via WarehouseDocumentCreator in the "ASIC" folder,
+    # linked to its correct document type (DM, RD, RS, CAD, CAS, F484, etc.).
     #
     # Process variables set:
     #   director_change_blob_id - StorageBlob ID of the combined PDF
@@ -43,8 +44,8 @@ module Bpmn
           content_type: "application/pdf"
         )
 
-        # Store the combined PDF as a single WarehouseDocument (individual docs are
-        # rendered inside the combined PDF - we don't have separate PDFs from generate_package)
+        # Store each document individually in the warehouse so they appear as
+        # separate documents, each linked to its correct document type via WFDT.
         asic_folder = WarehouseFolder.find_by_type_and_name("corporate", "ASIC")
         current_user = resolve_user
         base_metadata = {
@@ -53,7 +54,21 @@ module Bpmn
           generated_at: Time.current.iso8601
         }
 
-        create_warehouse_document(combined_blob, asic_folder, current_user, base_metadata)
+        package[:documents].each do |doc|
+          next unless doc[:pdf_content].present?
+
+          doc_blob = StorageBlob.find_or_create_for_content!(
+            doc[:pdf_content],
+            filename: "#{doc[:name]}.pdf",
+            content_type: "application/pdf"
+          )
+
+          create_one_warehouse_doc(
+            doc_blob, asic_folder, current_user,
+            doc[:abbreviation], doc[:name],
+            base_metadata.merge(document_type: doc[:type].to_s)
+          )
+        end
 
         # Set process variables for subsequent tasks
         set_variable("director_change_blob_id", combined_blob.id)
@@ -66,7 +81,7 @@ module Bpmn
           success: true,
           blob_id: combined_blob.id,
           filename: package[:filename],
-          documents: package[:documents]
+          documents: package[:documents].map { |d| d.slice(:type, :name, :abbreviation, :page) }
         }
       end
 
@@ -118,11 +133,6 @@ module Bpmn
             address: appt["address"]
           }
         end.compact
-      end
-
-      def create_warehouse_document(blob, asic_folder, current_user, base_metadata)
-        create_one_warehouse_doc(blob, asic_folder, current_user, "F484",
-          "Director Change Package - #{@subject.name}", base_metadata)
       end
 
       def create_one_warehouse_doc(blob, asic_folder, current_user, abbreviation, fallback_name, metadata)

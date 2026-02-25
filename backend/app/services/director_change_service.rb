@@ -55,9 +55,11 @@ class DirectorChangeService
     documents = generate_all_documents
     combined_pdf, page_offsets = combine_pdfs_with_offsets(documents)
 
-    # Attach 1-based page offset to each document for frontend navigation
+    # Attach 1-based page offset to each document for frontend navigation.
+    # Include :abbreviation and :pdf_content so callers (e.g. DirectorChangeTask)
+    # can store individual documents in the warehouse.
     doc_metadata = documents.each_with_index.map do |d, i|
-      d.slice(:type, :name).merge(page: page_offsets[i] || 1)
+      d.slice(:type, :name, :abbreviation, :pdf_content).merge(page: page_offsets[i] || 1)
     end
 
     {
@@ -252,6 +254,7 @@ class DirectorChangeService
     {
       type: :resignation,
       name: "#{doc_name} - #{contact.display_name}",
+      abbreviation: resignation_abbr,
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -284,6 +287,7 @@ class DirectorChangeService
     {
       type: :consent,
       name: "#{doc_name} - #{contact.display_name}",
+      abbreviation: consent_abbr,
       html: html,
       pdf_content: pdf,
       signer_name: contact.display_name,
@@ -365,6 +369,7 @@ class DirectorChangeService
     {
       type: :minutes,
       name: resolve_doc_name("DM", "Minutes of Meeting of Directors"),
+      abbreviation: "DM",
       html: html,
       pdf_content: pdf
     }
@@ -399,6 +404,7 @@ class DirectorChangeService
     {
       type: :form_484_cessation,
       name: "#{base_name} - Cessation",
+      abbreviation: "F484",
       html: html,
       pdf_content: pdf
     }
@@ -433,6 +439,7 @@ class DirectorChangeService
     {
       type: :form_484_appointment,
       name: "#{base_name} - Appointment",
+      abbreviation: "F484",
       html: html,
       pdf_content: pdf
     }
