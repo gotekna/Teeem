@@ -25,6 +25,7 @@ import { ScreenSharePrompt } from "@/components/screen-share/ScreenSharePrompt";
 import { AssistantChat } from "@/components/chat/AssistantChat";
 import { ROUTES } from "@/lib/constants/route-paths";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { AppProviders } from "@/components/providers/app-providers";
 
 // Initialize console capture immediately to catch ALL errors from the start
 // This ensures the error count badge in the sidebar matches DevTools
@@ -160,18 +161,20 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <ViewModeProvider>
-        <LayoutModeProvider>
-          <ConfirmationProvider>
-            <Suspense fallback={null}>
-              <BreadcrumbProvider>
-                <AppLayoutContent>{children}</AppLayoutContent>
-              </BreadcrumbProvider>
-            </Suspense>
-          </ConfirmationProvider>
-        </LayoutModeProvider>
-      </ViewModeProvider>
-    </SidebarProvider>
+    <AppProviders>
+      <SidebarProvider>
+        <ViewModeProvider>
+          <LayoutModeProvider>
+            <ConfirmationProvider>
+              <Suspense fallback={null}>
+                <BreadcrumbProvider>
+                  <AppLayoutContent>{children}</AppLayoutContent>
+                </BreadcrumbProvider>
+              </Suspense>
+            </ConfirmationProvider>
+          </LayoutModeProvider>
+        </ViewModeProvider>
+      </SidebarProvider>
+    </AppProviders>
   );
 }

@@ -4,10 +4,8 @@ import { GeistMono } from "geist/font/mono";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AppProviders } from "@/components/providers/app-providers";
 import type { Metadata, Viewport } from "next";
 import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
-import { headers } from "next/headers";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -39,17 +37,14 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Detect lightweight pages that don't need the full app provider stack.
-  // The signing page is public-facing and must load instantly for external signers.
-  const headersList = await headers();
-  const pathname = headersList.get("x-pathname") || "";
-  const isLightweightPage = pathname.startsWith("/sign");
-
+  // Root layout is intentionally lightweight - NO heavy providers here.
+  // AppProviders lives in (app)/layout.tsx so public pages like /sign
+  // never download or parse provider JS bundles.
   return (
     <html lang="en" className={cn(GeistSans.variable, GeistMono.variable)} suppressHydrationWarning>
       <body
@@ -59,29 +54,15 @@ export default async function RootLayout({
           "antialiased bg-background text-foreground"
         )}
       >
-        {isLightweightPage ? (
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          >
-            {children}
-          </ThemeProvider>
-        ) : (
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <AppProviders>
-              {children}
-            </AppProviders>
-          </ThemeProvider>
-        )}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   );
 }
-// Trigger rebuild Sun Dec 28 11:06:24 AEST 2025
