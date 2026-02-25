@@ -85,7 +85,14 @@ export default function SigningCeremonyPage() {
   // Verify token and get session info
   const verifyToken = useCallback(async () => {
     try {
-      const response = await fetch(`${apiUrl}/api/v1/sign/${token}`);
+      // 15s timeout to prevent infinite loading on network issues
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(`${apiUrl}/api/v1/sign/${token}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
       const data = await response.json();
 
       if (!response.ok) {
@@ -115,7 +122,11 @@ export default function SigningCeremonyPage() {
         setStep("view_document");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify signing link");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Connection timed out. Please check your internet connection and refresh the page.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to verify signing link");
+      }
       setStep("error");
     }
   }, [token, apiUrl]);
@@ -194,7 +205,10 @@ export default function SigningCeremonyPage() {
           <div className="flex flex-col items-center justify-center py-12">
             <AlertCircle className="h-12 w-12 text-destructive mb-4" />
             <h2 className="text-xl font-semibold mb-2">Unable to Load</h2>
-            <p className="text-muted-foreground text-center max-w-md">{error}</p>
+            <p className="text-muted-foreground text-center max-w-md mb-4">{error}</p>
+            <Button variant="outline" onClick={() => { setStep("loading"); setError(null); verifyToken(); }}>
+              Try Again
+            </Button>
           </div>
         );
 
