@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +14,21 @@ import {
 import { EmailVerificationStep } from "@/components/signing/email-verification-step";
 import { SigningReviewStep } from "@/components/signing/signing-review-step";
 import { SignatureCaptureStep } from "@/components/signing/signature-capture-step";
-import { PositionedSigningStep } from "@/components/signing/positioned-signing-step";
 import { CompletionStep } from "@/components/signing/completion-step";
 import { Spinner } from "@/components/ui/spinner";
 import { getApiBaseUrl } from "@/lib/api";
+
+// Dynamic import: pdfjs-dist is 36MB — loading it statically freezes the page
+// for signers who don't need positioned fields (the common case).
+const PositionedSigningStep = dynamic(
+  () => import("@/components/signing/positioned-signing-step").then(mod => ({ default: mod.PositionedSigningStep })),
+  { ssr: false, loading: () => (
+    <div className="flex flex-col items-center justify-center py-12">
+      <Spinner size={32} className="text-primary mb-4" />
+      <p className="text-muted-foreground">Loading signing tools...</p>
+    </div>
+  )}
+);
 
 interface SignerInfo {
   id: number;
