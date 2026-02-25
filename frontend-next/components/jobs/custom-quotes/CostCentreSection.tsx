@@ -9,9 +9,11 @@ import { POLineRow } from "./POLineRow";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
 import { QUOTE_LEVEL_LABELS } from "./types";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
+import type { DocumentTypeOption } from "./useCustomQuote";
 
 interface CostCentreSectionProps {
   line: CustomQuoteLineNode;
+  documentTypes: DocumentTypeOption[];
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onUpdateLine: (lineId: number, field: string, value: string) => void;
   onAddSupplier: (lineId: number) => void;
@@ -25,6 +27,7 @@ interface CostCentreSectionProps {
 
 export function CostCentreSection({
   line,
+  documentTypes,
   onToggleQuoteLevel,
   onUpdateLine,
   onAddSupplier,
@@ -69,7 +72,7 @@ export function CostCentreSection({
             size="sm"
             variant={isCCLevel ? "default" : "outline"}
             className="h-6 px-2 text-xs"
-            onClick={() => onToggleQuoteLevel(line.id, "cost_centre")}
+            onClick={(e) => { e.stopPropagation(); onToggleQuoteLevel(line.id, "cost_centre"); }}
           >
             CC Level
           </Button>
@@ -77,7 +80,7 @@ export function CostCentreSection({
             size="sm"
             variant={!isCCLevel && !isNotRequired ? "default" : "outline"}
             className="h-6 px-2 text-xs"
-            onClick={() => onToggleQuoteLevel(line.id, "po")}
+            onClick={(e) => { e.stopPropagation(); onToggleQuoteLevel(line.id, "po"); }}
           >
             PO Level
           </Button>
@@ -85,11 +88,27 @@ export function CostCentreSection({
             size="sm"
             variant={isNotRequired ? "destructive" : "outline"}
             className="h-6 px-2 text-xs"
-            onClick={() => onToggleQuoteLevel(line.id, "not_required")}
+            onClick={(e) => { e.stopPropagation(); onToggleQuoteLevel(line.id, "not_required"); }}
           >
             Not Required
           </Button>
         </div>
+
+        {/* Document type selector */}
+        {!isNotRequired && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <select
+              value={line.documentTypeId || ""}
+              onChange={(e) => onUpdateLine(line.id, "document_type_id", e.target.value)}
+              className="h-6 px-1 text-xs border rounded bg-background text-foreground"
+            >
+              <option value="">Doc Type...</option>
+              {documentTypes.map((dt) => (
+                <option key={dt.id} value={String(dt.id)}>{dt.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {ccTotal > 0 && (
           <span className="text-sm font-mono text-green-600 dark:text-green-400 ml-auto mr-2">
@@ -140,13 +159,15 @@ export function CostCentreSection({
             </div>
           )}
 
-          {/* Descriptions for CC line */}
-          <TwoDescriptionEditor
-            tenderDescription={line.tenderDescription}
-            poDescription={line.poDescription}
-            rfqInstructions={line.rfqInstructions}
-            onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
-          />
+          {/* Descriptions only for CC-level quoting */}
+          {isCCLevel && (
+            <TwoDescriptionEditor
+              tenderDescription={line.tenderDescription}
+              poDescription={line.poDescription}
+              rfqInstructions={line.rfqInstructions}
+              onUpdate={(field, value) => onUpdateLine(line.id, field, value)}
+            />
+          )}
 
           {/* PO Children */}
           <div className="mt-2">
@@ -154,6 +175,7 @@ export function CostCentreSection({
               <POLineRow
                 key={child.id}
                 line={child}
+                documentTypes={documentTypes}
                 onUpdateLine={onUpdateLine}
                 onToggleQuoteLevel={onToggleQuoteLevel}
                 onAddSupplier={onAddSupplier}

@@ -37,6 +37,32 @@ export function useCustomQuoteTemplates() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Document Types (for CC/PO line document type selector)
+// ─────────────────────────────────────────────────────────────────────────
+
+export interface DocumentTypeOption {
+  id: number;
+  name: string;
+}
+
+export function useDocumentTypes() {
+  const [documentTypes, setDocumentTypes] = useState<DocumentTypeOption[]>([]);
+
+  const fetchDocumentTypes = useCallback(async () => {
+    try {
+      const res = await api.get<{ success: boolean; data: DocumentTypeOption[] }>(
+        "/api/v1/custom_quotes/document_types"
+      );
+      if (res?.data) setDocumentTypes(res.data);
+    } catch (err) {
+      console.error("[useDocumentTypes] fetch error:", err);
+    }
+  }, []);
+
+  return { documentTypes, fetchDocumentTypes };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Job-level Custom Quote
 // ─────────────────────────────────────────────────────────────────────────
 
@@ -93,7 +119,9 @@ export function useCustomQuote(jobId: string | number) {
 
   const updateLine = useCallback(async (lineId: number, updates: Record<string, unknown>) => {
     try {
-      await api.patch(`/api/v1/custom_quote_lines/${lineId}`, updates);
+      console.log("[useCustomQuote] updateLine", lineId, updates);
+      const res = await api.patch(`/api/v1/custom_quote_lines/${lineId}`, updates);
+      console.log("[useCustomQuote] updateLine response", res);
     } catch (err) {
       console.error("[useCustomQuote] update line error:", err);
       toast.error("Failed to update line");

@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { CustomQuoteSetup } from "./custom-quotes/CustomQuoteSetup";
 import { CustomQuoteTree } from "./custom-quotes/CustomQuoteTree";
 import { SaveAsTemplateDialog } from "./custom-quotes/SaveAsTemplateDialog";
-import { useCustomQuote } from "./custom-quotes/useCustomQuote";
+import { useCustomQuote, useDocumentTypes } from "./custom-quotes/useCustomQuote";
 import type { QuoteLevel } from "./custom-quotes/types";
 import {
   Dialog,
@@ -56,6 +56,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
     refresh,
   } = useCustomQuote(jobId);
 
+  const { documentTypes, fetchDocumentTypes } = useDocumentTypes();
+
   // Dialog states
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [addSupplierDialog, setAddSupplierDialog] = useState<{ lineId: number } | null>(null);
@@ -68,7 +70,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   // Initial load
   useEffect(() => {
     fetchQuotes();
-  }, [fetchQuotes]);
+    fetchDocumentTypes();
+  }, [fetchQuotes, fetchDocumentTypes]);
 
   // Auto-load first quote if exists
   useEffect(() => {
@@ -81,12 +84,12 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   const searchSuppliers = useCallback(async (search: string) => {
     if (search.length < 2) return;
     try {
-      const res = await api.get<{ success: boolean; data: { records: Array<{ id: number; name: string }> } }>(
+      const res = await api.get<{ success: boolean; records: Array<{ id: number; name: string }> }>(
         `/api/v1/foundations/contacts/records?search=${encodeURIComponent(search)}&limit=20`
       );
-      if (res?.data?.records) {
+      if (res?.records) {
         setSupplierItems(
-          res.data.records.map((c) => ({ id: String(c.id), label: c.name }))
+          res.records.map((c) => ({ id: String(c.id), label: c.name }))
         );
       }
     } catch {
@@ -120,7 +123,8 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
   }, [updateLine, refresh]);
 
   const handleUpdateLine = useCallback(async (lineId: number, field: string, value: string) => {
-    await updateLine(lineId, { [field]: value });
+    const parsedValue = field === "document_type_id" ? (value || null) : value;
+    await updateLine(lineId, { [field]: parsedValue });
   }, [updateLine]);
 
   const handleAddSupplierConfirm = useCallback(async (supplierId: string) => {
@@ -209,6 +213,7 @@ export function JobCustomQuotesTab({ jobId }: JobCustomQuotesTabProps) {
       {activeQuote ? (
         <CustomQuoteTree
           quote={activeQuote}
+          documentTypes={documentTypes}
           onUpdateLine={handleUpdateLine}
           onToggleQuoteLevel={handleToggleQuoteLevel}
           onAddSupplier={(lineId) => setAddSupplierDialog({ lineId })}

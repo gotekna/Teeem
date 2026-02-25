@@ -69,20 +69,20 @@ class CustomQuoteSupplier < ApplicationRecord
   def as_json_summary
     {
       id: id,
-      supplier_id: supplier_id,
-      supplier_name: supplier&.name,
-      contact_person_id: contact_person_id,
-      contact_email: contact_email,
+      supplierId: supplier_id,
+      supplierName: supplier&.name,
+      contactPersonId: contact_person_id,
+      contactEmail: contact_email,
       status: status,
-      price_quoted: price_quoted&.to_f,
-      quote_number: quote_number,
-      date_sent: date_sent,
-      date_received: date_received,
-      valid_to: valid_to,
+      priceQuoted: price_quoted&.to_f,
+      quoteNumber: quote_number,
+      dateSent: date_sent,
+      dateReceived: date_received,
+      validTo: valid_to,
       timeframe: timeframe,
-      is_best_price: is_best_price,
-      purchase_order_id: purchase_order_id,
-      warehouse_document_id: warehouse_document_id
+      isBestPrice: is_best_price,
+      purchaseOrderId: purchase_order_id,
+      warehouseDocumentId: warehouse_document_id
     }
   end
 

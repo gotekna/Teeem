@@ -24,6 +24,7 @@ class CustomQuoteLine < ApplicationRecord
   belongs_to :cost_centre, optional: true
   belongs_to :sm_schedule_master, optional: true
   belongs_to :sm_task, class_name: "SmTask", optional: true
+  belongs_to :document_type, optional: true
   has_many :children, class_name: "CustomQuoteLine",
            foreign_key: :parent_id, dependent: :destroy
   has_many :suppliers, class_name: "CustomQuoteSupplier",
@@ -68,17 +69,19 @@ class CustomQuoteLine < ApplicationRecord
     {
       id: id,
       name: name,
-      quote_level: quote_level,
-      cost_centre_id: cost_centre_id,
-      sm_schedule_master_id: sm_schedule_master_id,
-      sm_task_id: sm_task_id,
-      tender_description: tender_description,
-      po_description: po_description,
-      rfq_instructions: rfq_instructions,
-      budget_amount: budget_amount&.to_f,
+      quoteLevel: quote_level,
+      costCentreId: cost_centre_id,
+      smScheduleMasterId: sm_schedule_master_id,
+      smTaskId: sm_task_id,
+      documentTypeId: document_type_id,
+      documentTypeName: document_type&.name,
+      tenderDescription: tender_description,
+      poDescription: po_description,
+      rfqInstructions: rfq_instructions,
+      budgetAmount: budget_amount&.to_f,
       position: position,
       suppliers: suppliers.includes(:supplier).order(:created_at).map(&:as_json_summary),
-      children: children.order(:position).includes(suppliers: :supplier).map(&:as_tree_node)
+      children: children.order(:position).includes(:document_type, suppliers: :supplier).map(&:as_tree_node)
     }
   end
 

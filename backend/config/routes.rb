@@ -964,6 +964,9 @@ Rails.application.routes.draw do
         resources :custom_quotes, only: [:index, :create], controller: 'custom_quotes'
       end
       resources :custom_quotes, only: [:show, :update, :destroy], controller: 'custom_quotes' do
+        collection do
+          get :document_types
+        end
         member do
           post :save_as_template
         end

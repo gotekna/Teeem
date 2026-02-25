@@ -10,7 +10,7 @@
  * Props follow TaskFormProps interface from lib/workflow-task-forms.ts.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -515,6 +515,55 @@ export default function DirectorChangeForm({
   const hasChanges = ceasingDirectors.length > 0 || newAppointments.length > 0;
   const canProceedToReview = hasChanges && ceasingValid && appointmentsValid;
   const canSubmit = canProceedToReview;
+
+  // SSoT: Document list mirrors DirectorChangeService (backend)
+  // Each position maps to its own document type (from ASIC warehouse folder)
+  const documentList = useMemo(() => {
+    const formatPosition = (pos: string) =>
+      pos.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+    // Position → document type mapping (matches warehouse ASIC folder doc types)
+    const resignationByPosition: Record<string, { docType: string; docTypeName: string }> = {
+      director: { docType: "RD", docTypeName: "Resignation Director" },
+      secretary: { docType: "RS", docTypeName: "Resignation Secretary" },
+      public_officer: { docType: "RPO", docTypeName: "Resignation Public Officer" },
+    };
+    const consentByPosition: Record<string, { docType: string; docTypeName: string }> = {
+      director: { docType: "CAD", docTypeName: "Consent to Act as Director" },
+      secretary: { docType: "CAS", docTypeName: "Consent to Act as Secretary" },
+      public_officer: { docType: "CAPO", docTypeName: "Consent to Act as Public Officer" },
+    };
+    const defaultResignation = { docType: "RD", docTypeName: "Resignation Director" };
+    const defaultConsent = { docType: "CAD", docTypeName: "Consent to Act as Director" };
+
+    const docs: { key: string; label: string; docTypes: { code: string; name: string }[] }[] = [
+      { key: "minutes", label: "Minutes of Meeting of Directors", docTypes: [{ code: "DM", name: "Directors Minutes" }] },
+    ];
+    ceasingDirectors.forEach((cd) => {
+      const types = cd.positions.map((pos) => {
+        const dt = resignationByPosition[pos] || defaultResignation;
+        return { code: dt.docType, name: dt.docTypeName };
+      });
+      docs.push({
+        key: `res-${cd.corporate_director_id}`,
+        label: `Resignation Letter — ${cd.name}`,
+        docTypes: types,
+      });
+    });
+    newAppointments.forEach((appt) => {
+      const types = appt.positions.map((pos) => {
+        const dt = consentByPosition[pos] || defaultConsent;
+        return { code: dt.docType, name: dt.docTypeName };
+      });
+      docs.push({
+        key: `con-${appt.contact_id}`,
+        label: `Consent to Act — ${appt.name}`,
+        docTypes: types,
+      });
+    });
+    docs.push({ key: "form484", label: "Form 484 Record", docTypes: [{ code: "F484", name: "ASIC Form 484 - Director Changes" }] });
+    return docs;
+  }, [ceasingDirectors, newAppointments]);
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -1324,13 +1373,29 @@ export default function DirectorChangeForm({
               )}
             </div>
 
-            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-1">
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Submitting will generate the ASIC document package (Form 484, Resignation Letters,
-                Consent to Act, Directors Minutes) and send them for e-signature automatically.
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                Documents to be generated ({documentList.length}):
               </p>
-              <p className="text-xs text-blue-600 dark:text-blue-300">
-                Document type: ASIC Form 484 - Director Changes &bull; Folder: ASIC
+              <div className="space-y-0.5">
+                {documentList.map((doc) => (
+                  <div key={doc.key} className="flex items-start justify-between text-sm py-1">
+                    <span className="text-blue-700 dark:text-blue-300">{doc.label}</span>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 ml-3">
+                      {doc.docTypes.map((dt) => (
+                        <span key={dt.code} className="flex items-center gap-1">
+                          <span className="text-xs text-blue-500 dark:text-blue-400">{dt.name}</span>
+                          <Badge variant="outline" className="text-[10px] font-mono border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-400">
+                            {dt.code}
+                          </Badge>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-300 pt-1 border-t border-blue-200 dark:border-blue-700">
+                Combined into a single PDF &bull; Folder: ASIC &bull; Sent for e-signature automatically.
               </p>
             </div>
 

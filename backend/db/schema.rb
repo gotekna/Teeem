@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_02_25_200000) do
+ActiveRecord::Schema[8.0].define(version: 2026_02_25_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_stat_statements"
@@ -2228,9 +2228,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_200000) do
     t.decimal "budget_amount", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "document_type_id"
     t.index ["cost_centre_id"], name: "index_custom_quote_lines_on_cost_centre_id"
     t.index ["custom_quote_id", "position"], name: "idx_cql_quote_position"
     t.index ["custom_quote_id"], name: "index_custom_quote_lines_on_custom_quote_id"
+    t.index ["document_type_id"], name: "index_custom_quote_lines_on_document_type_id"
     t.index ["parent_id"], name: "index_custom_quote_lines_on_parent_id"
     t.index ["sm_schedule_master_id"], name: "index_custom_quote_lines_on_sm_schedule_master_id"
     t.index ["sm_task_id"], name: "index_custom_quote_lines_on_sm_task_id"
@@ -11787,6 +11789,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_02_25_200000) do
   add_foreign_key "custom_quote_lines", "cost_centres"
   add_foreign_key "custom_quote_lines", "custom_quote_lines", column: "parent_id"
   add_foreign_key "custom_quote_lines", "custom_quotes"
+  add_foreign_key "custom_quote_lines", "document_types"
   add_foreign_key "custom_quote_lines", "sm_schedule_masters"
   add_foreign_key "custom_quote_lines", "sm_tasks"
   add_foreign_key "custom_quote_suppliers", "contact_persons"

@@ -39,6 +39,8 @@ export interface CustomQuoteLineNode {
   costCentreId: number | null;
   smScheduleMasterId: number | null;
   smTaskId: number | null;
+  documentTypeId: number | null;
+  documentTypeName: string | null;
   tenderDescription: string | null;
   poDescription: string | null;
   rfqInstructions: string | null;

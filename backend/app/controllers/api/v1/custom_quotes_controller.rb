@@ -191,6 +191,15 @@ module Api
         render json: { success: true, data: child.as_tree_node }, status: :created
       end
 
+      # GET /api/v1/custom_quotes/document_types
+      def document_types
+        doc_types = DocumentType.active.for_job.order(:name)
+        render json: {
+          success: true,
+          data: doc_types.map { |dt| { id: dt.id, name: dt.name } }
+        }
+      end
+
       # ═══════════════════════════════════════════════════════════════════════════
       # Supplier endpoints
       # ═══════════════════════════════════════════════════════════════════════════
@@ -332,7 +341,7 @@ module Api
 
       def line_params
         params.permit(:name, :quote_level, :tender_description, :po_description,
-                       :rfq_instructions, :position, :budget_amount)
+                       :rfq_instructions, :position, :budget_amount, :document_type_id)
       end
 
       # ═══════════════════════════════════════════════════════════════════════════

@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { SupplierQuoteCell } from "./SupplierQuoteCell";
 import { TwoDescriptionEditor } from "./TwoDescriptionEditor";
 import type { CustomQuoteLineNode, QuoteLevel } from "./types";
+import type { DocumentTypeOption } from "./useCustomQuote";
 
 interface POLineRowProps {
   line: CustomQuoteLineNode;
+  documentTypes: DocumentTypeOption[];
   onUpdateLine: (lineId: number, field: string, value: string) => void;
   onToggleQuoteLevel: (lineId: number, level: QuoteLevel) => void;
   onAddSupplier: (lineId: number) => void;
@@ -19,6 +21,7 @@ interface POLineRowProps {
 
 export function POLineRow({
   line,
+  documentTypes,
   onUpdateLine,
   onToggleQuoteLevel,
   onAddSupplier,
@@ -45,6 +48,19 @@ export function POLineRow({
         >
           {isNotRequired ? "Not Required" : "N/R"}
         </Button>
+
+        {!isNotRequired && (
+          <select
+            value={line.documentTypeId || ""}
+            onChange={(e) => onUpdateLine(line.id, "document_type_id", e.target.value)}
+            className="h-5 px-1 text-[10px] border rounded bg-background text-foreground"
+          >
+            <option value="">Doc Type...</option>
+            {documentTypes.map((dt) => (
+              <option key={dt.id} value={String(dt.id)}>{dt.name}</option>
+            ))}
+          </select>
+        )}
 
         {!isNotRequired && line.budgetAmount != null && (
           <span className="text-xs text-muted-foreground">
