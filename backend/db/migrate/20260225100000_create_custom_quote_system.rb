@@ -57,7 +57,7 @@ class CreateCustomQuoteSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :custom_quote_template_lines, :parent_id
+    # Note: :parent_id index already created by t.references :parent above
     add_index :custom_quote_template_lines, [:custom_quote_template_id, :position],
               name: 'idx_cqtl_template_position'
 
@@ -98,7 +98,7 @@ class CreateCustomQuoteSystem < ActiveRecord::Migration[8.0]
       t.timestamps
     end
 
-    add_index :custom_quote_lines, :parent_id
+    # Note: :parent_id index already created by t.references :parent above
     add_index :custom_quote_lines, [:custom_quote_id, :position],
               name: 'idx_cql_quote_position'
 
