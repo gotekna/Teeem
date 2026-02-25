@@ -4,17 +4,10 @@ import { GeistMono } from "geist/font/mono";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { TenantProvider } from "@/contexts/TenantContext";
-import { QueryProvider } from "@/components/providers/query-provider";
-import { JotaiProvider } from "@/components/providers/jotai-provider";
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as SonnerToaster } from "sonner";
-import { DynamicTitle } from "@/components/dynamic-title";
-import { CompanyColorsProvider } from "@/components/providers/company-colors-provider";
-import { OfflineProvider } from "@/components/providers/offline-provider";
+import { AppProviders } from "@/components/providers/app-providers";
 import type { Metadata, Viewport } from "next";
 import { TAILWIND_COLORS } from "@/lib/constants/color-constants";
+import { headers } from "next/headers";
 
 const hedvigSerif = Hedvig_Letters_Serif({
   weight: "400",
@@ -46,11 +39,17 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Detect lightweight pages that don't need the full app provider stack.
+  // The signing page is public-facing and must load instantly for external signers.
+  const headersList = await headers();
+  const pathname = headersList.get("x-pathname") || "";
+  const isLightweightPage = pathname.startsWith("/sign");
+
   return (
     <html lang="en" className={cn(GeistSans.variable, GeistMono.variable)} suppressHydrationWarning>
       <body
@@ -60,29 +59,27 @@ export default function RootLayout({
           "antialiased bg-background text-foreground"
         )}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <JotaiProvider>
-            <QueryProvider>
-              <AuthProvider>
-                <TenantProvider>
-                  <CompanyColorsProvider>
-                    <OfflineProvider>
-                      <DynamicTitle />
-                      {children}
-                      <Toaster />
-                      <SonnerToaster />
-                    </OfflineProvider>
-                  </CompanyColorsProvider>
-                </TenantProvider>
-              </AuthProvider>
-            </QueryProvider>
-          </JotaiProvider>
-        </ThemeProvider>
+        {isLightweightPage ? (
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+          </ThemeProvider>
+        ) : (
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AppProviders>
+              {children}
+            </AppProviders>
+          </ThemeProvider>
+        )}
       </body>
     </html>
   );
