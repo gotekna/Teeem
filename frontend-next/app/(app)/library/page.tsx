@@ -321,8 +321,8 @@ export default function LibraryPage() {
     return /\{EX\}|\{Expiry\}/i.test(templates);
   }, [resolvedTab, selectedDocType]);
 
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  // Selection state - Map stores full doc objects so selections persist across tab switches
+  const [selectedDocs, setSelectedDocs] = useState<Map<number, LibraryDocument>>(new Map());
 
   // Email compose state
   const [composeOpen, setComposeOpen] = useState(false);
@@ -418,9 +418,8 @@ export default function LibraryPage() {
     }
   }, []);
 
-  // Refetch when active tab changes (clear selection too)
+  // Refetch when active tab changes (selections persist across tabs)
   useEffect(() => {
-    setSelectedIds(new Set());
     if (resolvedTab) {
       // Use folder_segment as the folder filter (matches storage path)
       fetchDocuments(resolvedTab.folder_segment || resolvedTab.display_name);
@@ -706,27 +705,28 @@ export default function LibraryPage() {
     setComposeOpen(true);
   }, [emailDocs, emailOptions, toast]);
 
-  // Toggle selection
+  // Toggle selection - stores full doc object so selections persist across tab switches
   const toggleSelect = useCallback((docId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedIds(prev => {
-      const next = new Set(prev);
+    const doc = documents.find(d => d.id === docId);
+    setSelectedDocs(prev => {
+      const next = new Map(prev);
       if (next.has(docId)) {
         next.delete(docId);
-      } else {
-        next.add(docId);
+      } else if (doc) {
+        next.set(docId, doc);
       }
       return next;
     });
-  }, []);
+  }, [documents]);
 
-  // Email selected documents
+  // Email selected documents (works across tabs since selectedDocs stores full objects)
   const handleEmailSelected = useCallback(() => {
-    const docs = documents.filter(d => selectedIds.has(d.id));
+    const docs = Array.from(selectedDocs.values());
     if (docs.length > 0) {
       handleEmail(docs);
     }
-  }, [documents, selectedIds, handleEmail]);
+  }, [selectedDocs, handleEmail]);
 
   // Handle document verify
   const handleVerify = useCallback(async (doc: LibraryDocument) => {
@@ -952,7 +952,7 @@ export default function LibraryPage() {
                       <SortableDocumentRow
                         key={doc.id}
                         doc={doc}
-                        isSelected={selectedIds.has(doc.id)}
+                        isSelected={selectedDocs.has(doc.id)}
                         canDrag={isAdmin}
                         onToggleSelect={toggleSelect}
                         onClick={handleDocumentClick}
@@ -969,26 +969,36 @@ export default function LibraryPage() {
           </TabsContent>
         ))}
 
-        {/* Floating action bar when documents selected */}
-        {selectedIds.size > 0 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 bg-background border rounded-lg shadow-lg">
-            <span className="text-sm font-medium">
-              {selectedIds.size} selected
-            </span>
-            <Button size="sm" variant="outline" onClick={handleEmailSelected}>
-              <Mail className="h-4 w-4 mr-1.5" />
-              Email
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-xs text-muted-foreground"
-              onClick={() => setSelectedIds(new Set())}
-            >
-              Clear
-            </Button>
-          </div>
-        )}
+        {/* Floating action bar when documents selected (persists across tabs) */}
+        {selectedDocs.size > 0 && (() => {
+          // Count how many selected docs are on the current tab vs other tabs
+          const currentTabCount = documents.filter(d => selectedDocs.has(d.id)).length;
+          const otherTabCount = selectedDocs.size - currentTabCount;
+          return (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 px-4 py-2 bg-background border rounded-lg shadow-lg">
+              <span className="text-sm font-medium">
+                {selectedDocs.size} selected
+                {otherTabCount > 0 && (
+                  <span className="text-muted-foreground font-normal ml-1">
+                    ({otherTabCount} from other tabs)
+                  </span>
+                )}
+              </span>
+              <Button size="sm" variant="outline" onClick={handleEmailSelected}>
+                <Mail className="h-4 w-4 mr-1.5" />
+                Email
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-xs text-muted-foreground"
+                onClick={() => setSelectedDocs(new Map())}
+              >
+                Clear
+              </Button>
+            </div>
+          );
+        })()}
       </Tabs>
 
       {/* Email options dialog - attach/link/skip per document */}
@@ -1491,7 +1501,7 @@ export default function LibraryPage() {
           open={composeOpen}
           onOpenChange={(open) => {
             setComposeOpen(open);
-            if (!open) setSelectedIds(new Set());
+            if (!open) setSelectedDocs(new Map());
           }}
           defaultSubject={
             emailDocs.length === 1

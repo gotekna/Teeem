@@ -475,21 +475,23 @@ class DirectorChangeService
 
     ceasing_directors.each do |cd|
       name = cd[:corporate_director].contact.display_name
+      date_str = cd[:cessation_date].strftime("%d/%m/%Y")
       cd[:positions].select { |p| RESIGNATION_DOC_TYPES.key?(p) }.each do |pos|
         abbr = RESIGNATION_DOC_TYPES[pos]
         formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-        store_one(signed_blob, asic_folder, abbr, "Resignation #{formatted} - #{name}",
-          base_metadata.merge(person: name, position: pos))
+        store_one(signed_blob, asic_folder, abbr, "Resignation #{formatted} - #{name} #{date_str}",
+          base_metadata.merge(person: name, position: pos, date: cd[:cessation_date].iso8601))
       end
     end
 
     new_appointments.each do |appt|
       name = appt[:contact].display_name
+      date_str = appt[:appointment_date].strftime("%d/%m/%Y")
       appt[:positions].select { |p| CONSENT_DOC_TYPES.key?(p) }.each do |pos|
         abbr = CONSENT_DOC_TYPES[pos]
         formatted = pos.tr("_", " ").split.map(&:capitalize).join(" ")
-        store_one(signed_blob, asic_folder, abbr, "Consent to Act as #{formatted} - #{name}",
-          base_metadata.merge(person: name, position: pos))
+        store_one(signed_blob, asic_folder, abbr, "Consent to Act as #{formatted} - #{name} #{date_str}",
+          base_metadata.merge(person: name, position: pos, date: appt[:appointment_date].iso8601))
       end
     end
 
