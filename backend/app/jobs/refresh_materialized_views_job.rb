@@ -1,6 +1,7 @@
 # Job to refresh materialized views for the data warehouse
 # Can refresh all views or specific ones
 class RefreshMaterializedViewsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   # Available materialized views

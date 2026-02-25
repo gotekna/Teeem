@@ -53,6 +53,11 @@ module DeduplicatableJob
         throw :abort
       end
 
+      # When this job starts executing, clear all other queued (Ready) copies.
+      # The scheduler enqueues freely (avoiding SolidQueue bug), but when ANY copy
+      # starts, it clears queued siblings. Net effect: at most 1 running + 1 queued.
+      self.class.cleanup_duplicate_ready_copies!(excluding_job_id: job.provider_job_id)
+
       # Clean up dead predecessors so they don't accumulate
       self.class.cleanup_dead_predecessors!
     end
@@ -71,6 +76,20 @@ module DeduplicatableJob
         .exists?
     end
 
+    # Clear all queued (ReadyExecution) copies of this job class except the one running.
+    # Prevents queue bloat when scheduler enqueues faster than worker processes.
+    def cleanup_duplicate_ready_copies!(excluding_job_id: nil)
+      duplicates = SolidQueue::Job.where(finished_at: nil, class_name: name)
+      duplicates = duplicates.where.not(id: excluding_job_id) if excluding_job_id
+
+      ready_ids = SolidQueue::ReadyExecution.where(job_id: duplicates.select(:id)).pluck(:job_id)
+      return if ready_ids.empty?
+
+      Rails.logger.info "[DeduplicatableJob] Clearing #{ready_ids.count} duplicate queued #{name} job(s)"
+      SolidQueue::ReadyExecution.where(job_id: ready_ids).delete_all
+      SolidQueue::Job.where(id: ready_ids).update_all(finished_at: Time.current)
+    end
+
     def cleanup_dead_predecessors!
       dead_job_ids = SolidQueue::Job
         .where(finished_at: nil)
@@ -79,12 +98,25 @@ module DeduplicatableJob
         .where.not(id: SolidQueue::ClaimedExecution.select(:job_id))
         .pluck(:id)
 
-      return if dead_job_ids.empty?
+      if dead_job_ids.any?
+        Rails.logger.info "[DeduplicatableJob] Cleaning up #{dead_job_ids.count} dead #{name} job(s): #{dead_job_ids}"
+        SolidQueue::FailedExecution.where(job_id: dead_job_ids).delete_all
+        SolidQueue::Job.where(id: dead_job_ids).update_all(finished_at: Time.current)
+      end
 
-      Rails.logger.info "[DeduplicatableJob] Cleaning up #{dead_job_ids.count} dead #{name} job(s): #{dead_job_ids}"
+      # Also clear stale FailedExecutions older than 24 hours for this job class.
+      # Failed jobs accumulate forever otherwise, cluttering the dashboard.
+      old_failed_job_ids = SolidQueue::FailedExecution
+        .joins(:job)
+        .where(solid_queue_jobs: { class_name: name })
+        .where("solid_queue_failed_executions.created_at < ?", 24.hours.ago)
+        .pluck(:job_id)
 
-      SolidQueue::FailedExecution.where(job_id: dead_job_ids).delete_all
-      SolidQueue::Job.where(id: dead_job_ids).update_all(finished_at: Time.current)
+      return if old_failed_job_ids.empty?
+
+      Rails.logger.info "[DeduplicatableJob] Clearing #{old_failed_job_ids.count} stale failed #{name} job(s)"
+      SolidQueue::FailedExecution.where(job_id: old_failed_job_ids).delete_all
+      SolidQueue::Job.where(id: old_failed_job_ids).update_all(finished_at: Time.current)
     end
   end
 end

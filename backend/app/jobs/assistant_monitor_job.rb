@@ -12,6 +12,7 @@
 # Does NOT send external notifications in Phase 1 (web alerts only).
 #
 class AssistantMonitorJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform

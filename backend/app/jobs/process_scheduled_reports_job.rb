@@ -3,6 +3,7 @@
 # Processes all scheduled reports that are due to be sent
 # Runs every hour to check for reports scheduled for delivery
 class ProcessScheduledReportsJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform

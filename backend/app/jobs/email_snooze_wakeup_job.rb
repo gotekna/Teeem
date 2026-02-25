@@ -6,6 +6,7 @@
 # that have reached their snooze_until time and brings them back.
 #
 class EmailSnoozeWakeupJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Don't retry on failure - runs every minute, next run will try again

@@ -6,6 +6,7 @@
 # that have reached their remind_at time and sends notifications.
 #
 class EmailReminderJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :default
 
   # Don't retry on failure - runs every minute, next run will try again

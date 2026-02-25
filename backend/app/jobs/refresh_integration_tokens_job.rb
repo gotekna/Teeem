@@ -7,6 +7,7 @@
 # - ConnectionHealthMonitorJob caches pool status every 5 minutes
 #
 class RefreshIntegrationTokensJob < ApplicationJob
+  include DeduplicatableJob
   include XeroConstants  # For INTEGRATION_TOKEN_REFRESH_DELAY_SEC
   queue_as :default
 

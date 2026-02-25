@@ -11,6 +11,7 @@
 # Cost: ~$1.20/month (Haiku)
 #
 class EmailIntelligenceJob < ApplicationJob
+  include DeduplicatableJob
   queue_as :low
 
   def perform

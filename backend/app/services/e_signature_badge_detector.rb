@@ -17,6 +17,16 @@ require "hexapdf"
 #   2. Order-based fallback: badges assigned to signers by page order
 #      (works when PDF fonts use glyph encoding instead of raw ASCII)
 #
+# ⚠️ DO NOT SIMPLIFY - Chrome PDF coordinate handling (Feb 2026)
+# ════════════════════════════════════════════════════════════════
+# Chrome/Grover PDFs use a cm transform like [0.24, 0, 0, -0.24, 0, 842.88]
+# which means coordinates are in a SCALED, Y-FLIPPED user space (y increases
+# downward from top, like HTML). The detector must extract the cm transform
+# to correctly convert user-space coordinates to page percentages.
+# ❌ WRONG: Assume standard PDF coords (y=0 at bottom, increases upward)
+# ✅ CORRECT: Detect cm transform, apply scale + direction to coordinates
+# ════════════════════════════════════════════════════════════════
+#
 class ESignatureBadgeDetector
   # Badge background color: #e8f4fd = RGB(0.91, 0.957, 0.992)
   BADGE_COLOR_R = 0.91
@@ -24,7 +34,7 @@ class ESignatureBadgeDetector
   BADGE_COLOR_B = 0.992
   COLOR_TOLERANCE = 0.03
 
-  # Minimum badge dimensions in PDF points (filters out tiny colored rects)
+  # Minimum badge dimensions in user-space units (filters out tiny colored rects)
   MIN_BADGE_WIDTH = 50
   MIN_BADGE_HEIGHT = 15
 
@@ -132,16 +142,10 @@ class ESignatureBadgeDetector
       next if badge_rects.empty?
 
       box = page.box
-      badge_rects.each do |badge_rect|
-        badge_top = badge_rect[:y] + badge_rect[:height]
+      cm = extract_cm_transform(stream)
 
-        badges << {
-          page_number: index + 1,
-          x_percent: ((badge_rect[:x] - 5) / box.width * 100).clamp(1.0, 90.0).round(1),
-          y_percent: ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1),
-          width_percent: ((badge_rect[:width] + 20) / box.width * 100).clamp(10.0, 50.0).round(1),
-          height_percent: ((badge_rect[:height] + 20) / box.height * 100).clamp(5.0, 20.0).round(1)
-        }
+      badge_rects.each do |badge_rect|
+        badges << convert_rect_to_percent(badge_rect, box, cm, index + 1)
       end
     end
 
@@ -165,20 +169,87 @@ class ESignatureBadgeDetector
       next if badge_rects.empty?
 
       box = page.box
-      badge_rects.each do |badge_rect|
-        badge_top = badge_rect[:y] + badge_rect[:height]
+      cm = extract_cm_transform(stream)
 
-        badges << {
-          page_number: index + 1,
-          x_percent: ((badge_rect[:x] - 5) / box.width * 100).clamp(1.0, 90.0).round(1),
-          y_percent: ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1),
-          width_percent: ((badge_rect[:width] + 20) / box.width * 100).clamp(10.0, 50.0).round(1),
-          height_percent: ((badge_rect[:height] + 20) / box.height * 100).clamp(5.0, 20.0).round(1)
-        }
+      badge_rects.each do |badge_rect|
+        badges << convert_rect_to_percent(badge_rect, box, cm, index + 1)
       end
     end
 
     badges
+  end
+
+  # Extract the initial cm (concat matrix) transform from the page stream.
+  # Chrome/Grover PDFs typically start with: a 0 0 d 0 f cm
+  # where d < 0 means Y is flipped (HTML-style: y increases downward).
+  # Returns { scale_x:, scale_y:, y_flip:, ty: } or nil if no cm found.
+  def extract_cm_transform(stream)
+    # Match the first cm operator in the stream
+    # Format: a b c d e f cm (6 numbers followed by "cm")
+    match = stream.match(/(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+cm/)
+    return nil unless match
+
+    a = match[1].to_f  # x scale
+    d = match[4].to_f  # y scale (negative = y-flip)
+    f = match[6].to_f  # y translation
+
+    {
+      scale_x: a.abs,
+      scale_y: d.abs,
+      y_flip: d < 0,
+      ty: f
+    }
+  end
+
+  # Convert a badge rectangle from user-space coordinates to page percentages.
+  # Handles Chrome's scaled+flipped coordinate system via the cm transform.
+  def convert_rect_to_percent(badge_rect, box, cm, page_number)
+    x = badge_rect[:x]
+    y = badge_rect[:y]
+    w = badge_rect[:width]
+    h = badge_rect[:height]
+
+    if cm && cm[:scale_x] > 0 && cm[:scale_y] > 0
+      # Chrome PDF: coordinates are in scaled user space
+      # Convert to PDF points by applying the scale factor
+      scale_x = cm[:scale_x]
+      scale_y = cm[:scale_y]
+
+      x_pt = x * scale_x
+      w_pt = w * scale_x
+      h_pt = h * scale_y
+
+      if cm[:y_flip]
+        # Y is flipped: y=0 is at TOP, increases downward (HTML-style)
+        # y in stream = distance from top in user-space units
+        y_top_pt = y * scale_y  # distance from top in PDF points
+        y_pct = (y_top_pt / box.height * 100).clamp(1.0, 90.0).round(1)
+      else
+        # Standard PDF: y=0 at bottom, increases upward
+        y_pt = y * scale_y
+        badge_top = y_pt + h_pt
+        y_pct = ((box.height - badge_top) / box.height * 100).clamp(1.0, 90.0).round(1)
+      end
+
+      x_pct = (x_pt / box.width * 100).clamp(1.0, 90.0).round(1)
+      w_pct = (w_pt / box.width * 100).clamp(10.0, 50.0).round(1)
+      h_pct = (h_pt / box.height * 100).clamp(5.0, 20.0).round(1)
+    else
+      # No cm transform or unknown format: assume standard PDF coordinates
+      badge_top = y + h
+      x_pct = ((x - 5) / box.width * 100).clamp(1.0, 90.0).round(1)
+      y_pct = ((box.height - badge_top - 5) / box.height * 100).clamp(1.0, 90.0).round(1)
+      w_pct = ((w + 20) / box.width * 100).clamp(10.0, 50.0).round(1)
+      h_pct = ((h + 20) / box.height * 100).clamp(5.0, 20.0).round(1)
+    end
+
+    {
+      page_number: page_number,
+      x_percent: x_pct,
+      y_percent: y_pct,
+      width_percent: w_pct,
+      height_percent: h_pct
+    }
   end
 
   # Extract the decompressed content stream from a PDF page
