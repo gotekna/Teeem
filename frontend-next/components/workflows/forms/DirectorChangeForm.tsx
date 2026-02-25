@@ -1624,17 +1624,16 @@ export default function DirectorChangeForm({
               </div>
             )}
 
-            <div className="flex justify-between pt-4 border-t">
-              <Button variant="outline" onClick={() => setStep(2)}>
-                <ArrowLeft className="w-4 h-4 mr-1" /> Back
-              </Button>
-              <Button
-                onClick={() => setShowConfirmation(true)}
-                disabled={submitting || showConfirmation}
-              >
-                <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
-              </Button>
-            </div>
+            {!showConfirmation && (
+              <div className="flex justify-between pt-4 border-t">
+                <Button variant="outline" onClick={() => setStep(2)}>
+                  <ArrowLeft className="w-4 h-4 mr-1" /> Back
+                </Button>
+                <Button onClick={() => setShowConfirmation(true)} disabled={submitting}>
+                  <Send className="w-4 h-4 mr-1" /> Submit & Start Workflow
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

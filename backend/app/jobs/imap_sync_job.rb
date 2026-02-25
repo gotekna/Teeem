@@ -1,7 +1,11 @@
 class ImapSyncJob < ApplicationJob
   include DeduplicatableJob
 
-  queue_as :default
+  # FRC (Feb 2026): Must be :email_sync, NOT :default.
+  # IMAP sync is long-running (60s+) and memory-heavy. On :default it ran on
+  # teeem-shared-worker (1GB), causing R14/R15 crashes. The email worker
+  # (teeem-email-worker) listens to :email_sync and has dedicated memory.
+  queue_as :email_sync
 
   # Retry network errors up to 2 times with backoff, then discard
   # Runs every 2 minutes, so next scheduled run will try again
