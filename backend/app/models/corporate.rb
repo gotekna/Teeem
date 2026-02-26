@@ -247,19 +247,29 @@ class Corporate < ApplicationRecord
     organization.present?
   end
 
+  # SSoT: Contact is THE ONE source for ACN/ABN. Corporate delegates to contact,
+  # falling back to own column for legacy data or unlinked companies.
+  def effective_acn
+    acn.presence || contact&.acn
+  end
+
+  def effective_abn
+    abn.presence || contact&.abn
+  end
+
   def formatted_acn
-    return nil unless acn.present?
-    # Strip all non-digits first, then format as XXX XXX XXX
-    digits = acn.gsub(/\D/, "")
-    return acn if digits.length != 9
+    raw = effective_acn
+    return nil unless raw.present?
+    digits = raw.gsub(/\D/, "")
+    return raw if digits.length != 9
     "#{digits[0..2]} #{digits[3..5]} #{digits[6..8]}"
   end
 
   def formatted_abn
-    return nil unless abn.present?
-    # Strip all non-digits first, then format as XX XXX XXX XXX
-    digits = abn.gsub(/\D/, "")
-    return abn if digits.length != 11
+    raw = effective_abn
+    return nil unless raw.present?
+    digits = raw.gsub(/\D/, "")
+    return raw if digits.length != 11
     "#{digits[0..1]} #{digits[2..4]} #{digits[5..7]} #{digits[8..10]}"
   end
 
