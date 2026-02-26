@@ -13,6 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
+import { format, parseISO } from "date-fns";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { FileText, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -183,7 +185,7 @@ export function QuoteConfirmDialog({
                 {details.quoted.validTo && (
                   <div>
                     <span className="text-xs text-muted-foreground">Valid To</span>
-                    <p className="text-sm">{new Date(details.quoted.validTo).toLocaleDateString()}</p>
+                    <p className="text-sm">{format(parseISO(details.quoted.validTo), DATE_DISPLAY)}</p>
                   </div>
                 )}
 

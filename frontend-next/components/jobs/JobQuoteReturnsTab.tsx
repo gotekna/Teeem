@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { format, parseISO } from "date-fns";
+import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 import { QuoteConfirmDialog } from "./quote-returns/QuoteConfirmDialog";
 import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
 import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
@@ -263,13 +265,13 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                 <td className="px-3 py-2 text-muted-foreground">
                   {qr.dateSent ? (
                     <span title={qr.sentByName ? `by ${qr.sentByName}` : ""}>
-                      {new Date(qr.dateSent).toLocaleDateString()}
+                      {format(parseISO(qr.dateSent), DATE_DISPLAY)}
                     </span>
                   ) : "—"}
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {qr.dateReceived
-                    ? new Date(qr.dateReceived).toLocaleDateString()
+                    ? format(parseISO(qr.dateReceived), DATE_DISPLAY)
                     : "—"}
                 </td>
                 <td className="px-3 py-2">{qr.quoteNumber || "—"}</td>
@@ -282,7 +284,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                           : ""
                       }
                     >
-                      {new Date(qr.validTo).toLocaleDateString()}
+                      {format(parseISO(qr.validTo), DATE_DISPLAY)}
                       {isExpired(qr.validTo) && " (expired)"}
                     </span>
                   ) : (
@@ -299,7 +301,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                 </td>
                 <td className="px-3 py-2 text-xs text-muted-foreground">
                   {qr.confirmedBy ? (
-                    <span title={qr.confirmedAt ? new Date(qr.confirmedAt).toLocaleString() : ""}>
+                    <span title={qr.confirmedAt ? format(parseISO(qr.confirmedAt), DATETIME_DISPLAY) : ""}>
                       {qr.confirmedBy}
                     </span>
                   ) : (

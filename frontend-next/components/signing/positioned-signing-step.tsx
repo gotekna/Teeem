@@ -108,6 +108,7 @@ export function PositionedSigningStep({
   const [captureLoading, setCaptureLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const hasAutoOpened = useRef(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Refs to avoid stale closures in navigateToField callbacks
   const savedSignatureRef = useRef<string | null>(null);
@@ -141,30 +142,51 @@ export function PositionedSigningStep({
     [fields]
   );
 
-  // Navigate to a field: change page and open its dialog.
+  // Scroll the PDF viewer to make a field visible (centered vertically)
+  const scrollToField = useCallback((field: SignatureField) => {
+    const container = scrollContainerRef.current;
+    if (!container || !pdfDimensions) return;
+    // Field is at y_percent of the rendered page. Account for scale and padding.
+    const pageHeight = pdfDimensions.height * scale;
+    const fieldY = (field.y_percent / 100) * pageHeight;
+    // Scroll so field is ~40% from the top of the visible area
+    const targetScroll = fieldY - container.clientHeight * 0.4;
+    container.scrollTo({ top: Math.max(0, targetScroll), behavior: "smooth" });
+  }, [pdfDimensions, scale]);
+
+  // Navigate to a field: change page, scroll to badge, then open dialog.
   // If we already have a saved signature/initials, show the quick-confirm dialog instead.
   // Uses refs (not state) so the latest saved signature is always available even in stale closures.
   const navigateToField = useCallback(
     (field: SignatureField) => {
       setCurrentPage(field.page_number);
-      setSelectedField(field);
       setCaptureError(null);
       setCaptureLoading(false);
-      if (field.field_type === "signature") {
-        if (savedSignatureRef.current) {
-          setConfirmMode("signature");
-        } else {
-          setCaptureMode("signature");
-        }
-      } else if (field.field_type === "initials") {
-        if (savedInitialsRef.current) {
-          setConfirmMode("initials");
-        } else {
-          setCaptureMode("initials");
-        }
-      }
+
+      // Delay dialog opening so the page renders and scrolls to the field first
+      setTimeout(() => {
+        scrollToField(field);
+
+        // Show dialog after scroll animation
+        setTimeout(() => {
+          setSelectedField(field);
+          if (field.field_type === "signature") {
+            if (savedSignatureRef.current) {
+              setConfirmMode("signature");
+            } else {
+              setCaptureMode("signature");
+            }
+          } else if (field.field_type === "initials") {
+            if (savedInitialsRef.current) {
+              setConfirmMode("initials");
+            } else {
+              setCaptureMode("initials");
+            }
+          }
+        }, 400);
+      }, 200);
     },
-    []
+    [scrollToField]
   );
 
   // Auto-open the first incomplete field once the PDF is loaded
@@ -494,7 +516,7 @@ export function PositionedSigningStep({
         </div>
 
         {/* PDF Document */}
-        <div className="h-full overflow-auto p-4 pt-16">
+        <div ref={scrollContainerRef} className="h-full overflow-auto p-4 pt-16">
           <div className="relative inline-block mx-auto">
             <Document
               file={pdfUrl}

@@ -62,6 +62,8 @@ import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
+import { format, parseISO } from "date-fns";
+import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS, POLLING_DELAY_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
 
 interface OrgStatus {
@@ -1750,7 +1752,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             )}
                           </TableCell>
                           <TableCell>
-                            {doc.modified ? new Date(doc.modified).toLocaleDateString() : "-"}
+                            {doc.modified ? format(parseISO(doc.modified), DATE_DISPLAY) : "-"}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1949,7 +1951,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                         <div>
                           <p className="text-sm font-medium">{item.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {item.lastModifiedDateTime && `Modified ${new Date(item.lastModifiedDateTime).toLocaleDateString()}`}
+                            {item.lastModifiedDateTime && `Modified ${format(parseISO(item.lastModifiedDateTime), DATE_DISPLAY)}`}
                             {item.size && ` • ${formatFileSize(item.size)}`}
                           </p>
                         </div>
@@ -1995,7 +1997,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                           <p className="text-sm font-medium">{folder.name}</p>
                           {folder.lastModifiedDateTime && (
                             <p className="text-xs text-muted-foreground">
-                              Modified {new Date(folder.lastModifiedDateTime).toLocaleDateString()}
+                              Modified {format(parseISO(folder.lastModifiedDateTime), DATE_DISPLAY)}
                             </p>
                           )}
                         </div>
@@ -3152,7 +3154,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
                             <span className="text-blue-600 dark:text-blue-400">{item.folder_path}/</span>
                           )}
                           {item.size ? formatFileSize(item.size) : ""}
-                          {item.modified && ` • Modified ${new Date(item.modified).toLocaleDateString()}`}
+                          {item.modified && ` • Modified ${format(parseISO(item.modified), DATE_DISPLAY)}`}
                         </p>
                       </div>
                       {(item.web_url || item.document_id) && (
