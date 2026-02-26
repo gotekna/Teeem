@@ -100,6 +100,21 @@ module WarehouseFolderPathLookup
     parts.join('/')
   end
 
+  # Like lookup_full_folder_path but uses display_name for folder chain (human-readable).
+  # Returns: "Job/{{JobCode}}/{{JobName}}/Estimating/Quote Returns"
+  # Used for admin display of target folder paths (not actual storage paths).
+  def lookup_display_folder_path(warehouse_folder, warehouse_type = nil)
+    wt = warehouse_type || warehouse_folder.warehouse_type
+    wt_base = wt&.folder_path_template.presence || wt&.display_name
+
+    display_path = lookup_folder_name_path(warehouse_folder)
+
+    parts = []
+    parts << wt_base if wt_base.present?
+    parts << display_path if display_path.present?
+    parts.join('/')
+  end
+
   # Equivalent to path_preview: applies template token substitutions to full_folder_path.
   # Returns: "Job/J-001/Smith Residence/Photo/Supervisor"
   def lookup_path_preview(warehouse_folder, warehouse_type = nil)

@@ -302,16 +302,22 @@ export default function SigningCeremonyPage() {
     }
   };
 
+  // Full-screen mode for positioned signing - PDF needs maximum space
+  const isFullScreen = step === "sign_positioned";
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className={`min-h-screen bg-gray-100 ${isFullScreen ? "flex flex-col h-screen overflow-hidden" : ""}`}>
+      {/* Header - compact in full-screen mode */}
+      <header className={`bg-white border-b shadow-sm ${isFullScreen ? "flex-shrink-0" : ""}`}>
+        <div className={`${isFullScreen ? "px-4" : "max-w-4xl mx-auto px-4"} py-2 flex items-center justify-between`}>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-emerald-800 text-white flex items-center justify-center text-lg font-bold rounded">
+            <div className="w-7 h-7 bg-emerald-800 text-white flex items-center justify-center text-sm font-bold rounded">
               t
             </div>
-            <span className="font-semibold">TEEEM E-Sign</span>
+            <span className="font-semibold text-sm">TEEEM E-Sign</span>
+            {isFullScreen && request && (
+              <span className="text-sm text-gray-500 ml-2 hidden sm:inline">&bull; {request.title}</span>
+            )}
           </div>
           {request && (
             <div className="text-sm text-gray-500">{request.request_number}</div>
@@ -320,47 +326,55 @@ export default function SigningCeremonyPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 py-8 pb-20">
-        {request && step !== "loading" && step !== "error" && (
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold mb-1">{request.title}</h1>
-            {request.description && (
-              <p className="text-gray-500">{request.description}</p>
-            )}
-          </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow p-6">
+      {isFullScreen ? (
+        <main className="flex-1 overflow-hidden">
           {renderStep()}
-        </div>
-
-        {/* Other signers status */}
-        {request?.other_signers && request.other_signers.length > 0 && step !== "loading" && step !== "error" && (
-          <div className="bg-white rounded-lg shadow mt-6 p-6">
-            <h3 className="text-sm font-medium mb-3">Other Signers</h3>
-            <div className="space-y-2">
-              {request.other_signers.map((s, idx) => (
-                <div key={idx} className="flex items-center justify-between text-sm">
-                  <span>{s.name}</span>
-                  <span className={`px-2 py-0.5 rounded text-xs ${
-                    s.status === "signed"
-                      ? "bg-green-100 text-green-700"
-                      : "bg-gray-100 text-gray-500"
-                  }`}>
-                    {s.status === "signed" ? "Signed" : "Pending"}
-                  </span>
-                </div>
-              ))}
+        </main>
+      ) : (
+        <main className="max-w-4xl mx-auto px-4 py-8 pb-20">
+          {request && step !== "loading" && step !== "error" && (
+            <div className="mb-6">
+              <h1 className="text-2xl font-bold mb-1">{request.title}</h1>
+              {request.description && (
+                <p className="text-gray-500">{request.description}</p>
+              )}
             </div>
-          </div>
-        )}
-      </main>
+          )}
 
-      <footer className="border-t py-3 mt-8">
-        <div className="max-w-4xl mx-auto px-4 text-center text-xs text-gray-400">
-          Powered by TEEEM E-Signature System
-        </div>
-      </footer>
+          <div className="bg-white rounded-lg shadow p-6">
+            {renderStep()}
+          </div>
+
+          {/* Other signers status */}
+          {request?.other_signers && request.other_signers.length > 0 && step !== "loading" && step !== "error" && (
+            <div className="bg-white rounded-lg shadow mt-6 p-6">
+              <h3 className="text-sm font-medium mb-3">Other Signers</h3>
+              <div className="space-y-2">
+                {request.other_signers.map((s, idx) => (
+                  <div key={idx} className="flex items-center justify-between text-sm">
+                    <span>{s.name}</span>
+                    <span className={`px-2 py-0.5 rounded text-xs ${
+                      s.status === "signed"
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-500"
+                    }`}>
+                      {s.status === "signed" ? "Signed" : "Pending"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+      )}
+
+      {!isFullScreen && (
+        <footer className="border-t py-3 mt-8">
+          <div className="max-w-4xl mx-auto px-4 text-center text-xs text-gray-400">
+            Powered by TEEEM E-Signature System
+          </div>
+        </footer>
+      )}
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -46,7 +45,10 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
+  Maximize2,
   AlertCircle,
+  PanelRight,
+  X,
 } from "lucide-react";
 import { SignatureCaptureStep } from "./signature-capture-step";
 import { cn } from "@/lib/utils";
@@ -116,6 +118,7 @@ export function PositionedSigningStep({
   const [numPages, setNumPages] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [scale, setScale] = useState(1);
+  const [autoFitScale, setAutoFitScale] = useState(1);
   const [pdfDimensions, setPdfDimensions] = useState<{ width: number; height: number } | null>(null);
   const [fields, setFields] = useState<SignatureField[]>(initialFields);
   const [selectedField, setSelectedField] = useState<SignatureField | null>(null);
@@ -130,8 +133,10 @@ export function PositionedSigningStep({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
+  const [showSidePanel, setShowSidePanel] = useState(false);
   const hasAutoOpened = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   // Refs to avoid stale closures in navigateToField callbacks
   const savedSignatureRef = useRef<string | null>(null);
@@ -142,6 +147,30 @@ export function PositionedSigningStep({
 
   const apiUrl = apiUrlProp || getApiBaseUrl();
   const pdfUrl = `${apiUrl}/api/v1/sign/${token}/document`;
+
+  // Auto-fit PDF to container width, recalculate on resize
+  const calculateFitScale = useCallback(() => {
+    const container = pdfContainerRef.current;
+    if (!container || !pdfDimensions) return;
+    const containerWidth = container.clientWidth - 32; // 16px padding each side
+    const fitScale = containerWidth / pdfDimensions.width;
+    // Clamp between 0.4 and 2.0
+    const clamped = Math.min(2.0, Math.max(0.4, fitScale));
+    setAutoFitScale(clamped);
+    setScale(clamped);
+  }, [pdfDimensions]);
+
+  useEffect(() => {
+    calculateFitScale();
+  }, [calculateFitScale]);
+
+  useEffect(() => {
+    const container = pdfContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => calculateFitScale());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [calculateFitScale]);
 
   // Find the next incomplete required field in reading order
   const findNextIncompleteField = useCallback(
@@ -528,88 +557,103 @@ export function PositionedSigningStep({
     );
   };
 
-  return (
-    <div className="flex flex-col">
-      {/* Progress bar */}
-      <div className="mb-4 p-4 bg-muted rounded-lg">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">
-            {completedRequired.length} of {requiredFields.length} required fields completed
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeclineDialog(true)}
-            >
-              Decline
-            </Button>
-            {allRequiredComplete && (
-              <Badge variant="default" className="bg-green-500">
-                Ready to submit
-              </Badge>
-            )}
-          </div>
-        </div>
-        <div className="w-full bg-muted-foreground/20 rounded-full h-2">
-          <div
-            className="bg-primary h-2 rounded-full transition-all"
-            style={{
-              width: `${(completedRequired.length / Math.max(requiredFields.length, 1)) * 100}%`,
-            }}
-          />
-        </div>
-      </div>
+  // Count fields on current page for the page indicator
+  const currentPageFieldCount = currentPageFields.length;
+  const currentPageCompletedCount = currentPageFields.filter((f) => f.completed).length;
 
-      {/* PDF Viewer with overlays */}
-      <div className="border rounded-lg bg-muted dark:bg-card">
-        {/* Controls */}
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-white/90 dark:bg-background/90 rounded-t-lg p-2 border-b">
+  return (
+    <div className="flex h-full">
+      {/* Main PDF area - takes all available space */}
+      <div ref={pdfContainerRef} className="flex-1 flex flex-col min-w-0 bg-gray-200 dark:bg-gray-900">
+        {/* Top toolbar - compact */}
+        <div className="flex-shrink-0 flex items-center justify-between bg-white dark:bg-gray-800 px-3 py-1.5 border-b z-10">
+          {/* Left: page navigation */}
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
+              className="h-8 w-8"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage <= 1}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm px-2">
+            <span className="text-sm tabular-nums min-w-[60px] text-center">
               {currentPage} / {numPages}
             </span>
             <Button
               variant="ghost"
               size="icon"
+              className="h-8 w-8"
               onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
               disabled={currentPage >= numPages}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+            {currentPageFieldCount > 0 && (
+              <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">
+                {currentPageCompletedCount}/{currentPageFieldCount} fields on this page
+              </span>
+            )}
           </div>
 
+          {/* Center: progress indicator (compact) */}
+          <div className="hidden sm:flex items-center gap-2 flex-1 max-w-xs mx-4">
+            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+              <div
+                className="bg-green-500 h-1.5 rounded-full transition-all"
+                style={{
+                  width: `${(completedRequired.length / Math.max(requiredFields.length, 1)) * 100}%`,
+                }}
+              />
+            </div>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {completedRequired.length}/{requiredFields.length}
+            </span>
+          </div>
+
+          {/* Right: zoom + panel toggle */}
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setScale((s) => Math.max(0.5, s - 0.25))}
-              disabled={scale <= 0.5}
+              className="h-8 w-8"
+              onClick={() => setScale((s) => Math.max(0.3, s - 0.1))}
+              disabled={scale <= 0.3}
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm px-2">{Math.round(scale * 100)}%</span>
+            <button
+              className="text-xs tabular-nums min-w-[40px] text-center hover:text-blue-600 cursor-pointer"
+              onClick={() => { calculateFitScale(); }}
+              title="Fit to width"
+            >
+              {Math.round(scale * 100)}%
+            </button>
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setScale((s) => Math.min(2, s + 0.25))}
-              disabled={scale >= 2}
+              className="h-8 w-8"
+              onClick={() => setScale((s) => Math.min(3, s + 0.1))}
+              disabled={scale >= 3}
             >
               <ZoomIn className="h-4 w-4" />
+            </Button>
+            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 lg:hidden"
+              onClick={() => setShowSidePanel(!showSidePanel)}
+              title="Toggle panel"
+            >
+              <PanelRight className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        {/* PDF Document - scrollable area */}
-        <div ref={scrollContainerRef} className="overflow-auto p-4" style={{ maxHeight: "65vh", overscrollBehavior: "contain" }}>
+        {/* PDF Document - fills remaining space */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4" style={{ overscrollBehavior: "contain" }}>
           <div className="relative inline-block mx-auto">
             <Document
               file={pdfUrl}
@@ -657,68 +701,141 @@ export function PositionedSigningStep({
         </div>
       </div>
 
-      {/* Field navigation sidebar */}
-      <Card className="mt-4">
-        <CardHeader className="py-3">
-          <CardTitle className="text-sm">Fields to complete</CardTitle>
-        </CardHeader>
-        <CardContent className="pb-3">
-          <div className="flex flex-wrap gap-2">
+      {/* Side panel - always visible on lg+, toggleable overlay on mobile */}
+      <div className={cn(
+        "flex-shrink-0 bg-white dark:bg-gray-800 border-l flex flex-col overflow-hidden transition-all duration-200",
+        // Desktop: always visible, fixed width
+        "hidden lg:flex lg:w-72",
+        // Mobile: overlay when toggled
+        showSidePanel && "!flex fixed inset-y-0 right-0 w-80 z-50 shadow-xl lg:relative lg:shadow-none lg:inset-auto"
+      )}>
+        {/* Mobile close button */}
+        <div className="flex items-center justify-between p-3 border-b lg:hidden">
+          <span className="font-medium text-sm">Signing Progress</span>
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSidePanel(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Progress section */}
+        <div className="p-3 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {completedRequired.length} of {requiredFields.length} fields
+            </span>
+            {allRequiredComplete && (
+              <Badge variant="default" className="bg-green-500 text-xs py-0">
+                Ready
+              </Badge>
+            )}
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div
+              className="bg-green-500 h-2 rounded-full transition-all"
+              style={{
+                width: `${(completedRequired.length / Math.max(requiredFields.length, 1)) * 100}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Field list - scrollable */}
+        <div className="flex-1 overflow-y-auto p-3">
+          <div className="space-y-1.5">
             {sortedFields.map((field) => {
               const Icon = FIELD_ICONS[field.field_type];
               const isNext = nextField?.id === field.id;
               return (
-                <Button
+                <button
                   key={field.id}
-                  variant={field.completed ? "secondary" : isNext ? "default" : "outline"}
-                  size="sm"
                   className={cn(
-                    "text-xs",
-                    field.completed && "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 dark:text-green-400",
-                    isNext && !field.completed && "ring-2 ring-blue-400"
+                    "w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-left text-sm transition-colors",
+                    field.completed
+                      ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400"
+                      : isNext
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 ring-1 ring-blue-300"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                   )}
                   onClick={() => {
                     setCurrentPage(field.page_number);
                     if (!field.completed) handleFieldClick(field);
+                    setShowSidePanel(false);
                   }}
                 >
                   {field.completed ? (
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    <CheckCircle2 className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
                   ) : (
-                    <Icon className="h-3 w-3 mr-1" />
+                    <Icon className={cn("h-4 w-4 flex-shrink-0", isNext ? "text-blue-600" : "text-gray-400")} />
                   )}
-                  {field.label || `${field.field_type} (p${field.page_number})`}
-                </Button>
+                  <span className="truncate text-xs">
+                    {field.label || `${field.field_type}`}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0">
+                    p{field.page_number}
+                  </span>
+                </button>
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Submit button */}
-      {allRequiredComplete && (
-        <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
-          <div>
-            <p className="font-medium text-green-800 dark:text-green-300">All fields completed</p>
-            <p className="text-sm text-green-600 dark:text-green-400">Review the document above, then submit when ready.</p>
-          </div>
-          <Button onClick={submitSignature} disabled={isSubmitting} size="lg" className="bg-green-600 hover:bg-green-700 text-white">
-            {isSubmitting ? (
-              <>
-                <Spinner size={16} className="mr-2" />
-                Submitting...
-              </>
-            ) : (
-              "Submit Signature"
-            )}
+        {/* Action buttons at bottom */}
+        <div className="p-3 border-t space-y-2">
+          {allRequiredComplete ? (
+            <Button
+              onClick={submitSignature}
+              disabled={isSubmitting}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isSubmitting ? (
+                <>
+                  <Spinner size={16} className="mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Signature"
+              )}
+            </Button>
+          ) : (
+            <Button
+              className="w-full"
+              onClick={() => {
+                const next = findNextIncompleteField();
+                if (next) {
+                  navigateToField(next);
+                  setShowSidePanel(false);
+                }
+              }}
+              disabled={!nextField}
+            >
+              <PenLine className="h-4 w-4 mr-1.5" />
+              Sign Next Field
+            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => setShowDeclineDialog(true)}
+          >
+            Decline to Sign
           </Button>
         </div>
+      </div>
+
+      {/* Mobile backdrop */}
+      {showSidePanel && (
+        <div
+          className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+          onClick={() => setShowSidePanel(false)}
+        />
       )}
 
-      {/* Error display */}
+      {/* Error display - floating toast style */}
       {error && (
-        <div className="mt-4 p-3 bg-destructive/10 text-destructive rounded-md text-sm">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-md p-3 bg-destructive text-destructive-foreground rounded-lg shadow-lg text-sm">
           {error}
+          <button className="ml-2 underline text-xs" onClick={() => setError(null)}>Dismiss</button>
         </div>
       )}
 

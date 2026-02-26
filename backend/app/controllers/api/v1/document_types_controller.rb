@@ -435,7 +435,7 @@ module Api
         else
           document_type.read_attribute(:scope)
         end
-        derived_target_folder = (primary_wfdt&.warehouse_folder ? lookup_full_folder_path(primary_wfdt.warehouse_folder) : nil) || document_type.read_attribute(:target_folder)
+        derived_target_folder = (primary_wfdt&.warehouse_folder ? lookup_display_folder_path(primary_wfdt.warehouse_folder) : nil) || document_type.read_attribute(:target_folder)
 
         # Inline effective template resolution to avoid WFDT→document_type reverse N+1
         # Fallback chain: WFDT override → DocumentType → WarehouseFolder

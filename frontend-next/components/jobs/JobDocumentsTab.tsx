@@ -62,8 +62,7 @@ import { API_PAGE_SIZES } from "@/lib/constants/pagination-constants";
 import { uploadPhoto, type UploadProgress } from "@/lib/storage-upload";
 import { uploadFile } from "@/lib/upload-utils";
 import { formatFileSize } from "@/utils/formatters";
-import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
-import type { PreUploadedAttachment } from "@/lib/email-types";
+import { EmailDocumentsDialog, type EmailableDocument } from "@/components/emails/EmailDocumentsDialog";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { UI_ANIMATION_MEDIUM_MS, RETRY_DELAY_MS, COUNTDOWN_TICK_MS, POLLING_DELAY_MS, POLLING_FAST_MS } from "@/lib/constants/timeout-constants";
@@ -207,10 +206,10 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
   const [viewMode, setViewMode] = useState<"tasks" | "sharepoint" | "allfiles" | "treeview">("tasks");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
-  // Email compose state for photo emailing
-  const [photoEmailComposeOpen, setPhotoEmailComposeOpen] = useState(false);
-  const [photoEmailAttachments, setPhotoEmailAttachments] = useState<PreUploadedAttachment[]>([]);
-  const [photoEmailSubject, setPhotoEmailSubject] = useState("");
+  // Email documents dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailDocs, setEmailDocs] = useState<EmailableDocument[]>([]);
+  const [emailSubject, setEmailSubject] = useState("");
   const [orgStatus, setOrgStatus] = useState<OrgStatus>({ loading: true, connected: false });
   // SSoT: Provider type fetched from backend WarehouseProvider.instance.provider_type
   // Default to null (loading) - never assume sharepoint, fetch actual provider first
@@ -494,29 +493,31 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
       }
       setMessage({ type: "success", text: `Downloading ${selectedPhotos.length} photo(s)` });
     } else if (action === "email") {
-      // Map selected PhotoItems back to LegacyItem data to get storage_path for attachments
-      const attachments: PreUploadedAttachment[] = [];
+      // Map selected PhotoItems back to LegacyItem data to get document_id + storage_path
+      const docs: EmailableDocument[] = [];
       for (const photo of selectedPhotos) {
         const legacyItem = allFiles.find(f => f.id === photo.id);
-        if (legacyItem?.storage_path) {
-          attachments.push({
-            filename: legacyItem.name,
-            storageKey: legacyItem.storage_path,
+        if (legacyItem?.document_id) {
+          docs.push({
+            id: legacyItem.document_id,
+            name: legacyItem.name,
+            storagePath: legacyItem.storage_path,
             fileSize: legacyItem.size,
-            contentType: "image/jpeg",
+            mimeType: legacyItem.type === "file" ? "image/jpeg" : undefined,
           });
         }
       }
-      if (attachments.length === 0) {
-        setMessage({ type: "error", text: "Selected photos don't have storage paths for attachment" });
+      if (docs.length === 0) {
+        setMessage({ type: "error", text: "Selected photos are not available for emailing" });
         return;
       }
-      const subject = selectedPhotos.length === 1
-        ? selectedPhotos[0].name
-        : `${selectedPhotos.length} Photos - ${jobTitle || `Job #${jobId}`}`;
-      setPhotoEmailAttachments(attachments);
-      setPhotoEmailSubject(subject);
-      setPhotoEmailComposeOpen(true);
+      setEmailSubject(
+        docs.length === 1
+          ? docs[0].name
+          : `${docs.length} Photos - ${jobTitle || `Job #${jobId}`}`
+      );
+      setEmailDocs(docs);
+      setEmailDialogOpen(true);
       return; // Don't clear selection - user may cancel email
     } else if (action === "delete") {
       // Show confirmation dialog
@@ -3628,19 +3629,17 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
         </DialogContent>
       </Dialog>
 
-      {/* Email compose modal for photos */}
-      {photoEmailAttachments.length > 0 && (
-        <ComposeEmailModal
-          open={photoEmailComposeOpen}
-          onOpenChange={(open) => {
-            setPhotoEmailComposeOpen(open);
-            if (!open) {
-              setSelectedPhotoIds(new Set());
-              setSelectMode(false);
-            }
+      {/* Email documents dialog (shared component - attach/link/skip options + compose) */}
+      {emailDocs.length > 0 && (
+        <EmailDocumentsDialog
+          documents={emailDocs}
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          defaultSubject={emailSubject}
+          onComplete={() => {
+            setSelectedPhotoIds(new Set());
+            setSelectMode(false);
           }}
-          defaultSubject={photoEmailSubject}
-          initialPreUploadedAttachments={photoEmailAttachments}
         />
       )}
     </div>
