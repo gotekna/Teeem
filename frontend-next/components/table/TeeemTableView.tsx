@@ -890,6 +890,7 @@ export default function TeeemTableView({
     }
   }, [useAutoFetch]);
 
+
   // Parent-triggered refresh via refreshTrigger prop
   // This allows parents to request a refresh without unmounting the component (avoiding SSR data loss)
   // Use this INSTEAD OF key={refreshKey} pattern
@@ -1394,6 +1395,24 @@ export default function TeeemTableView({
   const effectiveOnServerSearch = useAutoFetch ? handleAutoFetchSearch : onServerSearch;
   const effectiveServerSearchLoading = useAutoFetch ? isSearching : serverSearchLoading;
   const effectiveLoadingMore = useAutoFetch ? isLoadingMore : loadingMore;
+
+  // Full refresh after mutations (edit/create/delete) - handles search + cache correctly
+  // triggerAutoRefresh alone doesn't work when search is active (the fetch effect
+  // returns early when hasPersistedSearch is true). This helper clears cache and
+  // re-executes the active search if needed, ensuring fresh data is always shown.
+  const refreshAfterMutation = useCallback(() => {
+    if (effectiveFoundationId) {
+      clearCachedRecords(effectiveFoundationId);
+      invalidateLookupCache();
+    }
+    // When search is active, re-execute the search to get fresh results
+    // triggerAutoRefresh won't work because the fetch effect bails out early
+    if (searchRef.current && handleAutoFetchSearch) {
+      handleAutoFetchSearch(searchRef.current);
+    } else {
+      triggerAutoRefresh();
+    }
+  }, [effectiveFoundationId, handleAutoFetchSearch, triggerAutoRefresh]);
 
   // Use custom columns if provided, otherwise use defaults
   const COLUMNS = useMemo(() => {
@@ -6219,11 +6238,7 @@ export default function TeeemTableView({
             variant="ghost"
             size="icon"
             onClick={() => {
-              if (effectiveFoundationId) {
-                clearCachedRecords(effectiveFoundationId);
-                invalidateLookupCache();
-              }
-              triggerAutoRefresh();
+              refreshAfterMutation();
               onRefresh?.();
             }}
             title="Refresh data"
@@ -6501,11 +6516,7 @@ export default function TeeemTableView({
           foundationSlug={foundationSlug}
           foundationName={tableName}
           onImportComplete={() => {
-            if (effectiveFoundationId) {
-              clearCachedRecords(effectiveFoundationId);
-              invalidateLookupCache();
-            }
-            triggerAutoRefresh();
+            refreshAfterMutation();
             onRefresh?.();
           }}
         />
@@ -6572,8 +6583,7 @@ export default function TeeemTableView({
           onShowTotalsChange={setShowTotals}
           onStickyActionsChange={setStickyActions}
           onRefresh={() => {
-            // Refresh both internal (autoFetch) and external (parent callback)
-            triggerAutoRefresh();
+            refreshAfterMutation();
             onRefresh?.();
           }}
           rows={filteredAndSortedEntries as Record<string, unknown>[]}
@@ -6597,8 +6607,8 @@ export default function TeeemTableView({
             editModalConfig={editModalConfig}
             onSuccess={() => {
               setShowAddRecordModal(false);
-              // Refresh data - both internal (autoFetch) and external (parent callback)
-              triggerAutoRefresh();
+              // Refresh data - handles search active + cache clearing
+              refreshAfterMutation();
               onRefresh?.();
             }}
             renderExtraContent={createDialogRenderExtra}
@@ -6619,8 +6629,8 @@ export default function TeeemTableView({
               setSelectedRecordForModal(null);
               // Clear any lingering inline editing validation errors for this record
               setValidationErrors({});
-              // Refresh data - both internal (autoFetch) and external (parent callback)
-              triggerAutoRefresh();
+              // Refresh data - handles search active + cache clearing
+              refreshAfterMutation();
               onRefresh?.();
             }}
             renderExtraContent={editDialogRenderExtra}

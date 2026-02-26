@@ -418,8 +418,6 @@ export function PositionedSigningStep({
       top: `${field.y_percent}%`,
       width: `${field.width_percent}%`,
       height: `${field.height_percent}%`,
-      transform: `scale(${scale})`,
-      transformOrigin: "top left",
     };
 
     return (
@@ -454,7 +452,7 @@ export function PositionedSigningStep({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       {/* Progress bar */}
       <div className="mb-4 p-4 bg-muted rounded-lg">
         <div className="flex items-center justify-between mb-2">
@@ -478,7 +476,7 @@ export function PositionedSigningStep({
       </div>
 
       {/* PDF Viewer with overlays */}
-      <div className="flex-1 relative border rounded-lg overflow-hidden bg-muted dark:bg-card">
+      <div className="relative border rounded-lg overflow-hidden bg-muted dark:bg-card" style={{ height: "70vh" }}>
         {/* Controls */}
         <div className="absolute top-2 left-2 right-2 z-10 flex items-center justify-between bg-white/90 dark:bg-background/90 rounded-lg p-2 shadow-sm">
           <div className="flex items-center gap-1">

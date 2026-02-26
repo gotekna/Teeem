@@ -116,6 +116,33 @@ class XeroBillPoMatcherService
       end
     end
 
+    # ⚠️ Amount pre-filter BEFORE detail fetch — Performance-critical (Feb 2026)
+    # ════════════════════════════════════════════════════════════════
+    # Why: Each detail fetch costs ~1.6s (API + 1.1s sleep). Without this filter,
+    # 205 suppliers × ~20 bills each = ~3000 detail fetches = 80+ minutes.
+    # Pre-filtering by amount reduces detail fetches by ~80% (to ~600).
+    # Generous 2x tolerance catches all real matches while eliminating impossible ones.
+    # ❌ WRONG: Skip this filter — fetches detail for ALL supplier bills (hours)
+    # ✅ CORRECT: Compare bill.Total to native PO amounts with 2x tolerance
+    # ════════════════════════════════════════════════════════════════
+    po_amounts = @native_pos.filter_map { |po| po.total&.to_f }
+    if po_amounts.any?
+      before_count = candidates.length
+      candidates = candidates.select do |bill|
+        bill_total = (bill["Total"] || 0).to_f
+        next true if bill_total == 0 # Keep zero-amount bills (edge case)
+
+        po_amounts.any? do |po_amt|
+          next true if po_amt == 0
+          ratio = bill_total / po_amt
+          ratio.between?(0.5, 2.0) # Within 2x of each other
+        end
+      end
+      skipped = before_count - candidates.length
+      @stats[:skipped] += skipped if skipped > 0
+      Rails.logger.info("[XeroBillPoMatcher] Amount pre-filter: #{candidates.length} kept, #{skipped} skipped (no PO within 2x tolerance)")
+    end
+
     Rails.logger.info("[XeroBillPoMatcher] #{candidates.length} candidate bills from #{supplier_bills.length} supplier-filtered, fetching details...")
 
     # Fetch detail only for supplier+amount matched bills (need tracking data)

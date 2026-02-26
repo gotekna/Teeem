@@ -16,7 +16,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY } from "@/lib/constants/date-formats";
 import { FileText, ExternalLink } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { toast } from "sonner";
 import type { ConfirmDetails, QuoteReturn } from "./types";
 
@@ -208,7 +208,7 @@ export function QuoteConfirmDialog({
                     variant="outline"
                     size="sm"
                     className="mt-2"
-                    onClick={() => window.open(details.quoted.documentUrl!, "_blank")}
+                    onClick={() => window.open(`${getApiBaseUrl()}${details.quoted.documentUrl!}`, "_blank")}
                   >
                     <FileText className="h-4 w-4 mr-1" />
                     View Quote PDF

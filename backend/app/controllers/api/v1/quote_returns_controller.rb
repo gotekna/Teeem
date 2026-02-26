@@ -338,7 +338,7 @@ module Api
             validTo: cqs.valid_to&.iso8601,
             responseNotes: cqs.response_notes,
             timeframe: cqs.timeframe,
-            documentUrl: cqs.warehouse_document_id ? "/api/v1/warehouse_documents/#{cqs.warehouse_document_id}/download" : nil
+            documentUrl: cqs.warehouse_document_id ? "/api/v1/documents/#{cqs.warehouse_document_id}/download" : nil
           }
         }
       end

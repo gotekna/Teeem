@@ -351,7 +351,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                         title="View quote document"
                         onClick={() =>
                           window.open(
-                            `${getApiBaseUrl()}/api/v1/warehouse_documents/${qr.warehouseDocumentId}/download`,
+                            `${getApiBaseUrl()}/api/v1/documents/${qr.warehouseDocumentId}/download`,
                             "_blank"
                           )
                         }
