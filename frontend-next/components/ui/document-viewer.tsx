@@ -697,10 +697,10 @@ export function DocumentViewer({
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : null;
     const nextIndex = currentIndex < files.length - 1 ? currentIndex + 1 : null;
 
-    if (prevIndex !== null && getFileType(files[prevIndex].name) === 'pdf') {
+    if (prevIndex !== null && getFileType(files[prevIndex].name, files[prevIndex].contentType) === 'pdf') {
       prefetchPdf(files[prevIndex].openUrl);
     }
-    if (nextIndex !== null && getFileType(files[nextIndex].name) === 'pdf') {
+    if (nextIndex !== null && getFileType(files[nextIndex].name, files[nextIndex].contentType) === 'pdf') {
       prefetchPdf(files[nextIndex].openUrl);
     }
   }, [files, currentIndex]);
@@ -1162,7 +1162,7 @@ export function DocumentViewer({
                                   : isDark ? "text-gray-400 hover:bg-gray-700/50 hover:text-gray-200" : "text-gray-500 hover:bg-gray-100"
                               )}
                             >
-                              {getFileIcon(file.name, "h-3 w-3")}
+                              {getFileIcon(file.name, "h-3 w-3", file.contentType)}
                               <span className="truncate">{file.name}</span>
                             </button>
                           );
@@ -1195,7 +1195,7 @@ export function DocumentViewer({
                           : isDark ? "bg-gray-700/50 text-gray-300 hover:bg-gray-700" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       )}
                     >
-                      {getFileIcon(file.name)}
+                      {getFileIcon(file.name, undefined, file.contentType)}
                       <span className="truncate">{file.name}</span>
                     </button>
                   ))}
