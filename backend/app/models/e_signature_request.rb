@@ -115,6 +115,10 @@ class ESignatureRequest < ApplicationRecord
       # Send completion notifications
       ESignatureEmailService.deliver(ESignatureMailer.completion_notification(self))
     end
+
+    # Wake up any BPMN workflows waiting for this signature to complete.
+    # Without this, workflows poll every 60 minutes via BpmnRetryWaitingTaskJob.
+    wake_up_waiting_bpmn_tokens
   end
 
   def decline!(signer)
@@ -323,6 +327,29 @@ class ESignatureRequest < ApplicationRecord
   end
 
   private
+
+  # Immediately retry any BPMN tokens waiting on this e-signature request.
+  # Finds waiting tokens via the documentable (e.g., Corporate) subject link.
+  def wake_up_waiting_bpmn_tokens
+    return unless documentable.present?
+
+    waiting_tokens = BpmnToken.waiting
+      .joins(:bpmn_process_instance)
+      .where(
+        bpmn_process_instances: {
+          subject_type: documentable_type,
+          subject_id: documentable_id,
+          status: "active"
+        }
+      )
+
+    waiting_tokens.find_each do |token|
+      Rails.logger.info("ESignatureRequest##{id}: Waking up BPMN token #{token.id} (was waiting for signatures)")
+      BpmnRetryWaitingTaskJob.perform_later(token.id)
+    end
+  rescue StandardError => e
+    Rails.logger.error("ESignatureRequest##{id}: Failed to wake BPMN tokens: #{e.message}")
+  end
 
   def generate_request_number
     return if request_number.present?
