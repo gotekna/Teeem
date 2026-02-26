@@ -37,6 +37,10 @@ class UploadEmailsToStorageJob < ApplicationJob
   # but we want to leave headroom for other jobs on the low queue)
   MAX_RUNTIME_SECONDS = 10 * 60  # 10 minutes
 
+  # Memory guard: stop processing if RSS exceeds this (MB)
+  # Shared worker dyno is 1024MB. Leave 224MB headroom for other processes.
+  MEMORY_ABORT_MB = 800
+
   def perform(batch_size: nil, tenant_id: nil)
     @started_at = Time.current
 
@@ -55,6 +59,20 @@ class UploadEmailsToStorageJob < ApplicationJob
 
   def time_remaining?
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
+  end
+
+  # Get current RSS (Resident Set Size) in MB.
+  # Linux (Heroku): reads /proc/self/status (instant, no subprocess).
+  # macOS (dev): falls back to `ps` command.
+  def current_rss_mb
+    if File.exist?("/proc/self/status")
+      status = File.read("/proc/self/status")
+      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
+      return match[1].to_i / 1024 if match
+    end
+    `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
+  rescue StandardError
+    0
   end
 
   def process_all_tenants(batch_size:)
@@ -164,6 +182,16 @@ class UploadEmailsToStorageJob < ApplicationJob
         # 4. Time limit reached
         unless time_remaining?
           Rails.logger.info "[UploadEmailsToStorageJob] Time limit reached (#{MAX_RUNTIME_SECONDS}s), yielding to scheduler"
+          break
+        end
+
+        # 4b. Memory guard: force GC between batches and abort if too high.
+        # Each batch downloads 50+ emails' MIME content (~10-40MB) which
+        # accumulates faster than Ruby's GC collects across a 10-min run.
+        GC.start
+        rss = current_rss_mb
+        if rss > MEMORY_ABORT_MB
+          Rails.logger.warn "[UploadEmailsToStorageJob] Memory high after GC (#{rss}MB > #{MEMORY_ABORT_MB}MB), yielding to scheduler"
           break
         end
 
