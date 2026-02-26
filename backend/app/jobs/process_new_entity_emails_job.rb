@@ -11,11 +11,20 @@
 # - All three were on :low/:default (shared worker) — moved to :email_enrichment (email worker)
 #   because processing emails to create entities IS email work
 #
-# Runs every 5 minutes via recurring.yml on :email_enrichment queue.
+# FRC (Feb 2026): Moved BACK to :critical queue. On :email_enrichment, this job NEVER ran —
+# the single-threaded email worker was monopolized by AllOrgsEmailSyncJob, causing a 2,132-job
+# backlog. This is SALES — leads must process immediately. The job is lightweight (reads
+# SyncedEmail + calls AI service), doesn't need heavy email worker resources.
+#
+# Also widened time window from 1 hour → 7 days. With 1 hour, any processing delay
+# permanently lost the email. The .where.not(id: Proposal.select(:fk)) already prevents
+# re-processing, so the wider window is safe.
+#
+# Runs every 5 minutes via recurring.yml on :critical queue.
 #
 class ProcessNewEntityEmailsJob < ApplicationJob
   include DeduplicatableJob
-  queue_as :email_enrichment
+  queue_as :critical
 
   MAX_RUNTIME = 3.minutes
 
@@ -33,7 +42,7 @@ class ProcessNewEntityEmailsJob < ApplicationJob
         SyncedEmail
           .where("? = ANY(to_emails) OR LOWER(folder_name) = LOWER(?)", address, NEW_JOB_FOLDER_NAME)
           .where.not(id: EmailJobProposal.select(:email_warehouse_id))
-          .where("created_at > ?", 1.hour.ago)
+          .where("created_at > ?", 7.days.ago)
           .order(received_at: :desc)
       },
       error_classes: ["EmailToJobService::RateLimitError"]
@@ -64,7 +73,7 @@ class ProcessNewEntityEmailsJob < ApplicationJob
         SyncedEmail
           .where("? = ANY(to_emails)", address)
           .where.not(id: EmailCaseProposal.select(:synced_email_id))
-          .where("created_at > ?", 1.hour.ago)
+          .where("created_at > ?", 7.days.ago)
           .order(received_at: :desc)
       },
       error_classes: ["EmailToCaseService::RateLimitError"]

@@ -435,7 +435,7 @@ email_notifications:
 # Also fixes: case processing was orphaned (never scheduled). Moved to email worker.
 process_new_entity_emails:
   class: ProcessNewEntityEmailsJob
-  queue: email_enrichment
+  queue: critical
   schedule: every 5 minutes
 
 # ============================================

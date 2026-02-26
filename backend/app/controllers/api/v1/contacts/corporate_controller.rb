@@ -217,13 +217,11 @@ module Api
             acn: details.formatted_acn,
             abn: details.formatted_abn,
             date_incorporated: details.date_incorporated,
-            state_of_incorporation: details.state_of_incorporation,
             status: details.status,
 
             # Trust details (if applicable)
             is_trustee: details.is_trustee,
             trust_name: details.trust_name,
-            trustee_type: details.trustee_type,
 
             # Addresses
             registered_office_address: details.registered_office_address,
@@ -236,14 +234,11 @@ module Api
 
             # Financial settings
             gst_registration_status: details.gst_registration_status,
-            gst_registration_date: details.gst_registration_date,
             accounting_method: details.accounting_method,
             bas_frequency: details.bas_frequency,
-            financial_year_end: details.financial_year_end,
 
             # Share capital
             shares_on_issue: details.shares_on_issue,
-            share_classes: details.share_classes,
 
             # Group info
             company_group_id: details.company_group_id,

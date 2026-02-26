@@ -490,7 +490,7 @@ class Corporate < ApplicationRecord
   def ownership_percentage_from_parent
     return nil unless parent_company_id.present?
 
-    shareholding = company_shareholdings.find_by(
+    shareholding = corporate_shareholdings.find_by(
       shareholder_type: "Company",
       shareholder_id: parent_company_id
     )
@@ -503,7 +503,7 @@ class Corporate < ApplicationRecord
     total_shares = shares_on_issue.to_i
     return if total_shares.zero?
 
-    company_shareholdings.where(shareholder_type: "Company").each do |sh|
+    corporate_shareholdings.where(shareholder_type: "Company").each do |sh|
       percentage = (sh.number_of_shares.to_f / total_shares * 100).round(2)
       if percentage >= 100
         update!(parent_company_id: sh.shareholder_id, hierarchy_level: calculate_hierarchy_level(sh.shareholder_id))
