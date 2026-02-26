@@ -21,6 +21,8 @@ import {
   StandardDocumentList,
   type LibraryDocument,
 } from "@/components/documents/StandardDocumentList";
+import { ComposeEmailModal } from "@/components/emails/ComposeEmailModal";
+import type { PreUploadedAttachment } from "@/lib/email-types";
 
 // Document interface from API
 interface CompanyDocument {
@@ -114,6 +116,10 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
   // Cascade mode - shows documents from folder AND all subfolders
   const [cascadeMode, setCascadeMode] = React.useState(true);
 
+  // Email compose state
+  const [composeOpen, setComposeOpen] = React.useState(false);
+  const [emailDocs, setEmailDocs] = React.useState<LibraryDocument[]>([]);
+
   React.useEffect(() => {
     loadDocuments();
   }, [companyId, category, cascadeMode]);
@@ -155,6 +161,24 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
     }
   };
 
+  // Email handler - opens compose modal with selected docs as attachments
+  const handleEmail = React.useCallback((docs: LibraryDocument[]) => {
+    setEmailDocs(docs);
+    setComposeOpen(true);
+  }, []);
+
+  // Build pre-uploaded attachments for email compose (uses documentId for WarehouseDocuments)
+  const emailAttachments = React.useMemo<PreUploadedAttachment[]>(() =>
+    emailDocs.map(d => ({
+      filename: d.originalFilename || d.displayName || "document",
+      storageKey: "",
+      documentId: d.id,
+      fileSize: d.fileSize,
+      contentType: d.mimeType,
+    })),
+    [emailDocs]
+  );
+
   // Map to LibraryDocument format
   const libraryDocs = React.useMemo(() => documents.map(mapToLibraryDocument), [documents]);
 
@@ -192,10 +216,24 @@ export function CompanyDocumentsTab({ companyId, company, category }: CompanyDoc
           documents={libraryDocs}
           loading={loading}
           onDelete={handleDelete}
+          onEmail={handleEmail}
           emptyMessage="No documents in this folder"
         />
       </div>
 
+      {/* Email compose modal */}
+      {emailDocs.length > 0 && (
+        <ComposeEmailModal
+          open={composeOpen}
+          onOpenChange={setComposeOpen}
+          defaultSubject={
+            emailDocs.length === 1
+              ? emailDocs[0].displayName || "Document"
+              : `${emailDocs.length} Documents - ${company.name}`
+          }
+          initialPreUploadedAttachments={emailAttachments}
+        />
+      )}
     </div>
   );
 }

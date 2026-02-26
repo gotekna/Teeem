@@ -200,35 +200,23 @@ module Api
       end
 
       # POST /api/v1/companies/:id/add_director
+      #
+      # Creates one CorporateDirector record per position (SSoT: separate records per position).
+      # Matches DirectorChangeService#complete_signing! pattern (commit 584b3ee23).
       def add_director
         contact = Contact.find(params[:contact_id])
         new_position = params[:position] || "director"
 
-        # Check if contact already has a current record - merge positions if so
-        existing = @company.corporate_directors.current.find_by(contact_id: contact.id)
+        # Check if contact already holds this EXACT position
+        existing = @company.corporate_directors.current
+          .where(contact_id: contact.id, position: new_position)
+          .first
         if existing
-          merged = merge_officer_positions(existing.position, new_position)
-          unless merged
-            render json: { success: false, errors: [ "Cannot combine #{existing.formatted_position} with #{new_position.humanize}" ] }, status: :unprocessable_entity
-            return
-          end
-          if merged == existing.position
-            render json: {
-              success: true,
-              message: "#{contact.display_name} already holds this position",
-              director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
-            }
-            return
-          end
-          if existing.update(position: merged)
-            render json: {
-              success: true,
-              message: "Position updated to #{existing.formatted_position}",
-              director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
-            }
-          else
-            render_validation_errors(existing)
-          end
+          render json: {
+            success: true,
+            message: "#{contact.display_name} already holds this position",
+            director: existing.as_json(include: { contact: {} }, methods: [ :formatted_position ])
+          }
           return
         end
 
@@ -1016,39 +1004,6 @@ module Api
       end
 
       private
-
-      # Merge two officer positions into a valid compound position.
-      # Returns the merged position string, or nil if the combination is invalid.
-      # Returns the existing position unchanged if the new role is already included.
-      def merge_officer_positions(existing_position, new_position)
-        existing_roles = extract_base_roles(existing_position)
-        new_roles = extract_base_roles(new_position)
-        combined = (existing_roles + new_roles).uniq
-
-        # Chairman is standalone - doesn't combine with other roles
-        return "chairman" if combined == [ "chairman" ]
-        return nil if combined.include?("chairman") && combined.size > 1
-
-        # Rebuild in canonical order (matches CorporateDirector::POSITIONS naming)
-        merged = %w[director secretary public_officer corporate_officer]
-          .select { |r| combined.include?(r) }.join("_")
-
-        CorporateDirector::POSITIONS.include?(merged) ? merged : nil
-      end
-
-      # Extract individual base roles from a compound position string.
-      # e.g. "director_secretary_public_officer" → ["director", "secretary", "public_officer"]
-      def extract_base_roles(position)
-        return [] if position.blank?
-        return [ "chairman" ] if position == "chairman"
-
-        roles = []
-        roles << "director" if position.include?("director")
-        roles << "secretary" if position.include?("secretary")
-        roles << "public_officer" if position.include?("public_officer")
-        roles << "corporate_officer" if position.include?("corporate_officer")
-        roles
-      end
 
       def set_company
         @company = Corporate.find_by_slug_or_id(params[:id])
