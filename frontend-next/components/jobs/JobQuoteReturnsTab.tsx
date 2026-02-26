@@ -5,6 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Check,
   X,
   FileText,
@@ -14,6 +20,7 @@ import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
+import { DocumentViewer } from "@/components/ui/document-viewer";
 import { QuoteConfirmDialog } from "./quote-returns/QuoteConfirmDialog";
 import { RecordResponseDialog, type ParentLineContext } from "./custom-quotes/RecordResponseDialog";
 import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
@@ -48,6 +55,13 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
     attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
     parentLine?: ParentLineContext | null;
   } | null>(null);
+  const [detailSheet, setDetailSheet] = useState<QuoteReturn | null>(null);
+  const [detailDocUrls, setDetailDocUrls] = useState<{
+    openUrl: string;
+    downloadUrl: string;
+    filename: string;
+  } | null>(null);
+  const [detailDocLoading, setDetailDocLoading] = useState(false);
 
   const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
 
@@ -68,6 +82,39 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
   useEffect(() => {
     loadReturns();
   }, [loadReturns]);
+
+  const handleRowDoubleClick = useCallback(async (qr: QuoteReturn) => {
+    setDetailSheet(qr);
+    setDetailDocUrls(null);
+
+    if (qr.warehouseDocumentId) {
+      setDetailDocLoading(true);
+      try {
+        const [dlRes, openRes] = await Promise.all([
+          api.post<{ success: boolean; shareUrl: string }>(
+            `/api/v1/documents/${qr.warehouseDocumentId}/share_link`
+          ),
+          api.post<{ success: boolean; shareUrl: string }>(
+            `/api/v1/documents/${qr.warehouseDocumentId}/share_link`,
+            { open: true }
+          ),
+        ]);
+        if (dlRes?.shareUrl && openRes?.shareUrl) {
+          setDetailDocUrls({
+            downloadUrl: dlRes.shareUrl,
+            openUrl: openRes.shareUrl,
+            filename: qr.supplierName
+              ? `${qr.supplierName} - Quote.pdf`
+              : "Quote Document.pdf",
+          });
+        }
+      } catch {
+        console.error("[JobQuoteReturnsTab] Failed to load document URLs");
+      } finally {
+        setDetailDocLoading(false);
+      }
+    }
+  }, []);
 
   const handleReject = async (qr: QuoteReturn) => {
     try {
@@ -237,9 +284,10 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
               return (
               <tr
                 key={qr.id}
-                className={`border-b hover:bg-muted/30 transition-colors ${
+                className={`border-b hover:bg-muted/30 transition-colors cursor-pointer ${
                   qr.status === "rejected" ? "opacity-50" : ""
                 } ${isRowDragOver ? "bg-blue-50 dark:bg-blue-950/50" : ""}`}
+                onDoubleClick={() => handleRowDoubleClick(qr)}
                 onDragOver={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(qr.id); } : undefined}
                 onDragLeave={canDropOnRow ? (e) => { e.preventDefault(); e.stopPropagation(); setDragOverRowId(null); } : undefined}
                 onDrop={canDropOnRow ? (e) => handleRowDrop(qr, e) : undefined}
@@ -401,6 +449,156 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
         parentLine={recordResponseDialog?.parentLine}
         onSubmit={handleRecordResponseSubmit}
       />
+
+      {/* Quote Return Detail Sheet */}
+      <Sheet
+        open={!!detailSheet}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDetailSheet(null);
+            setDetailDocUrls(null);
+          }
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="w-[700px] sm:max-w-[700px] flex flex-col p-0"
+        >
+          <SheetHeader className="px-6 py-4 border-b shrink-0">
+            <SheetTitle className="text-lg">
+              {detailSheet?.supplierName || "Quote Details"}
+            </SheetTitle>
+          </SheetHeader>
+
+          {detailSheet && (
+            <div className="flex flex-col flex-1 overflow-hidden">
+              {/* Quote Info Section */}
+              <div className="px-6 py-4 border-b space-y-3 shrink-0">
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground text-xs">Supplier</span>
+                    <p className="font-medium">{detailSheet.supplierName || "Unknown"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Item / Task</span>
+                    <p className="font-medium">{detailSheet.itemName || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">CC / Trade</span>
+                    <p>{detailSheet.parentName || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Price</span>
+                    <p className={`font-mono font-medium ${
+                      detailSheet.isBestPrice
+                        ? "text-green-600 dark:text-green-400"
+                        : ""
+                    }`}>
+                      {formatCurrency(detailSheet.priceQuoted)}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Status</span>
+                    <div className="mt-0.5">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${STATUS_COLORS[detailSheet.status]}`}
+                      >
+                        {STATUS_LABELS[detailSheet.status]}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Quote #</span>
+                    <p>{detailSheet.quoteNumber || "—"}</p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Sent</span>
+                    <p>
+                      {detailSheet.dateSent
+                        ? format(parseISO(detailSheet.dateSent), DATE_DISPLAY)
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Received</span>
+                    <p>
+                      {detailSheet.dateReceived
+                        ? format(parseISO(detailSheet.dateReceived), DATE_DISPLAY)
+                        : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground text-xs">Valid To</span>
+                    <p className={
+                      detailSheet.validTo && isExpired(detailSheet.validTo)
+                        ? "text-red-600 dark:text-red-400"
+                        : ""
+                    }>
+                      {detailSheet.validTo
+                        ? `${format(parseISO(detailSheet.validTo), DATE_DISPLAY)}${isExpired(detailSheet.validTo) ? " (expired)" : ""}`
+                        : "—"}
+                    </p>
+                  </div>
+                  {detailSheet.confirmedBy && (
+                    <div>
+                      <span className="text-muted-foreground text-xs">Confirmed By</span>
+                      <p>{detailSheet.confirmedBy}</p>
+                    </div>
+                  )}
+                  {detailSheet.purchaseOrderNumber && (
+                    <div>
+                      <span className="text-muted-foreground text-xs">Purchase Order</span>
+                      <p className="text-green-600 dark:text-green-400 font-medium">
+                        PO {detailSheet.purchaseOrderNumber}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                {detailSheet.responseNotes && (
+                  <div>
+                    <span className="text-muted-foreground text-xs">Notes</span>
+                    <p className="text-sm whitespace-pre-wrap mt-0.5">
+                      {detailSheet.responseNotes}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Viewer Section */}
+              <div className="flex-1 overflow-hidden">
+                {detailDocLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <Spinner />
+                  </div>
+                ) : detailDocUrls ? (
+                  <DocumentViewer
+                    url={detailDocUrls.openUrl}
+                    fileName={detailDocUrls.filename}
+                    downloadUrl={detailDocUrls.downloadUrl}
+                    showHeader={false}
+                    showFooter={false}
+                    theme="light"
+                    className="h-full"
+                  />
+                ) : detailSheet.warehouseDocumentId ? (
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                    <p className="text-sm">Failed to load document</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <FileText className="h-12 w-12 mb-3 opacity-30" />
+                    <p className="text-sm">No document attached</p>
+                    <p className="text-xs mt-1">
+                      Drag a PDF onto the row to attach a quote document
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

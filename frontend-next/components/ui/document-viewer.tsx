@@ -1043,7 +1043,7 @@ export function DocumentViewer({
           isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900 border-b"
         )}>
           <div className="flex items-center gap-3 min-w-0">
-            {getFileIcon(fileName, "h-5 w-5")}
+            {getFileIcon(fileName, "h-5 w-5", effectiveContentType)}
             <h1 className="text-lg font-medium truncate">{emlData?.subject || fileName}</h1>
             {hasMultipleFiles && (
               <span className={cn("text-sm shrink-0", isDark ? "text-gray-400" : "text-gray-500")}>

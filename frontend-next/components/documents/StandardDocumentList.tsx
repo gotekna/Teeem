@@ -878,7 +878,7 @@ export function StandardDocumentList({
               <div className="flex-1 min-h-0 overflow-auto bg-muted/30">
                 {previewUrl ? (
                   (() => {
-                    const fileType = getFileType(previewDoc.originalFilename || "");
+                    const fileType = getFileType(previewDoc.originalFilename || "", previewDoc.mimeType);
                     if (fileType === "pdf") {
                       return (
                         <PDFViewer url={previewUrl} className="h-full" />
