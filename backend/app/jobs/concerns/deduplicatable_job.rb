@@ -63,7 +63,9 @@ module DeduplicatableJob
     # Only 1 instance of each job class can execute at a time.
     # Additional copies wait as BlockedExecution (not consuming threads).
     # When the running job finishes, SolidQueue auto-unblocks the next one.
-    limits_concurrency to: 1, key: ->(*) { self.name }
+    # ⚠️ key lambda runs via instance_exec (SolidQueue line 53 in concurrency_controls.rb)
+    # so `self` is the job INSTANCE, not the class. Must use self.class.name.
+    limits_concurrency to: 1, key: ->(*) { self.class.name }
 
     before_perform do |job|
       # Clean up duplicate queued/blocked copies (housekeeping).
