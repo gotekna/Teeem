@@ -339,6 +339,32 @@ class Api::V1::ESignatureRequestsController < ApplicationController
     }, status: :unprocessable_entity
   end
 
+  # POST /api/v1/e_signature_requests/:e_signature_request_id/signers/:id/resend
+  def resend_notification
+    @request = ESignatureRequest.find(params[:e_signature_request_id])
+    signer = @request.signers.find(params[:id])
+
+    unless signer.pending?
+      render json: {
+        success: false,
+        errors: [ "Cannot resend to a signer who has already #{signer.status}" ]
+      }, status: :unprocessable_entity
+      return
+    end
+
+    signer.send_notification!(force: true)
+
+    render json: {
+      success: true,
+      message: "Notification re-sent to #{signer.email}"
+    }
+  rescue => e
+    render json: {
+      success: false,
+      errors: [ "Failed to resend: #{e.message}" ]
+    }, status: :unprocessable_entity
+  end
+
   # DELETE /api/v1/e_signature_requests/:id/signers/:signer_id
   def remove_signer
     @request = ESignatureRequest.find(params[:e_signature_request_id])

@@ -111,8 +111,8 @@ class ESignatureSigner < ApplicationRecord
   end
 
   # Signing flow
-  def send_notification!
-    return if notified_at.present?
+  def send_notification!(force: false)
+    return if notified_at.present? && !force
 
     # Token is generated inside the mailer (signing_url_for) so it appears in the email link.
     # Do NOT call generate_access_token! here - it would be overwritten by the mailer.
@@ -126,7 +126,7 @@ class ESignatureSigner < ApplicationRecord
     end
 
     update!(status: "notified", notified_at: Time.current)
-    log_event("notified", description: "Signing notification sent to #{email}")
+    log_event("notified", description: "Signing notification #{force ? 're-' : ''}sent to #{email}")
   end
 
   def mark_viewed!(ip_address: nil, user_agent: nil)

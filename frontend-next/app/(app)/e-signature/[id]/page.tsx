@@ -233,6 +233,15 @@ export default function ESignatureDetailPage() {
     },
   });
 
+  const resendMutation = useMutation({
+    mutationFn: async (signerId: number) => {
+      return api.post(`/api/v1/e_signature_requests/${id}/signers/${signerId}/resend`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["e-signature-request", id] });
+    },
+  });
+
   const saveFieldsMutation = useMutation({
     mutationFn: async (fields: SignatureField[]) => {
       const editorSigners = mapSignersToEditor(data?.e_signature_request?.signers || []);
@@ -566,9 +575,28 @@ export default function ESignatureDetailPage() {
                             </div>
                           </div>
                         </div>
-                        <Badge className={signerStatus.color} variant="secondary">
-                          {signerStatus.label}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {["sent", "in_progress"].includes(request.status) &&
+                            ["notified", "viewed"].includes(signer.status) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              onClick={() => resendMutation.mutate(signer.id)}
+                              disabled={resendMutation.isPending}
+                            >
+                              {resendMutation.isPending ? (
+                                <Spinner size={12} className="mr-1" />
+                              ) : (
+                                <Send className="h-3 w-3 mr-1" />
+                              )}
+                              Resend
+                            </Button>
+                          )}
+                          <Badge className={signerStatus.color} variant="secondary">
+                            {signerStatus.label}
+                          </Badge>
+                        </div>
                       </div>
 
                       {/* Timeline */}

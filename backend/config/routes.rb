@@ -878,6 +878,7 @@ Rails.application.routes.draw do
             post :add_signer, path: "", action: :add_signer
           end
           member do
+            post :resend_notification, path: "resend", action: :resend_notification
             delete :remove_signer, path: "", action: :remove_signer
           end
         end
