@@ -130,6 +130,20 @@ const POSITION_OPTIONS = [
   { value: "public_officer", label: "Public Officer" },
 ];
 
+// SSoT: Save email to Contact record (Contact is THE ONE source for emails)
+async function saveEmailToContact(contactId: number, email: string) {
+  if (!contactId || !email || !email.includes("@")) return;
+  try {
+    await api.patch(`/api/v1/contacts/${contactId}`, {
+      contact: {
+        contact_emails_attributes: [{ email, label: "work", is_primary: true }],
+      },
+    });
+  } catch (e) {
+    console.error("[DirectorChange] Failed to save email to contact:", e);
+  }
+}
+
 // --- Date Picker ---
 
 function DatePickerInput({
@@ -1046,10 +1060,21 @@ export default function DirectorChangeForm({
                       ) : cd.selected_email ? (
                         <p className="text-sm font-medium">{cd.selected_email}</p>
                       ) : (
-                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                          <AlertCircle className="w-3 h-3" />
-                          No email on file
-                        </div>
+                        <Input
+                          type="email"
+                          placeholder="Enter email address"
+                          className="h-8 text-sm"
+                          onChange={(e) =>
+                            setCeasingDirectors((prev) =>
+                              prev.map((c) =>
+                                c.corporate_director_id === cd.corporate_director_id
+                                  ? { ...c, selected_email: e.target.value }
+                                  : c
+                              )
+                            )
+                          }
+                          onBlur={(e) => saveEmailToContact(cd.contact_id, e.target.value)}
+                        />
                       )}
                     </div>
                   </div>
@@ -1351,10 +1376,21 @@ export default function DirectorChangeForm({
                       ) : appt.selected_email ? (
                         <p className="text-sm font-medium">{appt.selected_email}</p>
                       ) : (
-                        <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                          <AlertCircle className="w-3 h-3" />
-                          No email on file
-                        </div>
+                        <Input
+                          type="email"
+                          placeholder="Enter email address"
+                          className="h-8 text-sm"
+                          onChange={(e) =>
+                            setNewAppointments((prev) =>
+                              prev.map((a) =>
+                                a.contact_id === appt.contact_id
+                                  ? { ...a, selected_email: e.target.value }
+                                  : a
+                              )
+                            )
+                          }
+                          onBlur={(e) => saveEmailToContact(appt.contact_id, e.target.value)}
+                        />
                       )}
                     </div>
                   </div>

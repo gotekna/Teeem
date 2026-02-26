@@ -128,14 +128,12 @@ interface CopyableFieldProps {
  * Usage: <CopyableField label="ABN" value="12 345 678 901" />
  */
 export function CopyableField({ label, value, subtext, className }: CopyableFieldProps) {
-  if (!value) return null;
-
   return (
     <div className={cn("group", className)}>
       <p className="text-sm text-muted-foreground">{label}</p>
       <div className="flex items-center gap-2">
-        <p className="text-sm font-medium">{value}</p>
-        <CopyButton value={value} />
+        <p className="text-sm font-medium">{value || "—"}</p>
+        {value && <CopyButton value={value} />}
       </div>
       {subtext && <p className="text-xs text-muted-foreground mt-1">{subtext}</p>}
     </div>

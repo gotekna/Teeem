@@ -191,8 +191,6 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
   const { toast } = useToast();
   const [savingField, setSavingField] = useState<string | null>(null);
   const [localContact, setLocalContact] = useState(contact);
-  const [editingDob, setEditingDob] = useState(false);
-  const [dobValue, setDobValue] = useState(contact.date_of_birth || "");
   const [editingPob, setEditingPob] = useState(false);
   const [pobValue, setPobValue] = useState(contact.place_of_birth || "");
   const [editingAddress, setEditingAddress] = useState(false);
@@ -202,7 +200,6 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
   // Keep local in sync with prop
   useEffect(() => {
     setLocalContact(contact);
-    setDobValue(contact.date_of_birth || "");
     setPobValue(contact.place_of_birth || "");
     setAddressValue(contact.residential_address || "");
   }, [contact]);
@@ -247,57 +244,21 @@ function IdentitySubTab({ contact }: { contact: Contact; }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            {/* Date of Birth */}
+            {/* Date of Birth - SSoT: Editable in User tab (ContactIdentityCard) */}
             <div>
               <p className="text-xs text-muted-foreground">Date of Birth</p>
-              {localContact.date_of_birth === "[RESTRICTED]" ? (
+              {contact.date_of_birth === "[RESTRICTED]" ? (
                 <span className="text-amber-600 flex items-center gap-1 text-sm">
                   <Lock className="h-3 w-3" /> Restricted
                 </span>
-              ) : editingDob ? (
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <Input
-                    type="date"
-                    value={dobValue}
-                    onChange={(e) => setDobValue(e.target.value)}
-                    className="h-7 text-sm w-40"
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-7 w-7 p-0"
-                    disabled={savingField === "date_of_birth"}
-                    onClick={async () => {
-                      if (dobValue) {
-                        await saveField("date_of_birth", dobValue);
-                      }
-                      setEditingDob(false);
-                    }}
-                  >
-                    {savingField === "date_of_birth" ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Check className="h-3.5 w-3.5" />
-                    )}
-                  </Button>
-                </div>
               ) : (
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium">
-                    {localContact.date_of_birth ? (
-                      new Date(localContact.date_of_birth).toLocaleDateString("en-AU")
-                    ) : (
-                      <span className="text-muted-foreground">Not set</span>
-                    )}
-                  </p>
-                  <button
-                    onClick={() => setEditingDob(true)}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
-                </div>
+                <p className="text-sm font-medium">
+                  {contact.date_of_birth ? (
+                    new Date(contact.date_of_birth).toLocaleDateString("en-AU")
+                  ) : (
+                    <span className="text-muted-foreground">Not set</span>
+                  )}
+                </p>
               )}
             </div>
 

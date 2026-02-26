@@ -168,6 +168,18 @@ export function ContactIdentityCard({
           </>
         )}
 
+        {/* Date of Birth - SSoT: Contact.date_of_birth (User tab is canonical editor) */}
+        <PropertyRow
+          label="Date of Birth"
+          value={contact.date_of_birth}
+          onSave={(value) => saveContactField("date_of_birth", value)}
+          placeholder="DD/MM/YYYY"
+          format={(v) => {
+            const d = new Date(v);
+            return isNaN(d.getTime()) ? v : d.toLocaleDateString("en-AU");
+          }}
+        />
+
         {/* Contact settings - shown in Overview tab */}
         {showContactSettings && (
           <>
