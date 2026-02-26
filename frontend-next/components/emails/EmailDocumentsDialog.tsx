@@ -37,6 +37,7 @@ import {
   Link,
   EyeOff,
   Mail,
+  Layers,
 } from "lucide-react";
 
 /** Generic document shape for emailing - works with Library docs, photos, etc. */
@@ -61,7 +62,7 @@ interface EmailDocumentsDialogProps {
   defaultSubject?: string;
 }
 
-type EmailOption = "attach" | "link" | "skip";
+type EmailOption = "attach" | "link" | "both" | "skip";
 
 export function EmailDocumentsDialog({
   documents,
@@ -99,8 +100,9 @@ export function EmailDocumentsDialog({
 
   // Handle "Compose Email" click - generate links if needed, then open compose
   const handleComposeEmail = React.useCallback(async () => {
-    const attachDocs = documents.filter((d) => emailOptions[d.id] === "attach");
-    const linkDocs = documents.filter((d) => emailOptions[d.id] === "link");
+    // "both" counts as both attach AND link
+    const attachDocs = documents.filter((d) => emailOptions[d.id] === "attach" || emailOptions[d.id] === "both");
+    const linkDocs = documents.filter((d) => emailOptions[d.id] === "link" || emailOptions[d.id] === "both");
 
     if (attachDocs.length === 0 && linkDocs.length === 0) {
       // All skipped - just open compose with no attachments
@@ -224,8 +226,8 @@ export function EmailDocumentsDialog({
       }
     }
 
-    // Build attachments list from "attach" documents
-    const finalAttachDocs = documents.filter((d) => emailOptions[d.id] === "attach");
+    // Build attachments list from "attach" and "both" documents
+    const finalAttachDocs = documents.filter((d) => emailOptions[d.id] === "attach" || emailOptions[d.id] === "both");
     const preUploaded: PreUploadedAttachment[] = finalAttachDocs
       .filter((d) => d.storagePath)
       .map((d) => ({
@@ -259,7 +261,7 @@ export function EmailDocumentsDialog({
                 Choose how to include each document.
               </p>
               <div className="flex items-center gap-1">
-                {(["attach", "link", "skip"] as const).map((opt) => (
+                {(["attach", "link", "both", "skip"] as const).map((opt) => (
                   <Button
                     key={opt}
                     size="sm"
@@ -277,6 +279,7 @@ export function EmailDocumentsDialog({
                   >
                     {opt === "attach" && <Paperclip className="h-3 w-3 mr-1" />}
                     {opt === "link" && <Link className="h-3 w-3 mr-1" />}
+                    {opt === "both" && <Layers className="h-3 w-3 mr-1" />}
                     {opt === "skip" && <EyeOff className="h-3 w-3 mr-1" />}
                     All {opt.charAt(0).toUpperCase() + opt.slice(1)}
                   </Button>
@@ -322,6 +325,16 @@ export function EmailDocumentsDialog({
                         >
                           <Link className="h-3 w-3" />
                           Link
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <RadioGroupItem value="both" id={`both-${doc.id}`} />
+                        <Label
+                          htmlFor={`both-${doc.id}`}
+                          className="text-xs font-normal flex items-center gap-1 cursor-pointer"
+                        >
+                          <Layers className="h-3 w-3" />
+                          Both
                         </Label>
                       </div>
                       <div className="flex items-center gap-1.5">
