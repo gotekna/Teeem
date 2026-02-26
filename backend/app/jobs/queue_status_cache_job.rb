@@ -426,7 +426,9 @@ class QueueStatusCacheJob < ApplicationJob
     sq_workers.each do |w|
       raw_queues = w.metadata&.dig("queues").to_s
       queue_list = raw_queues.split(",").map(&:strip).reject(&:blank?)
-      if queue_list == ["email_sync"]
+      # FRC (Feb 2026): Was `== ["email_sync"]` which broke when email_enrichment
+      # queue was added to the email worker. Now checks if ANY email queue is present.
+      if (queue_list & %w[email_sync email_enrichment]).any? && (queue_list & %w[default low xero_sync xero_bulk critical]).empty?
         email_procs << w
       else
         shared_procs << w
