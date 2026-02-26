@@ -24,6 +24,14 @@ export interface QuoteReturn {
   purchaseOrderNumber: string | null;
   confirmedBy: string | null;
   confirmedAt: string | null;
+  parentLine: {
+    id: number;
+    name: string;
+    quoteLevel: string;
+    tenderDescription: string | null;
+    budgetAmount: number | null;
+    children: Array<{ id: number; name: string; budgetAmount: number | null }>;
+  } | null;
 }
 
 export type QuoteReturnStatus = "sent" | "responded" | "accepted" | "rejected";

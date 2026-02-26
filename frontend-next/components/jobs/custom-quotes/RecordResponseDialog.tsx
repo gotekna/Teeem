@@ -15,11 +15,20 @@ import { Spinner } from "@/components/ui/spinner";
 import { PDFViewer } from "@/components/ui/pdf-viewer";
 import { useQuoteExtraction } from "./useQuoteExtraction";
 import { useDocumentPreview } from "./useDocumentPreview";
-import type { CustomQuoteLineNode } from "./types";
 
 interface AttachedDocument {
   warehouseDocumentId: number;
   filename: string;
+}
+
+/** Minimal CC line context for allocation UI — satisfied by both CustomQuoteLineNode and API parentLine */
+export interface ParentLineContext {
+  id: number;
+  name: string;
+  quoteLevel: string;
+  tenderDescription: string | null;
+  budgetAmount: number | null;
+  children: Array<{ id: number; name: string; budgetAmount?: number | null }>;
 }
 
 export interface RecordResponseDialogProps {
@@ -29,7 +38,7 @@ export interface RecordResponseDialogProps {
   supplierId: number;
   attachedDocument?: AttachedDocument | null;
   /** Parent CC line — used to show PO allocation when quote_level is cost_centre */
-  parentLine?: CustomQuoteLineNode | null;
+  parentLine?: ParentLineContext | null;
   onSubmit: (data: {
     price_quoted: number;
     quote_number?: string;

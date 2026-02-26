@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
 import { QuoteConfirmDialog } from "./quote-returns/QuoteConfirmDialog";
-import { RecordResponseDialog } from "./custom-quotes/RecordResponseDialog";
+import { RecordResponseDialog, type ParentLineContext } from "./custom-quotes/RecordResponseDialog";
 import { useSupplierDocumentUpload } from "./custom-quotes/useSupplierDocumentUpload";
 import type {
   QuoteReturn,
@@ -46,6 +46,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
     sourceId: number;
     supplierName: string;
     attachedDocument?: { warehouseDocumentId: number; filename: string } | null;
+    parentLine?: ParentLineContext | null;
   } | null>(null);
 
   const { uploading, uploadForSupplier } = useSupplierDocumentUpload();
@@ -97,6 +98,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
         sourceId: qr.sourceId,
         supplierName: qr.supplierName || "Supplier",
         attachedDocument: result,
+        parentLine: qr.parentLine,
       });
     }
   }, [uploadForSupplier]);
@@ -389,6 +391,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
         supplierName={recordResponseDialog?.supplierName || ""}
         supplierId={recordResponseDialog?.sourceId || 0}
         attachedDocument={recordResponseDialog?.attachedDocument}
+        parentLine={recordResponseDialog?.parentLine}
         onSubmit={handleRecordResponseSubmit}
       />
     </div>

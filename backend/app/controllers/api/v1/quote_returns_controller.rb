@@ -39,7 +39,7 @@ module Api
           .where(status: %w[sent responded accepted rejected])
           .includes(
             :supplier, :purchase_order, :warehouse_document, :sent_by,
-            custom_quote_line: [:parent, { custom_quote: :job }]
+            custom_quote_line: [{ parent: :children }, :children, { custom_quote: :job }]
           )
 
         # Load confirmed_by if column exists (after migration)
@@ -257,6 +257,7 @@ module Api
       def cqs_return_json(cqs)
         line = cqs.custom_quote_line
         parent = line.parent
+        cc_line = parent || line
         {
           id: "cqs_#{cqs.id}",
           source: 'custom_quote',
@@ -279,7 +280,22 @@ module Api
           purchaseOrderId: cqs.purchase_order_id,
           purchaseOrderNumber: cqs.purchase_order&.purchase_order_number,
           confirmedBy: cqs.respond_to?(:confirmed_by) ? cqs.confirmed_by&.name : nil,
-          confirmedAt: cqs.respond_to?(:confirmed_at) ? cqs.confirmed_at&.iso8601 : nil
+          confirmedAt: cqs.respond_to?(:confirmed_at) ? cqs.confirmed_at&.iso8601 : nil,
+          parentLine: build_parent_line_context(cc_line)
+        }
+      end
+
+      # Lightweight CC line context for allocation UI (no supplier arrays)
+      def build_parent_line_context(cc_line)
+        {
+          id: cc_line.id,
+          name: cc_line.name,
+          quoteLevel: cc_line.quote_level,
+          tenderDescription: cc_line.tender_description,
+          budgetAmount: cc_line.budget_amount&.to_f,
+          children: cc_line.children.order(:position).map { |child|
+            { id: child.id, name: child.name, budgetAmount: child.budget_amount&.to_f }
+          }
         }
       end
 
