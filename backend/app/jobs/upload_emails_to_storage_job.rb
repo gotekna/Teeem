@@ -67,15 +67,27 @@ class UploadEmailsToStorageJob < ApplicationJob
     (Time.current - @started_at) < MAX_RUNTIME_SECONDS
   end
 
-  # Get current RSS (Resident Set Size) in MB.
-  # Linux (Heroku): reads /proc/self/status (instant, no subprocess).
-  # macOS (dev): falls back to `ps` command.
+  # ⚠️ DO NOT SIMPLIFY - Must read CGROUP memory, not per-process VmRSS (Feb 2026)
+  # ════════════════════════════════════════════
+  # Why: SolidQueue runs multiple processes (Worker, Dispatcher, Scheduler) in one dyno.
+  # /proc/self/status VmRSS only shows the Worker process (~400MB), but Heroku R14
+  # triggers on TOTAL cgroup memory (~900MB). The guard never fired because it was
+  # reading the wrong metric.
+  # ❌ WRONG: File.read("/proc/self/status") → VmRSS of one process only
+  # ✅ CORRECT: Read cgroup memory.usage_in_bytes (same metric Heroku uses for R14)
+  # ════════════════════════════════════════════
   def current_rss_mb
-    if File.exist?("/proc/self/status")
-      status = File.read("/proc/self/status")
-      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
-      return match[1].to_i / 1024 if match
+    # Heroku cgroup v1 (matches Heroku's memory_total metric for R14 detection)
+    cgroup_mem = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+    if File.exist?(cgroup_mem)
+      return File.read(cgroup_mem).strip.to_i / (1024 * 1024)
     end
+    # Fallback: cgroup v2
+    cgroup_v2 = "/sys/fs/cgroup/memory.current"
+    if File.exist?(cgroup_v2)
+      return File.read(cgroup_v2).strip.to_i / (1024 * 1024)
+    end
+    # macOS (dev): per-process RSS via ps
     `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
   rescue StandardError
     0

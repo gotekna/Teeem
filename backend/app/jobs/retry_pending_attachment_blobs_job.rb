@@ -26,8 +26,12 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
   # Even with 1 thread, sequential jobs accumulate RSS that Ruby doesn't release to OS.
   MEMORY_ABORT_MB = 750
 
+  # Hard cap on batch_size regardless of stale queue args (same pattern as UploadEmailsToStorageJob)
+  MAX_BATCH_SIZE = 10
+
   def perform(batch_size: 50)
     @started_at = Time.current
+    batch_size = [batch_size, MAX_BATCH_SIZE].min
     total_retried = 0
     total_errors = 0
     @memory_exceeded = false
@@ -160,11 +164,16 @@ class RetryPendingAttachmentBlobsJob < ApplicationJob
     @memory_exceeded
   end
 
+  # ⚠️ DO NOT SIMPLIFY - Must read CGROUP memory, not per-process VmRSS (Feb 2026)
+  # See UploadEmailsToStorageJob for full explanation.
   def current_rss_mb
-    if File.exist?("/proc/self/status")
-      status = File.read("/proc/self/status")
-      match = status.match(/VmRSS:\s+(\d+)\s+kB/)
-      return match[1].to_i / 1024 if match
+    cgroup_mem = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+    if File.exist?(cgroup_mem)
+      return File.read(cgroup_mem).strip.to_i / (1024 * 1024)
+    end
+    cgroup_v2 = "/sys/fs/cgroup/memory.current"
+    if File.exist?(cgroup_v2)
+      return File.read(cgroup_v2).strip.to_i / (1024 * 1024)
     end
     `ps -o rss= -p #{Process.pid}`.strip.to_i / 1024
   rescue StandardError
