@@ -169,6 +169,7 @@ interface LegacyItem {
   rename_status?: string;
   thumbnail_url?: string; // Graph API thumbnail URL (publicly accessible)
   download_url?: string; // SSoT download URL - works for both SharePoint and S3
+  content_type?: string; // MIME type from WarehouseDocument (e.g., "image/jpeg")
   // Version chain fields (Draft/Signed versioning)
   version_status?: "draft" | "signed" | "superseded";
   version_number?: number;
@@ -503,7 +504,7 @@ export function JobDocumentsTab({ jobId, jobTitle, initialCategory, categories: 
             name: legacyItem.name,
             storagePath: legacyItem.storage_path,
             fileSize: legacyItem.size,
-            mimeType: legacyItem.type === "file" ? "image/jpeg" : undefined,
+            mimeType: legacyItem.content_type || (legacyItem.type === "file" ? "image/jpeg" : undefined),
           });
         }
       }

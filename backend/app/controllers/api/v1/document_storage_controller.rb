@@ -2179,7 +2179,8 @@ module Api
         end
 
         blob = document.storage_blob
-        unless blob&.storage_path.present?
+        # FRC (Feb 2026): Allow SharePoint-only docs (no blob) if they have sharepoint_item_id
+        unless blob&.storage_path.present? || document.meta("sharepoint_item_id").present?
           return render_error("Document has no storage reference", status: :unprocessable_entity)
         end
 
