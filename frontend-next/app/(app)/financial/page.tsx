@@ -65,7 +65,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { StatCard } from "@/components/ui/stat-card";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { cn, safePercent } from "@/lib/utils";
 import { formatDate, formatCurrency, formatCurrencyCompact } from "@/utils/formatters";
 import type { Company } from "@/lib/types";
@@ -824,7 +824,7 @@ function AgedReportsTab({
         await api.post(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/generate_aba`);
 
         // Download the ABA file
-        window.open(`/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/download_aba`, "_blank");
+        window.open(`${getApiBaseUrl()}/api/v1/companies/${companyId}/bill_payment_batches/${batchId}/download_aba`, "_blank");
 
         setSelectedPayables(new Set());
       }

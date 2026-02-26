@@ -10,7 +10,7 @@ import {
   FileText,
   ClipboardCheck,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { DATE_DISPLAY, DATETIME_DISPLAY } from "@/lib/constants/date-formats";
@@ -351,7 +351,7 @@ export default function JobQuoteReturnsTab({ jobId }: JobQuoteReturnsTabProps) {
                         title="View quote document"
                         onClick={() =>
                           window.open(
-                            `/api/v1/warehouse_documents/${qr.warehouseDocumentId}/download`,
+                            `${getApiBaseUrl()}/api/v1/warehouse_documents/${qr.warehouseDocumentId}/download`,
                             "_blank"
                           )
                         }

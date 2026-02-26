@@ -62,7 +62,7 @@ import {
   Paperclip,
   Briefcase,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { api, getApiBaseUrl } from "@/lib/api";
 import { format } from "date-fns";
 import { DATETIME_MEDIUM_12H } from "@/lib/constants/date-formats";
 import { cn } from "@/lib/utils";
@@ -620,7 +620,7 @@ export function DataWarehouseTab() {
   };
 
   const handleExportView = (viewName: string, format: "csv" | "xlsx") => {
-    window.open(`/api/v1/warehouse/export/${viewName}.${format}`, "_blank");
+    window.open(`${getApiBaseUrl()}/api/v1/warehouse/export/${viewName}.${format}`, "_blank");
   };
 
 

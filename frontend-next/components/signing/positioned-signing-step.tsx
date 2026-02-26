@@ -202,10 +202,19 @@ export function PositionedSigningStep({
         const firstIncomplete = findNextIncompleteField();
         if (firstIncomplete) {
           navigateToField(firstIncomplete);
+        } else {
+          // All fields already complete — navigate to the last field's page so
+          // the signer can review their signatures before clicking Submit
+          const sorted = sortFieldsByReadingOrder(fields);
+          if (sorted.length > 0) {
+            const lastField = sorted[sorted.length - 1];
+            setCurrentPage(lastField.page_number);
+            setTimeout(() => scrollToField(lastField), 300);
+          }
         }
       }, 500);
     }
-  }, [findNextIncompleteField, navigateToField]);
+  }, [findNextIncompleteField, navigateToField, fields, scrollToField]);
 
   const onDocumentLoadError = useCallback((error: Error) => {
     console.error("Failed to load PDF:", error);
@@ -604,8 +613,12 @@ export function PositionedSigningStep({
 
       {/* Submit button */}
       {allRequiredComplete && (
-        <div className="mt-4 flex justify-end">
-          <Button onClick={submitSignature} disabled={isSubmitting} size="lg">
+        <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center justify-between">
+          <div>
+            <p className="font-medium text-green-800 dark:text-green-300">All fields completed</p>
+            <p className="text-sm text-green-600 dark:text-green-400">Review the document above, then submit when ready.</p>
+          </div>
+          <Button onClick={submitSignature} disabled={isSubmitting} size="lg" className="bg-green-600 hover:bg-green-700 text-white">
             {isSubmitting ? (
               <>
                 <Spinner size={16} className="mr-2" />
