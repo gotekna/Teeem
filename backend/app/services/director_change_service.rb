@@ -176,6 +176,17 @@ class DirectorChangeService
     end
   end
 
+  # Pre-calculate total document count for progress tracking.
+  # Public because BpmnTasks::DirectorChangeTask calls this externally.
+  def document_count
+    count = 1 # Minutes
+    count += ceasing_directors.sum { |cd| cd[:positions].size } # Resignations
+    count += new_appointments.sum { |appt| appt[:positions].size } # Consents
+    count += 1 if ceasing_directors.present? # Form 484 cessation
+    count += 1 if new_appointments.present? # Form 484 appointment
+    count
+  end
+
   private
 
   # Resolve the Form 484 document type from the "ASIC" warehouse folder.
@@ -247,16 +258,6 @@ class DirectorChangeService
     end
 
     documents
-  end
-
-  # Pre-calculate total document count for progress tracking
-  def document_count
-    count = 1 # Minutes
-    count += ceasing_directors.sum { |cd| cd[:positions].size } # Resignations
-    count += new_appointments.sum { |appt| appt[:positions].size } # Consents
-    count += 1 if ceasing_directors.present? # Form 484 cessation
-    count += 1 if new_appointments.present? # Form 484 appointment
-    count
   end
 
   def render_resignation(cd_data)
