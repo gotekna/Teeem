@@ -9,10 +9,13 @@
 # in case the previous migration (20260226110000) couldn't find it.
 class FixQuoteReturnsWarehouseEnabled < ActiveRecord::Migration[8.0]
   def up
-    # Enable warehouse storage on all Quote Returns folders (all tenants)
+    # Enable warehouse storage and set folder_segment on all Quote Returns folders.
+    # folder_segment is needed so hierarchy_path shows "Job/Jobs/Quote Returns"
+    # instead of "Job/Jobs" (same as parent), which makes the folder picker display wrong.
     execute(<<-SQL.squish)
       UPDATE warehouse_folders
-      SET warehouse_enabled = true
+      SET warehouse_enabled = true,
+          folder_segment = 'Quote Returns'
       WHERE tab_key = 'quote-returns'
     SQL
 

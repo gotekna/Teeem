@@ -257,6 +257,8 @@ class ESignaturePdfStamper
       stamp_comment_field(page, field, x, y, width, height)
     when "yes_no"
       stamp_yes_no_field(page, field, x, y, width, height)
+    when "signer_name", "signer_initials"
+      stamp_text_field(page, field, x, y, width, height)
     end
   end
 

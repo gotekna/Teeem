@@ -41,7 +41,9 @@ export type AnnotationTool =
   | "date_field"
   | "text_field"
   | "comment_field"
-  | "yes_no_field";
+  | "yes_no_field"
+  | "signer_name_field"
+  | "signer_initials_field";
 
 export interface ToolbarProps {
   currentTool: AnnotationTool;
@@ -119,7 +121,7 @@ export interface Signer {
 /**
  * Field types that can be placed on a document for signing
  */
-export type SignatureFieldType = "signature" | "initials" | "date" | "text" | "comment" | "yes_no";
+export type SignatureFieldType = "signature" | "initials" | "date" | "text" | "comment" | "yes_no" | "signer_name" | "signer_initials";
 
 /**
  * A signature field placed on a PDF page
@@ -170,4 +172,6 @@ export const DEFAULT_FIELD_DIMENSIONS: Record<SignatureFieldType, { width: numbe
   text: { width: 25, height: 4 },
   comment: { width: 30, height: 12 },
   yes_no: { width: 12, height: 4 },
+  signer_name: { width: 20, height: 4 },
+  signer_initials: { width: 8, height: 4 },
 };

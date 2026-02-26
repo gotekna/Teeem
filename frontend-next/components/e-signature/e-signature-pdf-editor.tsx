@@ -26,6 +26,8 @@ import {
   TextCursor,
   MessageSquare,
   ToggleLeft,
+  User,
+  CaseSensitive,
   Trash2,
   GripVertical,
 } from "lucide-react";
@@ -68,7 +70,15 @@ const FIELD_TOOLS: { type: SignatureFieldType; icon: React.ReactNode; label: str
   { type: "text", icon: <TextCursor className="h-4 w-4" />, label: "Text" },
   { type: "comment", icon: <MessageSquare className="h-4 w-4" />, label: "Comment" },
   { type: "yes_no", icon: <ToggleLeft className="h-4 w-4" />, label: "Yes/No" },
+  { type: "signer_name", icon: <User className="h-4 w-4" />, label: "Name" },
+  { type: "signer_initials", icon: <CaseSensitive className="h-4 w-4" />, label: "Initials (auto)" },
 ];
+
+const FIELD_LABELS: Partial<Record<SignatureFieldType, string>> = {
+  signer_name: "Signer Name",
+  signer_initials: "Initials",
+  yes_no: "Yes/No",
+};
 
 export function ESignaturePdfEditor({
   url,
@@ -310,7 +320,7 @@ export function ESignaturePdfEditor({
         >
           {FieldIcon}
           <span className="truncate max-w-[60%]">
-            {field.label || field.type}
+            {field.label || FIELD_LABELS[field.type] || field.type}
           </span>
         </div>
 

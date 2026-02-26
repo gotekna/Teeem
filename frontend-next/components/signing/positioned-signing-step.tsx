@@ -40,6 +40,8 @@ import {
   ToggleLeft,
   ThumbsUp,
   ThumbsDown,
+  User,
+  CaseSensitive,
   ChevronLeft,
   ChevronRight,
   ZoomIn,
@@ -66,7 +68,7 @@ if (typeof window !== "undefined") {
 
 interface SignatureField {
   id: number;
-  field_type: "signature" | "initials" | "date" | "text" | "comment" | "yes_no";
+  field_type: "signature" | "initials" | "date" | "text" | "comment" | "yes_no" | "signer_name" | "signer_initials";
   page_number: number;
   x_percent: number;
   y_percent: number;
@@ -98,6 +100,8 @@ const FIELD_ICONS: Record<string, typeof PenLine> = {
   text: TextCursor,
   comment: MessageSquare,
   yes_no: ToggleLeft,
+  signer_name: User,
+  signer_initials: CaseSensitive,
 };
 
 export function PositionedSigningStep({
@@ -188,6 +192,17 @@ export function PositionedSigningStep({
 
         // Show dialog after scroll animation
         setTimeout(() => {
+          // Auto-fill name/initials fields silently (no dialog)
+          if (field.field_type === "signer_name") {
+            completeField(field.id, signerName);
+            return;
+          }
+          if (field.field_type === "signer_initials") {
+            const initials = signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
+            completeField(field.id, initials);
+            return;
+          }
+
           setSelectedField(field);
           if (field.field_type === "signature") {
             if (savedSignatureRef.current) {
@@ -205,8 +220,25 @@ export function PositionedSigningStep({
         }, 400);
       }, 200);
     },
-    [scrollToField]
+    [scrollToField, signerName, completeField]
   );
+
+  // Auto-complete signer_name and signer_initials fields (no user interaction needed)
+  const autoCompleteNameFields = useCallback(async () => {
+    const autoFields = fields.filter(
+      (f) => !f.completed && (f.field_type === "signer_name" || f.field_type === "signer_initials")
+    );
+    for (const field of autoFields) {
+      const value = field.field_type === "signer_name"
+        ? signerName
+        : signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
+      try {
+        await completeField(field.id, value);
+      } catch {
+        // Silently continue - field will remain for manual completion
+      }
+    }
+  }, [fields, signerName, completeField]);
 
   // Auto-open the first incomplete field once the PDF is loaded
   const onDocumentLoadSuccess = useCallback(({ numPages: pages }: { numPages: number }) => {
@@ -217,7 +249,10 @@ export function PositionedSigningStep({
     if (!hasAutoOpened.current) {
       hasAutoOpened.current = true;
       // Small delay so PDF dimensions are available
-      setTimeout(() => {
+      setTimeout(async () => {
+        // Auto-fill name/initials fields first
+        await autoCompleteNameFields();
+
         const firstIncomplete = findNextIncompleteField();
         if (firstIncomplete) {
           navigateToField(firstIncomplete);
@@ -233,7 +268,7 @@ export function PositionedSigningStep({
         }
       }, 500);
     }
-  }, [findNextIncompleteField, navigateToField, fields, scrollToField]);
+  }, [findNextIncompleteField, navigateToField, fields, scrollToField, autoCompleteNameFields]);
 
   const onDocumentLoadError = useCallback((error: Error) => {
     console.error("Failed to load PDF:", error);
@@ -262,6 +297,18 @@ export function PositionedSigningStep({
   // Handle field click - if signature already captured, show confirm; otherwise full capture
   const handleFieldClick = (field: SignatureField) => {
     if (field.completed) return;
+
+    // Auto-fill name/initials fields on click (no dialog needed)
+    if (field.field_type === "signer_name") {
+      completeField(field.id, signerName);
+      return;
+    }
+    if (field.field_type === "signer_initials") {
+      const initials = signerName.split(/\s+/).map((w) => w[0]?.toUpperCase() || "").join("");
+      completeField(field.id, initials);
+      return;
+    }
+
     setSelectedField(field);
 
     if (field.field_type === "signature") {

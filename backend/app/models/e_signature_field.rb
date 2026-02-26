@@ -10,7 +10,7 @@
 #
 class ESignatureField < ApplicationRecord
   # Field types that can be placed on a document
-  FIELD_TYPES = %w[signature initials date text comment yes_no].freeze
+  FIELD_TYPES = %w[signature initials date text comment yes_no signer_name signer_initials].freeze
 
   # Default date format for date fields
   DEFAULT_DATE_FORMAT = "%d/%m/%Y".freeze
@@ -47,6 +47,8 @@ class ESignatureField < ApplicationRecord
   scope :texts, -> { where(field_type: "text") }
   scope :comments, -> { where(field_type: "comment") }
   scope :yes_nos, -> { where(field_type: "yes_no") }
+  scope :signer_names, -> { where(field_type: "signer_name") }
+  scope :signer_initials_fields, -> { where(field_type: "signer_initials") }
 
   # ==========================================================================
   # Instance Methods
